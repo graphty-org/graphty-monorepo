@@ -129,9 +129,9 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option               | Type                     | Default    | Meaning                                                                                                                                                                     |
-| -------------------- | ------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`zAs`](#import-zas) | `"column" \| "position"` | `"column"` | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
+| Option               | Type                     | Default    |
+| -------------------- | ------------------------ | ---------- |
+| [`zAs`](#import-zas) | `"column" \| "position"` | `"column"` |
 
 - <a id="import-zas"></a>`zAs`: Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position.
 

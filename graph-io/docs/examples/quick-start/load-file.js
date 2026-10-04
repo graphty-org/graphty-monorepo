@@ -13,9 +13,13 @@ input.addEventListener("change", async () => {
         return;
     }
     try {
-        const { snapshot, report } = await loadFromFile(file);
+        const { snapshot, report, sniff } = await loadFromFile(file);
+        // graph-io guessed: the content is not clearly any format, and the file name does not say
+        if (sniff !== null && sniff.content < 0.5 && !sniff.extension) {
+            console.error(`${file.name} does not look like a graph file`);
+            return;
+        }
         if (snapshot.nodeCount === 0) {
-            // catches an empty result only: any text with commas can read as a small CSV graph
             console.error(`${file.name} holds no graph`);
             return;
         }

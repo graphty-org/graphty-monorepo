@@ -1,6 +1,6 @@
 import { checkExport, exportGraphToString, importGraph, listFormats, registry } from "@graphty/graph-io";
 
-import { pairsExporter, pairsImporter, type PairsOptions } from "./pairs-format.js";
+import { type PairsExportOptions, pairsExporter, pairsImporter } from "./pairs-format.js";
 
 registry.registerImporter(pairsImporter).registerExporter(pairsExporter);
 
@@ -13,8 +13,8 @@ const { snapshot, format, report } = await importGraph(text);
 console.log(`${format}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
 console.log(report.issues.map((i) => `${i.code} line ${i.line}`));
 
-// The plugin's own options go in the same object; `satisfies` checks their names
-const csvStyle = { separator: "," } satisfies PairsOptions;
+// The plugin's own options go in the same object; the options type checks their names
+const csvStyle: PairsExportOptions = { separator: "," };
 const written = await exportGraphToString(snapshot, "pairs", csvStyle);
 console.log(written);
 

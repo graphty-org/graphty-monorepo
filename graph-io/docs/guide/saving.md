@@ -84,6 +84,16 @@ Pass the same options object to `checkExport()` and to the export function. The 
 the options: with `sanitizeIds: "mangle"` the `E_ID_CHARSET` note becomes `W_ID_MANGLED`, because
 the ids are now rewritten instead of refused.
 
+Two notes say that the values are kept and only their meaning is lost, which most readers of the
+file will not notice:
+
+- `W_ROLE_DROPPED`: the column is written as an ordinary attribute, under its own name, and reads
+  back with all its values. What is lost is the mark that says what it is, so `byRole()` does not
+  find it. A label column saved as node-link JSON reads back as an attribute called `label`, and
+  `byRole("label")` is `null`; read it with `snapshot.nodes.get("label")`.
+- `W_COLUMN_NAME_CHANGED`: the column is written in the format's own place for it, and reads back
+  under the format's name for that place. A `Label` column saved as GraphML reads back as `label`.
+
 The meaning of every code is listed on [Issue and loss codes](./codes.md), and each format page
 lists the codes that format can return. A format's own `check()` method, such as
 `csvExporter.check(snapshot, options)`, returns the same notes as
@@ -99,6 +109,9 @@ format:
 | `E_ID_CHARSET`, `E_ID_TEXT_COLLISION`      | `E_INVALID_ID`                                                                                        |
 | `E_MIXED_DIRECTION`                        | `E_DIRECTED`                                                                                          |
 | `E_XML_ILLEGAL_CHAR` and other value notes | `E_COLUMN_TYPE` or `E_UNSUPPORTED`; the note's entry on [Issue and loss codes](./codes.md) says which |
+
+The error's `details` holds the note that caused it: `err.details.code` is the note's code (such as
+`"E_ID_CHARSET"`), and `err.details.column` and `err.details.count` are the note's.
 
 An option value the format does not allow is not a note: `checkExport()` throws it as
 `E_UNSUPPORTED`, the same as the save would, with the option's name in `err.details.option`. A load
@@ -220,9 +233,12 @@ graph [
 <!-- generated:end -->
 
 GraphML, GEXF, CSV, Pajek, XGMML, Cytoscape sessions and the JGF and graphology JSON dialects keep
-mixed direction, so they need no option. The `mixedDirection` column of the
+mixed direction, so they need no option, and they ignore `onMixedDirection`: they write each edge
+with its own direction whatever you pass. The `mixedDirection` column of the
 [What each writer keeps](./formats/index.md#what-each-writer-keeps) table shows this for every
-format and JSON dialect.
+format and JSON dialect. To give a downstream tool a graph of one direction in one of these
+formats, read the file with the import option `onMixedDirection: "undirected"` (or `"directed"`),
+which makes every edge that direction, and save that graph.
 
 ## Format options
 
@@ -270,16 +286,64 @@ graph [
 One options object can serve several formats. The common options (`sanitizeIds`,
 `onMixedDirection`) mean the same everywhere, an option only one of the formats has is ignored by
 the others, and `indent` takes a number of spaces or the indentation text in both JSON and DOT.
-`dialect` is the exception: it picks a variant of the format, CSV and JSON each have their own
-list, and a value from the other list makes `checkExport()` and the save throw `E_UNSUPPORTED`
-with the option's name in `err.details.option`.
+`dialect` picks a variant of CSV (`"gephi"`, `"generic"`) and of JSON (`"d3"`, `"jgf"` and the
+others); each of the two ignores the other's values. A shared object that saves to GML should also
+set `sanitizeKeys: "mangle"`, because GML attribute names cannot hold spaces (`Edge Label`), which
+no other format minds. This saves a graph in every format with one object and reads each file
+back:
+
+<!-- generated:begin example:saving/shared-options -->
+
+```ts
+import { readFile } from "node:fs/promises";
+
+import { exportGraphToBytes, importGraph, listFormats } from "@graphty/graph-io";
+
+const { snapshot } = await importGraph(await readFile("got-network.graphml"), { filename: "got-network.graphml" });
+
+// one object for saves to every format
+const options = { sanitizeIds: "mangle", sanitizeKeys: "mangle", onMixedDirection: "directed" } as const;
+
+const counts: string[] = [];
+for (const { format } of listFormats().filter((f) => f.canExport)) {
+    const back = await importGraph(await exportGraphToBytes(snapshot, format, options), { format });
+    counts.push(`${format} ${back.snapshot.nodeCount}/${back.snapshot.edgeCount}`);
+}
+console.log(counts.join(", "));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:saving/shared-options -->
+
+```text
+json 107/352, graphml 107/352, gexf 107/352, csv 107/352, gml 107/352, dot 107/352, pajek 107/352, neo4j 107/352, xgmml 107/352, cx2 107/352, cx 107/352, obo 107/352, cys 107/352
+```
+
+<!-- generated:end -->
 
 The same holds for import options shared across formats, with one trap: `weightFrom` names the
-attribute that holds the weights, and an attribute no edge has is not an error. GML and Pajek keep
-their weights in `value`, so a shared object with `weightFrom: "weight"` reads their files without
-weights. Leave `weightFrom` out of a shared object, so each format reads its own default. A shared
-import object can spell out the other defaults; [Options](./options.md#every-importer) says which
-options still add a `W_OPTION_IGNORED` warning for a format that does not read them.
+attribute that holds the weights. GML and Pajek keep their weights in `value`, so a shared object
+with `weightFrom: "weight"` reads their files without weights, and the report says so with
+`W_WEIGHT_NOT_FOUND`. Leave `weightFrom` out of a shared object, so each format reads its own
+default. A shared import object can spell out the other defaults;
+[Options](./options.md#every-importer) says which options still add a `W_OPTION_IGNORED` warning
+for a format that does not read them.
+
+### Options to pass again when you read a file back
+
+A file does not record the options it was written with. When you read back a file graph-io wrote,
+pass these import options, or the graph differs from the one you saved:
+
+| Saved as                                                                              | Read it back with                                                                         |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| CSV with `delimiter`                                                                  | the same `delimiter`                                                                      |
+| CSV with `dialect: "generic"`, or of a graph with no edges                            | `defaultDirected: false` for an undirected graph: such a file has no `Type` column to say |
+| CSV, nodes and edges                                                                  | two saves, one with `table: "nodes"`; read them with `nodes: <the node table>`            |
+| Neo4j CSV with `weightColumn: "x"`                                                    | `weightFrom: "x"`                                                                         |
+| Neo4j CSV with `delimiter`, `arrayDelimiter` or `quote`                               | the same three options                                                                    |
+| JSON with `sourceKey`, `targetKey`, `edgesKey` or `nodeIdKey`                         | the same options                                                                          |
+| a graph read with `weightFrom` naming a column the format does not mark as the weight | the same `weightFrom`                                                                     |
 
 ## Large graphs: stream to a file
 

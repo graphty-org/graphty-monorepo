@@ -80,8 +80,12 @@ graph-io repository under `graph-io/docs/samples/` for working offline.
   pointing up; further views as `position@2`, ...), and the view's per-element visual values in the
   `graphics` column. Cytoscape 2 sessions: one XGMML file per network, with the selection and hidden
   state in `cytoscape.selected` and `cytoscape.hidden`.
-- A table's `name` column is the label, as Cytoscape shows it, and a network's `weight` edge column
-  is the weight.
+- Node ids are Cytoscape's SUIDs, as text: in a session Cytoscape saved, the first node's id is
+  something like `"21"`. A table's `name` column, the name Cytoscape shows, is the label
+  (`byRole("label")`), and a network's `weight` edge column is the weight. A session that graph-io
+  saved with `sanitizeIds: "mangle"` gives back the graph's original ids instead. To match the
+  nodes against other data by name, read the label column: the `nodeIdFrom` option does not apply
+  to sessions.
 - Groups become a parent column; the members of a collapsed group are listed in
   `snapshot.meta.extra.cytoscape.groups`.
 - Styles are not applied (`W_STYLES_NOT_IMPORTED`). Apps, properties and images in the archive are
@@ -105,8 +109,7 @@ What does not survive:
   its `name` and `shared name` columns. So the node ids of a graph you save must be positive
   integers, which become the SUIDs. Other ids need `sanitizeIds: "mangle"`, which numbers the nodes
   and keeps the originals in a `graphty:originalId` column; graph-io restores them.
-- graph-io reads a session's node ids from the `name` column, which is text, so number ids read
-  back as text (`W_ID_TEXT_TYPE`).
+- Number ids read back as text (`W_ID_TEXT_TYPE`), because a session stores ids as text.
 - Cytoscape's tables have no empty text cell, so a text cell with no value reads back as `""`
   (`W_CYS_UNSET_AS_EMPTY_STRING`).
 - List cells are joined with line breaks (`W_CYS_LIST_ITEMS`), JSON values are written as text
@@ -157,10 +160,10 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 These come on top of the [options every importer takes](../options.md#every-importer).
 A file can hold several graphs: pick one with the `graphIndex` or `graphName` option of [importGraph()](../options.md#importgraph-and-importallgraphs), as [Files that hold several graphs](../loading.md#files-that-hold-several-graphs) shows.
 
-| Option                                                 | Type                     | Default      | Meaning                                                                                                                                                                     |
-| ------------------------------------------------------ | ------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`zAs`](#import-zas)                                   | `"column" \| "position"` | `"column"`   | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
-| [`maxUncompressedBytes`](#import-maxuncompressedbytes) | `number`                 | `2147483648` | The most bytes one import may unpack from the session archive, in total (2 GiB).                                                                                            |
+| Option                                                 | Type                     | Default      |
+| ------------------------------------------------------ | ------------------------ | ------------ |
+| [`zAs`](#import-zas)                                   | `"column" \| "position"` | `"column"`   |
+| [`maxUncompressedBytes`](#import-maxuncompressedbytes) | `number`                 | `2147483648` |
 
 - <a id="import-zas"></a>`zAs`: Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position.
 - <a id="import-maxuncompressedbytes"></a>`maxUncompressedBytes`: The most bytes one import may unpack from the session archive, in total (2 GiB). A file that would unpack to more, or one compressed more than 1000 to 1, fails with `E_TOO_LARGE`.
@@ -218,7 +221,7 @@ The codes this format's import report can hold. They are also exported as `CYS_I
 - `E_AMBIGUOUS_GRAPH_NAME` (error): `graphName` matches several networks in the session. The import stops.
 - `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.
-- `W_ID_MERGED` (warning): Two different id texts became the same number because `ids` is "number" ("042" and "42", say), so their nodes were merged.
+- `W_ID_MERGED` (warning): Two different id texts became the same number because `ids` is "number" (for example, "042" and "42"), so their nodes were merged.
 - `W_OPTION_IGNORED` (warning): You set an option this format does not use; it had no effect. The message names the option.
 - `W_SINK_OPTION` (warning): You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
 - `W_DIRECTION_REFUSED` (warning): You read into a graph builder that already holds edges (or whose direction is locked), and its direction differs from the file's, so the file is read with the builder's direction. A builder without edges takes the file's direction.
@@ -248,8 +251,8 @@ The codes `checkExport(snapshot, "cys", options)` can return before a save, also
 - `W_CYS_TEXT_AS_EQUATION` (warning): A text cell starting with "=" is a formula to Cytoscape (an error cell there); graph-io reads it back as text.
 - `W_CYS_JSON_AS_STRING` (warning): A nested (json) column is written as a text column holding its JSON text.
 - `W_CYS_POSITION` (warning): A position that cannot be written as it is: another shape, a non-finite coordinate, a z read back in the z column.
-- `W_COLUMN_NAME_CHANGED` (warning): An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the name the format's importer gives it.
-- `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads back with that role.
+- `W_COLUMN_NAME_CHANGED` (warning): An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the name the format's importer gives it.
+- `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and reads back with that role.
 - `W_MUTUAL_EXPANDED` (warning): A mutual pair is written as two directed edges without its mark.
 - `W_ID_TEXT_TYPE` (warning): Node ids that are numbers read back as their text.
 - `E_ID_TEXT_COLLISION` (error, the save throws): Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with `E_INVALID_ID`.

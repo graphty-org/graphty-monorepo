@@ -1,3 +1,6 @@
 dot: 2 nodes
+csv: 3 nodes
 the input is not in a graph format graph-io recognizes; if you know its format, pass it as the format option
+the input is not in a graph format graph-io recognizes; if you know its format, pass it as the format option
+this looks like plain text, not a graph; choose its format if it is one
 read as csv, but: 1 field, expected 2

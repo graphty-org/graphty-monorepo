@@ -10,8 +10,9 @@
   two files.
 - In Cytoscape: CX2 or XGMML to add a network to an open session, a Cytoscape session to hand over
   a whole session, and CX2 for NDEx. CX, CX2 and session node ids are integers, so pass
-  `sanitizeIds: "mangle"` when you save a graph with text ids, including one you read from a
-  session or a CX file, whose ids come back as the original names.
+  `sanitizeIds: "mangle"` when you save a graph with text ids. A graph read back from such a file
+  that graph-io wrote gets its original ids back; one that Cytoscape wrote has its integer ids, with
+  the node names as labels.
 - In Neo4j: Neo4j CSV, written with `exportNeo4jFiles()` and loaded with
   `neo4j-admin database import`; see [Files for neo4j-admin](./neo4j.md#files-for-neo4j-admin).
 - Ontologies: OBO, or the `obographs` dialect of JSON.
@@ -23,7 +24,7 @@
 
 graph-io reads and writes every format below. The first table lists them; the second shows what a
 saved file of each format can hold, with one row per JSON dialect. A capability every format has
-the same value for (none of them writes connected components, say) has no column there; each
+the same value for (for example, none of them writes connected components) has no column there; each
 format page lists all of them. When a graph holds
 something a format cannot, `checkExport()` tells you before you save; see
 [Saving graphs](../saving.md).

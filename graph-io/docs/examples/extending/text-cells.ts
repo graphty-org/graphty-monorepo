@@ -1,5 +1,4 @@
-import { GraphBuilder } from "@graphty/graph-format";
-import { ImportReportBuilder, TextCellWriter } from "@graphty/graph-io";
+import { GraphBuilder, ImportReportBuilder, TextCellWriter } from "@graphty/graph-io";
 
 // In an importer, `sink` and `report` are the ones import() works with
 const sink = new GraphBuilder({ directed: false });

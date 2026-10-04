@@ -1,10 +1,10 @@
 import { isAbortError, loadFromUrl } from "@graphty/graph-io";
+import { useEffect, useState } from "react";
 
 const GOT =
     "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml";
 
-// Load a graph and return the function that cancels the load: the shape a React effect's
-// cleanup takes, so a component that unmounts or changes its URL stops the old load.
+// Load a graph and return the function that cancels the load: the shape a React effect's cleanup takes
 function watchGraph(url, onGraph, onError) {
     const controller = new AbortController();
     loadFromUrl(url, { signal: controller.signal }).then(
@@ -18,10 +18,25 @@ function watchGraph(url, onGraph, onError) {
     return () => controller.abort();
 }
 
-// In a component: useEffect(() => watchGraph(url, setSnapshot, setError), [url]);
-const stop = watchGraph(GOT, () => console.log("never printed"), console.error);
-stop(); // the URL changed before the load finished: this load is cancelled quietly
+// The graph at `url`, for a component. A new URL, or the component going away, cancels the old load.
+export function useGraph(url) {
+    const [snapshot, setSnapshot] = useState(null); // in TypeScript: useState<GraphSnapshot | null>(null)
+    const [error, setError] = useState(null);
+    useEffect(() => watchGraph(url, setSnapshot, setError), [url]);
+    return { snapshot, error };
+}
 
+// export function GraphSummary({ url }) {
+//     const { snapshot, error } = useGraph(url);
+//     if (error) {
+//         return <p>Could not load the graph: {error.message}</p>;
+//     }
+//     return <p>{snapshot ? `${snapshot.nodeCount} nodes` : "Loading..."}</p>;
+// }
+
+// What the effect does outside React: a load cancelled before it finishes reports nothing
+const stop = watchGraph(GOT, () => console.log("never printed"), console.error);
+stop();
 await new Promise((done) => {
     watchGraph(GOT, (snapshot) => done(console.log(`loaded ${snapshot.nodeCount} nodes`)), console.error);
 });

@@ -33,9 +33,15 @@ import {
 //   alice bob 2.5
 //   bob carol
 
-/** The format's own options, for reading and writing. */
-export interface PairsOptions {
+/** The format's own import options, next to the ones every importer takes, as the built-in formats declare them. */
+export interface PairsImportOptions extends CommonImportOptions {
     /** The character between the ids and the weight of an edge line; whitespace by default. */
+    separator?: string | undefined;
+}
+
+/** The format's own export options, next to the ones every exporter takes. */
+export interface PairsExportOptions extends CommonExportOptions {
+    /** The character written between the ids and the weight of an edge line; a space by default. */
     separator?: string | undefined;
 }
 
@@ -61,7 +67,7 @@ const USED = new Set<keyof CommonImportOptions>(["ids", "defaultDirected", "onMi
  * @param options - the caller's options
  * @returns the separator, or null for whitespace
  */
-function separatorOf(options: PairsOptions | undefined): string | null {
+function separatorOf(options: { separator?: string | undefined } | undefined): string | null {
     const separator = options?.separator;
     if (separator === undefined) {
         return null;
@@ -76,10 +82,11 @@ function separatorOf(options: PairsOptions | undefined): string | null {
     return separator;
 }
 
-export const pairsImporter: GraphImporter<PairsOptions> = {
+export const pairsImporter: GraphImporter<PairsImportOptions> = {
     format: "pairs",
     extensions: [".pairs"],
     mimeTypes: ["text/x-pairs"],
+    options: ["separator"], // so a misspelled option is reported as W_UNKNOWN_OPTION
 
     sniff(head) {
         // only a file that starts with the direction line is recognized by its content
@@ -173,7 +180,7 @@ const PAIRS_CAPABILITIES = capabilities({
  * @param options - the export options
  * @returns the loss notes; any E_ note makes export() throw
  */
-function check(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOptions): LossNote[] {
+function check(snapshot: GraphSnapshot, options?: PairsExportOptions): LossNote[] {
     const notes = checkCapabilities(snapshot, PAIRS_CAPABILITIES, resolveExportOptions(options), {
         attributes: false, // the format writes no attributes...
         roles: new Set(["label"]), // ...except the node label, which it has a place for
@@ -220,7 +227,7 @@ function check(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOpt
  * @param options - the export options
  * @yields one line at a time
  */
-function* lines(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOptions): Generator<string> {
+function* lines(snapshot: GraphSnapshot, options?: PairsExportOptions): Generator<string> {
     // throw for an E_ note before writing anything: E_INVALID_ID for ids, E_DIRECTED for direction, ...
     const refused = refusedSave(check(snapshot, options), REFUSALS);
     if (refused !== null) {
@@ -248,10 +255,11 @@ function* lines(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOp
     }
 }
 
-export const pairsExporter: GraphExporter<PairsOptions> = {
+export const pairsExporter: GraphExporter<PairsExportOptions> = {
     format: "pairs",
     extensions: [".pairs"],
     mimeTypes: ["text/x-pairs"],
+    options: ["separator"],
     capabilities: PAIRS_CAPABILITIES,
     check,
     export: (snapshot, options) => encodeChunks(lines(snapshot, options)),

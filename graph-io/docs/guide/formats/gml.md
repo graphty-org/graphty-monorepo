@@ -101,7 +101,7 @@ What does not survive:
   null (`W_GML_RECORD_NUMBER_TYPE` and related notes).
 - Edge ids are kept; time columns, visual columns other than the position, and nesting are not.
 - The graph's name is written only from a `name` graph attribute, which a GML import has. A name
-  from another format (`snapshot.meta.name` of a DOT graph, say) is not written.
+  from another format (for example, `snapshot.meta.name` of a DOT graph) is not written.
 
 <!-- generated:begin capabilities:gml -->
 
@@ -135,10 +135,10 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 These come on top of the [options every importer takes](../options.md#every-importer).
 A file can hold several graphs: pick one with the `graphIndex` or `graphName` option of [importGraph()](../options.md#importgraph-and-importallgraphs), as [Files that hold several graphs](../loading.md#files-that-hold-several-graphs) shows.
 
-| Option                                 | Type      | Default | Meaning                                                                                                                                                        |
-| -------------------------------------- | --------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`positions`](#import-positions)       | `boolean` | `true`  | Read a node's `graphics [ x y z ]` record as its position; false keeps the whole record as a JSON attribute named `graphics`.                                  |
-| [`dictionaries`](#import-dictionaries) | `boolean` | `true`  | Store a text attribute whose values repeat a lot (fewer distinct values than half the rows) as a dictionary column, which uses less memory and reads the same. |
+| Option                                 | Type      | Default |
+| -------------------------------------- | --------- | ------- |
+| [`positions`](#import-positions)       | `boolean` | `true`  |
+| [`dictionaries`](#import-dictionaries) | `boolean` | `true`  |
 
 - <a id="import-positions"></a>`positions`: Read a node's `graphics [ x y z ]` record as its position; false keeps the whole record as a JSON attribute named `graphics`.
 - <a id="import-dictionaries"></a>`dictionaries`: Store a text attribute whose values repeat a lot (fewer distinct values than half the rows) as a dictionary column, which uses less memory and reads the same. Such a column reports `meta.dtype` "dict" instead of "string". A column with a role, such as the `label` column, always stays "string".
@@ -147,13 +147,13 @@ A file can hold several graphs: pick one with the `graphIndex` or `graphName` op
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                                 | Type                  | Default               | Meaning                                                                                                                                                                                                                                                                                                                     |
-| -------------------------------------- | --------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`weightKey`](#export-weightkey)       | `string`              | as read, else "value" | The edge key the weights are written under.                                                                                                                                                                                                                                                                                 |
-| [`sanitizeKeys`](#export-sanitizekeys) | `"error" \| "mangle"` | `"error"`             | What to do with an attribute name or record key that GML cannot write (GML keys are `[A-Za-z][0-9A-Za-z_]*`, and `id`, `source`, `target` and the like are taken): "error" makes the save fail, "mangle" rewrites it (`.` and other characters become `_`, a clash gets a `_2` suffix) and checkExport() lists each rename. |
+| Option                                 | Type                  | Default               |
+| -------------------------------------- | --------------------- | --------------------- |
+| [`weightKey`](#export-weightkey)       | `string`              | as read, else "value" |
+| [`sanitizeKeys`](#export-sanitizekeys) | `"error" \| "mangle"` | `"error"`             |
 
 - <a id="export-weightkey"></a>`weightKey`: The edge key the weights are written under. The default is the key a GML import read them from, else `value`.
-- <a id="export-sanitizekeys"></a>`sanitizeKeys`: What to do with an attribute name or record key that GML cannot write (GML keys are `[A-Za-z][0-9A-Za-z_]*`, and `id`, `source`, `target` and the like are taken): "error" makes the save fail, "mangle" rewrites it (`.` and other characters become `_`, a clash gets a `_2` suffix) and checkExport() lists each rename.
+- <a id="export-sanitizekeys"></a>`sanitizeKeys`: What to do with an attribute name or record key that GML cannot write: one that is not a GML key (letters, digits and `_`, starting with a letter, so `Edge Label` is not one), or one that GML uses itself in that record: `id` for a node attribute; `source`, `target` and `directed` for an edge attribute; `node`, `edge`, `directed` and `multigraph` for a graph attribute. A node attribute named `source` is fine. "error" makes the save fail, "mangle" rewrites the name (`.` and other characters become `_`, a clash gets a `_2` suffix) and checkExport() lists each rename. An options object shared by saves to several formats that include GML should set it.
 
 ## Import issue codes
 

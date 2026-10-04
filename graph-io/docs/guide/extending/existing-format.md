@@ -58,7 +58,14 @@ hides those lines from the CSV importer and hands it the table. Save this as `ne
 <!-- generated:begin example:extending/netscope -->
 
 ```ts
-import { type GraphImporter, ImportReportBuilder, readText, registry, resolveImportOptions } from "@graphty/graph-io";
+import {
+    forDecodedText,
+    type GraphImporter,
+    ImportReportBuilder,
+    readText,
+    registry,
+    resolveImportOptions,
+} from "@graphty/graph-io";
 import { csvImporter, type CsvImportOptions } from "@graphty/graph-io/csv";
 
 // NetScope writes a CSV edge table after a few lines about the instrument:
@@ -102,10 +109,8 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
             );
         }
 
-        // The CSV importer reads the table; its issues and counts join this report
-        report.include(
-            await csvImporter.import(table, sink, { ...options, onProgress: undefined, encoding: undefined }),
-        );
+        // The CSV importer reads the decoded table; its issues and counts join this report
+        report.include(await csvImporter.import(table, sink, forDecodedText(options)));
         return report.finish();
     },
 };
@@ -159,8 +164,9 @@ the content with more confidence.
 `readText()` decodes the input with the same rules as every built-in format (byte order mark,
 `encoding` option, UTF-8, windows-1252 fallback), so the wrapper handles bytes and streams, not
 only strings. It records what it noticed, such as `W_ENCODING_FALLBACK`, in the wrapper's report,
-and reports the reading progress. The CSV importer then reads a string that is already decoded, so
-the wrapper passes it neither `encoding` nor `onProgress`.
+and reports the reading progress. The CSV importer then reads a string that is already decoded,
+so the wrapper passes it `forDecodedText(options)`: the caller's options without `encoding` and
+`onProgress`, which would otherwise add a warning and report the progress twice.
 
 The preamble lines are replaced by `#` lines rather than cut off. The CSV importer skips leading
 `#` lines as comments, and every row keeps its line number, so the bad row above is reported on

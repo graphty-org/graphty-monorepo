@@ -142,9 +142,9 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 These come on top of the [options every importer takes](../options.md#every-importer).
 A file can hold several graphs: pick one with the `graphIndex` or `graphName` option of [importGraph()](../options.md#importgraph-and-importallgraphs), as [Files that hold several graphs](../loading.md#files-that-hold-several-graphs) shows.
 
-| Option               | Type                     | Default    | Meaning                                                                                                                                                                     |
-| -------------------- | ------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`zAs`](#import-zas) | `"column" \| "position"` | `"column"` | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
+| Option               | Type                     | Default    |
+| -------------------- | ------------------------ | ---------- |
+| [`zAs`](#import-zas) | `"column" \| "position"` | `"column"` |
 
 - <a id="import-zas"></a>`zAs`: Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position.
 
@@ -220,7 +220,7 @@ The codes `checkExport(snapshot, "cx", options)` can return before a save, also 
 - `W_WEIGHT_KEY_CLASH` (warning): An attribute named `weight` without the weight role reads back as the edge weight, or is not written when the graph has weights of its own.
 - `W_TEMPORAL_DROPPED` (warning): A start / end / timestamp column: CX has no time.
 - `W_ROLE_DROPPED` (warning): An attribute with a role the format has no place for is written as a plain attribute; the role is lost.
-- `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads back with that role.
+- `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and reads back with that role.
 - `W_DTYPE_UNSUPPORTED` (warning): An attribute type CX stores as another (a 32-bit float as double, an unsigned integer as long, a byte as integer, a dictionary as string); it reads back with that type.
 - `W_COMPONENTS_FLATTENED` (warning): A multi-component column (a second view's `position@2`, a vector) is written as a list of doubles.
 - `W_DEFAULT_DROPPED` (warning): A declared default: CX has none.
@@ -228,7 +228,7 @@ The codes `checkExport(snapshot, "cx", options)` can return before a save, also 
 - `E_ID_CHARSET` (error, the save throws): Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with `E_INVALID_ID`. Pass `sanitizeIds: "mangle"` to rewrite them.
 - `W_ID_MANGLED` (warning): Node ids that are not integers under sanitizeIds "mangle": renumbered, originals kept.
 - `W_EDGE_IDS_GENERATED` (warning): Edges without a usable integer id get generated ids.
-- `W_COLUMN_NAME_CHANGED` (warning): An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the name the format's importer gives it.
+- `W_COLUMN_NAME_CHANGED` (warning): An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the name the format's importer gives it.
 - `W_EXTENSION_TABLE_DROPPED` (warning): An extension table other than the `cx:citations` / `cx:supports` tables a CX import creates.
 - `W_NONFINITE_AS_NULL` (warning): A position, stacking order or weight that is NaN or infinite: CX spells no such number there.
 - `W_VIZ_DROPPED` (warning): Visual columns (color, size, shape, thickness roles): CX keeps style as visual properties, not roles.

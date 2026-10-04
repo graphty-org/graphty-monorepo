@@ -136,7 +136,7 @@ What does not survive:
   attributes.
 - JSON values other than points, and dictionary columns, which read back as text.
 - A position or visual column is written as a plain property.
-- The label role. A node label column (the `label` of a GraphML or GEXF file, say) is written as a
+- The label role. A node label column (for example, the `label` of a GraphML or GEXF file) is written as a
   plain property, since Neo4j node labels (`:LABEL`) are types, not display names, and it reads
   back without the role (`W_ROLE_DROPPED`). Read it by name after the round trip.
 - A list item containing the array delimiter (`;` by default; `arrayDelimiter` changes it).
@@ -176,13 +176,13 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option                                     | Type                                                                                                                                                                                                  | Default  | Meaning                                                                                                  |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
-| [`nodes`](#import-nodes)                   | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| readonly (string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array>)[]` |          | More node files, each a string, bytes or a stream with its own header row; read after the main input.    |
-| [`relationships`](#import-relationships)   | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| readonly (string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array>)[]` |          | Relationship files, each a string, bytes or a stream with its own header row; read after the node files. |
-| [`delimiter`](#import-delimiter)           | `string`                                                                                                                                                                                              | detected | The field delimiter, one character (neo4j-admin's `--delimiter`).                                        |
-| [`arrayDelimiter`](#import-arraydelimiter) | `"," \| ";" \| "\|"`                                                                                                                                                                                  | `";"`    | The delimiter inside list values and `:LABEL` cells (neo4j-admin's `--array-delimiter`).                 |
-| [`quote`](#import-quote)                   | `string`                                                                                                                                                                                              | `'"'`    | The quote character, one character (neo4j-admin's `--quote`).                                            |
+| Option                                     | Type                                                                                                                                                                                                  | Default  |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| [`nodes`](#import-nodes)                   | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| readonly (string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array>)[]` |          |
+| [`relationships`](#import-relationships)   | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| readonly (string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array>)[]` |          |
+| [`delimiter`](#import-delimiter)           | `string`                                                                                                                                                                                              | detected |
+| [`arrayDelimiter`](#import-arraydelimiter) | `"," \| ";" \| "\|"`                                                                                                                                                                                  | `";"`    |
+| [`quote`](#import-quote)                   | `string`                                                                                                                                                                                              | `'"'`    |
 
 - <a id="import-nodes"></a>`nodes`: More node files, each a string, bytes or a stream with its own header row; read after the main input.
 - <a id="import-relationships"></a>`relationships`: Relationship files, each a string, bytes or a stream with its own header row; read after the node files.
@@ -194,14 +194,14 @@ These come on top of the [options every importer takes](../options.md#every-impo
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                                     | Type                                  | Default                                                        | Meaning                                                                                                                                                     |
-| ------------------------------------------ | ------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`part`](#export-part)                     | `"nodes" \| "all" \| "relationships"` | `"all"`                                                        | Which tables to write: "all" (the node sections, then the relationship sections), "nodes" or "relationships".                                               |
-| [`delimiter`](#export-delimiter)           | `string`                              | `","`                                                          | The field delimiter, one character.                                                                                                                         |
-| [`arrayDelimiter`](#export-arraydelimiter) | `"," \| ";" \| "\|"`                  | `";"`                                                          | The delimiter inside list values and `:LABEL` cells.                                                                                                        |
-| [`quote`](#export-quote)                   | `string`                              | `'"'`                                                          | The quote character, one character.                                                                                                                         |
-| [`weightColumn`](#export-weightcolumn)     | `null \| string`                      | "weight", or the property a Neo4j import read the weights from | The relationship property that holds the edge weights, written as `<name>:double`; null writes no weights (checkExport() then returns `W_WEIGHTS_DROPPED`). |
-| [`idColumn`](#export-idcolumn)             | `null \| string`                      | `null`                                                         | The property name of the `:ID` column (`<name>:ID`) for nodes that have no id property of their own; null writes a bare `:ID`.                              |
+| Option                                     | Type                                  | Default                                                        |
+| ------------------------------------------ | ------------------------------------- | -------------------------------------------------------------- |
+| [`part`](#export-part)                     | `"nodes" \| "all" \| "relationships"` | `"all"`                                                        |
+| [`delimiter`](#export-delimiter)           | `string`                              | `","`                                                          |
+| [`arrayDelimiter`](#export-arraydelimiter) | `"," \| ";" \| "\|"`                  | `";"`                                                          |
+| [`quote`](#export-quote)                   | `string`                              | `'"'`                                                          |
+| [`weightColumn`](#export-weightcolumn)     | `null \| string`                      | "weight", or the property a Neo4j import read the weights from |
+| [`idColumn`](#export-idcolumn)             | `null \| string`                      | `null`                                                         |
 
 - <a id="export-part"></a>`part`: Which tables to write: "all" (the node sections, then the relationship sections), "nodes" or "relationships".
 - <a id="export-delimiter"></a>`delimiter`: The field delimiter, one character. It must differ from `arrayDelimiter`: with `delimiter: ";"`, also pass `arrayDelimiter: ","` or `"|"`.

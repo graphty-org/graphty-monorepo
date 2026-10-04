@@ -58,8 +58,12 @@ The report has these fields:
 - `errorCount` and `warningCount`: how many issues are errors and how many are warnings.
 - `truncated`: `true` when the import stopped because of the error limit. You only see it on
   `err.report`.
-- `lossy`: parts of the file the snapshot does not hold at all, as `{ code, message, column, count }`
-  notes: hyperedges that were skipped, yEd graphics kept as a JSON tree, and similar.
+- `lossy`: what the import left out of the snapshot or kept in another form, as
+  `{ code, message, column, count }` notes, the same shape `checkExport()` returns for a save. It is
+  empty for most files. It has an entry for JSON hyperedges skipped under `hyperedges: "skip"`,
+  yEd graphics kept as a JSON tree instead of as XML, GML ids not kept under `nodeIdFrom`, and Neo4j
+  `:IGNORE` columns. Parts of a file that graph-io does not read at all, such as the styles of a
+  Cytoscape session, are warnings in `issues` (category `unsupported`) instead.
 - `durationMs`: how long reading took, in milliseconds.
 
 The counts are taken while reading, so the snapshot can hold fewer edges than `counts.edges`. That
@@ -75,21 +79,24 @@ every one of them.
 
 Each issue has:
 
-- `severity`: `"error"` or `"warning"`. An error means something was skipped. A warning means it
-  was kept, but changed or guessed: a value widened to a larger type, two ids merged, an encoding
-  guessed. Errors about a node or an edge as a whole (`E_INVALID_ID`, `E_UNKNOWN_NODE`,
-  `E_MISSING_ENDPOINT`, and `E_INVALID_WEIGHT`, because the weight belongs to the edge) skip that
-  node or edge, and `counts.skippedNodes` or `counts.skippedEdges` counts it. Errors about one
-  attribute value skip only that value; the node or edge is kept without it.
+- `severity`: `"error"` or `"warning"`. An error means something was skipped: a whole node or edge
+  (a node without an id, an edge to a node that does not exist, a CSV row with too few fields, an
+  edge whose weight is not a number), or one attribute value, in which case the node or edge is
+  kept without it. `counts.skippedNodes` and `counts.skippedEdges` count the nodes and edges
+  skipped, and the message says what was. A warning means something was kept, but changed or
+  guessed: a value widened to a larger type, two ids merged, an encoding guessed.
 - `code`: a stable string to switch on. Error codes start with `E_`, warning codes with `W_`.
 - `message`: a sentence in plain English, for people.
 - `line`: the 1-based line in the file, or `null` when the format has no lines (a zip file) or the
   line is not known.
-- `element`: the node id, edge id or attribute name involved, or `null`.
+- `element`: what the issue is about: a node id, an edge id, an attribute name or an option name.
+  An edge without an id of its own is named by its ends, `"a->b"`. It is `null` when the row could
+  not be read far enough to tell, such as a CSV row with the wrong number of fields.
 - `category`: what the issue is about, for errors and warnings alike. `parse-error` means the
   syntax was wrong, `missing-value` that something required was absent, `validation-error` that a
-  value breaks a rule of the format or of an option (an error skips it; a warning keeps it as
-  written, like an id with spaces around it), `unsupported` that the file uses something graph-io
+  value breaks a rule of the format or of an option you passed (an error skips it; a warning keeps
+  it as written, like an id with spaces around it, or reports what the option removed, like
+  `selfLoops: "drop"`), `unsupported` that the file uses something graph-io
   does not represent, `precision` that a number lost precision, `coercion` that a value changed
   type, and `merged` that two elements became one. To decide what to show a user, sort by
   `severity`; the category does not say how serious an issue is.
@@ -116,14 +123,17 @@ must be exactly right. Pass `Infinity` to read as much as possible whatever the 
 
 Some problems stop an import at once, whatever the limit: a file that is not valid in its own
 syntax (unbalanced XML, an unterminated quote in CSV, a JSON syntax error), invalid bytes in the
-file's encoding, an empty file, and a file no format recognizes (`E_UNKNOWN_FORMAT`). These are
-recorded as the last issue of the report, with an `E_` code, and thrown as an `ImportError`.
+file's encoding, an empty input or one that holds only whitespace (`E_EMPTY_INPUT`), and a file no
+format recognizes (`E_UNKNOWN_FORMAT`). These are recorded as the last issue of the report, with an
+`E_` code, and thrown as an `ImportError`.
 
 ## Checking text a user typed or pasted
 
-Text a user pasted can be read as the closest format, often CSV
-([Format detection](./detection.md#content-beats-names) explains why). To accept only input that is
-clearly a graph, check the result as well as catching the error:
+Text that is not a graph usually fails with `E_UNKNOWN_FORMAT`. A few lines of words are the
+exception: "hello world" on two lines has the shape of a CSV edge list, and reads as one
+([Format detection](./detection.md#content-beats-names) explains why). The load result's `sniff`
+says so: its `content` is below 0.5 when no format recognized the text and it was read by its
+shape alone. This function refuses such text, and text that read with errors:
 
 <!-- generated:begin example:report/pasted -->
 
@@ -131,13 +141,17 @@ clearly a graph, check the result as well as catching the error:
 import { GraphFormatError, importGraph } from "@graphty/graph-io";
 
 /**
- * Read text a user pasted, accepting only input that is clearly a graph.
+ * Read text a user pasted, refusing text that only looks like a graph by its shape.
  * @param text - what the user pasted
  * @returns a message for the user
  */
 async function readPasted(text: string): Promise<string> {
     try {
-        const { snapshot, report, format } = await importGraph(text);
+        const { snapshot, report, format, sniff } = await importGraph(text);
+        // content below 0.5: no format recognized the text, it only has the shape of an edge list
+        if (sniff !== null && sniff.content < 0.5) {
+            return `this looks like plain text, not a graph; choose its format if it is one`;
+        }
         if (snapshot.nodeCount === 0 || report.errorCount > 0) {
             return `read as ${format}, but: ${report.issues.map((i) => i.message).join("; ") || "no nodes"}`;
         }
@@ -151,7 +165,10 @@ async function readPasted(text: string): Promise<string> {
 }
 
 console.log(await readPasted("graph { a -- b }"));
+console.log(await readPasted("source,target\na,b\nb,c\n"));
 console.log(await readPasted("Please find the network attached."));
+console.log(await readPasted("hello world"));
+console.log(await readPasted("hello world\ngoodbye world\n"));
 console.log(await readPasted("source,target\na,b\nc\n"));
 ```
 
@@ -161,18 +178,22 @@ console.log(await readPasted("source,target\na,b\nc\n"));
 
 ```text
 dot: 2 nodes
+csv: 3 nodes
 the input is not in a graph format graph-io recognizes; if you know its format, pass it as the format option
+the input is not in a graph format graph-io recognizes; if you know its format, pass it as the format option
+this looks like plain text, not a graph; choose its format if it is one
 read as csv, but: 1 field, expected 2
 ```
 
 <!-- generated:end -->
 
-Pass `format` too when you know which format the user means.
+It also refuses an edge list without a header row, which has the same shape. To accept those, offer
+a format choice next to the text box and pass the user's choice as `format`, which skips detection.
 
 ## When the import stops: ImportError
 
-Everything graph-io throws on purpose is a `GraphFormatError`. `ImportError` is the kind you get
-when the input could not be loaded, and it carries the report:
+Every error graph-io throws is a `GraphFormatError`, except the reason of a cancelled load.
+`ImportError` is the kind you get when the input could not be loaded, and it carries the report:
 
 - `err.code` is always `"E_IMPORT"`.
 - `err.issue` is the issue that stopped the import. Switch on `err.issue?.code`: `"E_FETCH"` for a

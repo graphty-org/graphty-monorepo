@@ -20,28 +20,27 @@ So:
 - a file named `graph.graphml` that is really an HTML error page is refused with `E_UNKNOWN_FORMAT`
   and the message "it is an HTML document (likely an error page saved in place of the file)"
 
-Some formats can only guess from the content. Text whose first lines split into the same number of
-fields on a comma, tab, semicolon or pipe, or into two or three words on spaces, could be a CSV edge
-list, so CSV claims it with low confidence. CSV also claims any input whose MIME type is
-`text/plain` or whose file name ends in `.csv`, `.tsv`, `.edges` or `.edgelist`. So a note saying
-"Dear team, the meeting is on Monday." loads as a CSV graph with 2 nodes and 1 edge, and a `.txt`
-file a user picks can load as an empty graph. A load that does not throw can still hold a
-meaningless graph: when you know the format, pass it, and check `snapshot.nodeCount` and
-`report.issues` after the load.
+Some formats can only guess from the content. Text of two or more lines that split into the same
+number of fields on a comma, tab, semicolon or pipe, or into two or three words on spaces, could be
+a CSV edge list, so CSV claims it, with a content confidence of 0.3. A single line, or a cell that
+ends a sentence ("Dear team, the meeting is on Monday."), is prose, and CSV does not claim it. So
+`"hello world\ngoodbye world"` reads as a CSV graph with 3 nodes and 2 edges, while
+`"hello world"` and a note of several sentences fail with `E_UNKNOWN_FORMAT`. The load result's
+`sniff.content` tells the two apart: it is below 0.5 for such a guess, and 0.5 or more when a
+format recognized the content.
 
-Such a weak guess never beats the extension of another format: a file named `session.cys` that
-holds a sentence is read as a Cytoscape session, and fails because it is not a zip archive, rather
-than being read as a one-edge CSV graph. Text that no format claims, such as a sentence of more
-than three words without a comma, fails with `E_UNKNOWN_FORMAT`.
+A content confidence below 0.5 is a weak guess, and it never beats the extension of another
+format: a file named `session.cys` that holds a few words per line is read as a Cytoscape session,
+and fails because it is not a zip archive, rather than being read as a CSV graph. Text that no
+format claims fails with `E_UNKNOWN_FORMAT`, and an empty input with `E_EMPTY_INPUT`.
 
-When the content is not recognized, the extension and the MIME type decide on their own. A MIME
-type alone is a weak hint, weaker than CSV's guess from the content: a file served as
-`text/x-my-format` from a URL without an extension is read as CSV if its lines look like CSV. If you
-write a format plugin and its files are found by their `Content-Type`, give the importer a
-`sniff()` that recognizes the content, or have callers pass `format`. When
-nothing matches, the load throws an `ImportError` whose `err.issue?.code` is `E_UNKNOWN_FORMAT`.
-graph-io also refuses PDF files, images and compressed or archived data by their first bytes, and
-says what they are; a Cytoscape session is the one zip file it reads.
+When the content is not recognized, the extension decides. A MIME type counts only for a format
+whose importer has no content check, or did not get to look: CSV claims `text/plain` input, but not
+when it has looked at the content and found prose. A plugin whose files are found by their
+`Content-Type` should give its importer a `sniff()` that recognizes the content, or have callers
+pass `format`. When nothing matches, the load throws an `ImportError` whose `err.issue?.code` is
+`E_UNKNOWN_FORMAT`. graph-io also refuses PDF files, images and compressed or archived data by
+their first bytes, and says what they are; a Cytoscape session is the one zip file it reads.
 
 ## Asking without loading
 
@@ -109,7 +108,8 @@ The result has:
   scores 0.5 or more, and one that only matches the name or the MIME type scores at most 0.4, so
   the content always wins.
 - `content`: how sure the format was about the content, from 0 to 1; 0 when no content was given
-  or the format did not recognize it
+  or the format did not recognize it. Below 0.5 is a guess from the shape of the text, such as
+  CSV's for a few lines of words.
 - `extension` and `mimeType`: whether the file name and the MIME type matched
 - `dialect`: for JSON, which kind of JSON document the head looks like (`"node-link"`, `"d3"`,
   `"jgf"`, `"cytoscape"`, `"graphology"`, `"vis"`, `"adjacency"`, `"tree"` or `"obographs"`); `null`

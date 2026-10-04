@@ -122,13 +122,13 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 These come on top of the [options every importer takes](../options.md#every-importer).
 A file can hold several graphs: pick one with the `graphIndex` or `graphName` option of [importGraph()](../options.md#importgraph-and-importallgraphs), as [Files that hold several graphs](../loading.md#files-that-hold-several-graphs) shows.
 
-| Option                                                       | Type                     | Default                | Meaning                                                                                                                                                                     |
-| ------------------------------------------------------------ | ------------------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`labelAliases`](#import-labelaliases)                       | `boolean`                | on for Cytoscape files | Find an edge end that is missing, or names no node, from Cytoscape's `"source (interaction) target"` edge label, and fill a missing interaction from it.                    |
-| [`cytoscapeEscapes`](#import-cytoscapeescapes)               | `boolean`                | on for Cytoscape files | Decode Cytoscape's two-character `\n` and `\t` escapes in text values.                                                                                                      |
-| [`repairBareAmpersands`](#import-repairbareampersands)       | `boolean`                | `false`                | Read an `&` that is not followed by `;` within 7 characters as `&amp;`, with a warning for each, instead of failing on the invalid XML.                                     |
-| [`pairSurrogateReferences`](#import-pairsurrogatereferences) | `boolean`                | `false`                | Join two character references that each hold half of a character (`&#xD83D;&#xDE00;`) into that character, with a warning for each pair, instead of failing.                |
-| [`zAs`](#import-zas)                                         | `"column" \| "position"` | `"column"`             | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
+| Option                                                       | Type                     | Default                |
+| ------------------------------------------------------------ | ------------------------ | ---------------------- |
+| [`labelAliases`](#import-labelaliases)                       | `boolean`                | on for Cytoscape files |
+| [`cytoscapeEscapes`](#import-cytoscapeescapes)               | `boolean`                | on for Cytoscape files |
+| [`repairBareAmpersands`](#import-repairbareampersands)       | `boolean`                | `false`                |
+| [`pairSurrogateReferences`](#import-pairsurrogatereferences) | `boolean`                | `false`                |
+| [`zAs`](#import-zas)                                         | `"column" \| "position"` | `"column"`             |
 
 - <a id="import-labelaliases"></a>`labelAliases`: Find an edge end that is missing, or names no node, from Cytoscape's `"source (interaction) target"` edge label, and fill a missing interaction from it. The default is on for files that use Cytoscape's (`cy`) namespace, off for others.
 - <a id="import-cytoscapeescapes"></a>`cytoscapeEscapes`: Decode Cytoscape's two-character `\n` and `\t` escapes in text values. The default is on for files that use Cytoscape's namespace, off for others.
@@ -140,9 +140,9 @@ A file can hold several graphs: pick one with the `graphIndex` or `graphName` op
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                                         | Type      | Default | Meaning                                                                                                                                                              |
-| ---------------------------------------------- | --------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`cytoscapeEscapes`](#export-cytoscapeescapes) | `boolean` | `false` | Write line breaks and tabs in text values as Cytoscape's two-character `\n` and `\t`, as Cytoscape does, instead of the XML character references `&#10;` and `&#9;`. |
+| Option                                         | Type      | Default |
+| ---------------------------------------------- | --------- | ------- |
+| [`cytoscapeEscapes`](#export-cytoscapeescapes) | `boolean` | `false` |
 
 - <a id="export-cytoscapeescapes"></a>`cytoscapeEscapes`: Write line breaks and tabs in text values as Cytoscape's two-character `\n` and `\t`, as Cytoscape does, instead of the XML character references `&#10;` and `&#9;`.
 
@@ -221,8 +221,8 @@ The codes `checkExport(snapshot, "xgmml", options)` can return before a save, al
 - `W_XGMML_BACKSLASH_ESCAPE` (warning): Strings holding a literal backslash-n or backslash-t read back as newline / tab (Cytoscape's escapes).
 - `W_XGMML_POSITION` (warning): A position that cannot be written as it is: another shape, a non-finite coordinate, a z read back in the z column.
 - `W_XGMML_PARENT_CYCLE` (warning): Nodes whose parent chain never reaches a root are written at the top level.
-- `W_COLUMN_NAME_CHANGED` (warning): An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the name the format's importer gives it.
-- `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads back with that role.
+- `W_COLUMN_NAME_CHANGED` (warning): An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the name the format's importer gives it.
+- `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and reads back with that role.
 - `W_WEIGHT_KEY_CLASH` (warning): An attribute named `weight` without the weight role reads back as the edge weight.
 - `W_STORAGE_CLASS_CHANGED` (warning): A text attribute reads back as a dictionary attribute, or the reverse, because the importer chooses by how often its values repeat. The values are the same.
 - `W_XGMML_INTERACTION_FROM_LABEL` (warning): Edge labels shaped `a (i) b` read back with an `interaction` column (Cytoscape's label alias).

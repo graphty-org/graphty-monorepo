@@ -100,6 +100,13 @@ typedefs and unknown frames it kept are written back. For a graph from another f
   because of its name, writes each value as the line's relation, and reads it back as the relation
   column. Nothing is lost; the note tells you a column was used for its name. Spaces in a relation
   are written as `_` (`W_OBO_RELATION_RENAMED`).
+- Every relation the file uses, other than the built-in `is_a`, gets a `[Typedef]` frame that
+  declares it, so `relation: "interacts_with"` writes `relationship: interacts_with X` lines and a
+  `[Typedef]` with `id: interacts_with`. A relation the graph's kept typedefs already declare keeps
+  that frame, with its name and other tags.
+- The `relation` column is marked as the edge kind. Formats with an edge kind keep it: GEXF 1.3
+  writes it as each edge's `kind`, which reads back as a column named `kind` that an OBO save takes
+  as the relation again. GEXF 1.2 has no edge kind; see [GEXF](./gexf.md#what-a-saved-file-keeps-and-loses).
 - The ontology name in the header is the `ontology` option, else the name the graph was read with
   (see [Naming the graph](../reading.md#naming-the-graph)).
 - Node columns outside the OBO vocabulary become `property_value` lines
@@ -143,10 +150,10 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option                         | Type                    | Default      | Meaning                                                                                                                                                      |
-| ------------------------------ | ----------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`obsolete`](#import-obsolete) | `"keep" \| "drop"`      | `"keep"`     | "keep" reads obsolete terms as nodes with `is_obsolete` set to true; "drop" leaves them and their edges out.                                                 |
-| [`typedefs`](#import-typedefs) | `"metadata" \| "nodes"` | `"metadata"` | "metadata" keeps the `[Typedef]` frames (relation definitions) in `snapshot.meta.extra.obo.typedefs`; "nodes" makes them nodes too, with their `is_a` edges. |
+| Option                         | Type                    | Default      |
+| ------------------------------ | ----------------------- | ------------ |
+| [`obsolete`](#import-obsolete) | `"keep" \| "drop"`      | `"keep"`     |
+| [`typedefs`](#import-typedefs) | `"metadata" \| "nodes"` | `"metadata"` |
 
 - <a id="import-obsolete"></a>`obsolete`: "keep" reads obsolete terms as nodes with `is_obsolete` set to true; "drop" leaves them and their edges out.
 - <a id="import-typedefs"></a>`typedefs`: "metadata" keeps the `[Typedef]` frames (relation definitions) in `snapshot.meta.extra.obo.typedefs`; "nodes" makes them nodes too, with their `is_a` edges.
@@ -155,10 +162,10 @@ These come on top of the [options every importer takes](../options.md#every-impo
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                         | Type     | Default                      | Meaning                                                                                                                 |
-| ------------------------------ | -------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| [`relation`](#export-relation) | `string` | `"is_a"`                     | The relation written for an edge that has none of its own (no `relation` value): an OBO id such as `is_a` or `part_of`. |
-| [`ontology`](#export-ontology) | `string` | as read, else the graph name | The `ontology` id written in the header, such as `go` or `uberon`.                                                      |
+| Option                         | Type     | Default                      |
+| ------------------------------ | -------- | ---------------------------- |
+| [`relation`](#export-relation) | `string` | `"is_a"`                     |
+| [`ontology`](#export-ontology) | `string` | as read, else the graph name |
 
 - <a id="export-relation"></a>`relation`: The relation written for an edge that has none of its own (no `relation` value): an OBO id such as `is_a` or `part_of`. Reasoners and ROBOT read `is_a` as subclassing.
 - <a id="export-ontology"></a>`ontology`: The `ontology` id written in the header, such as `go` or `uberon`. It may hold letters, digits and `_ . - /`; any other character makes checkExport() and the save throw `E_UNSUPPORTED`. The default is the id an OBO import read, else the graph name with every other character replaced by `_`, else no `ontology` line.
@@ -191,7 +198,7 @@ The codes this format's import report can hold. They are also exported as `OBO_I
 - `W_OBO_DEPRECATED_SYNTAX` (warning): A backslash line continuation (deprecated in 1.4).
 - `W_OBO_HEADER_NOT_APPLIED` (warning): A header clause whose meaning graph-io does not apply (`import`, `id-mapping`, the `treat-xrefs` macros, `owl-axioms`); it is kept in `snapshot.meta.extra.obo.header`.
 - `W_OBO_OBSOLETE_DROPPED` (warning): Obsolete terms and their edges left out under obsolete: "drop".
-- `W_ID_MERGED` (warning): Two different id texts became the same number because `ids` is "number" ("042" and "42", say), so their nodes were merged.
+- `W_ID_MERGED` (warning): Two different id texts became the same number because `ids` is "number" (for example, "042" and "42"), so their nodes were merged.
 - `W_COLUMN_RENAMED` (warning): An OBO attribute was renamed `<name>#obo` because another attribute already has its name.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.
 - `W_OPTION_IGNORED` (warning): You set an option this format does not use; it had no effect. The message names the option.
@@ -224,8 +231,8 @@ The codes `checkExport(snapshot, "obo", options)` can return before a save, also
 - `W_TEMPORAL_DROPPED` (warning): OBO has no time.
 - `W_VIZ_DROPPED` (warning): OBO has no visual columns.
 - `W_ROLE_DROPPED` (warning): An attribute with a role the format has no place for is written as a plain attribute; the role is lost.
-- `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads back with that role.
-- `W_COLUMN_NAME_CHANGED` (warning): An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the name the format's importer gives it.
+- `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and reads back with that role.
+- `W_COLUMN_NAME_CHANGED` (warning): An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the name the format's importer gives it.
 - `W_DTYPE_UNSUPPORTED` (warning): An OBO attribute stored as text where graph-io uses a dictionary (or the other way round); it reads back with graph-io's usual type. The values are the same.
 - `W_EMPTY_COLUMN_DROPPED` (warning): A column without a value on any written element reads back absent.
 - `W_DEFAULT_DROPPED` (warning): A declared default: OBO has none.

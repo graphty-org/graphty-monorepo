@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import { GraphBuilder } from "@graphty/graph-format";
+import { GraphBuilder } from "@graphty/graph-io";
 import { csvImporter } from "@graphty/graph-io/csv";
 
 // A builder starts with a direction, but each importer replaces it with its file's direction.

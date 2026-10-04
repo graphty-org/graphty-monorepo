@@ -1,4 +1,11 @@
-import { type GraphImporter, ImportReportBuilder, readText, registry, resolveImportOptions } from "@graphty/graph-io";
+import {
+    forDecodedText,
+    type GraphImporter,
+    ImportReportBuilder,
+    readText,
+    registry,
+    resolveImportOptions,
+} from "@graphty/graph-io";
 import { csvImporter, type CsvImportOptions } from "@graphty/graph-io/csv";
 
 // NetScope writes a CSV edge table after a few lines about the instrument:
@@ -32,13 +39,18 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
             const instrument = /^Instrument: (.*)$/m.exec(text.slice(0, end))?.[1] ?? "unknown";
             const lines = text.slice(0, end).split("\n"); // the last entry is the empty rest after the blank line
             table = lines.map((line, i) => (i < lines.length - 1 ? "#" : line)).join("\n") + text.slice(end);
-            report.warning("unsupported", "W_NETSCOPE_PREAMBLE", `skipped the NetScope preamble (instrument ${instrument})`, {
-                line: 1,
-            });
+            report.warning(
+                "unsupported",
+                "W_NETSCOPE_PREAMBLE",
+                `skipped the NetScope preamble (instrument ${instrument})`,
+                {
+                    line: 1,
+                },
+            );
         }
 
-        // The CSV importer reads the table; its issues and counts join this report
-        report.include(await csvImporter.import(table, sink, { ...options, onProgress: undefined, encoding: undefined }));
+        // The CSV importer reads the decoded table; its issues and counts join this report
+        report.include(await csvImporter.import(table, sink, forDecodedText(options)));
         return report.finish();
     },
 };

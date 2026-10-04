@@ -18,16 +18,75 @@ bob carol
 Each line is a node (an id, and an optional label after `=`) or an edge (two ids and an optional
 weight). An optional first line, `# directed` or `# undirected`, gives the direction.
 
-Everything this page uses is exported from `@graphty/graph-io`, including the types `GraphSink` and
-`GraphSnapshot` and the constant `INVALID_INDEX`. The importer adds nodes and edges to a graph under
-construction, called the sink; the exporter reads a finished graph, the snapshot that
-[Reading the graph](../reading.md) explains. Both come from `@graphty/graph-format`, which graph-io
-installs. If your plugin imports from `@graphty/graph-format` itself (`GraphBuilder`, say), add it
-to your own dependencies: a strict package manager such as pnpm does not let you import a package
-you did not declare, and may give you a second copy whose types do not match graph-io's.
+Everything this page uses is exported from `@graphty/graph-io`, including `GraphBuilder`, the
+types `GraphSink` and `GraphSnapshot` and the constant `INVALID_INDEX`. The importer adds nodes and
+edges to a graph under construction, called the sink; the exporter reads a finished graph, the
+snapshot that [Reading the graph](../reading.md) explains.
 
 To change how a built-in format reads or writes instead, see
 [Extending an existing format](./existing-format.md).
+
+## A line format in one function
+
+For a format with one node or one edge per line, `defineLineFormat()` makes the importer from one
+function, `parseLine`, which gets each line split on whitespace and adds what the line holds. Blank
+lines and lines starting with `#` are skipped. A line it throws for is skipped and reported as
+`E_BAD_LINE`, with the message it threw and the line number:
+
+<!-- generated:begin example:extending/line-format -->
+
+```ts
+import { defineLineFormat, importGraph, registry } from "@graphty/graph-io";
+
+const pairs = defineLineFormat({
+    format: "pairs",
+    extensions: [".pairs"],
+    parseLine(fields, graph) {
+        if (fields[1] === "=") {
+            graph.node(fields[0], { label: fields.slice(2).join(" ") }); // alice = Alice Liddell
+        } else if (fields.length === 1) {
+            graph.node(fields[0]); // alice
+        } else if (fields.length <= 3) {
+            graph.edge(fields[0], fields[1], { weight: fields[2] }); // alice bob 2.5
+        } else {
+            throw new Error("expected an id, an id = label, or two ids and a weight");
+        }
+    },
+});
+registry.registerImporter(pairs);
+
+const text = "# friends\nalice = Alice Liddell\nalice bob 2.5\nbob carol\nerin frank gus hal\n";
+const { snapshot, report } = await importGraph(text, { filename: "friends.pairs" });
+console.log(
+    `${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges, label of alice: ${snapshot.nodes.byRole("label")?.value(0)}`,
+);
+console.log(report.issues.map((i) => `${i.code} (line ${i.line ?? "-"}): ${i.message}`));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:extending/line-format -->
+
+```text
+3 nodes, 2 edges, label of alice: Alice Liddell
+[
+  'E_BAD_LINE (line 5): expected an id, an id = label, or two ids and a weight'
+]
+```
+
+<!-- generated:end -->
+
+The importer takes every option the built-in importers take (`ids`, `defaultDirected`,
+`weightFrom` and the rest), reads strings, bytes and streams, and fills in the report's counts. A
+`label` attribute is the label that `byRole("label")` finds, the attribute that `weightFrom` names
+(`weight` by default) is the edge weight, and any other attribute's type is worked out from its
+values. Pass `directed: true` for a format whose edges are directed, `comment` for a different
+comment marker (or `null` for none), and `sniff` to recognize your files by their content
+([Detection](#detection) explains how).
+
+`parseLine` sees one line at a time. A format whose lines mean different things in different parts
+of the file (a node section, then an edge section) needs the full importer that the rest of this
+page builds, as does a format that is not line based.
 
 ## The smallest importer
 
@@ -115,8 +174,9 @@ Three helpers do most of the work:
   [the import report](../report.md#issues) lists. `report.counts` holds the counts, which you fill
   in, and `report.finish()` returns the finished report.
 
-Count in `report.counts.nodes` every node the file adds, including a node that `addEdge()` creates
-because an edge names it, as the built-in formats do. `sink.indexOf(id)` is `INVALID_INDEX` for an
+Count in `report.counts.nodes` every node the file adds, once, including a node that `addEdge()`
+creates because an edge names it, as the built-in formats do (`defineLineFormat()` does this for
+you). `sink.indexOf(id)` is `INVALID_INDEX` for an
 id the sink does not have yet, which is how the example's `addNode()` tells a new node from one it
 has seen. Do not compare it with `-1` or `null`.
 
@@ -324,9 +384,15 @@ import {
 //   alice bob 2.5
 //   bob carol
 
-/** The format's own options, for reading and writing. */
-export interface PairsOptions {
+/** The format's own import options, next to the ones every importer takes, as the built-in formats declare them. */
+export interface PairsImportOptions extends CommonImportOptions {
     /** The character between the ids and the weight of an edge line; whitespace by default. */
+    separator?: string | undefined;
+}
+
+/** The format's own export options, next to the ones every exporter takes. */
+export interface PairsExportOptions extends CommonExportOptions {
+    /** The character written between the ids and the weight of an edge line; a space by default. */
     separator?: string | undefined;
 }
 
@@ -352,7 +418,7 @@ const USED = new Set<keyof CommonImportOptions>(["ids", "defaultDirected", "onMi
  * @param options - the caller's options
  * @returns the separator, or null for whitespace
  */
-function separatorOf(options: PairsOptions | undefined): string | null {
+function separatorOf(options: { separator?: string | undefined } | undefined): string | null {
     const separator = options?.separator;
     if (separator === undefined) {
         return null;
@@ -367,10 +433,11 @@ function separatorOf(options: PairsOptions | undefined): string | null {
     return separator;
 }
 
-export const pairsImporter: GraphImporter<PairsOptions> = {
+export const pairsImporter: GraphImporter<PairsImportOptions> = {
     format: "pairs",
     extensions: [".pairs"],
     mimeTypes: ["text/x-pairs"],
+    options: ["separator"], // so a misspelled option is reported as W_UNKNOWN_OPTION
 
     sniff(head) {
         // only a file that starts with the direction line is recognized by its content
@@ -464,7 +531,7 @@ const PAIRS_CAPABILITIES = capabilities({
  * @param options - the export options
  * @returns the loss notes; any E_ note makes export() throw
  */
-function check(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOptions): LossNote[] {
+function check(snapshot: GraphSnapshot, options?: PairsExportOptions): LossNote[] {
     const notes = checkCapabilities(snapshot, PAIRS_CAPABILITIES, resolveExportOptions(options), {
         attributes: false, // the format writes no attributes...
         roles: new Set(["label"]), // ...except the node label, which it has a place for
@@ -511,7 +578,7 @@ function check(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOpt
  * @param options - the export options
  * @yields one line at a time
  */
-function* lines(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOptions): Generator<string> {
+function* lines(snapshot: GraphSnapshot, options?: PairsExportOptions): Generator<string> {
     // throw for an E_ note before writing anything: E_INVALID_ID for ids, E_DIRECTED for direction, ...
     const refused = refusedSave(check(snapshot, options), REFUSALS);
     if (refused !== null) {
@@ -539,10 +606,11 @@ function* lines(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOp
     }
 }
 
-export const pairsExporter: GraphExporter<PairsOptions> = {
+export const pairsExporter: GraphExporter<PairsExportOptions> = {
     format: "pairs",
     extensions: [".pairs"],
     mimeTypes: ["text/x-pairs"],
+    options: ["separator"],
     capabilities: PAIRS_CAPABILITIES,
     check,
     export: (snapshot, options) => encodeChunks(lines(snapshot, options)),
@@ -566,18 +634,18 @@ report the common options that have no effect:
 - `reportUnusedOptions()` warns `W_OPTION_IGNORED` for each common option the caller set that your
   importer does not read. List the ones you read in its last argument.
 
-Your format's own options arrive in the same object. Declare their type (`PairsOptions` here) and
-pass it as the type parameter, `GraphImporter<PairsOptions>` and `GraphExporter<PairsOptions>`.
+Your format's own options arrive in the same object. Declare them as the built-in formats do: an
+import options type that extends `CommonImportOptions` (`PairsImportOptions`) and an export options
+type that extends `CommonExportOptions` (`PairsExportOptions`), passed as the type parameters
+`GraphImporter<PairsImportOptions>` and `GraphExporter<PairsExportOptions>`. Your users can then
+give an options object that type and have its names checked by the compiler, as the usage example
+below does. List the names in the importer's and the exporter's `options` too, so a misspelled
+option is reported as `W_UNKNOWN_OPTION`, as it is for the built-in formats.
+
 Check each value yourself and throw `GraphFormatError("E_UNSUPPORTED", ...)` with
 `details.option` for one you cannot use, as `separatorOf()` does; the built-in formats do the same.
 Throw it from `check()` too: `check()` returns notes about the graph, and throws for options it
-cannot use, as `checkExport()` does for the built-in formats. `reportUnusedOptions()` knows nothing
-about your options, and a misspelled name is not reported, so tell your users to check their
-options with `satisfies PairsOptions`, as the usage example below does. A type annotation,
-`const options: PairsOptions = { ... }`, does not compile when that object is passed to
-`exportGraphToString()` or `checkExport()`: a plain interface such as `PairsOptions` is not
-assignable to their options type. It works for an options type that extends `CommonImportOptions`
-or `CommonExportOptions`, as the built-in formats' types do.
+cannot use, as `checkExport()` does for the built-in formats.
 
 ### Ids, edges, direction and attributes
 
@@ -615,8 +683,7 @@ index and the cell text:
 <!-- generated:begin example:extending/text-cells -->
 
 ```ts
-import { GraphBuilder } from "@graphty/graph-format";
-import { ImportReportBuilder, TextCellWriter } from "@graphty/graph-io";
+import { GraphBuilder, ImportReportBuilder, TextCellWriter } from "@graphty/graph-io";
 
 // In an importer, `sink` and `report` are the ones import() works with
 const sink = new GraphBuilder({ directed: false });
@@ -670,18 +737,15 @@ alone cannot stop between its lines.
 ### Detection
 
 `sniff(head)` receives up to the first 8 KiB of the input as bytes and returns a confidence from 0
-to 1 that they are your format. Return 0 when you cannot tell. A confidence of 0.5 or more beats any
-file extension, so only return that for content you are sure of; below 0.5 is a guess that loses
-to another format's extension. graph-io then combines your value with the file name and MIME type
-into the final score:
+to 1 that they are your format. Return 0 when you cannot tell. graph-io combines your value with
+the file name and the MIME type, by one rule: a confidence of 0.5 or more beats any file extension,
+and a confidence below 0.5 is a guess that loses to another format's extension. So return 0.5 or
+more only for content you are sure of. Between two formats that both recognize the content, the
+higher confidence wins, and a matching extension adds a little.
 
-- Content recognized (your `sniff()` returns 0.5 or more, or any value above 0 when the file name
-  does not belong to another format): `0.5 + 0.35 * content`, plus 0.1 when the extension matches
-  and 0.05 when the MIME type matches. A `sniff()` of 0.7 on a file with your extension scores
-  0.845.
-- A weak guess (below 0.5) on a file whose extension belongs to another format: `0.25 * content`,
-  plus 0.05 for a matching MIME type, so the other format's extension wins.
-- Content not recognized: 0.3 for a matching extension plus 0.1 for a matching MIME type.
+Make `sniff()` tolerant. The 8 KiB can end in the middle of a line, and a real file can have a bad
+line near the top, so judge most of the lines you see rather than every line, and ignore the last
+one. A sniffer that returns 0 for one bad line hands the file to another format.
 
 Formats with equal scores rank in the order they were registered. `rankFormats(hints, importers)`
 computes the ranking over any list of importers; `registry.sniffAll()` calls it with the
@@ -690,12 +754,18 @@ registry's.
 Content beats names: when a built-in format recognizes the content, it wins over your extension.
 Without `sniff()`, your format is chosen by its extension or MIME type only when no other format
 claims the content. That matters when your files look like another format. JSON claims any JSON
-object or JSON Lines text with 0.9, XML formats claim their root elements, and CSV claims any text
-whose lines split the same way (with a low confidence, which an extension beats). So a `.gjsonl`
-file of JSON Lines without a `sniff()` is read by the JSON importer, which refuses it. Either give
-your importer a `sniff()` that returns more than the format that would take your files (above 0.9
-for JSON-shaped files), or tell your users to pass `format`. `registry.sniffAll({ head, filename })`
+object or JSON Lines text with 0.9, and XML formats claim their root elements. CSV claims two or
+more lines that split the same way, on commas, tabs or two or three words on spaces, with 0.3, a
+guess that your extension beats; so a whitespace-separated format such as TGF needs no `sniff()`
+to keep its own files, but does need one above 0.3 to be found by content alone. A `.gjsonl` file
+of JSON Lines without a `sniff()` is read by the JSON importer, which refuses it. Either give your
+importer a `sniff()` that returns more than the format that would take your files (above 0.9 for
+JSON-shaped files), or tell your users to pass `format`. `registry.sniffAll({ head, filename })`
 shows the confidence of every format for a sample of your files.
+
+Register the plugin before you test it on your files. Until then graph-io does not know your
+extension, and a file of words or ids can load as a small CSV graph with errors, which looks like a
+bug in your importer.
 
 ### Files that hold several graphs
 
@@ -902,7 +972,7 @@ second: 3 edges, 0 warnings
 
 <!-- generated:end -->
 
-The file is decoded once, and the decoding warnings (a guessed encoding, say) belong to every
+The file is decoded once, and the decoding warnings (for example, a guessed encoding) belong to every
 graph: `report.fork()` starts each graph's report with them. `graphIndex` and `graphName` are never
 reported as `W_OPTION_IGNORED`, so you do not list them in `reportUnusedOptions()`. Without
 `listGraphs()`, `importGraph()` still honors `graphIndex` and `graphName`, by reading every graph
@@ -990,7 +1060,9 @@ note `check()` returns, and only for those, before it writes anything. `refusedS
 gives you the error to throw, with the same error codes the built-in formats use, so one `catch`
 handles every format: `E_INVALID_ID` for an id note, `E_DIRECTED` for `E_MIXED_DIRECTION`,
 `E_COLUMN_TYPE` for a value the format cannot write, and `E_UNSUPPORTED` otherwise. Its second
-argument maps your own codes, as pairs maps `E_PAIRS_BAD_ID` to `E_INVALID_ID`.
+argument maps your own codes, as pairs maps `E_PAIRS_BAD_ID` to `E_INVALID_ID`. The error's
+`details` holds the note: `details.code` (`"E_PAIRS_BAD_ID"`), `details.column` and
+`details.count`.
 
 When your format's ids follow one of the built-in id rules (`idCharset` `"nmtoken"`, `"integer"`
 or `"dense-1-based"`), `sanitizeIds(snapshot, charset, mode)` gives the ids to write. Under
@@ -1014,6 +1086,7 @@ import {
     type GraphImporter,
     type GraphSnapshot,
     ImportReportBuilder,
+    INVALID_INDEX,
     joinText,
     LineReader,
     pairFolding,
@@ -1109,6 +1182,9 @@ export const numbersImporter: GraphImporter = {
                     // restoreMangledIds (on by default) gives the node its original id back
                     const id = original !== null && opts.restoreMangledIds ? original : Number(node[1]);
                     nodeOf.set(node[1], id);
+                    if (sink.indexOf(id) === INVALID_INDEX) {
+                        report.counts.nodes++; // a node listed twice is one node
+                    }
                     const index = sink.addNode(id);
                     if (original !== null && !opts.restoreMangledIds) {
                         // keep the original where every format keeps it, so nothing is lost
@@ -1119,7 +1195,6 @@ export const numbersImporter: GraphImporter = {
                         });
                         sink.setNodeValue(column, index, String(original));
                     }
-                    report.counts.nodes++;
                 } else if (edge !== null) {
                     // an edge names nodes by their written ids: look up the id each node was given
                     const source = nodeOf.get(edge[1]);
@@ -1216,7 +1291,7 @@ A format whose ids follow none of the built-in rules has two choices:
 ```ts
 import { checkExport, exportGraphToString, importGraph, listFormats, registry } from "@graphty/graph-io";
 
-import { pairsExporter, pairsImporter, type PairsOptions } from "./pairs-format.js";
+import { type PairsExportOptions, pairsExporter, pairsImporter } from "./pairs-format.js";
 
 registry.registerImporter(pairsImporter).registerExporter(pairsExporter);
 
@@ -1229,8 +1304,8 @@ const { snapshot, format, report } = await importGraph(text);
 console.log(`${format}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
 console.log(report.issues.map((i) => `${i.code} line ${i.line}`));
 
-// The plugin's own options go in the same object; `satisfies` checks their names
-const csvStyle = { separator: "," } satisfies PairsOptions;
+// The plugin's own options go in the same object; the options type checks their names
+const csvStyle: PairsExportOptions = { separator: "," };
 const written = await exportGraphToString(snapshot, "pairs", csvStyle);
 console.log(written);
 
@@ -1285,28 +1360,31 @@ rest, `downloadGraph()` included.
 Every helper is exported from `@graphty/graph-io`; the
 [API reference](https://graphty.app/docs/graph-io/api/generated/) has each signature.
 
-| To do this                                                  | Use                                                                                                                                                                                                                                        |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Read text line by line                                      | `LineReader`                                                                                                                                                                                                                               |
-| Read the whole input as one string                          | `readText(input, report, options)`. Its options (`ReadOptions`) also take `declaredEncoding` (read the encoding a file declares), `allowEmpty`, `xml` (an XML format), `nulIsBinary` and `bomlessUtf16` (UTF-16 without a byte order mark) |
-| Read an XML format                                          | `tokenizeXml(textChunks(input, report, options), handler)`, with an `XmlHandler` of `start`, `end` and `text` callbacks; it throws `XmlSyntaxError`, with the line, for malformed XML                                                      |
-| Turn a string `head` into the bytes `sniff()` sees          | `headBytes()`                                                                                                                                                                                                                              |
-| Fill in and check the common options                        | `resolveImportOptions()`, `reportSinkOptions()`, `reportUnusedOptions()`                                                                                                                                                                   |
-| Turn id text into ids under the `ids` option                | `IdCoercer` (reports merged ids); `coerceIdText()` and `coerceId()` for one value                                                                                                                                                          |
-| Add edges whose direction can vary                          | `DirectionResolver`                                                                                                                                                                                                                        |
-| Read a weight                                               | `parseWeightText()`                                                                                                                                                                                                                        |
-| Type untyped text cells                                     | `TextCellWriter` per column; `inferTextDtype()` and `parseTextCell()` for one cell                                                                                                                                                         |
-| Declare a typed attribute the file names                    | `declareResolved()` (renames a clash to `<name>#2` and reports it); `declareCompanion()` for the original text of a date column                                                                                                            |
-| Choose one graph of several                                 | `chooseGraph()`                                                                                                                                                                                                                            |
-| Hand part of the work to another importer                   | `report.include(otherReport)`; see [Extending an existing format](./existing-format.md)                                                                                                                                                    |
-| Stop a cancelled import                                     | `throwIfAborted()`; `isAbortError()` to let a cancellation through a `catch`                                                                                                                                                               |
-| Describe what a file can hold, and check a graph against it | `capabilities()`, `checkCapabilities()`, `refusedSave()`                                                                                                                                                                                   |
-| Write ids a format restricts                                | `sanitizeIds()`                                                                                                                                                                                                                            |
-| Write each edge once, with its direction                    | `pairFolding()` (`foldMutual: true` writes a GEXF mutual edge once, as undirected)                                                                                                                                                         |
-| Write nesting                                               | `childrenCsr(snapshot)` gives each node's children from the parent column                                                                                                                                                                  |
-| Write weights and numbers                                   | `explicitWeights()`, `formatF32()`, `formatF64()`, `formatDecimal()`                                                                                                                                                                       |
-| Produce the output                                          | `encodeChunks()`, `joinText()`, `collectBytes()` (the chunks as one `Uint8Array`), `toReadableStream()`                                                                                                                                    |
-| Compare a MIME type with your list                          | `normalizeMimeType()`                                                                                                                                                                                                                      |
+| To do this                                                  | Use                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read text line by line                                      | `LineReader`                                                                                                                                                                                                                                                                                                                                        |
+| Make a line-based importer from one function                | `defineLineFormat()`                                                                                                                                                                                                                                                                                                                                |
+| Read the whole input as one string                          | `readText(input, report, options)`. Its options (`ReadOptions`) also take `declaredEncoding` (a function that reads the encoding a file declares from its first `declarationBytes` bytes, 1024 by default), `allowEmpty`, `xml` (an XML format), `nulIsBinary` and `bomlessUtf16` (UTF-16 without a byte order mark)                                |
+| Read an XML format                                          | `tokenizeXml(textChunks(input, report, options), handler)`, with an `XmlHandler` of `start(name, attributes, line)`, `end(name, line)` and `text(text, line)` callbacks, called as the document streams in; it throws `XmlSyntaxError`, with the line, for malformed XML. Pass `xml: true` in the options so the XML declaration's encoding is read |
+| Read a binary format                                        | `collectBytes()` gathers the input's bytes when it is a stream; check the first bytes in `sniff()` (a zip file starts with `PK`), and report a damaged file with `report.fail()`                                                                                                                                                                    |
+| Turn a string `head` into the bytes `sniff()` sees          | `headBytes()`                                                                                                                                                                                                                                                                                                                                       |
+| Fill in and check the common options                        | `resolveImportOptions()`, `reportSinkOptions()`, `reportUnusedOptions()`                                                                                                                                                                                                                                                                            |
+| Turn id text into ids under the `ids` option                | `IdCoercer` (reports merged ids); `coerceIdText()` and `coerceId()` for one value                                                                                                                                                                                                                                                                   |
+| Add edges whose direction can vary                          | `DirectionResolver`                                                                                                                                                                                                                                                                                                                                 |
+| Read a weight                                               | `parseWeightText()`                                                                                                                                                                                                                                                                                                                                 |
+| Type untyped text cells                                     | `TextCellWriter` per column; `inferTextDtype()` and `parseTextCell()` for one cell                                                                                                                                                                                                                                                                  |
+| Declare a typed attribute the file names                    | `declareResolved(sink, domain, decl, report)` declares a column of the type the file gives it, and when that name is taken by a column of another type, declares `<name>#<the attribute's id in the file>` (or `<name>#2`) instead and reports the rename; `declareCompanion()` declares the column that keeps the original text of a date column   |
+| Choose one graph of several                                 | `chooseGraph()`                                                                                                                                                                                                                                                                                                                                     |
+| Hand part of the work to another importer                   | `report.include(otherReport)`; see [Extending an existing format](./existing-format.md)                                                                                                                                                                                                                                                             |
+| Stop a cancelled import                                     | `throwIfAborted()`; `isAbortError()` to let a cancellation through a `catch`                                                                                                                                                                                                                                                                        |
+| Describe what a file can hold, and check a graph against it | `capabilities()`, `checkCapabilities()`, `refusedSave()`                                                                                                                                                                                                                                                                                            |
+| Write ids a format restricts                                | `sanitizeIds()`                                                                                                                                                                                                                                                                                                                                     |
+| Write each edge once, with its direction                    | `pairFolding()` (`foldMutual: true` writes a GEXF mutual edge once, as undirected)                                                                                                                                                                                                                                                                  |
+| Write nesting                                               | `childrenCsr(snapshot)` gives each node's children from the parent column                                                                                                                                                                                                                                                                           |
+| Write weights and numbers                                   | `explicitWeights()`, `formatF32()`, `formatF64()`, `formatDecimal()`                                                                                                                                                                                                                                                                                |
+| Produce the output                                          | `encodeChunks()`, `joinText()`, `collectBytes()` (the chunks as one `Uint8Array`), `toReadableStream()`                                                                                                                                                                                                                                             |
+| Compare a MIME type with your list                          | `normalizeMimeType()` lowercases it and drops parameters such as `; charset=utf-8`                                                                                                                                                                                                                                                                  |
+| Test a plugin                                               | `compareSnapshots()`, `describeDiffs()`                                                                                                                                                                                                                                                                                                             |
 
 ## Choosing codes
 
@@ -1322,12 +1400,69 @@ Every helper is exported from `@graphty/graph-io`; the
 - A code means one thing. Do not reuse a code for a different problem, and do not give one problem
   two codes.
 
-## Two more rules
+## The importer never calls freeze()
 
-- The importer does not finish the graph. Add nodes and edges to the sink and return the report;
-  never call `freeze()`. That lets a caller read several files into one builder.
-- Write plain messages. An issue message is shown to people: say what was wrong in one sentence,
-  and leave the line number to the issue's `line` field.
+Add nodes and edges to the sink and return the report; never call `freeze()`. That lets a caller
+read several files into one builder.
 
-To test a plugin, read each of your sample files, export it, read the result, and compare the two
-graphs; every difference should match a `check()` note.
+## Messages are for people
+
+An issue message is shown to people: say what was wrong in one sentence, and leave the line number
+to the issue's `line` field.
+
+## Testing a plugin
+
+Read each of your sample files, save it in your format, read the saved file back, and compare the
+two graphs with `compareSnapshots()`. Every difference it finds should match a note that
+`checkExport()` returned for the save; a difference without a note is a bug in `check()` or in the
+importer.
+
+<!-- generated:begin example:extending/test-plugin -->
+
+```ts
+import { readFile } from "node:fs/promises";
+
+import {
+    checkExport,
+    compareSnapshots,
+    describeDiffs,
+    exportGraphToString,
+    importGraph,
+    registry,
+} from "@graphty/graph-io";
+
+import { pairsExporter, pairsImporter } from "./pairs-format.js";
+
+registry.registerImporter(pairsImporter).registerExporter(pairsExporter);
+
+// Read a sample, save it as pairs, read the saved file back, and compare the two graphs
+for (const file of ["teams.gv", "proteins.xgmml"]) {
+    const { snapshot } = await importGraph(await readFile(file), { filename: file });
+    const notes = checkExport(snapshot, "pairs");
+    const saved = await exportGraphToString(snapshot, "pairs");
+    const back = await importGraph(saved, { format: "pairs" });
+    console.log(`${file}: notes ${[...new Set(notes.map((n) => n.code))].join(", ") || "none"}`);
+    console.log(describeDiffs(compareSnapshots(snapshot, back.snapshot, { limit: 3 })));
+}
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:extending/test-plugin -->
+
+```text
+teams.gv: notes W_COLUMN_DROPPED, W_GRAPH_ATTRIBUTES_DROPPED
+  - nodes.graphty.cluster: column missing after round trip
+  - nodes.style: column missing after round trip
+  - nodes.color: column missing after round trip
+proteins.xgmml: notes W_EDGE_IDS_DROPPED, W_ID_TEXT_TYPE, W_COLUMN_DROPPED, W_GRAPH_ATTRIBUTES_DROPPED
+  - ids[0]: expected "1", got 1
+  - ids[1]: expected "2", got 2
+  - ids[2]: expected "3", got 3
+```
+
+<!-- generated:end -->
+
+Each difference has a `path` (`"ids[0]"`, `"nodes.color"`, `"edges.weight[3]"`), the `expected`
+and `actual` values, and a `message`. `compareSnapshots()` stops after 50 differences; pass
+`{ limit }` to change that.

@@ -4,11 +4,10 @@ Every load function returns the graph as a `snapshot`, a `GraphSnapshot` from
 [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format). This page shows the
 parts of it you need to use a graph you loaded. The graph-format README documents the rest.
 
-In TypeScript, import the type from graph-io, which re-exports it:
-`import type { GraphSnapshot } from "@graphty/graph-io"`. You do not need `@graphty/graph-format`
-in your own dependencies for that. If you do add it (for `GraphBuilder`, say), keep it at the
-version graph-io uses, or your package manager may install a second copy whose `GraphSnapshot` type
-does not match graph-io's.
+graph-io exports the types and classes of graph-format that you need: in TypeScript,
+`import type { GraphSnapshot, Column } from "@graphty/graph-io"`, and `GraphBuilder` for
+[changing a graph's name](#naming-the-graph). You do not need `@graphty/graph-format` in your own
+dependencies.
 
 ## Nodes and ids
 
@@ -21,8 +20,7 @@ on the snapshot takes and returns these numbers (node indexes); the ids from the
 - `snapshot.ids.idOf(i)` gives the id of node `i`: a string, or a number when the file's id was an
   integer (see the `ids` option on [Options](./options.md#every-importer)).
 - `snapshot.ids.has(id)` checks an id. `snapshot.ids.requireIndex(id)` gives its index, and throws
-  `E_UNKNOWN_NODE` for an id the graph does not have. (`indexOf(id)` returns `4294967295` for a
-  missing id instead of throwing.)
+  `E_UNKNOWN_NODE` for an id the graph does not have.
 - `snapshot.ids.toArray()` gives every id, in index order.
 
 ## Attributes
@@ -38,9 +36,16 @@ name:
   table has no such column.
 - `byRole(role)` returns the column that has a role, or `null`. Importers mark the columns a file
   gives a meaning: `"label"` for the node or edge label, `"weight"`, `"position"`, `"color"`, `"id"`
-  for edge ids, and so on. Its name is `column.meta.name`, its type `column.meta.dtype`.
-- A column read from the table reads its own values: `column.value(i)` is the same as
-  `value(column.meta.name, i)`.
+  for edge ids, and so on.
+
+A column, from `get()` or `byRole()`, has:
+
+- `value(i)`: the value of node (or edge) `i`, the same as `table.value(column.meta.name, i)`, or
+  `undefined` when it has none. `isSet(i)` says whether it has one.
+- `meta.name`: the attribute's name. `meta.role`: its role, or `null`.
+- `dtype`: what its values are: `"string"` or `"dict"` (text), `"i32"`, `"f64"` and the other
+  number types, `"bool"`, `"list"` (arrays) or `"json"` (nested objects).
+- `length`: the number of nodes (or edges), and `nullCount`: how many of them have no value.
 
 <!-- generated:begin example:reading/attributes -->
 
@@ -72,7 +77,7 @@ Label
 
 The attribute names are the file's. The label column is called `Label` here because the CSV header
 says so, `label` in a GraphML file and `name` in a CX file, so use `byRole("label")` when you want
-the label whatever the file calls it.
+the label whatever the file calls it, and `meta.name` when you want to say which column it was.
 
 `byRole("label")` finds the label in every format that has a place for one: GraphML, GEXF, GML,
 DOT, Pajek, CSV, XGMML, CX, CX2, Cytoscape sessions, OBO, and the JGF and OBO Graphs JSON
@@ -96,7 +101,7 @@ snapshot can hold. Their names start with `graphty.`, so you can tell them apart
 - `graphty.sourcePort`, `graphty.targetPort` (edges): DOT ports (`a:n -> b:s`).
 - `graphty.hyperedge` (nodes): `true` for a hub node made for a GraphML hyperedge under `hyperedges: "star"`.
 - `graphty.placeholder` (nodes): `true` for a node made for an OBO term that is referred to but never declared.
-- `graphty.originalId` (nodes): The original ids of a GraphML file saved with `sanitizeIds: "mangle"`, read with `restoreMangledIds: false`.
+- `graphty.originalId` (nodes): The original ids of a GraphML file saved with `sanitizeIds: "mangle"`, read with `restoreMangledIds: false`. Other formats spell this column their own way, which the `graphty.` test below does not catch: `graphty_originalId` in GML and Pajek, `graphty:originalId` in CX, CX2 and Cytoscape sessions. Under the default `restoreMangledIds: true` none of them appears.
 
 Leave them in the snapshot when you save it again with graph-io: the exporters use them to write the
 file back the same way. When you copy attributes into another library or count nodes, skip them:
@@ -183,8 +188,8 @@ undirected []
 
 ## Weights
 
-`snapshot.edgeList().weights` holds one weight per edge, in edge order, or is `null` when the graph
-has no weights. Which attribute becomes the weight depends on the format (`weight` for most,
+`edgeWeights(snapshot)` returns one weight per edge, in edge order, exactly as the file wrote them,
+or `null` when the graph has no weights. Which attribute becomes the weight depends on the format (`weight` for most,
 `value` for GML and Pajek); the [`weightFrom`](./options.md#every-importer) option changes it. A d3
 JSON file usually keeps its link strengths in `value`: read it with `weightFrom: "value"`, or the
 graph has no weights and `value` is a plain edge attribute.
@@ -192,25 +197,23 @@ graph has no weights and `value` is a plain edge attribute.
 An edge whose weight cell is empty, or that has no weight attribute in a weighted graph, gets
 the default weight 1. Its weight is recorded as missing, so a save writes no weight for it.
 
-These weights are 32-bit floats, which hold integers up to 16,777,216 and most decimals only
-approximately: `0.1` is stored as `0.10000000149011612`. When a file has a weight that 32-bit floats
-cannot hold exactly, the exact values are also kept in an edge attribute named `graphty.weight`,
-which `byRole("weight")` finds. Read that attribute when you need the exact numbers, for example to
-sum them:
+The graph itself stores weights as 32-bit floats, in `snapshot.edgeList().weights`, which is what
+graph algorithms read. They hold integers up to 16,777,216 exactly and most decimals only
+approximately: `0.1` is `0.10000000149011612`. Use `edgeWeights()` when you show or sum the
+weights:
 
 <!-- generated:begin example:reading/exact-weights -->
 
 ```ts
-import { importGraph } from "@graphty/graph-io";
+import { edgeWeights, importGraph } from "@graphty/graph-io";
 
 const { snapshot } = await importGraph("source,target,weight\na,b,0.1\nb,c,2\n", { format: "csv" });
 
-// the per-edge weights are 32-bit floats: 0.1 is not exact
-console.log(snapshot.edgeList().weights?.[0]);
+// the weights as the file wrote them, one per edge
+console.log(edgeWeights(snapshot));
 
-// when a weight does not fit exactly, the exact values are also in the weight attribute
-const exact = snapshot.edges.byRole("weight");
-console.log(exact?.meta.name, exact?.value(0));
+// the same weights as 32-bit floats, which is how the graph stores them for algorithms: 0.1 is not exact
+console.log(snapshot.edgeList().weights);
 ```
 
 <!-- generated:end -->
@@ -218,8 +221,8 @@ console.log(exact?.meta.name, exact?.value(0));
 <!-- generated:begin output:reading/exact-weights -->
 
 ```text
-0.10000000149011612
-graphty.weight 0.1
+Float64Array(2) [ 0.1, 2 ]
+Float32Array(2) [ 0.10000000149011612, 2 ]
 ```
 
 <!-- generated:end -->
@@ -228,8 +231,9 @@ Exact here means exact as a JavaScript number. An integer weight above 2^53, suc
 9007199254740993, is stored as the nearest number (9007199254740992), and the report says so with
 the warning `W_PRECISION`.
 
-`snapshot.weights` is a different array: one weight per adjacency entry, which an undirected graph
-has two of for each edge. Use `edgeList().weights` unless you walk the adjacency yourself.
+The exact values are kept in an edge attribute named `graphty.weight`, which `byRole("weight")`
+finds, only when a weight does not fit in 32 bits; `edgeWeights()` reads it for you. With the
+import option `weightDtype: "f32"` it is not kept, and `edgeWeights()` returns the 32-bit values.
 
 ## Degree
 
@@ -280,30 +284,42 @@ like, `sourceFormat` (the format it was read from) and, under `extra`, details a
 can write the file back the same way. For a JSON file, `jsonShapeOf(snapshot)` from
 `@graphty/graph-io/json` reads that record with its type, including the dialect that was read.
 
-## Naming the graph
+## What can change
+
+A snapshot's nodes, edges, ids and `meta` are fixed for its whole life. Its attribute tables
+(`snapshot.nodes`, `snapshot.edges` and `snapshot.graph`) are not: `rename(from, to)`,
+`remove(name)`, and `set(name, values)` to add a column change a table in place.
+
+A change in place reaches everything that holds the same snapshot: every component and store it
+was handed to. React does not notice, because the object is the same. So change a copy:
+`snapshot.withColumns()` returns a new snapshot with its own attribute tables. It shares the nodes,
+edges and ids with the original, so it costs little memory. Put the copy in state, and React
+renders it. To stop code you hand a snapshot to from changing its tables, call `snapshot.seal()`:
+`rename()`, `remove()` and `set()` then throw `E_FROZEN`.
+
+To change anything else, such as the graph's name or its edges, copy the graph into a
+`GraphBuilder` with `GraphBuilder.from(snapshot)`, change it there, and call `freeze()` for a new
+snapshot.
+
+### Naming the graph
 
 DOT, GEXF, GML and Pajek files can name their graph, and an import keeps the name in
 `snapshot.meta.name`. In GML the name is the `name` key of the `graph [ ]` block, which is also
 kept as a graph attribute, and a GML save writes a name only from that attribute. A graph read from
-a format without a name, such as CSV, has the name `null`.
-
-`snapshot.meta` cannot be changed, so to name a graph, copy it into a `GraphBuilder` (from
-`@graphty/graph-format`, which you add to your own dependencies for this), set the name and freeze
-a new snapshot:
+a format without a name, such as CSV, has the name `null`. To name it, copy it into a builder:
 
 <!-- generated:begin example:reading/name -->
 
 ```ts
 import { readFile } from "node:fs/promises";
 
-import { GraphBuilder } from "@graphty/graph-format";
-import { exportGraphToString, importGraph } from "@graphty/graph-io";
+import { exportGraphToString, GraphBuilder, importGraph } from "@graphty/graph-io";
 
 // A CSV file has no graph name
 const { snapshot } = await importGraph(await readFile("got-edges.csv"), { filename: "got-edges.csv" });
 console.log(snapshot.meta.name);
 
-// A snapshot never changes: copy it into a builder, set the name, and freeze a new snapshot
+// meta is fixed: copy the graph into a builder, set the name, and freeze a new snapshot
 const builder = GraphBuilder.from(snapshot);
 builder.setMeta({ name: "got" });
 const named = builder.freeze();
@@ -329,18 +345,7 @@ got
 To name only the saved file, pass the name to the save instead: `name` for DOT and Pajek, and
 `ontology` for OBO.
 
-## Changing attributes
-
-A snapshot's nodes, edges, ids and `meta` never change. Its attribute tables (`snapshot.nodes`,
-`snapshot.edges` and `snapshot.graph`) can: `rename(from, to)`, `remove(name)`, and
-`set(name, values)` to add a column change the table in place.
-
-A change in place reaches everything that holds the same snapshot: every component and store it
-was handed to. React does not notice, because the object is the same. So change a copy:
-`snapshot.withColumns()` returns a new snapshot with its own attribute tables. It shares the nodes,
-edges and ids with the original, so it costs little memory. Put the copy in state, and React
-renders it. To stop code you hand a snapshot to from changing its tables, call `snapshot.seal()`:
-`rename()`, `remove()` and `set()` then throw `E_FROZEN`.
+### Renaming an attribute
 
 Renaming is how you put a value where another tool looks for it. vis.js, for example, shows each
 node's `label`:

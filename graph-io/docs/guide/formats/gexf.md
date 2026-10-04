@@ -61,9 +61,8 @@ parallel edges and needs an id on every edge, and `checkExport()` says so when t
   `long` become numbers, `float` and `double` floating-point numbers, `boolean` true or false, and
   `string` text. List types become list columns. A declared default and declared options are kept
   on the column.
-- The `viz` elements become visual columns: `viz:color` a color column (red, green, blue and alpha,
-  each from 0 to 1), `viz:position` a position column (x, y, z), and `viz:size`, `viz:shape` and
-  `viz:thickness` size, shape and thickness columns. Pass `viz: false` to ignore them.
+- The `viz` elements become color, position, size, shape and thickness columns; see
+  [Visual attributes](#visual-attributes). Pass `viz: false` to ignore them.
 - `defaultedgetype` sets the direction; a file without it is undirected, as the GEXF specification
   says. An edge's own `type` (`directed`, `undirected` or `mutual`) overrides it, so one file can
   mix directed and undirected edges.
@@ -79,6 +78,59 @@ parallel edges and needs an id on every edge, and `checkExport()` says so when t
 - An attribute titled like one of GEXF's own fields (`label`, `parent`, `start`, ...) is renamed
   `<title>#<attribute id>` so it does not collide with that field.
 
+## Visual attributes
+
+With `viz` on (the default), Gephi's visual attributes become columns: `color` (red, green, blue
+and alpha, each from 0 to 1), `position` (x, y and z), `size` and `shape` on nodes, and `color`,
+`thickness` and `shape` on edges. Each has the role of the same name, so other formats that hold
+colors or positions find it. A save writes these columns back as `viz` elements.
+
+<!-- generated:begin example:formats/gexf-viz -->
+
+```ts
+import { importGraph } from "@graphty/graph-io";
+
+// Gephi's visual attributes, in the viz namespace
+const gexf = `<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
+  <graph defaultedgetype="undirected">
+    <nodes>
+      <node id="a" label="A">
+        <viz:color r="255" g="0" b="0" a="0.5"/><viz:position x="1" y="2" z="0"/><viz:size value="4"/>
+      </node>
+      <node id="b" label="B"/>
+    </nodes>
+    <edges><edge source="a" target="b"><viz:thickness value="3"/></edge></edges>
+  </graph>
+</gexf>`;
+
+const { snapshot } = await importGraph(gexf, { format: "gexf" });
+// the columns viz makes, with node a's (and edge 0's) value
+for (const [what, table] of [
+    ["node", snapshot.nodes],
+    ["edge", snapshot.edges],
+] as const) {
+    for (const name of table.names()) {
+        const value = table.value(name, 0);
+        const shown = ArrayBuffer.isView(value) ? Array.from(value as Float32Array) : value;
+        console.log(`${what} ${name}: ${JSON.stringify(shown)}`);
+    }
+}
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/gexf-viz -->
+
+```text
+node label: "A"
+node color: [1,0,0,0.5]
+node position: [1,2,0]
+node size: 4
+edge thickness: 3
+```
+
+<!-- generated:end -->
+
 ## What a saved file keeps and loses
 
 GEXF keeps more of a graph than any other format: mixed direction, parallel edges, any node id,
@@ -93,7 +145,55 @@ does not survive:
   (`W_OPTIONS_GAINED`).
 - Text holding a character XML 1.0 forbids, such as most control characters, cannot be written at
   all; the export throws (`E_XML_ILLEGAL_CHAR`).
-- GEXF 1.2 has no parallel edges.
+- GEXF 1.2 has no parallel edges, and no edge kind. An edge column marked as the kind, such as the
+  `relation` column of an OBO ontology, is written as each edge's `kind` in GEXF 1.3 and reads back
+  as a column named `kind`. Under `version: "1.2"` it is dropped (`W_GEXF_KIND_DROPPED`). To keep
+  it in a 1.2 file, make it a plain column first:
+
+<!-- generated:begin example:formats/gexf-kind -->
+
+```ts
+import { readFile } from "node:fs/promises";
+
+import { checkExport, exportGraphToString, importGraph } from "@graphty/graph-io";
+
+// An OBO ontology: each edge's relation (is_a, part_of) is in the "relation" column, marked as the edge kind
+const { snapshot } = await importGraph(await readFile("vehicles.obo"), { filename: "vehicles.obo" });
+
+// GEXF 1.3 writes it as the edge kind, which reads back as a column named "kind"
+const v13 = await importGraph(await exportGraphToString(snapshot, "gexf"), { format: "gexf" });
+console.log(v13.snapshot.edges.names());
+
+// GEXF 1.2 has no edge kind, so the column is dropped
+console.log(checkExport(snapshot, "gexf", { version: "1.2" }).map((n) => n.code));
+
+// To keep it in a 1.2 file, make it a plain column first, in a copy
+const copy = snapshot.withColumns();
+const relation = copy.edges.get("relation");
+copy.edges.set(
+    "relation",
+    Array.from({ length: copy.edgeCount }, (_, e) => relation?.value(e)),
+);
+const v12 = await importGraph(await exportGraphToString(copy, "gexf", { version: "1.2" }), { format: "gexf" });
+console.log(v12.snapshot.edges.names());
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/gexf-kind -->
+
+```text
+[ 'kind' ]
+[
+  'W_EDGE_IDS_GENERATED',
+  'W_COLUMN_NAME_CHANGED',
+  'W_OPTIONS_GAINED',
+  'W_GEXF_KIND_DROPPED'
+]
+[ 'relation', 'id' ]
+```
+
+<!-- generated:end -->
 
 <!-- generated:begin capabilities:gexf -->
 
@@ -126,9 +226,9 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option               | Type      | Default | Meaning                                                                                                                                                                                          |
-| -------------------- | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`viz`](#import-viz) | `boolean` | `true`  | Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape, thickness) into node and edge attributes; false skips them, with one `W_GEXF_VIZ_SKIPPED` warning. |
+| Option               | Type      | Default |
+| -------------------- | --------- | ------- |
+| [`viz`](#import-viz) | `boolean` | `true`  |
 
 - <a id="import-viz"></a>`viz`: Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape, thickness) into node and edge attributes; false skips them, with one `W_GEXF_VIZ_SKIPPED` warning.
 
@@ -136,9 +236,9 @@ These come on top of the [options every importer takes](../options.md#every-impo
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                       | Type             | Default | Meaning                    |
-| ---------------------------- | ---------------- | ------- | -------------------------- |
-| [`version`](#export-version) | `"1.2" \| "1.3"` | `"1.3"` | The GEXF version to write. |
+| Option                       | Type             | Default |
+| ---------------------------- | ---------------- | ------- |
+| [`version`](#export-version) | `"1.2" \| "1.3"` | `"1.3"` |
 
 - <a id="export-version"></a>`version`: The GEXF version to write.
 

@@ -2,8 +2,8 @@
 
 graph-io reads and writes graph files. It turns a GraphML, GEXF, CSV or other graph file into a
 [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format) snapshot, and writes a
-snapshot back out in any of the same formats. It runs in browsers and in Node, streams large files,
-and has no dependencies besides graph-format.
+snapshot back out in any of the same formats. It runs in browsers and in Node, and streams large
+files. Its one dependency, graph-format, is installed with it.
 
 When a file holds something graph-io cannot represent, or a format cannot hold part of your graph,
 graph-io tells you: an import returns a report that lists every skipped or changed element, and

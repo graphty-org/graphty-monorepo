@@ -7,6 +7,7 @@ import {
     type GraphImporter,
     type GraphSnapshot,
     ImportReportBuilder,
+    INVALID_INDEX,
     joinText,
     LineReader,
     pairFolding,
@@ -102,6 +103,9 @@ export const numbersImporter: GraphImporter = {
                     // restoreMangledIds (on by default) gives the node its original id back
                     const id = original !== null && opts.restoreMangledIds ? original : Number(node[1]);
                     nodeOf.set(node[1], id);
+                    if (sink.indexOf(id) === INVALID_INDEX) {
+                        report.counts.nodes++; // a node listed twice is one node
+                    }
                     const index = sink.addNode(id);
                     if (original !== null && !opts.restoreMangledIds) {
                         // keep the original where every format keeps it, so nothing is lost
@@ -112,7 +116,6 @@ export const numbersImporter: GraphImporter = {
                         });
                         sink.setNodeValue(column, index, String(original));
                     }
-                    report.counts.nodes++;
                 } else if (edge !== null) {
                     // an edge names nodes by their written ids: look up the id each node was given
                     const source = nodeOf.get(edge[1]);
@@ -127,9 +130,14 @@ export const numbersImporter: GraphImporter = {
                         report.counts.edges++;
                     }
                 } else if (text !== "") {
-                    report.error("parse-error", "E_NUMBERS_BAD_LINE", "expected a node line or an edge between two nodes", {
-                        line,
-                    });
+                    report.error(
+                        "parse-error",
+                        "E_NUMBERS_BAD_LINE",
+                        "expected a node line or an edge between two nodes",
+                        {
+                            line,
+                        },
+                    );
                 }
             } catch (err) {
                 report.recordError(err, { line }); // rethrows anything that is not a problem with this line

@@ -17,10 +17,8 @@ Each returns a promise of `{ snapshot, format, report, sniff, freeze }`:
 - `sniff`: how the format was detected (its `confidence` and whether the content, the file name or
   the MIME type matched), or `null` when you named the format.
 - `freeze`: most programs never read it. It records what the last step of the import changed,
-  such as edges merged by `duplicateEdges` (also reported as warnings), and it holds one entry per
-  edge read, so log `snapshot` and `report` rather than the whole result. The
-  [`ImportGraphResult` reference](https://graphty.app/docs/graph-io/api/generated/@graphty/graph-io/interfaces/ImportGraphResult.html)
-  lists its fields.
+  such as edges merged by `duplicateEdges`, which the report also lists as warnings. It is left out
+  when you log or spread the result.
 
 ## What you can pass in
 
@@ -128,9 +126,10 @@ read as GraphML or GEXF by its root element, and a `.csv` file with a `neo4j-adm
 as Neo4j CSV. [Format detection](./detection.md) explains the ranking.
 
 An input that no format recognizes fails with an `ImportError` whose `err.issue?.code` is
-`"E_UNKNOWN_FORMAT"`. CSV accepts almost any text with commas, so for input you do not control,
-pass `format` and check `snapshot.nodeCount` and `report.issues` after the load;
-[Format detection](./detection.md#content-beats-names) explains what CSV claims.
+`"E_UNKNOWN_FORMAT"`, and an empty one with `"E_EMPTY_INPUT"`. A few lines of delimited text read
+as a CSV edge list, because nothing tells them apart from one, so for input you do not control,
+pass `format`, or check `result.sniff` as the
+[Quick start](./quick-start.md#load-a-file-the-user-picks) does.
 
 A file that does not say whether it is directed gets its format's default:
 [`defaultDirected`](./options.md#import-defaultdirected) lists them. A CSV edge list without a
@@ -197,11 +196,10 @@ Every function takes one options object, which holds three kinds of option:
 
 You can pass a format's options without knowing the format in advance: an option only matters
 when the file turns out to be in that format. A common option that the chosen format has no use
-for is reported in the import report as `W_OPTION_IGNORED`.
-
-A misspelled option name is not reported, because any name could be some format's option. In
-TypeScript, give the options object the format's options type, which every format entry point
-exports and which includes the options every importer takes, so a typo does not compile:
+for is reported in the import report as `W_OPTION_IGNORED`, and a name that no format takes, such
+as `delimeter`, as `W_UNKNOWN_OPTION`. In TypeScript, give the options object the format's options
+type, which every format entry point exports and which includes the options every importer takes,
+so a typo does not compile:
 
 <!-- generated:begin example:loading/typed-options -->
 
@@ -276,8 +274,8 @@ console.log(named.report.issues.length, named.snapshot.ids.has("Zo\u00eb"), name
 <!-- generated:end -->
 
 A string input is already text, so `encoding` has no effect on it, and the report says so with a
-`W_OPTION_IGNORED` warning. A CSV import with a separate node table has two inputs and gets one
-warning for each.
+`W_OPTION_IGNORED` warning. A CSV import whose `nodes` table is a string while the edge table is
+bytes gets that warning for the node table only; with both tables as strings it gets two.
 
 ## Files that hold several graphs
 
@@ -290,8 +288,9 @@ document with a `graphs` array, a CX collection, an XGMML session file, and a Cy
 - `graphIndex` (0-based) or `graphName` chooses another graph, in every one of these formats.
   `graphName` matches the graph's name: the name after `graph` or `digraph` in DOT, the `name` key
   of a GML `graph [ ]` block, the `*Network` name in Pajek, and the network's name in the others.
-  One that names no graph fails with `E_GRAPH_NOT_FOUND`, and the message lists the index and name
-  of each graph in the file. A graph you choose this way gets no `W_MULTIPLE_GRAPHS` warning.
+  One that names no graph stops the load with an `ImportError` whose `issue.code` is
+  `E_GRAPH_NOT_FOUND`, and the message lists the index and name of each graph in the file. A graph
+  you choose this way gets no `W_MULTIPLE_GRAPHS` warning.
 - `importAllGraphs(input, options)` reads every graph and returns one result per graph.
 - `listGraphs(input, options)` lists the graphs without reading them: each entry has an `index`, a
   `name`, and node and edge counts when the file states them. JSON, CX, XGMML and Cytoscape
@@ -403,25 +402,21 @@ cancelled
 
 ## Loading in a React component
 
-A snapshot's nodes, edges and ids never change, so you can keep it in React state and pass it to
-child components. Type the state as `useState<GraphSnapshot | null>(null)`, with
-`import type { GraphSnapshot } from "@graphty/graph-io"`. If a component renames or adds an
-attribute, copy the snapshot first, as [Changing attributes](./reading.md#changing-attributes)
-shows: the change would otherwise reach every component that holds it, without React noticing.
-Start the load in an effect and cancel it in the effect's cleanup, so a component that
-unmounts or gets a new URL stops the old load instead of setting stale state. This function has
-the shape an effect needs: it starts the load and returns the function that cancels it.
+Load the graph in an effect and cancel the load in the effect's cleanup, so a component that
+unmounts or gets a new URL stops the old load instead of setting stale state. This hook does that;
+the commented component shows how to use it. In TypeScript, type the state as
+`useState<GraphSnapshot | null>(null)`, with `import type { GraphSnapshot } from "@graphty/graph-io"`.
 
 <!-- generated:begin example:loading/react -->
 
 ```js
 import { isAbortError, loadFromUrl } from "@graphty/graph-io";
+import { useEffect, useState } from "react";
 
 const GOT =
     "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml";
 
-// Load a graph and return the function that cancels the load: the shape a React effect's
-// cleanup takes, so a component that unmounts or changes its URL stops the old load.
+// Load a graph and return the function that cancels the load: the shape a React effect's cleanup takes
 function watchGraph(url, onGraph, onError) {
     const controller = new AbortController();
     loadFromUrl(url, { signal: controller.signal }).then(
@@ -435,10 +430,25 @@ function watchGraph(url, onGraph, onError) {
     return () => controller.abort();
 }
 
-// In a component: useEffect(() => watchGraph(url, setSnapshot, setError), [url]);
-const stop = watchGraph(GOT, () => console.log("never printed"), console.error);
-stop(); // the URL changed before the load finished: this load is cancelled quietly
+// The graph at `url`, for a component. A new URL, or the component going away, cancels the old load.
+export function useGraph(url) {
+    const [snapshot, setSnapshot] = useState(null); // in TypeScript: useState<GraphSnapshot | null>(null)
+    const [error, setError] = useState(null);
+    useEffect(() => watchGraph(url, setSnapshot, setError), [url]);
+    return { snapshot, error };
+}
 
+// export function GraphSummary({ url }) {
+//     const { snapshot, error } = useGraph(url);
+//     if (error) {
+//         return <p>Could not load the graph: {error.message}</p>;
+//     }
+//     return <p>{snapshot ? `${snapshot.nodeCount} nodes` : "Loading..."}</p>;
+// }
+
+// What the effect does outside React: a load cancelled before it finishes reports nothing
+const stop = watchGraph(GOT, () => console.log("never printed"), console.error);
+stop();
 await new Promise((done) => {
     watchGraph(GOT, (snapshot) => done(console.log(`loaded ${snapshot.nodeCount} nodes`)), console.error);
 });
@@ -454,7 +464,10 @@ loaded 107 nodes
 
 <!-- generated:end -->
 
-In a component, call it as `useEffect(() => watchGraph(url, setSnapshot, setError), [url])`.
+A snapshot can go into state and be passed to child components, because its nodes, edges and ids
+are fixed. Its attribute tables are not: if a component renames or adds an attribute, change a
+copy, as [What can change](./reading.md#what-can-change) shows. A change to the shared snapshot
+would reach every component that holds it, without React noticing.
 
 ## Keeping your bundle small
 
@@ -462,7 +475,8 @@ The top-level load and save functions (`loadFromUrl()`, `loadFromFile()`, `impor
 `exportGraphToBytes()`, `checkExport()`, `downloadGraph()`, `listFormats()` and the others) use a
 registry that holds every format, because format detection needs them all. A bundle that imports
 any of them holds the code of every format: about 950 KB minified, 300 KB gzipped, including
-`@graphty/graph-format`. Vite warns about chunks over 500 KB, so expect that warning.
+`@graphty/graph-format`. That is over the 500 KB at which Vite warns about a chunk's size. To ship
+less, register only the formats you need, as the rest of this section shows.
 
 graph-io is marked as free of side effects, so a bundler (Vite, webpack, Rollup, esbuild) keeps
 only what you import. Importing `FormatRegistry`, the format entry points or helpers such as
@@ -516,20 +530,15 @@ format.
 ## Loading into your own graph builder
 
 The load functions create a graph builder, read the file into it, and return the finished
-snapshot. To combine several files into one graph, or to set builder options yourself, create the
-[`GraphBuilder`](https://www.npmjs.com/package/@graphty/graph-format) and call a format's importer
-directly. Add `@graphty/graph-format` to your own dependencies for this:
-
-```bash
-npm install @graphty/graph-io @graphty/graph-format
-```
+snapshot. To combine several files into one graph, or to set builder options yourself, create a
+`GraphBuilder` (exported by graph-io) and call a format's importer directly:
 
 <!-- generated:begin example:loading/own-builder -->
 
 ```ts
 import { readFile } from "node:fs/promises";
 
-import { GraphBuilder } from "@graphty/graph-format";
+import { GraphBuilder } from "@graphty/graph-io";
 import { csvImporter } from "@graphty/graph-io/csv";
 
 // A builder starts with a direction, but each importer replaces it with its file's direction.
@@ -561,7 +570,5 @@ node columns: Label
 
 An importer called directly takes the same options as `importGraph()`, minus the ones that belong
 to the load functions (`format`, `filename`, `mimeType`, `builder`, `freeze`, `maxEmptyCells`).
-`graphIndex` and `graphName` reach it, and an importer of a format that holds several graphs
-(JSON, XGMML, CX, Cytoscape sessions) reads them; DOT, GML and Pajek importers read the first graph
-whatever you pass, so call `importGraph()` with `builder` for those. It returns the import report,
-and you call `builder.freeze()` when you are done adding to the builder.
+`graphIndex` and `graphName` work the same way. It returns the import report, and you call
+`builder.freeze()` when you are done adding to the builder.

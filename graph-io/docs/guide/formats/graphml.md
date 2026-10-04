@@ -131,20 +131,20 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option                     | Type               | Default  | Meaning                                                |
-| -------------------------- | ------------------ | -------- | ------------------------------------------------------ |
-| [`yfiles`](#import-yfiles) | `"skip" \| "json"` | `"json"` | How yEd graphics (keys with a `yfiles.type`) are read. |
+| Option                     | Type               | Default  |
+| -------------------------- | ------------------ | -------- |
+| [`yfiles`](#import-yfiles) | `"skip" \| "json"` | `"json"` |
 
-- <a id="import-yfiles"></a>`yfiles`: How yEd graphics (keys with a `yfiles.type`) are read. "json" keeps each one as a JSON attribute named after the key (`d0`, say) that holds its XML as a tree, which the GraphML exporter writes back, and also reads the shapes it knows into plain columns beside it: `yfiles.position`, `yfiles.width`, `yfiles.height`, `yfiles.color`, `yfiles.borderColor`, `yfiles.borderWidth`, `yfiles.label` and `yfiles.shape` for nodes, and the line color, width and arrows for edges. The report's `lossy` list then holds `W_GRAPHML_YFILES_JSON`, because the XML comes back with the same structure but not byte for byte. "skip" leaves the graphics out, with a `W_GRAPHML_YFILES_SKIPPED` warning per key.
+- <a id="import-yfiles"></a>`yfiles`: How yEd graphics (keys with a `yfiles.type`) are read. "json" keeps each one as a JSON attribute named after the key (for example, `d0`) that holds its XML as a tree, which the GraphML exporter writes back, and also reads the shapes it knows into plain columns beside it: `yfiles.position`, `yfiles.width`, `yfiles.height`, `yfiles.color`, `yfiles.borderColor`, `yfiles.borderWidth`, `yfiles.label` and `yfiles.shape` for nodes, and the line color, width and arrows for edges. The report's `lossy` list then holds `W_GRAPHML_YFILES_JSON`, because the XML comes back with the same structure but not byte for byte. "skip" leaves the graphics out, with a `W_GRAPHML_YFILES_SKIPPED` warning per key.
 
 ## Export options
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                               | Type                         | Default | Meaning                                                                        |
-| ------------------------------------ | ---------------------------- | ------- | ------------------------------------------------------------------------------ |
-| [`pretty`](#export-pretty)           | `boolean`                    | `true`  | Indent nested elements; false writes one element per line without indentation. |
-| [`edgedefault`](#export-edgedefault) | `"directed" \| "undirected"` | as read | The `edgedefault` of the graph element.                                        |
+| Option                               | Type                         | Default |
+| ------------------------------------ | ---------------------------- | ------- |
+| [`pretty`](#export-pretty)           | `boolean`                    | `true`  |
+| [`edgedefault`](#export-edgedefault) | `"directed" \| "undirected"` | as read |
 
 - <a id="export-pretty"></a>`pretty`: Indent nested elements; false writes one element per line without indentation.
 - <a id="export-edgedefault"></a>`edgedefault`: The `edgedefault` of the graph element. The default is the one a GraphML import read, so a file with both directions reads back with the same edges marked, else the graph's direction (for a graph with both, the direction most edges have).

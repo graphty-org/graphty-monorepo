@@ -139,9 +139,9 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 These come on top of the [options every importer takes](../options.md#every-importer).
 A file can hold several graphs: pick one with the `graphIndex` or `graphName` option of [importGraph()](../options.md#importgraph-and-importallgraphs), as [Files that hold several graphs](../loading.md#files-that-hold-several-graphs) shows.
 
-| Option                               | Type               | Default  | Meaning                                                                                                                                                        |
-| ------------------------------------ | ------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`firstVertex`](#import-firstvertex) | `0 \| "auto" \| 1` | `"auto"` | The number of the first vertex: 1 (Pajek's rule), 0 (files written by zero-based scripts), or "auto": 0 when the first vertex line is numbered 0, 1 otherwise. |
+| Option                               | Type               | Default  |
+| ------------------------------------ | ------------------ | -------- |
+| [`firstVertex`](#import-firstvertex) | `0 \| "auto" \| 1` | `"auto"` |
 
 - <a id="import-firstvertex"></a>`firstVertex`: The number of the first vertex: 1 (Pajek's rule), 0 (files written by zero-based scripts), or "auto": 0 when the first vertex line is numbered 0, 1 otherwise.
 
@@ -149,10 +149,10 @@ A file can hold several graphs: pick one with the `graphIndex` or `graphName` op
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                                   | Type      | Default                             | Meaning                                                                   |
-| ---------------------------------------- | --------- | ----------------------------------- | ------------------------------------------------------------------------- |
-| [`networkHeader`](#export-networkheader) | `boolean` | false, or true when `name` is given | Write a `*Network <name>` line first, as Pajek project files (.paj) have. |
-| [`name`](#export-name)                   | `string`  | the graph's name                    | The network name written on the `*Network` line.                          |
+| Option                                   | Type      | Default                             |
+| ---------------------------------------- | --------- | ----------------------------------- |
+| [`networkHeader`](#export-networkheader) | `boolean` | false, or true when `name` is given |
+| [`name`](#export-name)                   | `string`  | the graph's name                    |
 
 - <a id="export-networkheader"></a>`networkHeader`: Write a `*Network <name>` line first, as Pajek project files (.paj) have. The name is the `name` option, else the graph's name (`snapshot.meta.name`); a graph with neither gets a bare `*Network` line. Plain .net readers do not expect the line. An explicit `false` wins over `name`: `{ networkHeader: false, name: "x" }` writes no line.
 - <a id="export-name"></a>`name`: The network name written on the `*Network` line. Giving one writes the line, unless `networkHeader` is `false`. The default is the graph's name (`snapshot.meta.name`), which a Pajek, DOT, GML or GEXF import keeps; a graph read from CSV has none.
@@ -223,7 +223,7 @@ The codes `checkExport(snapshot, "pajek", options)` can return before a save, al
 - `W_ROLE_DROPPED` (warning): An attribute with a role the format has no place for is written as a plain attribute; the role is lost.
 - `W_PAJEK_SHAPE_AS_PARAMETER` (warning): A `shape` attribute whose value is not one of Pajek's shape names is written as a parameter, and reads back as a plain text attribute.
 - `W_PAJEK_LABEL_GAINED` (warning): A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label.
-- `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads back with that role.
+- `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and reads back with that role.
 - `W_ID_TEXT_TYPE` (warning): With `sanitizeIds: "mangle"`: an original id that reads back as a different type, such as the text "7" as the number 7.
 - `W_TEXT_INFERRED` (warning): A text value that reads back as a number or a boolean, because the format does not record that it was text (the text "42" reads back as the number 42).
 

@@ -1,7 +1,7 @@
 # Quick start
 
 This page loads a graph file, looks at what was read, and saves the graph in another format. The
-examples load public sample files by URL, so you can run them as they are.
+examples read the [sample files](#sample-files) listed at the end of this page.
 
 ## Install
 
@@ -10,7 +10,9 @@ npm install @graphty/graph-io
 ```
 
 graph-io is an ES module: import it with `import`, not `require`. It runs in browsers and in Node
-18.19 or later.
+18.19 or later. npm installs [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format),
+which defines the graph type, along with it; you do not need to add it yourself, because graph-io
+exports everything from it that you need (the `GraphSnapshot` type and `GraphBuilder`).
 
 In a page or a notebook without a bundler (a plain `<script type="module">`, Observable,
 JupyterLite), import it from a CDN instead:
@@ -41,6 +43,10 @@ csv: 107 nodes, 352 edges, directed: false
 ```
 
 <!-- generated:end -->
+
+That URL loads the latest version. To keep a page on one version, put the version after the name,
+as in `https://esm.sh/@graphty/graph-io@1.2.3` (the versions are listed on npm). esm.sh then also
+loads the version of graph-format that this version of graph-io asks for.
 
 Most programs need eight functions: `loadFromUrl()`, `loadFromFile()` and `importGraph()` read a
 graph; `exportGraphToBytes()`, `exportGraphToString()`, `exportGraphToBlob()` and `downloadGraph()`
@@ -89,12 +95,10 @@ Read graphml: 107 nodes, 352 edges
 
 The result has three parts:
 
-- `snapshot` is the graph, a `GraphSnapshot`. In TypeScript, import its type from graph-io:
-  `import type { GraphSnapshot } from "@graphty/graph-io"`, then
-  `useState<GraphSnapshot | null>(null)`. Its nodes, edges and ids never change, so you can keep it
-  in application state and share it between components. Its attribute tables can change; see
-  [Changing attributes](./reading.md#changing-attributes) before you rename one in a snapshot that
-  other code holds.
+- `snapshot` is the graph, a `GraphSnapshot` (in TypeScript,
+  `import type { GraphSnapshot } from "@graphty/graph-io"`). Its nodes, edges and ids are fixed, so
+  you can keep it in application state. [What can change](./reading.md#what-can-change) lists the
+  parts you can change.
 - `format` is the format the file was read as, such as `"graphml"`.
 - `report` says what happened while reading. `report.issues` lists every element that was skipped
   or changed, with a code, a message and a line number. This file reads cleanly, so it prints none.
@@ -103,24 +107,26 @@ The result has three parts:
 
 Nodes and edges are numbered from 0. `snapshot.ids.idOf(i)` gives node `i`'s id, and
 `snapshot.edgeSource(e)` and `snapshot.edgeTarget(e)` give the nodes at the ends of edge `e`.
-Attributes are columns. Formats name the label column differently (`label`, `name`, `Label`), so
-`snapshot.nodes.byRole("label")` finds it whatever its name, and its `value(i)` reads node `i`'s
-label. This turns the graph into the `{ nodes, links }` arrays that d3, react-force-graph and
-similar libraries take:
+Attributes are columns: `column.value(i)` reads node `i`'s value and `column.meta.name` is the
+column's name. Formats name the label column differently (`label`, `name`, `Label`), and
+`snapshot.nodes.byRole("label")` finds it whatever its name in the formats that mark one. A few
+JSON dialects do not mark labels (see [Reading the graph](./reading.md#attributes)), so the example
+falls back to a `name` column. `edgeWeights(snapshot)` gives each edge's weight. This turns the
+graph into the `{ nodes, links }` arrays that d3, react-force-graph and similar libraries take:
 
 <!-- generated:begin example:quick-start/use-data -->
 
 ```ts
-import { loadFromUrl } from "@graphty/graph-io";
+import { edgeWeights, loadFromUrl } from "@graphty/graph-io";
 
 const { snapshot } = await loadFromUrl(
     "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml",
 );
 
-// the column the file marks as the node labels, whatever it is named (null when there is none)
-const label = snapshot.nodes.byRole("label");
-// edge weights, one per edge (null for an unweighted graph)
-const weights = snapshot.edgeList().weights;
+// the column the file marks as the node labels, whatever it is named; some JSON files only have a "name"
+const label = snapshot.nodes.byRole("label") ?? snapshot.nodes.get("name");
+// edge weights, one per edge, exactly as the file wrote them (null for an unweighted graph)
+const weights = edgeWeights(snapshot);
 
 const nodes = Array.from({ length: snapshot.nodeCount }, (_, i) => ({
     id: snapshot.ids.idOf(i),
@@ -132,6 +138,7 @@ const links = Array.from({ length: snapshot.edgeCount }, (_, e) => ({
     weight: weights ? weights[e] : 1,
 }));
 
+console.log(`labels from the "${label?.meta.name}" column`);
 console.log(nodes[0], links[0]);
 ```
 
@@ -140,14 +147,13 @@ console.log(nodes[0], links[0]);
 <!-- generated:begin output:quick-start/use-data -->
 
 ```text
+labels from the "label" column
 { id: 'Aemon', label: 'Aemon' } { source: 'Aemon', target: 'Grenn', weight: 5 }
 ```
 
 <!-- generated:end -->
 
-`edgeList().weights` holds 32-bit numbers, so a weight such as 0.1 comes back as
-0.10000000149011612. [Reading the graph](./reading.md#weights) shows how to read the exact values,
-and covers attributes by name, degrees and the rest of the snapshot.
+[Reading the graph](./reading.md) covers attributes by name, degrees and the rest of the snapshot.
 
 ## Load a file the user picks
 
@@ -174,9 +180,13 @@ input.addEventListener("change", async () => {
         return;
     }
     try {
-        const { snapshot, report } = await loadFromFile(file);
+        const { snapshot, report, sniff } = await loadFromFile(file);
+        // graph-io guessed: the content is not clearly any format, and the file name does not say
+        if (sniff !== null && sniff.content < 0.5 && !sniff.extension) {
+            console.error(`${file.name} does not look like a graph file`);
+            return;
+        }
         if (snapshot.nodeCount === 0) {
-            // catches an empty result only: any text with commas can read as a small CSV graph
             console.error(`${file.name} holds no graph`);
             return;
         }
@@ -196,11 +206,13 @@ input.addEventListener("change", async () => {
 
 <!-- generated:end -->
 
-A load that does not throw can still hold a meaningless graph, because almost any text with commas
-reads as a CSV edge list ([Format detection](./detection.md#content-beats-names) explains why). When
-you know which format the user should pick, pass it as `format` (for example
-`loadFromFile(file, { format: "graphml" })`), and any other file is refused with an `ImportError`
-whose message says the file could not be read as that format.
+A file that is not a graph usually fails to load. One that does load can still be a guess: a few
+lines of delimited text read as a CSV edge list, because that is what an edge list looks like.
+`sniff` says how sure detection was. Its `content` is 0.5 or more when the file's content is
+clearly in the format it was read as, and `extension` says whether the file name agreed, so the
+example refuses a file for which neither is true. When you know which format the user should pick,
+pass it as `format` (for example `loadFromFile(file, { format: "graphml" })`), and any other file
+is refused with an `ImportError` whose message says the file could not be read as that format.
 
 In Node 20 or later, the same function reads a file from disk. A Blob from `fs.openAsBlob(path)`
 has no file name, so pass one: `loadFromFile(await openAsBlob(path), { filename: path })`. In any
@@ -247,7 +259,7 @@ A CSV file holds one table. By default graph-io writes the edge table, so the no
 in it. The [CSV page](./formats/csv.md) shows how to write the node table too.
 
 An empty list means graph-io reads the file back as the same graph. Read it back with the same
-format options you saved it with, since a file does not record them (a CSV `delimiter`, say).
+format options you saved it with, since a file does not record them (for example, a CSV `delimiter`).
 [Check before you save](./saving.md#check-before-you-save) lists the cases this does not cover.
 
 A note's code tells you how serious it is:
@@ -297,11 +309,10 @@ document.querySelector("#save").addEventListener("click", async () => {
 
 <!-- generated:end -->
 
-Saving in the format a file came from can need the same option. Two ids in got-network.graphml,
-"Jon Arryn" and "Robert Arryn", contain a space, which graph-io does not write in a GraphML id. So
-`downloadGraph(snapshot, "graphml")` is refused with `E_INVALID_ID`, and
-`downloadGraph(snapshot, "graphml", { sanitizeIds: "mangle" })` writes the file with the original ids
-kept in it. A "save as" button that offers every format should pass `sanitizeIds: "mangle"`; see
+A "save as" button that offers every format should pass `sanitizeIds: "mangle"`, because most
+formats restrict ids, and graph-io never renames a node unless you ask. That includes the format a
+file came from: got-network.graphml has two ids with a space, which GraphML does not allow, so a
+GraphML save of it needs the option too. See
 [Ids the format cannot hold](./saving.md#ids-the-format-cannot-hold).
 
 To upload a graph instead, use `exportGraphToBlob()` and put the blob in a `FormData`. To get the
@@ -310,8 +321,8 @@ file as text, for example to show it in a page, use `exportGraphToString()`:
 
 ## When something goes wrong
 
-Everything graph-io throws on purpose is a `GraphFormatError`. It has a `code` (a stable string), a
-`message` (plain English) and `details` (an object, possibly empty).
+Every error graph-io throws is a `GraphFormatError`, except the reason of a cancelled load. It has
+a `code` (a stable string), a `message` (plain English) and `details` (an object, possibly empty).
 
 - `ImportError` is the `GraphFormatError` you get when the input could not be loaded: the URL
   failed, the format was not recognized, the file could not be parsed, or there were more errors
@@ -333,12 +344,15 @@ examples above do. [The import report and errors](./report.md) shows how to bran
 
 ## Sample files
 
-The examples read these files. They are published with this guide, and they are also in the
-graph-io repository, in
+The examples read these files. Each one has three copies: on this site, at
+`https://graphty.app/docs/graph-io/samples/<name>`; in the npm package, in
+`node_modules/@graphty/graph-io/docs/samples/`; and in the graph-io repository, in
 [graph-io/docs/samples](https://github.com/graphty-org/graphty-monorepo/tree/master/graph-io/docs/samples).
-To run a Node example, download the files it reads into the directory you run it from. To load a
-local copy in a browser, serve the directory (`npx serve`) and pass `loadFromUrl()` a URL relative
-to the page, such as `"/got.gml"`.
+
+- A Node example reads its files from the directory you run it in. Copy them there:
+  `cp node_modules/@graphty/graph-io/docs/samples/* .`
+- In a browser, serve the directory that holds the copies (`npx serve`) and pass `loadFromUrl()` a
+  URL relative to the page, such as `"/got.gml"`, in place of the address in the example.
 
 The Game of Thrones character network by Melanie Walsh
 ([sample-social-network-datasets](https://github.com/melaniewalsh/sample-social-network-datasets),

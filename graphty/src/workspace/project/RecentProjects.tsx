@@ -18,7 +18,7 @@ import { sizeWords, whenWords } from "./words";
  * @param props.entry - The entry
  * @returns The row
  */
-function RecentRow({ entry }: { entry: RecentProject }): React.JSX.Element {
+function RecentRow({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.Element {
     const workspace = useWorkspace();
     const [missing, setMissing] = useState(false);
     const locate = entry.handle === undefined || missing;

@@ -34,7 +34,7 @@ interface PermissionHandle {
  * @returns the pickers this browser has.
  */
 function pickers(): FileAccessWindow {
-    return window as unknown as FileAccessWindow;
+    return globalThis as unknown as FileAccessWindow;
 }
 
 /**

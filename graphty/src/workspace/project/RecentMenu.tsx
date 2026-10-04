@@ -1,10 +1,33 @@
 import { Menu } from "@mantine/core";
 import React from "react";
 
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, type WorkspaceValue } from "../state/WorkspaceContext";
 import { locateRecent, openRecent } from "./actions";
-import { useRecentProjects } from "./recent";
+import { type RecentProject, useRecentProjects } from "./recent";
 import { sizeWords } from "./words";
+
+/**
+ * Opens a recent project from the menu; a file the browser can no longer read puts up a notice
+ * with Locate...
+ * @param workspace - the workspace.
+ * @param entry - the recent project.
+ */
+async function openFromMenu(workspace: WorkspaceValue, entry: RecentProject): Promise<void> {
+    if ((await openRecent(workspace, entry)) !== "missing") {
+        return;
+    }
+    workspace.store.set({
+        notice: {
+            message: `${entry.name} can no longer be read.`,
+            action: {
+                label: "Locate...",
+                run: () => {
+                    void locateRecent(workspace, entry);
+                },
+            },
+        },
+    });
+}
 
 /**
  * The main menu's "Open recent" submenu (tier1-design.md section 2.1), one row per recent
@@ -29,21 +52,7 @@ export function RecentMenu(): React.JSX.Element | null {
                         key={entry.id}
                         rightSection={sizeWords(entry.nodes)}
                         onClick={() => {
-                            void openRecent(workspace, entry).then((outcome) => {
-                                if (outcome === "missing") {
-                                    workspace.store.set({
-                                        notice: {
-                                            message: `${entry.name} can no longer be read.`,
-                                            action: {
-                                                label: "Locate...",
-                                                run: () => {
-                                                    void locateRecent(workspace, entry);
-                                                },
-                                            },
-                                        },
-                                    });
-                                }
-                            });
+                            void openFromMenu(workspace, entry);
                         }}
                     >
                         {entry.name}

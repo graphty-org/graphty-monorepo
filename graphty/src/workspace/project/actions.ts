@@ -330,12 +330,10 @@ async function openInSession(
         state.recentId = recentId ?? null;
         await remember(workspace, session, handle);
         const lost = report.problems.length;
+        const parts = lost === 1 ? "part" : "parts";
         workspace.set({
             notice: {
-                message:
-                    lost === 0
-                        ? `Opened ${name}`
-                        : `Opened ${name}. ${String(lost)} ${lost === 1 ? "part" : "parts"} did not come back.`,
+                message: lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`,
             },
         });
     } catch (error) {

@@ -12,8 +12,11 @@ import { count, formatNumber, valueText } from "./words";
 /** How many of a node's attributes show before "N more attributes". */
 const ATTRIBUTES_SHOWN = 6;
 
-/** The keys every node and edge record carries by contract (`NodeRecord`, `EdgeRecord`). */
-const RECORD_KEYS: readonly string[] = ["id", "source", "target"];
+/**
+ * Set when Esc leaves a neighbor list, so the node's view that replaces it puts keyboard focus
+ * back on Degree instead of dropping it to the page.
+ */
+let returnToDegree = false;
 
 /**
  * One element's attributes from the file, the first few shown and the rest behind one link.
@@ -65,9 +68,9 @@ function fileAttributes(
         .filter(
             (column) =>
                 column.kind === kind &&
-                (column.origin === "imported" || column.origin === "joined") &&
-                // The record's own keys, which the header and the ends already show.
-                !RECORD_KEYS.includes(column.name),
+                // The id, source and target columns are listed too, until graphty-element marks a
+                // column's role (#893) and the inspector can leave out what the header shows.
+                (column.origin === "imported" || column.origin === "joined"),
         )
         .flatMap((column): [string, unknown][] => {
             const value = record[column.name];
@@ -85,6 +88,13 @@ function fileAttributes(
  */
 export function NodeValues({ id }: { id: NodeId }): React.JSX.Element | null {
     const { session, store } = useWorkspace();
+    const degree = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (returnToDegree) {
+            returnToDegree = false;
+            degree.current?.querySelector("button")?.focus();
+        }
+    }, []);
     if (session === null) {
         return null;
     }
@@ -97,7 +107,7 @@ export function NodeValues({ id }: { id: NodeId }): React.JSX.Element | null {
     });
     const memberships = runs.flatMap((run) => {
         const group = run.result.node(id)?.[run.field];
-        const {groups} = run.result.summary();
+        const { groups } = run.result.summary();
         if (groups === undefined || (typeof group !== "string" && typeof group !== "number")) {
             return [];
         }
@@ -119,13 +129,15 @@ export function NodeValues({ id }: { id: NodeId }): React.JSX.Element | null {
                         value={`${formatNumber(value)}, #${String(rank)} of ${formatNumber(run.result.measured.nodes)}`}
                     />
                 ))}
-                <DataRow
-                    name="Degree"
-                    value={connections}
-                    onClick={() => {
-                        void openNeighborhood(session, store, id);
-                    }}
-                />
+                <div ref={degree} style={{ display: "contents" }}>
+                    <DataRow
+                        name="Degree"
+                        value={connections}
+                        onClick={() => {
+                            void openNeighborhood(session, store, id);
+                        }}
+                    />
+                </div>
             </ControlSection>
             {memberships.length > 0 && (
                 <ControlSection label="Memberships" defaultOpened>
@@ -197,6 +209,7 @@ export function NeighborList({ center }: { center: NodeId }): React.JSX.Element 
             onKeyDown={(event) => {
                 if (event.key === "Escape") {
                     event.preventDefault();
+                    returnToDegree = true;
                     selectNode(session, center);
                 }
             }}

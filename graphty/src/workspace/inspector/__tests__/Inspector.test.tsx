@@ -3,7 +3,13 @@
  * every number it shows is the session's own. A session with no view runs no algorithms, so the
  * run, measure and group views are tested on the real element (`tasks.real-element.test.tsx`).
  */
-import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
+import {
+    createGraphSession,
+    type GraphSession,
+    GraphtyError,
+    type RunExecutionContext,
+    type RunOutcome,
+} from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it } from "vitest";
 
@@ -33,10 +39,13 @@ afterEach(() => {
 
 /**
  * A session holding the two rings, the inspector rendered on it.
+ * @param execute - how the session runs an algorithm; absent, it runs none.
  * @returns the session and the store.
  */
-async function renderInspector(): Promise<{ session: GraphSession; store: WorkspaceStore }> {
-    const made = createGraphSession();
+async function renderInspector(
+    execute?: (context: RunExecutionContext) => Promise<RunOutcome>,
+): Promise<{ session: GraphSession; store: WorkspaceStore }> {
+    const made = createGraphSession(execute === undefined ? undefined : { runs: { execute } });
     session = made;
     await made.data.addNodes(NODES);
     await made.data.addEdges(EDGES);
@@ -55,9 +64,11 @@ async function renderInspector(): Promise<{ session: GraphSession; store: Worksp
  * @returns the names.
  */
 function controlNames(): string[] {
-    return [...screen.queryAllByRole("button"), ...screen.queryAllByRole("tab"), ...screen.queryAllByRole("checkbox")].map(
-        (control) => control.getAttribute("aria-label") ?? control.textContent ?? "",
-    );
+    return [
+        ...screen.queryAllByRole("button"),
+        ...screen.queryAllByRole("tab"),
+        ...screen.queryAllByRole("checkbox"),
+    ].map((control) => control.getAttribute("aria-label") ?? control.textContent ?? "");
 }
 
 describe("the inspector", () => {
@@ -125,12 +136,102 @@ describe("the inspector", () => {
         await waitFor(() => {
             assert.deepEqual([...on.selection.nodes], ["n0"]);
         });
-        assert.isNotNull(await screen.findByRole("button", { name: /Degree/ }));
+        // Keyboard focus comes back to Degree, not to the page.
+        await waitFor(() => {
+            assert.equal(document.activeElement, screen.getByRole("button", { name: /Degree/ }));
+        });
+    });
+
+    it("closes the neighbor list when the selection changes again", async () => {
+        const { session: on, store } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0"] });
+        });
+        await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
+        await screen.findByRole("region", { name: "n0's 3 connections" });
+
+        await act(async () => {
+            await on.selection.apply({ nodes: [...on.selection.nodes, "n3"] });
+        });
+        await waitFor(() => {
+            assert.isNull(store.get().inspected);
+        });
+        assert.isNull(screen.queryByRole("region"));
+    });
+
+    it("shows isolated nodes, self-loops and repeated edges from the element's statistics", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.data.addNodes([{ id: "alone" }, { id: "looped" }]);
+            await on.data.addEdges([
+                { source: "looped", target: "looped" },
+                { source: "n1", target: "n2" },
+            ]);
+        });
+        const statistics = on.data.statistics();
+
+        await waitFor(() => {
+            assert.isNotNull(
+                screen.getByText(`${String(statistics.components.isolatedCount)} nodes joined to no other node`),
+            );
+        });
+        assert.isNotNull(screen.getByText("1 edge from a node to itself"));
+        assert.isNotNull(screen.getByText(`${String(statistics.repeatedEdgeCount)} repeated edge`));
+    });
+
+    it("shows a queued run's place, and a running run's Cancel stops it", async () => {
+        const execute = (context: RunExecutionContext): Promise<RunOutcome> =>
+            new Promise((_resolve, reject) => {
+                context.signal.addEventListener("abort", () => {
+                    reject(new Error("canceled"));
+                });
+            });
+        const { session: on, store } = await renderInspector(execute);
+        const first = on.runs.start("pagerank");
+        const second = on.runs.start("degree");
+        first.then(undefined, () => undefined);
+        second.then(undefined, () => undefined);
+
+        act(() => {
+            store.set({ inspected: { kind: "measure-row", id: second.id } });
+        });
+        assert.include((await screen.findByRole("status")).textContent, "Queued, 1st");
+
+        act(() => {
+            store.set({ inspected: { kind: "measure-row", id: first.id } });
+        });
+        await waitFor(() => {
+            assert.include(screen.getByRole("status").textContent, "Running");
+        });
+        await userEvent.click(within(screen.getByRole("status")).getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.equal(on.runs.get(first.id)?.status, "canceled");
+        });
+        second.cancel();
+    });
+
+    it("says why a run failed in the app's words, never the element's code", async () => {
+        const execute = (): Promise<RunOutcome> =>
+            Promise.reject(new GraphtyError({ code: "E_NOT_CONVERGED", message: "no", source: "run" }));
+        const { session: on, store } = await renderInspector(execute);
+        const run = on.runs.start("pagerank");
+        await run.then(undefined, () => undefined);
+
+        act(() => {
+            store.set({ inspected: { kind: "measure-row", id: run.id } });
+        });
+        const bar = await screen.findByRole("status");
+        assert.equal(bar.textContent, "The run failed: it did not settle on an answer");
+        assert.notInclude(bar.textContent, "E_");
     });
 
     it("gives no two reachable controls the same accessible name", async () => {
         const { session: on } = await renderInspector();
-        for (const select of [() => on.selection.clear(), () => on.selection.apply({ nodes: ["n0"] })]) {
+        for (const select of [
+            () => on.selection.clear(),
+            () => on.selection.apply({ nodes: ["n0"] }),
+            () => on.selection.apply({ nodes: ["n1", "n4", "n9"] }),
+        ]) {
             await act(async () => {
                 await select();
             });

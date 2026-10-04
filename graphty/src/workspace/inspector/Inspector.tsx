@@ -1,7 +1,21 @@
 import { PopoutManager } from "@graphty/compact-mantine";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
-import { ActionIcon, Anchor, Group, Menu, Stack, Tabs, Text } from "@mantine/core";
-import { MoreHorizontal } from "lucide-react";
+import { ActionIcon, Anchor, ColorSwatch, Group, Menu, Stack, Tabs, Text } from "@mantine/core";
+import {
+    ChartColumn,
+    Circle,
+    Columns3,
+    Component,
+    Group as GroupIcon,
+    Layers,
+    type LucideIcon,
+    MoreHorizontal,
+    MousePointer2,
+    Shapes,
+    Share2,
+    Spline,
+    Workflow,
+} from "lucide-react";
 import React, { useEffect, useState } from "react";
 
 import { LayoutGroup } from "../layout/LayoutGroup";
@@ -10,15 +24,40 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StyleTab } from "../style/StyleTab";
 import { AttributeValues, CanvasSection, EverythingValues, Overview } from "./GraphValues";
 import { useSessionVersion } from "./hooks";
-import { identityOf, nodeKey, type Resolved, resolveInspected } from "./inspected";
+import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
 import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValues";
-import type { Draft } from "./reads";
+import { type Draft, rowKindOf, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
 import { KIND_WORDS, runDate } from "./words";
 
-/** The commands the graph's "..." holds in tier 1 (tier1-design.md section 2.7). */
-const GRAPH_MENU = ["layout.rerun", "layout.reshuffle"] as const;
+/**
+ * The commands each kind's "..." holds (tier1-design.md section 2.7), the same list as its
+ * context menu. A command another package has not built is left out, and a kind with none draws
+ * no "...": a row's verbs (rerun, remove, rename) arrive with the Graph place's row menus.
+ */
+const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>> = {
+    graph: ["layout.rerun", "layout.reshuffle"],
+    node: ["selection.neighborhood", "view.frame-selection"],
+    edge: ["view.frame-selection"],
+    several: ["view.frame-selection"],
+    neighborhood: ["view.frame-selection"],
+};
+
+/** The kind icon on the header's first line. */
+const KIND_ICONS: Readonly<Record<InspectedKindId, LucideIcon>> = {
+    graph: Workflow,
+    node: Circle,
+    edge: Spline,
+    several: GroupIcon,
+    neighborhood: Share2,
+    "measure-row": ChartColumn,
+    "run-row": Shapes,
+    "group-row": Component,
+    "everything-row": Layers,
+    "selection-row": MousePointer2,
+    attribute: Columns3,
+};
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -26,8 +65,17 @@ type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode 
 /** The header's two lines. */
 interface Header {
     readonly name: string;
+    /** The color the element drew it in, for a node or an edge. */
+    readonly swatch?: string;
     /** The provenance link: its words and what it opens. */
     readonly from?: { readonly words: string; readonly open?: () => void };
+}
+
+/** What the header's provenance links open. */
+interface Doors {
+    readonly open: (next: Resolved) => void;
+    readonly openData: () => void;
+    readonly openAnalyze: (() => void) | undefined;
 }
 
 /**
@@ -38,18 +86,6 @@ interface Header {
  */
 function runOf(session: GraphSession | null, resolved: Resolved): Run | undefined {
     return "run" in resolved ? session?.runs.get(resolved.run) : undefined;
-}
-
-/**
- * The selection's center when it is a neighborhood, so a selection change that keeps it open
- * (the neighborhood itself arriving) does not close the list.
- * @param session - the session.
- * @param center - the center, as `inspected.id` holds it.
- * @returns whether the list stays open.
- */
-function neighborhoodStillSelected(session: GraphSession, center: string | undefined): boolean {
-    const {nodes} = session.selection;
-    return nodes.length > 1 && nodes.some((id) => nodeKey(id) === center);
 }
 
 /**
@@ -73,8 +109,7 @@ export function Inspector(): React.JSX.Element {
             return undefined;
         }
         return session.on("selection:changed", () => {
-            const open = store.get().inspected;
-            if (open !== null && !(open.kind === "neighborhood" && neighborhoodStillSelected(session, open.id))) {
+            if (store.get().inspected !== null) {
                 store.set({ inspected: null });
             }
         });
@@ -85,9 +120,14 @@ export function Inspector(): React.JSX.Element {
         session === null ? null : { nodes: session.selection.nodes, edges: session.selection.edges },
     );
     const identity = identityOf(resolved);
-    const kind = registry.kinds.get(resolved.kind);
-    const tab = picked?.identity === identity ? picked.tab : tabFor(kind, remembered);
     const run = runOf(session, resolved);
+    // A run's row is a measure or a grouping by its result, whichever door opened it.
+    const kindId: InspectedKindId =
+        run !== undefined && (resolved.kind === "measure-row" || resolved.kind === "run-row")
+            ? (rowKindOf(run) ?? resolved.kind)
+            : resolved.kind;
+    const kind = registry.kinds.get(kindId);
+    const tab = picked?.identity === identity ? picked.tab : tabFor(kind, remembered);
     const runDraft = run !== undefined && draft?.run === run.id ? draft.values : {};
     const onDraft = (values: Draft): void => {
         if (run !== undefined) {
@@ -104,11 +144,21 @@ export function Inspector(): React.JSX.Element {
             store.set({ inspected: { kind: next.kind, id: next.run } });
         }
     };
-    const header = headerOf(session, resolved, run, open, () => {
-        store.set({ page: "panels", place: "data" });
+    const header = headerOf(session, resolved, run, {
+        open,
+        openData: () => {
+            store.set({ page: "panels", place: "data" });
+        },
+        openAnalyze:
+            registry.built("analyze.open") === undefined
+                ? undefined
+                : () => {
+                      runCommand("analyze.open");
+                  },
     });
     const body = bodyOf(resolved, run, runDraft, onDraft, version);
-    const menu = resolved.kind === "graph" ? GRAPH_MENU.flatMap((id) => registry.built(id) ?? []) : [];
+    const menu = (MENUS[kindId] ?? []).flatMap((id) => registry.built(id) ?? []);
+    const KindIcon = KIND_ICONS[kindId];
 
     let content: React.ReactNode;
     if ("only" in body) {
@@ -117,74 +167,85 @@ export function Inspector(): React.JSX.Element {
         content = body.values;
     } else {
         content = (
-                <Tabs
-                    value={tab}
-                    onChange={(next) => {
-                        if (next === "style" || next === "values") {
-                            setPicked({ identity, tab: next });
-                            store.set((state) => ({ tabs: { ...state.tabs, [resolved.kind]: next } }));
-                        }
-                    }}
-                >
-                    <Tabs.List>
-                        <Tabs.Tab value="style">Style</Tabs.Tab>
-                        <Tabs.Tab value="values">Values</Tabs.Tab>
-                    </Tabs.List>
-                    <Tabs.Panel value="style">{body.style}</Tabs.Panel>
-                    <Tabs.Panel value="values">{body.values}</Tabs.Panel>
-                </Tabs>
+            <Tabs
+                value={tab}
+                onChange={(next) => {
+                    if (next === "style" || next === "values") {
+                        setPicked({ identity, tab: next });
+                        store.set((state) => ({ tabs: { ...state.tabs, [kindId]: next } }));
+                    }
+                }}
+            >
+                <Tabs.List>
+                    <Tabs.Tab value="style">Style</Tabs.Tab>
+                    <Tabs.Tab value="values">Values</Tabs.Tab>
+                </Tabs.List>
+                <Tabs.Panel value="style">{body.style}</Tabs.Panel>
+                <Tabs.Panel value="values">{body.values}</Tabs.Panel>
+            </Tabs>
         );
     }
 
     return (
         // The Background color field opens its picker as a popout, which needs a manager above it.
         <PopoutManager>
-        <Stack gap={0} data-inspected={resolved.kind} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-            <Stack gap={0} px="md" py={6}>
-                <Text size="sm" fw={600} truncate>
-                    {header.name}
-                </Text>
-                <Group gap={6} wrap="nowrap">
-                    <Text size="xs" c="dimmed">
-                        {KIND_WORDS[resolved.kind]}
-                    </Text>
-                    {header.from?.open === undefined ? (
-                        header.from !== undefined && (
-                            <Text size="xs" c="dimmed">
+            <Stack gap={0} data-inspected={kindId} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+                <Stack gap={0} px="md" py={6}>
+                    <Group gap={6} wrap="nowrap">
+                        <KindIcon size={14} aria-hidden />
+                        {header.swatch !== undefined && (
+                            <ColorSwatch color={header.swatch} size={12} withShadow={false} aria-hidden />
+                        )}
+                        <Text size="sm" fw={600} truncate>
+                            {header.name}
+                        </Text>
+                    </Group>
+                    <Group gap={6} wrap="nowrap">
+                        <Text size="xs" c="dimmed">
+                            {KIND_WORDS[kindId]}
+                        </Text>
+                        {header.from?.open === undefined ? (
+                            header.from !== undefined && (
+                                <Text size="xs" c="dimmed">
+                                    {header.from.words}
+                                </Text>
+                            )
+                        ) : (
+                            <Anchor component="button" size="xs" onClick={header.from.open}>
                                 {header.from.words}
-                            </Text>
-                        )
-                    ) : (
-                        <Anchor component="button" size="xs" onClick={header.from.open}>
-                            {header.from.words}
-                        </Anchor>
-                    )}
-                    {menu.length > 0 && (
-                        <Menu position="bottom-end">
-                            <Menu.Target>
-                                <ActionIcon variant="subtle" size="sm" ml="auto" aria-label="Graph actions">
-                                    <MoreHorizontal size={14} />
-                                </ActionIcon>
-                            </Menu.Target>
-                            <Menu.Dropdown>
-                                {menu.map((command) => (
-                                    <Menu.Item
-                                        key={command.id}
-                                        onClick={() => {
-                                            runCommand(command.id);
-                                        }}
+                            </Anchor>
+                        )}
+                        {menu.length > 0 && (
+                            <Menu position="bottom-end">
+                                <Menu.Target>
+                                    <ActionIcon
+                                        variant="subtle"
+                                        size="sm"
+                                        ml="auto"
+                                        aria-label={`${KIND_WORDS[kindId]} actions`}
                                     >
-                                        {command.label}
-                                    </Menu.Item>
-                                ))}
-                            </Menu.Dropdown>
-                        </Menu>
-                    )}
-                </Group>
+                                        <MoreHorizontal size={14} />
+                                    </ActionIcon>
+                                </Menu.Target>
+                                <Menu.Dropdown>
+                                    {menu.map((command) => (
+                                        <Menu.Item
+                                            key={command.id}
+                                            onClick={() => {
+                                                runCommand(command.id);
+                                            }}
+                                        >
+                                            {command.label}
+                                        </Menu.Item>
+                                    ))}
+                                </Menu.Dropdown>
+                            </Menu>
+                        )}
+                    </Group>
+                </Stack>
+                {run !== undefined && <RunStateBar run={run} draft={runDraft} onDraft={onDraft} />}
+                {content}
             </Stack>
-            {run !== undefined && <RunStateBar run={run} draft={runDraft} onDraft={onDraft} />}
-            {content}
-        </Stack>
         </PopoutManager>
     );
 }
@@ -194,29 +255,40 @@ export function Inspector(): React.JSX.Element {
  * @param session - the session.
  * @param resolved - what is inspected.
  * @param run - its run, for a run or group row.
- * @param open - opens another row.
- * @param openData - opens the Data place.
+ * @param doors - what the provenance links open: another row, the Data place, and Analyze when
+ * it is built.
  * @returns the header.
  */
-function headerOf(
-    session: GraphSession,
-    resolved: Resolved,
-    run: Run | undefined,
-    open: (next: Resolved) => void,
-    openData: () => void,
-): Header {
+function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefined, doors: Doors): Header {
+    const { open, openData, openAnalyze } = doors;
+    const from = (made: Run): Header["from"] => {
+        const date = runDate(made.startedAt);
+        return {
+            words: `from ${made.label}${date === null ? "" : `, ${date}`}`,
+            open: () => {
+                open({ kind: "run-row", run: made.id });
+            },
+        };
+    };
     switch (resolved.kind) {
         case "graph": {
             const source = session.data.source()?.name;
-            return { name: "Graph", from: source === undefined ? undefined : { words: `From ${source}`, open: openData } };
+            return {
+                name: "Graph",
+                from: source === undefined ? undefined : { words: `From ${source}`, open: openData },
+            };
         }
         // A node is named by its id until graphty-element publishes its name (#895).
         case "node":
+            return { name: String(resolved.node), swatch: swatchOf(session, { node: resolved.node }) };
         case "neighborhood":
             return { name: String(resolved.node) };
         case "edge": {
             const edge = session.data.edge(resolved.edge);
-            return { name: edge === undefined ? resolved.edge : `${String(edge.source)} to ${String(edge.target)}` };
+            return {
+                name: edge === undefined ? resolved.edge : `${String(edge.source)} to ${String(edge.target)}`,
+                swatch: swatchOf(session, { edge: resolved.edge }),
+            };
         }
         case "several": {
             const { nodes, edges } = session.selection;
@@ -224,23 +296,19 @@ function headerOf(
         }
         case "measure-row":
         case "run-row": {
-            const date = runDate(run?.startedAt ?? null);
-            return { name: run?.label ?? "Gone", from: date === null ? undefined : { words: `run ${date}` } };
+            if (run === undefined) {
+                return { name: "Gone" };
+            }
+            const date = runDate(run.startedAt);
+            const analysis = session.catalog.algorithms().find((a) => a.key === run.algorithm)?.plainName ?? run.label;
+            return {
+                name: run.label,
+                from: { words: `from ${analysis}${date === null ? "" : `, ${date}`}`, open: openAnalyze },
+            };
         }
         case "group-row": {
             const group = run?.result?.summary().groups?.find((g) => g.group === resolved.group);
-            return {
-                name: group?.name ?? String(resolved.group),
-                from:
-                    run === undefined
-                        ? undefined
-                        : {
-                              words: `from ${run.label}`,
-                              open: () => {
-                                  open({ kind: "run-row", run: run.id });
-                              },
-                          },
-            };
+            return { name: group?.name ?? String(resolved.group), from: run === undefined ? undefined : from(run) };
         }
         case "everything-row":
             return { name: "Everything" };
@@ -248,19 +316,8 @@ function headerOf(
             return { name: "Selection" };
         default: {
             const column = session.data.attributes().find((candidate) => candidate.path === resolved.path);
-            const from = column?.runId === undefined ? undefined : session.runs.get(column.runId);
-            return {
-                name: column?.plainName ?? resolved.path,
-                from:
-                    from === undefined
-                        ? undefined
-                        : {
-                              words: `from ${from.label}`,
-                              open: () => {
-                                  open({ kind: "run-row", run: from.id });
-                              },
-                          },
-            };
+            const made = column?.runId === undefined ? undefined : session.runs.get(column.runId);
+            return { name: column?.plainName ?? resolved.path, from: made === undefined ? undefined : from(made) };
         }
     }
 }
@@ -290,19 +347,27 @@ function bodyOf(
                         <LayoutGroup />
                     </>
                 ),
-                values: <Overview version={version} />,
+                values: <Overview />,
             };
         case "node":
-            return { style: <WhyThisLook target={{ node: resolved.node }} />, values: <NodeValues id={resolved.node} /> };
+            return {
+                style: <WhyThisLook target={{ node: resolved.node }} />,
+                values: <NodeValues id={resolved.node} />,
+            };
         case "edge":
-            return { style: <WhyThisLook target={{ edge: resolved.edge }} />, values: <EdgeValues id={resolved.edge} /> };
+            return {
+                style: <WhyThisLook target={{ edge: resolved.edge }} />,
+                values: <EdgeValues id={resolved.edge} />,
+            };
         case "several":
             return { only: <SeveralValues version={version} /> };
         case "neighborhood":
             return { only: <NeighborList center={resolved.node} /> };
         case "measure-row":
         case "run-row":
-            return run === undefined ? { only: <Gone /> } : { style: <StyleTab />, values: <RunValues run={run} draft={draft} onDraft={onDraft} /> };
+            return run === undefined
+                ? { only: <Gone /> }
+                : { style: <StyleTab />, values: <RunValues run={run} draft={draft} onDraft={onDraft} /> };
         case "group-row":
             return run === undefined
                 ? { only: <Gone /> }

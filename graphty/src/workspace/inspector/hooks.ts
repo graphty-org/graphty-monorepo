@@ -2,13 +2,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useRef, useState } from "react";
 
 /** The element's events that change what the inspector reads. */
-const EVENTS = [
-    "project:changed",
-    "run:changed",
-    "selection:changed",
-    "style:changed",
-    "visibility:changed",
-] as const;
+const EVENTS = ["project:changed", "run:changed", "selection:changed", "style:changed", "visibility:changed"] as const;
 
 /**
  * Re-renders the caller whenever the element reports a change the inspector reads: the data,

@@ -5,6 +5,7 @@ import type React from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 import type { Resolved } from "./inspected";
+import { hexOf } from "./reads";
 import { channelTokens } from "./words";
 
 /** One line: a row that wins at least one property on the element. */
@@ -61,11 +62,11 @@ export function WhyThisLook({ target }: { target: ExplainTarget }): React.JSX.El
         .reverse()
         .filter((contribution) => won.has(contribution.layerId))
         .map((contribution) => {
-            const color = contribution.values["node.color"] ?? contribution.values["edge.color"];
+            const color = hexOf(contribution.values["node.color"] ?? contribution.values["edge.color"]);
             return {
                 layerId: contribution.layerId,
                 name: contribution.name,
-                swatch: typeof color === "string" ? color : null,
+                swatch: color ?? null,
                 tokens: channelTokens(won.get(contribution.layerId) ?? []),
                 opens: rowOf(session.styles.get(contribution.layerId)?.source),
             };
@@ -87,7 +88,7 @@ export function WhyThisLook({ target }: { target: ExplainTarget }): React.JSX.El
                             component="button"
                             size="xs"
                             onClick={() => {
-                                const {opens} = line;
+                                const { opens } = line;
                                 if (opens !== null && "run" in opens) {
                                     store.set({ inspected: { kind: opens.kind, id: opens.run } });
                                 } else if (opens !== null) {

@@ -4,22 +4,15 @@ import { Badge, Group, Stack, Text } from "@mantine/core";
 import type React from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
-import { useAsyncValue } from "./hooks";
-import { count, directionWords, formatNumber } from "./words";
-
-/** The nodes with no edges, as a rule graphty-element resolves. */
-const NO_EDGES: ScopeInput = { define: { kind: "rule", where: { kind: "degree", max: 0 }, reading: "induced" } };
+import { count, directionWords, formatNumber, measurementWord } from "./words";
 
 /**
  * The graph's Values tab, the Overview (tier1-design.md section 2.7, task T6): every count the
  * element publishes about the graph's shape, each that can be selected a link that selects it.
- * @param props - Component props
- * @param props.version - Changes whenever the element reports a change
  * @returns The Overview
  */
-export function Overview({ version }: { version: number }): React.JSX.Element | null {
+export function Overview(): React.JSX.Element | null {
     const { session } = useWorkspace();
-    const noEdges = useAsyncValue(() => session?.scope.count(NO_EDGES) ?? null, version);
     if (session === null) {
         return null;
     }
@@ -56,10 +49,11 @@ export function Overview({ version }: { version: number }): React.JSX.Element | 
                 name="Edges per node"
                 value={`${formatNumber(low)} to ${formatNumber(high)}, mean ${formatNumber(statistics.meanDegree)}`}
             />
-            {noEdges !== undefined && noEdges.nodes > 0 && (
-                <DataRow name={`${count(noEdges.nodes, "node")} with no edges`} onClick={select(NO_EDGES)} />
+            {/* Text, not links, until graphty-element can select the isolated nodes it counts
+                (#931) and the self-loops and repeated edges (#899). */}
+            {statistics.components.isolatedCount > 0 && (
+                <DataRow name={`${count(statistics.components.isolatedCount, "node")} joined to no other node`} />
             )}
-            {/* Text, not links, until graphty-element can select them (#899). */}
             {statistics.selfLoopCount > 0 && (
                 <DataRow name={`${count(statistics.selfLoopCount, "edge")} from a node to itself`} />
             )}
@@ -124,13 +118,6 @@ export function EverythingValues(): React.JSX.Element | null {
     );
 }
 
-/** The roles a column's measurement gives it, as read-only tags. */
-const MEASUREMENT_WORDS: Readonly<Record<string, string>> = {
-    categorical: "Groups",
-    ordinal: "Ordered",
-    quantitative: "Amount",
-    time: "Time",
-};
 const ORIGIN_WORDS = { imported: "From the file", joined: "Joined", computed: "Computed", result: "Result" } as const;
 
 /**
@@ -147,13 +134,14 @@ export function AttributeValues({ path }: { path: string }): React.JSX.Element |
     if (column === undefined) {
         return null;
     }
+    const measurement = column.measurement === undefined ? undefined : measurementWord(column.measurement);
     return (
         <ControlSection label="Summary" defaultOpened>
             <DataRow stat name="Table" value={column.kind === "node" ? "Nodes" : "Edges"} />
             <Group gap={4} px="md" py={2}>
-                {column.measurement !== undefined && (
+                {measurement !== undefined && (
                     <Badge size="xs" variant="light">
-                        {MEASUREMENT_WORDS[column.measurement] ?? column.measurement}
+                        {measurement}
                     </Badge>
                 )}
                 <Badge size="xs" variant="light">

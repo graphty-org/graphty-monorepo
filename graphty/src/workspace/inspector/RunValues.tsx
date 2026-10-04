@@ -13,8 +13,8 @@ import type React from "react";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
-import { type Draft, selectNode, settingsChanged, settingsOf } from "./reads";
-import { count, formatNumber, runDate } from "./words";
+import { type Draft, measuredNoun, rowKindOf, selectNode, settingsChanged, settingsOf } from "./reads";
+import { count, formatNumber, queuedWords, runDate, runFailureWords } from "./words";
 
 /** How many top elements and group members a Values tab lists. */
 const TOP = 10;
@@ -40,7 +40,7 @@ export function RunStateBar({
     let words: string;
     let buttons: React.ReactNode;
     if (run.status === "queued" || run.status === "running") {
-        words = "Running";
+        words = run.status === "queued" ? queuedWords(run.queuePosition) : "Running";
         buttons = run.cancellable && (
             <Button
                 size="compact-xs"
@@ -53,7 +53,7 @@ export function RunStateBar({
             </Button>
         );
     } else if (run.status === "failed") {
-        words = `The run failed (${run.error?.code ?? "no code"})`;
+        words = runFailureWords(run.error?.code);
     } else if (settingsChanged(run, draft)) {
         words = "Settings changed since the run";
         buttons = (
@@ -82,7 +82,15 @@ export function RunStateBar({
         return null;
     }
     return (
-        <Group role="status" gap={6} px="md" py={4} justify="space-between" wrap="nowrap" bg="var(--mantine-color-default-hover)">
+        <Group
+            role="status"
+            gap={6}
+            px="md"
+            py={4}
+            justify="space-between"
+            wrap="nowrap"
+            bg="var(--mantine-color-default-hover)"
+        >
             <Text size="xs">{words}</Text>
             <Group gap={4} wrap="nowrap">
                 {buttons}
@@ -159,11 +167,21 @@ function SettingField({
  * @param props.onDraft - Replaces the changes
  * @returns The section
  */
-function MadeWith({ run, draft, onDraft }: { run: Run; draft: Draft; onDraft: (draft: Draft) => void }): React.JSX.Element {
+function MadeWith({
+    run,
+    draft,
+    onDraft,
+}: {
+    run: Run;
+    draft: Draft;
+    onDraft: (draft: Draft) => void;
+}): React.JSX.Element {
     const { session } = useWorkspace();
     const descriptor = session?.catalog.algorithms().find((algorithm) => algorithm.key === run.algorithm);
     const settings = settingsOf(run, draft);
-    const options = (descriptor?.options ?? []).filter((option) => option.internal !== true && option.advanced !== true);
+    const options = (descriptor?.options ?? []).filter(
+        (option) => option.internal !== true && option.advanced !== true,
+    );
     const date = runDate(run.startedAt);
 
     return (
@@ -194,7 +212,15 @@ function MadeWith({ run, draft, onDraft }: { run: Run; draft: Draft; onDraft: (d
  * @param props.field - The field the run is read by
  * @returns The sections
  */
-function MeasureValues({ session, run, field }: { session: GraphSession; run: Run; field: string }): React.JSX.Element | null {
+function MeasureValues({
+    session,
+    run,
+    field,
+}: {
+    session: GraphSession;
+    run: Run;
+    field: string;
+}): React.JSX.Element | null {
     const { result } = run;
     if (result === undefined) {
         return null;
@@ -213,7 +239,7 @@ function MeasureValues({ session, run, field }: { session: GraphSession; run: Ru
                     <HistogramRow
                         label={run.label}
                         bins={histogram.bins.map((bin) => ({
-                            label: `${formatNumber(bin.from)} to ${formatNumber(bin.to)}: ${count(bin.count, "node")}`,
+                            label: `${formatNumber(bin.from)} to ${formatNumber(bin.to)}: ${count(bin.count, measuredNoun(run))}`,
                             count: bin.count,
                         }))}
                         minLabel={formatNumber(first.from)}
@@ -244,7 +270,8 @@ function MeasureValues({ session, run, field }: { session: GraphSession; run: Ru
 
 /**
  * A grouping run's values: Summary (how many groups, the quality score when the run has one),
- * then Sizes, one bar per group.
+ * then Sizes: one bar per group until graphty-element bins groups by size (#932), and the ten
+ * largest groups, each opening its row.
  * @param props - Component props
  * @param props.run - The run
  * @returns The sections
@@ -255,7 +282,7 @@ function GroupsValues({ run }: { run: Run }): React.JSX.Element | null {
     if (run.result === undefined || groups === undefined) {
         return null;
     }
-    const {modularity} = run.result.graph;
+    const { modularity } = run.result.graph;
     const band = run.result.band("modularity");
 
     return (
@@ -280,7 +307,8 @@ function GroupsValues({ run }: { run: Run }): React.JSX.Element | null {
                     minLabel={groups.at(0)?.name ?? ""}
                     maxLabel={groups.at(-1)?.name ?? ""}
                 />
-                {groups.map((group) => (
+                {groups.length > TOP && <DataRowHeader label={`Largest ${String(TOP)}`} />}
+                {groups.slice(0, TOP).map((group) => (
                     <DataRow
                         key={String(group.group)}
                         name={group.name ?? String(group.group)}
@@ -304,16 +332,26 @@ function GroupsValues({ run }: { run: Run }): React.JSX.Element | null {
  * @param props.onDraft - Replaces the changes
  * @returns The tab
  */
-export function RunValues({ run, draft, onDraft }: { run: Run; draft: Draft; onDraft: (draft: Draft) => void }): React.JSX.Element | null {
+export function RunValues({
+    run,
+    draft,
+    onDraft,
+}: {
+    run: Run;
+    draft: Draft;
+    onDraft: (draft: Draft) => void;
+}): React.JSX.Element | null {
     const { session } = useWorkspace();
     if (session === null) {
         return null;
     }
     const field = RESULT_SHAPE_CONTRACTS[run.shape].primaryField;
-    const grouping = run.result?.summary().groups !== undefined;
+    const grouping = rowKindOf(run) === "run-row";
     return (
         <>
-            {run.status === "succeeded" && field !== null && !grouping && <MeasureValues session={session} run={run} field={field} />}
+            {run.status === "succeeded" && field !== null && !grouping && (
+                <MeasureValues session={session} run={run} field={field} />
+            )}
             {run.status === "succeeded" && grouping && <GroupsValues run={run} />}
             <MadeWith run={run} draft={draft} onDraft={onDraft} />
         </>
@@ -329,7 +367,11 @@ export function RunValues({ run, draft, onDraft }: { run: Run; draft: Draft; onD
  */
 function groupScope(run: RunId, field: string, group: string | number): ScopeInput {
     return {
-        define: { kind: "rule", where: { kind: "item", item: { result: run, key: { field, value: group } } }, reading: "induced" },
+        define: {
+            kind: "rule",
+            where: { kind: "item", item: { result: run, key: { field, value: group } } },
+            reading: "induced",
+        },
     };
 }
 
@@ -343,11 +385,22 @@ function groupScope(run: RunId, field: string, group: string | number): ScopeInp
  * @param props.version - Changes whenever the element reports a change
  * @returns The tab
  */
-export function GroupValues({ run, group, version }: { run: Run; group: string | number; version: number }): React.JSX.Element | null {
+export function GroupValues({
+    run,
+    group,
+    version,
+}: {
+    run: Run;
+    group: string | number;
+    version: number;
+}): React.JSX.Element | null {
     const { session } = useWorkspace();
     const field = RESULT_SHAPE_CONTRACTS[run.shape].primaryField;
     const scope = field === null ? null : groupScope(run.id, field, group);
-    const members = useAsyncValue(() => (scope === null ? null : (session?.scope.resolve(scope) ?? null)), `${String(version)}:${String(group)}`);
+    const members = useAsyncValue(
+        () => (scope === null ? null : (session?.scope.resolve(scope) ?? null)),
+        `${String(version)}:${groupKey(run.id, group)}`,
+    );
     if (session === null || scope === null) {
         return null;
     }

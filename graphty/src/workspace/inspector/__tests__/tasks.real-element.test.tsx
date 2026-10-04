@@ -12,7 +12,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
@@ -109,6 +109,16 @@ const rowButtons = (section: HTMLElement): HTMLElement[] =>
  */
 const inspector = (): ReturnType<typeof within> => within(screen.getByRole("complementary", { name: "Inspector" }));
 
+/**
+ * Every reachable control's accessible name in the inspector, so a test can check that no two
+ * share one.
+ * @returns the names.
+ */
+const controlNames = (): string[] =>
+    ["button", "tab", "checkbox"]
+        .flatMap((role) => inspector().queryAllByRole(role))
+        .map((control) => control.getAttribute("aria-label") ?? control.textContent);
+
 describe("tier 1 tasks in the inspector, on the real element", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
@@ -173,7 +183,9 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             const { session } = await openRings();
             await pick(session, "n0");
 
-            inspector().getByRole("button", { name: /Degree/ }).focus();
+            inspector()
+                .getByRole("button", { name: /Degree/ })
+                .focus();
             await userEvent.keyboard("{Enter}");
             const list = await inspector().findByRole("region", { name: "n0's 3 connections" });
             assert.equal(document.activeElement, list);
@@ -182,7 +194,11 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             await waitFor(() => {
                 assert.deepEqual([...session.selection.nodes], ["n0"]);
             });
-            await userEvent.click(await inspector().findByRole("button", { name: /Degree/ }));
+            // Focus is back on Degree, so Enter opens the list again with no mouse.
+            await waitFor(() => {
+                assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
+            });
+            await userEvent.keyboard("{Enter}");
             await inspector().findByRole("region", { name: "n0's 3 connections" });
             await userEvent.tab();
             await userEvent.keyboard("{Enter}");
@@ -205,6 +221,26 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             const rank = await inspector().findByRole("group", { name: label });
             assert.match(rank.textContent ?? "", /#\d+ of 12/);
 
+            // Opened from Why this look, PageRank's row is a Measure, not Groups.
+            await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
+            const lines: HTMLElement[] = await inspector().findAllByTestId("why-line");
+            const line = lines.find((why) => why.textContent.startsWith(label));
+            if (line === undefined) {
+                throw new Error(`no Why this look line for ${label}`);
+            }
+            await userEvent.click(within(line).getByRole("button"));
+            await waitFor(() => {
+                assert.equal(
+                    screen
+                        .getByRole("complementary", { name: "Inspector" })
+                        .querySelector("[data-inspected]")
+                        ?.getAttribute("data-inspected"),
+                    "measure-row",
+                );
+            });
+            assert.isNotNull(inspector().getByText("Measure"));
+            assert.isNull(inspector().queryByText("Groups"));
+
             act(() => {
                 store.set({ inspected: { kind: "measure-row", id } });
             });
@@ -214,8 +250,28 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
 
             const madeWith = inspector().getByRole("group", { name: "Made with" });
             const field = within(madeWith).getByRole("spinbutton", { name: "Damping Factor" });
+            const before = field.getAttribute("value");
             await userEvent.clear(field);
             await userEvent.type(field, "0.5{Enter}");
+            // Revert drops the change: the bar goes and the field shows the run's value again.
+            await userEvent.click(
+                within(await inspector().findByRole("status")).getByRole("button", { name: "Revert" }),
+            );
+            await waitFor(() => {
+                assert.isNull(inspector().queryByRole("status"));
+            });
+            assert.equal(
+                within(inspector().getByRole("group", { name: "Made with" }))
+                    .getByRole("spinbutton", { name: "Damping Factor" })
+                    .getAttribute("value"),
+                before,
+            );
+
+            const again = within(inspector().getByRole("group", { name: "Made with" })).getByRole("spinbutton", {
+                name: "Damping Factor",
+            });
+            await userEvent.clear(again);
+            await userEvent.type(again, "0.5{Enter}");
             const bar = await inspector().findByRole("status");
             assert.include(bar.textContent, "Settings changed since the run");
             await userEvent.click(within(bar).getByRole("button", { name: "Rerun" }));
@@ -250,6 +306,13 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 throw new Error(`no Why this look line for ${label}`);
             }
             assert.include(louvain.textContent, "Color");
+            // The line and the header each show the color Louvain painted.
+            assert.isNotNull(louvain.querySelector(".mantine-ColorSwatch-root"));
+            assert.isNotNull(
+                screen
+                    .getByRole("complementary", { name: "Inspector" })
+                    .querySelector("[data-inspected] .mantine-ColorSwatch-root"),
+            );
             // The line's name opens Louvain's row.
             await userEvent.click(within(louvain).getByRole("button"));
             assert.equal(store.get().inspected?.id, id);
@@ -266,6 +329,77 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 // The selection change closed the row: the inspector shows the selection.
                 assert.isNull(store.get().inspected);
             });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "an edge, an attribute, the Everything row and a group's members each show the element's values",
+        async () => {
+            const { session, store } = await openRings();
+            const id = await runToEnd(session, "louvain");
+
+            // An edge: its two ends, each selecting its node, and the file's weight.
+            const bridge = session.data.edges().find((edge) => edge.source === "n0" && edge.target === "n6");
+            if (bridge === undefined) {
+                throw new Error("the bridge edge is missing");
+            }
+            await act(async () => {
+                await session.selection.apply({ edges: [bridge.id] });
+            });
+            assert.include((await inspector().findByRole("button", { name: /^From/ })).textContent, "n0");
+            assert.include(inspector().getByRole("button", { name: /^To/ }).textContent, "n6");
+            assert.include(inspector().getByRole("group", { name: "weight" }).textContent, "9");
+            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+
+            // An attribute: its table and completeness.
+            act(() => {
+                session.selection.clear();
+            });
+            act(() => {
+                store.set({ inspected: { kind: "attribute", id: "data.label" } });
+            });
+            assert.include((await inspector().findByRole("group", { name: "Table" })).textContent, "Nodes");
+            assert.include(inspector().getByRole("group", { name: "Has a value" }).textContent, "100%");
+
+            // The Everything row: what it covers, from the element's counts.
+            act(() => {
+                store.set({ inspected: { kind: "everything-row" }, tabs: { "everything-row": "values" } });
+            });
+            assert.include(
+                (await inspector().findByText(/^Covers every node and edge/)).textContent,
+                "12 nodes, 13 edges",
+            );
+
+            // A group row: its members are the nodes Louvain put in that group.
+            const group = session.runs.get(id)?.result?.summary().groups?.[0];
+            if (group === undefined) {
+                throw new Error("Louvain found no groups");
+            }
+            act(() => {
+                store.set({ inspected: { kind: "group-row", id: JSON.stringify([id, group.group]) } });
+            });
+            const members = await inspector().findByRole("group", { name: "Members" });
+            const names = rowButtons(members).map((row) => row.textContent);
+            assert.lengthOf(names, Math.min(10, group.size));
+            const louvain = session.runs.get(id);
+            const field = louvain === undefined ? null : RESULT_SHAPE_CONTRACTS[louvain.shape].primaryField;
+            assert.isNotNull(field);
+            for (const name of names) {
+                assert.equal(louvain?.result?.node(name)?.[field ?? ""], group.group);
+            }
+            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+
+            // The run row and a neighborhood: no two reachable controls share a name.
+            act(() => {
+                store.set({ inspected: { kind: "run-row", id } });
+            });
+            await inspector().findByRole("group", { name: "Sizes" });
+            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+            await pick(session, "n0");
+            await userEvent.click(await inspector().findByRole("button", { name: /Degree/ }));
+            await inspector().findByRole("region", { name: "n0's 3 connections" });
+            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
         },
         TIMEOUT_MS * 2,
     );

@@ -18,19 +18,31 @@ describe("what the inspector shows", () => {
 
     it("shows an open row over the selection", () => {
         const selection = { nodes: [1], edges: [] };
-        assert.deepEqual(resolveInspected({ kind: "run-row", id: "louvain" }, selection), { kind: "run-row", run: "louvain" });
+        assert.deepEqual(resolveInspected({ kind: "run-row", id: "louvain" }, selection), {
+            kind: "run-row",
+            run: "louvain",
+        });
         assert.deepEqual(resolveInspected({ kind: "group-row", id: groupKey("louvain", 3) }, selection), {
             kind: "group-row",
             run: "louvain",
             group: 3,
         });
-        assert.deepEqual(resolveInspected({ kind: "neighborhood", id: nodeKey(7) }, selection), { kind: "neighborhood", node: 7 });
-        assert.deepEqual(resolveInspected({ kind: "attribute", id: "data.age" }, selection), { kind: "attribute", path: "data.age" });
+        assert.deepEqual(resolveInspected({ kind: "neighborhood", id: nodeKey(7) }, selection), {
+            kind: "neighborhood",
+            node: 7,
+        });
+        assert.deepEqual(resolveInspected({ kind: "attribute", id: "data.age" }, selection), {
+            kind: "attribute",
+            path: "data.age",
+        });
     });
 
-    it("keeps node 1 and node \"1\" apart", () => {
+    it('keeps node 1 and node "1" apart', () => {
         assert.notEqual(nodeKey(1), nodeKey("1"));
-        assert.deepEqual(resolveInspected({ kind: "neighborhood", id: nodeKey("1") }, NOTHING), { kind: "neighborhood", node: "1" });
+        assert.deepEqual(resolveInspected({ kind: "neighborhood", id: nodeKey("1") }, NOTHING), {
+            kind: "neighborhood",
+            node: "1",
+        });
     });
 
     it("falls back to the selection when a row's id does not parse", () => {

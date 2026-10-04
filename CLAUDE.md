@@ -865,6 +865,19 @@ breaking changes into as few majors as possible.
   the breaking changes it groups, and names any known breaking change it deliberately leaves for
   a later major, with the reason.
 
+### Public API review
+
+graphty-element's public API is committed as a report: `graphty-element/api/<entry>.api.md`, one
+per typed entry point in its package.json `"exports"` (`index` for `.`), written by
+@microsoft/api-extractor from the built `.d.ts` files. A pull request that changes the API shows the
+change as a diff of those files.
+
+**"Public API report (graphty-element)"** (ci.yml's Build job and `tools/prepush.sh`) fails when the
+built API differs from the committed report. Build, then run `npm run api:report` in graphty-element
+and commit the report with the change. An agent whose pull request changes the report says so in
+the pull request description: which entry points, what was added, changed or removed, and whether
+it is breaking.
+
 ### Module System
 
 - ES modules are the default format

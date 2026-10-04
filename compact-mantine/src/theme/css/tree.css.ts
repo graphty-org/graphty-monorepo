@@ -600,7 +600,8 @@ const css = `
 /* A header's type glyph, and its menu caret: at the trailing end, over the sort button, shown
    on hover, on focus within the header and while its menu is open. */
 .cm-dt .cm-dt-header-icon { flex: none; display: inline-flex; align-items: center; color: var(--cm-icon-secondary); }
-.cm-dt .cm-dt-sort[data-with-menu] { padding-inline-end: 32px; }
+.cm-dt .cm-dt-sort[data-with-menu],
+.cm-dt .cm-dt-cell.cm-dt-header[data-with-menu] { padding-inline-end: 32px; }
 .cm-dt .cm-dt-header-menu {
     position: absolute;
     inset-inline-end: 4px;

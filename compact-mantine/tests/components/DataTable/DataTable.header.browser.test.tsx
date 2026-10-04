@@ -114,6 +114,35 @@ describe("DataTable header features", () => {
         expect(button).toHaveAccessibleDescription("20 values, 0 to 19");
     });
 
+    it("keeps a long header name clear of the menu caret when the column does not sort", async () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <DataTable
+                    columns={[
+                        {
+                            id: "long",
+                            header: "A very long column name that does not fit",
+                            value: (node: Node) => node.group,
+                            width: 160,
+                            sortable: false,
+                            menu: <Menu.Item>Hide column</Menu.Item>,
+                        },
+                        // A last column takes the spare width, so the first keeps its 160px.
+                        { id: "id", header: "Node", value: (node: Node) => node.id, width: 100 },
+                    ]}
+                    data={NODES}
+                    getRowId={(node) => node.id}
+                    label="Nodes"
+                />
+            </MantineProvider>,
+        );
+        const header = screen.getAllByTestId("data-table-header")[0];
+        await userEvent.hover(header);
+        const label = within(header).getByTestId("data-table-header-label").getBoundingClientRect();
+        const caret = within(header).getByTestId("data-table-header-menu").getBoundingClientRect();
+        expect(label.right).toBeLessThanOrEqual(caret.left);
+    });
+
     it("gives a header that is not a button its tooltip too", async () => {
         renderTable();
         const header = screen.getAllByTestId("data-table-header")[2];

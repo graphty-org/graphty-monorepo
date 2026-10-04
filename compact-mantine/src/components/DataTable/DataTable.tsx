@@ -22,7 +22,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
-import { useCollator, useLocale, useNumberFormatter } from "../../i18n";
+import { defaultLabels, useCollator, useLocale, useNumberFormatter } from "../../i18n";
 import { UiGlyph } from "../../icons";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import { type ActivationEvent, type ActivationMeta, getActivationMeta } from "../../types/events";
@@ -892,6 +892,9 @@ function DataTableInner<TRow extends object>(
                                         data-grid-column={sortable ? undefined : index}
                                         tabIndex={sortable ? undefined : rovingTabIndex}
                                         className="cm-dt-cell cm-dt-header"
+                                        // A header that is not a button keeps room for the menu
+                                        // caret itself; a sort button does it on the button.
+                                        data-with-menu={hasMenu && !sortable ? "" : undefined}
                                         onFocus={
                                             sortable
                                                 ? undefined
@@ -966,7 +969,9 @@ function DataTableInner<TRow extends object>(
                                                         // Out of the tab order: the grid has one tab
                                                         // stop, and the header's keys open the menu.
                                                         tabIndex={-1}
-                                                        aria-label={labels.columnMenu(config?.header ?? column.id)}
+                                                        aria-label={(labels.columnMenu ?? defaultLabels.columnMenu)(
+                                                            config?.header ?? column.id,
+                                                        )}
                                                         data-testid="data-table-header-menu"
                                                         className="cm-dt-header-menu"
                                                     >

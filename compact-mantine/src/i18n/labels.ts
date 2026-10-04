@@ -235,11 +235,13 @@ export interface CompactMantineLabels {
      */
     rowsSelected: (count: string) => string;
     /**
-     * Accessible name of the caret that opens a data table column's menu.
+     * Accessible name of the caret that opens a data table column's menu. Optional, so a full
+     * set of labels written before it existed still type-checks; left out, the English default
+     * is used.
      * @param header - The column's header text
      * @returns The name, such as "Options for Degree"
      */
-    columnMenu: (header: string) => string;
+    columnMenu?: (header: string) => string;
     /**
      * How a cell holding true is written, when its column supplies no drawing
      * of its own.
@@ -312,7 +314,7 @@ export interface CompactMantineLabels {
  * build a full set of your own, or pass only the entries you want to change to
  * `LabelsProvider`.
  */
-export const defaultLabels: CompactMantineLabels = {
+export const defaultLabels: Required<CompactMantineLabels> = {
     mixed: "Mixed",
     fieldBound: "Bound to a data attribute",
     fieldPending: "Set but not yet applied",

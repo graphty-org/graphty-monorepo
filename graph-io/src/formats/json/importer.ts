@@ -66,7 +66,7 @@ import {
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
-import { readText, textChunks, throwIfAborted } from "../../common/input.js";
+import { readText, throwIfAborted } from "../../common/input.js";
 import { MAYBE_UNSAFE_INTEGER, reviveNonstandard, rewriteNumbers } from "../../common/json-elements.js";
 import {
     chooseGraph,
@@ -1255,7 +1255,10 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
         }
     }
     if (syntaxError !== null) {
-        return report.fail(JSON_ISSUE.SYNTAX, `invalid JSON: ${syntaxError}`);
+        const lines = looksLikeJsonLines(text)
+            ? " (the input looks like JSON Lines, one JSON value per line, which is not a graph format graph-io reads)"
+            : "";
+        return report.fail(JSON_ISSUE.SYNTAX, `invalid JSON: ${syntaxError}${lines}`);
     }
     if (scan.tokens.size > 0) {
         report.warning(
@@ -2393,38 +2396,29 @@ function listingsOf(root: unknown, dialect: JsonImportDialect): GraphListing[] {
     return [{ index: 0, name: null, nodes: null, edges: null }];
 }
 
-/** The longest string V8 makes (2^29 - 24 UTF-16 code units); a longer document cannot be one JSON.parse input. */
-const MAX_TEXT_LENGTH = 2 ** 29 - 24;
-
 /**
- * Read the whole input as one string, failing with E_TOO_LARGE (category unsupported) before the
- * join when it is longer than one JavaScript string can hold (OBO Graphs files such as
- * ncbitaxon.json are; design 7.1 defers streaming the JSON reader).
- * @param input - the input
- * @param report - the report
- * @param options - cancellation, progress and encoding
- * @returns the text
+ * Whether a text that is not one JSON document is JSON Lines / NDJSON: its first two non-blank
+ * lines are each a JSON object or array.
+ * @param text - the document
+ * @returns true for JSON Lines
  */
-async function readJsonText(
-    input: ImportInput,
-    report: ImportReportBuilder,
-    options: ResolvedImportOptions,
-): Promise<string> {
-    if (typeof input === "string") {
-        return readText(input, report, options);
-    }
-    const parts: string[] = [];
-    let length = 0;
-    for await (const chunk of textChunks(input, report, options)) {
-        length += chunk.length;
-        if (length > MAX_TEXT_LENGTH) {
-            const message = `the document is longer than ${MAX_TEXT_LENGTH} characters, the most one JavaScript string holds`;
-            report.error("unsupported", JSON_ISSUE.TOO_LARGE, message);
-            throw report.abort(message, { code: JSON_ISSUE.TOO_LARGE });
-        }
-        parts.push(chunk);
-    }
-    return parts.length === 1 ? parts[0] : parts.join("");
+function looksLikeJsonLines(text: string): boolean {
+    const lines = text
+        .slice(0, 64 * 1024)
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0)
+        .slice(0, 2);
+    return (
+        lines.length === 2 &&
+        lines.every((line) => {
+            try {
+                const value: unknown = JSON.parse(line);
+                return typeof value === "object" && value !== null;
+            } catch {
+                return false;
+            }
+        })
+    );
 }
 
 /**
@@ -2900,7 +2894,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
         const json = resolveJsonOptions(options);
         const report = new ImportReportBuilder("json", resolved.errorLimit);
-        const text = await readJsonText(input, report, resolved);
+        const text = await readText(input, report, resolved);
         const { root, dialect } = documentOf(parseDocument(text, report), json, report);
         readGraph(root, dialect, sink, report, resolved, json, options);
         return report.finish();
@@ -2921,7 +2915,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
         const json = resolveJsonOptions(options);
         const report = new ImportReportBuilder("json", resolved.errorLimit);
-        const text = await readJsonText(input, report, resolved);
+        const text = await readText(input, report, resolved);
         const { root, dialect } = documentOf(parseDocument(text, report), json, report);
         return listingsOf(root, dialect);
     },
@@ -2942,7 +2936,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
         const json = resolveJsonOptions(options);
         const first = new ImportReportBuilder("json", resolved.errorLimit);
-        const text = await readJsonText(input, first, resolved);
+        const text = await readText(input, first, resolved);
         const { root, dialect } = documentOf(parseDocument(text, first), json, first);
         const graphs = listingsOf(root, dialect).length;
         const reports: ImportReport[] = [];

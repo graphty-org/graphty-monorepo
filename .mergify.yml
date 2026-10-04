@@ -14,6 +14,15 @@
 merge_queue:
     max_parallel_checks: 1
 
+# A fix for a red master goes first: label it "priority:critical". It jumps the queue and, since the
+# queue checks one pull request at a time, interrupts the one being checked, which re-queues behind it.
+priority_rules:
+    - name: fix for a red master
+      conditions:
+          - label=priority:critical
+      priority: high
+      allow_checks_interruption: true
+
 queue_rules:
     - name: default
       # One pull request at a time, checked in place on its own branch: the visual-review gate is

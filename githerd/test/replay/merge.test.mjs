@@ -34,9 +34,15 @@ const MASTER = "repos/graphty-org/graphty-monorepo/actions/runs?branch=master&pe
  */
 function hostsPaths() {
     const text = readFileSync(new URL("../../../.github/workflows/hosts.yml", import.meta.url), "utf8");
-    const trigger = /\n {4}pull_request:\n {8}paths:\s*\[([^\]]*)\]/.exec(text);
-    if (!trigger) throw new Error("hosts.yml has no pull_request paths");
-    return [...trigger[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    // The trigger's own keys (branches, paths) are the lines indented 8 under it.
+    const lines = text.split("\n");
+    const at = lines.indexOf("    pull_request:");
+    const block = lines
+        .slice(at + 1)
+        .filter((_, i, rest) => rest.slice(0, i + 1).every((l) => l.startsWith("        ")));
+    const paths = at < 0 ? undefined : block.find((l) => l.trimStart().startsWith("paths:"));
+    if (!paths) throw new Error("hosts.yml has no pull_request paths");
+    return [...paths.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
 }
 const HOSTS_GLOBS = hostsPaths();
 

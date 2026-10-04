@@ -354,14 +354,7 @@ const LANE_PATHS = {
         "webgpu-graph-algorithms/benchmarks/",
         ".github/workflows/gpu.yml",
     ],
-    Hosts: [
-        "webgpu-graph-algorithms/",
-        "graph-format/",
-        "layout/",
-        "graphty-element/",
-        ".github/workflows/hosts.yml",
-        "pnpm-lock.yaml",
-    ],
+    Hosts: ["webgpu-graph-algorithms/", "graph-format/", ".github/workflows/hosts.yml", "pnpm-lock.yaml"],
 };
 
 /** What each lane's hold says about the pull request, after "held: <lane> lane red since <time>". */

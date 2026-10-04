@@ -146,13 +146,13 @@
     fix(graphty): draw the Graphty story graph larger, labelled and with thick edges
 2026-10-02T05:05  #693  line 2: held: CI lane red since 10-02 04:24 UTC  [red but cannot affect it: GPU]
     ci(workspace): pin every runner image instead of the moving latest labels
-2026-10-02T05:11  #696  line 2: held: CI lane red since 10-02 04:24 UTC  [red but cannot affect it: GPU]
+2026-10-02T05:11  #696  line 2: held: CI lane red since 10-02 04:24 UTC  [red but cannot affect it: GPU, Hosts]
     fix(graphty-element): draw patterned lines at their opacity in 3D and along their line in 2D
-2026-10-02T05:50  #699  line 2: held: CI lane red since 10-02 04:24 UTC  [red but cannot affect it: GPU]
+2026-10-02T05:50  #699  line 2: held: CI lane red since 10-02 04:24 UTC  [red but cannot affect it: GPU, Hosts]
     fix(graphty-element): keep an explicitly placed camera instead of auto-framing over it
-2026-10-02T06:15  #698  line 2: held: Hosts lane red since 10-02 03:44 UTC and this pull request touches the host matrix's paths
+2026-10-02T06:15  #698  success  [red but cannot affect it: Hosts]
     fix(algorithms): settle synchronous label propagation on paths and cycles
-2026-10-02T06:21  #700  line 2: held: Hosts lane red since 10-02 03:44 UTC and this pull request touches the host matrix's paths
+2026-10-02T06:21  #700  success  [red but cannot affect it: Hosts]
     fix(graphty-element): restart a seeded layout when data arrives in a later write
 2026-10-02T06:29  #701  line 2: held: Hosts lane red since 10-02 03:44 UTC and this pull request touches the host matrix's paths
     fix(webgpu-graph-algorithms): forward-slash paths in the benchmark group selector on windows

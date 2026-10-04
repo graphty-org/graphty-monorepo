@@ -426,7 +426,22 @@ export const CARBON_COLORS: readonly ["#6929C4", "#1192E8", "#005D5D", "#9F1853"
 export type ClipboardStatus = "success" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
 
 // @public
+export interface CodedFact<Code extends string = string> {
+    readonly code: Code;
+    readonly params: Readonly<Record<string, CodedFactParam>>;
+}
+
+// @public
+export type CodedFactParam = string | number | boolean | null | readonly (string | number | boolean | null)[];
+
+// @public
 export function colorToHex(s: string): string | undefined;
+
+// @public
+export interface ColumnRef {
+    readonly kind: "node" | "edge";
+    readonly name: string;
+}
 
 // @public
 export const CPU_PRECISION: AccelerationPrecision;
@@ -1803,6 +1818,9 @@ export class Graphty extends LitElement {
     set directed(value: boolean | "auto" | undefined);
     disableAiControl(): void;
     disconnectedCallback(): void;
+    downloadProject(options?: ProjectSaveOptions & {
+        readonly fileName?: string;
+    }): Promise<ProjectSaveReport>;
     get edgeData(): Record<string, unknown>[] | undefined;
     set edgeData(value: Record<string, unknown>[] | undefined);
     get edgeDstIdPath(): string | undefined;
@@ -2023,6 +2041,11 @@ export class Graphty extends LitElement {
 export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[];
 
 // @public
+export type GraphtyElementEventMap = {
+    [K in keyof HTMLElementEventMap as K extends `graphty-${string}` ? K : never]: HTMLElementEventMap[K];
+};
+
+// @public
 export class GraphtyError extends Error {
     constructor(init: GraphtyErrorInit);
     readonly code: GraphtyErrorCode;
@@ -2157,6 +2180,13 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_LAYER"
 /**
+* A call names a node or an edge id this graph does not hold -- usually an id kept from
+* before a load or a removal. The call itself is well formed. `details.kind` says whether a
+* node or an edge was asked for and `details.id` carries the id. The caller refreshes the id
+* it holds.
+*/
+| "E_UNKNOWN_ELEMENT"
+/**
 * A saved document's content is malformed: not the kind it claims, a required member missing
 * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
 * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
@@ -2169,6 +2199,12 @@ export type GraphtyErrorCode =
 * with a release that reads that version; it is never guessed at.
 */
 | "E_UNSUPPORTED_VERSION"
+/**
+* Opening a project would replace a session holding changes that were never saved
+* (`session.project.dirty`). Nothing in the session changed. The caller saves first, or opens
+* again with `{ discard: true }` once the reader agreed to lose them.
+*/
+| "E_UNSAVED_CHANGES"
 /**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -2256,7 +2292,8 @@ export type GraphtyErrorCode =
 * method, or exactness was demanded with `{ exact: true }`. `details` carry the estimate,
 * the cap, the graph size and the scopes that would fit. Also the reason a style layer is
 * disabled when a categorical encoding has more distinct values than the palette's capacity
-* and no `other` binding was declared.
+* and no `other` binding was declared, and the refusal of `styles.encode({ column })` for a
+* categorical column with more distinct values than the attribute walk counts (`details.limit`).
 *
 * The caller narrows the scope, samples, raises the cap, or accepts the approximation.
 */
@@ -2326,7 +2363,10 @@ export type GraphtyErrorCode =
 * The operation is well formed but this build or this host cannot perform it: a
 * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
 * an export format the platform has no encoder for. `details.reason` says which. The caller
-* uses the stated alternative; retrying does not help.
+* uses the stated alternative; retrying does not help. Also what `styles.encode({ column })`
+* and `styles.proposeEncoding` refuse a column with when it has no default drawing on that
+* channel (groups on a size, a time column); `details` then carry `kind`, `name`, `channel`
+* and `measurement`, and naming a `scale` draws it anyway.
 */
 | "E_UNSUPPORTED"
 /**
@@ -2415,7 +2455,13 @@ export type GraphtyWarningCode =
 /** An object member this reader does not know: kept or ignored, as the document's rules say; the JSON pointer names it. */
 "W_UNKNOWN_MEMBER"
 /** A note's `time` or `edited` is more than a day after the moment it was opened; kept as read. */
-| "W_FUTURE_TIME";
+| "W_FUTURE_TIME"
+/** A member of a kind this reader does not know: skipped, the rest of the file still read. */
+| "W_UNKNOWN_KIND"
+/** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
+| "W_DATA_DIFFERS"
+/** A run was still computing when the project was saved, so the file does not hold it. */
+| "W_RUN_PENDING";
 
 // @public
 export const GREEN_SUCCESS: {
@@ -3449,6 +3495,71 @@ export interface Problem {
 }
 
 // @public
+export interface ProgressChange {
+    readonly completed: number;
+    readonly fraction: number | null;
+    readonly phase: "progress" | "end";
+    readonly run?: RunId;
+    readonly task: "load" | "run";
+    readonly total: number | null;
+}
+
+// @public
+export interface ProjectApi {
+    readonly dirty: boolean;
+    readonly name: string | null;
+    open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
+    rename(name: string | null): Promise<void>;
+    save(options?: ProjectSaveOptions): Promise<SavedProject>;
+}
+
+// @public
+export interface ProjectOpenOptions {
+    readonly discard?: boolean;
+    readonly fileName?: string;
+    // (undocumented)
+    readonly limits?: {
+        readonly fileBytes?: number;
+    };
+}
+
+// @public
+export interface ProjectOpenReport {
+    readonly extensions: Readonly<Record<string, unknown>>;
+    readonly name: string | null;
+    readonly opened: "project" | "document";
+    readonly problems: readonly ProjectProblem[];
+    readonly restored: readonly ProjectSlice[];
+}
+
+// @public
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
+
+// @public
+export interface ProjectSaveOptions {
+    readonly extensions?: Readonly<Record<string, unknown>>;
+    readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
+}
+
+// @public
+export interface ProjectSaveReport {
+    readonly bytes: number;
+    readonly leftOut: readonly ProjectProblem[];
+    readonly written: readonly string[];
+}
+
+// @public
+export type ProjectSource = Blob | Uint8Array | string;
+
+// @public
+export interface ProjectStatus {
+    // (undocumented)
+    readonly dirty: boolean;
+    // (undocumented)
+    readonly name: string | null;
+}
+
+// @public
 export const PURPLE_GREEN_COLORS: readonly ["#762a83", "#9970ab", "#c2a5cf", "#e7d4e8", "#f7f7f7", "#d9f0d3", "#a6dba0", "#5aae61", "#1b7837"];
 
 // @public
@@ -3520,6 +3631,12 @@ export class RenderManager implements Manager {
     scene: Scene;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
     stopRenderLoop(): void;
+}
+
+// @public
+export interface ResultRef {
+    readonly field?: string;
+    readonly run: RunRef;
 }
 
 // @public (undocumented)
@@ -3673,6 +3790,19 @@ export type RichTextStyleType = z.infer<typeof RichTextStyle>;
 export interface RunAlgorithmOptions extends QueueableOptions {
     algorithmOptions?: AlgorithmSpecificOptions;
     applySuggestedStyles?: boolean;
+}
+
+// @public
+export interface RunPainting {
+    readonly state: "decided" | "pending" | "opted-out" | "not-succeeded" | "no-styles" | "unknown";
+    readonly suggestions: readonly SuggestionOutcome[];
+}
+
+// @public
+export interface SavedProject {
+    // (undocumented)
+    readonly report: ProjectSaveReport;
+    readonly text: string;
 }
 
 // @public
@@ -3946,6 +4076,26 @@ export interface StyleChangedEvent {
 
 // @public
 export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
+
+// @public
+export type SuggestionOutcome = {
+    readonly outcome: "added";
+    readonly suggestion: StyleSuggestion;
+    readonly layerIds: readonly LayerId[];
+    readonly placedBeneathLayerId?: LayerId;
+} | {
+    readonly outcome: "suppressed";
+    readonly suggestion: StyleSuggestion;
+    readonly byLayerId: LayerId;
+} | {
+    readonly outcome: "superseded";
+    readonly suggestion: StyleSuggestion;
+    readonly byRunId: RunId;
+} | {
+    readonly outcome: "refused";
+    readonly suggestion: StyleSuggestion;
+    readonly code: GraphtyErrorCode;
+};
 
 // @public
 export const TOL_MUTED_COLORS: readonly ["#332288", "#88CCEE", "#44AA99", "#117733", "#999933", "#DDCC77", "#CC6677", "#882255", "#AA4499"];

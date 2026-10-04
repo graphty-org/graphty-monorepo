@@ -66,13 +66,14 @@ export interface AttributeDescriptor {
     kind: "node" | "edge";
     // (undocumented)
     max?: number;
+    measurement?: Measurement;
+    measurementSource?: MeasurementSource;
     // (undocumented)
     min?: number;
     // (undocumented)
     name: string;
     // (undocumented)
     origin: "imported" | "joined" | "computed" | "result";
-    // (undocumented)
     path: Path;
     // (undocumented)
     plainName: string;
@@ -315,6 +316,7 @@ export interface FieldDescriptor {
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
+    measurement?: Measurement;
     // (undocumented)
     name: string;
     // (undocumented)
@@ -507,6 +509,13 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_LAYER"
 /**
+* A call names a node or an edge id this graph does not hold -- usually an id kept from
+* before a load or a removal. The call itself is well formed. `details.kind` says whether a
+* node or an edge was asked for and `details.id` carries the id. The caller refreshes the id
+* it holds.
+*/
+| "E_UNKNOWN_ELEMENT"
+/**
 * A saved document's content is malformed: not the kind it claims, a required member missing
 * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
 * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
@@ -519,6 +528,12 @@ export type GraphtyErrorCode =
 * with a release that reads that version; it is never guessed at.
 */
 | "E_UNSUPPORTED_VERSION"
+/**
+* Opening a project would replace a session holding changes that were never saved
+* (`session.project.dirty`). Nothing in the session changed. The caller saves first, or opens
+* again with `{ discard: true }` once the reader agreed to lose them.
+*/
+| "E_UNSAVED_CHANGES"
 /**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -606,7 +621,8 @@ export type GraphtyErrorCode =
 * method, or exactness was demanded with `{ exact: true }`. `details` carry the estimate,
 * the cap, the graph size and the scopes that would fit. Also the reason a style layer is
 * disabled when a categorical encoding has more distinct values than the palette's capacity
-* and no `other` binding was declared.
+* and no `other` binding was declared, and the refusal of `styles.encode({ column })` for a
+* categorical column with more distinct values than the attribute walk counts (`details.limit`).
 *
 * The caller narrows the scope, samples, raises the cap, or accepts the approximation.
 */
@@ -676,7 +692,10 @@ export type GraphtyErrorCode =
 * The operation is well formed but this build or this host cannot perform it: a
 * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
 * an export format the platform has no encoder for. `details.reason` says which. The caller
-* uses the stated alternative; retrying does not help.
+* uses the stated alternative; retrying does not help. Also what `styles.encode({ column })`
+* and `styles.proposeEncoding` refuse a column with when it has no default drawing on that
+* channel (groups on a size, a time column); `details` then carry `kind`, `name`, `channel`
+* and `measurement`, and naming a `scale` draws it anyway.
 */
 | "E_UNSUPPORTED"
 /**
@@ -996,6 +1015,20 @@ export function logSinkDescriptor(id: LogSinkId): LogSinkDescriptor | undefined;
 
 // @public
 export type LogSinkId = (typeof KNOWN_LOG_SINK_IDS)[number] | (string & {});
+
+// @public
+export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {});
+
+// @public
+export type MeasurementDeclaration = {
+    readonly measurement: "categorical" | "quantitative" | "time";
+} | {
+    readonly measurement: "ordinal";
+    readonly order: readonly (string | number)[];
+};
+
+// @public
+export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {});
 
 // @public
 export interface MetricAvailability {

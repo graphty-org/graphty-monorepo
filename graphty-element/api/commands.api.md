@@ -39,6 +39,9 @@ export const COMMANDS: Readonly<{
     readonly "data.expand": {
         readonly undo: "undoable";
     };
+    readonly "data.declare": {
+        readonly undo: "undoable";
+    };
     readonly "style.patch": {
         readonly undo: "undoable";
     };

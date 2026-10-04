@@ -67,6 +67,36 @@ export interface AlgorithmRunCommand {
 }
 
 // @public
+export interface AttributeDescriptor {
+    completeness: number;
+    // (undocumented)
+    kind: "node" | "edge";
+    // (undocumented)
+    max?: number;
+    measurement?: Measurement;
+    measurementSource?: MeasurementSource;
+    // (undocumented)
+    min?: number;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    origin: "imported" | "joined" | "computed" | "result";
+    path: Path;
+    // (undocumented)
+    plainName: string;
+    runId?: RunId;
+    // (undocumented)
+    sampleValues: readonly unknown[];
+    // (undocumented)
+    technicalName: string;
+    token: string;
+    // (undocumented)
+    type: AttributeType;
+    // (undocumented)
+    uniqueCount?: number;
+}
+
+// @public
 export interface BatchResult {
     readonly completed: number;
     readonly label: string;
@@ -163,6 +193,26 @@ export interface ChannelExplanation {
 }
 
 // @public
+export interface CodedFact<Code extends string = string> {
+    readonly code: Code;
+    readonly params: Readonly<Record<string, CodedFactParam>>;
+}
+
+// @public
+export type CodedFactParam = string | number | boolean | null | readonly (string | number | boolean | null)[];
+
+// @public
+export interface ColumnEncodingSpec extends EncodingOptions {
+    readonly column: ColumnRef;
+}
+
+// @public
+export interface ColumnRef {
+    readonly kind: "node" | "edge";
+    readonly name: string;
+}
+
+// @public
 export type CommandOutcome<C extends SessionCommand> = CommandOutcomeMap[C["op"]];
 
 // @public
@@ -172,6 +222,7 @@ export interface CommandOutcomeMap {
     "algo.run": Run;
     "config.set": Promise<void>;
     "data.apply": Promise<void>;
+    "data.declare": Promise<void>;
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
     "layout.scope": Promise<void>;
@@ -371,6 +422,21 @@ export interface ElementSet {
 export type Encoding = Partial<Record<Channel, Binding>>;
 
 // @public
+export type EncodingOptions = Omit<EncodingSpec, "run" | "field">;
+
+// @public
+export type EncodingProposal = {
+    readonly ok: true;
+    readonly binding: RuleBinding;
+} | {
+    readonly ok: false;
+    readonly refusal: CodedFact<EncodingRefusalCode>;
+};
+
+// @public
+export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string & {});
+
+// @public
 export interface EncodingRun {
     readonly algorithm: AlgorithmKey;
     readonly fields: readonly FieldDescriptor[];
@@ -394,6 +460,13 @@ export interface EncodingSpec {
     readonly reverse?: boolean;
     readonly run: RunRef;
     readonly scale?: RuleBinding["scale"];
+}
+
+// @public
+export interface EncodingSuggestion {
+    readonly as: "encoding";
+    readonly channels: readonly Channel[];
+    readonly spec: EncodingSpec;
 }
 
 // @public
@@ -428,6 +501,7 @@ export interface FieldDescriptor {
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
+    measurement?: Measurement;
     // (undocumented)
     name: string;
     // (undocumented)
@@ -510,6 +584,7 @@ export interface GraphSession {
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
     plan(command: SessionCommand): Promise<Plan>;
     readonly positions: SessionPositions;
+    readonly project: ProjectApi;
     redo(): Promise<HistoryOutcome>;
     readonly results: ResultsApi;
     run(command: AlgorithmRunCommand, options?: RunOptions): Run;
@@ -681,6 +756,13 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_LAYER"
 /**
+* A call names a node or an edge id this graph does not hold -- usually an id kept from
+* before a load or a removal. The call itself is well formed. `details.kind` says whether a
+* node or an edge was asked for and `details.id` carries the id. The caller refreshes the id
+* it holds.
+*/
+| "E_UNKNOWN_ELEMENT"
+/**
 * A saved document's content is malformed: not the kind it claims, a required member missing
 * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
 * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
@@ -693,6 +775,12 @@ export type GraphtyErrorCode =
 * with a release that reads that version; it is never guessed at.
 */
 | "E_UNSUPPORTED_VERSION"
+/**
+* Opening a project would replace a session holding changes that were never saved
+* (`session.project.dirty`). Nothing in the session changed. The caller saves first, or opens
+* again with `{ discard: true }` once the reader agreed to lose them.
+*/
+| "E_UNSAVED_CHANGES"
 /**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -780,7 +868,8 @@ export type GraphtyErrorCode =
 * method, or exactness was demanded with `{ exact: true }`. `details` carry the estimate,
 * the cap, the graph size and the scopes that would fit. Also the reason a style layer is
 * disabled when a categorical encoding has more distinct values than the palette's capacity
-* and no `other` binding was declared.
+* and no `other` binding was declared, and the refusal of `styles.encode({ column })` for a
+* categorical column with more distinct values than the attribute walk counts (`details.limit`).
 *
 * The caller narrows the scope, samples, raises the cap, or accepts the approximation.
 */
@@ -850,7 +939,10 @@ export type GraphtyErrorCode =
 * The operation is well formed but this build or this host cannot perform it: a
 * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
 * an export format the platform has no encoder for. `details.reason` says which. The caller
-* uses the stated alternative; retrying does not help.
+* uses the stated alternative; retrying does not help. Also what `styles.encode({ column })`
+* and `styles.proposeEncoding` refuse a column with when it has no default drawing on that
+* channel (groups on a size, a time column); `details` then carry `kind`, `name`, `channel`
+* and `measurement`, and naming a `scale` draws it anyway.
 */
 | "E_UNSUPPORTED"
 /**
@@ -939,7 +1031,13 @@ export type GraphtyWarningCode =
 /** An object member this reader does not know: kept or ignored, as the document's rules say; the JSON pointer names it. */
 "W_UNKNOWN_MEMBER"
 /** A note's `time` or `edited` is more than a day after the moment it was opened; kept as read. */
-| "W_FUTURE_TIME";
+| "W_FUTURE_TIME"
+/** A member of a kind this reader does not know: skipped, the rest of the file still read. */
+| "W_UNKNOWN_KIND"
+/** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
+| "W_DATA_DIFFERS"
+/** A run was still computing when the project was saved, so the file does not hold it. */
+| "W_RUN_PENDING";
 
 // @public
 export interface HighlightSpec {
@@ -947,6 +1045,13 @@ export interface HighlightSpec {
     readonly name?: string;
     readonly run: RunRef;
     readonly set?: StaticStyle;
+}
+
+// @public
+export interface HighlightSuggestion {
+    readonly as: "highlight";
+    readonly channels: readonly Channel[];
+    readonly spec: HighlightSpec;
 }
 
 // @public
@@ -1197,6 +1302,7 @@ export interface LegendSwatch {
     readonly count?: number;
     readonly label: string;
     readonly paints?: unknown;
+    readonly role?: "other" | (string & {});
     readonly size?: number;
     readonly value: unknown;
 }
@@ -1218,6 +1324,20 @@ export interface MachineCalibration {
     readonly machine: string;
     readonly rates: Readonly<CostRates>;
 }
+
+// @public
+export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {});
+
+// @public
+export type MeasurementDeclaration = {
+    readonly measurement: "categorical" | "quantitative" | "time";
+} | {
+    readonly measurement: "ordinal";
+    readonly order: readonly (string | number)[];
+};
+
+// @public
+export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {});
 
 // @public
 export interface Memberships {
@@ -1522,6 +1642,25 @@ export interface Progress {
 }
 
 // @public
+export interface ProgressChange {
+    readonly completed: number;
+    readonly fraction: number | null;
+    readonly phase: "progress" | "end";
+    readonly run?: RunId;
+    readonly task: "load" | "run";
+    readonly total: number | null;
+}
+
+// @public
+export interface ProjectApi {
+    readonly dirty: boolean;
+    readonly name: string | null;
+    open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
+    rename(name: string | null): Promise<void>;
+    save(options?: ProjectSaveOptions): Promise<SavedProject>;
+}
+
+// @public
 export interface ProjectConfig {
     readonly author?: string;
     readonly background: GraphBackgroundConfig;
@@ -1532,6 +1671,7 @@ export interface ProjectConfig {
         readonly stepMultiplier: number;
         readonly minDelta: number;
     };
+    readonly name?: string;
     readonly runAlgorithmsOnLoad: boolean;
     readonly selectionStyle: GraphSelectionStyleConfig;
 }
@@ -1549,6 +1689,7 @@ export interface ProjectConfigPatch {
     };
     // (undocumented)
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
+    readonly name?: string | null;
     // (undocumented)
     readonly runAlgorithmsOnLoad?: boolean;
     // (undocumented)
@@ -1556,7 +1697,53 @@ export interface ProjectConfigPatch {
 }
 
 // @public
-export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes";
+export interface ProjectOpenOptions {
+    readonly discard?: boolean;
+    readonly fileName?: string;
+    // (undocumented)
+    readonly limits?: {
+        readonly fileBytes?: number;
+    };
+}
+
+// @public
+export interface ProjectOpenReport {
+    readonly extensions: Readonly<Record<string, unknown>>;
+    readonly name: string | null;
+    readonly opened: "project" | "document";
+    readonly problems: readonly ProjectProblem[];
+    readonly restored: readonly ProjectSlice[];
+}
+
+// @public
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
+
+// @public
+export interface ProjectSaveOptions {
+    readonly extensions?: Readonly<Record<string, unknown>>;
+    readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
+}
+
+// @public
+export interface ProjectSaveReport {
+    readonly bytes: number;
+    readonly leftOut: readonly ProjectProblem[];
+    readonly written: readonly string[];
+}
+
+// @public
+export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes";
+
+// @public
+export type ProjectSource = Blob | Uint8Array | string;
+
+// @public
+export interface ProjectStatus {
+    // (undocumented)
+    readonly dirty: boolean;
+    // (undocumented)
+    readonly name: string | null;
+}
 
 // @public
 export type Query = string;
@@ -1815,6 +2002,12 @@ export interface ResultItem {
 export function resultPath(runId: RunId, field?: string): Path;
 
 // @public
+export interface ResultRef {
+    readonly field?: string;
+    readonly run: RunRef;
+}
+
+// @public
 export interface ResultsApi {
     get(run: RunRef): RunResult | undefined;
     has(run: RunRef, field?: string): boolean;
@@ -2004,6 +2197,12 @@ export interface RunOutcome<T = RunResult> {
 }
 
 // @public
+export interface RunPainting {
+    readonly state: "decided" | "pending" | "opted-out" | "not-succeeded" | "no-styles" | "unknown";
+    readonly suggestions: readonly SuggestionOutcome[];
+}
+
+// @public
 export type RunPhase = (typeof RUN_PHASES)[number];
 
 // @public
@@ -2081,6 +2280,7 @@ export interface RunsApi {
     bindings(id: RunId): readonly LayerId[];
     get(id: RunId): Run | undefined;
     list(): readonly Run[];
+    painting(id: RunId): RunPainting | undefined;
     readonly queue: readonly QueueEntry[];
     remove(id: RunId): RunRemoval;
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
@@ -2116,6 +2316,13 @@ export type RunStatus = (typeof RUN_STATUSES)[number];
 export type RunStyle = boolean | {
     readonly size?: boolean | readonly [min: number, max: number];
 };
+
+// @public
+export interface SavedProject {
+    // (undocumented)
+    readonly report: ProjectSaveReport;
+    readonly text: string;
+}
 
 // @public
 export interface SavedScope {
@@ -2258,9 +2465,13 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
     readonly mode?: SelectionTextMode;
     readonly scope?: ScopeInput;
 }
-/** A pasted list of ids, which may name nodes, edges, or nothing at all. */
+/**
+* A list of ids, which may name nodes, edges, or nothing at all: a pasted column of text, or
+* the ids the element handed out (a neighbor, a table record, a found element), numbers
+* included. An id that names nothing comes back on `unmatched`, as text.
+*/
 | {
-    readonly ids: readonly string[];
+    readonly ids: readonly NodeId[];
 }
 /** Everything a scope covers. An inline `{ define }` may name edges by session edge id. */
 | {
@@ -2269,19 +2480,16 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
 /**
 * The highest-ranked elements of a finished run. A tie group is taken whole and only when it
 * fits inside `n`, so this can select fewer than `n` elements, or none. See `TopRanking` in the results types.
+* With no `field`, the run's primary field is ranked.
 */
 | {
-    readonly top: {
-        readonly run: RunRef;
-        readonly field: string;
+    readonly top: ResultRef & {
         readonly n: number;
     };
 }
-/** Every element of a finished run above a threshold. */
+/** Every element of a finished run above a threshold. With no `field`, the run's primary field is read. */
 | {
-    readonly above: {
-        readonly run: RunRef;
-        readonly field: string;
+    readonly above: ResultRef & {
         readonly threshold: number;
     };
 }
@@ -2365,6 +2573,7 @@ export interface SessionDataApi {
     addNodes(records: readonly NodeRecordInput[]): Promise<void>;
     attributes(): readonly AttributeDescriptor[];
     clear(): Promise<void>;
+    declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     edge(id: EdgeId): EdgeRecord | undefined;
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(): readonly EdgeRecord[];
@@ -2397,10 +2606,12 @@ export interface SessionEventMap {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
     };
     "note:changed": NoteChange;
+    "progress:changed": ProgressChange;
     "project:changed": {
         readonly slices: readonly ProjectSlice[];
         readonly cause: HistoryCause;
     };
+    "project:status": ProjectStatus;
     "run:changed": RunChange;
     "selection:changed": SelectionDelta;
     "set:changed": SetChange;
@@ -2763,13 +2974,14 @@ export interface StyleProblem {
 export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
-    encode(spec: EncodingSpec, options?: RunOptions): Run<Layer>;
+    encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
     legend(): readonly LegendBlock[];
     list(): readonly Layer[];
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
+    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
     removeBySource(predicate: (source: LayerSource) => boolean, options?: RunOptions): Run<readonly LayerId[]>;
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
@@ -2781,6 +2993,29 @@ export interface StylesApi {
     update(id: LayerId, patch: Partial<LayerSpec>, options?: RunOptions): Run<Layer>;
     validate(spec: LayerSpec): ValidationResult;
 }
+
+// @public
+export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
+
+// @public
+export type SuggestionOutcome = {
+    readonly outcome: "added";
+    readonly suggestion: StyleSuggestion;
+    readonly layerIds: readonly LayerId[];
+    readonly placedBeneathLayerId?: LayerId;
+} | {
+    readonly outcome: "suppressed";
+    readonly suggestion: StyleSuggestion;
+    readonly byLayerId: LayerId;
+} | {
+    readonly outcome: "superseded";
+    readonly suggestion: StyleSuggestion;
+    readonly byRunId: RunId;
+} | {
+    readonly outcome: "refused";
+    readonly suggestion: StyleSuggestion;
+    readonly code: GraphtyErrorCode;
+};
 
 // @public
 export interface SummaryEntry {

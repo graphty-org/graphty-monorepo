@@ -24,6 +24,18 @@ priority_rules:
       allow_checks_interruption: true
 
 queue_rules:
+    # The release pull request that release.yml opens (its priority:critical label puts it first).
+    # Listed before "default", so it takes this rule: alone, and merged with a merge commit, whose
+    # message names the release branch and so starts release.yml's publish job.
+    - name: release
+      batch_size: 1
+      update_method: merge
+      merge_method: merge
+      queue_conditions:
+          - head~=^release/train-
+          - author=github-actions[bot]
+          - label!=hold
+
     - name: default
       # One pull request at a time, checked in place on its own branch: the visual-review gate is
       # tied to the pull request's number, so a batch on a temporary branch would never pass it.

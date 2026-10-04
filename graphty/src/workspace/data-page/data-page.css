@@ -31,40 +31,6 @@
     padding: 0 4px 4px;
 }
 
-.dp-table-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.dp-table-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: 6px;
-    align-items: center;
-    width: 100%;
-    padding: 4px 6px;
-    border: 0;
-    border-radius: 5px;
-    background: none;
-    color: inherit;
-    font: inherit;
-    font-size: 12px;
-    text-align: start;
-    cursor: pointer;
-}
-
-.dp-table-row:hover,
-.dp-table-row[aria-current="true"] {
-    background: var(--cm-bg-hover);
-}
-
-.dp-table-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .dp-main {
     min-height: 0;
     overflow: auto;

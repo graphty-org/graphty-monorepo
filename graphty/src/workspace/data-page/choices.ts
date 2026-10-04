@@ -5,13 +5,7 @@
  * the draft.
  */
 
-import type {
-    ColumnRole,
-    DraftTable,
-    LoadChoices,
-    LoadDraft,
-    TableMapping,
-} from "@graphty/graphty-element/session";
+import type { ColumnRole, DraftTable, LoadChoices, LoadDraft, TableMapping } from "@graphty/graphty-element/session";
 
 /** A column's role on the page: one of the element's roles, or "attribute" (no role). */
 export type PageRole = ColumnRole | "attribute";
@@ -35,7 +29,11 @@ export interface PageChoices {
 
 export const INITIAL_CHOICES: PageChoices = { tables: {}, unmatched: "leave-out", directed: "auto" };
 
-/** The roles a table of each kind takes, in menu order (the element's own role names). */
+/**
+ * The roles a table of each kind takes, in menu order (the element's own role names).
+ * Temporary: the element keeps this list private (`session/draft.ts` ROLES) and does not export
+ * it; #926 asks it to. Delete this copy when it does.
+ */
 export const ROLES_BY_KIND: Readonly<Record<"nodes" | "edges", readonly ColumnRole[]>> = {
     nodes: ["key", "label", "time"],
     edges: ["source", "target", "weight", "time", "edgeId"],
@@ -94,7 +92,12 @@ export function elementRole(
  * @param choices - the page's choices.
  * @returns the role, or undefined when it is the element's unknown re-reading.
  */
-export function roleOf(draft: LoadDraft, table: DraftTable, column: string, choices: PageChoices): PageRole | undefined {
+export function roleOf(
+    draft: LoadDraft,
+    table: DraftTable,
+    column: string,
+    choices: PageChoices,
+): PageRole | undefined {
     return choices.tables[table.id]?.roles[column] ?? elementRole(draft, table, column, choices);
 }
 
@@ -199,24 +202,4 @@ export function loadChoices(draft: LoadDraft, choices: PageChoices, mode: "repla
         directed: choices.directed,
         ...(Object.keys(tables).length > 0 ? { mapping: { tables } } : {}),
     };
-}
-
-/**
- * Why a table is not ready to load, or null when its check is green: an edge table needs both
- * linking columns.
- * @param draft - the draft.
- * @param table - the table.
- * @param choices - the page's choices.
- * @returns the reason, or null.
- */
-export function tableNotReady(draft: LoadDraft, table: DraftTable, choices: PageChoices): string | null {
-    if (table.fixed || rowsAreOf(draft, table, choices) === "nodes" || kindChanged(draft, table, choices)) {
-        return null;
-    }
-    const has = (role: ColumnRole): boolean =>
-        table.columns.some((column) => roleOf(draft, table, column.name, choices) === role);
-    if (!has("source") || !has("target")) {
-        return `${table.name}: choose the From and To columns`;
-    }
-    return null;
 }

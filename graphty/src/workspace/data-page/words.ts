@@ -4,7 +4,7 @@
  */
 
 import { FORMAT_DESCRIPTORS, formatDescriptor } from "@graphty/graphty-element/catalog";
-import { isGraphtyError, type LoadDraft, type TooLargeDetails } from "@graphty/graphty-element/session";
+import { isGraphtyError, type TooLargeDetails } from "@graphty/graphty-element/session";
 
 import type { PageRole } from "./choices";
 
@@ -89,15 +89,18 @@ function names(value: unknown): string[] {
  * The refusal for a typed element error on a source (section 2.10, "Refusals").
  * @param error - what `prepare`, `report` or `load` rejected with.
  * @param source - what the reader calls the source: the file name or the URL.
- * @param draft - the draft, when the source was read, for the columns it holds.
  * @returns the problem block's words.
  */
-export function refusalFor(error: unknown, source: string, draft: LoadDraft | null): Refusal {
+export function refusalFor(error: unknown, source: string): Refusal {
     const code = isGraphtyError(error) ? error.code : undefined;
     const details = detailsOf(error);
     switch (code) {
         case "E_EMPTY_LOAD":
-            return { what: `${source} holds no nodes or edges.`, todo: "Choose a file with data in it.", fixable: false };
+            return {
+                what: `${source} holds no nodes or edges.`,
+                todo: "Choose a file with data in it.",
+                fixable: false,
+            };
         case "E_UNKNOWN_FORMAT":
             return {
                 what: `graphty could not tell what kind of file ${source} is.`,
@@ -107,7 +110,7 @@ export function refusalFor(error: unknown, source: string, draft: LoadDraft | nu
         case "E_PARSE_FAILED":
             // Not at first release: the element reports neither the row nor a fix yet (#803).
             return {
-                what: `${source} could not be read as ${draft === null ? "the format it was read as" : formatName(draft.type)}.`,
+                what: `${source} could not be read as ${typeof details.format === "string" ? formatName(details.format) : "the format it was read as"}.`,
                 todo: "Check the file, or pick another format in File settings.",
                 fixable: true,
             };
@@ -117,14 +120,27 @@ export function refusalFor(error: unknown, source: string, draft: LoadDraft | nu
                 todo: "Check the address and your connection, then try again.",
                 fixable: false,
             };
-        case "E_EDGE_ENDPOINTS_UNRESOLVED": {
-            const columns = draft?.tables.flatMap((table) => table.columns.map((column) => column.name)) ?? [];
+        case "E_EDGE_ENDPOINTS_UNRESOLVED":
             return {
-                what: `No columns say which nodes each edge links. The file has: ${columns.join(", ")}.`,
+                what: `No columns say which nodes each edge links. The file has: ${names(details.columns).join(", ")}.`,
                 todo: "Set From and To on the two linking columns.",
                 fixable: true,
             };
-        }
+        case "E_ID_MISSING":
+            return {
+                what: `Some rows of ${source} have no id.`,
+                todo: "Choose another Key column, or fix the file.",
+                fixable: true,
+            };
+        case "E_DUPLICATE_ID":
+            return {
+                what:
+                    typeof details.id === "string"
+                        ? `${source} holds the id ${details.id} more than once.`
+                        : `${source} holds the same id more than once.`,
+                todo: "Choose another Key column, or fix the file.",
+                fixable: true,
+            };
         case "E_UNKNOWN_ATTRIBUTE": {
             const candidates = names(details.candidates);
             return {
@@ -140,6 +156,8 @@ export function refusalFor(error: unknown, source: string, draft: LoadDraft | nu
                 fixable: true,
             };
         case "E_TOO_LARGE":
+            // Temporary: GraphtyError details are untyped, so this code's details cannot be read
+            // as the element's TooLargeDetails without a cast (#868). Delete the cast with #868.
             return tooLargeRefusal(details as unknown as TooLargeDetails);
         default:
             return {

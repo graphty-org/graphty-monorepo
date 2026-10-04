@@ -11,6 +11,8 @@ import {
     Input,
     Loader,
     Menu,
+    NavLink,
+    NumberInput,
     Popover,
     Select,
     Stack,
@@ -34,10 +36,9 @@ import {
     rowsAreOf,
     setRole,
     setRowsAre,
-    tableNotReady,
 } from "./choices";
 import { takeDataPageRequest } from "./request";
-import { type LoadDraftState, type PageSource, sourceName, useLoadDraft } from "./useLoadDraft";
+import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
 import {
     baseName,
     count,
@@ -115,19 +116,19 @@ export function DataPage(): React.JSX.Element {
         };
     }, [cancel]);
 
-    const load = (): void => {
-        const name = page.source === null ? null : sourceName(page.source);
-        page.load().catch((error: unknown) => {
-            const refusal = refusalFor(error, name ?? "The data", page.draft);
-            store.set({ notice: { message: `${refusal.what} ${refusal.todo}` } });
-        });
-        // Load lands on the Graph place, where the canvas shows the loading card.
+    const load = async (): Promise<void> => {
+        const { source } = page;
+        // A refused load stays on the page, its problem block shown and Load disabled (T5).
+        if (!(await page.load())) {
+            return;
+        }
+        // A loaded new graph is named after its file; inside a project nothing is renamed.
         store.set((state) => ({
             page: "panels",
             place: "graph",
             project:
-                request.intent === "new" && state.project !== null && page.source?.kind === "files"
-                    ? { ...state.project, name: baseName(page.source.files[0].name) }
+                request.intent === "new" && state.project !== null && source?.kind === "files"
+                    ? { ...state.project, name: baseName(source.files[0].name) }
                     : state.project,
         }));
     };
@@ -141,14 +142,31 @@ export function DataPage(): React.JSX.Element {
     };
 
     const addFiles = (files: readonly File[], join: boolean): void => {
-        if (files.length === 0) {
+        // One file beside one table the reader can change (a CSV) lands as the second table
+        // (section 2.10, "Tables"); anything else replaces the source. Whether the new file can
+        // be that table is the element's call (#930).
+        const held =
+            join &&
+            files.length === 1 &&
+            page.source?.kind === "files" &&
+            page.draft?.tables.length === 1 &&
+            !page.draft.tables[0].fixed
+                ? page.source.files
+                : [];
+        const next = [...held, ...files];
+        if (next.length === 0) {
             return;
         }
-        // A second file added beside one table that read cleanly lands as the second table
-        // (section 2.10, "Tables"); anything else replaces the source.
-        const held =
-            join && page.source?.kind === "files" && page.draft?.tables.length === 1 ? page.source.files.slice(0, 1) : [];
-        page.setSource({ kind: "files", files: [...held, ...files].slice(0, 2) });
+        if (next.length > 2) {
+            store.set({
+                notice: {
+                    message:
+                        "The Data page reads one file, or a node table and an edge table. Choose at most two files.",
+                },
+            });
+            return;
+        }
+        page.setSource({ kind: "files", files: next });
     };
 
     return (
@@ -197,7 +215,13 @@ export function DataPage(): React.JSX.Element {
                 </section>
             </div>
             <MatchReport page={page} />
-            <Footer page={page} onCancel={cancel} onLoad={load} />
+            <Footer
+                page={page}
+                onCancel={cancel}
+                onLoad={() => {
+                    void load();
+                }}
+            />
         </div>
     );
 }
@@ -218,16 +242,20 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
     const [entry, setEntry] = useState<"url" | "paste" | null>(null);
     const { draft } = page;
     return (
-        <nav className="dp-tables" aria-label="Tables">
+        <section className="dp-tables" aria-label="Tables">
             <Group justify="space-between" wrap="nowrap" className="dp-section-head">
                 <Text size="xs" fw={600}>
                     Tables
                 </Text>
-                <Popover opened={entry !== null} onChange={(open) => {
+                <Popover
+                    opened={entry !== null}
+                    onChange={(open) => {
                         if (!open) {
                             setEntry(null);
                         }
-                    }} position="right-start">
+                    }}
+                    position="right-start"
+                >
                     <Popover.Target>
                         <span>
                             <Menu position="bottom-start">
@@ -240,8 +268,20 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                                 </Menu.Target>
                                 <Menu.Dropdown>
                                     <Menu.Item onClick={onChooseFiles}>File...</Menu.Item>
-                                    <Menu.Item onClick={() => { setEntry("url"); }}>From a URL...</Menu.Item>
-                                    <Menu.Item onClick={() => { setEntry("paste"); }}>Paste...</Menu.Item>
+                                    <Menu.Item
+                                        onClick={() => {
+                                            setEntry("url");
+                                        }}
+                                    >
+                                        From a URL...
+                                    </Menu.Item>
+                                    <Menu.Item
+                                        onClick={() => {
+                                            setEntry("paste");
+                                        }}
+                                    >
+                                        Paste...
+                                    </Menu.Item>
                                 </Menu.Dropdown>
                             </Menu>
                         </span>
@@ -259,14 +299,58 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                     </Popover.Dropdown>
                 </Popover>
             </Group>
-            {draft === null ? null : (
-                <Stack gap={2} component="ul" className="dp-table-list">
-                    {draft.tables.map((table) => (
-                        <TableRow key={table.id} page={page} draft={draft} table={table} />
-                    ))}
-                </Stack>
-            )}
-        </nav>
+            {draft === null || page.source === null ? null : <TableRows page={page} draft={draft} />}
+        </section>
+    );
+}
+
+/**
+ * The table rows. A graph file is one row, named after the file, that expands to its node and
+ * edge tables (section 2.10, item 1); CSV tables are a row each.
+ * @param props - Component props
+ * @param props.page - The page state
+ * @param props.draft - The draft
+ * @returns The rows
+ */
+function TableRows({ page, draft }: PartProps & { draft: LoadDraft }): React.JSX.Element {
+    const rows = draft.tables.map((table) => <TableRow key={table.id} page={page} draft={draft} table={table} />);
+    if (page.source === null || !draft.tables.every((table) => table.fixed)) {
+        return <>{rows}</>;
+    }
+    return (
+        <NavLink
+            label={sourceName(page.source)}
+            description={formatName(draft.type)}
+            rightSection={<ReadyMark ready={tablesReady(page)} />}
+            defaultOpened
+        >
+            {rows}
+        </NavLink>
+    );
+}
+
+/**
+ * Whether the element's report says the tables can load: it was computed, refused nothing and is
+ * not too large. Which table a refusal concerns, and which roles each table still needs, the
+ * element does not say yet (#926), so every table's check follows the whole report.
+ * @param page - The page state
+ * @returns true when green
+ */
+function tablesReady(page: LoadDraftState): boolean {
+    return page.report !== null && page.reportError === null && page.report.tooLarge === null;
+}
+
+/**
+ * A table's check: green when ready, a gray dashed circle when not.
+ * @param props - Component props
+ * @param props.ready - Whether it is ready
+ * @returns The mark
+ */
+function ReadyMark({ ready }: { ready: boolean }): React.JSX.Element {
+    return ready ? (
+        <CircleCheck size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />
+    ) : (
+        <CircleDashed size={14} role="img" aria-label="Not ready" />
     );
 }
 
@@ -279,36 +363,20 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
  * @returns The row
  */
 function TableRow({ page, draft, table }: PartProps & { draft: LoadDraft; table: DraftTable }): React.JSX.Element {
-    const ready = page.reportError === null && tableNotReady(draft, table, page.choices) === null;
     const kind = rowsAreOf(draft, table, page.choices) === "nodes" ? "Nodes" : "Edges";
-    const selected = page.tableId === table.id;
     return (
-        <li>
-            <button
-                type="button"
-                className="dp-table-row"
-                aria-current={selected ? "true" : undefined}
-                onClick={() => {
-                    page.setTableId(table.id);
-                    page.setFilter("all");
-                }}
-            >
-                <span className="dp-table-name">
-                    <Text size="xs" span c="dimmed">
-                        {kind}
-                    </Text>{" "}
-                    {table.name}
-                </span>
-                <Text size="xs" span c="dimmed">
-                    {plural(table.rowCount, "row")}
-                </Text>
-                {ready ? (
-                    <CircleCheck size={14} color="var(--mantine-color-green-6)" aria-label="Ready" />
-                ) : (
-                    <CircleDashed size={14} aria-label="Not ready" />
-                )}
-            </button>
-        </li>
+        <NavLink
+            component="button"
+            label={table.fixed ? kind : `${kind}: ${table.name}`}
+            description={plural(table.rowCount, "row")}
+            active={page.tableId === table.id}
+            aria-current={page.tableId === table.id ? "true" : undefined}
+            rightSection={<ReadyMark ready={tablesReady(page)} />}
+            onClick={() => {
+                page.setTableId(table.id);
+                page.setFilter("all");
+            }}
+        />
     );
 }
 
@@ -319,7 +387,13 @@ function TableRow({ page, draft, table }: PartProps & { draft: LoadDraft; table:
  * @param props.onDone - Called with the source
  * @returns The form
  */
-function EntryForm({ kind, onDone }: { kind: "url" | "paste"; onDone: (source: PageSource) => void }): React.JSX.Element {
+function EntryForm({
+    kind,
+    onDone,
+}: {
+    kind: "url" | "paste";
+    onDone: (source: PageSource) => void;
+}): React.JSX.Element {
     const [value, setValue] = useState("");
     return (
         <form
@@ -337,7 +411,9 @@ function EntryForm({ kind, onDone }: { kind: "url" | "paste"; onDone: (source: P
                         size="xs"
                         data-autofocus
                         value={value}
-                        onChange={(event) => { setValue(event.currentTarget.value); }}
+                        onChange={(event) => {
+                            setValue(event.currentTarget.value);
+                        }}
                     />
                 ) : (
                     <Textarea
@@ -347,7 +423,9 @@ function EntryForm({ kind, onDone }: { kind: "url" | "paste"; onDone: (source: P
                         minRows={4}
                         data-autofocus
                         value={value}
-                        onChange={(event) => { setValue(event.currentTarget.value); }}
+                        onChange={(event) => {
+                            setValue(event.currentTarget.value);
+                        }}
                     />
                 )}
                 <Group justify="flex-end">
@@ -414,7 +492,7 @@ function MainView({ page, onChooseFiles }: PartProps & { onChooseFiles: () => vo
     if (draft === null) {
         return (
             <Stack p="md" gap="md">
-                <ProblemBlock refusal={refusalFor(page.readError, sourceName(source), null)} onChooseFiles={onChooseFiles} />
+                <ProblemBlock refusal={refusalFor(page.readError, sourceName(source))} onChooseFiles={onChooseFiles} />
                 <FileSettings page={page} />
             </Stack>
         );
@@ -423,7 +501,9 @@ function MainView({ page, onChooseFiles }: PartProps & { onChooseFiles: () => vo
     const tooLarge = page.report?.tooLarge ?? null;
     let problem: Refusal | null = tooLarge === null ? null : tooLargeRefusal(tooLarge);
     if (page.reportError !== null) {
-        problem = refusalFor(page.reportError, sourceName(source), draft);
+        problem = refusalFor(page.reportError, sourceName(source));
+    } else if (page.loadError !== null) {
+        problem = refusalFor(page.loadError, sourceName(source));
     }
     return (
         <Stack p="md" gap="sm">
@@ -480,11 +560,7 @@ function TableView({ page, draft, table }: PartProps & { draft: LoadDraft; table
     return (
         <Stack gap="sm">
             <Group gap="md" align="flex-end" wrap="wrap">
-                <Input.Wrapper
-                    label="Each row is"
-                    description={table.fixed ? "Set by the file" : undefined}
-                    size="xs"
-                >
+                <Input.Wrapper label="Each row is" description={table.fixed ? "Set by the file" : undefined} size="xs">
                     <SegmentedControl
                         size="xs"
                         disabled={table.fixed}
@@ -526,28 +602,9 @@ function WeightLine({ page, draft, table }: PartProps & { draft: LoadDraft; tabl
             </Text>
         );
     }
-    const number = table.columns.find(
-        (column) =>
-            (column.type === "number" || column.type === "integer") &&
-            roleOf(draft, table, column.name, page.choices) === "attribute",
-    );
-    if (number === undefined) {
-        return <Text size="xs">Every edge counts 1</Text>;
-    }
-    return (
-        <Text size="xs">
-            {number.name} is a number:{" "}
-            <Anchor
-                component="button"
-                size="xs"
-                onClick={() => {
-                    page.setChoices(setRole(draft, table, number.name, "weight", page.choices));
-                }}
-            >
-                use it as the weight?
-            </Anchor>
-        </Text>
-    );
+    // The design offers one number column as the weight ("value is a number: use it as the
+    // weight?"). Which column is a judgment the element makes, and it names none yet (#926).
+    return <Text size="xs">Every edge counts 1. To weigh edges, give a number column the Weight role.</Text>;
 }
 
 /**
@@ -578,6 +635,8 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                 <Stack gap="xs" w={220}>
                     <Select
                         label="Format"
+                        // Its list opens inside the popover, so a pick is not a click outside it.
+                        comboboxProps={{ withinPortal: false }}
                         size="xs"
                         data={[{ value: "", label: "Auto" }, ...READABLE_FORMATS]}
                         value={settings.type ?? ""}
@@ -589,6 +648,7 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                     {type === "csv" ? (
                         <Select
                             label="Separator"
+                            comboboxProps={{ withinPortal: false }}
                             size="xs"
                             data={SEPARATORS.map(({ value, label }) => ({ value, label }))}
                             value={settings.delimiter ?? ""}
@@ -601,6 +661,21 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                             }}
                         />
                     ) : null}
+                    <NumberInput
+                        label="Error limit"
+                        description="Bad rows read past before the file is refused"
+                        size="xs"
+                        min={0}
+                        allowDecimal={false}
+                        placeholder="100"
+                        value={settings.errorLimit ?? ""}
+                        onChange={(value) => {
+                            page.setSettings({
+                                ...settings,
+                                errorLimit: typeof value === "number" ? value : undefined,
+                            });
+                        }}
+                    />
                 </Stack>
             </Popover.Dropdown>
         </Popover>
@@ -670,7 +745,9 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                 header: column.name,
                 value: (row: DraftRow) => {
                     const value = row.values[column.name];
-                    return value === null || value === undefined || typeof value === "object" ? null : (value as string);
+                    return value === null || value === undefined || typeof value === "object"
+                        ? null
+                        : (value as string);
                 },
             })),
         ],
@@ -680,7 +757,10 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
     const caption =
         page.filter === "all"
             ? `The first ${plural(rows.length, "row")} of ${count(table.rowCount)}`
-            : plural(page.rows?.total ?? 0, page.filter === "unmatched" ? "unmatched row" : "row that could not be read");
+            : plural(
+                  page.rows?.total ?? 0,
+                  page.filter === "unmatched" ? "unmatched row" : "row that could not be read",
+              );
     return (
         <Stack gap={4}>
             <Group gap="xs">
@@ -688,7 +768,13 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                     {caption}
                 </Text>
                 {page.filter === "all" ? null : (
-                    <Anchor component="button" size="xs" onClick={() => { page.setFilter("all"); }}>
+                    <Anchor
+                        component="button"
+                        size="xs"
+                        onClick={() => {
+                            page.setFilter("all");
+                        }}
+                    >
                         Show all rows
                     </Anchor>
                 )}
@@ -710,24 +796,60 @@ function MatchReport({ page }: PartProps): React.JSX.Element | null {
     if (report === null || draft === null) {
         return null;
     }
-    const edgeTable = draft.tables.find((table) => rowsAreOf(draft, table, page.choices) === "edges");
-    const show = (filter: "unmatched" | "rejected"): void => {
-        if (edgeTable !== undefined) {
-            page.setTableId(edgeTable.id);
+    const tableOf = (kind: "nodes" | "edges"): DraftTable | undefined =>
+        draft.tables.find((table) => rowsAreOf(draft, table, page.choices) === kind);
+    const show = (kind: "nodes" | "edges", filter: RowFilter): void => {
+        const table = tableOf(kind);
+        if (table !== undefined) {
+            page.setTableId(table.id);
         }
         page.setFilter(filter);
     };
+    /**
+     * A count that shows its table's rows in the grid, or plain text when no table holds them.
+     * @param kind - Which table
+     * @param words - The count's words
+     * @returns The link or text
+     */
+    const rowsLink = (kind: "nodes" | "edges", words: string): React.ReactNode =>
+        tableOf(kind) === undefined ? (
+            words
+        ) : (
+            <Anchor
+                component="button"
+                size="xs"
+                onClick={() => {
+                    show(kind, "all");
+                }}
+            >
+                {words}
+            </Anchor>
+        );
     return (
         <section className="dp-report" aria-label="Match report">
+            {/* The nodes and edges made are plain text: the element cannot list them yet (#927). */}
             <Text size="xs">
-                {plural(report.counts.nodeRecords, "node row")} and {plural(report.counts.edgeRecords, "edge row")}{" "}
-                read; the load makes {plural(report.counts.nodes, "node")} and {plural(report.counts.edges, "edge")}.
+                {rowsLink("nodes", plural(report.counts.nodeRecords, "node row"))} and{" "}
+                {rowsLink("edges", plural(report.counts.edgeRecords, "edge row"))} read; the load makes{" "}
+                {plural(report.counts.nodes, "node")} and {plural(report.counts.edges, "edge")}.
             </Text>
-            <UnmatchedLine page={page} report={report} onShow={() => { show("unmatched"); }} />
+            <UnmatchedLine
+                page={page}
+                report={report}
+                onShow={() => {
+                    show("edges", "unmatched");
+                }}
+            />
             {report.counts.rejected > 0 ? (
                 <Text size="xs">
                     {plural(report.counts.rejected, "row")} could not be read as an edge.{" "}
-                    <Anchor component="button" size="xs" onClick={() => { show("rejected"); }}>
+                    <Anchor
+                        component="button"
+                        size="xs"
+                        onClick={() => {
+                            show("edges", "rejected");
+                        }}
+                    >
                         Show them
                     </Anchor>
                 </Text>
@@ -801,12 +923,8 @@ function loadBlocked(page: LoadDraftState): string | null {
     if (page.report.tooLarge !== null) {
         return "Too large to draw";
     }
-    const { draft } = page;
-    for (const table of draft.tables) {
-        const reason = tableNotReady(draft, table, page.choices);
-        if (reason !== null) {
-            return reason;
-        }
+    if (page.loadError !== null) {
+        return "The load was refused; see the problem above";
     }
     return page.loading ? "Loading" : null;
 }
@@ -827,13 +945,21 @@ function Footer({
     const blocked = loadBlocked(page);
     const loadButton = useRef<HTMLButtonElement>(null);
     // A clean file opens with every check green and focus on Load, so a clean drop is one Enter.
+    // Decided once per draft, on its first report: a table the reader edits back to ready does
+    // not pull focus from the control the reader is on.
     const ready = blocked === null;
-    const {draft} = page;
+    const { draft } = page;
+    const counted = page.report !== null || page.reportError !== null;
+    const decided = useRef<LoadDraft | null>(null);
     useEffect(() => {
-        if (ready && draft !== null) {
+        if (draft === null || !counted || decided.current === draft) {
+            return;
+        }
+        decided.current = draft;
+        if (ready) {
             loadButton.current?.focus();
         }
-    }, [ready, draft]);
+    }, [ready, draft, counted]);
     const direction =
         (Object.keys(DIRECTIONS) as (keyof typeof DIRECTIONS)[]).find(
             (key) => DIRECTIONS[key] === page.choices.directed,

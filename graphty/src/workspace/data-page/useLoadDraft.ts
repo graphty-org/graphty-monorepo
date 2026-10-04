@@ -29,6 +29,8 @@ export interface ReadSettings {
     readonly type?: string;
     /** A CSV separator. */
     readonly delimiter?: string;
+    /** How many bad rows the source reads past before it stops. */
+    readonly errorLimit?: number;
 }
 
 /** How many rows the sample grid shows. */
@@ -57,7 +59,10 @@ export function sourceName(source: PageSource): string {
  * @returns what `prepare` takes.
  */
 export function sourceInput(source: PageSource, settings: ReadSettings): DataSourceInput {
-    const extra = settings.delimiter === undefined ? {} : { delimiter: settings.delimiter };
+    const extra = {
+        ...(settings.delimiter === undefined ? {} : { delimiter: settings.delimiter }),
+        ...(settings.errorLimit === undefined ? {} : { errorLimit: settings.errorLimit }),
+    };
     const type = settings.type === undefined ? {} : { type: settings.type };
     switch (source.kind) {
         case "files": {
@@ -94,6 +99,8 @@ export interface LoadDraftState {
     readonly filter: RowFilter;
     readonly rows: RecordPage<DraftRow> | null;
     readonly loading: boolean;
+    /** What the last `load` refused with, until the reader changes a choice or the source. */
+    readonly loadError: unknown;
     setSource: (source: PageSource | null) => void;
     setSettings: (settings: ReadSettings) => void;
     setChoices: (choices: PageChoices) => void;
@@ -101,9 +108,10 @@ export interface LoadDraftState {
     setFilter: (filter: RowFilter) => void;
     /**
      * Loads the draft with the reader's choices.
-     * @returns settles when the load does; rejects with the element's error.
+     * @returns true once the rows are in the graph; false when the element refused the load,
+     *     which `loadError` then holds.
      */
-    load: () => Promise<void>;
+    load: () => Promise<boolean>;
 }
 
 /**
@@ -130,6 +138,7 @@ export function useLoadDraft(
     const [filter, setFilter] = useState<RowFilter>("all");
     const [rows, setRows] = useState<RecordPage<DraftRow> | null>(null);
     const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState<unknown>(null);
     /** The draft a load was started on: leaving the page must not dispose it mid-load. */
     const loadingDraft = useRef<LoadDraft | null>(null);
 
@@ -146,6 +155,7 @@ export function useLoadDraft(
         setReadError(null);
         setRows(null);
         setChoices(INITIAL_CHOICES);
+        setLoadError(null);
         setFilter("all");
         if (session === null || source === null) {
             setReading(false);
@@ -186,6 +196,7 @@ export function useLoadDraft(
             return undefined;
         }
         let stale = false;
+        setLoadError(null);
         draft.report(loadChoices(draft, choices, mode)).then(
             (next) => {
                 if (!stale) {
@@ -205,8 +216,9 @@ export function useLoadDraft(
         };
     }, [draft, choices, mode]);
 
-    // The grid's rows; the unmatched and rejected filters read with the last report's choices,
-    // so they wait for it.
+    // The grid's rows. The element reads the unmatched and rejected filters with the choices of
+    // the last report() call (draft.ts filter), so they wait for that report; #927 asks rows() to
+    // take the choices itself.
     useEffect(() => {
         if (draft === null || tableId === null || (filter !== "all" && report === null)) {
             return undefined;
@@ -230,15 +242,21 @@ export function useLoadDraft(
         };
     }, [draft, tableId, filter, report]);
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (): Promise<boolean> => {
         if (draft === null) {
-            return;
+            return false;
         }
         setLoading(true);
         loadingDraft.current = draft;
         try {
             await draft.load(loadChoices(draft, choices, mode));
+            return true;
+        } catch (error: unknown) {
+            setLoadError(error);
+            return false;
         } finally {
+            // A refused load leaves the draft on the page, which disposes it as usual.
+            loadingDraft.current = null;
             setLoading(false);
         }
     }, [draft, choices, mode]);
@@ -256,6 +274,7 @@ export function useLoadDraft(
         filter,
         rows,
         loading,
+        loadError,
         setSource,
         setSettings,
         setChoices,

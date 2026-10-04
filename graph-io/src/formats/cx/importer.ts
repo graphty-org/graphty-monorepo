@@ -109,6 +109,7 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
 import {
@@ -246,8 +247,8 @@ export const CX_ISSUE = Object.freeze({
     /** The input holds no graph. The import stops. */
     NO_GRAPH: NO_GRAPH_CODE,
     /**
-     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
-     * repeated column header.
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example
+     * two attributes declared with the same name.
      */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /**
@@ -1419,7 +1420,7 @@ class CxReader {
         this.readVisualProperties();
         this.readProvenance();
         for (const [kind, count] of this.dangling) {
-            report.warning("validation-error", DANGLING_REFERENCE_CODE, `${count} ${kind}(s) name nothing; ignored`, {
+            report.warning("validation-error", DANGLING_REFERENCE_CODE, `${count} ${kind}${plural(count)} ${agree(count, "names", "name")} nothing; ignored`, {
                 element: kind,
             });
         }
@@ -1649,7 +1650,7 @@ class CxReader {
             this.report.warning(
                 "unsupported",
                 CX_ISSUE.ROOT_ONLY,
-                `${nodes} node(s) and ${edges} edge(s) of the root network belong to no subnetwork (cySubNetworks); they are not read`,
+                `${nodes} node${plural(nodes)} and ${edges} edge${plural(edges)} of the root network belong to no subnetwork (cySubNetworks); they are not read`,
                 { element: "cySubNetworks" },
             );
         }
@@ -2839,10 +2840,10 @@ class CxReader {
         }
         if (defaults + mappings + dependencies + tableStyles > 0) {
             const parts = [
-                `cyVisualProperties: ${defaults} default(s), ${mappings} mapping(s), ${dependencies} dependenc(ies)`,
+                `cyVisualProperties: ${defaults} default${plural(defaults)}, ${mappings} mapping${plural(mappings)}, ${dependencies} dependenc(ies)`,
             ];
             if (tableStyles > 0) {
-                parts.push(`${tableStyles} table style element(s)`);
+                parts.push(`${tableStyles} table style element${plural(tableStyles)}`);
             }
             this.report.warning(
                 "unsupported",

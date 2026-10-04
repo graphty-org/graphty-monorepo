@@ -746,3 +746,55 @@ describe("neo4j export quote option", () => {
         expect(back.snapshot.nodes.value("name", 0)).toBe("Keanu\tReeves");
     });
 });
+
+describe("neo4j files for neo4j-admin and the weight property", () => {
+    const rels = ":START_ID(Person),:END_ID(Movie),:TYPE,strength:double\np1,m1,ACTED_IN,2.5\n";
+
+    it("writes one file per id space and per endpoint pair, each with one header row", async () => {
+        const { exportNeo4jFiles, importGraph } = await import("../../../src/index.js");
+        const { snapshot } = await importGraph(
+            "movieId:ID(Movie),title\nm1,Matrix\npersonId:ID(Person),name\np1,Keanu\n",
+            { format: "neo4j", relationships: ":START_ID(Person),:END_ID(Movie),:TYPE\np1,m1,ACTED_IN\n" },
+        );
+        const files = await exportNeo4jFiles(snapshot);
+        expect(files.map((f) => [f.kind, f.name])).toEqual([
+            ["nodes", "nodes-Movie.csv"],
+            ["nodes", "nodes-Person.csv"],
+            ["relationships", "relationships-Person-Movie.csv"],
+        ]);
+        for (const file of files) {
+            expect(file.text.split("\n").filter((l) => l.includes(":ID") || l.includes(":START_ID"))).toHaveLength(1);
+        }
+        const rels = await exportNeo4jFiles(snapshot, { part: "relationships" });
+        expect(rels.map((f) => f.name)).toEqual(["relationships-Person-Movie.csv"]);
+        await expect(exportNeo4jFiles(snapshot, { part: "x" as "all" })).rejects.toMatchObject({ code: "E_UNSUPPORTED" });
+    });
+
+    it("gathers sections with the same header into one file", async () => {
+        const { exportNeo4jFiles, importGraph } = await import("../../../src/index.js");
+        const { snapshot } = await importGraph("a:ID(A)\na1\nb:ID(B)\nb1\na:ID(A)\na2\n", { format: "neo4j" });
+        const files = await exportNeo4jFiles(snapshot);
+        expect(files.map((f) => f.name)).toEqual(["nodes-A.csv", "nodes-B.csv"]);
+        expect(files[0].text).toBe("a:ID(A)\na1\na2\n");
+    });
+
+    it("writes the weights back under the property a Neo4j import read them from", async () => {
+        const { checkExport, exportGraphToString, importGraph } = await import("../../../src/index.js");
+        const { snapshot } = await importGraph(":ID\np1\nm1\n", {
+            format: "neo4j",
+            relationships: rels.replace(/\(Person\)|\(Movie\)/g, ""),
+            weightFrom: "strength",
+        });
+        expect(checkExport(snapshot, "neo4j")).toEqual([]);
+        expect(await exportGraphToString(snapshot, "neo4j", { part: "relationships" })).toContain("strength:double");
+        expect(await exportGraphToString(snapshot, "neo4j", { part: "relationships", weightColumn: "w" })).toContain(
+            "w:double",
+        );
+    });
+
+    it("says which options clash when delimiter and arrayDelimiter are the same", () => {
+        const builder = new GraphBuilder({ directed: true });
+        builder.addEdge("a", "b");
+        expect(() => neo4jExporter.check(builder.freeze(), { delimiter: ";" })).toThrow(/pass another arrayDelimiter/);
+    });
+});

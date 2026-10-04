@@ -12,8 +12,10 @@
 
 import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
+import { PRECISION_CODE } from "./codes.js";
 import { parseDecimalText } from "./declared-types.js";
 import { formatF32, formatF64, formatInteger } from "./format.js";
+import { type ImportReportBuilder } from "./report.js";
 
 /**
  * The weight of an edge added without one (design section 3.7).
@@ -36,10 +38,12 @@ export function isWeightField(name: string, weightFrom: string | null): boolean 
  * The weight argument of addEdge from a text cell: undefined for a blank cell (the weight is
  * omitted), the number otherwise.
  * @param text - the cell text
+ * @param report - the import report; when given, an integer beyond 2^53 that the nearest double
+ * changes is reported once as W_PRECISION
  * @returns the weight, or undefined when blank; E_INVALID_WEIGHT for NaN or non-numeric text
  * @category Writing a format
  */
-export function parseWeightText(text: string): number | undefined {
+export function parseWeightText(text: string, report?: ImportReportBuilder): number | undefined {
     const trimmed = text.trim();
     if (trimmed.length === 0) {
         return undefined;
@@ -53,7 +57,29 @@ export function parseWeightText(text: string): number | undefined {
     if (Number.isNaN(value)) {
         throw invalidWeight(text, null);
     }
+    if (report !== undefined) {
+        reportWeightPrecision(trimmed, value, report);
+    }
     return value;
+}
+
+/**
+ * Report once (W_PRECISION) an integer weight beyond 2^53 that the nearest double changes, which
+ * the weights and the exact `graphty.weight` column would otherwise hold silently.
+ * @param text - the weight as written in the file
+ * @param value - the number it was read as
+ * @param report - the import report
+ */
+export function reportWeightPrecision(text: string, value: number, report: ImportReportBuilder): void {
+    if (!Number.isSafeInteger(value) && Number.isFinite(value) && /^[+-]?\d+$/.test(text) && BigInt(text) !== BigInt(value)) {
+        report.warnOnce(
+            "precision",
+            PRECISION_CODE,
+            `edge weights: integers beyond 2^53 are stored as the nearest double (first: ${text})`,
+            undefined,
+            `${PRECISION_CODE}:edge weight`,
+        );
+    }
 }
 
 /**

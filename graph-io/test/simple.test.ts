@@ -158,7 +158,22 @@ describe("loadFromUrl", () => {
         expect(importError.details.status).toBeNull();
         expect(importError.details.cause).toBe(cause);
         expect(importError.report.format).toBe("gml");
-        expect(importError.message).toContain("POST https://example.com/g.gml failed: network error or CORS refusal");
+        expect(importError.message).toContain("POST https://example.com/g.gml failed: the server could not be reached");
+    });
+
+    it("names the cause of a network failure when fetch gives one", async () => {
+        stubFetch(() => Promise.reject(Object.assign(new TypeError("fetch failed"), { cause: new Error("getaddrinfo ENOTFOUND") })));
+        const err = await rejection(loadFromUrl("https://nowhere.example/g.gml"));
+        expect((err as ImportError).message).toContain("(getaddrinfo ENOTFOUND)");
+    });
+
+    it("explains a relative URL outside a browser and a file: URL instead of blaming the network", async () => {
+        stubFetch(() => Promise.reject(new TypeError("Failed to parse URL")));
+        const relative = await rejection(loadFromUrl("got.gml"));
+        expect((relative as ImportError).issue?.code).toBe(FETCH_CODE);
+        expect((relative as ImportError).message).toContain("a relative URL needs a web page to resolve against");
+        const file = await rejection(loadFromUrl("file:///tmp/got.gml"));
+        expect((file as ImportError).message).toContain("fetch() cannot read file: URLs");
     });
 
     it("rethrows the abort reason unchanged and passes the import signal to fetch", async () => {
@@ -387,6 +402,16 @@ describe("downloadGraph", () => {
         expect(anchors[0].download).toBe("nodes.csv");
         const blob = createSpy.mock.calls[0][0] as Blob;
         expect(await blob.text()).toBe(await exportGraphToString(sample(), "csv", { table: "nodes" }));
+    });
+
+    it("downloads through a registry of its own, which knows only the formats it holds", async () => {
+        const { anchors } = stubDocument();
+        const { FormatRegistry } = await import("../src/index.js");
+        const { csvExporter } = await import("../src/formats/csv/index.js");
+        const small = new FormatRegistry().registerExporter(csvExporter);
+        await small.downloadGraph(sample(), "csv", { filename: "edges.csv" });
+        expect(anchors[0].download).toBe("edges.csv");
+        await expect(small.downloadGraph(sample(), "graphml")).rejects.toMatchObject({ code: "E_UNSUPPORTED" });
     });
 
     it("names the file graph.<format> when a registered format lists no extension", async () => {

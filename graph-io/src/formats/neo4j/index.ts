@@ -49,7 +49,13 @@ import {
     SECTION_KIND_CODE,
 } from "./importer.js";
 
-export { NEO4J_CAPABILITIES, neo4jExporter, type Neo4jExportOptions } from "./exporter.js";
+export {
+    exportNeo4jFiles,
+    NEO4J_CAPABILITIES,
+    neo4jExporter,
+    type Neo4jExportOptions,
+    type Neo4jFile,
+} from "./exporter.js";
 export {
     ID_SPACE_COLUMN,
     LABELS_COLUMN,
@@ -151,8 +157,8 @@ export const NEO4J_LOSS = Object.freeze({
     /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: ROLE_DROPPED_CODE,
     /**
-     * An attribute named `weight` without the weight role reads back as the edge weight, because GEXF reads weights
-     * from `weight` by default.
+     * An edge attribute named `weight` that is not the graph's weight reads back as the edge weight, because the
+     * Neo4j importer reads weights from the `weight` property by default.
      */
     WEIGHT_KEY_CLASH: WEIGHT_KEY_CLASH_CODE,
     /**

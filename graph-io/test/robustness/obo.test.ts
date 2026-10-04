@@ -751,7 +751,7 @@ describe("robustness: size and time", () => {
         const { snapshot, report } = await load(`${HEAD}${"[Term]\nid: X:1\n\n".repeat(50_000)}`);
         expect(ids(snapshot)).toEqual(["X:1"]);
         expect(codes(report)).toEqual([OBO_ISSUE.DUPLICATE_NODE]);
-        expect(report.issues[0].message).toContain("49999 time(s)");
+        expect(report.issues[0].message).toContain("49999 times");
     });
 
     it("keeps 50k distinct unknown tags but caps their warnings (many-unknown-tags)", async () => {

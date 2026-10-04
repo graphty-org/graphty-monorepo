@@ -60,7 +60,7 @@ describe("GML robustness: wrong format and empty input", () => {
     it("refuses JSON under a .gml name at the { token", async () => {
         const err = await rejects(gml('{"nodes":[]}', { filename: "graph.gml" }));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe('cannot tokenize "{" at line 1');
+        expect(err.message).toBe('"graph.gml" could not be read as gml: cannot tokenize "{" at line 1');
     });
 
     it("refuses gzip and zip bytes with E_FOREIGN_FORMAT naming the container", async () => {
@@ -75,14 +75,14 @@ describe("GML robustness: wrong format and empty input", () => {
     it("refuses 'graph' then end of input as a key without a value at line 1", async () => {
         const err = await rejects(gml("graph"));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe('key "graph" at line 1 has no value');
+        expect(err.message).toBe('the input could not be read as gml: key "graph" at line 1 has no value');
     });
 
     it("refuses 'graph 5' naming the graph key that is not a block (the code stays E_NO_GRAPH)", async () => {
         const err = await rejects(gml("graph 5"));
         expect(fatalCode(err)).toBe("E_NO_GRAPH");
         expect(err.message).toBe(
-            "the graph key at line 1 holds 5, not a [ ... ] block; the input contains no graph block",
+            "the input could not be read as gml: the graph key at line 1 holds 5, not a [ ... ] block; the input contains no graph block",
         );
         expect(issue(err.report, "E_NO_GRAPH").line).toBe(1);
     });
@@ -93,14 +93,14 @@ describe("GML robustness: truncation", () => {
         for (const text of ["graph [ node [ id 1 lab", "graph [ node [ id 1 label"]) {
             const err = await rejects(gml(text));
             expect(fatalCode(err)).toBe("E_SYNTAX");
-            expect(err.message).toMatch(/^key "lab(el)?" at line 1 has no value$/);
+            expect(err.message).toMatch(/^the input could not be read as gml: key "lab(el)?" at line 1 has no value$/);
         }
     });
 
     it("refuses input cut inside a character reference as an unclosed string, never decoding the partial reference", async () => {
         const err = await rejects(gml('graph [ node [ id 1 label "a&#23'));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe("unclosed string opened at line 1");
+        expect(err.message).toBe("the input could not be read as gml: unclosed string opened at line 1");
         expect(err.report.counts.nodes).toBe(0);
     });
 
@@ -122,7 +122,7 @@ describe("GML robustness: truncation", () => {
         const err = await rejects(gml(input));
         expect(fatalCode(err)).toBe("E_INVALID_UTF8");
         expect(err.message).toBe(
-            "invalid UTF-8 at byte 30: a byte chunk ends inside a multi-byte sequence and a text chunk follows",
+            "the input could not be read as gml: invalid UTF-8 at byte 30: a byte chunk ends inside a multi-byte sequence and a text chunk follows",
         );
         expect(err.details.byteOffset).toBe(30);
     });
@@ -155,7 +155,7 @@ describe("GML robustness: encodings", () => {
         expect(head.byteLength).toBe(55);
         const err = await rejects(gml(concat(head, Uint8Array.from([0xe9]), utf8('" ] ]'))));
         expect(fatalCode(err)).toBe("E_INVALID_UTF8");
-        expect(err.message).toBe("invalid UTF-8 at byte 55 after valid non-ASCII UTF-8 text; pass the encoding option");
+        expect(err.message).toBe("the input could not be read as gml: invalid UTF-8 at byte 55 after valid non-ASCII UTF-8 text; pass the encoding option");
         expect(err.details.byteOffset).toBe(55);
     });
 
@@ -169,7 +169,7 @@ describe("GML robustness: encodings", () => {
         );
         const err = await rejects(gml(bytes));
         expect(fatalCode(err)).toBe("E_INVALID_UTF8");
-        expect(err.message).toBe("the input is binary data, not text: control byte 0x00 at byte 28");
+        expect(err.message).toBe("the input could not be read as gml: the input is binary data, not text: control byte 0x00 at byte 28");
         expect(err.details.byteOffset).toBe(28);
     });
 });
@@ -186,28 +186,28 @@ describe("GML robustness: lexical errors", () => {
         const err = await rejects(gml('graph [\nnode [ id 1 label "a ]\nnode [ id 2 label "b" ]\n]'));
         expect(fatalCode(err)).toBe("E_SYNTAX");
         expect(err.message).toBe(
-            "unclosed string opened at line 3; the string opened at line 2 spans lines, so a quote may be missing there",
+            "the input could not be read as gml: unclosed string opened at line 3; the string opened at line 2 spans lines, so a quote may be missing there",
         );
     });
 
     it("refuses a C-style escaped quote at the line it is on", async () => {
         const err = await rejects(gml('graph [\nnode [ id 1 label "a\\"b" ]\nnode [ id 2 ]\n]'));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe("unclosed string opened at line 2");
+        expect(err.message).toBe("the input could not be read as gml: unclosed string opened at line 2");
         expect(issue(err.report, "E_SYNTAX").line).toBe(2);
     });
 
     it("refuses a single-quoted string at its line", async () => {
         const err = await rejects(gml("graph [\nnode [ id 1 label 'a' ]\n]"));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe("cannot tokenize \"'a'\" at line 2");
+        expect(err.message).toBe("the input could not be read as gml: cannot tokenize \"'a'\" at line 2");
     });
 
     it("refuses a key with a non-ASCII letter, naming the character in an ASCII message", async () => {
         const err = await rejects(gml(`graph [\nnode [ id 1 caf${E_ACUTE} 2 ]\n]`));
         expect(fatalCode(err)).toBe("E_SYNTAX");
         expect(err.message).toBe(
-            'cannot tokenize "caf\\u00E9" at line 2 (it holds U+00E9, which GML allows only inside a string)',
+            'the input could not be read as gml: cannot tokenize "caf\\u00E9" at line 2 (it holds U+00E9, which GML allows only inside a string)',
         );
     });
 
@@ -215,7 +215,7 @@ describe("GML robustness: lexical errors", () => {
         const err = await rejects(gml(`graph${NBSP}[ node [ id 1 ] ]`));
         expect(fatalCode(err)).toBe("E_SYNTAX");
         expect(err.message).toBe(
-            'cannot tokenize "graph\\u00A0" at line 1 (it holds U+00A0, which GML allows only inside a string)',
+            'the input could not be read as gml: cannot tokenize "graph\\u00A0" at line 1 (it holds U+00A0, which GML allows only inside a string)',
         );
     });
 });

@@ -32,6 +32,7 @@ import { type Column, type GraphSnapshot } from "@graphty/graph-format";
 import { type LossNote } from "../types.js";
 import { XML_ILLEGAL_CHAR_CODE } from "./codes.js";
 import { isNameChar } from "./export.js";
+import { agree, plural } from "./plural.js";
 
 /**
  * The events of the tokenizer; every callback is synchronous.
@@ -250,7 +251,7 @@ export function xmlIllegalTextNotes(snapshot: GraphSnapshot): LossNote[] {
         notes.push(
             Object.freeze({
                 code: XML_ILLEGAL_CHAR_CODE,
-                message: `${ids} node id(s) hold a character XML 1.0 cannot carry; the save fails`,
+                message: `${ids} node id${plural(ids)} ${agree(ids, "holds", "hold")} a character XML 1.0 cannot carry; the save fails`,
                 column: null,
                 count: ids,
             }),
@@ -267,7 +268,7 @@ export function xmlIllegalTextNotes(snapshot: GraphSnapshot): LossNote[] {
                 notes.push(
                     Object.freeze({
                         code: XML_ILLEGAL_CHAR_CODE,
-                        message: `${domain} column "${column.meta.name}": ${bad} value(s) hold a character XML 1.0 cannot carry; the save fails`,
+                        message: `${domain} column "${column.meta.name}": ${bad} value${plural(bad)} ${agree(bad, "holds", "hold")} a character XML 1.0 cannot carry; the save fails`,
                         column: column.meta.name,
                         count: bad,
                     }),

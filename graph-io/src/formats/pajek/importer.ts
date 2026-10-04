@@ -54,6 +54,7 @@ import {
     resolveImportOptions,
     SINK_OPTION_CODE,
 } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { isNumericText, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
@@ -161,7 +162,7 @@ export const PAJEK_ISSUE = Object.freeze({
     HEADER_EXTRA: "W_PAJEK_HEADER_EXTRA",
     /** The file declares vertices but no line section. */
     NO_LINES: "W_PAJEK_NO_LINES",
-    /** Vertex numbering starts at 0 rather than 1. */
+    /** Vertex numbering starts at 0 rather than 1, found by `firstVertex: "auto"` (passing `firstVertex: 0` says so and gives no warning). */
     ZERO_BASED: "W_PAJEK_ZERO_BASED",
     /** Vertex lines mix two and three coordinates. */
     COORD_DIMS: "W_PAJEK_COORD_DIMS",
@@ -575,7 +576,7 @@ class PajekParser {
             this.report.warning(
                 "coercion",
                 PAJEK_ISSUE.ID_MERGED,
-                `${this.coercer.mergeCount} label(s) merged into an id another label already produced under ids "number"`,
+                `${this.coercer.mergeCount} label${plural(this.coercer.mergeCount)} merged into an id another label already produced under ids "number"`,
             );
         }
         const pajek = {
@@ -628,7 +629,7 @@ class PajekParser {
                 this.report.error(
                     "validation-error",
                     PAJEK_ISSUE.OBJECT_COUNT,
-                    `*${partition ? "Partition" : "Vector"} "${object.name}" declares ${declared} vertices and holds ${object.values.length} value(s); the network has ${this.vertexCount}`,
+                    `*${partition ? "Partition" : "Vector"} "${object.name}" declares ${declared} vertices and holds ${object.values.length} value${plural(object.values.length)}; the network has ${this.vertexCount}`,
                     where,
                 );
             }
@@ -657,7 +658,7 @@ class PajekParser {
             this.report.warning(
                 "validation-error",
                 PAJEK_ISSUE.HEADER_EXTRA,
-                `ignored ${h.extra.length} unexpected token(s) after *${h.keyword}: ${h.extra.join(" ")}`,
+                `ignored ${h.extra.length} unexpected token${plural(h.extra.length)} after *${h.keyword}: ${h.extra.join(" ")}`,
                 { line },
             );
         }
@@ -823,7 +824,7 @@ class PajekParser {
             this.report.error(
                 "validation-error",
                 PAJEK_ISSUE.MATRIX_ROWS,
-                `*Matrix has ${this.matrixRows} row(s); *Vertices declares ${rows}`,
+                `*Matrix has ${this.matrixRows} row${plural(this.matrixRows)}; *Vertices declares ${rows}`,
             );
         }
         this.section = "none";
@@ -840,7 +841,8 @@ class PajekParser {
     private setBase(base: 0 | 1, line: number): void {
         this.base = base;
         this.baseKnown = true;
-        if (base === 0) {
+        // the caller who passed firstVertex: 0 knows the numbering; the warning is for a guess
+        if (base === 0 && this.firstVertex === "auto") {
             this.report.warning(
                 "coercion",
                 PAJEK_ISSUE.ZERO_BASED,
@@ -951,7 +953,7 @@ class PajekParser {
             this.report.warning(
                 "validation-error",
                 PAJEK_ISSUE.VERTEX_COUNT,
-                `*Vertices declares ${n} vertices but ${lines} vertex line(s) were read; the others have no label`,
+                `*Vertices declares ${n} vertices but ${lines} vertex line${plural(lines)} ${agree(lines, "was", "were")} read; the others have no label`,
             );
         }
     }
@@ -1383,14 +1385,14 @@ class PajekParser {
             throw new LineError(
                 "validation-error",
                 PAJEK_ISSUE.MATRIX_ROWS,
-                `*Matrix row ${row + 1} is beyond the ${rows} declared row(s)`,
+                `*Matrix row ${row + 1} is beyond the ${rows} declared row${plural(rows)}`,
             );
         }
         if (tokens.length < columns) {
             throw new LineError(
                 "parse-error",
                 PAJEK_ISSUE.LINE,
-                `*Matrix row ${row + 1} has ${tokens.length} value(s); the matrix has ${columns} column(s)`,
+                `*Matrix row ${row + 1} has ${tokens.length} value${plural(tokens.length)}; the matrix has ${columns} column${plural(columns)}`,
             );
         }
         for (let j = 0; j < columns; j++) {
@@ -1406,7 +1408,7 @@ class PajekParser {
             this.report.warnOnce(
                 "validation-error",
                 PAJEK_ISSUE.MATRIX_EXTRA,
-                `*Matrix row ${row + 1} has ${tokens.length} value(s) for ${columns} column(s); the extra values are ignored`,
+                `*Matrix row ${row + 1} has ${tokens.length} value${plural(tokens.length)} for ${columns} column${plural(columns)}; the extra values are ignored`,
                 { line },
             );
         }
@@ -1535,7 +1537,7 @@ class PajekParser {
      */
     private weightOf(text: string): number | undefined {
         try {
-            return parseWeightText(text);
+            return parseWeightText(text, this.report);
         } catch (err) {
             this.report.counts.skippedEdges++;
             throw err;
@@ -1793,7 +1795,7 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
             report.warning(
                 "unsupported",
                 PAJEK_ISSUE.MULTIPLE_GRAPHS,
-                `the project file holds ${rest.count} more network(s) after the first; the first is read (graphIndex or graphName chooses another; importAllGraphs() reads every one)${rest.objects > 0 ? `; ${rest.objects} *Partition / *Vector object(s) after them are not read` : ""}`,
+                `the project file holds ${rest.count} more network${plural(rest.count)} after the first; the first is read (graphIndex or graphName chooses another; importAllGraphs() reads every one)${rest.objects > 0 ? `; ${rest.objects} *Partition / *Vector object(s) after them are not read` : ""}`,
                 { line: restLine },
             );
         }

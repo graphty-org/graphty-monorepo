@@ -387,7 +387,7 @@ describe("gmlImporter: structure and flags", () => {
     it("reads the first of several graph blocks and warns how many it skipped", async () => {
         const { report, snapshot } = await importGml('Creator "t" graph [ node [ id 1 ] ] graph [ ] graph [ ]');
         expect(codes(report)).toEqual([SECOND_GRAPH_CODE]);
-        expect(report.issues[0].message).toContain("2 more graph block(s)");
+        expect(report.issues[0].message).toContain("2 more graph blocks");
         expect(snapshot.nodeCount).toBe(1);
     });
 

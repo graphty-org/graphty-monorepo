@@ -290,8 +290,8 @@ export const XGMML_ISSUE = Object.freeze({
     /** `graphName` matches several networks in the session. The import stops. */
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
     /**
-     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
-     * repeated column header.
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example
+     * two attributes declared with the same name.
      */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /**

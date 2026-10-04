@@ -93,6 +93,7 @@ import {
     resolveImportOptions,
     SINK_OPTION_CODE,
 } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
 import { headBytes, sniffJsonDialectHead } from "../../sniff.js";
@@ -323,8 +324,8 @@ export const JSON_ISSUE = Object.freeze({
      */
     DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
     /**
-     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
-     * repeated column header.
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example
+     * two attributes declared with the same name.
      */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /**
@@ -836,7 +837,7 @@ class AttributeWriter {
             this.report.warning(
                 "missing-value",
                 EMPTY_COLUMN_DROPPED_CODE,
-                `${this.domain} key(s) ${names.map((n) => JSON.stringify(n)).join(", ")} are null wherever they appear; no column is made for them`,
+                `${this.domain} key${plural(names.length)} ${names.map((n) => JSON.stringify(n)).join(", ")} ${agree(names.length, "is", "are")} null wherever they appear; no column is made for them`,
                 { element: names[0] },
             );
         }
@@ -1127,12 +1128,12 @@ export class ImportContext {
         const shown = this.danglingIds.map((id) => JSON.stringify(id)).join(", ");
         const near =
             this.nearMatches.length > 0
-                ? `; ${this.nearMatches.map((id) => JSON.stringify(id)).join(", ")} name(s) a node id of another JSON type (a string next to a number), which is a different id`
+                ? `; ${this.nearMatches.map((id) => JSON.stringify(id)).join(", ")} ${agree(this.nearMatches.length, "names", "name")} a node id of another JSON type (a string next to a number), which is a different id`
                 : "";
         this.report.warning(
             "validation-error",
             JSON_ISSUE.DANGLING_REFERENCE,
-            `${this.danglingCount} edge endpoint(s) name no node and became placeholder nodes: ${shown}${this.danglingCount > DANGLING_SHOWN ? ", ..." : ""}${near}`,
+            `${this.danglingCount} edge endpoint${plural(this.danglingCount)} ${agree(this.danglingCount, "names", "name")} no node and became placeholder nodes: ${shown}${this.danglingCount > DANGLING_SHOWN ? ", ..." : ""}${near}`,
             { element: String(this.danglingIds[0]) },
         );
     }
@@ -1375,7 +1376,7 @@ export class ImportContext {
             this.report.warning(
                 "coercion",
                 JSON_ISSUE.EDGE_ID_STRINGIFIED,
-                `edge ids mix numbers and strings; ${numbers} numeric id(s) stored as text`,
+                `edge ids mix numbers and strings; ${numbers} numeric id${plural(numbers)} stored as text`,
                 { element: columnName },
             );
         }
@@ -1494,21 +1495,21 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
         report.warning(
             "coercion",
             JSON_ISSUE.NONSTANDARD_NUMBER,
-            `the document uses the non-standard token(s) ${[...scan.tokens].join(", ")}, which strict JSON does not allow; read as numbers`,
+            `the document uses the non-standard token${plural(scan.tokens.size)} ${[...scan.tokens].join(", ")}, which strict JSON does not allow; read as numbers`,
         );
     }
     if (scan.bigIntegers.length > 0) {
         report.warning(
             "precision",
             JSON_ISSUE.BIG_INTEGER,
-            `${scan.bigIntegers.length} integer(s) beyond 2^53 kept as text so no digit is lost: ${listed(scan.bigIntegers)}`,
+            `${scan.bigIntegers.length} integer${plural(scan.bigIntegers.length)} beyond 2^53 kept as text so no digit is lost: ${listed(scan.bigIntegers)}`,
         );
     }
     if (scan.inexact.length > 0) {
         report.warning(
             "precision",
             JSON_ISSUE.PRECISION,
-            `${scan.inexact.length} number literal(s) no double holds exactly, read as the nearest double (an infinity beyond the range, 0 below it): ${listed(scan.inexact)}`,
+            `${scan.inexact.length} number literal${plural(scan.inexact.length)} no double holds exactly, read as the nearest double (an infinity beyond the range, 0 below it): ${listed(scan.inexact)}`,
         );
     }
     return root;
@@ -1551,7 +1552,7 @@ function reportDuplicateKeys(text: string, report: ImportReportBuilder): void {
         report.warning(
             "merged",
             JSON_ISSUE.DUPLICATE_ATTRIBUTE,
-            `${found.length - DUPLICATE_KEYS_SHOWN} more repeated key(s); each earlier value is dropped`,
+            `${found.length - DUPLICATE_KEYS_SHOWN} more repeated key${plural(found.length - DUPLICATE_KEYS_SHOWN)}; each earlier value is dropped`,
         );
     }
 }
@@ -1855,11 +1856,13 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
     if (!positional && nodeIdKey === null) {
         const candidates = ctx.options.nodeIdFrom === "label" ? ["label", "name", "id"] : ["id", "name"];
         nodeIdKey = candidates.find((key) => anyHas(nodeList, key)) ?? null;
-        if (ctx.options.nodeIdFrom === "label" && nodeIdKey === "id") {
+        if (ctx.options.nodeIdFrom === "label" && (nodeIdKey === "id" || nodeIdKey === "name")) {
             report.warning(
                 "unsupported",
                 JSON_ISSUE.OPTION_IGNORED,
-                'nodeIdFrom "label": no node has a label or name key; ids are read from "id"',
+                nodeIdKey === "id"
+                    ? 'nodeIdFrom "label": no node has a label or name key; ids are read from "id"'
+                    : 'nodeIdFrom "label": no node has a "label" key; ids are read from "name"',
                 { element: "nodeIdFrom" },
             );
         }
@@ -2014,7 +2017,7 @@ function importNodeLinkEdges(
         ctx.report.warning(
             "validation-error",
             JSON_ISSUE.INCONSISTENT,
-            `the document declares multigraph false, but ${parallels} link(s) repeat the endpoints of an earlier one; all are kept`,
+            `the document declares multigraph false, but ${parallels} link${plural(parallels)} ${agree(parallels, "repeats", "repeat")} the endpoints of an earlier one; all are kept`,
             { element: edgesKey },
         );
     }
@@ -2264,7 +2267,7 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
         report.warning(
             "validation-error",
             JSON_ISSUE.INCONSISTENT,
-            `${arrows} edge(s) carry vis.js arrows but the graph is read undirected; the arrows are kept as an attribute (pass defaultDirected: true to read the edges as directed)`,
+            `${arrows} edge${plural(arrows)} ${agree(arrows, "carries", "carry")} vis.js arrows but the graph is read undirected; the arrows are kept as an attribute (pass defaultDirected: true to read the edges as directed)`,
             { element: "arrows" },
         );
     }
@@ -2362,7 +2365,7 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
             report.error(
                 "missing-value",
                 JSON_ISSUE.BAD_INDEX,
-                `${element}: ${why}; its ${list.length} edge(s) are skipped`,
+                `${element}: ${why}; its ${list.length} edge${plural(list.length)} ${agree(list.length, "is", "are")} skipped`,
                 {
                     element,
                 },
@@ -2431,7 +2434,7 @@ function reportAdjacencyShape(
         report.error(
             "missing-value",
             JSON_ISSUE.MISSING_SECTION,
-            `${nodes - lists} node(s) from nodes[${lists}] on have no adjacency list (NetworkX writes one per node); their edges listed elsewhere are kept`,
+            `${nodes - lists} node${plural(nodes - lists)} from nodes[${lists}] on ${agree(nodes - lists, "has", "have")} no adjacency list (NetworkX writes one per node); their edges listed elsewhere are kept`,
             { element: "adjacency" },
         );
     }
@@ -2439,7 +2442,7 @@ function reportAdjacencyShape(
         report.warning(
             "validation-error",
             JSON_ISSUE.INCONSISTENT,
-            `the two listings of ${disagreeing} undirected edge(s) disagree on their attributes; the first listing is kept`,
+            `the two listings of ${disagreeing} undirected edge${plural(disagreeing)} ${agree(disagreeing, "disagrees", "disagree")} on their attributes; the first listing is kept`,
             { element: "adjacency" },
         );
     }
@@ -2721,14 +2724,14 @@ function reportGraphologyViolations(
 ): void {
     const notes: string[] = [];
     if (violations.selfLoops > 0) {
-        notes.push(`options.allowSelfLoops is false, but ${violations.selfLoops} self-loop(s) are listed`);
+        notes.push(`options.allowSelfLoops is false, but ${violations.selfLoops} self-loop${plural(violations.selfLoops)} ${agree(violations.selfLoops, "is", "are")} listed`);
     }
     if (violations.parallels > 0) {
-        notes.push(`options.multi is false, but ${violations.parallels} parallel edge(s) are listed`);
+        notes.push(`options.multi is false, but ${violations.parallels} parallel edge${plural(violations.parallels)} ${agree(violations.parallels, "is", "are")} listed`);
     }
     if (violations.flags > 0) {
         notes.push(
-            `options.type is ${type}, but ${violations.flags} edge(s) carry the other undirected flag; read as ${type}`,
+            `options.type is ${type}, but ${violations.flags} edge${plural(violations.flags)} ${agree(violations.flags, "carries", "carry")} the other undirected flag; read as ${type}`,
         );
     }
     for (const note of notes) {
@@ -3149,18 +3152,18 @@ function importHyperedges(
     const { report } = ctx;
     const policy = ctx.options.hyperedges;
     if (policy === "error") {
-        report.error("unsupported", JSON_ISSUE.HYPEREDGE, `${hyperedges.length} hyperedge(s) (hyperedges: "error")`, {
+        report.error("unsupported", JSON_ISSUE.HYPEREDGE, `${hyperedges.length} hyperedge${plural(hyperedges.length)} (hyperedges: "error")`, {
             element: "hyperedges",
         });
         throw report.abort("hyperedges refused", { code: JSON_ISSUE.HYPEREDGE, count: hyperedges.length });
     }
     if (policy === "skip") {
-        report.warning("unsupported", JSON_ISSUE.HYPEREDGES_SKIPPED, `${hyperedges.length} hyperedge(s) skipped`, {
+        report.warning("unsupported", JSON_ISSUE.HYPEREDGES_SKIPPED, `${hyperedges.length} hyperedge${plural(hyperedges.length)} skipped`, {
             element: "hyperedges",
         });
         report.loss(
             JSON_ISSUE.HYPEREDGES_SKIPPED,
-            `${hyperedges.length} hyperedge(s) were not imported`,
+            `${hyperedges.length} hyperedge${plural(hyperedges.length)} ${agree(hyperedges.length, "was", "were")} not imported`,
             null,
             hyperedges.length,
         );
@@ -3299,7 +3302,7 @@ function distinctMembers(ctx: ImportContext, members: readonly NodeId[], element
         ctx.report.error(
             "validation-error",
             JSON_ISSUE.HYPEREDGE_SHAPE,
-            `${element} lists ${members.length - distinct.length} member(s) more than once; each is read once`,
+            `${element} lists ${members.length - distinct.length} member${plural(members.length - distinct.length)} more than once; each is read once`,
             { element },
         );
     }

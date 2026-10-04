@@ -150,8 +150,8 @@ export const GEXF_ISSUE = Object.freeze({
     /** Options that do not parse as the declared type. */
     BAD_OPTIONS: BAD_OPTIONS_CODE,
     /**
-     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
-     * repeated column header.
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example
+     * two attributes declared with the same name.
      */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /**

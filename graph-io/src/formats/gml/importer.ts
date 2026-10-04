@@ -56,8 +56,9 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
-import { parseWeightText, weightFromValue } from "../../common/weights.js";
+import { parseWeightText, reportWeightPrecision, weightFromValue } from "../../common/weights.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
     EMPTY_LIST_TEXT,
@@ -1391,11 +1392,17 @@ class GmlImport {
         const t = this.requireTokens();
         switch (t.kind[v]) {
             case TOKEN_STRING:
-                return parseWeightText(t.stringOf(v));
+                return parseWeightText(t.stringOf(v), this.report);
             case TOKEN_OPEN:
                 throw new GraphFormatError("E_INVALID_WEIGHT", "edge weight is a record", { value: "[...]" });
-            default:
-                return weightFromValue(numberOfText(t.textOf(v)));
+            default: {
+                const text = t.textOf(v);
+                const weight = weightFromValue(numberOfText(text));
+                if (weight !== undefined) {
+                    reportWeightPrecision(text, weight, this.report);
+                }
+                return weight;
+            }
         }
     }
 
@@ -1905,7 +1912,7 @@ export const gmlImporter: GraphImporter<GmlImportOptions> = Object.freeze({
             report.warning(
                 "unsupported",
                 SECOND_GRAPH_CODE,
-                `the input holds ${gml.graphCount - 1} more graph block(s) after the first; the first is read (graphIndex or graphName chooses another; importAllGraphs() reads every one)`,
+                `the input holds ${gml.graphCount - 1} more graph block${plural(gml.graphCount - 1)} after the first; the first is read (graphIndex or graphName chooses another; importAllGraphs() reads every one)`,
             );
         }
         // an abort raised during the last few elements (after the last periodic check) still rejects

@@ -12,6 +12,7 @@
 
 import { SYNTAX_CODE } from "../../common/codes.js";
 import { decodeGmlString } from "../../common/escape.js";
+import { plural } from "../../common/plural.js";
 
 /**
  * A bare word: a key, or `INF` / `NAN` at a value position.
@@ -462,7 +463,7 @@ function validateStructure(tokens: GmlTokens): void {
         const open = stack[stack.length - 1];
         throw new GmlSyntaxError(
             SYNTAX_BRACKET_CODE,
-            `unexpected end of input: ${stack.length} bracket(s) still open, the last opened at line ${tokens.line[open]}`,
+            `unexpected end of input: ${stack.length} bracket${plural(stack.length)} still open, the last opened at line ${tokens.line[open]}`,
             tokens.line[open],
         );
     }

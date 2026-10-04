@@ -504,6 +504,6 @@ describe("importGraph option and error shapes", () => {
         const importError = err as ImportError;
         expect(Object.keys(importError)).not.toContain("report");
         expect(importError.report.errorCount).toBe(1);
-        expect(importError.message).toBe("error limit of 0 exceeded: line 2: 1 field(s), expected 2");
+        expect(importError.message).toBe("error limit of 0 exceeded: line 2: 1 field, expected 2");
     });
 });

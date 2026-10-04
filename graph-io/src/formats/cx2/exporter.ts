@@ -29,6 +29,7 @@ import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
 import { isRecord, POSITION_COLUMN } from "../../common/json-elements.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -371,7 +372,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     if (nonfinite > 0) {
         note(
             CX2_LOSS.NONFINITE_AS_NULL,
-            `${nonfinite} NaN or infinite value(s) cannot be written in CX2; written as null, they read back unset`,
+            `${nonfinite} NaN or infinite value${plural(nonfinite)} cannot be written in CX2; written as null, they read back unset`,
             null,
             nonfinite,
         );

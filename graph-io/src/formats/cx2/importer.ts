@@ -101,6 +101,7 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
@@ -242,8 +243,8 @@ export const CX2_ISSUE = Object.freeze({
     /** An element key CX2 does not define. */
     UNKNOWN_ELEMENT: UNKNOWN_ELEMENT_CODE,
     /**
-     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
-     * repeated column header.
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example
+     * two attributes declared with the same name.
      */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /**
@@ -1020,7 +1021,7 @@ class Cx2Reader {
             report.warnOnce(
                 "missing-value",
                 CX2_ISSUE.PARTIAL_LAYOUT,
-                `${this.nodeRows.size - this.positioned.size} of ${this.nodeRows.size} node(s) have no coordinates; their positions are unset`,
+                `${this.nodeRows.size - this.positioned.size} of ${this.nodeRows.size} node${plural(this.nodeRows.size)} ${agree(this.nodeRows.size - this.positioned.size, "has", "have")} no coordinates; their positions are unset`,
                 { element: "nodes" },
             );
         }
@@ -1034,7 +1035,7 @@ class Cx2Reader {
             report.warning(
                 "validation-error",
                 DANGLING_REFERENCE_CODE,
-                `${count} ${kind} name(s) no element; ignored`,
+                `${count} ${kind}${plural(count)} ${agree(count, "names", "name")} no element; ignored`,
                 { element: kind },
             );
         }
@@ -1689,7 +1690,7 @@ class Cx2Reader {
             this.report.warning(
                 "unsupported",
                 CX2_ISSUE.LEGACY_LAYOUT,
-                `a CX1 cartesianLayout aspect (${cartesianLayout.length} element(s)) next to node coordinates; the node coordinates are used, the aspect is kept in meta.extra.cx2`,
+                `a CX1 cartesianLayout aspect (${cartesianLayout.length} element${plural(cartesianLayout.length)}) next to node coordinates; the node coordinates are used, the aspect is kept in meta.extra.cx2`,
                 { element: "cartesianLayout" },
             );
             return;
@@ -2342,9 +2343,9 @@ function describeStyle(aspect: string, elements: readonly unknown[]): string {
         const defaults = isRecord(first.default)
             ? Object.values(first.default).reduce<number>((n, v) => n + (isRecord(v) ? Object.keys(v).length : 0), 0)
             : 0;
-        return `visualProperties: ${defaults} default(s), ${count("nodeMapping")} node mapping(s), ${count("edgeMapping")} edge mapping(s)`;
+        return `visualProperties: ${defaults} default${plural(defaults)}, ${count("nodeMapping")} node mapping${plural(count("nodeMapping"))}, ${count("edgeMapping")} edge mapping${plural(count("edgeMapping"))}`;
     }
-    return `${aspect}: ${elements.length} element(s)`;
+    return `${aspect}: ${elements.length} element${plural(elements.length)}`;
 }
 
 /**

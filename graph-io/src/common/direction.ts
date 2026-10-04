@@ -154,11 +154,13 @@ export class DirectionResolver {
         if (this.policy === "directed" || this.policy === "undirected") {
             wanted = this.policy === "directed";
             if (wanted !== headerDirected) {
-                this.report.warning(
+                // once: this says it for every edge, so no edge repeats it
+                this.report.warnOnce(
                     "coercion",
                     DIRECTION_FORCED_CODE,
                     `the file declares ${direction(headerDirected)} edges; read as ${direction(wanted)} per onMixedDirection`,
                     { line: where?.line ?? null },
+                    `${DIRECTION_FORCED_CODE}:${direction(headerDirected)}`,
                 );
             }
         }
@@ -250,6 +252,7 @@ export class DirectionResolver {
                     DIRECTION_FORCED_CODE,
                     `${kind} edges read as ${direction(sink.directed)} per onMixedDirection`,
                     where,
+                    `${DIRECTION_FORCED_CODE}:${kind}`,
                 );
                 const e = sink.addEdge(source, target, weight);
                 this.track(e);

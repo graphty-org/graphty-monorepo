@@ -278,7 +278,7 @@ describe("neo4jImporter (design 8.4)", () => {
             expect(snapshot.nodes.value("name", 0)).toBe("Alice");
             // 1 is declared by its row, so it is no duplicate; 2 and 3 never are, which neo4j-admin refuses
             expect(codes(report)).toEqual([DANGLING_REFERENCE_CODE]);
-            expect(report.issues[0].message).toMatch(/2 relationship endpoint\(s\).*: 2, 3/);
+            expect(report.issues[0].message).toMatch(/2 relationship endpoints.*: 2, 3/);
             expect(report.counts.nodes).toBe(3);
         });
 
@@ -302,7 +302,7 @@ describe("neo4jImporter (design 8.4)", () => {
             expect(report.lossy).toEqual([
                 {
                     code: IGNORED_COLUMNS_LOSS,
-                    message: "2 :IGNORE column(s) were skipped as the header instructs",
+                    message: "2 :IGNORE columns were skipped as the header instructs",
                     column: null,
                     count: 2,
                 },

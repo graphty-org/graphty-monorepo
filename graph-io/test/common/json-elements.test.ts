@@ -280,7 +280,7 @@ describe("CxStructure", () => {
             "W_ASPECT_ORDER: 3 metaData blocks; a document has at most two (pre and post)",
             "W_STATUS_WARNING: the producer reports a warning: careful",
             'W_ASPECT_ORDER: the "x" block comes after the status block, which must be last; it is read',
-            'W_COUNT_MISMATCH: metaData declares 3 "nodes" element(s); 1 were read',
+            'W_COUNT_MISMATCH: metaData declares 3 "nodes" elements; 1 was read',
         ]);
         expect(s.hasStatus).toBe(true);
         expect(s.statusWellFormed()).toBe(true);

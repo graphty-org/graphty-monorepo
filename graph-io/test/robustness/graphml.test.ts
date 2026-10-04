@@ -335,7 +335,7 @@ describe("GraphML ports", () => {
             ),
         );
         expect(codes(report)).toEqual([GRAPHML_ISSUE.PORT_DECLARATION, GRAPHML_ISSUE.DANGLING_REFERENCE]);
-        expect(report.issues[1].message).toMatch(/^2 edge port reference\(s\).*first: b:zz/);
+        expect(report.issues[1].message).toMatch(/^2 edge port references.*first: b:zz/);
         expect(snapshot.edges.value("sourceport", 0)).toBe("p1");
         expect(snapshot.edges.value("targetport", 0)).toBe("zz");
     });

@@ -17,6 +17,7 @@ import {
 } from "@graphty/graph-format";
 
 import { describe } from "./options.js";
+import { plural } from "./plural.js";
 import { ImportReportBuilder } from "./report.js";
 
 /**
@@ -166,7 +167,7 @@ export class CellBudgetBuilder extends GraphBuilder {
             new ImportReportBuilder(this.format, Infinity).fail(
                 TOO_MANY_EMPTY_CELLS_CODE,
                 `the attributes are too sparse: ${this.nodeColumns.size} node and ${this.edgeColumns.size} edge ` +
-                    `attribute column(s) over ${this.nodeBound} node(s) and ${this.edgeBound} edge(s) would ` +
+                    `attribute columns over ${this.nodeBound} node${plural(this.nodeBound)} and ${this.edgeBound} edge${plural(this.edgeBound)} would ` +
                     `allocate more than ${this.maxEmptyCells} slots that hold no value; pass a larger ` +
                     `maxEmptyCells (or Infinity) to read the file anyway`,
                 undefined,

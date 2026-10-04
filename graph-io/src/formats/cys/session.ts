@@ -8,6 +8,7 @@
 
 import { readBytes, textChunks } from "../../common/input.js";
 import { type ResolvedImportOptions } from "../../common/options.js";
+import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { tokenizeXml, xmlDeclaredEncoding, XmlSyntaxError } from "../../common/xml.js";
 import { readZipDirectory, readZipEntry, type ZipEntry, ZipError } from "../../common/zip.js";
@@ -267,7 +268,7 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
         report.warning(
             "unsupported",
             CYS_ISSUE.DUPLICATE_ENTRY,
-            `${repeated.length} entry name(s) appear more than once; the first of each is read: ${listed(repeated)}`,
+            `${repeated.length} entry name${plural(repeated.length)} appear more than once; the first of each is read: ${listed(repeated)}`,
         );
     }
     const names = [...byName.keys()];
@@ -413,8 +414,18 @@ type Mutable = {
  * @category Plugin helpers
  */
 export function listed(names: readonly string[]): string {
-    const head = names.slice(0, 10).join(", ");
+    const head = names.slice(0, 10).map(entryLabel).join(", ");
     return names.length > 10 ? `${head} and ${names.length - 10} more` : head;
+}
+
+/**
+ * An entry name as a message shows it: without the session folder every entry sits in
+ * (`CytoscapeSession-2026_10_02-12_00/networks/10-Collection.xgmml` is `networks/10-Collection.xgmml`).
+ * @param name - the zip entry name
+ * @returns the name inside the session
+ */
+export function entryLabel(name: string): string {
+    return name.replace(/^[^/]*CytoscapeSession[^/]*\//, "");
 }
 
 /**

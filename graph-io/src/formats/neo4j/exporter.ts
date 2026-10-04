@@ -39,6 +39,7 @@ import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
 import { formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { isCanonicalIntegerText } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { formatTemporal, type TemporalKind } from "../../common/temporal.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
@@ -59,12 +60,13 @@ export interface Neo4jExportOptions extends CommonExportOptions {
      */
     part?: "all" | "nodes" | "relationships" | undefined;
     /**
-     * The field delimiter, one character.
+     * The field delimiter, one character. It must differ from `arrayDelimiter`: with
+     * `delimiter: ";"`, also pass `arrayDelimiter: ","` or `"|"`.
      * @defaultValue ","
      */
     delimiter?: string | undefined;
     /**
-     * The delimiter inside list values and `:LABEL` cells.
+     * The delimiter inside list values and `:LABEL` cells. It must differ from `delimiter`.
      * @defaultValue ";"
      */
     arrayDelimiter?: ";" | "," | "|" | undefined;
@@ -80,8 +82,9 @@ export interface Neo4jExportOptions extends CommonExportOptions {
      * writes no weights (checkExport() then returns W_WEIGHTS_DROPPED). graph-io reads the
      * "weight" property back as the weight; for any other name, pass the same name as the
      * `weightFrom` import option to read the weights back (`weightColumn: "strength"` with
-     * `weightFrom: "strength"`), or they come back as a plain edge attribute.
-     * @defaultValue "weight"
+     * `weightFrom: "strength"`), or they come back as a plain edge attribute. A graph read from Neo4j
+     * CSV with `weightFrom` writes its weights back under the property they were read from.
+     * @defaultValue "weight", or the property a Neo4j import read the weights from
      */
     weightColumn?: string | null | undefined;
     /**
@@ -260,9 +263,13 @@ interface ColumnPlan {
 /**
  * Resolve the format options.
  * @param options - the caller's options
+ * @param readFrom - the property a Neo4j import read the weights from, the default weightColumn
  * @returns the resolved options; E_UNSUPPORTED for an invalid value
  */
-function resolveNeo4jExportOptions(options: Neo4jExportOptions | undefined): ResolvedNeo4jExportOptions {
+function resolveNeo4jExportOptions(
+    options: Neo4jExportOptions | undefined,
+    readFrom: string | null,
+): ResolvedNeo4jExportOptions {
     const o: Neo4jExportOptions = options ?? {};
     const part = o.part ?? "all";
     if (!PARTS.has(part)) {
@@ -286,12 +293,12 @@ function resolveNeo4jExportOptions(options: Neo4jExportOptions | undefined): Res
     const delimiter = o.delimiter ?? ",";
     const syntax = { ...checkRecordSyntax({ delimiter, quote: o.quote ?? '"' }), delimiter };
     if (syntax.delimiter === arrayDelimiter) {
-        throw new GraphFormatError("E_UNSUPPORTED", "options delimiter and arrayDelimiter must differ", {
+        throw new GraphFormatError("E_UNSUPPORTED", `options delimiter and arrayDelimiter must differ: both are ${JSON.stringify(arrayDelimiter)}; pass another arrayDelimiter (";", "," or "|")`, {
             option: "arrayDelimiter",
             found: arrayDelimiter,
         });
     }
-    const weightColumn = o.weightColumn === undefined ? "weight" : o.weightColumn;
+    const weightColumn = o.weightColumn === undefined ? (readFrom ?? "weight") : o.weightColumn;
     if (weightColumn !== null && (typeof weightColumn !== "string" || weightColumn.length === 0)) {
         throw new GraphFormatError("E_UNSUPPORTED", "option weightColumn: expected a non-empty name or null", {
             option: "weightColumn",
@@ -430,7 +437,7 @@ class ExportPlan {
         if (!snapshot.directed) {
             this.note(
                 UNDIRECTED_LOSS,
-                `the snapshot is undirected; every edge is written as a directed relationship (${snapshot.edgeCount} edge(s))`,
+                `the snapshot is undirected; every edge is written as a directed relationship (${snapshot.edgeCount} edge${plural(snapshot.edgeCount)})`,
                 null,
                 snapshot.edgeCount,
             );
@@ -444,7 +451,7 @@ class ExportPlan {
             if (undirected > 0) {
                 this.note(
                     UNDIRECTED_LOSS,
-                    `${undirected} undirected edge(s) are written as one directed relationship each (source to target, a pair folded to its primary); Neo4j has no undirected relationship`,
+                    `${undirected} undirected edge${plural(undirected)} ${agree(undirected, "is", "are")} written as one directed relationship each (source to target, a pair folded to its primary); Neo4j has no undirected relationship`,
                     null,
                     undirected,
                 );
@@ -453,7 +460,7 @@ class ExportPlan {
         if (folding.mutualCount > 0) {
             this.note(
                 LOSS.MUTUAL_EXPANDED,
-                `${folding.mutualCount} mutual pair(s) are written as two directed relationships; the mutual mark is lost`,
+                `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two directed relationships; the mutual mark is lost`,
                 null,
                 folding.mutualCount,
             );
@@ -662,7 +669,7 @@ class ExportPlan {
         if (rows > 0) {
             this.note(
                 ARRAY_DELIMITER_LOSS,
-                `${label}: ${rows} row(s) hold an item containing the array delimiter "${arrayDelimiter}", which Neo4j cannot escape`,
+                `${label}: ${rows} row${plural(rows)} ${agree(rows, "holds", "hold")} an item containing the array delimiter "${arrayDelimiter}", which Neo4j cannot escape`,
                 column.meta.name,
                 rows,
             );
@@ -753,7 +760,7 @@ class ExportPlan {
         if (typeChanges > 0) {
             this.note(
                 ID_TEXT_TYPE_LOSS,
-                `${typeChanges} node id(s) re-import as another type under the canonical id rule (a string of canonical integer text, or a non-integer number)`,
+                `${typeChanges} node id${plural(typeChanges)} re-import as another type under the canonical id rule (a string of canonical integer text, or a non-integer number)`,
                 null,
                 typeChanges,
             );
@@ -761,13 +768,13 @@ class ExportPlan {
         if (collisions > 0) {
             this.note(
                 ID_TEXT_COLLISION_LOSS,
-                `${collisions} node id(s) share their text with another id (a number and a string); the save fails`,
+                `${collisions} node id${plural(collisions)} ${agree(collisions, "shares", "share")} their text with another id (a number and a string); the save fails`,
                 null,
                 collisions,
             );
             this.fatalAll = new GraphFormatError(
                 "E_INVALID_ID",
-                `${collisions} node id(s) share their text with another id; Neo4j ids are text`,
+                `${collisions} node id${plural(collisions)} ${agree(collisions, "shares", "share")} their text with another id; Neo4j ids are text`,
                 { reason: "text collision", count: collisions },
             );
         }
@@ -820,7 +827,7 @@ class ExportPlan {
         if (count > 0) {
             this.note(
                 MULTIPLE_ID_PROPERTIES_LOSS,
-                `${count} node(s) have more than one stored-id column set; only the first in declaration order is written`,
+                `${count} node${plural(count)} ${agree(count, "has", "have")} more than one stored-id column set; only the first in declaration order is written`,
                 null,
                 count,
             );
@@ -927,6 +934,17 @@ class ExportPlan {
      * @returns nothing
      */
     *lines(): Generator<string, void, undefined> {
+        for (const row of this.rows()) {
+            yield row.line;
+        }
+    }
+
+    /**
+     * The lines of the requested part, each header line tagged with the file it starts.
+     * @yields one line at a time, with the file name on a header line
+     * @returns nothing
+     */
+    *rows(): Generator<SectionLine, void, undefined> {
         if (this.fatal !== null) {
             throw this.fatal;
         }
@@ -940,11 +958,44 @@ class ExportPlan {
     }
 
     /**
+     * The requested part as one file per section kind: a node file per id space (and stored-id
+     * property), a relationship file per pair of endpoint id spaces, rows of one kind gathered
+     * under one header.
+     * @returns the files, node files first
+     */
+    files(): Neo4jFile[] {
+        // keyed by the header row: sections with the same header are one file
+        const files = new Map<string, { name: string; kind: "nodes" | "relationships"; rows: string[] }>();
+        const names = new Set<string>();
+        let current: { rows: string[] } | null = null;
+        for (const row of this.rows()) {
+            if (row.file !== null) {
+                let file = files.get(row.line);
+                if (file === undefined) {
+                    let name = `${row.file.name}.csv`;
+                    for (let k = 2; names.has(name); k++) {
+                        name = `${row.file.name}-${k}.csv`;
+                    }
+                    names.add(name);
+                    file = { name, kind: row.file.kind, rows: [] };
+                    files.set(row.line, file);
+                }
+                current = file;
+            } else if (current !== null) {
+                current.rows.push(row.line);
+            }
+        }
+        // a part with no rows (a graph without edges) is a header alone, which neo4j-admin does not need
+        const written = [...files].filter(([, f], i) => f.rows.length > 0 || (i === 0 && files.size === 1));
+        return written.map(([header, f]) => Object.freeze({ name: f.name, kind: f.kind, text: header + f.rows.join("") }));
+    }
+
+    /**
      * The node sections.
      * @yields one line at a time
      * @returns nothing
      */
-    private *nodeLines(): Generator<string, void, undefined> {
+    private *nodeLines(): Generator<SectionLine, void, undefined> {
         const { snapshot, labels, nodeColumns } = this;
         const { delimiter } = this.options.syntax;
         const propertyHeaders = nodeColumns.map((plan) => plan.header).join(delimiter);
@@ -967,7 +1018,7 @@ class ExportPlan {
                 if (propertyHeaders.length > 0) {
                     header.push(propertyHeaders);
                 }
-                yield `${header.join(delimiter)}\n`;
+                yield { line: `${header.join(delimiter)}\n`, file: { kind: "nodes", name: fileName("nodes", space ?? idName, null) } };
             }
             cells.length = 0;
             cells.push(this.cell(this.idTextOf(i)));
@@ -977,7 +1028,7 @@ class ExportPlan {
             for (const plan of nodeColumns) {
                 cells.push(this.cell(this.valueText(plan, i)));
             }
-            yield `${cells.join(delimiter)}\n`;
+            yield { line: `${cells.join(delimiter)}\n`, file: null };
         }
         if (sections === 0) {
             // no nodes: one header so the section (and its columns) still exists
@@ -988,7 +1039,7 @@ class ExportPlan {
             if (propertyHeaders.length > 0) {
                 header.push(propertyHeaders);
             }
-            yield `${header.join(delimiter)}\n`;
+            yield { line: `${header.join(delimiter)}\n`, file: { kind: "nodes", name: fileName("nodes", null, null) } };
         }
     }
 
@@ -997,7 +1048,7 @@ class ExportPlan {
      * @yields one line at a time
      * @returns nothing
      */
-    private *relationshipLines(): Generator<string, void, undefined> {
+    private *relationshipLines(): Generator<SectionLine, void, undefined> {
         const { snapshot, kind, weights, edgeColumns, folding } = this;
         const { delimiter } = this.options.syntax;
         const list = snapshot.edgeList();
@@ -1008,7 +1059,7 @@ class ExportPlan {
         let sectionStart: string | null = null;
         let sectionEnd: string | null = null;
         const cells: string[] = [];
-        const headerOf = (startSpace: string | null, endSpace: string | null): string => {
+        const headerOf = (startSpace: string | null, endSpace: string | null): SectionLine => {
             const header = [formatHeaderField("", "START_ID", startSpace), formatHeaderField("", "END_ID", endSpace)];
             if (kind !== null) {
                 header.push(":TYPE");
@@ -1019,7 +1070,10 @@ class ExportPlan {
             if (propertyHeaders.length > 0) {
                 header.push(propertyHeaders);
             }
-            return `${header.join(delimiter)}\n`;
+            return {
+                line: `${header.join(delimiter)}\n`,
+                file: { kind: "relationships", name: fileName("relationships", startSpace, endSpace) },
+            };
         };
         for (let e = 0; e < snapshot.edgeCount; e++) {
             if (folding.folded(e)) {
@@ -1046,7 +1100,7 @@ class ExportPlan {
             for (const plan of edgeColumns) {
                 cells.push(this.cell(this.valueText(plan, e)));
             }
-            yield `${cells.join(delimiter)}\n`;
+            yield { line: `${cells.join(delimiter)}\n`, file: null };
         }
         if (sections === 0) {
             yield headerOf(null, null);
@@ -1367,6 +1421,68 @@ export const neo4jExporter: GraphExporter<Neo4jExportOptions> = Object.freeze({
     },
 });
 
+/** One line of the export; a header line names the file it starts. */
+interface SectionLine {
+    readonly line: string;
+    readonly file: { readonly kind: "nodes" | "relationships"; readonly name: string } | null;
+}
+
+/**
+ * One file of exportNeo4jFiles(): the header row and the rows of one section kind.
+ * @category Built-in formats
+ */
+export interface Neo4jFile {
+    /** A file name made from the section: `nodes-Movie.csv`, `relationships-Person-Movie.csv`, or `nodes.csv` and `relationships.csv` without id spaces. */
+    readonly name: string;
+    /** Whether neo4j-admin takes the file with `--nodes` or with `--relationships`. */
+    readonly kind: "nodes" | "relationships";
+    /** The CSV text, one header row first. */
+    readonly text: string;
+}
+
+/**
+ * The file name of a section, without ".csv": the kind, then the id spaces that set it apart.
+ * @param kind - "nodes" or "relationships"
+ * @param first - the id space or id property (nodes), or the start id space (relationships)
+ * @param second - the end id space (relationships)
+ * @returns the name, with characters outside letters, digits, "." , "_" and "-" replaced by "_"
+ */
+function fileName(kind: string, first: string | null, second: string | null): string {
+    const parts = [kind, first ?? "", second ?? ""].filter((p) => p !== "");
+    return parts.join("-").replace(/[^\w.-]/g, "_");
+}
+
+/**
+ * Write a graph as the separate CSV files `neo4j-admin database import` takes: one node file per id
+ * space and one relationship file per pair of endpoint id spaces, each with a single header row.
+ * `exportGraph(snapshot, "neo4j")` writes the same sections into one file, which graph-io reads
+ * back but neo4j-admin does not, since it reads one header per file. The options are the Neo4j
+ * export options (`part` limits the result to the node or the relationship files), and
+ * `checkExport(snapshot, "neo4j", options)` returns what the files lose.
+ * @param snapshot - the graph to write
+ * @param options - the Neo4j export options
+ * @returns the files, node files first
+ * @category Built-in formats
+ * @example
+ * ```ts
+ * for (const file of await exportNeo4jFiles(snapshot)) {
+ *     await writeFile(file.name, file.text);
+ * }
+ * // neo4j-admin database import full --nodes=nodes-Movie.csv --nodes=nodes-Person.csv \
+ * //     --relationships=relationships-Person-Movie.csv neo4j
+ * ```
+ */
+export function exportNeo4jFiles(
+    snapshot: GraphSnapshot,
+    options?: Neo4jExportOptions & CommonExportOptions,
+): Promise<Neo4jFile[]> {
+    try {
+        return Promise.resolve(plan(snapshot, options).files());
+    } catch (err) {
+        return Promise.reject(err as Error);
+    }
+}
+
 /**
  * Build the export plan of a snapshot.
  * @param snapshot - the snapshot
@@ -1374,5 +1490,20 @@ export const neo4jExporter: GraphExporter<Neo4jExportOptions> = Object.freeze({
  * @returns the plan
  */
 function plan(snapshot: GraphSnapshot, options: (Neo4jExportOptions & CommonExportOptions) | undefined): ExportPlan {
-    return new ExportPlan(snapshot, resolveNeo4jExportOptions(options), resolveExportOptions(options));
+    return new ExportPlan(
+        snapshot,
+        resolveNeo4jExportOptions(options, weightPropertyOf(snapshot)),
+        resolveExportOptions(options),
+    );
+}
+
+/**
+ * The relationship property a Neo4j import read the weights from, when it was not "weight".
+ * @param snapshot - the snapshot
+ * @returns the property name, or null
+ */
+function weightPropertyOf(snapshot: GraphSnapshot): string | null {
+    const neo4j = (snapshot.meta.extra as { neo4j?: { weightProperty?: unknown } } | null)?.neo4j;
+    const name = neo4j?.weightProperty;
+    return typeof name === "string" && name !== "" ? name : null;
 }

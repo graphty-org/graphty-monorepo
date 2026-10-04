@@ -22,9 +22,10 @@ import { capabilities, checkCapabilities, countMixedEdges, LOSS, sanitizeIds } f
 import { formatDecimal, formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
-import { encodeChunks, joinText } from "../../common/writer.js";
+import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     CLUSTER_COLUMN,
@@ -44,10 +45,11 @@ import {
  */
 export interface DotExportOptions extends CommonExportOptions {
     /**
-     * The indentation of one nesting level.
-     * @defaultValue four spaces
+     * The indentation of one nesting level: a number of spaces, or the text itself (spaces or tabs,
+     * such as "\t").
+     * @defaultValue 4
      */
-    indent?: string | undefined;
+    indent?: number | string | undefined;
     /**
      * The graph name to write, or null for an anonymous graph. The default is the graph's name
      * (`snapshot.meta.name`), which a DOT, GML or GEXF import keeps.
@@ -388,16 +390,13 @@ class ExportPlan {
         this.snapshot = snapshot;
         this.resolved = resolved;
         const { indent, name, strict } = options ?? {};
-        if (indent !== undefined && (typeof indent !== "string" || !/^[ \t]*$/.test(indent))) {
-            throw badOption("indent", indent, "a string of spaces or tabs");
-        }
         if (name !== undefined && name !== null && typeof name !== "string") {
             throw badOption("name", name, "a string or null");
         }
         if (strict !== undefined && typeof strict !== "boolean") {
             throw badOption("strict", strict, "a boolean");
         }
-        this.indent = indent ?? DEFAULT_INDENT;
+        this.indent = indentUnit(indent, DEFAULT_INDENT);
         this.name = name === undefined ? snapshot.meta.name : name;
         this.strict = strict ?? isStrictMeta(snapshot);
         this.mixed = countMixedEdges(snapshot);
@@ -507,7 +506,7 @@ class ExportPlan {
         if (unwritable > 0) {
             note(
                 DOT_LOSS.TRAILING_BACKSLASH,
-                `${unwritable} id(s), name(s) or text value(s) hold a backslash before a quote or a line break, or at the end, which a DOT quoted string cannot carry; the save fails`,
+                `${unwritable} ids, names or text values hold a backslash before a quote or a line break, or at the end, which a DOT quoted string cannot carry; the save fails`,
                 null,
                 unwritable,
             );
@@ -545,7 +544,7 @@ class ExportPlan {
                     if (bad > 0) {
                         note(
                             DOT_LOSS.NON_FINITE,
-                            `${label} column "${column.meta.name}" holds ${bad} non-finite value(s) with no numeric DOT spelling; they read back as text`,
+                            `${label} column "${column.meta.name}" holds ${bad} non-finite value${plural(bad)} with no numeric DOT spelling; they read back as text`,
                             column.meta.name,
                             bad,
                         );
@@ -559,7 +558,7 @@ class ExportPlan {
                     if (typed > 0) {
                         note(
                             DOT_LOSS.TEXT_INFERRED,
-                            `${label} column "${column.meta.name}" holds ${typed} text value(s) that look like numbers or booleans; DOT values are untyped and they read back as such`,
+                            `${label} column "${column.meta.name}" holds ${typed} text value${plural(typed)} that look like numbers or booleans; DOT values are untyped and they read back as such`,
                             column.meta.name,
                             typed,
                         );
@@ -577,7 +576,7 @@ class ExportPlan {
         if (unmarked > 0) {
             note(
                 DOT_LOSS.CLUSTER_MARKED,
-                `${unmarked} parent node(s) are written as a node and a cluster of the same name and read back with "${CLUSTER_COLUMN}" true`,
+                `${unmarked} parent node${plural(unmarked)} ${agree(unmarked, "is", "are")} written as a node and a cluster of the same name and read back with "${CLUSTER_COLUMN}" true`,
                 CLUSTER_COLUMN,
                 unmarked,
             );
@@ -586,7 +585,7 @@ class ExportPlan {
         if (mutual > 0) {
             note(
                 DOT_LOSS.MUTUAL_EXPANDED,
-                `${mutual} mutual pair(s) are written as two directed edges each; the mutual mark is lost`,
+                `${mutual} mutual pair${plural(mutual)} ${agree(mutual, "is", "are")} written as two directed edges each; the mutual mark is lost`,
                 null,
                 mutual,
             );
@@ -626,7 +625,7 @@ class ExportPlan {
         if (textIds > 0) {
             note(
                 DOT_LOSS.ID_TEXT_TYPE,
-                `${textIds} node id(s) read back as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
+                `${textIds} node id${plural(textIds)} ${agree(textIds, "reads", "read")} back as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
                 null,
                 textIds,
             );
@@ -642,7 +641,7 @@ class ExportPlan {
         if (this.mixed > 0 && this.resolved.onMixedDirection === "error") {
             throw new GraphFormatError(
                 "E_DIRECTED",
-                `${this.mixed} undirected edge(s) in a directed graph, and DOT holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"`,
+                `${this.mixed} undirected edge${plural(this.mixed)} in a directed graph, and DOT holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"`,
                 { reason: LOSS.MIXED_DIRECTION_ERROR, count: this.mixed },
             );
         }

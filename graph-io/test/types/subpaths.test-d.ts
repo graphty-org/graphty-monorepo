@@ -71,6 +71,9 @@ const csvOptions: CsvImportOptions & { ids?: "canonical" | undefined } = { delim
 expectTypeOf(csvOptions.delimiter).toEqualTypeOf<string | undefined>();
 
 // importGraph() accepts format-specific options next to the common ones and resolves to the result shape.
-expectTypeOf(importGraph).parameter(1).toMatchTypeOf<{ format?: string | undefined } | undefined>();
+expectTypeOf(importGraph).parameter(1).toMatchTypeOf<{ errorLimit?: number | undefined } | undefined>();
+// A variable annotated with a format's options type is accepted as it is, on import and on export.
+const annotatedCsv: CsvImportOptions = { delimiter: ";" };
+expectTypeOf(importGraph("", annotatedCsv)).resolves.toHaveProperty("snapshot");
 expectTypeOf(importGraph("", { format: "csv", delimiter: ";", ids: "canonical" })).resolves.toHaveProperty("snapshot");
 expectTypeOf(importGraph("")).resolves.toHaveProperty("sniff").toEqualTypeOf<SniffResult | null>();

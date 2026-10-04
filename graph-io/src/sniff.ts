@@ -273,7 +273,19 @@ export function sniffJsonDialectHead(head: Uint8Array | string): JsonImportDiale
     try {
         root = JSON.parse(trimmed);
     } catch {
-        root = skeletonOf(trimmed);
+        const skeleton = skeletonOf(trimmed);
+        root = skeleton;
+        // a head cut inside a long `nodes` array has not reached the keys that tell node-link from d3
+        // (`links`, `directed`, `graph`, ...): no guess rather than a wrong one
+        if (
+            typeof skeleton === "object" &&
+            skeleton !== null &&
+            !Array.isArray(skeleton) &&
+            !["edges", "links", "directed", "multigraph", "graph"].some((key) => key in skeleton)
+        ) {
+            const guess = sniffJsonDialect(skeleton);
+            return guess === "node-link" ? null : guess;
+        }
     }
     return sniffJsonDialect(root);
 }

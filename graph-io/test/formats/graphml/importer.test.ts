@@ -647,7 +647,8 @@ describe("graphmlImporter direction", () => {
         const forced = await load(doc(MIXED, "directed"), { onMixedDirection: "undirected" });
         expect(forced.snapshot.directed).toBe(false);
         expect(forced.snapshot.edgeCount).toBe(4);
-        expect(codes(forced.report)).toEqual([DIRECTION_FORCED_CODE, DIRECTION_FORCED_CODE]);
+        // the file-level warning covers its directed edges; no edge repeats it
+        expect(codes(forced.report)).toEqual([DIRECTION_FORCED_CODE]);
         const directed = await load(doc(MIXED, "undirected"), { onMixedDirection: "directed" });
         expect(directed.snapshot.directed).toBe(true);
         expect(directed.snapshot.edgeCount).toBe(4);

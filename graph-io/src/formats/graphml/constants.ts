@@ -303,8 +303,8 @@ export const GRAPHML_ISSUE = Object.freeze({
     /** A yFiles key under `yfiles: "skip"`. */
     YFILES_SKIPPED: "W_GRAPHML_YFILES_SKIPPED",
     /**
-     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
-     * repeated column header.
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example
+     * two attributes declared with the same name.
      */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /**

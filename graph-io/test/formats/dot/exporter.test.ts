@@ -88,8 +88,7 @@ describe("dot exporter: capabilities and shape", () => {
 
     it("refuses an option of the wrong type with E_UNSUPPORTED, in check() and export()", async () => {
         const snapshot = await imported("graph { a -- b }");
-        // A number is JSON's indent; one options object shared by both formats must not crash DOT.
-        for (const options of [{ indent: 2 }, { name: 7 }, { strict: "yes" }] as unknown as ExportOptions[]) {
+        for (const options of [{ indent: "x" }, { name: 7 }, { strict: "yes" }] as unknown as ExportOptions[]) {
             const option = Object.keys(options ?? {})[0];
             expect(() => dotExporter.check(snapshot, options)).toThrow(
                 expect.objectContaining({ code: "E_UNSUPPORTED", details: expect.objectContaining({ option }) }),

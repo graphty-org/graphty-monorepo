@@ -26,6 +26,7 @@ import { escapeXmlAttribute, quoteCsvCell } from "../../common/escape.js";
 import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
 import { formatDecimal, formatF32, formatF64 } from "../../common/format.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { hasIllegalXmlChar } from "../../common/xml.js";
 import { writeZip, type ZipWriteEntry } from "../../common/zip.js";
@@ -545,7 +546,7 @@ function settleNames(domain: Domain, candidates: readonly Candidate[], note: Not
         } else if (c.source !== null && IMPORTER_NAMES[domain].has(c.name)) {
             note(
                 LOSS.COLUMN_NAME_CHANGED,
-                `${domain} column "${c.name}" is named like a column the importer makes itself and reads back renamed`,
+                `${domain} column "${c.name}" is written to the session's table and reads back as "${c.name}#2": graph-io's session reader makes a "${c.name}" column of its own`,
                 c.name,
                 c.source.length - c.source.nullCount,
             );
@@ -635,7 +636,7 @@ function cellNotes(domain: Domain, c: Candidate, rows: number, note: NoteFn): vo
     if (text && unset > 0) {
         note(
             CYS_LOSS.UNSET_AS_EMPTY_STRING,
-            `${label}: ${unset} unset cell(s) are written empty and read back as ""`,
+            `${label}: ${unset} unset cell${plural(unset)} ${agree(unset, "is", "are")} written empty and read back as ""`,
             name,
             unset,
         );
@@ -643,7 +644,7 @@ function cellNotes(domain: Domain, c: Candidate, rows: number, note: NoteFn): vo
     if (lists > 0) {
         note(
             CYS_LOSS.LIST_ITEMS,
-            `${label}: ${lists} list cell(s) read back changed (an unset or empty list of text as [""], an empty list of numbers unset, trailing empty items dropped, items holding a newline split)`,
+            `${label}: ${lists} list cell${plural(lists)} ${agree(lists, "reads", "read")} back changed (an unset or empty list of text as [""], an empty list of numbers unset, trailing empty items dropped, items holding a newline split)`,
             name,
             lists,
         );
@@ -651,7 +652,7 @@ function cellNotes(domain: Domain, c: Candidate, rows: number, note: NoteFn): vo
     if (equations > 0) {
         note(
             CYS_LOSS.TEXT_AS_EQUATION,
-            `${label}: ${equations} cell(s) start with "=", which Cytoscape reads as a formula (an error cell); graph-io reads them back as text`,
+            `${label}: ${equations} cell${plural(equations)} start with "=", which Cytoscape reads as a formula (an error cell); graph-io reads them back as text`,
             name,
             equations,
         );
@@ -785,37 +786,37 @@ function planIds(snapshot: GraphSnapshot, common: ResolvedExportOptions, note: N
     if (collisions > 0) {
         note(
             LOSS.ID_TEXT_COLLISION,
-            `${collisions} node id(s) share their text with another id (a number and a string); the save fails with E_INVALID_ID`,
+            `${collisions} node id${plural(collisions)} ${agree(collisions, "shares", "share")} their text with another id (a number and a string); the save fails with E_INVALID_ID`,
             null,
             collisions,
         );
-        fatal = new GraphFormatError("E_INVALID_ID", `${collisions} node id(s) share their text with another id`, {
+        fatal = new GraphFormatError("E_INVALID_ID", `${collisions} node id${plural(collisions)} ${agree(collisions, "shares", "share")} their text with another id`, {
             reason: "collision",
             count: collisions,
         });
     }
     if (numeric > 0) {
-        note(LOSS.ID_TEXT_TYPE, `${numeric} numeric node id(s) read back as their text`, null, numeric);
+        note(LOSS.ID_TEXT_TYPE, `${numeric} numeric node id${plural(numeric)} ${agree(numeric, "reads", "read")} back as their text`, null, numeric);
     }
     if (bad.length > 0) {
         if (common.sanitizeIds === "mangle") {
             note(
                 LOSS.ID_MANGLED,
-                `${bad.length} node id(s) that are not positive integers get new SUIDs; the originals are kept in the "${ORIGINAL_ID_ATTRIBUTE}" column (restored by restoreMangledIds)`,
+                `${bad.length} node id${plural(bad.length)} that ${agree(bad.length, "is", "are")} not positive integers ${agree(bad.length, "is", "are")} renumbered, since Cytoscape ids are positive integers; the originals are kept in the "${ORIGINAL_ID_ATTRIBUTE}" column (restored by restoreMangledIds)`,
                 null,
                 bad.length,
             );
         } else {
             note(
                 LOSS.ID_CHARSET,
-                `${bad.length} node id(s) are not positive integers (Cytoscape SUIDs); the save fails unless sanitizeIds is "mangle"`,
+                `${bad.length} node id${plural(bad.length)} ${agree(bad.length, "is", "are")} not positive integers, which Cytoscape requires; the save fails unless sanitizeIds is "mangle"`,
                 null,
                 bad.length,
             );
             const first = snapshot.ids.idOf(bad[0]);
             fatal ??= new GraphFormatError(
                 "E_INVALID_ID",
-                `${bad.length} node id(s) cannot be written as Cytoscape SUIDs (first: ${JSON.stringify(first)} at index ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
+                `${bad.length} node id${plural(bad.length)} cannot be written as Cytoscape ids, which are positive integers (first: ${JSON.stringify(first)} at index ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
                 { reason: "charset", charset: "integer", count: bad.length, index: bad[0] },
             );
         }
@@ -839,7 +840,7 @@ function planIds(snapshot: GraphSnapshot, common: ResolvedExportOptions, note: N
     if (idColumn !== null && generated > 0) {
         note(
             LOSS.EDGE_IDS_GENERATED,
-            `${generated} edge(s) have no distinct positive integer id in "${idColumn.meta.name}"; they are written with generated SUIDs`,
+            `${generated} edge${plural(generated)} ${agree(generated, "has", "have")} no distinct positive integer id in "${idColumn.meta.name}"; they are written with new positive integer ids`,
             idColumn.meta.name,
             generated,
         );
@@ -911,7 +912,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     if (folding.mutualCount > 0) {
         note(
             LOSS.MUTUAL_EXPANDED,
-            `${folding.mutualCount} mutual pair(s) are written as two directed edges; the mutual mark is lost`,
+            `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two directed edges; the mutual mark is lost`,
             null,
             folding.mutualCount,
         );
@@ -1008,7 +1009,7 @@ function positionNotes(position: Column, z: Column | null, note: NoteFn): void {
     if (components !== 3) {
         note(
             CYS_LOSS.POSITION,
-            `position column "${name}" has ${components} component(s) and reads back with 3`,
+            `position column "${name}" has ${components} component${plural(components)} and reads back with 3`,
             name,
             null,
         );
@@ -1029,7 +1030,7 @@ function positionNotes(position: Column, z: Column | null, note: NoteFn): void {
     if (nonFinite > 0) {
         note(
             CYS_LOSS.POSITION,
-            `${nonFinite} position(s) with a non-finite coordinate are not written`,
+            `${nonFinite} position${plural(nonFinite)} with a non-finite coordinate ${agree(nonFinite, "is", "are")} not written`,
             name,
             nonFinite,
         );
@@ -1038,8 +1039,8 @@ function positionNotes(position: Column, z: Column | null, note: NoteFn): void {
         note(
             CYS_LOSS.POSITION,
             z === null
-                ? `${depth} position(s) have a z; it is written as the view's z and reads back in the z column`
-                : `${depth} position(s) have a z, but the view's z holds the z column; the position z is lost`,
+                ? `${depth} position${plural(depth)} ${agree(depth, "has", "have")} a z; it is written as the view's z and reads back in the z column`
+                : `${depth} position${plural(depth)} ${agree(depth, "has", "have")} a z, but the view's z holds the z column; the position z is lost`,
             name,
             depth,
         );
@@ -1257,7 +1258,7 @@ export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
     },
 
     /**
-     * A session is a zip archive, not text: always rejects with E_UNSUPPORTED (use export()).
+     * A session is a zip archive, not text: always rejects with E_UNSUPPORTED (use exportGraphToBytes() or exportGraphToBlob()).
      * @param snapshot - the snapshot
      * @param options - the common options
      * @returns never
@@ -1266,7 +1267,7 @@ export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
         void snapshot;
         void options;
         return Promise.reject(
-            new GraphFormatError("E_UNSUPPORTED", "a Cytoscape session is binary; use export()", { reason: "binary" }),
+            new GraphFormatError("E_UNSUPPORTED", "a Cytoscape session is a zip file, not text; use exportGraphToBytes() or exportGraphToBlob()", { reason: "binary" }),
         );
     },
 });

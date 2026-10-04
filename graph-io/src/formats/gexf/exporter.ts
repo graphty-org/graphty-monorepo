@@ -24,6 +24,7 @@ import { formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { isCanonicalIntegerText } from "../../common/ids.js";
 import { joinListText } from "../../common/lists.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { formatTemporal, formatTimeValue, type TimeFormat } from "../../common/temporal.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
@@ -289,7 +290,7 @@ function planExport(
     if (typeChanges > 0) {
         note(
             GEXF_LOSS.ID_TEXT_TYPE,
-            `${typeChanges} node id(s) change type when read back under ids: "canonical" (string ids that are integer text, non-integer numbers); the file's idtype is not honored by the importer`,
+            `${typeChanges} node id${plural(typeChanges)} ${agree(typeChanges, "changes", "change")} type when read back under ids: "canonical" (string ids that are integer text, non-integer numbers); the file's idtype is not honored by the importer`,
             null,
             typeChanges,
         );
@@ -1133,7 +1134,7 @@ function declaredTexts(
         if (count > 0) {
             note(
                 GEXF_LOSS.LIST_SEPARATOR,
-                `${domain} column "${name}": ${count} row(s) hold an item containing "|", the 1.2 list separator`,
+                `${domain} column "${name}": ${count} row${plural(count)} ${agree(count, "holds", "hold")} an item containing "|", the 1.2 list separator`,
                 name,
                 count,
             );

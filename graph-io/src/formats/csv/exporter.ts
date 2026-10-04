@@ -32,6 +32,7 @@ import { formatDecimal, formatInteger } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { joinListText } from "../../common/lists.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype, type TextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
@@ -374,6 +375,27 @@ function cellText(column: Column, row: number): string | null {
  * @returns the plan
  */
 /**
+ * W_CSV_NODE_TABLE: the node columns an edge-table export leaves for a second, node-table export.
+ * @param names - the node columns, label first
+ * @param note - the recorder
+ */
+function nodeTableNote(
+    names: readonly string[],
+    note: (code: string, message: string, column?: string | null, count?: number | null) => void,
+): void {
+    const written = names.length;
+    if (written > 0) {
+        const shown = names.slice(0, 3).map((n) => JSON.stringify(n)).join(", ") + (written > 3 ? ", ..." : "");
+        note(
+            CSV_LOSS.NODE_TABLE,
+            `the edge table has no room for node attributes: ${written} node column${plural(written)} (${shown}) ${agree(written, "is", "are")} written only by a second export with table: "nodes"`,
+            null,
+            written,
+        );
+    }
+}
+
+/**
  * The id notes: text collisions are fatal (export() throws E_INVALID_ID); type changes under the
  * canonical re-read are reported.
  * @param snapshot - the snapshot
@@ -400,7 +422,7 @@ function idNotes(
         if (collisions > 0) {
             note(
                 CSV_LOSS.ID_TEXT_COLLISION,
-                `${collisions} node id(s) share their text with another id (a number and a string); the save fails with E_INVALID_ID`,
+                `${collisions} node id${plural(collisions)} ${agree(collisions, "shares", "share")} their text with another id (a number and a string); the save fails with E_INVALID_ID`,
                 null,
                 collisions,
             );
@@ -417,7 +439,7 @@ function idNotes(
         if (changed > 0) {
             note(
                 CSV_LOSS.ID_TEXT_TYPE,
-                `${changed} node id(s) read back as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
+                `${changed} node id${plural(changed)} ${agree(changed, "reads", "read")} back as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
                 null,
                 changed,
             );
@@ -454,14 +476,14 @@ function planExport(
         if (!snapshot.directed) {
             note(
                 CSV_LOSS.DIRECTION_DROPPED,
-                `${where} has no direction column; ${snapshot.edgeCount} undirected edge(s) read back as directed unless the importer is told otherwise`,
+                `${where} has no direction column; ${snapshot.edgeCount} undirected edge${plural(snapshot.edgeCount)} ${agree(snapshot.edgeCount, "reads", "read")} back as directed unless the importer is told otherwise`,
                 null,
                 snapshot.edgeCount,
             );
         } else if (mixed > 0) {
             note(
                 CSV_LOSS.DIRECTION_DROPPED,
-                `${where} has no direction column; ${mixed} undirected edge(s) of a mixed graph read back as one directed edge each`,
+                `${where} has no direction column; ${mixed} undirected edge${plural(mixed)} of a mixed graph read back as one directed edge each`,
                 null,
                 mixed,
             );
@@ -477,7 +499,7 @@ function planExport(
     if (folding.mutualCount > 0) {
         note(
             CSV_LOSS.MUTUAL_EXPANDED,
-            `${folding.mutualCount} mutual pair(s) are written as two directed rows; the mutual mark is lost`,
+            `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two directed rows; the mutual mark is lost`,
             null,
             folding.mutualCount,
         );
@@ -509,7 +531,7 @@ function planExport(
         if (dropped > 0) {
             note(
                 CSV_LOSS.EDGE_COLUMNS,
-                `${dropped} edge column(s) are not written: an adjacency table holds the weight only`,
+                `${dropped} edge column${plural(dropped)} ${agree(dropped, "is", "are")} not written: an adjacency table holds the weight only`,
                 null,
                 dropped,
             );
@@ -548,15 +570,10 @@ function planExport(
             }
         }
     } else {
-        const written = nodeColumns.length + (nodeLabel === null ? 0 : 1);
-        if (written > 0) {
-            note(
-                CSV_LOSS.NODE_TABLE,
-                `${written} node column(s) are written by a table: "nodes" export only`,
-                null,
-                written,
-            );
-        }
+        nodeTableNote(
+            [...(nodeLabel === null ? [] : [nodeLabel.meta.name]), ...nodeColumns.map((c) => c.column.meta.name)],
+            note,
+        );
     }
 
     return {
@@ -615,7 +632,7 @@ function noteNodeCoverage(
     if (isolated > 0) {
         note(
             CSV_LOSS.ISOLATED_NODES,
-            `${isolated} node(s) have no edge and cannot be written by the edge table; write the node table (table: "nodes") to keep them`,
+            `${isolated} node${plural(isolated)} ${agree(isolated, "has", "have")} no edge and cannot be written by the edge table; write the node table (table: "nodes") to keep them`,
             null,
             isolated,
         );
@@ -623,7 +640,7 @@ function noteNodeCoverage(
     if (reordered > 0) {
         note(
             CSV_LOSS.NODE_ORDER,
-            `${reordered} node(s) are first mentioned by an edge row out of index order; a re-import numbers nodes by first appearance`,
+            `${reordered} node${plural(reordered)} ${agree(reordered, "is", "are")} first mentioned by an edge row out of index order; a re-import numbers nodes by first appearance`,
             null,
             reordered,
         );
@@ -798,7 +815,7 @@ function checkValues(
             }
         }
         if (nonFinite > 0) {
-            note(CSV_LOSS.NONFINITE, `${label}: ${nonFinite} non-finite value(s) read back as text`, name, nonFinite);
+            note(CSV_LOSS.NONFINITE, `${label}: ${nonFinite} non-finite value${plural(nonFinite)} ${agree(nonFinite, "reads", "read")} back as text`, name, nonFinite);
         }
         return;
     }
@@ -1098,7 +1115,7 @@ function headerlessNotes(plan: Plan): LossNote[] {
     return [
         Object.freeze({
             code: CSV_LOSS.HEADERLESS,
-            message: `without a header the file is read back by position (${csv.table === "nodes" ? "id" : "source, target, weight"}, then unnamed columns), so the column(s) ${shown} read back unnamed or in another column's place; write the header, or for an edge list pass dialect: "generic" and write only source, target and weight`,
+            message: `without a header the file is read back by position (${csv.table === "nodes" ? "id" : "source, target, weight"}, then unnamed columns), so ${names.length === 1 ? "the column" : "the columns"} ${shown} ${agree(names.length, "reads", "read")} back unnamed or in another column's place; write the header, or for an edge list pass dialect: "generic" and write only source, target and weight`,
             column: null,
             count: names.length,
         }),

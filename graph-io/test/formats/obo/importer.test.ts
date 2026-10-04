@@ -211,7 +211,7 @@ describe("oboImporter: frames, nodes and edges (design 4.2)", () => {
         expect(cell(snapshot, "comment", "X:2")).toBe("d1");
         const dup = report.issues.filter((i) => i.code === OBO_ISSUE.DUPLICATE_ATTRIBUTE);
         expect(dup.map((i) => i.element)).toEqual(["name", "comment"]);
-        expect(dup[1].message).toContain("2 time(s)");
+        expect(dup[1].message).toContain("2 times");
     });
 
     it("leaves Typedefs as metadata by default and makes them nodes under typedefs: nodes", async () => {
@@ -264,7 +264,7 @@ describe("oboImporter: obsolete terms (design 4.2)", () => {
         expect(ids(snapshot)).toEqual(["X:2", "X:3"]);
         expect(edges(snapshot)).toEqual(["X:2 is_a X:3"]);
         expect(codes(report)).toEqual([OBO_ISSUE.OBSOLETE_DROPPED]);
-        expect(report.issues[0].message).toContain("1 obsolete term(s) and 1 edge(s)");
+        expect(report.issues[0].message).toContain("1 obsolete term and 1 edge");
     });
 
     it("reports an obsolete term with is_a and replaced_by on a live term (1.2 guide, fastobo-validator)", async () => {
@@ -284,7 +284,7 @@ describe("oboImporter: references (design 4.2, research 6 rows 25-27)", () => {
         expect(cell(snapshot, "graphty.placeholder", "X:1")).toBeUndefined();
         expect(cell(snapshot, "type", "X:99")).toBeUndefined();
         expect(codes(report)).toEqual([OBO_ISSUE.DANGLING_REFERENCE]);
-        expect(report.issues[0].message).toContain("3 target(s)");
+        expect(report.issues[0].message).toContain("3 targets");
         expect(report.counts.nodes).toBe(4);
     });
 

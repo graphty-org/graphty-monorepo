@@ -23,6 +23,7 @@ import {
     PLACEHOLDER_COLUMN,
     synonymScopeOf,
 } from "../../common/ontology.js";
+import { agree, plural } from "../../common/plural.js";
 import { hasKey, isJsonObject } from "./dialect.js";
 import { chosenGraph, type ImportContext, JSON_ISSUE, type JsonRecord } from "./importer.js";
 
@@ -811,11 +812,11 @@ function readEdges(
         const shown = [...new Set(dangling)].slice(0, 5).join(", ");
         const action = ctx.options.addMissingNodes
             ? "each became a placeholder node (graphty.placeholder)"
-            : `${dropped} edge(s) to them were dropped (addMissingNodes false)`;
+            : `${dropped} edge${plural(dropped)} to them ${agree(dropped, "was", "were")} dropped (addMissingNodes false)`;
         report.warning(
             "validation-error",
             JSON_ISSUE.DANGLING_REFERENCE,
-            `${new Set(dangling).size} edge endpoint(s) missing from nodes: ${shown}; ${action}`,
+            `${new Set(dangling).size} edge endpoint${plural(new Set(dangling).size)} missing from nodes: ${shown}; ${action}`,
             { element: dangling[0] },
         );
     }

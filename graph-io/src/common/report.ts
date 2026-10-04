@@ -14,6 +14,7 @@ import { GraphFormatError, type GraphFormatErrorCode } from "@graphty/graph-form
 
 import { ImportError, type ImportIssue, type ImportReport, type IssueCategory, type LossNote } from "../types.js";
 import { ISSUES_SUPPRESSED_CODE } from "./codes.js";
+import { agree, plural } from "./plural.js";
 
 /**
  * The most warnings of one code a report keeps; later ones are counted in one W_ISSUES_SUPPRESSED
@@ -345,6 +346,42 @@ export class ImportReportBuilder {
     }
 
     /**
+     * Add a finished report to this one: its issues after the ones recorded so far, its counts, its
+     * loss notes and its truncated flag. Use it when an importer hands part of the work to another
+     * importer (a wrapper around the CSV importer, say) and returns one report for both. The issues
+     * keep their codes; errors added this way do not count toward this report's error limit, since
+     * the other importer applied its own.
+     * @param report - the report the other importer returned
+     * @returns this builder
+     * @example
+     * ```ts
+     * const report = new ImportReportBuilder("netscope", opts.errorLimit);
+     * const text = await readText(input, report, opts);
+     * report.include(await csvImporter.import(text, sink, options));
+     * return report.finish();
+     * ```
+     */
+    include(report: ImportReport): this {
+        for (const issue of report.issues) {
+            this.issueList.push(issue);
+            if (issue.severity === "error") {
+                this.errors++;
+            } else {
+                this.warnings++;
+            }
+        }
+        const { counts } = report;
+        this.counts.nodes += counts.nodes;
+        this.counts.edges += counts.edges;
+        this.counts.skippedNodes += counts.skippedNodes;
+        this.counts.skippedEdges += counts.skippedEdges;
+        this.counts.expandedMixed += counts.expandedMixed;
+        this.lossList.push(...report.lossy);
+        this.truncatedFlag ||= report.truncated;
+        return this;
+    }
+
+    /**
      * The report as it stands: a frozen snapshot with the parse duration so far. Can be called more
      * than once; each call reflects everything recorded up to that point.
      * @returns the report
@@ -360,7 +397,7 @@ export class ImportReportBuilder {
                         "unsupported",
                         "warning",
                         ISSUES_SUPPRESSED_CODE,
-                        `${more} more ${code} warning(s) were not kept (the report keeps the first ${MAX_WARNINGS_PER_CODE})`,
+                        `${more} more ${code} warning${plural(more)} ${agree(more, "was", "were")} not kept (the report keeps the first ${MAX_WARNINGS_PER_CODE})`,
                         { element: code },
                     ),
                 );
@@ -406,13 +443,24 @@ function makeIssue(
 }
 
 /**
- * Whether a thrown value is a cancellation reason (the DOMException or Error named "AbortError" that
- * AbortSignal.reason holds, or the "TimeoutError" of AbortSignal.timeout()), which an importer must
- * let through untouched. A custom reason passed to `abort(reason)` is not recognized: compare it with
- * `signal.reason`.
+ * Whether a thrown value means the load was cancelled rather than failed: the DOMException or Error
+ * named "AbortError" that an aborted signal throws, or the "TimeoutError" of AbortSignal.timeout().
+ * Use it in a `catch` block to say nothing to the user when they cancelled. A custom reason passed
+ * to `abort(reason)` is not recognized: compare it with `signal.reason`. A format plugin uses it to
+ * let a cancellation through untouched.
  * @param err - the thrown value
  * @returns true for an AbortError or a TimeoutError
- * @category Plugin helpers
+ * @example
+ * ```ts
+ * try {
+ *     await loadFromUrl(url, { signal });
+ * } catch (err) {
+ *     if (!isAbortError(err)) {
+ *         showError(err);
+ *     }
+ * }
+ * ```
+ * @category Reports and errors
  */
 export function isAbortError(err: unknown): boolean {
     if (typeof err !== "object" || err === null) {

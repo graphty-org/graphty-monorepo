@@ -287,3 +287,20 @@ describe("ImportReportBuilder", () => {
         expect(messageOf({})).toBe("non-error thrown (object)");
     });
 });
+
+describe("ImportReportBuilder.include", () => {
+    it("adds another report's issues, counts, loss notes and truncated flag after its own", () => {
+        const inner = new ImportReportBuilder("csv", Infinity);
+        inner.counts.nodes = 3;
+        inner.counts.edges = 2;
+        inner.error("parse-error", "E_X", "bad row", { line: 7 });
+        inner.warning("coercion", "W_Y", "odd cell");
+        const outer = new ImportReportBuilder("wrapper", 0);
+        outer.warning("unsupported", "W_PREAMBLE", "skipped");
+        const report = outer.include(inner.finish()).finish();
+        expect(report.format).toBe("wrapper");
+        expect(report.issues.map((i) => i.code)).toEqual(["W_PREAMBLE", "E_X", "W_Y"]);
+        expect([report.errorCount, report.warningCount]).toEqual([1, 2]);
+        expect(report.counts).toMatchObject({ nodes: 3, edges: 2 });
+    });
+});

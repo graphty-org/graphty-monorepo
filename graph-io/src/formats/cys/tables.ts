@@ -7,11 +7,13 @@
  */
 
 import { type ResolvedImportOptions } from "../../common/options.js";
+import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { ImportError } from "../../types.js";
 import { CsvRecordReader } from "../csv/records.js";
 import { type AttRec } from "../xgmml/document.js";
 import { CYS_ISSUE, FORMAT } from "./constants.js";
+import { entryLabel } from "./session.js";
 
 /** The Cytoscape type names of the Java classes a CyCSV column can hold. */
 const JAVA_TYPES: Readonly<Record<string, string>> = {
@@ -121,7 +123,7 @@ export async function readCyTable(
     const names = records[at].cells;
     const classes = records[at + 1].cells;
     if (names.length === 0 || classes.length !== names.length) {
-        return tableError(report, entry, `${names.length} column name(s) but ${classes.length} column class(es)`);
+        return tableError(report, entry, `${names.length} column name${plural(names.length)} but ${classes.length} column class(es)`);
     }
     const columns: CyColumn[] = [];
     for (let i = 0; i < names.length; i++) {
@@ -157,7 +159,7 @@ export async function readCyTable(
         report.warning(
             "parse-error",
             CYS_ISSUE.TABLE_ROW,
-            `${entry}: ${problems.short} row(s) with too few cells (the rest are unset), ${problems.long} with too many (the extra cells are ignored), ${problems.repeated} repeating a key (the first row is read)`,
+            `${entryLabel(entry)}: ${problems.short} row${plural(problems.short)} with too few cells (the rest are unset), ${problems.long} with too many (the extra cells are ignored), ${problems.repeated} repeating a key (the first row is read)`,
         );
     }
     return { path, entry, columns, rows, lines };
@@ -187,7 +189,7 @@ function columnOf(name: string, javaClass: string): CyColumn | null {
  * @returns null
  */
 function tableError(report: ImportReportBuilder, entry: string, reason: string): null {
-    report.error("parse-error", CYS_ISSUE.TABLE, `${entry}: ${reason}; the table is not read`);
+    report.error("parse-error", CYS_ISSUE.TABLE, `${entryLabel(entry)}: ${reason}; the table is not read`);
     return null;
 }
 

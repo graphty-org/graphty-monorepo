@@ -49,6 +49,7 @@ import {
     UNWRITTEN_ROLES,
 } from "../../common/ontology-export.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -545,7 +546,7 @@ function planIds(
     if (numeric > 0) {
         note(
             LOSS.ID_TEXT_TYPE,
-            `${numeric} numeric node id(s) are written as text and read back as strings`,
+            `${numeric} numeric node id${plural(numeric)} ${agree(numeric, "is", "are")} written as text and read back as strings`,
             null,
             numeric,
         );
@@ -556,13 +557,13 @@ function planIds(
         if (mode === "error") {
             note(
                 LOSS.ID_CHARSET,
-                `${bad.length} node id(s) are not OBO ids (empty, or holding whitespace, a control character, "!", "{" or "}"); the save fails unless sanitizeIds is "mangle"`,
+                `${bad.length} node id${plural(bad.length)} ${agree(bad.length, "is", "are")} not OBO ids (empty, or holding whitespace, a control character, "!", "{" or "}"); the save fails unless sanitizeIds is "mangle"`,
                 null,
                 bad.length,
             );
             fatal = new GraphFormatError(
                 "E_INVALID_ID",
-                `${bad.length} node id(s) cannot be written as OBO ids (first: ${JSON.stringify(ids[bad[0]])}); pass sanitizeIds: "mangle" to rewrite them`,
+                `${bad.length} node id${plural(bad.length)} cannot be written as OBO ids (first: ${JSON.stringify(ids[bad[0]])}); pass sanitizeIds: "mangle" to rewrite them`,
                 { reason: "charset", count: bad.length, id: snapshot.ids.idOf(bad[0]), index: bad[0] },
             );
         } else {
@@ -580,7 +581,7 @@ function planIds(
             }
             note(
                 LOSS.ID_MANGLED,
-                `${bad.length} node id(s) that are not OBO ids are rewritten with "_"; the originals are kept as ${ORIGINAL_ID} property values (JSON text; an import with restoreMangledIds: true reads them back as the ids)`,
+                `${bad.length} node id${plural(bad.length)} that ${agree(bad.length, "is", "are")} not OBO ids ${agree(bad.length, "is", "are")} rewritten with "_"; the originals are kept as ${ORIGINAL_ID} property values (JSON text; an import with restoreMangledIds: true reads them back as the ids)`,
                 null,
                 bad.length,
             );
@@ -648,7 +649,7 @@ function planEdges(
     if (moved > 0) {
         note(
             OBO_LOSS.EDGE_ORDER,
-            `${moved} edge(s) read back at another position: edges are written on their source's frame, grouped by source in node order`,
+            `${moved} edge${plural(moved)} ${agree(moved, "reads", "read")} back at another position: edges are written on their source's frame, grouped by source in node order`,
             null,
             moved,
         );
@@ -656,7 +657,7 @@ function planEdges(
     if (!snapshot.directed) {
         note(
             OBO_LOSS.UNDIRECTED_AS_DIRECTED,
-            `the snapshot is undirected; every edge is written from its source to its target and reads back directed (${written.length} edge(s))`,
+            `the snapshot is undirected; every edge is written from its source to its target and reads back directed (${written.length} edge${plural(written.length)})`,
             null,
             written.length,
         );
@@ -665,7 +666,7 @@ function planEdges(
         if (undirected > 0) {
             note(
                 OBO_LOSS.UNDIRECTED_AS_DIRECTED,
-                `${undirected} undirected edge(s) are written as one directed clause each; OBO has no undirected edge`,
+                `${undirected} undirected edge${plural(undirected)} ${agree(undirected, "is", "are")} written as one directed clause each; OBO has no undirected edge`,
                 null,
                 undirected,
             );
@@ -674,7 +675,7 @@ function planEdges(
     if (folding.mutualCount > 0) {
         note(
             LOSS.MUTUAL_EXPANDED,
-            `${folding.mutualCount} mutual pair(s) are written as two clauses; the mutual mark is lost`,
+            `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two clauses; the mutual mark is lost`,
             null,
             folding.mutualCount,
         );
@@ -959,7 +960,7 @@ function plan(snapshot: GraphSnapshot, options: (OboExportOptions & CommonExport
     if (moved > 0) {
         note(
             NODE_ORDER_CODE,
-            `${moved} node(s) read back at another position: placeholder nodes have no frame and read back after the written nodes`,
+            `${moved} node${plural(moved)} ${agree(moved, "reads", "read")} back at another position: placeholder nodes have no frame and read back after the written nodes`,
             null,
             moved,
         );
@@ -975,7 +976,7 @@ function plan(snapshot: GraphSnapshot, options: (OboExportOptions & CommonExport
     if (typedefNodes > 0) {
         note(
             OBO_LOSS.TYPEDEF_NODES,
-            `${typedefNodes} node(s) are written as [Typedef] frames; they read back as nodes only when imported with typedefs: "nodes", and then after the other nodes, with the [Typedef] frames that declare the relations`,
+            `${typedefNodes} node${plural(typedefNodes)} ${agree(typedefNodes, "is", "are")} written as [Typedef] frames; they read back as nodes only when imported with typedefs: "nodes", and then after the other nodes, with the [Typedef] frames that declare the relations`,
             "type",
             typedefNodes,
         );
@@ -1051,7 +1052,7 @@ function plan(snapshot: GraphSnapshot, options: (OboExportOptions & CommonExport
     if (stats.duplicates > 0) {
         note(
             OBO_LOSS.DUPLICATE_CLAUSE,
-            `${stats.duplicates} clause(s) repeat another clause of their frame word for word (parallel edges with one relation and the same qualifiers, a repeated list item) and read back as one`,
+            `${stats.duplicates} clause${plural(stats.duplicates)} ${agree(stats.duplicates, "repeats", "repeat")} another clause of their frame word for word (parallel edges with one relation and the same qualifiers, a repeated list item) and read back as one`,
             null,
             stats.duplicates,
         );
@@ -1061,7 +1062,7 @@ function plan(snapshot: GraphSnapshot, options: (OboExportOptions & CommonExport
     if (stats.lineEnds > 0) {
         note(
             OBO_LOSS.LINE_END,
-            `${stats.lineEnds} text(s) hold a carriage return or form feed, which OBO cannot carry; written as a line feed`,
+            `${stats.lineEnds} text${plural(stats.lineEnds)} ${agree(stats.lineEnds, "holds", "hold")} a carriage return or form feed, which OBO cannot carry; written as a line feed`,
             null,
             stats.lineEnds,
         );
@@ -1277,7 +1278,7 @@ function planRelations(
     if (assumed > 0) {
         note(
             OBO_LOSS.RELATION_ASSUMED,
-            `${assumed} edge(s) have no relation; written as ${fallback} (an ontology reads is_a as subclassing)`,
+            `${assumed} edge${plural(assumed)} ${agree(assumed, "has", "have")} no relation; written as ${fallback} (an ontology reads is_a as subclassing)`,
             relation?.meta.name ?? null,
             assumed,
         );
@@ -1285,7 +1286,7 @@ function planRelations(
     if (renamed > 0) {
         note(
             OBO_LOSS.RELATION_RENAMED,
-            `${renamed} relation(s) are not OBO ids; written with "_" in place of the space, "!", "{" or "}"`,
+            `${renamed} relation${plural(renamed)} ${agree(renamed, "is", "are")} not OBO ids; written with "_" in place of the space, "!", "{" or "}"`,
             relation?.meta.name ?? null,
             renamed,
         );
@@ -1349,7 +1350,7 @@ function planEdgeColumns(
         if (n > 0) {
             note(
                 OBO_LOSS.EDGE_COLUMN_AS_QUALIFIER,
-                `${n} explicit edge weight(s) are written as the qualifier ${WEIGHT_QUALIFIER} and read back inside the qualifiers column, not as weights`,
+                `${n} explicit edge weight${plural(n)} ${agree(n, "is", "are")} written as the qualifier ${WEIGHT_QUALIFIER} and read back inside the qualifiers column, not as weights`,
                 snapshot.edges.byRole("weight")?.meta.name ?? null,
                 n,
             );

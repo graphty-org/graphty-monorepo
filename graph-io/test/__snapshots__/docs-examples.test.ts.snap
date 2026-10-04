@@ -20,6 +20,8 @@ exports[`documentation examples > extending/pairs-format runs 1`] = `[]`;
 
 exports[`documentation examples > extending/pairs-minimal runs 1`] = `[]`;
 
+exports[`documentation examples > extending/pairs-minimal-export runs 1`] = `[]`;
+
 exports[`documentation examples > extending/pairs-usage runs 1`] = `[]`;
 
 exports[`documentation examples > extending/sections-format runs 1`] = `[]`;
@@ -92,6 +94,15 @@ exports[`documentation examples > formats/neo4j runs 1`] = `
 ]
 `;
 
+exports[`documentation examples > formats/neo4j-admin runs 1`] = `
+[
+  "[wrote] nodes-Movie.csv (155 bytes)",
+  "[wrote] nodes-Person.csv (210 bytes)",
+  "[wrote] relationships-Person-Movie.csv (153 bytes)",
+  "[wrote] relationships-Person-Person.csv (89 bytes)",
+]
+`;
+
 exports[`documentation examples > formats/obo runs 1`] = `
 [
   "[wrote] vehicles-copy.obo (297 bytes)",
@@ -121,6 +132,8 @@ exports[`documentation examples > loading/options runs 1`] = `[]`;
 
 exports[`documentation examples > loading/own-builder runs 1`] = `[]`;
 
+exports[`documentation examples > loading/react runs 1`] = `[]`;
+
 exports[`documentation examples > loading/several-graphs runs 1`] = `[]`;
 
 exports[`documentation examples > loading/small-bundle runs 1`] = `[]`;
@@ -131,7 +144,7 @@ exports[`documentation examples > loading/url-request runs 1`] = `[]`;
 
 exports[`documentation examples > quick-start/download runs 1`] = `
 [
-  "[confirm] 107 node id(s) are not integers, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back
+  "[confirm] 107 node ids are not integers, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back
 edge column "Edge Label" is written as "Edge_Label"
 edge column "Edge Label" has no set cell and is not written: GML writes cells, never declarations",
   "[download] got.gml (text/x-gml, 31748 bytes)",
@@ -141,6 +154,8 @@ edge column "Edge Label" has no set cell and is not written: GML writes cells, n
 exports[`documentation examples > quick-start/load-file runs 1`] = `[]`;
 
 exports[`documentation examples > quick-start/load-url runs 1`] = `[]`;
+
+exports[`documentation examples > quick-start/notebook runs 1`] = `[]`;
 
 exports[`documentation examples > quick-start/readme runs 1`] = `
 [
@@ -165,6 +180,8 @@ exports[`documentation examples > reading/degree runs 1`] = `[]`;
 exports[`documentation examples > reading/edges runs 1`] = `[]`;
 
 exports[`documentation examples > reading/exact-weights runs 1`] = `[]`;
+
+exports[`documentation examples > reading/name runs 1`] = `[]`;
 
 exports[`documentation examples > reading/rename runs 1`] = `[]`;
 
@@ -194,6 +211,7 @@ exports[`documentation examples > saving/pick-format runs 1`] = `
 [
   "[wrote] network.dot (17473 bytes)",
   "[wrote] network.gexf (27677 bytes)",
+  "[wrote] network.tsv (10733 bytes)",
 ]
 `;
 

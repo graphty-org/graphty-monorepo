@@ -12,6 +12,7 @@ import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
 import { throwIfAborted } from "../../common/input.js";
 import { type ResolvedImportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { type ImportReportBuilder, type IssueLocation } from "../../common/report.js";
 import { parseWeightText } from "../../common/weights.js";
 import { ColumnSet } from "./columns.js";
@@ -378,7 +379,7 @@ export class XgmmlEmitter {
             this.report.warning(
                 "validation-error",
                 XGMML_ISSUE.DANGLING_REFERENCE,
-                `${this.prefix()}${members.dangling} xlink:href member reference(s) name no node or edge of the document`,
+                `${this.prefix()}${members.dangling} xlink:href member reference${plural(members.dangling)} ${agree(members.dangling, "names", "name")} no node or edge of the document`,
                 { line: graph?.line ?? null },
             );
         }
@@ -731,7 +732,7 @@ export class XgmmlEmitter {
             this.report.warning(
                 "validation-error",
                 XGMML_ISSUE.DANGLING_REFERENCE,
-                `${this.prefix()}${dangling} xlink:href reference(s) name no node or edge of the document`,
+                `${this.prefix()}${dangling} xlink:href reference${plural(dangling)} ${agree(dangling, "names", "name")} no node or edge of the document`,
             );
         }
     }
@@ -972,7 +973,7 @@ export class XgmmlEmitter {
             this.report.warning(
                 "merged",
                 XGMML_ISSUE.GROUP_DUPLICATE_EDGE,
-                `${this.prefix()}the Cytoscape 2.x writer repeats the edges of a group; ${repeats} repeat(s) were dropped`,
+                `${this.prefix()}the Cytoscape 2.x writer repeats the edges of a group; ${repeats} repeat${plural(repeats)} ${agree(repeats, "was", "were")} dropped`,
                 firstRepeat ?? undefined,
             );
         }
@@ -1055,7 +1056,7 @@ export class XgmmlEmitter {
         if (text === null) {
             return undefined;
         }
-        const weight = parseWeightText(text);
+        const weight = parseWeightText(text, this.report);
         this.weighted ||= weight !== undefined;
         return weight;
     }
@@ -1167,7 +1168,7 @@ export class XgmmlEmitter {
         this.report.warning(
             "coercion",
             XGMML_ISSUE.LABEL_ALIAS,
-            `${this.prefix()}Cytoscape label aliases ("a (pp) b"): ${this.aliasResolved} endpoint(s) resolved, ${this.aliasInteractions} interaction(s) filled from edge labels`,
+            `${this.prefix()}Cytoscape label aliases ("a (pp) b"): ${this.aliasResolved} endpoint${plural(this.aliasResolved)} resolved, ${this.aliasInteractions} interaction${plural(this.aliasInteractions)} filled from edge labels`,
         );
     }
 
@@ -1524,7 +1525,7 @@ class Pointers {
             this.emitter.issues.warning(
                 "validation-error",
                 XGMML_ISSUE.DANGLING_REFERENCE,
-                `${prefix}${this.dangling} nested-network pointer(s) name no graph of the document`,
+                `${prefix}${this.dangling} nested-network pointer${plural(this.dangling)} ${agree(this.dangling, "names", "name")} no graph of the document`,
             );
         }
         const names = new JsonColumn(
@@ -1542,7 +1543,7 @@ class Pointers {
             this.emitter.issues.warning(
                 "unsupported",
                 XGMML_ISSUE.CROSS_FILE_REFERENCE,
-                `${prefix}${this.crossFile.size} nested-network pointer(s) point into another file; each is kept as text in ${NETWORK_POINTER_COLUMN}`,
+                `${prefix}${this.crossFile.size} nested-network pointer${plural(this.crossFile.size)} ${agree(this.crossFile.size, "points", "point")} into another file; each is kept as text in ${NETWORK_POINTER_COLUMN}`,
             );
             const column = new JsonColumn(
                 this.emitter,
@@ -1621,7 +1622,7 @@ class Containment {
             this.emitter.issues.error(
                 "missing-value",
                 XGMML_ISSUE.UNKNOWN_PARENT,
-                `${this.emitter.prefix()}${unknown} group member(s) name no node of this graph`,
+                `${this.emitter.prefix()}${unknown} group member${plural(unknown)} ${agree(unknown, "names", "name")} no node of this graph`,
             );
         }
     }

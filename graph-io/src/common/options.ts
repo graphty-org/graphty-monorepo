@@ -16,6 +16,7 @@ import {
     SINK_OPTION_CODE,
 } from "./codes.js";
 import { canonicalEncoding } from "./input.js";
+import { plural } from "./plural.js";
 import { type ImportReportBuilder } from "./report.js";
 
 /**
@@ -273,7 +274,7 @@ export function chooseGraph(
         if (matches.length === 0) {
             return report.fail(
                 GRAPH_NOT_FOUND_CODE,
-                `graphName ${JSON.stringify(graphName)} names none of the ${names.length} graph(s)`,
+                `graphName ${JSON.stringify(graphName)} names none of the ${names.length} graph${plural(names.length)}`,
                 { element: graphName },
                 { names: [...names] },
             );
@@ -282,7 +283,7 @@ export function chooseGraph(
     }
     const index = graphIndex ?? 0;
     if (index >= names.length) {
-        return report.fail(GRAPH_NOT_FOUND_CODE, `graphIndex ${index} is beyond the ${names.length} graph(s)`);
+        return report.fail(GRAPH_NOT_FOUND_CODE, `graphIndex ${index} is beyond the ${names.length} graph${plural(names.length)}`);
     }
     return index;
 }

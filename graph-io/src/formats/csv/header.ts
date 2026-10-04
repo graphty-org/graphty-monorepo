@@ -11,6 +11,7 @@
 
 import { GraphFormatError } from "@graphty/graph-format";
 
+import { plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 
 /**
@@ -125,7 +126,7 @@ export function resolveColumnRef(names: readonly string[], ref: CsvColumnRef, op
         if (!Number.isInteger(ref) || ref < 0 || ref >= names.length) {
             throw new GraphFormatError(
                 "E_UNSUPPORTED",
-                `option ${option}: column ${ref} does not exist (the file has ${names.length} column(s))`,
+                `option ${option}: column ${ref} does not exist (the file has ${names.length} column${plural(names.length)})`,
                 { option, found: ref, columns: names.length },
             );
         }

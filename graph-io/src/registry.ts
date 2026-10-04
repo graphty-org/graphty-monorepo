@@ -20,6 +20,7 @@ import { CellBudgetBuilder, maxEmptyCellsOption } from "./common/cell-budget.js"
 import { EDGES_MERGED_CODE, FETCH_CODE, SELF_LOOPS_DROPPED_CODE } from "./common/codes.js";
 import { abortable, foreignKind, lockReader, normalizeInput, throwIfAborted } from "./common/input.js";
 import { chooseGraph, resolveImportOptions } from "./common/options.js";
+import { agree, plural } from "./common/plural.js";
 import { ImportReportBuilder, isAbortError, messageOf } from "./common/report.js";
 import { collectBytes } from "./common/writer.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
@@ -113,9 +114,9 @@ export interface ImportGraphOptions extends CommonImportOptions, GraphChoiceOpti
     readonly builder?: BuilderSeed | undefined;
     /**
      * Settings for the last step of an import, which turns what was read into the snapshot:
-     * `label` (a name kept on the snapshot for debugging), `prepare` (views of the graph to compute
-     * up front, such as `["reverse"]`), `checksum` (record checksums so the snapshot can be checked
-     * later) and `profile` (record how long each step took, in `result.freeze.timings`). Most
+     * `label` (a name for debugging, read back as `snapshot.label`), `prepare` (views of the graph
+     * to compute up front, such as `["reverse"]`), `checksum` (record checksums, which
+     * `snapshot.validate({ checksum: true })` compares later to catch changed memory) and `profile` (record how long each step took, in `result.freeze.timings`). Most
      * programs never set it.
      */
     readonly freeze?: FreezeOptions | undefined;
@@ -373,30 +374,31 @@ export class FormatRegistry {
      * @param options - the format, hints, common and format-specific import options
      * @returns the graph (`snapshot`), the format it was read as, and the import report
      */
-    async importGraph(input: ImportInput, options: ImportGraphOptions = {}): Promise<ImportGraphResult> {
-        const chosen = await this.choose(input, options);
+    async importGraph(input: ImportInput, options: ImportGraphOptions | CommonImportOptions = {}): Promise<ImportGraphResult> {
+        const opts = options as ImportGraphOptions;
+        const chosen = await this.choose(input, opts);
         const { importer } = chosen;
         if (
-            (options.graphIndex !== undefined || options.graphName !== undefined) &&
+            (opts.graphIndex !== undefined || opts.graphName !== undefined) &&
             importer.importAll !== undefined &&
             importer.listGraphs === undefined
         ) {
             // an importer that reads several graphs but does not choose among them itself (DOT, GML,
             // Pajek): read them all and return the chosen one, so the choice is never ignored
-            const all = await this.readAll(chosen, options);
+            const all = await this.readAll(chosen, opts);
             const names = all.map((r) => r.snapshot.meta.name);
-            return all[chooseGraph(names, options, new ImportReportBuilder(importer.format, 0))];
+            return all[chooseGraph(names, opts, new ImportReportBuilder(importer.format, 0))];
         }
         let builder: GraphBuilder;
         let report: ImportReport;
         try {
-            builder = seededBuilder(options, chosen.importer.format);
-            report = await chosen.importer.import(chosen.source, builder, importerOptions(options));
+            builder = seededBuilder(opts, chosen.importer.format);
+            report = await chosen.importer.import(chosen.source, builder, importerOptions(opts));
         } catch (err) {
             await chosen.peeked?.close();
-            throw err;
+            throw chosen.sniff === null ? notReadableAs(err, importer.format, opts.filename) : err;
         }
-        return result(chosen, builder, report, options);
+        return result(chosen, builder, report, opts);
     }
 
     /**
@@ -406,8 +408,9 @@ export class FormatRegistry {
      * @param options - import options, plus `request` for fetch
      * @returns the graph, the format it was read as, and the import report
      */
-    async loadFromUrl(url: string | URL, options: LoadFromUrlOptions = {}): Promise<ImportGraphResult> {
-        const { request, ...rest } = options;
+    async loadFromUrl(url: string | URL, options: LoadFromUrlOptions | CommonImportOptions = {}): Promise<ImportGraphResult> {
+        const opts = options as LoadFromUrlOptions;
+        const { request, ...rest } = opts;
         const signal = request?.signal ?? rest.signal ?? null;
         const method = request?.method ?? "GET";
         const where = `${method} ${String(url)}`;
@@ -418,7 +421,7 @@ export class FormatRegistry {
             if (signal?.aborted === true || isAbortError(err)) {
                 throw err;
             }
-            return fetchFailed(rest, url, `${where} failed: network error or CORS refusal`, null, err);
+            return fetchFailed(rest, url, `${where} failed: ${fetchErrorText(url, err)}`, null, err);
         }
         if (!response.ok) {
             await response.body?.cancel().catch(() => undefined);
@@ -438,12 +441,13 @@ export class FormatRegistry {
      * @param options - the same options as importGraph()
      * @returns the graph, the format it was read as, and the import report
      */
-    loadFromFile(file: Blob, options: ImportGraphOptions = {}): Promise<ImportGraphResult> {
+    loadFromFile(file: Blob, options: ImportGraphOptions | CommonImportOptions = {}): Promise<ImportGraphResult> {
+        const opts = options as ImportGraphOptions;
         const { name } = file as { name?: unknown };
         return this.importGraph(file.stream(), {
-            ...options,
-            filename: options.filename ?? (typeof name === "string" ? name : null),
-            mimeType: options.mimeType ?? (file.type === "" ? null : file.type),
+            ...opts,
+            filename: opts.filename ?? (typeof name === "string" ? name : null),
+            mimeType: opts.mimeType ?? (file.type === "" ? null : file.type),
         });
     }
 
@@ -455,8 +459,9 @@ export class FormatRegistry {
      * @param options - the format, hints, common and format-specific import options
      * @returns one result per graph, in document order
      */
-    async importAllGraphs(input: ImportInput, options: ImportGraphOptions = {}): Promise<ImportGraphResult[]> {
-        return this.readAll(await this.choose(input, options), options);
+    async importAllGraphs(input: ImportInput, options: ImportGraphOptions | CommonImportOptions = {}): Promise<ImportGraphResult[]> {
+        const opts = options as ImportGraphOptions;
+        return this.readAll(await this.choose(input, opts), opts);
     }
 
     /**
@@ -486,7 +491,7 @@ export class FormatRegistry {
             }
         } catch (err) {
             await chosen.peeked?.close();
-            throw inGraph(err, builders.length - 1);
+            throw inGraph(chosen.sniff === null ? notReadableAs(err, importer.format, options.filename) : err, builders.length - 1);
         }
         return reports.map((report, i) => {
             try {
@@ -506,12 +511,13 @@ export class FormatRegistry {
      * @returns one listing per graph, in document order; null when the format's importer does not
      * list its graphs (importGraph() then reads the first)
      */
-    async listGraphs(input: ImportInput, options: ImportGraphOptions = {}): Promise<readonly GraphListing[] | null> {
-        const chosen = await this.choose(input, options);
+    async listGraphs(input: ImportInput, options: ImportGraphOptions | CommonImportOptions = {}): Promise<readonly GraphListing[] | null> {
+        const opts = options as ImportGraphOptions;
+        const chosen = await this.choose(input, opts);
         try {
             return chosen.importer.listGraphs === undefined
                 ? null
-                : await chosen.importer.listGraphs(chosen.source, importerOptions(options));
+                : await chosen.importer.listGraphs(chosen.source, importerOptions(opts));
         } finally {
             await chosen.peeked?.close();
         }
@@ -584,7 +590,7 @@ export class FormatRegistry {
      * @param options - the exporter's common and format-specific options
      * @returns the encoded chunks
      */
-    exportGraph(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions): AsyncIterable<Uint8Array> {
+    exportGraph(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions | CommonExportOptions): AsyncIterable<Uint8Array> {
         return this.exporter(format).export(snapshot, options);
     }
 
@@ -598,7 +604,7 @@ export class FormatRegistry {
     async exportGraphToString(
         snapshot: GraphSnapshot,
         format: FormatName,
-        options?: ExportGraphOptions,
+        options?: ExportGraphOptions | CommonExportOptions,
     ): Promise<string> {
         return this.exporter(format).exportToString(snapshot, options);
     }
@@ -611,7 +617,7 @@ export class FormatRegistry {
      * @param options - sanitizeIds, onMixedDirection and the format's own options
      * @returns the encoded file
      */
-    exportGraphToBytes(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions): Promise<Uint8Array> {
+    exportGraphToBytes(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions | CommonExportOptions): Promise<Uint8Array> {
         return collectBytes(this.exportGraph(snapshot, format, options));
     }
 
@@ -623,7 +629,7 @@ export class FormatRegistry {
      * @param options - sanitizeIds, onMixedDirection and the format's own options
      * @returns the file as a Blob
      */
-    async exportGraphToBlob(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions): Promise<Blob> {
+    async exportGraphToBlob(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions | CommonExportOptions): Promise<Blob> {
         const parts: Uint8Array[] = [];
         for await (const chunk of this.exportGraph(snapshot, format, options)) {
             parts.push(chunk);
@@ -639,8 +645,42 @@ export class FormatRegistry {
      * @param options - the exporter's common and format-specific options
      * @returns the loss notes, empty when the export is exact
      */
-    checkExport(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions): readonly LossNote[] {
+    checkExport(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions | CommonExportOptions): readonly LossNote[] {
         return this.exporter(format).check(snapshot, options);
+    }
+
+    /**
+     * Browser only: write a graph in a format and have the browser save it as a file; see the
+     * top-level downloadGraph(). Use this method on a registry from createRegistry() to download
+     * without bundling every built-in format.
+     * @param snapshot - the graph to write
+     * @param format - a format name from listFormats() where `canExport` is true
+     * @param options - the export options, plus `filename`
+     * @returns resolves once the download has been handed to the browser
+     */
+    async downloadGraph(
+        snapshot: GraphSnapshot,
+        format: FormatName,
+        options: DownloadGraphOptions | CommonExportOptions = {},
+    ): Promise<void> {
+        if (typeof document === "undefined") {
+            throw new GraphFormatError(
+                "E_UNSUPPORTED",
+                "downloadGraph() needs a browser document; use exportGraphToBytes() and write the bytes yourself",
+            );
+        }
+        const { filename, ...rest } = options as DownloadGraphOptions;
+        const blob = await this.exportGraphToBlob(snapshot, format, rest);
+        const extension = this.listFormats().find((f) => f.format === format)?.extensions[0] ?? `.${format}`;
+        const href = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = href;
+        anchor.download = filename ?? `graph${extension}`;
+        anchor.click();
+        // Safari cancels the download when the URL is revoked in the same task
+        setTimeout(() => {
+            URL.revokeObjectURL(href);
+        }, 0);
     }
 
     /**
@@ -722,7 +762,7 @@ export const registry: FormatRegistry = /* @__PURE__ */ createRegistry();
  * @throws the signal's reason when `signal` aborts
  * @category Loading
  */
-export function importGraph(input: ImportInput, options?: ImportGraphOptions): Promise<ImportGraphResult> {
+export function importGraph(input: ImportInput, options?: ImportGraphOptions | CommonImportOptions): Promise<ImportGraphResult> {
     return registry.importGraph(input, options);
 }
 
@@ -735,7 +775,7 @@ export function importGraph(input: ImportInput, options?: ImportGraphOptions): P
  * @returns one result per graph, in file order
  * @category Loading
  */
-export function importAllGraphs(input: ImportInput, options?: ImportGraphOptions): Promise<ImportGraphResult[]> {
+export function importAllGraphs(input: ImportInput, options?: ImportGraphOptions | CommonImportOptions): Promise<ImportGraphResult[]> {
     return registry.importAllGraphs(input, options);
 }
 
@@ -751,7 +791,7 @@ export function importAllGraphs(input: ImportInput, options?: ImportGraphOptions
  * @returns one listing per graph, in file order; null when the format cannot list its graphs
  * @category Loading
  */
-export function listGraphs(input: ImportInput, options?: ImportGraphOptions): Promise<readonly GraphListing[] | null> {
+export function listGraphs(input: ImportInput, options?: ImportGraphOptions | CommonImportOptions): Promise<readonly GraphListing[] | null> {
     return registry.listGraphs(input, options);
 }
 
@@ -768,7 +808,7 @@ export function listGraphs(input: ImportInput, options?: ImportGraphOptions): Pr
 export function exportGraph(
     snapshot: GraphSnapshot,
     format: FormatName,
-    options?: ExportGraphOptions,
+    options?: ExportGraphOptions | CommonExportOptions,
 ): AsyncIterable<Uint8Array> {
     return registry.exportGraph(snapshot, format, options);
 }
@@ -786,7 +826,7 @@ export function exportGraph(
 export async function exportGraphToString(
     snapshot: GraphSnapshot,
     format: FormatName,
-    options?: ExportGraphOptions,
+    options?: ExportGraphOptions | CommonExportOptions,
 ): Promise<string> {
     return registry.exportGraphToString(snapshot, format, options);
 }
@@ -807,7 +847,7 @@ export async function exportGraphToString(
 export function checkExport(
     snapshot: GraphSnapshot,
     format: FormatName,
-    options?: ExportGraphOptions,
+    options?: ExportGraphOptions | CommonExportOptions,
 ): readonly LossNote[] {
     return registry.checkExport(snapshot, format, options);
 }
@@ -850,7 +890,7 @@ export function checkExport(
  * ```
  * @category Loading
  */
-export function loadFromUrl(url: string | URL, options?: LoadFromUrlOptions): Promise<ImportGraphResult> {
+export function loadFromUrl(url: string | URL, options?: LoadFromUrlOptions | CommonImportOptions): Promise<ImportGraphResult> {
     return registry.loadFromUrl(url, options);
 }
 
@@ -878,7 +918,7 @@ export function loadFromUrl(url: string | URL, options?: LoadFromUrlOptions): Pr
  * ```
  * @category Loading
  */
-export function loadFromFile(file: Blob, options?: ImportGraphOptions): Promise<ImportGraphResult> {
+export function loadFromFile(file: Blob, options?: ImportGraphOptions | CommonImportOptions): Promise<ImportGraphResult> {
     return registry.loadFromFile(file, options);
 }
 
@@ -914,7 +954,7 @@ export function loadFromFile(file: Blob, options?: ImportGraphOptions): Promise<
 export function exportGraphToBytes(
     snapshot: GraphSnapshot,
     format: FormatName,
-    options?: ExportGraphOptions,
+    options?: ExportGraphOptions | CommonExportOptions,
 ): Promise<Uint8Array> {
     return registry.exportGraphToBytes(snapshot, format, options);
 }
@@ -941,7 +981,7 @@ export function exportGraphToBytes(
 export function exportGraphToBlob(
     snapshot: GraphSnapshot,
     format: FormatName,
-    options?: ExportGraphOptions,
+    options?: ExportGraphOptions | CommonExportOptions,
 ): Promise<Blob> {
     return registry.exportGraphToBlob(snapshot, format, options);
 }
@@ -970,26 +1010,9 @@ export function exportGraphToBlob(
 export async function downloadGraph(
     snapshot: GraphSnapshot,
     format: FormatName,
-    options: DownloadGraphOptions = {},
+    options: DownloadGraphOptions | CommonExportOptions = {},
 ): Promise<void> {
-    if (typeof document === "undefined") {
-        throw new GraphFormatError(
-            "E_UNSUPPORTED",
-            "downloadGraph() needs a browser document; use exportGraphToBytes() and write the bytes yourself",
-        );
-    }
-    const { filename, ...rest } = options;
-    const blob = await registry.exportGraphToBlob(snapshot, format, rest);
-    const extension = registry.listFormats().find((f) => f.format === format)?.extensions[0] ?? `.${format}`;
-    const href = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = href;
-    anchor.download = filename ?? `graph${extension}`;
-    anchor.click();
-    // Safari cancels the download when the URL is revoked in the same task
-    setTimeout(() => {
-        URL.revokeObjectURL(href);
-    }, 0);
+    return registry.downloadGraph(snapshot, format, options);
 }
 
 /**
@@ -1047,6 +1070,54 @@ function fetchFailed(
 ): never {
     const format = options.format === undefined || options.format === "auto" ? "unknown" : options.format;
     return new ImportReportBuilder(format, 0).fail(FETCH_CODE, message, undefined, { url: String(url), status, cause });
+}
+
+/**
+ * The error for an input refused by the format the caller named before any element was read: the
+ * parser's message ("line 1: text outside the root element") prefixed with the file and the format,
+ * since the likely cause is a file of another kind, not a damaged one.
+ * @param err - what the importer threw
+ * @param format - the format named in `format`
+ * @param filename - the file name hint, if any
+ * @returns the error to throw
+ */
+function notReadableAs(err: unknown, format: string, filename: string | null | undefined): unknown {
+    if (
+        !(err instanceof ImportError) ||
+        err.issue?.category !== "parse-error" ||
+        err.report.errorCount > 1 ||
+        err.report.counts.nodes + err.report.counts.edges > 0
+    ) {
+        return err;
+    }
+    const what = filename === undefined || filename === null ? "the input" : JSON.stringify(filename);
+    return new ImportError(`${what} could not be read as ${format}: ${err.message}`, err.report, err.details);
+}
+
+/**
+ * Why fetch() rejected, in words that point at the fix: a relative URL with no page to resolve it
+ * against (Node), a file: URL fetch() does not read, or a network error, which in a browser
+ * includes a CORS refusal.
+ * @param url - the URL as given
+ * @param err - what fetch() threw
+ * @returns the reason
+ */
+function fetchErrorText(url: string | URL, err: unknown): string {
+    let absolute: URL | null = null;
+    try {
+        absolute = new URL(url);
+    } catch {
+        // relative: resolvable only against a page's location
+    }
+    if (absolute === null && (globalThis as { location?: unknown }).location === undefined) {
+        return "a relative URL needs a web page to resolve against; outside a browser pass an absolute http(s) URL, or read a local file with loadFromFile() or importGraph()";
+    }
+    if (absolute?.protocol === "file:") {
+        return "fetch() cannot read file: URLs here; read a local file with loadFromFile() or importGraph()";
+    }
+    const cause = (err as { cause?: { message?: unknown } } | null)?.cause?.message;
+    const detail = typeof cause === "string" && cause !== "" ? ` (${cause})` : "";
+    return `the server could not be reached, or (in a browser) it does not allow this page to read the file (CORS)${detail}`;
 }
 
 /**
@@ -1208,14 +1279,14 @@ function withFreezeWarnings(report: ImportReport, freeze: FreezeReport): ImportR
         warn(
             "merged",
             EDGES_MERGED_CODE,
-            `${freeze.mergedEdges} parallel edge(s) were merged into one edge per pair by the duplicateEdges policy; whatever told them apart (a relation, a label) is lost`,
+            `${freeze.mergedEdges} parallel edge${plural(freeze.mergedEdges)} ${agree(freeze.mergedEdges, "was", "were")} merged into one edge per pair by the duplicateEdges policy; whatever told them apart (a relation, a label) is lost`,
         );
     }
     if (freeze.droppedSelfLoops > 0) {
         warn(
             "validation-error",
             SELF_LOOPS_DROPPED_CODE,
-            `${freeze.droppedSelfLoops} self-loop(s) were removed by selfLoops: "drop"`,
+            `${freeze.droppedSelfLoops} self-loop${plural(freeze.droppedSelfLoops)} ${agree(freeze.droppedSelfLoops, "was", "were")} removed by selfLoops: "drop"`,
         );
     }
     if (added.length === 0) {

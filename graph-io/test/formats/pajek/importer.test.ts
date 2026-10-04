@@ -372,7 +372,9 @@ describe("pajekImporter: numbering and ids", () => {
     it("forces the base with firstVertex and rejects other values", async () => {
         const zero = await load("*Vertices 2\n0 a\n1 b\n*Edges\n0 1\n", { firstVertex: 0 });
         expect(zero.snapshot.ids.toArray()).toEqual([0, 1]);
-        expect(codes(zero.report)).toEqual([PAJEK_ISSUE.ZERO_BASED]);
+        // the caller stated the numbering, so nothing is guessed and nothing is reported
+        expect(codes(zero.report)).toEqual([]);
+        expect(codes((await load("*Vertices 2\n0 a\n1 b\n*Edges\n0 1\n")).report)).toEqual([PAJEK_ISSUE.ZERO_BASED]);
         const one = await load("*Vertices 2\n0 a\n1 b\n*Edges\n0 1\n", { firstVertex: 1 });
         expect(one.snapshot.ids.toArray()).toEqual([1, 2]);
         // updated: vertex 2 has no line once the line numbered 0 is out of range, now reported
@@ -580,7 +582,7 @@ describe("pajekImporter: direction", () => {
         const undirected = await load(SIMPLE, { onMixedDirection: "undirected" });
         expect(undirected.snapshot.directed).toBe(false);
         expect(undirected.snapshot.edgeCount).toBe(5);
-        expect(codes(undirected.report)).toEqual([DIRECTION_FORCED_CODE, DIRECTION_FORCED_CODE]);
+        expect(codes(undirected.report)).toEqual([DIRECTION_FORCED_CODE]);
         // the direction is fixed by the first line, not the *Arcs header above it
         expect(undirected.report.issues[0].line).toBe(8);
     });
@@ -653,7 +655,7 @@ describe("pajekImporter: structure errors and the error limit", () => {
         expect(snapshot.nodeCount).toBe(1);
         expect(codes(report)).toEqual([PAJEK_ISSUE.MULTIPLE_GRAPHS]);
         expect(report.issues[0]).toMatchObject({ category: "unsupported", severity: "warning", line: 4 });
-        expect(report.issues[0].message).toContain("2 more network(s)");
+        expect(report.issues[0].message).toContain("2 more networks");
     });
 
     it("importAll reads every network of a project file into its own sink", async () => {

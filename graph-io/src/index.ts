@@ -171,6 +171,7 @@ export {
     jsonShapeOf,
 } from "./formats/json/index.js";
 export {
+    exportNeo4jFiles,
     ID_SPACE_COLUMN,
     LABELS_COLUMN,
     NEO4J_CAPABILITIES,
@@ -178,6 +179,7 @@ export {
     NEO4J_LOSS,
     neo4jExporter,
     type Neo4jExportOptions,
+    type Neo4jFile,
     neo4jImporter,
     type Neo4jImportOptions,
     ORIGINAL_ID_COLUMN,

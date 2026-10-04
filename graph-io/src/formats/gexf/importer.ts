@@ -1867,7 +1867,7 @@ class GexfReader implements XmlHandler {
             return undefined;
         }
         // a blank weight="" is an absent weight (common/weights.ts), as a blank weight attvalue is
-        const weight = parseWeightText(text);
+        const weight = parseWeightText(text, this.report);
         this.checkOverflow(text, where);
         return weight;
     }
@@ -2042,7 +2042,7 @@ class GexfReader implements XmlHandler {
         if (edge === null) {
             return;
         }
-        const weight = parseWeightText(text);
+        const weight = parseWeightText(text, this.report);
         if (weight === undefined) {
             // blank is absent (common/weights.ts), as a blank weight="" XML attribute is
             return;
@@ -2229,7 +2229,7 @@ class GexfReader implements XmlHandler {
                 ),
             );
         }
-        const value = parseWeightText(text);
+        const value = parseWeightText(text, this.report);
         if (value === undefined) {
             // blank is absent (common/weights.ts): no timed value
             return;

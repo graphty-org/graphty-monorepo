@@ -12,6 +12,7 @@ import { type LossNote } from "../types.js";
 import { type PairFolding } from "./direction.js";
 import { LOSS } from "./export.js";
 import { type ResolvedExportOptions } from "./options.js";
+import { agree, plural } from "./plural.js";
 
 /**
  * Records a loss note.
@@ -94,7 +95,7 @@ function writtenIds(snapshot: GraphSnapshot, mode: "error" | "mangle", format: s
         const first = ids.idOf(bad[0]);
         throw new GraphFormatError(
             "E_INVALID_ID",
-            `${bad.length} node id(s) cannot be written as ${format} integers (first: ${JSON.stringify(first)} at index ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
+            `${bad.length} node id${plural(bad.length)} cannot be written as ${format} integers (first: ${JSON.stringify(first)} at index ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
             { reason: "charset", charset: "integer", count: bad.length, index: bad[0] },
         );
     }
@@ -176,8 +177,8 @@ export function planNodeIds(
         note(
             common.sanitizeIds === "mangle" ? LOSS.ID_MANGLED : LOSS.ID_CHARSET,
             common.sanitizeIds === "mangle"
-                ? `${unwritable} node id(s) are not integers, so they are renumbered; the original ids are written to the ${attribute} attribute, and an import with restoreMangledIds: true reads them back`
-                : `${unwritable} node id(s) are not integers, so the save fails unless sanitizeIds is "mangle"`,
+                ? `${unwritable} node id${plural(unwritable)} ${agree(unwritable, "is", "are")} not integers, so they are renumbered; the original ids are written to the ${attribute} attribute, and an import with restoreMangledIds: true reads them back`
+                : `${unwritable} node id${plural(unwritable)} ${agree(unwritable, "is", "are")} not integers, so the save fails unless sanitizeIds is "mangle"`,
             null,
             unwritable,
         );
@@ -314,7 +315,7 @@ export function planEdgeIds(snapshot: GraphSnapshot, note: CxNoteFn): number[] {
     if (column !== null && generated > 0) {
         note(
             LOSS.EDGE_IDS_GENERATED,
-            `${generated} edge(s) have no distinct integer id in "${column.meta.name}"; they are written with generated ids`,
+            `${generated} edge${plural(generated)} ${agree(generated, "has", "have")} no distinct integer id in "${column.meta.name}"; they are written with generated ids`,
             column.meta.name,
             generated,
         );
@@ -351,7 +352,7 @@ export function directionNotes(
     if (!snapshot.directed) {
         note(
             undirectedCode,
-            `the snapshot is undirected; every edge is written as a directed edge (${snapshot.edgeCount} edge(s))`,
+            `the snapshot is undirected; every edge is written as a directed edge (${snapshot.edgeCount} edge${plural(snapshot.edgeCount)})`,
             null,
             snapshot.edgeCount,
         );
@@ -365,7 +366,7 @@ export function directionNotes(
         if (undirected > 0) {
             note(
                 undirectedCode,
-                `${undirected} undirected edge(s) are written as one directed edge each (a pair folded to its primary); CX has no undirected edge`,
+                `${undirected} undirected edge${plural(undirected)} ${agree(undirected, "is", "are")} written as one directed edge each (a pair folded to its primary); CX has no undirected edge`,
                 null,
                 undirected,
             );
@@ -374,7 +375,7 @@ export function directionNotes(
     if (folding.mutualCount > 0) {
         note(
             LOSS.MUTUAL_EXPANDED,
-            `${folding.mutualCount} mutual pair(s) are written as two directed edges; the mutual mark is lost`,
+            `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two directed edges; the mutual mark is lost`,
             null,
             folding.mutualCount,
         );

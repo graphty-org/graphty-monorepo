@@ -24,6 +24,7 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { agree, elementCount } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { isWhitespace, tokenizeXml, xmlDeclaredEncoding, type XmlRepairs, XmlSyntaxError } from "../../common/xml.js";
 import {
@@ -322,7 +323,7 @@ function reportRootOnly(prepared: Prepared): void {
         prepared.report.warning(
             "unsupported",
             XGMML_ISSUE.ROOT_ONLY_ELEMENTS,
-            `${nodes} node(s) and ${edges} edge(s) belong to no registered network (group meta-edges, collapsed group members) and were not read`,
+            `${elementCount(nodes, edges)} ${agree(nodes + edges, "belongs", "belong")} to none of the file's networks (group meta-edges or collapsed group members) and ${agree(nodes + edges, "was", "were")} not read`,
         );
     }
 }
@@ -349,7 +350,7 @@ async function importXgmml(
         prepared.report.warning(
             "unsupported",
             XGMML_ISSUE.MULTIPLE_GRAPHS,
-            `the session network document holds ${prepared.graphs.length} registered networks; ${prepared.graphs.length - 1} were not read (importAllGraphs() reads every one; graphIndex or graphName chooses one)`,
+            `the session network document holds ${prepared.graphs.length} registered networks; only the first is read (importAllGraphs() reads every one; graphIndex or graphName chooses one)`,
         );
     }
     return emitOne(prepared, prepared.graphs[index], sink);

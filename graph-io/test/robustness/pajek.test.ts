@@ -56,7 +56,7 @@ describe("Pajek robustness: truncation", () => {
         const err = await rejects(pajek("*Vert"));
         expect(fatalCode(err)).toBe("E_PAJEK_NO_VERTICES");
         expect(err.message).toBe(
-            "not a Pajek network: no *Vertices section found (the file has the unrecognised section *Vert)",
+            "the input could not be read as pajek: not a Pajek network: no *Vertices section found (the file has the unrecognised section *Vert)",
         );
         expect(codes(err.report)).toEqual(["W_PAJEK_UNSUPPORTED_SECTION", "E_PAJEK_NO_VERTICES"]);
     });
@@ -98,7 +98,7 @@ describe("Pajek robustness: counts", () => {
         const { snapshot, report } = await pajek('*Vertices 3\n1 "a"\n5 "e"\n6 "f"\n*Edges\n');
         expect(codes(report)).toEqual(["E_PAJEK_VERTEX_RANGE", "E_PAJEK_VERTEX_RANGE", "W_PAJEK_VERTEX_COUNT"]);
         expect(issue(report, "W_PAJEK_VERTEX_COUNT").message).toBe(
-            "*Vertices declares 3 vertices but 1 vertex line(s) were read; the others have no label",
+            "*Vertices declares 3 vertices but 1 vertex line was read; the others have no label",
         );
         expect(column(snapshot, "nodes", "label")).toEqual(["a", undefined, undefined]);
     });

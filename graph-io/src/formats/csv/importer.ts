@@ -66,6 +66,7 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { parseWeightText } from "../../common/weights.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
@@ -106,6 +107,14 @@ export interface CsvImportOptions extends CommonImportOptions {
      * @defaultValue detected
      */
     delimiter?: string | undefined;
+    /**
+     * The decimal separator of numbers. With ",", a cell such as `2,5` (digits, a comma, digits) is
+     * read as the number 2.5, for weights and attributes alike, and the delimiter is detected among
+     * the others (`;`, tab, `|`, space), so a spreadsheet saved in a locale that writes decimal
+     * commas reads as it is. A thousands separator is not read.
+     * @defaultValue "."
+     */
+    decimal?: "." | "," | undefined;
     /**
      * Whether the first row is a header; "auto" decides from its content (a header names columns, a
      * data row holds ids and numbers). It applies to the `nodes` table too.
@@ -149,6 +158,13 @@ export interface CsvImportOptions extends CommonImportOptions {
      * @defaultValue from the header
      */
     idColumn?: CsvColumnRef | undefined;
+    /**
+     * The label column of a node table, by name or position. The default is the column the header
+     * names `label` (in any case). With `nodeIdFrom: "label"`, the node ids come from this column,
+     * and the edge table must name its nodes by these labels too.
+     * @defaultValue from the header
+     */
+    labelColumn?: CsvColumnRef | undefined;
     /**
      * A node table to read before the edges, as a string, bytes or a stream: its ids become nodes
      * and its other columns node attributes.
@@ -313,6 +329,7 @@ const USED_OPTIONS_WITH_NODES: ReadonlySet<keyof CommonImportOptions> = new Set<
 /** The CSV options with defaults applied. */
 interface ResolvedCsvOptions {
     readonly delimiter: string | null;
+    readonly decimalComma: boolean;
     readonly header: boolean | "auto";
     readonly table: "edges" | "nodes" | "adjacency" | "auto";
     readonly sourceColumn: CsvColumnRef | null;
@@ -320,6 +337,7 @@ interface ResolvedCsvOptions {
     /** The direction column reference; null for none; undefined for the Gephi rule. */
     readonly typeColumn: CsvColumnRef | null | undefined;
     readonly idColumn: CsvColumnRef | null;
+    readonly labelColumn: CsvColumnRef | null;
     readonly nodes: ImportInput | null;
     readonly rowNumberIds: boolean;
     /** The caller's explicit defaultDirected; null when it was left to its default. */
@@ -388,6 +406,9 @@ interface ImportState {
 /** The comment characters of the SNAP (`#`) and KONECT (`%`) headers (research note 07 section 2.6). */
 const COMMENT_CHARS: readonly string[] = Object.freeze(["#", "%"]);
 
+/** A number written with a decimal comma: digits, one comma, digits, an optional exponent. */
+const DECIMAL_COMMA = /^\s*[+-]?\d+,\d+(?:[eE][+-]?\d+)?\s*$/;
+
 /**
  * The direction a SNAP or KONECT comment line declares (research note 07 section 2.6): SNAP
  * pages write `# Directed graph` / `# Undirected graph`, KONECT's first line is `% sym` (undirected),
@@ -439,6 +460,18 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
             found: o.delimiter,
         });
     }
+    if (o.decimal !== undefined && o.decimal !== "." && o.decimal !== ",") {
+        throw new GraphFormatError("E_UNSUPPORTED", 'option decimal: expected "." or ","', {
+            option: "decimal",
+            found: o.decimal,
+        });
+    }
+    if (o.decimal === "," && o.delimiter === ",") {
+        throw new GraphFormatError("E_UNSUPPORTED", 'options delimiter and decimal are both ","; pass delimiter: ";"', {
+            option: "decimal",
+            found: o.decimal,
+        });
+    }
     if (o.delimiter !== undefined) {
         // one character, not a line break, not the quote
         checkRecordSyntax({ delimiter: o.delimiter, quote: '"' });
@@ -455,14 +488,14 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
             found: o.table,
         });
     }
-    for (const name of ["sourceColumn", "targetColumn", "idColumn"] as const) {
+    for (const name of ["sourceColumn", "targetColumn", "idColumn", "labelColumn"] as const) {
         checkColumnRef(name, o[name]);
     }
     if (o.typeColumn !== null) {
         checkColumnRef("typeColumn", o.typeColumn);
     }
     if (o.table === "adjacency") {
-        for (const name of ["sourceColumn", "targetColumn", "typeColumn", "idColumn"] as const) {
+        for (const name of ["sourceColumn", "targetColumn", "typeColumn", "idColumn", "labelColumn"] as const) {
             if (o[name] !== undefined) {
                 throw new GraphFormatError("E_UNSUPPORTED", `option ${name}: an adjacency table has no columns`, {
                     option: name,
@@ -485,12 +518,14 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
     }
     return {
         delimiter: o.delimiter ?? null,
+        decimalComma: o.decimal === ",",
         header: o.header ?? "auto",
         table: o.table ?? "auto",
         sourceColumn: o.sourceColumn ?? null,
         targetColumn: o.targetColumn ?? null,
         typeColumn: o.typeColumn,
         idColumn: o.idColumn ?? null,
+        labelColumn: o.labelColumn ?? null,
         nodes: o.nodes ?? null,
         rowNumberIds: o.rowNumberIds ?? false,
         explicitDirected: typeof options?.defaultDirected === "boolean" ? options.defaultDirected : null,
@@ -717,6 +752,8 @@ class TableReader {
         this.rowNumbers = state.csv.rowNumberIds && (kind === "nodes" || (kind === "auto" && state.csv.nodes === null));
         const readerOptions: CsvReaderOptions = {
             delimiter: state.csv.delimiter,
+            // a decimal comma is never the delimiter
+            ...(state.csv.decimalComma ? { candidates: DELIMITER_CANDIDATES.filter((d) => d !== ",") } : {}),
             comments: COMMENT_CHARS,
             // field counts say nothing about an adjacency table, whose rows vary in width
             skipQuoteErrors: kind === "adjacency",
@@ -897,7 +934,7 @@ class TableReader {
     private namesExplicitColumn(row: readonly string[]): boolean {
         const { csv } = this.state;
         const names = headerNames(row);
-        return [csv.sourceColumn, csv.targetColumn, csv.idColumn, csv.typeColumn].some(
+        return [csv.sourceColumn, csv.targetColumn, csv.idColumn, csv.typeColumn, csv.labelColumn].some(
             (ref) => typeof ref === "string" && findColumn(names, [ref]) >= 0,
         );
     }
@@ -1122,7 +1159,7 @@ class TableReader {
                     report.warnOnce(
                         "validation-error",
                         WEIGHT_AS_ATTRIBUTE_CODE,
-                        `the third column holds text in the first row(s), so it is read as the attribute ${names[2]}, not the weight`,
+                        `the third column holds text in the first rows, so it is read as the attribute ${names[2]}, not the weight`,
                         { line, element: names[2] },
                     );
                 } else {
@@ -1226,6 +1263,21 @@ class TableReader {
     }
 
     /**
+     * The label column of a node table: the labelColumn option, else a header column named `label`.
+     * @param names - the column names
+     * @param header - whether the file has a header row
+     * @param claimed - columns another role took
+     * @returns the column index, or -1
+     */
+    private labelOf(names: readonly string[], header: boolean, claimed: ReadonlySet<number>): number {
+        const { labelColumn } = this.state.csv;
+        if (labelColumn !== null) {
+            return resolveColumnRef(names, labelColumn, "labelColumn");
+        }
+        return header ? findFree(names, LABEL_NAMES, claimed) : -1;
+    }
+
+    /**
      * The columns of a node table.
      * @param names - the column names
      * @param header - whether the file has a header row
@@ -1244,14 +1296,17 @@ class TableReader {
         } else if (names.length >= 1) {
             idColumn = 0;
         }
-        const label = header ? findFree(names, LABEL_NAMES, new Set(idColumn >= 0 ? [idColumn] : [])) : -1;
+        const label = this.labelOf(names, header, new Set(idColumn >= 0 ? [idColumn] : []));
         let id: number;
         switch (common.nodeIdFrom) {
             case "label":
                 if (label < 0) {
-                    report.fail(NO_ID_COLUMN_CODE, 'nodeIdFrom is "label" but the node table has no label column', {
-                        line,
-                    });
+                    report.fail(
+                        NO_ID_COLUMN_CODE,
+                        `nodeIdFrom is "label", but the node table has no column named "label" (${names.map((n) => JSON.stringify(n)).join(", ")}); pass labelColumn to name the column that holds the labels`,
+                        { line },
+                        { columns: [...names] },
+                    );
                 }
                 id = label;
                 break;
@@ -1346,6 +1401,13 @@ class TableReader {
     private processRow(row: string[], quoted: readonly boolean[], line: number): void {
         const plan = this.requirePlan();
         this.dataRows++;
+        if (this.state.csv.decimalComma) {
+            for (let i = 0; i < row.length; i++) {
+                if (DECIMAL_COMMA.test(row[i])) {
+                    row[i] = row[i].replace(",", ".");
+                }
+            }
+        }
         if (plan.kind === "edges") {
             this.processEdgeRow(plan, row, quoted, line);
         } else if (plan.kind === "nodes") {
@@ -1430,7 +1492,7 @@ class TableReader {
         const { counts } = report;
         const quoted = completeRow(plan, row, cellQuoted, report, line);
         if (row.length !== plan.width) {
-            report.error("validation-error", FIELD_COUNT_CODE, `${row.length} field(s), expected ${plan.width}`, {
+            report.error("validation-error", FIELD_COUNT_CODE, `${row.length} field${plural(row.length)}, expected ${plan.width}`, {
                 line,
             });
             counts.skippedEdges++;
@@ -1483,7 +1545,7 @@ class TableReader {
         try {
             const source = this.coerce(sourceText);
             const target = this.coerce(targetText);
-            const weight = plan.weight >= 0 ? parseWeightText(row[plan.weight]) : undefined;
+            const weight = plan.weight >= 0 ? parseWeightText(row[plan.weight], report) : undefined;
             if (!this.state.headerSet) {
                 this.state.headerSet = true;
                 resolver.setHeader(kind !== "undirected", where);
@@ -1532,7 +1594,7 @@ class TableReader {
         const ordinal = this.nodeOrdinal++;
         const quoted = completeRow(plan, row, cellQuoted, report, line);
         if (row.length !== plan.width) {
-            report.error("validation-error", FIELD_COUNT_CODE, `${row.length} field(s), expected ${plan.width}`, {
+            report.error("validation-error", FIELD_COUNT_CODE, `${row.length} field${plural(row.length)}, expected ${plan.width}`, {
                 line,
             });
             counts.skippedNodes++;
@@ -1856,7 +1918,7 @@ async function importCsv(
         report.warning(
             "coercion",
             ID_MERGED_CODE,
-            `${state.coercer.mergeCount} id cell(s) merged into ids other cells already produced under ids: "number"`,
+            `${state.coercer.mergeCount} id cell${plural(state.coercer.mergeCount)} merged into ids other cells already produced under ids: "number"`,
         );
     }
     throwIfAborted(common.signal);

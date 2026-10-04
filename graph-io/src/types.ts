@@ -51,7 +51,9 @@ export interface CommonImportOptions {
      * numbers and the labels are the real names. In d3 JSON, "index" also reads edges whose ends are
      * node positions. In GML and Pajek it only renames: every node still needs its id key or vertex
      * number, because edges refer to nodes by it, and a GML node without an `id` key is skipped
-     * with E_MISSING_ID. CSV reads this option only when there is a node table.
+     * with E_MISSING_ID. CSV reads this option only when there is a node table, and it does not
+     * just rename: with "label" the node table's label column (`label`, or the `labelColumn`
+     * option) gives the ids, so the edge table must name its nodes by those labels.
      * @defaultValue "id"
      */
     nodeIdFrom?: "id" | "label" | "index" | undefined;
@@ -76,9 +78,12 @@ export interface CommonImportOptions {
      */
     selfLoops?: "keep" | "drop" | "error" | undefined;
     /**
-     * What to do with a file that has both directed and undirected edges. "expand" makes a directed
-     * graph in which each undirected edge is two edges, marked so an export can write them back as
-     * one. "directed" / "undirected" read every edge that way. "error" stops the import.
+     * How edge direction is read. "expand" (the default) keeps the file's direction, and for a file
+     * that has both directed and undirected edges makes a directed graph in which each undirected
+     * edge is two edges, marked so an export can write them back as one. "directed" / "undirected"
+     * read every edge of any file that way, including a file whose edges all have the other
+     * direction, with a W_DIRECTION_FORCED warning. "error" stops the import at the first edge whose
+     * direction differs from the file's.
      * @defaultValue "expand"
      */
     onMixedDirection?: "expand" | "directed" | "undirected" | "error" | undefined;
@@ -94,7 +99,10 @@ export interface CommonImportOptions {
     /**
      * The edge attribute read as the edge weight. The default is "weight", except "value" for GML
      * and Pajek and none for OBO. Pass null to read every attribute as a plain attribute and leave
-     * the graph unweighted.
+     * the graph unweighted. A name no edge has is not an error: the graph is read unweighted, so one
+     * options object with `weightFrom: "weight"` shared across formats reads GML and Pajek files
+     * without their weights. An edge whose weight cell is empty or missing gets the default weight 1,
+     * and an export writes no weight for it.
      * @defaultValue per format
      */
     weightFrom?: string | null | undefined;

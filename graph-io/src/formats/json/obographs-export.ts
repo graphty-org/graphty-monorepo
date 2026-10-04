@@ -52,6 +52,7 @@ import {
     valuesOf,
 } from "../../common/ontology-export.js";
 import { type ResolvedExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { type LossNote } from "../../types.js";
 import { dialectCapabilities, exponentIfUnsafe, isJsonObject } from "./dialect.js";
@@ -88,7 +89,7 @@ export const OBOGRAPHS_SHARED_LOSS = Object.freeze({
 /** The settings of one export. */
 interface ObographsSettings {
     readonly common: ResolvedExportOptions;
-    readonly indent: number;
+    readonly indent: string;
     /** The ontology IRI unprefixed ids are written under, or null for the kept or derived one. */
     readonly ontologyIri: string | null;
 }
@@ -348,7 +349,7 @@ class ObographsExport {
     ) {
         this.kept = keptOf(snapshot);
         this.ontologyIri = ontologyIriOf(snapshot, this.kept, settings.ontologyIri);
-        this.indent = settings.indent > 0 ? `\n${" ".repeat(settings.indent)}` : "";
+        this.indent = settings.indent !== "" ? `\n${settings.indent}` : "";
         for (const [iri, entry] of Object.entries(this.kept.properties)) {
             const shorthand = shorthandOf(entry.meta);
             if (shorthand !== null) {
@@ -386,7 +387,7 @@ class ObographsExport {
         if (this.nonfinite.count > 0) {
             this.note(
                 NONFINITE_AS_NULL_CODE,
-                `${this.nonfinite.count} NaN or infinite value(s) are written as null`,
+                `${this.nonfinite.count} NaN or infinite value${plural(this.nonfinite.count)} ${agree(this.nonfinite.count, "is", "are")} written as null`,
                 null,
                 this.nonfinite.count,
             );
@@ -476,7 +477,7 @@ class ObographsExport {
         if (count === 0) {
             return null;
         }
-        const message = `${count} node id(s) are empty; an OBO Graphs node needs an id, so the save fails`;
+        const message = `${count} node id${plural(count)} ${agree(count, "is", "are")} empty; an OBO Graphs node needs an id, so the save fails`;
         this.note(LOSS.ID_CHARSET, message, null, count);
         return new GraphFormatError("E_INVALID_ID", message, { reason: "charset", count, id: "", index: first });
     }
@@ -508,7 +509,7 @@ class ObographsExport {
         if (numeric > 0) {
             this.note(
                 LOSS.ID_TEXT_TYPE,
-                `${numeric} numeric node id(s) are written as text and read back as strings`,
+                `${numeric} numeric node id${plural(numeric)} ${agree(numeric, "is", "are")} written as text and read back as strings`,
                 null,
                 numeric,
             );
@@ -530,7 +531,7 @@ class ObographsExport {
         if (moved > 0) {
             this.note(
                 NODE_ORDER_CODE,
-                `${moved} node(s) read back at another position: placeholder nodes are not written and read back after the written nodes`,
+                `${moved} node${plural(moved)} ${agree(moved, "reads", "read")} back at another position: placeholder nodes are not written and read back after the written nodes`,
                 null,
                 moved,
             );
@@ -588,7 +589,7 @@ class ObographsExport {
         if (typedefs > 0) {
             note(
                 TYPEDEF_NODES_CODE,
-                `${typedefs} node(s) are written as PROPERTY nodes; they read back as nodes only when imported with typedefs: "nodes", and then their edges with them`,
+                `${typedefs} node${plural(typedefs)} ${agree(typedefs, "is", "are")} written as PROPERTY nodes; they read back as nodes only when imported with typedefs: "nodes", and then their edges with them`,
                 "type",
                 typedefs,
             );
@@ -617,7 +618,7 @@ class ObographsExport {
         if (datatypes > 0) {
             note(
                 OBOGRAPHS_LOSS.DATATYPE_DROPPED,
-                `${datatypes} property value(s) carry an xsd datatype; OBO Graphs basicPropertyValues have none, so they read back without it`,
+                `${datatypes} property value${plural(datatypes)} ${agree(datatypes, "carries", "carry")} an xsd datatype; OBO Graphs basicPropertyValues have none, so they read back without it`,
                 "property_value",
                 datatypes,
             );
@@ -682,7 +683,7 @@ class ObographsExport {
         if (weighted > 0) {
             note(
                 OBOGRAPHS_LOSS.EDGE_COLUMN_AS_META,
-                `${weighted} explicit edge weight(s) are written as "weight" in each edge's meta and read back inside the meta column, not as weights`,
+                `${weighted} explicit edge weight${plural(weighted)} ${agree(weighted, "is", "are")} written as "weight" in each edge's meta and read back inside the meta column, not as weights`,
                 snapshot.edges.byRole("weight")?.meta.name ?? null,
                 weighted,
             );
@@ -712,7 +713,7 @@ class ObographsExport {
         if (assumed > 0) {
             this.note(
                 RELATION_ASSUMED_CODE,
-                `${assumed} edge(s) have no relation; written with the pred is_a (an ontology reads is_a as subclassing)`,
+                `${assumed} edge${plural(assumed)} ${agree(assumed, "has", "have")} no relation; written with the pred is_a (an ontology reads is_a as subclassing)`,
                 relation?.meta.name ?? null,
                 assumed,
             );
@@ -721,7 +722,7 @@ class ObographsExport {
         if (idChanges + relationChanges > 0) {
             this.note(
                 OBOGRAPHS_LOSS.ID_CHANGED,
-                `${idChanges} node id(s) and ${relationChanges} relation(s) are written as IRIs the importer reads back as other ids under its default oboIds "curie"`,
+                `${idChanges} node id${plural(idChanges)} and ${relationChanges} relation${plural(relationChanges)} are written as IRIs the importer reads back as other ids under its default oboIds "curie"`,
                 null,
                 idChanges + relationChanges,
             );
@@ -737,7 +738,7 @@ class ObographsExport {
         if (!snapshot.directed) {
             note(
                 DIRECTION_DROPPED_CODE,
-                `the snapshot is undirected; OBO Graphs edges are directed and read back directed (${written.length} edge(s))`,
+                `the snapshot is undirected; OBO Graphs edges are directed and read back directed (${written.length} edge${plural(written.length)})`,
                 null,
                 written.length,
             );
@@ -746,7 +747,7 @@ class ObographsExport {
             if (undirected > 0) {
                 note(
                     DIRECTION_DROPPED_CODE,
-                    `${undirected} undirected edge(s) are written as one directed edge each`,
+                    `${undirected} undirected edge${plural(undirected)} ${agree(undirected, "is", "are")} written as one directed edge each`,
                     null,
                     undirected,
                 );
@@ -755,7 +756,7 @@ class ObographsExport {
         if (folding.mutualCount > 0) {
             note(
                 LOSS.MUTUAL_EXPANDED,
-                `${folding.mutualCount} mutual pair(s) are written as two edges; the mutual mark is lost`,
+                `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two edges; the mutual mark is lost`,
                 null,
                 folding.mutualCount,
             );

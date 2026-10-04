@@ -46,6 +46,7 @@ import {
 } from "./codes.js";
 import { coerceIdText } from "./ids.js";
 import { type ResolvedExportOptions } from "./options.js";
+import { agree, plural } from "./plural.js";
 import { explicitWeights } from "./weights.js";
 
 /** The code of node ids the format cannot write under `sanitizeIds: "error"`. */
@@ -353,14 +354,14 @@ export function checkCapabilities(
         if (options.onMixedDirection === "error") {
             note(
                 LOSS.MIXED_DIRECTION_ERROR,
-                `${mixed} undirected edge(s) in a directed graph, and the format holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"`,
+                `${mixed} undirected edge${plural(mixed)} in a directed graph, and the format holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"`,
                 null,
                 mixed,
             );
         } else {
             note(
                 LOSS.MIXED_DIRECTION,
-                `${mixed} undirected edge(s) in a directed graph are written as ${options.onMixedDirection} (onMixedDirection), and the format holds one direction per file`,
+                `${mixed} undirected edge${plural(mixed)} in a directed graph ${agree(mixed, "is", "are")} written as ${options.onMixedDirection} (onMixedDirection), and the format holds one direction per file`,
                 null,
                 mixed,
             );
@@ -369,12 +370,12 @@ export function checkCapabilities(
 
     if (snapshot.flags.multigraph && !caps.multiEdges) {
         const parallel = countParallelArcs(snapshot);
-        note(LOSS.MULTI_EDGES, `${parallel} parallel edge(s); the format has no parallel edges`, null, parallel);
+        note(LOSS.MULTI_EDGES, `${parallel} parallel edge${plural(parallel)}; the format has no parallel edges`, null, parallel);
     }
     if (snapshot.selfLoopCount > 0 && !caps.selfLoops) {
         note(
             LOSS.SELF_LOOPS,
-            `${snapshot.selfLoopCount} self-loop(s); the format has no self-loops`,
+            `${snapshot.selfLoopCount} self-loop${plural(snapshot.selfLoopCount)}; the format has no self-loops`,
             null,
             snapshot.selfLoopCount,
         );
@@ -384,7 +385,7 @@ export function checkCapabilities(
     if (caps.edgeIds === "required" && edgeIds === null && snapshot.edgeCount > 0) {
         note(
             LOSS.EDGE_IDS_GENERATED,
-            "the format requires edge ids; canonical e0..e{E-1} are generated and not written back",
+            "the format requires edge ids, and the graph has none; the edges are written with generated ids, which read back as a new edge id column",
             null,
             snapshot.edgeCount,
         );
@@ -403,22 +404,22 @@ export function checkCapabilities(
             note(
                 LOSS.ID_RENUMBERED,
                 options.sanitizeIds === "mangle"
-                    ? `${unrepresentable} node id(s) are not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value`
-                    : `${unrepresentable} node id(s) are not their 1-based index; nodes are numbered 1..N and ids kept as labels of the nodes without a label value (a node with one loses its id)`,
+                    ? `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value`
+                    : `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N and ids kept as labels of the nodes without a label value (a node with one loses its id)`,
                 null,
                 unrepresentable,
             );
         } else if (options.sanitizeIds === "mangle") {
             note(
                 LOSS.ID_MANGLED,
-                `${unrepresentable} node id(s) ${charsetText(caps.idCharset)}, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
+                `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
                 null,
                 unrepresentable,
             );
         } else {
             note(
                 LOSS.ID_CHARSET,
-                `${unrepresentable} node id(s) ${charsetText(caps.idCharset)}, so the save fails unless sanitizeIds is "mangle"`,
+                `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so the save fails unless sanitizeIds is "mangle"`,
                 null,
                 unrepresentable,
             );
@@ -436,7 +437,7 @@ export function checkCapabilities(
         if (retyped > 0) {
             note(
                 LOSS.ID_TEXT_TYPE,
-                `${retyped} node id(s) read back with another type (a number as text, or text as a number)`,
+                `${retyped} node id${plural(retyped)} ${agree(retyped, "reads", "read")} back with another type (a number as text, or text as a number)`,
                 null,
                 retyped,
             );
@@ -453,7 +454,7 @@ export function checkCapabilities(
         } else {
             note(
                 LOSS.GRAPH_ATTRIBUTES,
-                `${graphColumns.length} graph attribute(s) cannot be written`,
+                `${graphColumns.length} graph attribute${plural(graphColumns.length)} cannot be written`,
                 null,
                 graphColumns.length,
             );
@@ -465,7 +466,7 @@ export function checkCapabilities(
             if (caps.temporal !== "dynamic-values") {
                 note(
                     LOSS.DYNAMIC_VALUES,
-                    `dynamic values of "${name}" (${table.rowCount} row(s)) cannot be written`,
+                    `dynamic values of "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
                     name,
                     table.rowCount,
                 );
@@ -473,7 +474,7 @@ export function checkCapabilities(
         } else {
             note(
                 LOSS.EXTENSION_TABLE,
-                `extension table "${name}" (${table.rowCount} row(s)) cannot be written`,
+                `extension table "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
                 name,
                 table.rowCount,
             );
@@ -485,14 +486,16 @@ export function checkCapabilities(
 /**
  * The ids a charset cannot hold, as a message phrase.
  * @param charset - the format's id charset
+ * @param n - how many ids, for the verb
  * @returns the phrase
  */
-function charsetText(charset: ExportCapabilities["idCharset"]): string {
+function charsetText(charset: ExportCapabilities["idCharset"], n: number): string {
+    const are = agree(n, "is", "are");
     switch (charset) {
         case "nmtoken":
-            return "are not XML name tokens (letters, digits and . - _ : only; no spaces)";
+            return `${are} not XML name tokens (letters, digits and . - _ : only; no spaces)`;
         case "integer":
-            return "are not integers";
+            return `${are} not integers`;
         default:
             return `cannot be written as ${charset} ids`;
     }
@@ -524,7 +527,7 @@ function checkWeights(snapshot: GraphSnapshot, extras: CheckExtras, note: NoteFn
     if (extras.weights === false && explicitWeights(snapshot).weighted) {
         note(
             LOSS.WEIGHTS_DROPPED,
-            `the edge weights are not written; ${snapshot.edgeCount} edge(s) read back with weight 1`,
+            `the edge weights are not written; ${snapshot.edgeCount} edge${plural(snapshot.edgeCount)} ${agree(snapshot.edgeCount, "reads", "read")} back with weight 1`,
             null,
             snapshot.edgeCount,
         );
@@ -533,6 +536,15 @@ function checkWeights(snapshot: GraphSnapshot, extras: CheckExtras, note: NoteFn
 
 /** A note-recording callback. */
 type NoteFn = (code: string, message: string, column?: string | null, count?: number | null) => void;
+
+/** How messages name what a column of a role holds. */
+const ROLE_WORDS: Readonly<Record<string, string>> = {
+    label: "labels",
+    weight: "weights",
+    id: "ids",
+    position: "positions",
+    originalId: "original ids",
+};
 
 /**
  * The per-column checks of checkCapabilities().
@@ -561,7 +573,7 @@ function checkColumns(
             if (fixed !== undefined && fixed !== name) {
                 note(
                     LOSS.COLUMN_NAME_CHANGED,
-                    `${label} (${role}) is written into the format's ${role} slot and reads back as "${fixed}"`,
+                    `${label} (the ${ROLE_WORDS[role] ?? role}) is written as the format's own ${role} and reads back as "${fixed}"`,
                     name,
                     column.length - column.nullCount,
                 );
@@ -961,7 +973,7 @@ export function sanitizeIds(snapshot: GraphSnapshot, charset: IdCharset, mode: "
         const first = ids.idOf(bad[0]);
         throw new GraphFormatError(
             "E_INVALID_ID",
-            `${bad.length} node id(s) ${charsetText(charset)} (first: ${JSON.stringify(first)} at index ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
+            `${bad.length} node id${plural(bad.length)} ${charsetText(charset, bad.length)} (first: ${JSON.stringify(first)} at index ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
             { reason: "charset", charset, count: bad.length, id: first, index: bad[0] },
         );
     }

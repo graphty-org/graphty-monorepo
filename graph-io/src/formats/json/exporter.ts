@@ -26,8 +26,9 @@ import { checkCapabilities, countMixedEdges, LOSS } from "../../common/export.js
 import { formatF32, formatF64 } from "../../common/format.js";
 import { flipY } from "../../common/json-elements.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { explicitWeights } from "../../common/weights.js";
-import { encodeChunks, joinText } from "../../common/writer.js";
+import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     CYTOSCAPE_ELEMENT_KEYS,
@@ -56,10 +57,11 @@ export interface JsonExportOptions extends CommonExportOptions {
      */
     dialect?: JsonDialect | undefined;
     /**
-     * Spaces per indentation level; 0 writes compact JSON.
+     * The indentation of one level: a number of spaces, or the text itself (spaces or tabs, such as
+     * "\t"). 0 or "" writes compact JSON on one line.
      * @defaultValue 0
      */
-    indent?: number | undefined;
+    indent?: number | string | undefined;
     /**
      * node-link and d3: the key of the edge array. The default is the key a JSON import read, else
      * "edges" ("links" for d3).
@@ -92,9 +94,11 @@ export interface JsonExportOptions extends CommonExportOptions {
      */
     targetKey?: string | undefined;
     /**
-     * The key the weight is written under. The default is the key a JSON import read the weights
-     * from, else "weight". For another key, read the file back with `weightFrom` set to it, or the
-     * weights come back as a plain edge attribute.
+     * The key the weight is written under, in every dialect but OBO Graphs, which always writes the
+     * weight as "weight" in each edge's `meta` (checkExport() then returns W_OBOGRAPHS_EDGE_COLUMN_AS_META).
+     * The default is the key a JSON import read the weights from, else "weight". For another key,
+     * read the file back with `weightFrom` set to it, or the weights come back as a plain edge
+     * attribute.
      * @defaultValue as read, else "weight"
      */
     weightKey?: string | undefined;
@@ -102,8 +106,9 @@ export interface JsonExportOptions extends CommonExportOptions {
      * OBO Graphs: the graph id written when the graph has none. A graph read from an OBO Graphs
      * document keeps its own graph id, which this option does not change. Node ids are written in
      * the form graph-io reads back as the same id: an IRI as it is, a prefixed id such as
-     * `GO:0008150` as its OBO address, and an id without a prefix (`a`) as it is, not under this
-     * IRI. The default is `http://purl.obolibrary.org/obo/<ontology>.owl`.
+     * `GO:0008150` as its OBO address, and an id without a prefix (`a`) under the default OBO
+     * address (`http://purl.obolibrary.org/obo/graph.owl#a`), or as it is when you pass another IRI
+     * here. The default is `http://purl.obolibrary.org/obo/<ontology>.owl`.
      * @defaultValue the ontology's OBO address
      */
     ontologyIri?: string | undefined;
@@ -265,7 +270,7 @@ interface ColumnPlan {
 interface Resolved {
     readonly common: ResolvedExportOptions;
     readonly dialect: JsonDialect;
-    readonly indent: number;
+    readonly indent: string;
     readonly edgesKey: string;
     readonly nodeIdKey: string | null;
     readonly indexLinks: boolean;
@@ -313,10 +318,7 @@ function resolve(snapshot: GraphSnapshot, options: (JsonExportOptions & CommonEx
     } else {
         throw unsupported("dialect", o.dialect, JSON_DIALECTS);
     }
-    const indent = o.indent ?? 0;
-    if (!Number.isInteger(indent) || indent < 0 || indent > 16) {
-        throw unsupported("indent", indent, ["an integer 0..16"]);
-    }
+    const indent = indentUnit(o.indent, "");
     const sameDialect = shape.dialect === dialect;
     const recorded = <T>(value: T | undefined, fallback: T): T =>
         sameDialect && value !== undefined ? value : fallback;
@@ -519,13 +521,13 @@ class JsonWriter {
 
     private readonly firstAtDepth: boolean[] = [];
 
-    private readonly indent: number;
+    private readonly indent: string;
 
     /**
      * Create a writer.
-     * @param indent - spaces per level; 0 for compact output
+     * @param indent - the text of one level; "" for compact output
      */
-    constructor(indent: number) {
+    constructor(indent: string) {
         this.indent = indent;
     }
 
@@ -558,7 +560,7 @@ class JsonWriter {
      */
     key(name: string): void {
         this.separator();
-        this.parts.push(JSON.stringify(name), this.indent > 0 ? ": " : ":");
+        this.parts.push(JSON.stringify(name), this.indent !== "" ? ": " : ":");
     }
 
     /** Start an array element: the separator only. */
@@ -610,7 +612,7 @@ class JsonWriter {
      * @returns the text
      */
     private newline(): string {
-        return this.indent > 0 ? `\n${" ".repeat(this.depth * this.indent)}` : "";
+        return this.indent !== "" ? `\n${this.indent.repeat(this.depth)}` : "";
     }
 }
 
@@ -665,7 +667,7 @@ function plan(snapshot: GraphSnapshot, resolved: Resolved): Plan {
     if (ctx.nonfinite.count > 0) {
         note(
             JSON_LOSS.NONFINITE_AS_NULL,
-            `${ctx.nonfinite.count} non-finite number(s) are written as null`,
+            `${ctx.nonfinite.count} non-finite number${plural(ctx.nonfinite.count)} ${agree(ctx.nonfinite.count, "is", "are")} written as null`,
             null,
             ctx.nonfinite.count,
         );
@@ -679,7 +681,7 @@ function plan(snapshot: GraphSnapshot, resolved: Resolved): Plan {
     if (dialect === "cytoscape" && edgeIds !== null && edgeIds.nullCount > 0) {
         note(
             LOSS.EDGE_IDS_GENERATED,
-            `${edgeIds.nullCount} edge(s) have no id; canonical e<index> ids are generated for them`,
+            `${edgeIds.nullCount} edge${plural(edgeIds.nullCount)} ${agree(edgeIds.nullCount, "has", "have")} no id; canonical e<index> ids are generated for them`,
             edgeIds.meta.name,
             edgeIds.nullCount,
         );
@@ -858,7 +860,7 @@ function planSlot(ctx: PlanContext, column: Column, domain: Domain): ColumnPlan 
             if (z > 0) {
                 note(
                     JSON_LOSS.POSITION_Z_DROPPED,
-                    `${z} position(s) have a non-zero z; Cytoscape positions are 2D`,
+                    `${z} position${plural(z)} ${agree(z, "has", "have")} a non-zero z; Cytoscape positions are 2D`,
                     meta.name,
                     z,
                 );
@@ -986,7 +988,7 @@ function planDirection(ctx: PlanContext): { readonly folding: PairFolding; reado
     if (folding.mutualCount > 0) {
         note(
             LOSS.MUTUAL_EXPANDED,
-            `${folding.mutualCount} mutual pair(s) are written as two directed edges; the mutual mark is lost`,
+            `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two directed edges; the mutual mark is lost`,
             null,
             folding.mutualCount,
         );
@@ -1072,7 +1074,7 @@ function jgfIdNotes(
     if (numeric > 0) {
         note(
             JSON_LOSS.NUMERIC_IDS_STRINGIFIED,
-            `${numeric} numeric node id(s) become JGF object keys (strings); pass ids: "canonical" on re-import`,
+            `${numeric} numeric node id${plural(numeric)} ${agree(numeric, "becomes", "become")} JGF object keys (strings); pass ids: "canonical" on re-import`,
             null,
             numeric,
         );
@@ -1080,7 +1082,7 @@ function jgfIdNotes(
     if (collisions > 0) {
         note(
             JSON_LOSS.ID_TEXT_COLLISION,
-            `${collisions} node id(s) share their text with another id; the save fails`,
+            `${collisions} node id${plural(collisions)} ${agree(collisions, "shares", "share")} their text with another id; the save fails`,
             null,
             collisions,
         );
@@ -1088,7 +1090,7 @@ function jgfIdNotes(
     if (!ordered) {
         note(
             JSON_LOSS.NODE_ORDER,
-            `${indexLike} integer-like node id(s) are enumerated first and ascending by JSON parsers; node order changes on re-import`,
+            `${indexLike} integer-like node id${plural(indexLike)} ${agree(indexLike, "is", "are")} enumerated first and ascending by JSON parsers; node order changes on re-import`,
             null,
             indexLike,
         );

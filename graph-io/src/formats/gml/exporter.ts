@@ -40,6 +40,7 @@ import {
 } from "../../common/export.js";
 import { formatGmlReal, formatInteger } from "../../common/format.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -469,7 +470,7 @@ function jsonNotes(columns: readonly WrittenColumn[], label: string, plan: GmlEx
             notes.push(
                 note(
                     RECORD_NUMBER_TYPE_CODE,
-                    `${where} holds numbers in ${stats.numbers} row(s); GML records cannot keep the int / real distinction`,
+                    `${where} holds numbers in ${stats.numbers} row${plural(stats.numbers)}; GML records cannot keep the int / real distinction`,
                     name,
                     stats.numbers,
                 ),
@@ -479,7 +480,7 @@ function jsonNotes(columns: readonly WrittenColumn[], label: string, plan: GmlEx
             notes.push(
                 note(
                     RECORD_BOOLEAN_CODE,
-                    `${where} holds booleans in ${stats.booleans} row(s); written as 1 / 0`,
+                    `${where} holds booleans in ${stats.booleans} row${plural(stats.booleans)}; written as 1 / 0`,
                     name,
                     stats.booleans,
                 ),
@@ -489,7 +490,7 @@ function jsonNotes(columns: readonly WrittenColumn[], label: string, plan: GmlEx
             notes.push(
                 note(
                     RECORD_NULL_CODE,
-                    `${where} holds nulls in ${stats.nulls} row(s); GML has no null, the key is omitted`,
+                    `${where} holds nulls in ${stats.nulls} row${plural(stats.nulls)}; GML has no null, the key is omitted`,
                     name,
                     stats.nulls,
                 ),
@@ -499,7 +500,7 @@ function jsonNotes(columns: readonly WrittenColumn[], label: string, plan: GmlEx
             notes.push(
                 note(
                     JSON_ARRAY_CODE,
-                    `${where} holds arrays as values in ${stats.arrays} row(s); written as repeated keys, they re-import as a list`,
+                    `${where} holds arrays as values in ${stats.arrays} row${plural(stats.arrays)}; written as repeated keys, they re-import as a list`,
                     name,
                     stats.arrays,
                 ),
@@ -509,7 +510,7 @@ function jsonNotes(columns: readonly WrittenColumn[], label: string, plan: GmlEx
             notes.push(
                 note(
                     NESTED_ARRAY_CODE,
-                    `${where} holds arrays nested in arrays in ${stats.nestedArrays} row(s); GML cannot write them and the save fails`,
+                    `${where} holds arrays nested in arrays in ${stats.nestedArrays} row${plural(stats.nestedArrays)}; GML cannot write them and the save fails`,
                     name,
                     stats.nestedArrays,
                 ),
@@ -520,13 +521,13 @@ function jsonNotes(columns: readonly WrittenColumn[], label: string, plan: GmlEx
                 plan.mangle
                     ? note(
                           KEY_MANGLED_CODE,
-                          `${where}: ${stats.invalidKeys} record key(s) are not GML keys and are rewritten`,
+                          `${where}: ${stats.invalidKeys} record key${plural(stats.invalidKeys)} ${agree(stats.invalidKeys, "is", "are")} not GML keys and are rewritten`,
                           name,
                           stats.invalidKeys,
                       )
                     : note(
                           INVALID_KEY_CODE,
-                          `${where}: ${stats.invalidKeys} record key(s) are not GML keys; the save fails unless sanitizeKeys is "mangle"`,
+                          `${where}: ${stats.invalidKeys} record key${plural(stats.invalidKeys)} ${agree(stats.invalidKeys, "is", "are")} not GML keys; the save fails unless sanitizeKeys is "mangle"`,
                           name,
                           stats.invalidKeys,
                       ),
@@ -648,7 +649,7 @@ function graphicsNotes(snapshot: GraphSnapshot, notes: LossNote[]): void {
         notes.push(
             note(
                 GRAPHICS_OVERRIDDEN_CODE,
-                `${overridden} node graphics record(s) have x / y / z keys the position column replaces`,
+                `${overridden} node graphics record${plural(overridden)} ${agree(overridden, "has", "have")} x / y / z keys the position column replaces`,
                 "graphics",
                 overridden,
             ),
@@ -658,7 +659,7 @@ function graphicsNotes(snapshot: GraphSnapshot, notes: LossNote[]): void {
         notes.push(
             note(
                 GRAPHICS_CONFLICT_CODE,
-                `${conflicts} node graphics value(s) are not records and cannot hold the position; the save fails`,
+                `${conflicts} node graphics value${plural(conflicts)} ${agree(conflicts, "is", "are")} not records and cannot hold the position; the save fails`,
                 "graphics",
                 conflicts,
             ),
@@ -814,7 +815,7 @@ function check(snapshot: GraphSnapshot, options?: GmlExportOptions & CommonExpor
         notes.push(
             note(
                 LOSS.MUTUAL_EXPANDED,
-                `${folding.mutualCount} mutual pair(s) are written as two directed edges; the mutual mark is lost`,
+                `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two directed edges; the mutual mark is lost`,
                 null,
                 folding.mutualCount,
             ),
@@ -1214,7 +1215,7 @@ function contextOf(
     if (mixed > 0 && plan.common.onMixedDirection === "error") {
         throw new GraphFormatError(
             "E_DIRECTED",
-            `${mixed} undirected edge(s) in a directed graph, and GML holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"`,
+            `${mixed} undirected edge${plural(mixed)} in a directed graph, and GML holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"`,
             {
                 reason: "mixed direction",
                 count: mixed,

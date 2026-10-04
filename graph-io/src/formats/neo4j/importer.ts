@@ -75,6 +75,7 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { parseTemporal } from "../../common/temporal.js";
 import { parseWeightText } from "../../common/weights.js";
@@ -105,12 +106,14 @@ export interface Neo4jImportOptions extends CommonImportOptions {
     relationships?: ImportInput | readonly ImportInput[] | undefined;
     /**
      * The field delimiter, one character (neo4j-admin's `--delimiter`). The default is to detect
-     * "," or a tab from the first rows, so a `.tsv` file needs no option.
+     * "," or a tab from the first rows, so a `.tsv` file needs no option. It must differ from
+     * `arrayDelimiter`: with `delimiter: ";"`, also pass `arrayDelimiter: ","` or `"|"`.
      * @defaultValue detected
      */
     delimiter?: string | undefined;
     /**
-     * The delimiter inside list values and `:LABEL` cells (neo4j-admin's `--array-delimiter`).
+     * The delimiter inside list values and `:LABEL` cells (neo4j-admin's `--array-delimiter`). It
+     * must differ from `delimiter`.
      * @defaultValue ";"
      */
     arrayDelimiter?: ";" | "," | "|" | undefined;
@@ -380,7 +383,7 @@ function resolveNeo4jOptions(options: Neo4jImportOptions | undefined): ResolvedN
         candidates: NEO4J_DELIMITER_CANDIDATES.filter((d) => d !== arrayDelimiter),
     });
     if (syntax.delimiter === arrayDelimiter) {
-        throw new GraphFormatError("E_UNSUPPORTED", "options delimiter and arrayDelimiter must differ", {
+        throw new GraphFormatError("E_UNSUPPORTED", `options delimiter and arrayDelimiter must differ: both are ${JSON.stringify(arrayDelimiter)}; pass another arrayDelimiter (";", "," or "|")`, {
             option: "arrayDelimiter",
             found: arrayDelimiter,
         });
@@ -549,6 +552,9 @@ class Neo4jImportSession {
 
     private readonly registry = new NodeRegistry();
 
+    /** The relationship property the weights were read from, when it is not "weight"; the exporter writes it back under that name. */
+    weightProperty: string | null = null;
+
     private labelsHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
     private typeHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
@@ -635,7 +641,7 @@ class Neo4jImportSession {
         if (this.ignoredColumns > 0) {
             this.report.loss(
                 IGNORED_COLUMNS_LOSS,
-                `${this.ignoredColumns} :IGNORE column(s) were skipped as the header instructs`,
+                `${this.ignoredColumns} :IGNORE column${plural(this.ignoredColumns)} ${agree(this.ignoredColumns, "was", "were")} skipped as the header instructs`,
                 null,
                 this.ignoredColumns,
             );
@@ -882,6 +888,9 @@ class Neo4jImportSession {
         let weightCell = -1;
         if (weightFrom !== null) {
             weightCell = fields.findIndex((field) => field.kind === "PROPERTY" && field.name === weightFrom);
+            if (weightCell >= 0 && weightFrom !== "weight") {
+                this.weightProperty = weightFrom;
+            }
         }
         const properties = this.declareProperties("edge", fields, line, weightCell);
         const { space: startSpace } = fields[startCell];
@@ -1062,7 +1071,7 @@ class Neo4jImportSession {
             report.error(
                 "validation-error",
                 COLUMN_COUNT_CODE,
-                `row has ${count} cell(s) but the header has ${section.width}`,
+                `row has ${count} cell${plural(count)} but the header has ${section.width}`,
                 { line },
             );
             report.counts.skippedNodes++;
@@ -1177,7 +1186,7 @@ class Neo4jImportSession {
         this.report.warning(
             "validation-error",
             DANGLING_REFERENCE_CODE,
-            `${dangling.length} relationship endpoint(s) name no node row and became nodes: ${shown}${dangling.length > 5 ? ", ..." : ""} (neo4j-admin refuses such relationships)`,
+            `${dangling.length} relationship endpoint${plural(dangling.length)} ${agree(dangling.length, "names", "name")} no node row and became nodes: ${shown}${dangling.length > 5 ? ", ..." : ""} (neo4j-admin refuses such relationships)`,
             { element: String(dangling[0].id) },
         );
     }
@@ -1201,7 +1210,7 @@ class Neo4jImportSession {
             report.error(
                 "validation-error",
                 COLUMN_COUNT_CODE,
-                `row has ${count} cell(s) but the header has ${section.width}`,
+                `row has ${count} cell${plural(count)} but the header has ${section.width}`,
                 { line },
             );
             report.counts.skippedEdges++;
@@ -1250,7 +1259,7 @@ class Neo4jImportSession {
         let weight: number | undefined;
         if (section.weightCell >= 0) {
             try {
-                weight = parseWeightText(cells[section.weightCell]);
+                weight = parseWeightText(cells[section.weightCell], this.report);
             } catch (err) {
                 report.recordError(err, { line, element });
                 report.counts.skippedEdges++;
@@ -1703,6 +1712,9 @@ export const neo4jImporter: GraphImporter<Neo4jImportOptions> = Object.freeze({
             ...format.nodes.map((file) => ({ input: file, kind: "node" as const })),
             ...format.relationships.map((file) => ({ input: file, kind: "relationship" as const })),
         ]);
+        if (session.weightProperty !== null) {
+            sink.setMeta({ extra: { neo4j: { weightProperty: session.weightProperty } } });
+        }
         throwIfAborted(common.signal);
         return report.finish();
     },

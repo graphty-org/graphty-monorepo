@@ -90,3 +90,21 @@ describe("weight resolution (design 3.7, 8.4)", () => {
         expect(b.nodeCount).toBe(0);
     });
 });
+
+describe("weight precision", () => {
+    it("reports an integer weight beyond 2^53 that a double changes, once, in every text format", async () => {
+        const { importGraph } = await import("../../src/index.js");
+        const inputs = [
+            ["csv", "source,target,weight\na,b,9007199254740993\nb,c,9007199254740995\n"],
+            ["gml", "graph [ node [ id 1 ] node [ id 2 ] edge [ source 1 target 2 value 9007199254740993 ] ]"],
+            ["dot", "digraph { a -> b [weight=9007199254740993] }"],
+        ] as const;
+        for (const [format, text] of inputs) {
+            const { report } = await importGraph(text, { format });
+            expect(report.issues.map((i) => i.code), format).toEqual(["W_PRECISION"]);
+        }
+        // a weight a double holds exactly is not reported
+        const exact = await importGraph("source,target,weight\na,b,9007199254740992\n", { format: "csv" });
+        expect(exact.report.issues).toEqual([]);
+    });
+});

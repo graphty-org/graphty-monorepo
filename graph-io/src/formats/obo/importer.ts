@@ -56,6 +56,7 @@ import {
     resolveImportOptions,
     SINK_OPTION_CODE,
 } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
@@ -1491,7 +1492,7 @@ class OboReader {
             this.report.warning(
                 t.category,
                 t.code,
-                `${t.element}: ${t.what} (${t.count} time(s), first at line ${t.line})`,
+                `${t.element}: ${t.what} (${t.count} time${plural(t.count)}, first at line ${t.line})`,
                 {
                     line: t.line,
                     element: t.element,
@@ -1502,7 +1503,7 @@ class OboReader {
             this.report.warning(
                 rest[0].category,
                 code,
-                `${rest.length} more element(s) with this warning, not listed (first: ${rest[0].element}: ${rest[0].what}, line ${rest[0].line})`,
+                `${rest.length} more element${plural(rest.length)} with this warning, not listed (first: ${rest[0].element}: ${rest[0].what}, line ${rest[0].line})`,
                 { line: rest[0].line },
             );
         }
@@ -1750,7 +1751,7 @@ function planGraph(
         report.warning(
             "merged",
             OBO_ISSUE.OBSOLETE_DROPPED,
-            `${dropped.size} obsolete term(s) and ${droppedEdges} edge(s) to or from them were left out (obsolete: "drop")`,
+            `${dropped.size} obsolete term${plural(dropped.size)} and ${droppedEdges} edge${plural(droppedEdges)} to or from them were left out (obsolete: "drop")`,
             { element: [...dropped][0] },
         );
     }
@@ -1798,11 +1799,11 @@ function reportDangling(
     const more = dangling.length > 5 ? `, ... (${dangling.length - 5} more)` : "";
     const action = addMissingNodes
         ? "each became a placeholder node (graphty.placeholder)"
-        : `${droppedEdges} edge(s) to them were dropped (addMissingNodes false)`;
+        : `${droppedEdges} edge${plural(droppedEdges)} to them ${agree(droppedEdges, "was", "were")} dropped (addMissingNodes false)`;
     report.warning(
         "validation-error",
         OBO_ISSUE.DANGLING_REFERENCE,
-        `${dangling.length} target(s) no frame declares: ${shown.join(", ")}${more}; ${action}`,
+        `${dangling.length} target${plural(dangling.length)} no frame declares: ${shown.join(", ")}${more}; ${action}`,
         { element: dangling[0] },
     );
 }

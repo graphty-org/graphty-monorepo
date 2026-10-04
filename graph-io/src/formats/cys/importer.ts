@@ -30,6 +30,7 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { agree, elementCount, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { startsLikeZip } from "../../common/zip.js";
 import {
@@ -75,6 +76,7 @@ import {
 } from "./constants.js";
 import {
     elementsNamed,
+    entryLabel,
     listed,
     type NetworkEntry,
     openSession,
@@ -288,7 +290,7 @@ async function parseOptionalEntry(
         }
         const fatal = issues.at(-1);
         relay(issues.slice(0, -1), report, entry.name);
-        const message = `${entry.name}: ${fatal?.message ?? err.message}`;
+        const message = `${entryLabel(entry.name)}: ${fatal?.message ?? err.message}`;
         const where = { line: fatal?.line ?? null };
         if (fatal?.code === CYS_ISSUE.TOO_LARGE) {
             // the byte budget is a limit of the whole import, not damage to one entry
@@ -324,9 +326,9 @@ function relay(issues: ImportReport["issues"], report: ImportReportBuilder, entr
     for (const issue of issues) {
         const where = { line: issue.line, element: issue.element };
         if (issue.severity === "error") {
-            report.error(issue.category, issue.code, `${entry}: ${issue.message}`, where);
+            report.error(issue.category, issue.code, `${entryLabel(entry)}: ${issue.message}`, where);
         } else {
-            report.warning(issue.category, issue.code, `${entry}: ${issue.message}`, where);
+            report.warning(issue.category, issue.code, `${entryLabel(entry)}: ${issue.message}`, where);
         }
     }
 }
@@ -393,7 +395,7 @@ async function networks3(
         report.warning(
             "validation-error",
             CYS_ISSUE.DANGLING_REFERENCE,
-            `${strayViews.length + strayTables.length} view(s) or table(s) belong to a network the session does not hold and were not read: ${listed([...strayViews, ...strayTables.map((t) => t.name)])}`,
+            `${strayViews.length + strayTables.length} view${plural(strayViews.length + strayTables.length)} or table${plural(strayViews.length + strayTables.length)} ${agree(strayViews.length + strayTables.length, "belongs", "belong")} to a network the session does not hold and were not read: ${listed([...strayViews, ...strayTables.map((t) => t.name)])}`,
         );
     }
     if (layout.networkList === null) {
@@ -617,7 +619,7 @@ async function fill3(
         report.warning(
             "parse-error",
             CYS_ISSUE.TABLE_ROW,
-            `${unmatched} table row(s) of network ${choice.graphId} name no node, edge or network of it (stale rows); they are not read`,
+            `${unmatched} table row${plural(unmatched)} of network ${choice.graphId} ${agree(unmatched, "names", "name")} no node, edge or network in it (left over from deleted elements) and ${agree(unmatched, "is", "are")} not read`,
         );
     }
     const restoredIds = inner.restoreMangledIds ? restoreIds(members.nodes) : new Map<string, string>();
@@ -658,7 +660,7 @@ async function fill3(
         report.warning(
             "unsupported",
             CYS_ISSUE.COLLAPSED_GROUP,
-            `${groups.length} collapsed group(s) hold ${groups.reduce((n, g) => n + g.members.length, 0)} member(s) that are not in the network; they are listed in meta.extra.cytoscape.groups`,
+            `${groups.length} collapsed group${plural(groups.length)} ${agree(groups.length, "holds", "hold")} ${groups.reduce((n, g) => n + g.members.length, 0)} member${plural(groups.reduce((n, g) => n + g.members.length, 0))} that are not in the network; they are listed in meta.extra.cytoscape.groups`,
         );
     }
     reportRootOnly(parsed, report, choice.network.name);
@@ -727,7 +729,7 @@ async function readVirtuals(
     const tree = await parseXmlTree(await session.read(entry, report), entry.name, report, inner);
     if (typeof tree === "string") {
         // only the shared columns are lost: every table's own columns are still read
-        report.error("parse-error", CYS_ISSUE.TABLE, `${entry.name}: ${tree}; its virtual columns are not read`);
+        report.error("parse-error", CYS_ISSUE.TABLE, `${entryLabel(entry.name)}: ${tree}; its virtual columns are not read`);
         return [];
     }
     const out: VirtualColumn[] = [];
@@ -737,7 +739,7 @@ async function readVirtuals(
             report.error(
                 "parse-error",
                 CYS_ISSUE.TABLE,
-                `${entry.name}: a virtual column${node.attrs.has("name") ? ` "${node.attrs.get("name") ?? ""}"` : ""} has no ${missing.join(", ")}; the column is not read`,
+                `${entryLabel(entry.name)}: a virtual column${node.attrs.has("name") ? ` "${node.attrs.get("name") ?? ""}"` : ""} has no ${missing.join(", ")}; the column is not read`,
             );
             continue;
         }
@@ -821,7 +823,7 @@ function applyView(
         report.warning(
             "validation-error",
             CYS_ISSUE.DANGLING_REFERENCE,
-            `${entry}: ${dangling} view element(s) name no node or edge of the network; they are not read`,
+            `${entryLabel(entry)}: ${dangling} view element${plural(dangling)} ${agree(dangling, "names", "name")} no node or edge of the network; they are not read`,
         );
     }
 }
@@ -839,7 +841,7 @@ function duplicateViewNode(seen: Set<string>, node: NodeRec, report: ImportRepor
         report.warning(
             "validation-error",
             XGMML_ISSUE.DUPLICATE_NODE,
-            `${entry}: the view gives node "${id}" twice; the later element is used`,
+            `${entryLabel(entry)}: the view gives node "${id}" twice; the later element is used`,
             { line: node.line, element: id },
         );
     }
@@ -877,7 +879,7 @@ function viewPositions(
             report.error(
                 "validation-error",
                 XGMML_ISSUE.BAD_VALUE,
-                `${entry}: graphics coordinate "${text}" is not a number`,
+                `${entryLabel(entry)}: graphics coordinate "${text}" is not a number`,
                 {
                     line: node.line,
                     element: node.viewId,
@@ -905,7 +907,7 @@ function viewPositions(
         report.warning(
             "validation-error",
             CYS_ISSUE.DANGLING_REFERENCE,
-            `${entry}: ${dangling} view element(s) name no node of the network; they are not read`,
+            `${entryLabel(entry)}: ${dangling} view element${plural(dangling)} ${agree(dangling, "names", "name")} no node of the network; they are not read`,
         );
     }
     return out;
@@ -1064,7 +1066,7 @@ function reportRootOnly(parsed: Parsed, report: ImportReportBuilder, entry: stri
         report.warning(
             "unsupported",
             XGMML_ISSUE.ROOT_ONLY_ELEMENTS,
-            `${entry}: ${nodes} node(s) and ${edges} edge(s) belong to no registered network (group meta-edges, collapsed group members) and were not read`,
+            `${entryLabel(entry)}: ${elementCount(nodes, edges)} ${agree(nodes + edges, "belongs", "belong")} to none of the session's networks (group meta-edges or collapsed group members) and ${agree(nodes + edges, "was", "were")} not read`,
         );
     }
 }
@@ -1161,7 +1163,7 @@ async function networks2(
         report.warning(
             "validation-error",
             CYS_ISSUE.DANGLING_REFERENCE,
-            `cysession.xml names ${missing.length} network file(s) the session does not hold: ${listed(missing)}`,
+            `cysession.xml names ${missing.length} network file${plural(missing.length)} the session does not hold: ${listed(missing)}`,
         );
     }
     const unnamed = order.filter((e) => !named.has(e)).map((e) => e.name);
@@ -1169,7 +1171,7 @@ async function networks2(
         report.warning(
             "unsupported",
             CYS_ISSUE.ENTRY_SKIPPED,
-            `${unnamed.length} network file(s) are not in cysession.xml's network tree and were not read: ${listed(unnamed)}`,
+            `${unnamed.length} network file${plural(unnamed.length)} ${agree(unnamed.length, "is", "are")} not in cysession.xml's network tree and were not read: ${listed(unnamed)}`,
         );
     }
     return choices.sort((a, b) => order.indexOf(a.file) - order.indexOf(b.file));
@@ -1183,7 +1185,7 @@ async function networks2(
  * @param message - what is wrong and what is done
  */
 function sessionRecord(report: ImportReportBuilder, entry: string, message: string): void {
-    report.warning("validation-error", CYS_ISSUE.SESSION_RECORD, `${entry}: ${message}`);
+    report.warning("validation-error", CYS_ISSUE.SESSION_RECORD, `${entryLabel(entry)}: ${message}`);
 }
 
 /**
@@ -1212,7 +1214,7 @@ async function import2(prepared: Prepared, choice: Choice2, sink: GraphSink): Pr
         report.warning(
             "validation-error",
             CYS_ISSUE.DANGLING_REFERENCE,
-            `cysession.xml lists ${unmatched} selected or hidden name(s) that ${choice.file.name} does not hold; they are not read`,
+            `cysession.xml lists ${unmatched} selected or hidden name${plural(unmatched)} that ${choice.file.name} does not hold; they are not read`,
         );
     }
     const cyMeta = sessionMeta(prepared, {
@@ -1333,7 +1335,7 @@ function sessionMeta(
         report.warning(
             "unsupported",
             CYS_ISSUE.ENTRY_SKIPPED,
-            `${layout.skipped.length} entries hold no graph data and were not read (apps, global tables, properties, images): ${listed(layout.skipped)}`,
+            `${layout.skipped.length} ${layout.skipped.length === 1 ? "entry holds" : "entries hold"} no graph data and ${agree(layout.skipped.length, "was", "were")} not read (apps, global tables, properties, images): ${listed(layout.skipped)}`,
         );
     }
     return {
@@ -1384,7 +1386,7 @@ async function importCys(
         prepared.report.warning(
             "unsupported",
             CYS_ISSUE.MULTIPLE_GRAPHS,
-            `the session holds ${prepared.choices.length} networks; ${prepared.choices.length - 1} were not read (importAllGraphs() reads every one; graphIndex or graphName chooses one)`,
+            `the session holds ${prepared.choices.length} networks; only the first is read (importAllGraphs() reads every one; graphIndex or graphName chooses one)`,
         );
     }
     const report = await importChoice(prepared, index, sink);

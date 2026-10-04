@@ -6,6 +6,8 @@
  * `ReadableStream<Uint8Array>` for a caller that wants a stream.
  */
 
+import { GraphFormatError } from "@graphty/graph-format";
+
 /**
  * Text parts an exporter produces.
  * @public
@@ -128,4 +130,28 @@ export function toReadableStream(chunks: AsyncIterable<Uint8Array>): ReadableStr
             await iterator.return?.(undefined);
         },
     });
+}
+
+/**
+ * The indentation of one nesting level from an `indent` option: a number of spaces (0 to 16), or
+ * the text itself (spaces or tabs). The JSON and DOT exporters take the same option this way.
+ * @param value - the option value
+ * @param fallback - the indentation when the option is not given
+ * @returns the text of one level; "" for none
+ */
+export function indentUnit(value: unknown, fallback: string): string {
+    if (value === undefined) {
+        return fallback;
+    }
+    if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 16) {
+        return " ".repeat(value);
+    }
+    if (typeof value === "string" && /^[ \t]{0,16}$/.test(value)) {
+        return value;
+    }
+    throw new GraphFormatError(
+        "E_UNSUPPORTED",
+        `option indent: ${typeof value === "string" || typeof value === "number" ? JSON.stringify(value) : typeof value} is not a number of spaces (0 to 16) or a string of spaces or tabs`,
+        { option: "indent", found: typeof value === "string" || typeof value === "number" ? value : typeof value },
+    );
 }

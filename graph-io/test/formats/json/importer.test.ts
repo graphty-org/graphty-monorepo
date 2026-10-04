@@ -854,7 +854,7 @@ describe("jgf", () => {
             expect(report.lossy).toEqual([
                 {
                     code: JSON_ISSUE.HYPEREDGES_SKIPPED,
-                    message: "2 hyperedge(s) were not imported",
+                    message: "2 hyperedges were not imported",
                     column: null,
                     count: 2,
                 },
@@ -1385,5 +1385,23 @@ describe("nodesPath and edgesPath", () => {
         await expect(load(doc, { nodesPath: "nodes", dialect: "jgf" })).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
         });
+    });
+});
+
+describe("nodeIdFrom label without labels", () => {
+    it("says where the ids came from instead", async () => {
+        const { importGraph } = await import("../../../src/index.js");
+        const named = await importGraph('{"nodes":[{"name":"a"},{"name":"b"}],"links":[{"source":"a","target":"b"}]}', {
+            format: "json",
+            nodeIdFrom: "label",
+        });
+        expect(named.report.issues.map((i) => i.message)).toContain(
+            'nodeIdFrom "label": no node has a "label" key; ids are read from "name"',
+        );
+        const labelled = await importGraph('{"nodes":[{"id":1,"label":"a"}],"links":[]}', {
+            format: "json",
+            nodeIdFrom: "label",
+        });
+        expect(labelled.report.issues).toEqual([]);
     });
 });

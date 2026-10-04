@@ -80,6 +80,7 @@ const VALUE_EXPORTS = [
     "jsonExporter",
     "jsonImporter",
     "jsonShapeOf",
+    "exportNeo4jFiles",
     "ID_SPACE_COLUMN",
     "LABELS_COLUMN",
     "NEO4J_CAPABILITIES",

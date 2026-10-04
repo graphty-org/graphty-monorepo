@@ -74,6 +74,7 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { inferTextDtype, parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { parseWeightText } from "../../common/weights.js";
@@ -185,8 +186,8 @@ export const DOT_ISSUE = Object.freeze({
      */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
     /**
-     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
-     * repeated column header.
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example
+     * two attributes declared with the same name.
      */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /** You set an option this format does not use; it had no effect. The message names the option. */
@@ -358,7 +359,7 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
             report.warning(
                 "unsupported",
                 MULTIPLE_GRAPHS_CODE,
-                `the input holds ${skipped} more graph(s) after the first; the first is read (graphIndex or graphName chooses another; importAllGraphs() reads every one)`,
+                `the input holds ${skipped} more graph${plural(skipped)} after the first; the first is read (graphIndex or graphName chooses another; importAllGraphs() reads every one)`,
                 { line: trailing.line },
             );
         }
@@ -1431,7 +1432,7 @@ class DotParser {
         const weightText = weightFrom === null ? undefined : effective.get(weightFrom);
         if (weightText !== undefined) {
             try {
-                weight = parseWeightText(weightText);
+                weight = parseWeightText(weightText, this.report);
             } catch (err) {
                 this.report.recordError(err, where);
                 this.report.counts.skippedEdges++;

@@ -243,7 +243,7 @@ describe("csvExporter: check() loss notes", () => {
             [CSV_LOSS.ID_TEXT_TYPE, 1],
         ]);
         expect(() => csvExporter.export(s)).toThrow(/E_INVALID_ID|share their text/);
-        expect(() => csvExporter.exportToString(s)).toThrow(/share their text/);
+        expect(() => csvExporter.exportToString(s)).toThrow(/shares? their text/);
     });
 
     it("reports ids whose type changes under the canonical re-read", () => {

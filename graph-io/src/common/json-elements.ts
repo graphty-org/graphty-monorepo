@@ -34,6 +34,7 @@ import {
     STATUS_FAILED_CODE,
     STATUS_WARNING_CODE,
 } from "./codes.js";
+import { agree, plural } from "./plural.js";
 import { type ImportReportBuilder } from "./report.js";
 
 // ============================================================ exact integers
@@ -669,7 +670,7 @@ function checkParsed(text: string, parsed: unknown, line: number, report: Import
             report.error(
                 "validation-error",
                 BAD_VALUE_CODE,
-                `${fixed.count} string(s) hold a lone surrogate (an unpaired \\uD800-\\uDFFF escape); each is read with U+FFFD in its place`,
+                `${fixed.count} string${plural(fixed.count)} ${agree(fixed.count, "holds", "hold")} a lone surrogate (an unpaired \\uD800-\\uDFFF escape); each is read with U+FFFD in its place`,
                 { line },
             );
         }
@@ -1075,7 +1076,7 @@ function parseAt(
         report?.warnOnce(
             "coercion",
             JSON_NONSTANDARD_NUMBER_CODE,
-            `the document uses the non-standard token(s) ${[...recovered.tokens].join(", ")}, which strict JSON does not allow; read as numbers`,
+            `the document uses the non-standard token${plural(recovered.tokens.size)} ${[...recovered.tokens].join(", ")}, which strict JSON does not allow; read as numbers`,
             { line },
         );
         parsed = recovered;
@@ -1801,7 +1802,7 @@ export class CxStructure {
                 this.report.warning(
                     "validation-error",
                     COUNT_MISMATCH_CODE,
-                    `metaData declares ${declared} "${name}" element(s); ${read} were read`,
+                    `metaData declares ${declared} "${name}" element${plural(declared)}; ${read} ${agree(read, "was", "were")} read`,
                     { element: name },
                 );
             }

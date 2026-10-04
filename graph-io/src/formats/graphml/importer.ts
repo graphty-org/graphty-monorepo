@@ -50,6 +50,7 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
 import {
@@ -1017,7 +1018,7 @@ class GraphmlReader implements XmlHandler {
             this.report.warning(
                 "missing-value",
                 GRAPHML_ISSUE.DANGLING_REFERENCE,
-                `${dangling} edge port reference(s) name a port their node does not declare (first: ${first ?? ""}); the values are kept`,
+                `${dangling} edge port reference${plural(dangling)} ${agree(dangling, "names", "name")} a port their node does not declare (first: ${first ?? ""}); the values are kept`,
                 { element: first },
             );
         }
@@ -1767,7 +1768,7 @@ class GraphmlReader implements XmlHandler {
                     }
                     edge.weightKey = key.id;
                     try {
-                        edge.weight = parseWeightText(value);
+                        edge.weight = parseWeightText(value, this.report);
                         this.checkOverflow(value, edge.weight, key.name, where);
                     } catch (err) {
                         this.skipEdge(edge);

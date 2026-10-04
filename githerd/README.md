@@ -124,6 +124,11 @@ start) creates, so a branch's own edits never change its hooks or its MCP server
   is no answer; it always exits 0, so a broken githerd never blocks a session. Before githerd is
   installed, the command finds no file and prints nothing. Workers get every hook of design
   section 4.10 (the Stop gate, steering, API failures, the guard) from their generated settings.
+  It also registers a `PreToolUse` hook on Bash: a shell check skips every command without
+  `gh `, and for the rest `bin/githerd-hook.mjs PreToolUse` logs each `gh` write to an issue or a
+  pull request in `session-writes.jsonl` in the state directory, so the daemon never reads a
+  comment, reopen or label removal a Claude session made with the owner's account as his own
+  input. It prints nothing and always exits 0.
 
 On a branch that is not merged, both files act only in sessions started in that branch's own
 worktree.

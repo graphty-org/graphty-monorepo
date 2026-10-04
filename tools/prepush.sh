@@ -227,6 +227,10 @@ run_step "Migration count script" "pnpm run check:migration-counts"
 # Needs no server. A few seconds.
 run_step "SonarQube gate script tests" "pnpm run test:sonar-gate"
 
+# The CI shape: the test matrix's shard groups, and what ci.yml and pr-title.yml run on a draft,
+# a pull request and a merge-queue branch. Reads files only, under a second.
+run_step "CI workflow tests" "pnpm run test:ci-workflows"
+
 # No use of the legacy graph API that the graph-format migration replaced (a legacy algorithms or
 # layout name, the legacy Graph, a positional layout call, an element parser not on graph-io). Reads
 # source only, every push.

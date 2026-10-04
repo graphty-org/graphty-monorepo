@@ -22,6 +22,7 @@
         "check:migration-counts": "node tools/count-migration-state.mjs --self-test",
         "check:release-hold": "node tools/release-hold.test.mjs && node tools/release-hold.mjs check",
         "test:sonar-gate": "node tools/sonar/sonar-gate.test.mjs",
+        "test:ci-workflows": "node --test tools/ci-workflows.test.mjs",
         "typecheck": "pnpm exec nx run-many --target=typecheck",
         "format": "prettier --write .",
         "format:check": "prettier --check .",

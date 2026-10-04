@@ -87,6 +87,31 @@ export interface LegendSwatch {
 }
 
 /**
+ * What a higher value means on the drawing, as a fact for a legend to put in its own words.
+ *
+ * `code` names the fact and `params` carries its parts, so an application writes the sentence
+ * ("Darker means more Influence", with the field's words from {@link LegendBlock.field}) in its
+ * own language and voice.
+ */
+export interface LegendReading {
+    /** A higher value of `field` is drawn further in `direction` on `channel`. */
+    readonly code: "legend.higher";
+    /** The parts of the fact. */
+    readonly params: {
+        /** The channel the block describes. */
+        readonly channel: Channel;
+        /**
+         * Which way a higher value moves the paint: `"darker"` or `"lighter"` for a colour (by
+         * the luminance of the colours painted at the two ends of the domain), `"larger"` or
+         * `"smaller"` for a number such as a size, a width or an opacity.
+         */
+        readonly direction: "darker" | "lighter" | "larger" | "smaller";
+        /** The column path the encoding reads. */
+        readonly field: Path;
+    };
+}
+
+/**
  * Everything a reader is told about one channel of one layer.
  *
  * `field`, `scale`, `domain` and `palette` are each absent when there is nothing true to put in
@@ -134,6 +159,28 @@ export interface LegendBlock {
             /** The high percentile, such as "p98". */
             readonly to: string;
         };
+    };
+    /**
+     * What a higher value means on the drawing. Present only for an encoding that reads a numeric
+     * domain and paints its two ends differently in one direction: absent for categories, for a
+     * diverging palette (both ends are strong), for a fixed value and for a domain of one value.
+     * @since 3.10.0
+     */
+    readonly reading?: LegendReading;
+    /**
+     * The range the binding maps values onto, in the channel's own units ("1 to 3" for a node
+     * size; node size is unitless, never pixels). Present only for a channel that carries a
+     * number, such as `node.size` or `edge.width`, and absent when the binding's `map` or `other` paints values
+     * of its own, which the range does not bound. It is the binding's range, not the smallest and
+     * largest swatch: a reversed binding still reads low to high here, and the swatches are only
+     * samples of it.
+     * @since 3.10.0
+     */
+    readonly range?: {
+        /** The low end. */
+        readonly min: number;
+        /** The high end. */
+        readonly max: number;
     };
     /** The palette, when the channel carries a colour. */
     readonly palette?: {
@@ -663,6 +710,92 @@ function departuresOf(
 }
 
 /**
+ * Whether a painted value carries the numbers of a colour.
+ * @param value - What the encoding painted.
+ * @returns True for a colour with its red, green and blue bytes.
+ */
+function isRgb(value: unknown): value is { r: number; g: number; b: number } {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "r" in value &&
+        "g" in value &&
+        "b" in value &&
+        typeof value.r === "number" &&
+        typeof value.g === "number" &&
+        typeof value.b === "number"
+    );
+}
+
+/**
+ * The relative luminance of a colour (WCAG), which orders colours from dark to light.
+ * @param color - The colour, each channel 0 to 255.
+ * @param color.r - Red.
+ * @param color.g - Green.
+ * @param color.b - Blue.
+ * @returns The luminance, 0 (black) to 1 (white).
+ */
+function luminance({ r, g, b }: { r: number; g: number; b: number }): number {
+    const linear = (byte: number): number => {
+        const c = byte / 255;
+        return c <= 0.040_45 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    };
+
+    return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+}
+
+/**
+ * Which way the paint moves from one value to another.
+ * @param low - What the low end of the domain is painted.
+ * @param high - What the high end is painted.
+ * @returns The direction, or undefined when the two are not comparable or are the same.
+ */
+function directionOf(
+    low: EncodedValue | undefined,
+    high: EncodedValue | undefined,
+): LegendReading["params"]["direction"] | undefined {
+    if (typeof low === "number" && typeof high === "number") {
+        if (high === low) {
+            return undefined;
+        }
+
+        return high > low ? "larger" : "smaller";
+    }
+
+    if (isRgb(low) && isRgb(high)) {
+        const from = luminance(low);
+        const to = luminance(high);
+        if (from === to) {
+            return undefined;
+        }
+
+        return to < from ? "darker" : "lighter";
+    }
+
+    return undefined;
+}
+
+/**
+ * What a higher value means on the drawing.
+ * @param prepared - The prepared binding.
+ * @param kind - The block's kind. Only a sequential block has one direction: a diverging palette
+ *   is strong at both ends, and a categorical one's colors are unrelated, so neither states one.
+ * @returns The reading, or undefined when the encoding has no one direction to state.
+ */
+function readingOf(prepared: PreparedBinding, kind: LegendBlock["kind"]): LegendReading | undefined {
+    const { domain, path } = prepared;
+    if (path === null || domain === null || kind !== "sequential" || !(domain[1] > domain[0])) {
+        return undefined;
+    }
+
+    const direction = directionOf(prepared.paint(domain[0]), prepared.paint(domain[1]));
+
+    return direction === undefined
+        ? undefined
+        : { code: "legend.higher", params: { channel: prepared.channel, direction, field: path } };
+}
+
+/**
  * Build one block.
  * @param layer - The layer it describes.
  * @param prepared - One encoding the layer prepared, which names the channel it paints.
@@ -688,17 +821,22 @@ function buildBlock(
     const swatches = other === undefined ? rows.slice(0, SWATCH_CAP) : [...rows.slice(0, SWATCH_CAP), other];
     const { path, scale } = prepared;
     const domain = domainOf(prepared, rule);
+    const kind = kindOf(prepared, layer);
+    const reading = readingOf(prepared, kind);
+    const { range } = prepared;
 
     return {
         channel,
         layerId: layer.id,
         ...(layer.source.by === "run" ? { runId: layer.source.runId } : {}),
-        kind: kindOf(prepared, layer),
+        kind,
         ...(path === null ? {} : { field: { ...fieldWords(path, layer.target, sources), path } }),
         ...(scale === null
             ? {}
             : { scale: { kind: scale, label: sources.scales.describe(scale)?.plainName ?? scale } }),
         ...(domain === undefined ? {} : { domain }),
+        ...(reading === undefined ? {} : { reading }),
+        ...(range === undefined ? {} : { range: { min: Math.min(...range), max: Math.max(...range) } }),
         ...(prepared.palette === null
             ? {}
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),

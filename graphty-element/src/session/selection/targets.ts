@@ -32,6 +32,7 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, Scope, ScopeInput, SelectionDirection } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { eachAdjacentArc } from "../adjacency";
 import type { NoteMembers } from "../notes/select";
 import type { NoteId } from "../notes/types";
 import { fieldOfResult } from "../results/ResultsApi";
@@ -365,7 +366,7 @@ function admitted(resolver: ScopeResolver, scope: ScopeInput): Scope {
  * @param text - What was typed.
  * @returns The text to search for and how.
  */
-function searchOf(text: string): { text: string; mode: SelectionTextMode } {
+export function searchOf(text: string): { text: string; mode: SelectionTextMode } {
     const prefix = /^([A-Za-z_][\w.]*):/.exec(text);
 
     if (prefix === null) {
@@ -500,9 +501,7 @@ function neighborDepth(depth: number | undefined): number {
  * Walk out from the seeds, adding everything reached within the depth.
  *
  * The mask is the visited set as well as the answer, so a node is expanded once however many
- * paths reach it. An undirected snapshot holds both orientations of every edge in its forward
- * adjacency, so it is walked forwards whichever direction was asked for -- walking its reverse
- * as well would visit every arc twice for the same answer.
+ * paths reach it. Each step is the same adjacency walk `session.data.neighbors` reads.
  * @param nodes - The mask to fill, which already holds the seeds.
  * @param graph - The snapshot to walk.
  * @param seeds - The seed indices, already in the mask.
@@ -516,30 +515,17 @@ function walkNeighborhood(
     depth: number,
     direction: SelectionDirection,
 ): void {
-    const forward = direction !== "in" || !graph.directed;
-    const backward = graph.directed && direction !== "out";
-    const reverse = backward ? graph.reverse() : null;
     let frontier = seeds;
 
     for (let step = 0; step < depth && frontier.length > 0; step++) {
         const next: number[] = [];
 
         for (const node of frontier) {
-            if (forward) {
-                for (let arc = graph.rowPtr[node]; arc < graph.rowPtr[node + 1]; arc++) {
-                    if (nodes.add(graph.colIdx[arc])) {
-                        next.push(graph.colIdx[arc]);
-                    }
+            eachAdjacentArc(graph, node, direction, (other) => {
+                if (nodes.add(other)) {
+                    next.push(other);
                 }
-            }
-
-            if (reverse !== null) {
-                for (let arc = reverse.rowPtr[node]; arc < reverse.rowPtr[node + 1]; arc++) {
-                    if (nodes.add(reverse.colIdx[arc])) {
-                        next.push(reverse.colIdx[arc]);
-                    }
-                }
-            }
+            });
         }
 
         frontier = next;

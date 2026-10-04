@@ -1,3 +1,111 @@
+## 3.11.1 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty-element:** price louvain by the graph's transitivity, not one flat rate ([72ec48a6a](https://github.com/graphty-org/graphty-monorepo/commit/72ec48a6a))
+- **graphty-element:** pre-bundle the per-function lodash imports in the browser tests ([d11555da9](https://github.com/graphty-org/graphty-monorepo/commit/d11555da9))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.11.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** report node label counts on the element, not the session ([76778d4f3](https://github.com/graphty-org/graphty-monorepo/commit/76778d4f3))
+- **graphty-element:** count the labels the overlap rule hid, and which ([#787](https://github.com/graphty-org/graphty-monorepo/issues/787))
+- **graphty-element:** read XGMML, CX, CX2, Cytoscape sessions and OBO with no wiring ([6ec8b8aa4](https://github.com/graphty-org/graphty-monorepo/commit/6ec8b8aa4))
+
+### 🩹 Fixes
+
+- **graphty-element:** type graphty-label-change's detail and complete the labels guide ([521736a5e](https://github.com/graphty-org/graphty-monorepo/commit/521736a5e))
+- **graphty-element:** export the label count types from the session entry ([8b5886343](https://github.com/graphty-org/graphty-monorepo/commit/8b5886343))
+- **graphty-element:** tx.labels.setDeclutter joins the transaction ([cce1b13c6](https://github.com/graphty-org/graphty-monorepo/commit/cce1b13c6))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.30
+- Updated @graphty/remote-logger to 2.0.2
+- Updated graph-samples to 0.1.16
+- Updated graph-format to 1.3.1
+- Updated algorithms to 3.3.1
+- Updated graph-io to 0.3.21
+- Updated layout to 2.2.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.10.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** export NodeId from the root; neighbors guide states types and limits ([35904f75](https://github.com/graphty-org/graphty-monorepo/commit/35904f75))
+- **graphty-element:** export WeightMeaning from the root; document neighbor counts ([4442c4af](https://github.com/graphty-org/graphty-monorepo/commit/4442c4af))
+- **graphty-element:** neighbors takes the run's weight, direction, scope and sort ([8954ca7d](https://github.com/graphty-org/graphty-monorepo/commit/8954ca7d))
+- **graphty-element:** list a node's neighbors with tie strength ([#784](https://github.com/graphty-org/graphty-monorepo/issues/784))
+
+### 🩹 Fixes
+
+- **graphty-element:** re-pin the louvain cost model over its slowest random graphs ([8057ee9c](https://github.com/graphty-org/graphty-monorepo/commit/8057ee9c))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.9.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** session.find lists hits and values without selecting ([953fac48](https://github.com/graphty-org/graphty-monorepo/commit/953fac48))
+- **graphty-element:** find nodes, edges and values without selecting them ([#783](https://github.com/graphty-org/graphty-monorepo/issues/783))
+
+### 🩹 Fixes
+
+- **graphty-element:** zoomToSelection frames selected edges by their ends ([c581691b](https://github.com/graphty-org/graphty-monorepo/commit/c581691b))
+- **graphty-element:** find never matches an edge by its assigned id ([ff2dfde9](https://github.com/graphty-org/graphty-monorepo/commit/ff2dfde9))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.29
+- Updated layout to 2.2.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.8.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** the project file is a graphty document ([d64088e2](https://github.com/graphty-org/graphty-monorepo/commit/d64088e2))
+- **graphty-element:** encode by a data column from what it measures ([6cf1ec4e](https://github.com/graphty-org/graphty-monorepo/commit/6cf1ec4e))
+- **graphty-element:** address result columns and result sorts by run ([9758284d](https://github.com/graphty-org/graphty-monorepo/commit/9758284d))
+- **graphty-element:** report what a run's suggested style did as data with runs.painting ([88921f21](https://github.com/graphty-org/graphty-monorepo/commit/88921f21))
+- **graphty-element:** column levels, default bindings and a capped legend ([#782](https://github.com/graphty-org/graphty-monorepo/issues/782))
+- **graphty-element:** save and reopen a whole session as one project file ([#301](https://github.com/graphty-org/graphty-monorepo/issues/301))
+- **graphty-element:** report what a run's suggested style applied, withheld or took over ([#788](https://github.com/graphty-org/graphty-monorepo/issues/788))
+- **graphty-element:** page and sort records by run result columns ([#785](https://github.com/graphty-org/graphty-monorepo/issues/785))
+
+### 🩹 Fixes
+
+- **graphty-element:** raise the session entry's size budget for the tier 1 APIs ([#842](https://github.com/graphty-org/graphty-monorepo/issues/842), [#844](https://github.com/graphty-org/graphty-monorepo/issues/844), [#849](https://github.com/graphty-org/graphty-monorepo/issues/849))
+- **graphty-element:** type result columns as present and name what a reader had to guess ([573499f8](https://github.com/graphty-org/graphty-monorepo/commit/573499f8))
+- **graphty-element:** refuse an undrawable column with E_UNSUPPORTED ([3b7904c1](https://github.com/graphty-org/graphty-monorepo/commit/3b7904c1))
+- **graphty-element:** a batch member's dropped suggestion reads superseded, not merged ([7e5b9472](https://github.com/graphty-org/graphty-monorepo/commit/7e5b9472))
+- **graphty-element:** run no derivation pass after a session is disposed ([8aa601a8](https://github.com/graphty-org/graphty-monorepo/commit/8aa601a8))
+- **graphty-element:** type the graphty-* DOM events and name the project status event as approved ([cadd2c55](https://github.com/graphty-org/graphty-monorepo/commit/cadd2c55))
+- **graphty-element:** clearer column encoding names and docs ([c1c6f6e8](https://github.com/graphty-org/graphty-monorepo/commit/c1c6f6e8))
+- **graphty-element:** clearer runs.painting names and guide fixes from a blind-author review ([b92dcd4a](https://github.com/graphty-org/graphty-monorepo/commit/b92dcd4a))
+- **graphty-element:** a reopened project keeps runs, filters and layers that name a set ([#301](https://github.com/graphty-org/graphty-monorepo/issues/301))
+- **graphty-element:** defaultBinding reads the attribute of the channel's kind ([d23a8182](https://github.com/graphty-org/graphty-monorepo/commit/d23a8182))
+- **graphty-element:** a layer reading a run's result counts as bound ([2e5fd441](https://github.com/graphty-org/graphty-monorepo/commit/2e5fd441))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.7.0 (2026-10-03)
 
 ### 🚀 Features

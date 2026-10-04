@@ -102,6 +102,7 @@ export class DerivationLane {
     private next: Pass | null = null;
     private current: Pass | null = null;
     private restoringFlag = false;
+    private closed = false;
     private restoreCause: "undo" | "redo" | "restore" | "rollback" = "restore";
     /** Moves on every restore, so a pass clears the flag only for restores made before it began. */
     private restores = 0;
@@ -236,9 +237,22 @@ export class DerivationLane {
         return (this.next ?? this.current)?.promise ?? Promise.resolve();
     }
 
+    /**
+     * Stop deriving, for a session's `dispose()`: no pass starts after this, the pass running
+     * calls no further hook, and whatever awaits a pass is released. A hook run after its
+     * session was disposed would read a store that is already gone.
+     */
+    close(): void {
+        this.closed = true;
+        this.dirty.clear();
+        const pending = this.next;
+        this.next = null;
+        pending?.resolve();
+    }
+
     /** Make sure a pass will take the changes made so far. */
     private schedule(): void {
-        if (this.next !== null) {
+        if (this.closed || this.next !== null) {
             return;
         }
 
@@ -269,6 +283,9 @@ export class DerivationLane {
             for (const slice of HOOK_ORDER) {
                 const keys = dirty.get(slice);
                 for (const hook of keys === undefined ? [] : [...(this.hooks.get(slice) ?? [])]) {
+                    if (this.closed) {
+                        break;
+                    }
                     await this.call(hook, target, keys ?? new Set());
                 }
 

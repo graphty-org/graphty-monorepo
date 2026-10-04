@@ -204,6 +204,8 @@ export class RenderManager implements Manager {
     private frameHolds = 0;
     /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
     private lastFrameFence: WebGLSync | null = null;
+    /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
+    private skippedMs = 0;
     private resizeHandler: () => void;
     /** The one skybox dome, and the image it shows; null while the background is a colour. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
@@ -338,14 +340,25 @@ export class RenderManager implements Manager {
         this.engine.runRenderLoop(() => {
             // A held frame is skipped whole: no update, no draw. The loop itself keeps ticking so
             // nothing has to be restarted, and a tick that does nothing costs nothing.
-            if (this.frameHolds > 0 || this.gpuBehind()) {
+            if (this.frameHolds > 0) {
                 return;
             }
+
+            // A tick skipped for the GPU still passed: the next frame's update is handed the
+            // time of every tick since the last frame drawn, not only its own, or a layout that
+            // keeps to wall-clock pace would run slower by exactly the ticks skipped.
+            if (this.gpuBehind()) {
+                this.skippedMs += this.engine.getDeltaTime();
+                return;
+            }
+
+            const frameMs = this.engine.getDeltaTime() + this.skippedMs;
+            this.skippedMs = 0;
 
             try {
                 // Call update callback
                 if (this.updateCallback) {
-                    this.updateCallback(this.engine.getDeltaTime());
+                    this.updateCallback(frameMs);
                 }
 
                 // Update camera - NOTE: This might be redundant with UpdateManager.update()

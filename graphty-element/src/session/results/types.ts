@@ -18,7 +18,17 @@
  * interfaces, published from the Node-safe `./session` entry point.
  */
 
-import type { EdgeId, FieldBand, FieldDescriptor, NodeId, Path, Query, ResultShape, RunId } from "../../catalog/types";
+import type {
+    EdgeId,
+    FieldBand,
+    FieldDescriptor,
+    Measurement,
+    NodeId,
+    Path,
+    Query,
+    ResultShape,
+    RunId,
+} from "../../catalog/types";
 import type { Caveats, Run } from "../runs/types";
 
 // ---------------------------------------------------------------------------------------------
@@ -962,4 +972,33 @@ export interface ResultsApi {
     has(run: RunRef, field?: string): boolean;
     /** Every run that has published a result, as an expression editor reads them. */
     readonly roots: readonly ResultRoot[];
+}
+
+/**
+ * The shapes whose primary field names groups.
+ *
+ * A community's group is an integer and a degree is an integer, and reading them the same way is
+ * how a partition ends up painted as a continuous ramp from group 0 to group 41. The shape is
+ * what tells the two apart -- and only for the field the shape declares primary, because
+ * `groupSize` on the same result really is a measurement.
+ */
+const GROUPING_SHAPES: ReadonlySet<ResultShape> = new Set(["community", "layered-grouping", "category-table"]);
+
+/**
+ * What a run's field measures: what the algorithm declared, else categorical for a grouping
+ * shape's primary field and for strings and booleans, else quantitative.
+ * @param field - The field.
+ * @param shape - The run's result shape.
+ * @returns The measurement.
+ */
+export function fieldMeasurement(field: FieldDescriptor, shape: ResultShape): Measurement {
+    if (field.measurement !== undefined) {
+        return field.measurement;
+    }
+
+    if (GROUPING_SHAPES.has(shape) && resultShapeContract(shape).primaryField === field.name) {
+        return "categorical";
+    }
+
+    return field.type === "string" || field.type === "boolean" ? "categorical" : "quantitative";
 }

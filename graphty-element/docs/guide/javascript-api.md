@@ -242,7 +242,7 @@ await graph.waitForStableFrame();
 const run = await graph.run("degree");
 
 // One element's value
-const degree = run.result.node("node1")?.value;
+const degree = run.node("node1")?.value;
 
 // Put the algorithm's own suggested picture back, after a reader cleared it
 graph.applySuggestedStyles("degree");
@@ -480,7 +480,7 @@ session.canUndo; // whether undo() would do anything
 session.history.steps; // [{ label: "Added 3 nodes", ... }, ...]
 
 // Several changes as one step, through the tx the callback receives
-await session.transaction("Recolour", async (tx) => {
+await session.transaction("Recolor", async (tx) => {
     await tx.styles.add(spec);
     await tx.layout.set("circular");
 });
@@ -566,7 +566,7 @@ async function initGraph() {
 
     // Set up interaction
     graph.on("node-click", ({ node }) => {
-        console.log(`Clicked ${node.id} (degree: ${String(run.result.node(node.id)?.value)})`);
+        console.log(`Clicked ${node.id} (degree: ${String(run.node(node.id)?.value)})`);
         graph.selectNode(node.id);
     });
 }

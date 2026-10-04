@@ -35,6 +35,7 @@ import type {
     DeprecatedCatalogMethod,
     EdgeId,
     LayoutId,
+    MeasurementDeclaration,
     RunId,
     Scope,
     ScopeInput,
@@ -48,6 +49,7 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
+import type { ProjectApi, ProjectStatus } from "./projectFile";
 import type { ResultsApi } from "./results";
 import type {
     Caveats,
@@ -64,7 +66,7 @@ import type {
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
-import type { ProgressChange } from "./shared";
+import type { ColumnRef, ProgressChange } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -551,11 +553,31 @@ export interface SessionDataApi {
      */
     source(): DataSourceDescriptor | null;
     /**
-     * Every attribute the graph's records carry, with its type, how complete it is and a few
-     * sample values. Walked once per snapshot and cached.
+     * Every attribute the graph's records carry, with its type, what it measures, how complete
+     * it is and a few sample values. Walked once per revision and cached.
      * @returns the descriptors, node attributes first, each kind in first-seen order
      */
     attributes(): readonly AttributeDescriptor[];
+    /**
+     * Say what a column measures, as one undoable step in the `"attributes"` project slice.
+     *
+     * The element infers strings and booleans as categorical and numbers as quantitative, so a
+     * column of number codes (department 1 to 14) is drawn as a ramp until it is declared
+     * categorical. A declaration affects layers created afterwards: a layer that already exists
+     * keeps the binding it stored.
+     *
+     * ```ts
+     * const department = session.data.attributes().find((a) => a.kind === "node" && a.name === "department")!;
+     * await session.data.declare(department, { measurement: "categorical" });
+     * await session.data.declare({ kind: "node", name: "risk" }, { measurement: "ordinal", order: ["low", "high"] });
+     * ```
+     * @param column - the column; an attribute descriptor can be passed as it is
+     * @param declaration - what it measures; an ordinal column lists its values, lowest first
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
+     *     no record carries, and `E_BAD_COMMAND` for a declaration that is not one.
+     */
+    declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     /**
      * The graph's shape. Walked once per snapshot and cached.
      * @returns the statistics
@@ -746,6 +768,8 @@ export interface ProjectConfig {
      * blank. A claim, never a verified identity.
      */
     readonly author?: string;
+    /** The project's name, which a project file carries. Absent when none is set, never blank. */
+    readonly name?: string;
 }
 
 /**
@@ -765,6 +789,8 @@ export interface ProjectConfigPatch {
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
+    /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
+    readonly name?: string | null;
 }
 
 /**
@@ -868,6 +894,11 @@ export interface SessionEventMap {
      * with no view publishes too. See {@link ProgressChange}.
      */
     "progress:changed": ProgressChange;
+    /**
+     * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
+     * changed. Mirrored on the element as `graphty-project-status`.
+     */
+    "project:status": ProjectStatus;
 }
 
 /**
@@ -888,7 +919,8 @@ export type ProjectSlice =
     | "visibility"
     | "sets"
     | "views"
-    | "notes";
+    | "notes"
+    | "attributes";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -1016,6 +1048,8 @@ export interface CommandOutcomeMap {
     "data.import": Promise<void>;
     /** Settles once the neighbourhood is recorded and the pass that draws it has run. */
     "data.expand": Promise<void>;
+    /** Settles once the declaration is recorded. */
+    "data.declare": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
@@ -1400,6 +1434,8 @@ export interface GraphSession {
     readonly canRedo: boolean;
     /** The steps, the cursor, the pending work and the budget. */
     readonly history: SessionHistory;
+    /** Saving the whole session to one project file and opening one again. */
+    readonly project: ProjectApi;
     /**
      * Run `fn`, and record everything it dispatches through `tx` as one step. Throw, or abort
      * the transaction, to roll all of it back. A transaction that changed nothing records

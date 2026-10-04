@@ -227,7 +227,10 @@ A few defaults are worth knowing: `Badge` defaults to the outlined look
 (`variant="filled"` and `"light"` are the brand looks); `Kbd` is Figma's dark key
 cap in both schemes (`size="md"` for the large cap, `variant="inline"` for a
 light cap in running text, `mod={{ active: true }}` to light it); `Select`
-defaults to the outlined trigger; `Tabs` defaults to pills.
+defaults to the outlined trigger; `Tabs` defaults to pills. A removable `Pill`'s
+remove button is in the Tab order and named "Remove" (Mantine hides it from the
+keyboard and from screen readers); name it after the value with
+`removeButtonProps={{ "aria-label": `Remove ${tag}` }}`.
 
 ### Making it your own
 

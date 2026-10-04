@@ -63,8 +63,17 @@ export const displayComponentExtensions = {
         }),
     }),
 
+    // Mantine draws the remove button with tabIndex -1 and aria-hidden, so a removable pill's only
+    // control is out of reach of the keyboard and of a screen reader (WCAG 2.1.1, 4.1.2). The
+    // `attributes` entry is spread after `removeButtonProps`, so the button stays reachable when a
+    // caller passes its own props; the generic name sits in `removeButtonProps`, which a caller's
+    // own object replaces -- give it the value's name: `{ "aria-label": `Remove ${tag}` }`.
     Pill: Pill.extend({
-        defaultProps: { size: "sm" },
+        defaultProps: {
+            size: "sm",
+            removeButtonProps: { "aria-label": "Remove" },
+            attributes: { remove: { tabIndex: 0, "aria-hidden": false } },
+        },
         classNames: { root: "cm-pill" },
         vars: (_theme, props) => ({
             root: {

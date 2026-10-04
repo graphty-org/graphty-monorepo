@@ -1,7 +1,8 @@
 import { Avatar, Badge, Indicator, Kbd, MantineProvider, Pill, Text, ThemeIcon } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Settings } from "lucide-react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../src";
 
@@ -68,6 +69,34 @@ describe("Display Components Integration", () => {
                 </MantineProvider>,
             );
             expect(screen.getByText("Large Pill")).toBeInTheDocument();
+        });
+
+        it("puts the remove button in the Tab order and names it", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <Pill withRemoveButton>degree</Pill>
+                </MantineProvider>,
+            );
+            const remove = screen.getByRole("button", { name: "Remove" });
+            expect(remove).toHaveAttribute("tabindex", "0");
+            expect(remove).not.toHaveAttribute("aria-hidden", "true");
+        });
+
+        it("keeps the remove button reachable when the caller names it", async () => {
+            const onRemove = vi.fn();
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <Pill withRemoveButton onRemove={onRemove} removeButtonProps={{ "aria-label": "Remove degree" }}>
+                        degree
+                    </Pill>
+                </MantineProvider>,
+            );
+            const remove = screen.getByRole("button", { name: "Remove degree" });
+            expect(remove).toHaveAttribute("tabindex", "0");
+            await userEvent.tab();
+            expect(remove).toHaveFocus();
+            await userEvent.keyboard("{Enter}");
+            expect(onRemove).toHaveBeenCalledTimes(1);
         });
     });
 

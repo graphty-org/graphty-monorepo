@@ -112,7 +112,7 @@ let notifyLog;
 let clock;
 /**
  * @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null,
- *   events?: Record<string, any[]>, merged?: any[]}}
+ *   events?: Record<string, any[]>, merged?: any[], release?: any[], annotations?: any[]}}
  */
 let scene;
 /** @type {ReturnType<typeof createFakeGh>} */
@@ -172,11 +172,16 @@ function respond({ args, input }) {
             : ok({ login: scene.login ?? "owner" });
     }
     if (path.includes("/actions/workflows/ci.yml/runs?")) return ok({ workflow_runs: scene.ci });
+    if (path.includes("/actions/workflows/release.yml/runs?")) return ok({ workflow_runs: scene.release ?? [] });
+    if (/\/check-runs\/\d+\/annotations\?/.test(path)) return ok(scene.annotations ?? []);
+    if (/\/actions\/runs\/\d+$/.test(path) && !args.includes("-X")) {
+        return ok({ id: Number(path.split("/").at(-1)), run_attempt: 1, status: "completed" });
+    }
     if (/\/actions\/runs\/\d+\/jobs\?/.test(path)) {
         return ok({
             jobs: [
-                { name: "Build", conclusion: "failure" },
-                { name: "Lint", conclusion: "success" },
+                { id: 900, run_attempt: 1, name: "Build", conclusion: "failure" },
+                { id: 901, run_attempt: 1, name: "Lint", conclusion: "success" },
             ],
         });
     }
@@ -545,10 +550,15 @@ describe("the poll loop", () => {
             { status: "info", message: expect.stringContaining(Object.keys(daemon.state.incidents)[0]) },
         ]);
 
-        // the dry-run fake gh recorded no write, and nothing would have been written
+        // the dry-run fake gh recorded no write; from the reconcile after the red sighting the failing
+        // job would have been re-run once on the red head and once on the last green commit
         expect(gh.calls.length).toBeGreaterThan(0);
         expect(gh.writes()).toEqual([]);
-        expect((await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do")).toEqual([]);
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        expect(wouldDo.map((e) => [e.group, e.op, e.situation, e.key])).toEqual([
+            ["incidents", "POST actions/jobs/900/rerun", "red-head-rerun", "ci / Build / "],
+            ["incidents", "POST actions/jobs/900/rerun", "parent-retest", "ci / Build / "],
+        ]);
         // git ran with no prompt, only to fetch the default branch when its head moved and to read
         // its .mergify.yml after each fetch and once per start
         expect(gitCalls.filter((a) => a[0] === "fetch")).toEqual([
@@ -863,6 +873,30 @@ describe("the poll loop", () => {
         const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.group === "upkeep");
         expect(wouldDo.map((e) => [e.op, e.situation])).toEqual([["PATCH pulls/8", "stack base merged"]]);
         expect(daemon.state.upkeep.mergedHeads).toEqual([]);
+        expect(gh.writes()).toEqual([]);
+    });
+
+    it("re-runs the CI run whose expired artifacts made a release skip, once, as a would-do in dry-run", async () => {
+        writeConfig({
+            lanes: {
+                ci: { workflow: "ci.yml", gating: "required" },
+                release: { workflow: "release.yml", gating: "watch" },
+            },
+        });
+        scene.release = [run(300, A, "success")];
+        scene.annotations = [
+            {
+                annotation_level: "notice",
+                message: `${A} is green but CI run 100 no longer holds its builds; re-run it`,
+            },
+        ];
+        const daemon = await start();
+        await poll(daemon);
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.group === "incidents");
+        expect(wouldDo.map((e) => [e.op, e.situation])).toEqual([["POST actions/runs/100/rerun", "expired-artifacts"]]);
+        expect(daemon.state.incidentActions.releaseRunRead).toBe("300/1");
         expect(gh.writes()).toEqual([]);
     });
 

@@ -64,6 +64,8 @@ import { pollIssues } from "./issues.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
 import { servherd as servherdData } from "./launcher.mjs";
 import { dispatch } from "./dispatch.mjs";
+import { createIncidentActions } from "./incident-actions.mjs";
+import { failureKey } from "./lanes.mjs";
 import { createMcpServer } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
@@ -643,13 +645,13 @@ export async function startDaemon({
     }
 
     /**
-     * The failing job names of a workflow run.
+     * The failing jobs of a workflow run's latest attempt.
      * @param {number} runId the run
-     * @returns {Promise<string[]>} the jobs that failed
+     * @returns {Promise<any[]>} the jobs that failed, as the REST API answers them
      */
     async function failingJobs(runId) {
         const res = await github().get(`repos/${config.repo}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
-        return (res.body?.jobs ?? []).filter((j) => RED_JOB.has(j.conclusion)).map((j) => j.name);
+        return (res.body?.jobs ?? []).filter((/** @type {any} */ j) => RED_JOB.has(j.conclusion));
     }
 
     /**
@@ -727,13 +729,23 @@ export async function startDaemon({
     /**
      * Moves the incident record along with the verdict, and pages.
      * @param {any} m the master record
-     * @param {{lane: string, runId: number, jobs?: string[]}[]} reds this poll's lane-red events
+     * @param {{lane: string, runId: number, jobs?: string[], refs?: any[]}[]} reds this poll's lane-red events
      * @param {string | null} previousGreen the green SHA before this poll
      * @param {string} iso the poll's time
      */
     async function track(m, reds, previousGreen, iso) {
         const open = Object.values(state.incidents).find((i) => i.status === "open");
-        for (const red of reds) red.jobs = await failingJobs(red.runId);
+        for (const red of reds) {
+            const failed = await failingJobs(red.runId);
+            red.jobs = failed.map((j) => j.name);
+            red.refs = failed.map((j) => ({
+                id: j.id,
+                runId: red.runId,
+                attempt: j.run_attempt ?? 1,
+                name: j.name,
+                step: j.steps?.find((/** @type {any} */ s) => RED_JOB.has(s.conclusion))?.name ?? "",
+            }));
+        }
         if (m.verdict === "red") trackRed(m, reds, open, previousGreen, iso);
         else if (m.verdict === "green" && open) {
             open.status = "resolved";
@@ -747,10 +759,122 @@ export async function startDaemon({
     }
 
     /**
+     * The daemon's own incident steps, write group `incidents` (design 4.5 and 3.10): for each
+     * code-red key of the open incident, from the reconcile after its first sighting, the red-head
+     * re-run and the parent re-test and what their outcome calls for (an `intermittent` issue, or
+     * the revert pull request of the one merge between green and red); and the CI re-run that
+     * recreates a release's expired artifacts. A failure is ledgered and tried again next reconcile.
+     * ponytail: the paid-capacity backoff and the lane-not-progressing item wait for the classifier
+     * and the queue ages, which the daemon does not compute yet.
+     */
+    async function incidentSteps() {
+        const spent = (state.incidentActions ??= {});
+        const actions = createIncidentActions({
+            github: github(),
+            repo: config.repo,
+            spent,
+            now: () => now().getTime(),
+        });
+        try {
+            const open = Object.values(state.incidents).find((i) => i.status === "open");
+            if (open) await codeRedKeys(open, actions);
+            if (config.lanes.release) await releaseArtifacts(actions, spent);
+        } catch (err) {
+            void ledger({ kind: "error", where: "incidents", error: /** @type {Error} */ (err).message });
+        }
+    }
+
+    /**
+     * Runs the incident procedure for each failure key of an open incident. A summary job (a
+     * required check that only reports the others) is a key only when nothing else failed.
+     * @param {any} incident the open incident, its `keys` record updated in place
+     * @param {ReturnType<typeof createIncidentActions>} actions the incident actions
+     */
+    async function codeRedKeys(incident, actions) {
+        const keys = (incident.keys ??= {});
+        for (const [name, lane] of Object.entries(incident.lanes)) {
+            const workflow = state.master.lanes[name]?.workflowName ?? name;
+            const refs = lane.jobRefs ?? [];
+            const own = refs.filter((/** @type {any} */ j) => !config.requiredChecks.includes(j.name));
+            for (const job of own.length ? own : refs) {
+                const key = failureKey(workflow, job.name, job.step);
+                const rec = (keys[key] ??= { seen: 0 });
+                rec.seen++;
+                if (rec.outcome && rec.outcome !== "waiting") continue;
+                const out = await actions.codeRed({
+                    key,
+                    redSha: lane.sha,
+                    redJob: job,
+                    parentSha: incident.lastGreenSha,
+                    parentJob: await parentJob(incident, name, job.name),
+                    suspects: incident.suspects,
+                    confirmed: rec.seen > 1,
+                    excerpt: "",
+                });
+                Object.assign(rec, { outcome: out.outcome }, "issue" in out ? { issue: out.issue } : {});
+                if ("revertPr" in out) rec.revertPr = out.revertPr;
+            }
+        }
+    }
+
+    /**
+     * The same job in the last green commit's green run of a lane, read once per incident.
+     * @param {any} incident the incident, its lane's `parentJobs` cache updated in place
+     * @param {string} name the lane
+     * @param {string} jobName the job
+     * @returns {Promise<{id: number, runId: number, attempt: number, name: string} | null>} the job,
+     *   or null when there is no green commit or its run has no such job
+     */
+    async function parentJob(incident, name, jobName) {
+        const cache = (incident.lanes[name].parentJobs ??= {});
+        if (jobName in cache) return cache[jobName];
+        cache[jobName] = null;
+        if (!incident.lastGreenSha) return null;
+        const runs =
+            (
+                await github().get(
+                    `repos/${config.repo}/actions/workflows/${config.lanes[name].workflow}/runs?head_sha=${incident.lastGreenSha}&per_page=10&exclude_pull_requests=true`,
+                )
+            ).body?.workflow_runs ?? [];
+        const run = runs
+            .filter((/** @type {any} */ r) => r.conclusion === "success")
+            .sort((/** @type {any} */ a, /** @type {any} */ b) => b.id - a.id)[0];
+        if (!run) return null;
+        const jobs =
+            (await github().get(`repos/${config.repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`)).body
+                ?.jobs ?? [];
+        const job = jobs.find((/** @type {any} */ j) => j.name === jobName);
+        if (job) cache[jobName] = { id: job.id, runId: run.id, attempt: job.run_attempt ?? 1, name: jobName };
+        return cache[jobName];
+    }
+
+    /**
+     * Reads the annotations of each new completed release run once, and re-runs the CI run whose
+     * expired artifacts made the release skip.
+     * @param {ReturnType<typeof createIncidentActions>} actions the incident actions
+     * @param {any} spent the persisted record; `releaseRunRead` names the run attempt last read
+     */
+    async function releaseArtifacts(actions, spent) {
+        const rel = state.master.lanes.release;
+        const id = `${rel?.runId}/${rel?.attempt}`;
+        if (!rel?.runId || spent.releaseRunRead === id) return;
+        const jobs =
+            (await github().get(`repos/${config.repo}/actions/runs/${rel.runId}/jobs?filter=latest&per_page=100`)).body
+                ?.jobs ?? [];
+        const annotations = [];
+        for (const j of jobs) {
+            const res = await github().get(`repos/${config.repo}/check-runs/${j.id}/annotations?per_page=100`);
+            annotations.push(...(res.body ?? []));
+        }
+        await actions.recreateArtifacts(annotations);
+        spent.releaseRunRead = id;
+    }
+
+    /**
      * A red master: opens the incident when none is open (and pages), and records each red gating
      * lane's run and failing jobs on it.
      * @param {any} m the master record
-     * @param {{lane: string, runId: number, jobs?: string[]}[]} reds this poll's lane-red events
+     * @param {{lane: string, runId: number, jobs?: string[], refs?: any[]}[]} reds this poll's lane-red events
      * @param {any} open the open incident, if any
      * @param {string | null} previousGreen the green SHA before this poll
      * @param {string} iso the poll's time
@@ -761,13 +885,15 @@ export async function startDaemon({
         );
         const incident = open ?? openIncident(gatingRed[0][1], previousGreen, iso);
         for (const [name, l] of gatingRed) {
-            const jobs = reds.find((r) => r.lane === name && r.runId === l.runId)?.jobs;
+            const red = reds.find((r) => r.lane === name && r.runId === l.runId);
+            const jobs = red?.jobs;
             if (incident.lanes[name]?.runId === l.runId && !jobs) continue;
             incident.lanes[name] = {
                 runId: l.runId,
                 attempt: l.attempt,
                 sha: l.sha,
                 failingJobs: jobs ?? incident.lanes[name]?.failingJobs ?? [],
+                jobRefs: red?.refs ?? incident.lanes[name]?.jobRefs ?? [],
             };
         }
         if (open) return;
@@ -883,6 +1009,7 @@ export async function startDaemon({
         else m.verdict = "unknown";
         if (m.verdict !== previousVerdict) m.since = iso;
         await track(m, reds, previousGreen, iso);
+        await incidentSteps();
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);
         if (pace.level === "normal") await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
         // Holds post at every rate tier; the client's budget refuses a success below its floor.

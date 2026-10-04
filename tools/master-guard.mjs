@@ -164,7 +164,7 @@ async function main() {
                 git("config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com");
                 git("fetch", "origin", "master", sha);
                 git("switch", "-c", branch, "origin/master");
-                const by = `git revert ${mainline.join(" ")} ${sha}`.replace(/ +/g, " ");
+                const by = ["git revert", ...mainline, sha].join(" ");
                 const manual = `git fetch origin && git switch -c ${branch} origin/master && ${by} && git push -u origin HEAD && gh pr create --title "${revertTitle(sha, pr)}" --label priority:critical --body "Reverts ${sha}."`;
                 try {
                     git("revert", ...mainline, "--no-edit", sha);
@@ -172,7 +172,8 @@ async function main() {
                 } catch {
                     return { note: `The revert did not apply or push cleanly. By hand:\n\n    ${manual}` };
                 }
-                const body = `${sha} turned master's CI red: ${run.html_url}\n\nIts parent was green, so this reverts it. The pull request it landed${pr ? ` (#${pr})` : ""} re-enters once its author has found the cause.`;
+                const landed = pr ? ` (#${pr})` : "";
+                const body = `${sha} turned master's CI red: ${run.html_url}\n\nIts parent was green, so this reverts it. The pull request it landed${landed} re-enters once its author has found the cause.`;
                 const token = process.env.PR_TOKEN || process.env.GITHUB_TOKEN;
                 try {
                     const opened = await gh(

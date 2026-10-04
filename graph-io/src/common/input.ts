@@ -429,27 +429,12 @@ class ByteDecoder {
                 this.binary(this.control);
             }
         }
-        let text: string;
-        try {
-            text = decoder.decode(bytes, { stream });
-        } catch (err) {
-            if (!(err instanceof TypeError)) {
-                throw err;
-            }
-            text = this.recover(bytes, stream);
-        }
+        const text = this.decodeOrRecover(decoder, bytes, stream);
         if (this.mixedPending) {
             this.reportUtf8After(bytes, this.offset);
         }
         if (this.asciiSoFar && this.mayFallBack) {
-            if (/[\u0080-\uffff]/.test(text)) {
-                this.asciiSoFar = false;
-                this.carry = new Uint8Array(0);
-            } else {
-                // every character so far is one ASCII byte, so what was not emitted is held back
-                const all = this.carry.byteLength === 0 ? bytes : concatBytes([this.carry, bytes]);
-                this.carry = all.slice(text.length);
-            }
+            this.trackAscii(bytes, text);
         }
         if (this.mayFallBack && this.options.nulIsBinary === true && text.includes("\0")) {
             // a NUL never occurs in a text file: undeclared bytes holding one are binary or BOM-less UTF-16
@@ -457,6 +442,40 @@ class ByteDecoder {
         }
         this.offset += bytes.byteLength;
         return text;
+    }
+
+    /**
+     * Decode bytes, recovering from bytes that are not valid in the encoding.
+     * @param decoder - the decoder
+     * @param bytes - the bytes
+     * @param stream - whether more bytes follow
+     * @returns the text
+     */
+    private decodeOrRecover(decoder: TextDecoder, bytes: Uint8Array, stream: boolean): string {
+        try {
+            return decoder.decode(bytes, { stream });
+        } catch (err) {
+            if (!(err instanceof TypeError)) {
+                throw err;
+            }
+            return this.recover(bytes, stream);
+        }
+    }
+
+    /**
+     * Track whether the input is ASCII so far. While it is, every character is one byte, so the
+     * bytes not yet emitted are held back for a fallback.
+     * @param bytes - the bytes just decoded
+     * @param text - their text
+     */
+    private trackAscii(bytes: Uint8Array, text: string): void {
+        if (/[\u0080-\uffff]/.test(text)) {
+            this.asciiSoFar = false;
+            this.carry = new Uint8Array(0);
+            return;
+        }
+        const all = this.carry.byteLength === 0 ? bytes : concatBytes([this.carry, bytes]);
+        this.carry = all.slice(text.length);
     }
 
     /**
@@ -693,46 +712,77 @@ const CP437_HIGH: readonly number[] = [
  * that cut sequence holds at least one continuation byte (truncation rather than a stray windows-1252
  * byte); index 0 when none is found
  */
-function invalidUtf8(bytes: Uint8Array): {
-    readonly index: number;
-    readonly truncated: boolean;
-    readonly cut: boolean;
-} {
+function invalidUtf8(bytes: Uint8Array): Utf8Problem {
     let i = 0;
     while (i < bytes.byteLength) {
         const lead = bytes[i];
-        if (lead < 0x80) {
-            i++;
-            continue;
-        }
-        let need = 0;
-        let low = 0x80;
-        let high = 0xbf;
-        if (lead >= 0xc2 && lead <= 0xdf) {
-            need = 1;
-        } else if (lead >= 0xe0 && lead <= 0xef) {
-            need = 2;
-            low = lead === 0xe0 ? 0xa0 : 0x80;
-            high = lead === 0xed ? 0x9f : 0xbf;
-        } else if (lead >= 0xf0 && lead <= 0xf4) {
-            need = 3;
-            low = lead === 0xf0 ? 0x90 : 0x80;
-            high = lead === 0xf4 ? 0x8f : 0xbf;
-        } else {
+        const sequence = lead < 0x80 ? ASCII_SEQUENCE : utf8Sequence(lead);
+        if (sequence === null) {
             return { index: i, truncated: false, cut: false };
         }
-        for (let k = 1; k <= need; k++) {
-            if (i + k >= bytes.byteLength) {
-                return { index: i, truncated: k > 1, cut: true };
-            }
-            const next = bytes[i + k];
-            if (next < (k === 1 ? low : 0x80) || next > (k === 1 ? high : 0xbf)) {
-                return { index: i, truncated: false, cut: false };
-            }
+        const problem = checkContinuation(bytes, i, sequence);
+        if (problem !== null) {
+            return problem;
         }
-        i += need + 1;
+        i += sequence.need + 1;
     }
     return { index: 0, truncated: false, cut: false };
+}
+
+/** Where a UTF-8 check stopped, and why. */
+interface Utf8Problem {
+    readonly index: number;
+    readonly truncated: boolean;
+    readonly cut: boolean;
+}
+
+/** The continuation bytes a UTF-8 lead byte needs, and the range of the first one. */
+interface Utf8Sequence {
+    readonly need: number;
+    readonly low: number;
+    readonly high: number;
+}
+
+const ASCII_SEQUENCE: Utf8Sequence = { need: 0, low: 0x80, high: 0xbf };
+
+/**
+ * What a UTF-8 lead byte needs after it (no overlong forms, no surrogates, nothing above U+10FFFF).
+ * @param lead - the lead byte, 0x80 or above
+ * @returns the sequence, or null when the byte cannot lead one
+ */
+function utf8Sequence(lead: number): Utf8Sequence | null {
+    if (lead >= 0xc2 && lead <= 0xdf) {
+        return { need: 1, low: 0x80, high: 0xbf };
+    }
+    if (lead >= 0xe0 && lead <= 0xef) {
+        return { need: 2, low: lead === 0xe0 ? 0xa0 : 0x80, high: lead === 0xed ? 0x9f : 0xbf };
+    }
+    if (lead >= 0xf0 && lead <= 0xf4) {
+        return { need: 3, low: lead === 0xf0 ? 0x90 : 0x80, high: lead === 0xf4 ? 0x8f : 0xbf };
+    }
+    return null;
+}
+
+/**
+ * Check the continuation bytes of the sequence led at `i`.
+ * @param bytes - the bytes
+ * @param i - the lead byte's index
+ * @param sequence - what the lead byte needs
+ * @returns the problem, or null when the sequence is valid
+ */
+function checkContinuation(bytes: Uint8Array, i: number, sequence: Utf8Sequence): Utf8Problem | null {
+    for (let k = 1; k <= sequence.need; k++) {
+        if (i + k >= bytes.byteLength) {
+            return { index: i, truncated: k > 1, cut: true };
+        }
+        const next = bytes[i + k];
+        const low = k === 1 ? sequence.low : 0x80;
+        const high = k === 1 ? sequence.high : 0xbf;
+        if (next < low || next > high) {
+            return { index: i, truncated: false, cut: false };
+        }
+    }
+    return null;
 }
 
 /**
@@ -1064,21 +1114,7 @@ class TextFilter {
             return text;
         }
         if (this.first) {
-            let start = 0;
-            while (text.codePointAt(start) === 0xfeff) {
-                start++;
-            }
-            if (start > 1 && !this.strayBom) {
-                // the first U+FEFF is the byte order mark; another one is a stray character
-                this.strayBom = true;
-                this.report.warning(
-                    "validation-error",
-                    CONTROL_CHARACTER_CODE,
-                    `the input starts with ${start} byte order marks (U+FEFF); the extra ones were ignored`,
-                    { element: "U+FEFF" },
-                );
-            }
-            text = text.slice(start);
+            text = this.skipByteOrderMarks(text);
             if (text.length === 0) {
                 return text;
             }
@@ -1095,20 +1131,52 @@ class TextFilter {
             this.content = true;
         }
         if (!this.warned) {
-            const match = CONTROL_CHARACTER.exec(text);
-            if (match !== null) {
-                this.warned = true;
-                const code = (match[0].codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0");
-                const around = JSON.stringify(text.slice(Math.max(0, match.index - 20), match.index + 20));
-                this.report.warning(
-                    "validation-error",
-                    CONTROL_CHARACTER_CODE,
-                    `the input holds the control character U+${code} (in ${around}); it is kept in the id or value it is part of`,
-                    { element: `U+${code}` },
-                );
-            }
+            this.warnControl(text);
         }
         return text;
+    }
+
+    /**
+     * Drop the byte order marks the input starts with, warning when there is more than one.
+     * @param text - the first text
+     * @returns the text without them
+     */
+    private skipByteOrderMarks(text: string): string {
+        let start = 0;
+        while (text.codePointAt(start) === 0xfeff) {
+            start++;
+        }
+        if (start > 1 && !this.strayBom) {
+            // the first U+FEFF is the byte order mark; another one is a stray character
+            this.strayBom = true;
+            this.report.warning(
+                "validation-error",
+                CONTROL_CHARACTER_CODE,
+                `the input starts with ${start} byte order marks (U+FEFF); the extra ones were ignored`,
+                { element: "U+FEFF" },
+            );
+        }
+        return text.slice(start);
+    }
+
+    /**
+     * Warn, once, about the first control character the text holds.
+     * @param text - the text
+     */
+    private warnControl(text: string): void {
+        const match = CONTROL_CHARACTER.exec(text);
+        if (match === null) {
+            return;
+        }
+        this.warned = true;
+        const code = (match[0].codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0");
+        const around = JSON.stringify(text.slice(Math.max(0, match.index - 20), match.index + 20));
+        this.report.warning(
+            "validation-error",
+            CONTROL_CHARACTER_CODE,
+            `the input holds the control character U+${code} (in ${around}); it is kept in the id or value it is part of`,
+            { element: `U+${code}` },
+        );
     }
 
     /** The input ended: drop a held Ctrl-Z with a warning, and refuse an input without content. */

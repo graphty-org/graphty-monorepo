@@ -1680,6 +1680,49 @@ function present(record: JsonRecord, key: string): boolean {
 }
 
 /**
+ * Report every key of a record the dialect does not read (W_JSON_UNREAD_KEY): it is dropped.
+ * @param ctx - the context
+ * @param record - the document or graph record
+ * @param known - the keys the dialect reads
+ * @param prefix - the record's path for the messages (`""` for the document, `"graph."`)
+ */
+function reportUnreadKeys(ctx: ImportContext, record: JsonRecord, known: ReadonlySet<string>, prefix: string): void {
+    for (const key of Object.keys(record)) {
+        if (known.has(key)) {
+            continue;
+        }
+        const value = record[key];
+        const what = Array.isArray(value)
+            ? `${String(value.length)} ${value.length === 1 ? "entry" : "entries"}`
+            : describe(value);
+        ctx.report.warning(
+            "unsupported",
+            JSON_ISSUE.UNREAD_KEY,
+            `${prefix.length === 0 ? "top-level key" : "key"} ${prefix}${key} (${what}) is not read; dropped`,
+            { element: `${prefix}${key}` },
+        );
+    }
+}
+
+/** The keys of a vis.js document the reader reads. */
+const VIS_DOCUMENT_KEYS: ReadonlySet<string> = new Set(["nodes", "edges"]);
+
+/** The keys of a graphology serialisation the reader reads. */
+const GRAPHOLOGY_DOCUMENT_KEYS: ReadonlySet<string> = new Set(["nodes", "edges", "options", "attributes"]);
+
+/** The keys of a JGF graph object the reader reads. */
+const JGF_GRAPH_KEYS: ReadonlySet<string> = new Set([
+    "id",
+    "type",
+    "label",
+    "directed",
+    "metadata",
+    "nodes",
+    "edges",
+    "hyperedges",
+]);
+
+/**
  * Whether any object of an array has a key with a non-null value.
  * @param items - the array
  * @param key - the key
@@ -1736,22 +1779,7 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
     const multigraph = hasKey(root, "multigraph") ? flagOf(root.multigraph, "multigraph", false, report) : null;
     ctx.setHeader(directed);
     ctx.writeGraphDict(root.graph, "graph");
-    for (const key of Object.keys(root)) {
-        if (key !== "nodes" && key !== edgesKey && key !== "directed" && key !== "multigraph" && key !== "graph") {
-            const value = root[key];
-            const what = Array.isArray(value)
-                ? `${String(value.length)} ${value.length === 1 ? "entry" : "entries"}`
-                : describe(value);
-            report.warning(
-                "unsupported",
-                JSON_ISSUE.UNREAD_KEY,
-                `top-level key ${key} (${what}) is not read; dropped`,
-                {
-                    element: key,
-                },
-            );
-        }
-    }
+    reportUnreadKeys(ctx, root, new Set(["nodes", edgesKey, "directed", "multigraph", "graph"]), "");
 
     const nodeList = nodes ?? [];
     const edgeList = edges ?? [];
@@ -2098,6 +2126,8 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
     const { report, json } = ctx;
     const nodes = arraySection(root.nodes, "nodes", report) ?? [];
     const edges = arraySection(root.edges, "edges", report) ?? [];
+    // vis.js options and groups are rendering settings, not graph data
+    reportUnreadKeys(ctx, root, VIS_DOCUMENT_KEYS, "");
     ctx.setHeader(ctx.defaultDirected("vis"));
     ctx.sink.reserve(nodes.length, edges.length);
     const nodeIdKey = json.nodeIdKey ?? "id";
@@ -2399,6 +2429,7 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
     const { report } = ctx;
     const nodes = arraySection(root.nodes, "nodes", report) ?? [];
     const edges = arraySection(root.edges, "edges", report) ?? [];
+    reportUnreadKeys(ctx, root, GRAPHOLOGY_DOCUMENT_KEYS, "");
     const options = isJsonObject(root.options) ? root.options : {};
     if (hasKey(root, "options") && !isJsonObject(root.options)) {
         report.warning("validation-error", JSON_ISSUE.BAD_FLAG, "options is not an object; ignored", {
@@ -2687,7 +2718,23 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
  * @returns the graph object; the import fails when there is none
  */
 function jgfGraphOf(ctx: ImportContext, root: JsonRecord): JsonRecord {
-    return isJsonObject(root.graph) ? root.graph : chosenGraph(ctx, root, "JGF");
+    const single = isJsonObject(root.graph);
+    // a document with both graph and graphs is read by its graph; the graphs are not
+    reportUnreadKeys(ctx, root, new Set([single ? "graph" : "graphs"]), "");
+    const graph = single ? (root.graph as JsonRecord) : chosenGraph(ctx, root, "JGF");
+    const prefix = single ? "graph." : `graphs[${(root.graphs as unknown[]).indexOf(graph)}].`;
+    reportUnreadKeys(ctx, graph, JGF_GRAPH_KEYS, prefix);
+    for (const key of ["id", "type", "label"]) {
+        if (graph[key] !== undefined && graph[key] !== null && typeof graph[key] !== "string") {
+            ctx.report.error(
+                "validation-error",
+                JSON_ISSUE.BAD_VALUE,
+                `${prefix}${key} must be a string, found ${describe(graph[key])}; ignored`,
+                { element: `${prefix}${key}` },
+            );
+        }
+    }
+    return graph;
 }
 
 /**
@@ -2716,7 +2763,14 @@ export function chosenGraph(ctx: ImportContext, root: JsonRecord, what: string):
     }
     const graph = graphs[index];
     if (!isJsonObject(graph)) {
-        return report.fail(JSON_ISSUE.SHAPE, `graphs[${index}] is not an object`);
+        if (ctx.json.all !== true) {
+            return report.fail(JSON_ISSUE.SHAPE, `graphs[${index}] is not an object`);
+        }
+        // importAll(): one bad graph is that graph's error, read as empty; the others are still read
+        report.error("validation-error", JSON_ISSUE.SHAPE, `graphs[${index}] is not an object; it is read as empty`, {
+            element: `graphs[${index}]`,
+        });
+        return {};
     }
     return graph;
 }
@@ -3086,8 +3140,28 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
             report.recordError(err, { element: String(id) });
         }
     }
-    // the parent links set so far, child -> parent, to refuse a link that closes a cycle (Cytoscape.js
-    // refuses those too)
+    resolveCytoscapeParents(ctx, parents, parentColumn);
+    throwIfAborted(ctx.options.signal);
+
+    importCytoscapeEdges(ctx, edges, edgeClassesColumn);
+    ctx.setMeta({ dialect: "cytoscape", cytoscape: extra }, ctx.weightOriginPatch());
+}
+
+/**
+ * Set the parent of each Cytoscape node once every node is known (a parent may come later): an
+ * unknown parent is E_UNKNOWN_PARENT, a link that would make a node its own ancestor E_PARENT_CYCLE
+ * (Cytoscape.js refuses those too); either link is dropped and the node kept.
+ * @param ctx - the context
+ * @param parents - the parent links in document order
+ * @param parentColumn - the parent column
+ */
+function resolveCytoscapeParents(
+    ctx: ImportContext,
+    parents: readonly { readonly index: number; readonly parent: NodeId; readonly element: string }[],
+    parentColumn: ColumnHandle,
+): void {
+    const { report } = ctx;
+    // the parent links set so far, child -> parent
     const parentOf = new Map<number, number>();
     for (const { index, parent, element } of parents) {
         const parentIndex = ctx.sink.indexOf(parent);
@@ -3117,10 +3191,6 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
         parentOf.set(index, parentIndex);
         ctx.nodes.set(parentColumn, index, parentIndex);
     }
-    throwIfAborted(ctx.options.signal);
-
-    importCytoscapeEdges(ctx, edges, edgeClassesColumn);
-    ctx.setMeta({ dialect: "cytoscape", cytoscape: extra }, ctx.weightOriginPatch());
 }
 
 /**

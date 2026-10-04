@@ -865,7 +865,12 @@ async function readDocument(
         kept: new Map(),
         structure,
     };
-    const state: CollectState = { doc, report, verifications: 0, onKeptPrecision: keptPrecision(report, "meta.extra.cx") };
+    const state: CollectState = {
+        doc,
+        report,
+        verifications: 0,
+        onKeptPrecision: keptPrecision(report, "meta.extra.cx"),
+    };
     let sinceCheck = 0;
     let members = 0;
     let known = 0;
@@ -1072,10 +1077,15 @@ function structuralId(
 ): { readonly value: Record<string, unknown>; readonly id: NodeId } | null {
     const { value, line } = held;
     if (!isRecord(value)) {
-        report.error("parse-error", BAD_ASPECT_BLOCK_CODE, `a ${name} element is ${shown(value)}, not an object; skipped`, {
-            line,
-            element: name,
-        });
+        report.error(
+            "parse-error",
+            BAD_ASPECT_BLOCK_CODE,
+            `a ${name} element is ${shown(value)}, not an object; skipped`,
+            {
+                line,
+                element: name,
+            },
+        );
         return null;
     }
     if (value[key] === undefined || value[key] === null) {
@@ -1087,10 +1097,15 @@ function structuralId(
     }
     const id = refId(value[key]);
     if (id === null) {
-        report.error("validation-error", CX_ISSUE.INVALID_ID, `a ${name} element has the ${key} ${shown(value[key])}, not an integer id; skipped`, {
-            line,
-            element: name,
-        });
+        report.error(
+            "validation-error",
+            CX_ISSUE.INVALID_ID,
+            `a ${name} element has the ${key} ${shown(value[key])}, not an integer id; skipped`,
+            {
+                line,
+                element: name,
+            },
+        );
         return null;
     }
     return { value, id };

@@ -29,16 +29,45 @@ const NOT_AN_ERROR = "sink exploded" as unknown as Error;
 /** Four nodes, three edges, in each format whose importer a sink can fill up. */
 const THREE_EDGES: readonly [string, GraphImporter, string][] = [
     ["dot", dotImporter, "digraph { a -> b; b -> c; c -> d }"],
-    ["gml", gmlImporter, "graph [ directed 1 node [ id 1 ] node [ id 2 ] node [ id 3 ] node [ id 4 ] edge [ source 1 target 2 ] edge [ source 2 target 3 ] edge [ source 3 target 4 ] ]"],
-    ["json", jsonImporter, JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }], links: [{ source: "a", target: "b" }] })],
-    ["graphml", graphmlImporter, '<graphml xmlns="http://graphml.graphdrawing.org/xmlns"><graph edgedefault="directed"><node id="a"/><node id="b"/><node id="c"/><node id="d"/><edge source="a" target="b"/></graph></graphml>'],
+    [
+        "gml",
+        gmlImporter,
+        "graph [ directed 1 node [ id 1 ] node [ id 2 ] node [ id 3 ] node [ id 4 ] edge [ source 1 target 2 ] edge [ source 2 target 3 ] edge [ source 3 target 4 ] ]",
+    ],
+    [
+        "json",
+        jsonImporter,
+        JSON.stringify({
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }],
+            links: [{ source: "a", target: "b" }],
+        }),
+    ],
+    [
+        "graphml",
+        graphmlImporter,
+        '<graphml xmlns="http://graphml.graphdrawing.org/xmlns"><graph edgedefault="directed"><node id="a"/><node id="b"/><node id="c"/><node id="d"/><edge source="a" target="b"/></graph></graphml>',
+    ],
     ["pajek", pajekImporter, '*Vertices 4\n1 "a"\n2 "b"\n3 "c"\n4 "d"\n*Arcs\n1 2\n2 3\n3 4\n'],
     ["csv", csvImporter, "source,target\na,b\nb,c\nc,d\n"],
 ];
 
 describe("robustness: one code for an empty input", () => {
     it("gives E_EMPTY_INPUT for an empty input in every format", async () => {
-        for (const format of ["graphml", "gexf", "gml", "pajek", "neo4j", "csv", "json", "dot", "xgmml", "cx", "cx2", "obo", "cys"]) {
+        for (const format of [
+            "graphml",
+            "gexf",
+            "gml",
+            "pajek",
+            "neo4j",
+            "csv",
+            "json",
+            "dot",
+            "xgmml",
+            "cx",
+            "cx2",
+            "obo",
+            "cys",
+        ]) {
             const err = await importFailure(importGraph(format === "cys" ? new Uint8Array(0) : "", { format }));
             expect([format, codes(err.report)]).toEqual([format, ["E_EMPTY_INPUT"]]);
         }
@@ -94,7 +123,10 @@ describe("robustness: what an id may hold", () => {
         const cases: [string, string][] = [
             ["csv", `source,target\n${SURROGATE},b\nc,d\n`],
             ["dot", `digraph { "${SURROGATE}" -> b; c -> d }`],
-            ["gml", `graph [ node [ id "${SURROGATE}" ] node [ id "c" ] node [ id "d" ] edge [ source "c" target "d" ] ]`],
+            [
+                "gml",
+                `graph [ node [ id "${SURROGATE}" ] node [ id "c" ] node [ id "d" ] edge [ source "c" target "d" ] ]`,
+            ],
         ];
         for (const [format, text] of cases) {
             const { snapshot, report } = await importGraph(text, { format });
@@ -105,7 +137,9 @@ describe("robustness: what an id may hold", () => {
     });
 
     it("rejects a lone surrogate in a Pajek label as a bad label value (Pajek ids are vertex numbers)", async () => {
-        const { snapshot, report } = await importGraph(`*Vertices 2\n1 "${SURROGATE}"\n2 "b"\n*Arcs\n1 2\n`, { format: "pajek" });
+        const { snapshot, report } = await importGraph(`*Vertices 2\n1 "${SURROGATE}"\n2 "b"\n*Arcs\n1 2\n`, {
+            format: "pajek",
+        });
         expect(codes(report)).toEqual(["E_COLUMN_TYPE"]);
         expect(report.issues[0].line).toBe(2);
         expect(snapshot.edgeCount).toBe(1);

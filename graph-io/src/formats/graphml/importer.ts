@@ -90,7 +90,15 @@ import { graphicsDecl, graphicsValues } from "./yfiles.js";
 /** The XML attributes the importer reads on each element; any other is reported (once per element and name). */
 const GRAPH_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "edgedefault", "parse.nodes", "parse.edges"]);
 const NODE_ATTRIBUTES: ReadonlySet<string> = new Set(["id"]);
-const KEY_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "for", "attr.name", "attr.type", "name", "type", "yfiles.type"]);
+const KEY_ATTRIBUTES: ReadonlySet<string> = new Set([
+    "id",
+    "for",
+    "attr.name",
+    "attr.type",
+    "name",
+    "type",
+    "yfiles.type",
+]);
 const DATA_ATTRIBUTES: ReadonlySet<string> = new Set(["key"]);
 const HYPEREDGE_ATTRIBUTES: ReadonlySet<string> = new Set(["id"]);
 const ENDPOINT_ATTRIBUTES: ReadonlySet<string> = new Set(["node", "type"]);
@@ -746,7 +754,10 @@ class GraphmlReader implements XmlHandler {
                 return;
             case "default":
                 this.reportUnreadAttributes("default", attrs, NO_ATTRIBUTES, line);
-                if (this.pendingKey !== null && (this.pendingKey.defaultText !== null || this.pendingKey.defaultTree !== undefined)) {
+                if (
+                    this.pendingKey !== null &&
+                    (this.pendingKey.defaultText !== null || this.pendingKey.defaultTree !== undefined)
+                ) {
                     this.report.warning(
                         "validation-error",
                         GRAPHML_ISSUE.DUPLICATE_ATTRIBUTE,
@@ -2653,7 +2664,10 @@ async function importGraphml(
     reportUnusedOptions(options, report, USED_OPTIONS);
     const reader = new GraphmlReader(sink, report, common, yfilesMode);
     try {
-        await tokenizeXml(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding, xml: true }), reader);
+        await tokenizeXml(
+            textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding, xml: true }),
+            reader,
+        );
     } catch (err) {
         if (err instanceof XmlEmptyInputError) {
             report.fail(GRAPHML_ISSUE.EMPTY_INPUT, "the input is empty (no markup at all)", { line: err.line });

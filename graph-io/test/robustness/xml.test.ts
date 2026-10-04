@@ -206,7 +206,10 @@ describe.each(FORMATS)("%s: not a graph document", (format) => {
 
     it("xml-gzip-bytes: gzip-compressed bytes are refused as compressed data", async () => {
         const issue = fatal(
-            await rejection(format, Uint8Array.from([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xab])),
+            await rejection(
+                format,
+                Uint8Array.from([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xab]),
+            ),
             "E_FOREIGN_FORMAT",
         );
         expect(issue.message).toMatch(/gzip-compressed/);
@@ -257,7 +260,10 @@ describe.each(FORMATS)("%s: XML declaration, DOCTYPE and processing instructions
 
     it("xml-xml11-control-char-ref: an XML 1.0 forbidden character reference in an XML 1.1 document names XML 1.1", async () => {
         const issue = fatal(
-            await rejection(format, `<?xml version="1.1"?>${nodesDoc(format, `<node id="a&#1;"/>`).slice(doc.indexOf("?>") + 2)}`),
+            await rejection(
+                format,
+                `<?xml version="1.1"?>${nodesDoc(format, `<node id="a&#1;"/>`).slice(doc.indexOf("?>") + 2)}`,
+            ),
             "E_XML_SYNTAX",
         );
         expect(issue.message).toMatch(/invalid character reference &#1;/);
@@ -296,7 +302,10 @@ describe.each(FORMATS)("%s: XML declaration, DOCTYPE and processing instructions
 
     it("xml-pi-without-target: a processing instruction without a target name is fatal", async () => {
         for (const pi of ["<? ?>", "<?123 x?>", "<??>"]) {
-            const issue = fatal(await rejection(format, doc.replace(`<node id="a"/>`, `${pi}<node id="a"/>`)), "E_XML_SYNTAX");
+            const issue = fatal(
+                await rejection(format, doc.replace(`<node id="a"/>`, `${pi}<node id="a"/>`)),
+                "E_XML_SYNTAX",
+            );
             expect(issue.message, pi).toMatch(/needs a target name/);
         }
         // a named processing instruction is still skipped
@@ -325,7 +334,10 @@ describe.each(FORMATS)("%s: XML declaration, DOCTYPE and processing instructions
     });
 
     it("xml-doctype-subset-pi-with-quote: a processing instruction with an apostrophe inside the internal subset is skipped", async () => {
-        const result = await load(format, doc.replace("?>\n", "?>\n<!DOCTYPE x [ <?note it's fine?> <!ENTITY e \"v\"> ]>\n"));
+        const result = await load(
+            format,
+            doc.replace("?>\n", '?>\n<!DOCTYPE x [ <?note it\'s fine?> <!ENTITY e "v"> ]>\n'),
+        );
         expect(ids(result)).toEqual(["a"]);
         expect(result.report.issues).toEqual([]);
     });

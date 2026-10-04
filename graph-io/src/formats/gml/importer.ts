@@ -568,7 +568,10 @@ class GmlImport {
             case TOKEN_STRING: {
                 const raw = t.textOf(v);
                 // a label is text: "[]" there is a label, never NetworkX's empty list
-                if (raw === LIST_START_MARKER || (!isLabel(domain, key) && (raw === EMPTY_LIST_TEXT || raw === EMPTY_TUPLE_TEXT))) {
+                if (
+                    raw === LIST_START_MARKER ||
+                    (!isLabel(domain, key) && (raw === EMPTY_LIST_TEXT || raw === EMPTY_TUPLE_TEXT))
+                ) {
                     entry.list = true;
                     return;
                 }
@@ -735,7 +738,11 @@ class GmlImport {
         ) {
             scalar = "dict";
         }
-        if ((entry.kinds & KIND_STRING) !== 0 && (entry.kinds & (KIND_INT | KIND_REAL)) !== 0 && (entry.kinds & KIND_RECORD) === 0) {
+        if (
+            (entry.kinds & KIND_STRING) !== 0 &&
+            (entry.kinds & (KIND_INT | KIND_REAL)) !== 0 &&
+            (entry.kinds & KIND_RECORD) === 0
+        ) {
             this.report.warnOnce(
                 "coercion",
                 WIDENED_CODE,
@@ -1075,7 +1082,10 @@ class GmlImport {
                 }
             }
             if (graphicsPlan !== null) {
-                this.writeGraphics(graphicsPlan, index, graphics, { line: t.line[graphics[0]], element: String(sinkId) });
+                this.writeGraphics(graphicsPlan, index, graphics, {
+                    line: t.line[graphics[0]],
+                    element: String(sinkId),
+                });
             }
             this.flushLists("node", index);
         } catch (err) {
@@ -1443,7 +1453,11 @@ class GmlImport {
                 rest = Object.keys(first).length > 0 ? first : undefined;
             }
             if ("x" in first || "y" in first || "z" in first) {
-                this.graphicsWarning("coordinate", `node ${where.element}'s graphics x / y / z is not one number each`, where);
+                this.graphicsWarning(
+                    "coordinate",
+                    `node ${where.element}'s graphics x / y / z is not one number each`,
+                    where,
+                );
             }
         } else if (!isRecord(first)) {
             this.graphicsWarning("scalar", `node ${where.element}'s graphics is not a record`, where);

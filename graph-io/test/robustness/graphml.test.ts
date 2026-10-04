@@ -24,7 +24,9 @@ describe("GraphML namespaces", () => {
     it("graphml-foreign-namespace-element: a vendor element named node in another namespace is not a node", async () => {
         const { snapshot, report } = await load(
             "graphml",
-            graphml(`<node id="a"/><x:node xmlns:x="urn:other" id="z"/><x:edge xmlns:x="urn:other" source="a" target="z"/>`),
+            graphml(
+                `<node id="a"/><x:node xmlns:x="urn:other" id="z"/><x:edge xmlns:x="urn:other" source="a" target="z"/>`,
+            ),
         );
         expect(ids({ snapshot })).toEqual(["a"]);
         expect(snapshot.edgeCount).toBe(0);
@@ -93,10 +95,12 @@ describe("GraphML edges", () => {
         expect(snapshot.edgeCount).toBe(1);
     });
 
-    it("graphml-empty-edge-id: id=\"\" is the same as no id, so two such edges are both kept", async () => {
+    it('graphml-empty-edge-id: id="" is the same as no id, so two such edges are both kept', async () => {
         const { snapshot, report } = await load(
             "graphml",
-            graphml(`<node id="a"/><node id="b"/><edge id="" source="a" target="b"/><edge id="" source="b" target="a"/>`),
+            graphml(
+                `<node id="a"/><node id="b"/><edge id="" source="a" target="b"/><edge id="" source="b" target="a"/>`,
+            ),
         );
         expect(report.issues).toEqual([]);
         expect(snapshot.edgeCount).toBe(2);
@@ -129,7 +133,10 @@ describe("GraphML nodes", () => {
         const keys = `<key id="o" for="node" attr.name="graphty:originalId" attr.type="string"/>`;
         const late = await load(
             "graphml",
-            graphml(`<node id="n1"><graph id="n1:" edgedefault="directed"><node id="c"/></graph><data key="o">real id</data></node>`, keys),
+            graphml(
+                `<node id="n1"><graph id="n1:" edgedefault="directed"><node id="c"/></graph><data key="o">real id</data></node>`,
+                keys,
+            ),
         );
         expect(codes(late.report)).toEqual([GRAPHML_ISSUE.ORIGINAL_ID_IGNORED]);
         expect(late.report.issues[0].message).toMatch(/after the node's nested <graph>/);
@@ -147,7 +154,10 @@ describe("GraphML keys and data", () => {
     it("graphml-duplicate-data-same-key: a second data of one key on one node is reported; the later value is kept", async () => {
         const { snapshot, report } = await load(
             "graphml",
-            graphml(`<node id="a"><data key="d">1</data><data key="d">2</data></node><node id="b"><data key="d">3</data></node>`, KEY_D),
+            graphml(
+                `<node id="a"><data key="d">1</data><data key="d">2</data></node><node id="b"><data key="d">3</data></node>`,
+                KEY_D,
+            ),
         );
         expect(codes(report)).toEqual([GRAPHML_ISSUE.DUPLICATE_ATTRIBUTE]);
         expect(report.issues[0].message).toMatch(/later value is kept/);
@@ -192,7 +202,10 @@ describe("GraphML keys and data", () => {
 
     it("graphml-attr-list-extension: attr.list is reported as not kept, then each list value as a type error", async () => {
         const keys = `<key id="l" for="node" attr.name="l" attr.type="int" attr.list="true"/>`;
-        const { snapshot, report } = await load("graphml", graphml(`<node id="a"><data key="l">1 2</data></node>`, keys));
+        const { snapshot, report } = await load(
+            "graphml",
+            graphml(`<node id="a"><data key="l">1 2</data></node>`, keys),
+        );
         expect(codes(report)).toEqual([GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE, "E_COLUMN_TYPE"]);
         expect(report.issues[0].element).toBe("attr.list");
         expect(snapshot.nodeCount).toBe(1);
@@ -209,7 +222,10 @@ describe("GraphML keys and data", () => {
         const keys = `<key id="w1" for="edge" attr.name="weight" attr.type="double"/><key id="w2" for="edge" attr.name="weight" attr.type="long"/><key id="k" for="node" attr.name="k" attr.type="int"><default>1</default><default>2</default></key>`;
         const { snapshot, report } = await load(
             "graphml",
-            graphml(`<node id="a"/><node id="b"/><edge source="a" target="b"><data key="w1">1.5</data><data key="w2">7</data></edge>`, keys),
+            graphml(
+                `<node id="a"/><node id="b"/><edge source="a" target="b"><data key="w1">1.5</data><data key="w2">7</data></edge>`,
+                keys,
+            ),
         );
         expect(codes(report)).toEqual([GRAPHML_ISSUE.DUPLICATE_ATTRIBUTE, GRAPHML_ISSUE.DUPLICATE_ATTRIBUTE]);
         expect(report.issues[0].message).toMatch(/second <default>; the later one is kept/);
@@ -230,7 +246,9 @@ describe("GraphML keys and data", () => {
             "weight",
             "port",
         ]);
-        expect(issuesOf(report, GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE)[6].message).toBe("the <endpoint> attribute port is not kept");
+        expect(issuesOf(report, GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE)[6].message).toBe(
+            "the <endpoint> attribute port is not kept",
+        );
         expect(snapshot.nodes.value("d", 0)).toBe("x");
         expect(snapshot.edgeCount).toBe(1);
     });
@@ -240,25 +258,36 @@ describe("GraphML hints, descriptions and limits", () => {
     it("graphml-parse-hint-mismatch: a disagreeing parse.nodes / parse.edges hint is W_COUNT_MISMATCH; an impossible one W_COUNT_HINT", async () => {
         const mismatch = await load(
             "graphml",
-            graphml(`<node id="a"/><edge source="a" target="a"/><edge source="a" target="a"/><edge source="a" target="a"/>`, "", ` parse.nodes="5" parse.edges="0"`),
+            graphml(
+                `<node id="a"/><edge source="a" target="a"/><edge source="a" target="a"/><edge source="a" target="a"/>`,
+                "",
+                ` parse.nodes="5" parse.edges="0"`,
+            ),
         );
         expect(codes(mismatch.report)).toEqual([GRAPHML_ISSUE.COUNT_MISMATCH, GRAPHML_ISSUE.COUNT_MISMATCH]);
         expect(mismatch.report.issues.map((i) => i.element)).toEqual(["parse.nodes", "parse.edges"]);
         expect(mismatch.report.issues[0].message).toMatch(/parse.nodes="5".*holds 1/);
         expect(mismatch.snapshot.edgeCount).toBe(3);
-        const huge = await load("graphml", graphml(`<node id="a"/>`, "", ` parse.nodes="99999999999" parse.edges="-1"`));
+        const huge = await load(
+            "graphml",
+            graphml(`<node id="a"/>`, "", ` parse.nodes="99999999999" parse.edges="-1"`),
+        );
         expect(codes(huge.report)).toEqual([GRAPHML_ISSUE.COUNT_HINT, GRAPHML_ISSUE.COUNT_HINT]);
     });
 
     it("graphml-desc-silently-dropped: a nested graph's desc, a hyperedge's desc and a second graph description are reported", async () => {
         const nested = await load(
             "graphml",
-            graphml(`<node id="a"><graph id="a:" edgedefault="directed"><desc>inner</desc><node id="b"/></graph></node>`),
+            graphml(
+                `<node id="a"><graph id="a:" edgedefault="directed"><desc>inner</desc><node id="b"/></graph></node>`,
+            ),
         );
         expect(codes(nested.report)).toEqual([GRAPHML_ISSUE.DESC_DROPPED]);
         const hyper = await load(
             "graphml",
-            undirected(`<node id="a"/><node id="b"/><hyperedge><desc>h</desc><endpoint node="a"/><endpoint node="b"/></hyperedge>`),
+            undirected(
+                `<node id="a"/><node id="b"/><hyperedge><desc>h</desc><endpoint node="a"/><endpoint node="b"/></hyperedge>`,
+            ),
             { hyperedges: "clique" },
         );
         expect(codes(hyper.report)).toEqual([GRAPHML_ISSUE.DESC_DROPPED]);
@@ -286,7 +315,10 @@ describe("GraphML hints, descriptions and limits", () => {
     });
 
     it("graphml-nested-edgedefault-missing-unbounded: 2,000 nested graphs without edgedefault give one warning", async () => {
-        const body = Array.from({ length: 2000 }, (_, i) => `<node id="p${i}"><graph><node id="c${i}"/></graph></node>`).join("");
+        const body = Array.from(
+            { length: 2000 },
+            (_, i) => `<node id="p${i}"><graph><node id="c${i}"/></graph></node>`,
+        ).join("");
         const { snapshot, report } = await load("graphml", graphml(body));
         expect(snapshot.nodeCount).toBe(4000);
         expect(codes(report)).toEqual([GRAPHML_ISSUE.EDGEDEFAULT_MISSING]);

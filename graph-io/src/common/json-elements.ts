@@ -1253,7 +1253,10 @@ async function* member(
             cur.pos++;
             break;
         }
-        throw new JsonScanError(next === "" ? "the document ends inside a member" : `expected "," or "}" after the key "${key}"`, cur.line());
+        throw new JsonScanError(
+            next === "" ? "the document ends inside a member" : `expected "," or "}" after the key "${key}"`,
+            cur.line(),
+        );
     }
     if (firstBlock !== null) {
         for (const other of others) {
@@ -1262,7 +1265,13 @@ async function* member(
             }
         }
         if (others.length > 0) {
-            yield { kind: "extraKeys", aspect: firstBlock, block, keys: others.map((o) => o.key), line: others[0].line };
+            yield {
+                kind: "extraKeys",
+                aspect: firstBlock,
+                block,
+                keys: others.map((o) => o.key),
+                line: others[0].line,
+            };
         }
         return;
     }

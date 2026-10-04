@@ -521,7 +521,10 @@ class PajekParser {
      */
     finish(): void {
         if (this.vertexCount < 0) {
-            const seen = this.firstUnsupported === null ? "" : ` (the file has the unrecognised section *${this.firstUnsupported})`;
+            const seen =
+                this.firstUnsupported === null
+                    ? ""
+                    : ` (the file has the unrecognised section *${this.firstUnsupported})`;
             this.report.fail(PAJEK_ISSUE.NO_VERTICES, `not a Pajek network: no *Vertices section found${seen}`);
         }
         this.endSection();
@@ -1112,7 +1115,12 @@ class PajekParser {
             );
         }
         const label = tokens[1];
-        if (labelAndXy && isNumericText(label) && !Number.isInteger(Number(label)) && !quotedAfterNumber(text, tokens)) {
+        if (
+            labelAndXy &&
+            isNumericText(label) &&
+            !Number.isInteger(Number(label)) &&
+            !quotedAfterNumber(text, tokens)
+        ) {
             this.report.warnOnce(
                 "validation-error",
                 PAJEK_ISSUE.NUMERIC_LABEL,
@@ -1547,11 +1555,15 @@ class PajekParser {
     private extras(tokens: readonly string[], start: number, domain: "node" | "edge", line: number): RowExtras {
         const extras: RowExtras = { keys: [], values: [], spells: null };
         const seen = new Set<string>();
-        for (let i = start; i < tokens.length;) {
+        for (let i = start; i < tokens.length; ) {
             const token = tokens[i];
             if (token.startsWith("[") && !isIntervalToken(token)) {
                 this.skip(domain);
-                throw new LineError("validation-error", PAJEK_ISSUE.INTERVAL, `time interval ${token} is not closed by "]"`);
+                throw new LineError(
+                    "validation-error",
+                    PAJEK_ISSUE.INTERVAL,
+                    `time interval ${token} is not closed by "]"`,
+                );
             }
             if (isIntervalToken(token)) {
                 try {
@@ -1870,4 +1882,3 @@ class NetworkCounter {
         }
     }
 }
-

@@ -357,7 +357,10 @@ export function parseIntervals(token: string): [number, number][] {
             end = Number(endText);
         }
         // only `*` means an open end: a numeral beyond the f64 range is not a time
-        if ((startText !== "*" && !Number.isFinite(start)) || (endText !== undefined && endText !== "*" && !Number.isFinite(end))) {
+        if (
+            (startText !== "*" && !Number.isFinite(start)) ||
+            (endText !== undefined && endText !== "*" && !Number.isFinite(end))
+        ) {
             throw new Error(`malformed time interval ${token}: "${part}" is beyond the number range`);
         }
         if (start > end) {
@@ -431,7 +434,13 @@ export function formatIntervals(spells: readonly (readonly [number, number])[]):
  * @returns true when the importer reads it back as a key
  */
 export function isParameterKey(text: string): boolean {
-    if (text.length === 0 || /[\s"]/.test(text) || text.startsWith("[") || text.startsWith("*") || text.startsWith("%")) {
+    if (
+        text.length === 0 ||
+        /[\s"]/.test(text) ||
+        text.startsWith("[") ||
+        text.startsWith("*") ||
+        text.startsWith("%")
+    ) {
         return false;
     }
     if (isShapeKeyword(text)) {

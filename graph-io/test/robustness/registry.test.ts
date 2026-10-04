@@ -14,8 +14,10 @@ import { type GraphImporter } from "../../src/types.js";
 import { makeZip } from "../helpers/zip.js";
 import { bytesOf, codes, importFailure, rejection, utf16 } from "./helpers.js";
 
-const HTML_404 = "<!DOCTYPE html>\n<html><head><title>404 Not Found</title></head>\n<body><h1>Not Found</h1></body></html>\n";
-const GRAPHML = '<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns"><graph edgedefault="directed"><node id="a"/><node id="b"/><edge source="a" target="b"/></graph></graphml>';
+const HTML_404 =
+    "<!DOCTYPE html>\n<html><head><title>404 Not Found</title></head>\n<body><h1>Not Found</h1></body></html>\n";
+const GRAPHML =
+    '<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns"><graph edgedefault="directed"><node id="a"/><node id="b"/><edge source="a" target="b"/></graph></graphml>';
 
 describe("robustness: files that are no graph at all", () => {
     it("refuses an HTML error page under any graph extension, saying it is an HTML document", async () => {
@@ -95,7 +97,9 @@ describe("robustness: comments longer than the sniffed head", () => {
     });
 
     it("detects Pajek whose first lines are % comments", async () => {
-        const { format, snapshot } = await importGraph('% exported by Pajek\n%\n*Vertices 2\n1 "a"\n2 "b"\n*Arcs\n1 2\n');
+        const { format, snapshot } = await importGraph(
+            '% exported by Pajek\n%\n*Vertices 2\n1 "a"\n2 "b"\n*Arcs\n1 2\n',
+        );
         expect(format).toBe("pajek");
         expect(snapshot.edgeCount).toBe(1);
     });
@@ -123,9 +127,13 @@ describe("robustness: names, hints and plugins", () => {
     });
 
     it("treats a plugin sniffer that throws as not recognising the head", async () => {
-        const broken: GraphImporter = { ...csvImporter, format: "broken", sniff: (): number => {
-            throw new Error("plugin bug");
-        } };
+        const broken: GraphImporter = {
+            ...csvImporter,
+            format: "broken",
+            sniff: (): number => {
+                throw new Error("plugin bug");
+            },
+        };
         const registry = createRegistry().registerImporter(broken);
         expect(registry.sniff({ head: "graph [ node [ id 1 ] ]" })?.format).toBe("gml");
         const { format, report } = await registry.importGraph("graph [ node [ id 1 ] ]");
@@ -166,7 +174,12 @@ describe("robustness: names, hints and plugins", () => {
         const err = await importFailure(importGraph(empty));
         expect(err.details.code).toBe("E_UNKNOWN_FORMAT");
         expect(err.report.truncated).toBe(false);
-        const bad = await importFailure(importGraph(bytesOf("source,target\ncaf", [0xc3, 0xa9], ",b\nx", [0xe9], ",y\n"), { format: "csv", errorLimit: 0 }));
+        const bad = await importFailure(
+            importGraph(bytesOf("source,target\ncaf", [0xc3, 0xa9], ",b\nx", [0xe9], ",y\n"), {
+                format: "csv",
+                errorLimit: 0,
+            }),
+        );
         expect(codes(bad.report)).toEqual(["E_INVALID_UTF8"]);
         expect(bad.report.truncated).toBe(false);
     });

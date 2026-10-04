@@ -1079,7 +1079,12 @@ class Cx2Reader {
             }
             for (const [key, raw] of Object.entries(value.v)) {
                 const resolved = table.resolve(key);
-                if (key === "" || (resolved !== null && resolved.decl.type !== null) || raw === null || raw === undefined) {
+                if (
+                    key === "" ||
+                    (resolved !== null && resolved.decl.type !== null) ||
+                    raw === null ||
+                    raw === undefined
+                ) {
                     continue;
                 }
                 const name = resolved?.decl.name ?? key;

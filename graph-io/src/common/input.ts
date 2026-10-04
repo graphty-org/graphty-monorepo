@@ -417,7 +417,9 @@ class ByteDecoder {
     decode(input: Uint8Array, stream: boolean): string {
         // a browser TextDecoder refuses a view of shared memory: decode a private copy
         const bytes =
-            typeof SharedArrayBuffer === "function" && input.buffer instanceof SharedArrayBuffer ? input.slice() : input;
+            typeof SharedArrayBuffer === "function" && input.buffer instanceof SharedArrayBuffer
+                ? input.slice()
+                : input;
         const decoder = this.decoder as TextDecoder;
         if (this.fellBack || (this.mayFallBack && this.asciiSoFar)) {
             this.watch(bytes, !stream);
@@ -1397,7 +1399,10 @@ export async function readText(
     for await (const chunk of textChunks(input, report, options)) {
         length += chunk.length;
         if (length > MAX_TEXT_LENGTH) {
-            tooLarge(report, `the document is longer than ${MAX_TEXT_LENGTH} characters, the most one JavaScript string holds`);
+            tooLarge(
+                report,
+                `the document is longer than ${MAX_TEXT_LENGTH} characters, the most one JavaScript string holds`,
+            );
         }
         parts.push(chunk);
     }

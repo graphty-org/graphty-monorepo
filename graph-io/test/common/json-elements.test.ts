@@ -141,7 +141,11 @@ describe("scanAspects", () => {
             expect(events.map((e) => e.kind)).toEqual(["block", "element", "extraKeys"]);
             expect(events[0]).toMatchObject({ kind: "block", aspect: "nodes", shared: true });
             expect(events[1]).toMatchObject({ kind: "element", value: { id: 1 } });
-            expect(events[2]).toMatchObject({ kind: "extraKeys", aspect: "nodes", keys: [text.includes('"x"') ? "x" : "networkAttributes"] });
+            expect(events[2]).toMatchObject({
+                kind: "extraKeys",
+                aspect: "nodes",
+                keys: [text.includes('"x"') ? "x" : "networkAttributes"],
+            });
         }
     });
 

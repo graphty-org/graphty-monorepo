@@ -225,7 +225,8 @@ const ELEMENT_ATTRIBUTES: Readonly<Record<string, ReadonlySet<string>>> = {
 const COUNT_TEXT = /^[0-9]+$/;
 
 /** An xs:date / xs:dateTime text (`lastmodifieddate`). */
-const DATE_TEXT = /^-?[0-9]{4,}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]+)?)?)?(Z|[+-][0-9]{2}:[0-9]{2})?$/;
+const DATE_TEXT =
+    /^-?[0-9]{4,}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]+)?)?)?(Z|[+-][0-9]{2}:[0-9]{2})?$/;
 
 const EDGE_TYPES: ReadonlySet<string> = new Set(["directed", "undirected", "mutual"]);
 
@@ -582,7 +583,12 @@ class GexfReader implements XmlHandler {
     private readonly attvalueIds = new Set<string>();
 
     /** The open `<nodes>` / `<edges>` sections: their count hint and the elements read directly in them. */
-    private readonly sections: { readonly domain: "node" | "edge"; readonly hint: number | null; seen: number; readonly line: number }[] = [];
+    private readonly sections: {
+        readonly domain: "node" | "edge";
+        readonly hint: number | null;
+        seen: number;
+        readonly line: number;
+    }[] = [];
 
     /** Unknown attribute names reported per element kind, and how many more were not listed. */
     private readonly unknownNames = new Map<string, Set<string>>();
@@ -1554,7 +1560,12 @@ class GexfReader implements XmlHandler {
         const frame = this.nodeStack[this.nodeStack.length - 1];
         const text = attrs.get("for");
         if (text === undefined) {
-            this.report.error("missing-value", UNKNOWN_PARENT_CODE, "<parent> without a for attribute names no parent", frame.where);
+            this.report.error(
+                "missing-value",
+                UNKNOWN_PARENT_CODE,
+                "<parent> without a for attribute names no parent",
+                frame.where,
+            );
             return;
         }
         try {
@@ -2356,7 +2367,10 @@ class GexfReader implements XmlHandler {
                     line: where.line ?? null,
                 });
             }
-            const pair = [parseTimeText(items[0], this.timeFormat).value, parseTimeText(items[1], this.timeFormat).value];
+            const pair = [
+                parseTimeText(items[0], this.timeFormat).value,
+                parseTimeText(items[1], this.timeFormat).value,
+            ];
             if (pair[0] > pair[1]) {
                 this.report.error(
                     "validation-error",

@@ -9,7 +9,8 @@ import { codes, importFailure } from "./helpers.js";
 
 describe("robustness: CSV given a document that is no table", () => {
     it("refuses an HTML error page with E_FOREIGN_FORMAT instead of nodes named <html>", async () => {
-        const html = "<!DOCTYPE html>\n<html><head><title>404 Not Found</title></head>\n<body><h1>Not Found</h1></body></html>\n";
+        const html =
+            "<!DOCTYPE html>\n<html><head><title>404 Not Found</title></head>\n<body><h1>Not Found</h1></body></html>\n";
         for (const format of ["csv", "neo4j", "dot", "gml", "pajek", "json"]) {
             const err = await importFailure(importGraph(html, { format }));
             expect([format, codes(err.report)]).toEqual([format, ["E_FOREIGN_FORMAT"]]);

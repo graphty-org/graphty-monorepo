@@ -657,7 +657,12 @@ function writePropertyValues(
  * @param element - the field's path, when known
  */
 function badValue(ctx: ImportContext, message: string, element?: string): void {
-    ctx.report.error("validation-error", JSON_ISSUE.BAD_VALUE, message, element === undefined ? undefined : { element });
+    ctx.report.error(
+        "validation-error",
+        JSON_ISSUE.BAD_VALUE,
+        message,
+        element === undefined ? undefined : { element },
+    );
 }
 
 /**
@@ -683,9 +688,14 @@ function subjectOf(ctx: ImportContext, record: JsonRecord, element: string): unk
     }
     if (!hasKey(record, "sub")) {
         if (hasKey(record, "subj")) {
-            report.warnOnce("coercion", JSON_ISSUE.OBOGRAPHS_SUBJ, `${element} uses the outdated key subj; read as sub`, {
-                element,
-            });
+            report.warnOnce(
+                "coercion",
+                JSON_ISSUE.OBOGRAPHS_SUBJ,
+                `${element} uses the outdated key subj; read as sub`,
+                {
+                    element,
+                },
+            );
         }
         return record.subj;
     }

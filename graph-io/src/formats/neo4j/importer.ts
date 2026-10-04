@@ -588,7 +588,10 @@ class Neo4jImportSession {
         carried: Section | null,
         mayBeEmpty: boolean,
     ): Promise<Section | null> {
-        const reader = new RecordReader(input, this.report, this.options.syntax, { ...readOptions, allowEmpty: mayBeEmpty });
+        const reader = new RecordReader(input, this.report, this.options.syntax, {
+            ...readOptions,
+            allowEmpty: mayBeEmpty,
+        });
         let section: Section | null = carried;
         let records = 0;
         let rows = 0;

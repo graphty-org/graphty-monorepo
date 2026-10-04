@@ -2409,9 +2409,7 @@ function reportAdjacencyShape(
  * @returns the value, an object with its keys sorted
  */
 function sortedKeys(_key: string, value: unknown): unknown {
-    return isJsonObject(value)
-        ? Object.fromEntries(Object.entries(value).sort(([x], [y]) => (x < y ? -1 : 1)))
-        : value;
+    return isJsonObject(value) ? Object.fromEntries(Object.entries(value).sort(([x], [y]) => (x < y ? -1 : 1))) : value;
 }
 
 /**

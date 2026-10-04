@@ -281,7 +281,6 @@ export const XML_ILLEGAL_CHAR_CODE = "E_XML_ILLEGAL_CHAR";
 /** A dict column without declared options gains one from its dictionary on re-import. */
 export const OPTIONS_GAINED_CODE = "W_OPTIONS_GAINED";
 
-
 // ============================================================ the input layer
 
 /**

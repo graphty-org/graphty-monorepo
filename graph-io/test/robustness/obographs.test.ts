@@ -320,9 +320,10 @@ describe("robustness: OBO Graphs nodes", () => {
 
     it("compacts https OBO PURLs like http ones (og-https-obo-purl)", async () => {
         const https = "https://purl.obolibrary.org/obo/";
-        const doc = graph([{ id: `${https}GO_1` }, { id: `${https}GO_2` }], [
-            { sub: `${https}GO_1`, pred: "is_a", obj: `${https}GO_2` },
-        ]);
+        const doc = graph(
+            [{ id: `${https}GO_1` }, { id: `${https}GO_2` }],
+            [{ sub: `${https}GO_1`, pred: "is_a", obj: `${https}GO_2` }],
+        );
         const { s, report } = await load(doc);
         expect(report.issues).toEqual([]);
         expect(s.ids.toArray()).toEqual(["GO:1", "GO:2"]);

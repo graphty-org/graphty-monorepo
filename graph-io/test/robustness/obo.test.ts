@@ -155,7 +155,9 @@ describe("robustness: names that are Object.prototype members", () => {
             ["name", ["p"]],
         ]);
 
-        const xrefs = await load(`${HEAD}[Term]\nid: X:1\nxref: __proto__ "d1"\nxref: constructor "d2"\nxref: A:1 "d3"\n`);
+        const xrefs = await load(
+            `${HEAD}[Term]\nid: X:1\nxref: __proto__ "d1"\nxref: constructor "d2"\nxref: A:1 "d3"\n`,
+        );
         expect(xrefs.report.issues).toEqual([]);
         expect(cell(xrefs.snapshot, "xref", "X:1")).toEqual(["__proto__", "constructor", "A:1"]);
         expect(entries(cell(xrefs.snapshot, "xref.descriptions", "X:1"))).toEqual([
@@ -194,11 +196,14 @@ describe("robustness: input that is not OBO", () => {
         ["a JSON array", '[\n {"id": 1, "label": "a"},\n {"id": 2}\n]'],
         ["a lone bracket", "["],
         ["a one-line JSON array", '[{"id": 1}]'],
-    ])("rejects %s: a damaged header with no frame name is no proof of OBO (wrong-format-json-array)", async (_name, text) => {
-        const err = await fails(text);
-        expect(codes(err.report)).toEqual([OBO_ISSUE.NOT_OBO]);
-        expect(err.report.issues[0].line).toBe(1);
-    });
+    ])(
+        "rejects %s: a damaged header with no frame name is no proof of OBO (wrong-format-json-array)",
+        async (_name, text) => {
+            const err = await fails(text);
+            expect(codes(err.report)).toEqual([OBO_ISSUE.NOT_OBO]);
+            expect(err.report.issues[0].line).toBe(1);
+        },
+    );
 
     it.each([
         ["GML", "graph [\n node [ id 1 ]\n]\n"],
@@ -213,7 +218,9 @@ describe("robustness: input that is not OBO", () => {
         const gz = gzipSync(enc.encode(`${HEAD}[Term]\nid: X:1\nname: a term with some text\n`));
         const gzErr = await fails(gz);
         expect(codes(gzErr.report)).toEqual([OBO_ISSUE.FOREIGN_FORMAT]);
-        const zip = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00, 0xb7, 0x9c, 0xd1, 0xe9]);
+        const zip = new Uint8Array([
+            0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00, 0xb7, 0x9c, 0xd1, 0xe9,
+        ]);
         const zipErr = await fails(zip);
         expect(codes(zipErr.report)).toEqual([OBO_ISSUE.FOREIGN_FORMAT]);
     });
@@ -255,7 +262,8 @@ describe("robustness: the header", () => {
     });
 
     it("keeps the first of a repeated single-valued header tag, warning (repeated-header-tag)", async () => {
-        const text = "format-version: 1.2\nformat-version: 1.4\nontology: a\nontology: b\nremark: r1\nremark: r2\n\n[Term]\nid: X:1\n";
+        const text =
+            "format-version: 1.2\nformat-version: 1.4\nontology: a\nontology: b\nremark: r1\nremark: r2\n\n[Term]\nid: X:1\n";
         const { snapshot, report } = await load(text);
         expect(codes(report)).toEqual([OBO_ISSUE.DUPLICATE_ATTRIBUTE, OBO_ISSUE.DUPLICATE_ATTRIBUTE]);
         expect(report.issues.map((i) => i.element)).toEqual(["format-version", "ontology"]);
@@ -384,7 +392,9 @@ describe("robustness: truncated clauses", () => {
         expect(def.report.issues[0].element).toBe("def");
 
         const syn = await load(`${HEAD}[Term]\nid: X:1\nsynonym: "s" EXACT [A:1, B`);
-        expect(cell(syn.snapshot, "synonym", "X:1")).toEqual([{ text: "s", scope: "EXACT", type: null, xrefs: ["A:1", "B"] }]);
+        expect(cell(syn.snapshot, "synonym", "X:1")).toEqual([
+            { text: "s", scope: "EXACT", type: null, xrefs: ["A:1", "B"] },
+        ]);
         expect(codes(syn.report)).toEqual([OBO_ISSUE.SYNTAX]);
     });
 
@@ -403,7 +413,9 @@ describe("robustness: truncated clauses", () => {
 
     it("warns about an unterminated property_value and a list where the datatype goes (property-value-unterminated-or-list)", async () => {
         const quote = await load(`${HEAD}[Term]\nid: X:1\nproperty_value: rel "abc`);
-        expect(cell(quote.snapshot, "property_value", "X:1")).toEqual([{ relation: "rel", value: "abc", datatype: null }]);
+        expect(cell(quote.snapshot, "property_value", "X:1")).toEqual([
+            { relation: "rel", value: "abc", datatype: null },
+        ]);
         expect(codes(quote.report)).toEqual([OBO_ISSUE.SYNTAX]);
 
         const list = await load(`${HEAD}[Term]\nid: X:1\nproperty_value: rel "v" [x]\n`);
@@ -447,7 +459,9 @@ describe("robustness: malformed clause values", () => {
         const { snapshot, report } = await load(`${HEAD}[Term]\nid: X:1 {source="a"}\n`);
         expect(report.issues).toEqual([]);
         expect(ids(snapshot)).toEqual(["X:1"]);
-        expect(cell(snapshot, "obo.qualifiers", "X:1")).toEqual({ id: [{ value: "X:1", qualifiers: { source: "a" } }] });
+        expect(cell(snapshot, "obo.qualifiers", "X:1")).toEqual({
+            id: [{ value: "X:1", qualifiers: { source: "a" } }],
+        });
     });
 
     it("refuses an id holding unescaped whitespace in the frame and in a reference alike (id-with-whitespace)", async () => {
@@ -627,13 +641,20 @@ describe("robustness: encodings", () => {
         const { snapshot, report } = await load(bytes);
         expect(cell(snapshot, "name", "X:1")).toBe(`caf${String.fromCharCode(0xc3)}`);
         expect(codes(report)).toEqual([OBO_ISSUE.ENCODING_FALLBACK]);
-        const after = new Uint8Array([...enc.encode(`${HEAD}[Term]\nid: X:1\nname: caf${String.fromCharCode(0xe9)}\nname: x`), 0xc3]);
+        const after = new Uint8Array([
+            ...enc.encode(`${HEAD}[Term]\nid: X:1\nname: caf${String.fromCharCode(0xe9)}\nname: x`),
+            0xc3,
+        ]);
         expect(codes((await fails(after)).report)).toEqual([OBO_ISSUE.INVALID_UTF8]);
     });
 
     it("rejects a Latin-1 byte after valid multibyte UTF-8 (invalid-utf8-mid-file)", async () => {
         const greek = String.fromCharCode(0x3b1, 0x3b2);
-        const bytes = new Uint8Array([...enc.encode(`${HEAD}[Term]\nid: X:1\nname: ${greek}\ncomment: caf`), 0xe9, 0x0a]);
+        const bytes = new Uint8Array([
+            ...enc.encode(`${HEAD}[Term]\nid: X:1\nname: ${greek}\ncomment: caf`),
+            0xe9,
+            0x0a,
+        ]);
         const err = await fails(bytes);
         expect(codes(err.report)).toEqual([OBO_ISSUE.INVALID_UTF8]);
     });

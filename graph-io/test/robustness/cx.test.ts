@@ -101,7 +101,12 @@ async function* chunks(text: string, cuts: readonly number[]): AsyncGenerator<st
     }
 }
 
-const TWO_NODES = { nodes: [{ "@id": 1, n: "a" }, { "@id": 2, n: "b" }] };
+const TWO_NODES = {
+    nodes: [
+        { "@id": 1, n: "a" },
+        { "@id": 2, n: "b" },
+    ],
+};
 
 describe("cx robustness: the wrong format", () => {
     it("fails on whitespace only with E_EMPTY_INPUT", async () => {
@@ -224,7 +229,9 @@ describe("cx robustness: encodings", () => {
     it("repairs a lone surrogate in an element's own key, in what is kept and in what is reported", async () => {
         const kept = await load(cx([TWO_NODES, { myAspect: [{ LONE: 1 }] }]).replace("LONE", "\\ud800k"));
         expect(codes(kept.report)).toEqual([CX_ISSUE.BAD_VALUE]);
-        expect((kept.snapshot.meta.extra.cx as Record<string, unknown>).myAspect).toEqual([{ [`${String.fromCharCode(0xfffd)}k`]: 1 }]);
+        expect((kept.snapshot.meta.extra.cx as Record<string, unknown>).myAspect).toEqual([
+            { [`${String.fromCharCode(0xfffd)}k`]: 1 },
+        ]);
         const node = await load('[{"nodes":[{"@id":1,"\\udc00":1}]}]');
         expect(codes(node.report)).toEqual([CX_ISSUE.BAD_VALUE, CX_ISSUE.UNKNOWN_ELEMENT]);
         const unknown = issuesOf(node.report, CX_ISSUE.UNKNOWN_ELEMENT)[0];
@@ -237,7 +244,9 @@ describe("cx robustness: encodings", () => {
         const { snapshot, report } = await load(text.replace("ONE", "\\ud800").replace("TWO", "\\ud801"));
         expect(codes(report)).toEqual([CX_ISSUE.DUPLICATE_ATTRIBUTE, CX_ISSUE.BAD_VALUE]);
         expect(issuesOf(report, CX_ISSUE.BAD_VALUE)[0].message).toMatch(/^2 string/);
-        expect((snapshot.meta.extra.cx as Record<string, unknown>).myAspect).toEqual([{ a: { [String.fromCharCode(0xfffd)]: 2 } }]);
+        expect((snapshot.meta.extra.cx as Record<string, unknown>).myAspect).toEqual([
+            { a: { [String.fromCharCode(0xfffd)]: 2 } },
+        ]);
     });
 
     it("fails a file cut inside a UTF-8 character with E_INVALID_UTF8, without a windows-1252 fallback", async () => {
@@ -418,7 +427,10 @@ describe("cx robustness: values", () => {
 
     it("keeps an element whose core fields have the wrong type, with E_BAD_VALUE per field", async () => {
         const { snapshot, report } = await load(
-            cx([{ nodes: [{ "@id": 1, n: { a: 1 }, r: ["x"] }, { "@id": 2 }] }, { edges: [{ "@id": 3, s: 1, t: 2, i: 5 }] }]),
+            cx([
+                { nodes: [{ "@id": 1, n: { a: 1 }, r: ["x"] }, { "@id": 2 }] },
+                { edges: [{ "@id": 3, s: 1, t: 2, i: 5 }] },
+            ]),
         );
         expect(codes(report)).toEqual([CX_ISSUE.BAD_VALUE]);
         expect(issuesOf(report, CX_ISSUE.BAD_VALUE)).toHaveLength(3);
@@ -530,9 +542,7 @@ describe("cx robustness: values", () => {
 
     it("reports a malformed status (not an object, a string success) with E_BAD_VALUE and reads on", async () => {
         for (const status of [[5], [{ success: "false", error: "x" }]]) {
-            const { snapshot, report } = await load(
-                JSON.stringify([VERIFY, { nodes: [{ "@id": 1 }] }, { status }]),
-            );
+            const { snapshot, report } = await load(JSON.stringify([VERIFY, { nodes: [{ "@id": 1 }] }, { status }]));
             expect(codes(report), JSON.stringify(status)).toEqual([CX_ISSUE.BAD_VALUE]);
             expect(snapshot.nodeCount).toBe(1);
         }
@@ -572,14 +582,18 @@ describe("cx robustness: values", () => {
 
 describe("cx robustness: layout, groups and structure", () => {
     it("reports a non-numeric z with E_BAD_VALUE and keeps x and y", async () => {
-        const { snapshot, report } = await load(cx([TWO_NODES, { cartesianLayout: [{ node: 1, x: 1, y: 2, z: "3" }] }]));
+        const { snapshot, report } = await load(
+            cx([TWO_NODES, { cartesianLayout: [{ node: 1, x: 1, y: 2, z: "3" }] }]),
+        );
         expect(codes(report)).toEqual([CX_ISSUE.BAD_VALUE]);
         expect(point(snapshot, 1)).toEqual([1, -2, 0]);
         expect(value(snapshot, "z", 1)).toBeUndefined();
     });
 
     it("reports layout elements that are not objects with E_BAD_ASPECT_BLOCK", async () => {
-        const { snapshot, report } = await load(cx([TWO_NODES, { cartesianLayout: [5, null, { node: 1, x: 1, y: 1 }] }]));
+        const { snapshot, report } = await load(
+            cx([TWO_NODES, { cartesianLayout: [5, null, { node: 1, x: 1, y: 1 }] }]),
+        );
         expect(codes(report)).toEqual([CX_ISSUE.BAD_ASPECT_BLOCK]);
         expect(issuesOf(report, CX_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(2);
         expect(point(snapshot, 1)).toEqual([1, -1, 0]);
@@ -718,11 +732,7 @@ describe("cx robustness: layout, groups and structure", () => {
             cx([
                 TWO_NODES,
                 {
-                    networkAttributes: [
-                        { n: "foo" },
-                        { n: "bar", v: "a" },
-                        { n: "bar", v: "b" },
-                    ],
+                    networkAttributes: [{ n: "foo" }, { n: "bar", v: "a" }, { n: "bar", v: "b" }],
                 },
             ]),
         );
@@ -825,7 +835,11 @@ describe("cx robustness: ids option, weights and precision", () => {
             [[1, 2], "list_of_double"],
         ] as const) {
             const { snapshot, report } = await load(
-                cx([TWO_NODES, { edges: [{ "@id": 3, s: 1, t: 2 }] }, { edgeAttributes: [{ po: 3, n: "weight", v, d }] }]),
+                cx([
+                    TWO_NODES,
+                    { edges: [{ "@id": 3, s: 1, t: 2 }] },
+                    { edgeAttributes: [{ po: 3, n: "weight", v, d }] },
+                ]),
             );
             expect(codes(report), JSON.stringify(v)).toEqual([CX_ISSUE.INVALID_WEIGHT]);
             expect(snapshot.edgeCount).toBe(0);
@@ -843,12 +857,16 @@ describe("cx robustness: ids option, weights and precision", () => {
         expect(codes(kept.report)).toEqual([]);
         const ndex = await load('[{"nodes":[{"@id":1}]},{"ndexStatus":[{"externalId":12345678901234567891}]}]');
         expect(codes(ndex.report)).toEqual([CX_ISSUE.PRECISION]);
-        const citation = await load(cx([TWO_NODES, { citations: [{ "@id": "12345678901234567891", "dc:title": "t" }] }]));
+        const citation = await load(
+            cx([TWO_NODES, { citations: [{ "@id": "12345678901234567891", "dc:title": "t" }] }]),
+        );
         expect(codes(citation.report)).toEqual([CX_ISSUE.PRECISION]);
     });
 
     it("renames a citation field named id instead of failing on the table's own id column", async () => {
-        const { snapshot, report } = await load(cx([TWO_NODES, { citations: [{ "@id": 1, id: "x", "dc:title": "t" }] }]));
+        const { snapshot, report } = await load(
+            cx([TWO_NODES, { citations: [{ "@id": 1, id: "x", "dc:title": "t" }] }]),
+        );
         expect(codes(report)).toEqual([CX_ISSUE.COLUMN_RENAMED]);
         const table = snapshot.extensions.get("cx:citations");
         expect(table?.get("id")?.value(0)).toBe(1);

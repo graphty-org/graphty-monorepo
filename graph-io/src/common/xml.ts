@@ -1287,7 +1287,10 @@ export class XmlTokenizer {
             }
             if (i === before) {
                 // the name, or the previous value's closing quote, runs into the next attribute
-                throw new XmlSyntaxError(`the attributes of <${name}> must be separated by whitespace`, this.lineIn(pos, i));
+                throw new XmlSyntaxError(
+                    `the attributes of <${name}> must be separated by whitespace`,
+                    this.lineIn(pos, i),
+                );
             }
             const attrEnd = this.readName(i);
             if (attrEnd < 0) {
@@ -1328,7 +1331,10 @@ export class XmlTokenizer {
             }
             const raw = buffer.slice(i + 1, close);
             if (hasIllegalXmlChar(raw)) {
-                throw new XmlSyntaxError(`a character XML 1.0 forbids appears in attribute ${attrName} of <${name}>`, line);
+                throw new XmlSyntaxError(
+                    `a character XML 1.0 forbids appears in attribute ${attrName} of <${name}>`,
+                    line,
+                );
             }
             if (raw.includes("<")) {
                 throw new XmlSyntaxError(`a "<" in the value of attribute ${attrName} of <${name}> (write &lt;)`, line);

@@ -295,14 +295,20 @@ describe("robustness: input shapes a caller may pass by mistake", () => {
         expect((await unsupported(new Int8Array(4))).message).toContain("Int8Array");
         expect((await unsupported(new DataView(new ArrayBuffer(4)))).message).toContain("DataView");
         // the same through the importer, with no registry in between
-        const err = await rejection(csvImporter.import(null as unknown as ImportInput, new GraphBuilder({ directed: true })));
+        const err = await rejection(
+            csvImporter.import(null as unknown as ImportInput, new GraphBuilder({ directed: true })),
+        );
         expect((err as GraphFormatError).code).toBe("E_UNSUPPORTED");
         // and when the registry has to sniff
-        expect(await rejection(importGraph(new ArrayBuffer(2) as unknown as ImportInput))).toBeInstanceOf(GraphFormatError);
+        expect(await rejection(importGraph(new ArrayBuffer(2) as unknown as ImportInput))).toBeInstanceOf(
+            GraphFormatError,
+        );
     });
 
     it("accepts a Uint8Array from another realm as the whole input", async () => {
-        const foreign = runInNewContext("new Uint8Array(bytes)", { bytes: [...new TextEncoder().encode(EDGES)] }) as Uint8Array;
+        const foreign = runInNewContext("new Uint8Array(bytes)", {
+            bytes: [...new TextEncoder().encode(EDGES)],
+        }) as Uint8Array;
         expect(foreign instanceof Uint8Array).toBe(false);
         const { snapshot } = await csv(foreign);
         expect(ids(snapshot)).toEqual(["a", "b", "c"]);

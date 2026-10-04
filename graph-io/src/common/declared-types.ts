@@ -22,7 +22,16 @@ export type DeclaringFormat = "gexf" | "graphml" | "gml" | "neo4j";
 
 /** How the text of one scalar value (or one list item) is parsed. */
 type ValueKind =
-    "boolean" | "integer" | "long" | "float" | "double" | "string" | "temporal" | "duration" | "point" | "json";
+    | "boolean"
+    | "integer"
+    | "long"
+    | "float"
+    | "double"
+    | "string"
+    | "temporal"
+    | "duration"
+    | "point"
+    | "json";
 
 /** The resolved storage of a declared type. */
 export interface DeclaredTypeSpec {

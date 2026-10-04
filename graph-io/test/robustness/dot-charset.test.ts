@@ -15,12 +15,14 @@ describe("robustness: DOT charset", () => {
     it("ignores charset in a comment, in a quoted value and in a node attribute list: the file stays UTF-8", async () => {
         for (const prefix of [
             '// set charset="latin1" if needed\n',
-            '/* charset=big5 */\n',
+            "/* charset=big5 */\n",
             'digraph { x [label="charset=big5"]; ',
             "digraph { node [charset=latin1]; ",
         ]) {
             const open = prefix.startsWith("digraph") ? prefix : `${prefix}digraph { `;
-            const { snapshot, report } = await importGraph(bytesOf(open, '"', CAFE_UTF8, '" -> b }\n'), { format: "dot" });
+            const { snapshot, report } = await importGraph(bytesOf(open, '"', CAFE_UTF8, '" -> b }\n'), {
+                format: "dot",
+            });
             expect(report.issues).toEqual([]);
             expect(snapshot.ids.toArray()).toContain(`caf${E_ACUTE}`);
         }
@@ -28,7 +30,9 @@ describe("robustness: DOT charset", () => {
 
     it("honours a graph-level charset as a statement or in graph [...]", async () => {
         for (const open of ['digraph { charset="latin1"; ', "digraph { graph [charset=latin1]; "]) {
-            const { snapshot, report } = await importGraph(bytesOf(open, '"caf', [0xe9], '" -> b }\n'), { format: "dot" });
+            const { snapshot, report } = await importGraph(bytesOf(open, '"caf', [0xe9], '" -> b }\n'), {
+                format: "dot",
+            });
             expect(report.issues).toEqual([]);
             expect(snapshot.ids.toArray()).toContain(`caf${E_ACUTE}`);
         }

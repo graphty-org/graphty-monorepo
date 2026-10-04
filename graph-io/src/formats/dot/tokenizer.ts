@@ -101,10 +101,7 @@ export class DotTokenizer {
      * @param onAmbiguity - called for a badly delimited numeral (`1e3`, which Graphviz splits into
      * `1` and `e3` with a warning), with the numeral text and its line
      */
-    constructor(
-        text: string,
-        onAmbiguity: ((numeral: string, line: number) => void) | null = null,
-    ) {
+    constructor(text: string, onAmbiguity: ((numeral: string, line: number) => void) | null = null) {
         this.text = text;
         this.onAmbiguity = onAmbiguity;
     }

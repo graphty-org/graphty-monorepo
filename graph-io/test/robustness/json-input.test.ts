@@ -11,7 +11,9 @@ import { bytesOf, codes, importFailure } from "./helpers.js";
 
 describe("robustness: JSON input", () => {
     it("names JSON Lines in the syntax error", async () => {
-        const err = await importFailure(importGraph('{"source":"a","target":"b"}\n{"source":"b","target":"c"}\n', { format: "json" }));
+        const err = await importFailure(
+            importGraph('{"source":"a","target":"b"}\n{"source":"b","target":"c"}\n', { format: "json" }),
+        );
         expect(codes(err.report)).toEqual(["E_SYNTAX"]);
         expect(err.message).toContain("JSON Lines");
         const plain = await importFailure(importGraph('{"nodes": [}', { format: "json" }));
@@ -19,7 +21,9 @@ describe("robustness: JSON input", () => {
     });
 
     it("strips a doubled UTF-8 BOM instead of an invisible syntax error", async () => {
-        const { snapshot, report } = await importGraph(bytesOf([0xef, 0xbb, 0xbf, 0xef, 0xbb, 0xbf], '{"nodes":[{"id":"a"}],"links":[]}'));
+        const { snapshot, report } = await importGraph(
+            bytesOf([0xef, 0xbb, 0xbf, 0xef, 0xbb, 0xbf], '{"nodes":[{"id":"a"}],"links":[]}'),
+        );
         expect(report.issues.map((i) => i.code)).toEqual(["W_CONTROL_CHARACTER"]);
         expect(snapshot.ids.toArray()).toEqual(["a"]);
     });

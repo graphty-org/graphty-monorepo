@@ -25,10 +25,16 @@ function weights(result: { readonly snapshot: GraphSnapshot }): number[] {
 
 describe("GEXF header", () => {
     it("gexf-version-missing-or-unknown: a missing version takes the namespace's; an unknown one is reported", async () => {
-        const missing = await load("gexf", `<gexf xmlns="http://www.gexf.net/1.2draft"><graph><nodes><node id="a"/></nodes></graph></gexf>`);
+        const missing = await load(
+            "gexf",
+            `<gexf xmlns="http://www.gexf.net/1.2draft"><graph><nodes><node id="a"/></nodes></graph></gexf>`,
+        );
         expect(missing.report.issues).toEqual([]);
         expect(missing.snapshot.meta.sourceVersion).toBe("1.2");
-        const unknown = await load("gexf", `<gexf xmlns="${GEXF_NS}" version="9.0"><graph><nodes><node id="a"/></nodes></graph></gexf>`);
+        const unknown = await load(
+            "gexf",
+            `<gexf xmlns="${GEXF_NS}" version="9.0"><graph><nodes><node id="a"/></nodes></graph></gexf>`,
+        );
         expect(codes(unknown.report)).toEqual([GEXF_ISSUE.HEADER_VALUE]);
         expect(unknown.report.issues[0].element).toBe("version");
         expect(unknown.snapshot.meta.sourceVersion).toBe("9.0");
@@ -55,7 +61,10 @@ describe("GEXF header", () => {
     });
 
     it("gexf-idtype-mismatch: an id that contradicts idtype=integer is reported once", async () => {
-        const { snapshot, report } = await load("gexf", gexf(`<node id="1"/><node id="x"/><node id="y"/>`, null, "", ` idtype="integer"`));
+        const { snapshot, report } = await load(
+            "gexf",
+            gexf(`<node id="1"/><node id="x"/><node id="y"/>`, null, "", ` idtype="integer"`),
+        );
         expect(codes(report)).toEqual([GEXF_ISSUE.HEADER_VALUE]);
         expect(report.issues[0].message).toMatch(/"x" is not an integer.*idtype="integer"/);
         expect(ids({ snapshot })).toEqual([1, "x", "y"]);
@@ -75,7 +84,12 @@ describe("GEXF header", () => {
         const doc = `<gexf xmlns="${GEXF_NS}" version="1.3"><graph><nodes><node id="a"/></nodes></graph><meta lastmodifieddate="2020-01-01"><creator>Gephi</creator><description>d</description><keywords>x, y</keywords></meta></gexf>`;
         const { snapshot, report } = await load("gexf", doc);
         expect(report.issues).toEqual([]);
-        expect(snapshot.meta).toMatchObject({ creator: "Gephi", description: "d", keywords: ["x", "y"], modified: "2020-01-01" });
+        expect(snapshot.meta).toMatchObject({
+            creator: "Gephi",
+            description: "d",
+            keywords: ["x", "y"],
+            modified: "2020-01-01",
+        });
     });
 
     it("xml-declared-latin1-gexf: GEXF bytes declaring ISO-8859-1 decode as Latin-1 with no issue", async () => {
@@ -113,16 +127,19 @@ describe("GEXF namespaces and structure", () => {
         expect(snapshot.edgeCount).toBe(1);
     });
 
-    it("gexf-empty-node-id (corrected): id=\"\" is a legal GEXF id (xs:string) and round-trips through the exporter", async () => {
+    it('gexf-empty-node-id (corrected): id="" is a legal GEXF id (xs:string) and round-trips through the exporter', async () => {
         // the expectation was E_MISSING_ID; GEXF types ids as xs:string, the exporter writes id="" for
         // the empty id, and the round-trip suite reads it back, so only a MISSING id is an error
-        const { snapshot, report } = await load("gexf", gexf(`<node id=""/><node id="b"/>`, `<edge source="" target="b"/>`));
+        const { snapshot, report } = await load(
+            "gexf",
+            gexf(`<node id=""/><node id="b"/>`, `<edge source="" target="b"/>`),
+        );
         expect(report.issues).toEqual([]);
         expect(ids({ snapshot })).toEqual(["", "b"]);
         expect(snapshot.edgeCount).toBe(1);
     });
 
-    it("gexf-empty-edge-endpoint (corrected): source=\"\" names the node whose id is empty, so without one it is E_UNKNOWN_NODE", async () => {
+    it('gexf-empty-edge-endpoint (corrected): source="" names the node whose id is empty, so without one it is E_UNKNOWN_NODE', async () => {
         const { snapshot, report } = await load("gexf", gexf(`<node id="a"/>`, `<edge source="" target="a"/>`));
         expect(codes(report)).toEqual([GEXF_ISSUE.UNKNOWN_NODE]);
         expect(report.counts.skippedEdges).toBe(1);
@@ -130,7 +147,10 @@ describe("GEXF namespaces and structure", () => {
     });
 
     it("gexf-children-of-skipped-node: the nodes nested in a node without an id are reported as orphaned", async () => {
-        const { snapshot, report } = await load("gexf", gexf(`<node label="no id"><nodes><node id="c"/></nodes></node>`));
+        const { snapshot, report } = await load(
+            "gexf",
+            gexf(`<node label="no id"><nodes><node id="c"/></nodes></node>`),
+        );
         expect(codes(report)).toEqual([GEXF_ISSUE.MISSING_ID, GEXF_ISSUE.UNKNOWN_PARENT]);
         expect(ids({ snapshot })).toEqual(["c"]);
         expect(snapshot.nodes.get("parent")).toBeNull();
@@ -148,7 +168,10 @@ describe("GEXF namespaces and structure", () => {
     });
 
     it("gexf-parent-repeated: a duplicate node repeating its pid is not a parent cycle", async () => {
-        const { snapshot, report } = await load("gexf", gexf(`<node id="a"/><node id="b" pid="a"/><node id="b" pid="a"/>`));
+        const { snapshot, report } = await load(
+            "gexf",
+            gexf(`<node id="a"/><node id="b" pid="a"/><node id="b" pid="a"/>`),
+        );
         expect(codes(report)).toEqual(["W_DUPLICATE_NODE"]);
         expect(snapshot.nodes.require("parent").value(1)).toBe(0);
     });
@@ -220,7 +243,11 @@ describe("GEXF weights", () => {
 
     it("gexf-weight-attr-and-attvalue-conflict: a weight attribute and a weight attvalue on one edge are reported; the attvalue wins", async () => {
         const head = EDGE_ATTRS(`<attribute id="w" title="weight" type="double"/>`);
-        const doc = gexf(AB, `<edge source="a" target="b" weight="2"><attvalues><attvalue for="w" value="3"/></attvalues></edge>`, head);
+        const doc = gexf(
+            AB,
+            `<edge source="a" target="b" weight="2"><attvalues><attvalue for="w" value="3"/></attvalues></edge>`,
+            head,
+        );
         const result = await load("gexf", doc);
         expect(codes(result.report)).toEqual([GEXF_ISSUE.DUPLICATE_ATTRIBUTE]);
         expect(result.report.issues[0].message).toMatch(/weight="2".*"3"; the attvalue is kept/);
@@ -228,8 +255,14 @@ describe("GEXF weights", () => {
     });
 
     it("gexf-two-weight-attributes: a second attribute titled weight is reported and kept as a renamed column", async () => {
-        const head = EDGE_ATTRS(`<attribute id="w1" title="weight" type="double"/><attribute id="w2" title="weight" type="double"/>`);
-        const doc = gexf(AB, `<edge source="a" target="b"><attvalues><attvalue for="w1" value="4"/><attvalue for="w2" value="5"/></attvalues></edge>`, head);
+        const head = EDGE_ATTRS(
+            `<attribute id="w1" title="weight" type="double"/><attribute id="w2" title="weight" type="double"/>`,
+        );
+        const doc = gexf(
+            AB,
+            `<edge source="a" target="b"><attvalues><attvalue for="w1" value="4"/><attvalue for="w2" value="5"/></attvalues></edge>`,
+            head,
+        );
         const result = await load("gexf", doc);
         expect(codes(result.report)).toEqual([GEXF_ISSUE.DUPLICATE_ATTRIBUTE, GEXF_ISSUE.COLUMN_RENAMED]);
         expect(result.report.issues[0].message).toMatch(/"w2" is also titled weight; attribute "w1" is the weight/);
@@ -276,7 +309,10 @@ describe("GEXF count hints", () => {
         expect(mismatch.report.issues[0].message).toMatch(/count="10".*holds 1 <node>/);
         expect(mismatch.snapshot.nodeCount).toBe(1);
         for (const count of ["999999999999", "-3"]) {
-            const huge = await load("gexf", doc.replace('count="10"', `count="${count}"`).replace('count="2"', 'count="1"'));
+            const huge = await load(
+                "gexf",
+                doc.replace('count="10"', `count="${count}"`).replace('count="2"', 'count="1"'),
+            );
             expect(codes(huge.report), count).toEqual([GEXF_ISSUE.COUNT_HINT]);
         }
     });
@@ -296,7 +332,9 @@ describe("GEXF count hints", () => {
 describe("GEXF attribute values", () => {
     it("gexf-attvalue-outside-options: a value outside the declared options is reported once and kept", async () => {
         const head = NODE_ATTRS(`<attribute id="0" title="kind" type="string"><options>a|b</options></attribute>`);
-        const nodes = ["a", "c", "d"].map((v, i) => `<node id="n${i}"><attvalues><attvalue for="0" value="${v}"/></attvalues></node>`).join("");
+        const nodes = ["a", "c", "d"]
+            .map((v, i) => `<node id="n${i}"><attvalues><attvalue for="0" value="${v}"/></attvalues></node>`)
+            .join("");
         const { snapshot, report } = await load("gexf", gexf(nodes, null, head));
         expect(codes(report)).toEqual([GEXF_ISSUE.VALUE_OUTSIDE_OPTIONS]);
         expect(report.issues[0].message).toMatch(/"c" is not among the options of attribute "kind"/);
@@ -307,7 +345,11 @@ describe("GEXF attribute values", () => {
         const head = NODE_ATTRS(`<attribute id="0" title="n" type="integer"/>`);
         const { snapshot, report } = await load(
             "gexf",
-            gexf(`<node id="a"><attvalues><attvalue for="0" value="1"/><attvalue for="0" value="2"/></attvalues></node>`, null, head),
+            gexf(
+                `<node id="a"><attvalues><attvalue for="0" value="1"/><attvalue for="0" value="2"/></attvalues></node>`,
+                null,
+                head,
+            ),
         );
         expect(codes(report)).toEqual([GEXF_ISSUE.DUPLICATE_ATTRIBUTE]);
         expect(report.issues[0].message).toMatch(/later value "2" is kept/);
@@ -336,11 +378,18 @@ describe("GEXF time", () => {
         expect(report.issues[0].message).toMatch(/starts after it ends \(5 > 1\)/);
         expect(snapshot.nodeCount).toBe(2);
         expect(snapshot.nodes.byRole("start")).toBeNull();
-        expect((snapshot.nodes.value("spells", 1) as ArrayLike<number>[]).map((pair) => Array.from(pair))).toEqual([[1, 2]]);
+        expect((snapshot.nodes.value("spells", 1) as ArrayLike<number>[]).map((pair) => Array.from(pair))).toEqual([
+            [1, 2],
+        ]);
     });
 
     it("gexf-timeformat-mismatch: a date or text time under timeformat double is E_COLUMN_TYPE; the node is kept", async () => {
-        const doc = gexf(`<node id="a" start="2020-01-01"/><node id="b" start="abc"/>`, null, "", ` timeformat="double"`);
+        const doc = gexf(
+            `<node id="a" start="2020-01-01"/><node id="b" start="abc"/>`,
+            null,
+            "",
+            ` timeformat="double"`,
+        );
         const { snapshot, report } = await load("gexf", doc);
         expect(codes(report)).toEqual(["E_COLUMN_TYPE", "E_COLUMN_TYPE"]);
         expect(report.issues[0].message).toMatch(/2020-01-01/);

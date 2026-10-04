@@ -247,7 +247,13 @@ const SINGLE_HEADER_TAGS: ReadonlySet<string> = new Set([
 const KNOWN_VERSION = /^(GO_)?1\.[024]$/;
 
 /** Tags whose value is an id, where a qualifier block cut short by a truncated file is dropped. */
-const ID_VALUE_TAGS: ReadonlySet<string> = new Set([...ID_LIST_TAGS, "is_a", "instance_of", "relationship", "intersection_of"]);
+const ID_VALUE_TAGS: ReadonlySet<string> = new Set([
+    ...ID_LIST_TAGS,
+    "is_a",
+    "instance_of",
+    "relationship",
+    "intersection_of",
+]);
 
 /** Warnings listed per code before the rest are summed up in one (a file of 50k unknown tags). */
 const MAX_TALLIES_PER_CODE = 100;
@@ -1181,7 +1187,8 @@ class OboReader {
         }
         const listAt = list === undefined ? -1 : tokens.indexOf(list);
         const stray = tokens.some(
-            (t, k) => k > 0 && (t.kind === "quoted" || (t.kind === "list" && k !== listAt) || (listAt >= 0 && k > listAt)),
+            (t, k) =>
+                k > 0 && (t.kind === "quoted" || (t.kind === "list" && k !== listAt) || (listAt >= 0 && k > listAt)),
         );
         if (stray) {
             this.tally(
@@ -1480,7 +1487,11 @@ class OboReader {
             );
         }
         const date = this.header.date?.[0];
-        if (date !== undefined && /^\d{2}:\d{2}:\d{4}\s+\d{2}:\d{2}$/.test(date.trim()) && oboDate(date.trim()) === null) {
+        if (
+            date !== undefined &&
+            /^\d{2}:\d{2}:\d{4}\s+\d{2}:\d{2}$/.test(date.trim()) &&
+            oboDate(date.trim()) === null
+        ) {
             this.tally(
                 "validation-error",
                 OBO_ISSUE.SYNTAX,

@@ -6,7 +6,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { importAllGraphs, importGraph, type ImportGraphOptions, type ImportGraphResult, sniff } from "../../src/index.js";
+import {
+    importAllGraphs,
+    importGraph,
+    type ImportGraphOptions,
+    type ImportGraphResult,
+    sniff,
+} from "../../src/index.js";
 import {
     chunks,
     codes,
@@ -25,7 +31,10 @@ import {
     ZIP_BYTES,
 } from "./text-helpers.js";
 
-async function gml(input: Parameters<typeof importGraph>[0], options: ImportGraphOptions = {}): Promise<ImportGraphResult> {
+async function gml(
+    input: Parameters<typeof importGraph>[0],
+    options: ImportGraphOptions = {},
+): Promise<ImportGraphResult> {
     return importGraph(input, { format: "gml", ...options });
 }
 
@@ -72,7 +81,9 @@ describe("GML robustness: wrong format and empty input", () => {
     it("refuses 'graph 5' naming the graph key that is not a block (the code stays E_NO_GRAPH)", async () => {
         const err = await rejects(gml("graph 5"));
         expect(fatalCode(err)).toBe("E_NO_GRAPH");
-        expect(err.message).toBe("the graph key at line 1 holds 5, not a [ ... ] block; the input contains no graph block");
+        expect(err.message).toBe(
+            "the graph key at line 1 holds 5, not a [ ... ] block; the input contains no graph block",
+        );
         expect(issue(err.report, "E_NO_GRAPH").line).toBe(1);
     });
 });
@@ -210,7 +221,7 @@ describe("GML robustness: lexical errors", () => {
 });
 
 describe("GML robustness: values", () => {
-    it("merges node [ id 1 ] and node [ id \"1\" ] into one node under the canonical id rule", async () => {
+    it('merges node [ id 1 ] and node [ id "1" ] into one node under the canonical id rule', async () => {
         const { snapshot, report } = await gml('graph [ node [ id 1 ] node [ id "1" ] ]');
         expect(ids(snapshot)).toEqual([1]);
         expect(codes(report)).toEqual(["W_GML_STRING_ID", "W_DUPLICATE_NODE"]);
@@ -242,7 +253,9 @@ describe("GML robustness: values", () => {
     });
 
     it("keeps a label whose text is [] or () as text, never as NetworkX's empty list", async () => {
-        const { snapshot, report } = await gml('graph [ node [ id 1 label "[]" ] node [ id 2 label "x" ] node [ id 3 label "()" ] ]');
+        const { snapshot, report } = await gml(
+            'graph [ node [ id 1 label "[]" ] node [ id 2 label "x" ] node [ id 3 label "()" ] ]',
+        );
         expect(codes(report)).toEqual([]);
         expect(snapshot.nodes.require("label").dtype).toBe("string");
         expect(snapshot.nodes.require("label").meta.role).toBe("label");
@@ -260,7 +273,9 @@ describe("GML robustness: values", () => {
 
 describe("GML robustness: character entities", () => {
     it("keeps a numeric reference beyond U+10FFFF as written with W_GML_UNKNOWN_ENTITY (no RangeError)", async () => {
-        const { snapshot, report } = await gml('graph [ node [ id 1 label "&#x110000;" ] node [ id 2 label "a&#99999999;b" ] ]');
+        const { snapshot, report } = await gml(
+            'graph [ node [ id 1 label "&#x110000;" ] node [ id 2 label "a&#99999999;b" ] ]',
+        );
         expect(codes(report)).toEqual(["W_GML_UNKNOWN_ENTITY", "W_GML_UNKNOWN_ENTITY"]);
         expect(issue(report, "W_GML_UNKNOWN_ENTITY").line).toBe(1);
         expect(column(snapshot, "nodes", "label")).toEqual(["&#x110000;", "a&#99999999;b"]);
@@ -287,7 +302,9 @@ describe("GML robustness: character entities", () => {
 
 describe("GML robustness: graphics", () => {
     it("warns about a non-numeric coordinate; that node has no position and keeps its record, the others keep theirs", async () => {
-        const { snapshot, report } = await gml('graph [ node [ id 1 graphics [ x "a" y 2 ] ] node [ id 2 graphics [ x 1 y 2 ] ] ]');
+        const { snapshot, report } = await gml(
+            'graph [ node [ id 1 graphics [ x "a" y 2 ] ] node [ id 2 graphics [ x 1 y 2 ] ] ]',
+        );
         expect(codes(report)).toEqual(["W_GML_GRAPHICS"]);
         expect(issue(report, "W_GML_GRAPHICS").message).toContain("node 1's graphics x / y / z");
         expect(column(snapshot, "nodes", "position")).toEqual([undefined, [1, 2, 0]]);
@@ -308,12 +325,17 @@ describe("GML robustness: graphics", () => {
         );
         expect(codes(report)).toEqual(["W_GML_GRAPHICS"]);
         expect(issue(report, "W_GML_GRAPHICS").message).toContain("node 1 has 2 graphics records");
-        expect(column(snapshot, "nodes", "position")).toEqual([[1, 2, 0], [5, 6, 0]]);
+        expect(column(snapshot, "nodes", "position")).toEqual([
+            [1, 2, 0],
+            [5, 6, 0],
+        ]);
         expect(column(snapshot, "nodes", "graphics")).toEqual([[{}, { x: 3, y: 4 }], undefined]);
     });
 
     it("warns about a repeated coordinate; that node has no position and keeps its record", async () => {
-        const { snapshot, report } = await gml("graph [ node [ id 1 graphics [ x 1 x 2 y 3 ] ] node [ id 2 graphics [ x 5 y 6 ] ] ]");
+        const { snapshot, report } = await gml(
+            "graph [ node [ id 1 graphics [ x 1 x 2 y 3 ] ] node [ id 2 graphics [ x 5 y 6 ] ] ]",
+        );
         expect(codes(report)).toEqual(["W_GML_GRAPHICS"]);
         expect(column(snapshot, "nodes", "position")).toEqual([undefined, [5, 6, 0]]);
         expect(column(snapshot, "nodes", "graphics")).toEqual([{ x: [1, 2], y: 3 }, undefined]);
@@ -333,7 +355,9 @@ describe("GML robustness: structure kept but not read as structure", () => {
     });
 
     it("keeps yEd's isGroup / gid as plain columns and warns that the hierarchy is not containment", async () => {
-        const { snapshot, report } = await gml("graph [ node [ id 1 isGroup 1 ] node [ id 2 gid 1 ] node [ id 3 gid 1 ] ]");
+        const { snapshot, report } = await gml(
+            "graph [ node [ id 1 isGroup 1 ] node [ id 2 gid 1 ] node [ id 3 gid 1 ] ]",
+        );
         expect(codes(report)).toEqual(["W_GML_GROUPS"]);
         expect(column(snapshot, "nodes", "isGroup")).toEqual([1, undefined, undefined]);
         expect(column(snapshot, "nodes", "gid")).toEqual([undefined, 1, 1]);
@@ -343,9 +367,12 @@ describe("GML robustness: structure kept but not read as structure", () => {
 
 describe("GML robustness: ids under nodeIdFrom label", () => {
     it("skips an edge to a node block that was skipped instead of bringing the node back under its file id", async () => {
-        const { snapshot, report } = await gml('graph [ node [ id 1 label "a" ] node [ id 2 ] edge [ source 1 target 2 ] ]', {
-            nodeIdFrom: "label",
-        });
+        const { snapshot, report } = await gml(
+            'graph [ node [ id 1 label "a" ] node [ id 2 ] edge [ source 1 target 2 ] ]',
+            {
+                nodeIdFrom: "label",
+            },
+        );
         expect(codes(report)).toEqual(["E_GML_MISSING_LABEL", "E_UNKNOWN_NODE"]);
         expect(ids(snapshot)).toEqual(["a"]);
         expect(snapshot.edgeCount).toBe(0);
@@ -366,7 +393,9 @@ describe("GML robustness: ids under nodeIdFrom label", () => {
 
 describe("GML robustness: policies and several graphs", () => {
     it("turns a self-loop under selfLoops error into an ImportError with E_SELF_LOOP in its report", async () => {
-        const err = await rejects(gml("graph [ directed 1 node [ id 1 ] edge [ source 1 target 1 ] ]", { selfLoops: "error" }));
+        const err = await rejects(
+            gml("graph [ directed 1 node [ id 1 ] edge [ source 1 target 1 ] ]", { selfLoops: "error" }),
+        );
         expect(fatalCode(err)).toBe("E_SELF_LOOP");
         expect(codes(err.report)).toEqual(["E_SELF_LOOP"]);
         expect(err.report.counts.edges).toBe(1);

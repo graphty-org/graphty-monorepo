@@ -23,7 +23,10 @@ import {
     utf16le,
 } from "./text-helpers.js";
 
-async function pajek(input: Parameters<typeof importGraph>[0], options: ImportGraphOptions = {}): Promise<ImportGraphResult> {
+async function pajek(
+    input: Parameters<typeof importGraph>[0],
+    options: ImportGraphOptions = {},
+): Promise<ImportGraphResult> {
     return importGraph(input, { format: "pajek", ...options });
 }
 
@@ -52,7 +55,9 @@ describe("Pajek robustness: truncation", () => {
     it("names the unrecognised header when a file cut inside *Vertices has no network", async () => {
         const err = await rejects(pajek("*Vert"));
         expect(fatalCode(err)).toBe("E_PAJEK_NO_VERTICES");
-        expect(err.message).toBe("not a Pajek network: no *Vertices section found (the file has the unrecognised section *Vert)");
+        expect(err.message).toBe(
+            "not a Pajek network: no *Vertices section found (the file has the unrecognised section *Vert)",
+        );
         expect(codes(err.report)).toEqual(["W_PAJEK_UNSUPPORTED_SECTION", "E_PAJEK_NO_VERTICES"]);
     });
 
@@ -119,7 +124,9 @@ describe("Pajek robustness: lines", () => {
         for (const coordinate of ["1e999", "NaN"]) {
             const { snapshot, report } = await pajek(`*Vertices 1\n1 "a" ${coordinate} 0.5\n*Edges\n`);
             expect(codes(report)).toEqual(["E_PAJEK_VERTEX_LINE"]);
-            expect(issue(report, "E_PAJEK_VERTEX_LINE").message).toBe(`vertex 1: coordinate "${coordinate}" is not a finite number`);
+            expect(issue(report, "E_PAJEK_VERTEX_LINE").message).toBe(
+                `vertex 1: coordinate "${coordinate}" is not a finite number`,
+            );
             expect(snapshot.nodes.names()).toEqual([]);
         }
     });
@@ -157,7 +164,7 @@ describe("Pajek robustness: lines", () => {
     it("refuses a single-quoted label as a dangling parameter", async () => {
         const { report } = await pajek("*Vertices 1\n1 'a b'\n*Edges\n");
         expect(codes(report)).toEqual(["E_PAJEK_VERTEX_LINE"]);
-        expect(issue(report, "E_PAJEK_VERTEX_LINE").message).toBe("parameter \"b'\" has no value");
+        expect(issue(report, "E_PAJEK_VERTEX_LINE").message).toBe('parameter "b\'" has no value');
     });
 
     it("reads an unquoted multi-word label as the label and a parameter, as the grammar does", async () => {

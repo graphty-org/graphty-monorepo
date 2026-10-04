@@ -36,7 +36,10 @@ describe("robustness: XML prolog, BOM, option and bytes", () => {
     });
 
     it("lets a UTF-8 BOM win over a prolog saying ISO-8859-1, with a warning", async () => {
-        const bytes = bytesOf([0xef, 0xbb, 0xbf], graphml('<?xml version="1.0" encoding="ISO-8859-1"?>', `caf${E_ACUTE}`));
+        const bytes = bytesOf(
+            [0xef, 0xbb, 0xbf],
+            graphml('<?xml version="1.0" encoding="ISO-8859-1"?>', `caf${E_ACUTE}`),
+        );
         const { snapshot, report } = await importGraph(bytes, { format: "graphml" });
         expect(codes(report)).toEqual(["W_ENCODING_CONFLICT"]);
         expect(snapshot.ids.toArray()).toEqual([`caf${E_ACUTE}`]);
@@ -82,7 +85,8 @@ describe("robustness: XML prolog, BOM, option and bytes", () => {
         expect(codes(err.report)).toEqual(["W_ENCODING_FALLBACK", "E_XML_SYNTAX"]);
         expect(err.message).toContain("very start");
         expect(err.report.issues[1].line).toBe(2);
-        const gexf = '  <?xml version="1.0"?><gexf xmlns="http://gexf.net/1.3" version="1.3"><graph><nodes/></graph></gexf>';
+        const gexf =
+            '  <?xml version="1.0"?><gexf xmlns="http://gexf.net/1.3" version="1.3"><graph><nodes/></graph></gexf>';
         const gexfErr = await importFailure(importGraph(gexf, { format: "gexf" }));
         expect(codes(gexfErr.report)).toEqual(["E_XML_SYNTAX"]);
     });

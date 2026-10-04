@@ -376,7 +376,11 @@ describe("pajekImporter: numbering and ids", () => {
         const one = await load("*Vertices 2\n0 a\n1 b\n*Edges\n0 1\n", { firstVertex: 1 });
         expect(one.snapshot.ids.toArray()).toEqual([1, 2]);
         // updated: vertex 2 has no line once the line numbered 0 is out of range, now reported
-        expect(codes(one.report)).toEqual([PAJEK_ISSUE.VERTEX_RANGE, PAJEK_ISSUE.VERTEX_COUNT, PAJEK_ISSUE.UNKNOWN_NODE]);
+        expect(codes(one.report)).toEqual([
+            PAJEK_ISSUE.VERTEX_RANGE,
+            PAJEK_ISSUE.VERTEX_COUNT,
+            PAJEK_ISSUE.UNKNOWN_NODE,
+        ]);
         await expect(load("*Vertices 1\n1 a\n*Edges\n", { firstVertex: 2 as unknown as 1 })).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
         });
@@ -828,7 +832,7 @@ describe("pajekImporter: project objects (*Partition, *Vector, *Events)", () => 
     });
 
     it("skips *Events with a warning, not an error", async () => {
-        const { snapshot, report } = await load("*Vertices 3\n*Events\nTI 1\nAV 2 \"b\"\nTE 3\n");
+        const { snapshot, report } = await load('*Vertices 3\n*Events\nTI 1\nAV 2 "b"\nTE 3\n');
         expect(codes(report)).toEqual([PAJEK_ISSUE.UNSUPPORTED_SECTION, PAJEK_ISSUE.NO_LINES]);
         expect(report.errorCount).toBe(0);
         expect(snapshot.nodeCount).toBe(3);

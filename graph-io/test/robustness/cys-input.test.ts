@@ -10,7 +10,8 @@ import { makeZip } from "../helpers/zip.js";
 import { bytesOf } from "./helpers.js";
 
 const DECL = '<?xml version="1.0" encoding="UTF-8"?>\n';
-const NS = 'xmlns="http://www.cs.rpi.edu/XGMML" xmlns:cy="http://www.cytoscape.org" xmlns:xlink="http://www.w3.org/1999/xlink"';
+const NS =
+    'xmlns="http://www.cs.rpi.edu/XGMML" xmlns:cy="http://www.cytoscape.org" xmlns:xlink="http://www.w3.org/1999/xlink"';
 const ROOT = "CytoscapeSession-1/";
 
 function session(cytables: Uint8Array): Uint8Array {
@@ -35,7 +36,9 @@ describe("robustness: Cytoscape session XML entries", () => {
     });
 
     it("relays an unknown declared encoding of a session XML entry", async () => {
-        const cytables = bytesOf('<?xml version="1.0" encoding="EBCDIC-CP-US"?>\n<cytables xmlns="http://www.cytoscape.org"/>');
+        const cytables = bytesOf(
+            '<?xml version="1.0" encoding="EBCDIC-CP-US"?>\n<cytables xmlns="http://www.cytoscape.org"/>',
+        );
         const { report } = await importGraph(session(cytables), { format: "cys" });
         const unknown = report.issues.filter((i) => i.code === "W_UNKNOWN_ENCODING");
         expect(unknown).toHaveLength(1);

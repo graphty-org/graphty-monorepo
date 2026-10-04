@@ -126,7 +126,12 @@ describe("cx2 robustness: values", () => {
     it("reads a bare NaN as a double with W_JSON_NONSTANDARD_NUMBER; an integer gets E_BAD_VALUE", async () => {
         const text = cx2([
             { attributeDeclarations: [{ nodes: { x: { d: "double" }, k: { d: "integer" } } }] },
-            { nodes: [{ id: 0, v: { x: "@NaN", k: "@NaN" } }, { id: 1, v: { x: 2 } }] },
+            {
+                nodes: [
+                    { id: 0, v: { x: "@NaN", k: "@NaN" } },
+                    { id: 1, v: { x: 2 } },
+                ],
+            },
         ]).replace(/"@NaN"/g, "NaN");
         const { snapshot, report } = await load(text);
         expect(codes(report)).toEqual([CX2_ISSUE.JSON_NONSTANDARD_NUMBER, CX2_ISSUE.BAD_VALUE]);
@@ -136,9 +141,12 @@ describe("cx2 robustness: values", () => {
     });
 
     it("gives the line of an invalid node id", async () => {
-        const text = [`[${JSON.stringify(DESCRIPTOR)},`, '{"nodes":[{"id":0},', '{"id":"x"}]},', `${JSON.stringify(STATUS)}]`].join(
-            "\n",
-        );
+        const text = [
+            `[${JSON.stringify(DESCRIPTOR)},`,
+            '{"nodes":[{"id":0},',
+            '{"id":"x"}]},',
+            `${JSON.stringify(STATUS)}]`,
+        ].join("\n");
         const { report } = await load(text);
         expect(issuesOf(report, CX2_ISSUE.INVALID_ID).map((i) => i.line)).toEqual([3]);
     });
@@ -185,14 +193,18 @@ describe("cx2 robustness: values", () => {
         expect(issuesOf(report, CX2_ISSUE.BAD_VALUE)).toHaveLength(2);
         const repaired = `x${String.fromCharCode(0xfffd)}`;
         expect(value(snapshot, "label", 0)).toBe(repaired);
-        const {opaque} = (snapshot.meta.extra.cx2 as { opaque: Record<string, unknown> });
+        const { opaque } = snapshot.meta.extra.cx2 as { opaque: Record<string, unknown> };
         expect(opaque.foo).toEqual([{ a: repaired }]);
     });
 
     it("repairs a lone surrogate in an opaque element's own key, and warns when two keys become one", async () => {
         const text = cx2([{ foo: [{ KEY: 1 }] }, { nodes: [{ id: 0, v: { ONE: 1, TWO: 2 } }] }]);
         const kept = await load(text.replace("KEY", "\\ud800k").replace("ONE", "\\ud800").replace("TWO", "\\ud801"));
-        expect(codes(kept.report)).toEqual([CX2_ISSUE.BAD_VALUE, CX2_ISSUE.DUPLICATE_ATTRIBUTE, CX2_ISSUE.UNDECLARED_ATTRIBUTE]);
+        expect(codes(kept.report)).toEqual([
+            CX2_ISSUE.BAD_VALUE,
+            CX2_ISSUE.DUPLICATE_ATTRIBUTE,
+            CX2_ISSUE.UNDECLARED_ATTRIBUTE,
+        ]);
         const { opaque } = kept.snapshot.meta.extra.cx2 as { opaque: Record<string, unknown> };
         expect(opaque.foo).toEqual([{ [`${String.fromCharCode(0xfffd)}k`]: 1 }]);
         expect(value(kept.snapshot, String.fromCharCode(0xfffd), 0)).toBe(2);
@@ -207,19 +219,22 @@ describe("cx2 robustness: values", () => {
     });
 
     it("reports a declaration table CX2 does not define and keeps it, also one named __proto__", async () => {
-        const text = cx2([{ attributeDeclarations: [{ nodez: { q: { d: "string" } }, PROTO: { x: 1 } }] }, NODES]).replace(
-            '"PROTO"',
-            '"__proto__"',
-        );
+        const text = cx2([
+            { attributeDeclarations: [{ nodez: { q: { d: "string" } }, PROTO: { x: 1 } }] },
+            NODES,
+        ]).replace('"PROTO"', '"__proto__"');
         const { snapshot, report } = await load(text);
         expect(issuesOf(report, CX2_ISSUE.UNKNOWN_ELEMENT).map((i) => i.element)).toEqual(["nodez", "__proto__"]);
-        const {declarations} = (snapshot.meta.extra.cx2 as { declarations: Record<string, unknown> });
+        const { declarations } = snapshot.meta.extra.cx2 as { declarations: Record<string, unknown> };
         expect(declarations.nodez).toEqual({ q: { d: "string" } });
     });
 
     it("reports an alias that is not a string with E_BAD_VALUE and reads the full name", async () => {
         const { snapshot, report } = await load(
-            cx2([{ attributeDeclarations: [{ nodes: { label: { d: "string", a: 5 } } }] }, { nodes: [{ id: 0, v: { label: "x" } }] }]),
+            cx2([
+                { attributeDeclarations: [{ nodes: { label: { d: "string", a: 5 } } }] },
+                { nodes: [{ id: 0, v: { label: "x" } }] },
+            ]),
         );
         expect(codes(report)).toEqual([CX2_ISSUE.BAD_VALUE]);
         expect(value(snapshot, "label", 0)).toBe("x");
@@ -268,7 +283,12 @@ describe("cx2 robustness: values", () => {
     it("warns W_PRECISION for a declared or an undeclared double beyond 2^53, and an opaque one", async () => {
         const text = cx2([
             { attributeDeclarations: [{ nodes: { d1: { d: "double" } } }] },
-            { nodes: [{ id: 0, v: { d1: "@BIG" } }, { id: 1, v: { u: "@BIG" } }] },
+            {
+                nodes: [
+                    { id: 0, v: { d1: "@BIG" } },
+                    { id: 1, v: { u: "@BIG" } },
+                ],
+            },
         ]).replace(/"@BIG"/g, "12345678901234567891");
         const { snapshot, report } = await load(text);
         expect(codes(report)).toEqual([CX2_ISSUE.PRECISION, CX2_ISSUE.UNDECLARED_ATTRIBUTE]);
@@ -289,7 +309,9 @@ describe("cx2 robustness: values", () => {
     });
 
     it("warns W_ID_TEXT_TYPE for a non-integer id literal in a single-object nodes aspect", async () => {
-        const { snapshot, report } = await load(`[${JSON.stringify(DESCRIPTOR)},{"nodes":{"id":1.0}},${JSON.stringify(STATUS)}]`);
+        const { snapshot, report } = await load(
+            `[${JSON.stringify(DESCRIPTOR)},{"nodes":{"id":1.0}},${JSON.stringify(STATUS)}]`,
+        );
         expect(codes(report)).toEqual([CX2_ISSUE.SINGLE_OBJECT_ASPECT, CX2_ISSUE.ID_TEXT_TYPE]);
         expect(snapshot.ids.toArray()).toEqual([1]);
     });
@@ -297,7 +319,14 @@ describe("cx2 robustness: values", () => {
 
 describe("cx2 robustness: coordinates, bypasses and restored ids", () => {
     it("refuses coordinates beyond the f32 position column with E_BAD_VALUE", async () => {
-        const text = cx2([{ nodes: [{ id: 0, x: 1e39, y: 0 }, { id: 1, x: 0, y: "@1e400" }] }]).replace('"@1e400"', "1e400");
+        const text = cx2([
+            {
+                nodes: [
+                    { id: 0, x: 1e39, y: 0 },
+                    { id: 1, x: 0, y: "@1e400" },
+                ],
+            },
+        ]).replace('"@1e400"', "1e400");
         const { snapshot, report } = await load(text);
         expect(codes(report)).toEqual([CX2_ISSUE.BAD_VALUE]);
         expect(issuesOf(report, CX2_ISSUE.BAD_VALUE)).toHaveLength(2);
@@ -341,7 +370,7 @@ describe("cx2 robustness: coordinates, bypasses and restored ids", () => {
         expect(issuesOf(report, CX2_ISSUE.DUPLICATE_ATTRIBUTE)).toHaveLength(2);
         expect(point(snapshot, 0)).toEqual([1, -1, 0]);
         expect(point(snapshot, 1)).toEqual([3, -3, 0]);
-        const {opaque} = (snapshot.meta.extra.cx2 as { opaque: Record<string, unknown[]> });
+        const { opaque } = snapshot.meta.extra.cx2 as { opaque: Record<string, unknown[]> };
         expect(opaque.cartesianLayout).toHaveLength(4);
     });
 

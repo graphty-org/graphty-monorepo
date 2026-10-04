@@ -23,7 +23,10 @@ import {
     utf16le,
 } from "./text-helpers.js";
 
-async function dot(input: Parameters<typeof importGraph>[0], options: ImportGraphOptions = {}): Promise<ImportGraphResult> {
+async function dot(
+    input: Parameters<typeof importGraph>[0],
+    options: ImportGraphOptions = {},
+): Promise<ImportGraphResult> {
     return importGraph(input, { format: "dot", ...options });
 }
 
@@ -154,7 +157,7 @@ describe("DOT robustness: syntax errors", () => {
         expect(hash.message).toBe('unexpected character "#"');
         const single = await rejects(dot("digraph { 'a' -> b }"));
         expect(fatalCode(single)).toBe("E_SYNTAX");
-        expect(single.message).toBe("unexpected character \"'\"");
+        expect(single.message).toBe('unexpected character "\'"');
     });
 });
 
@@ -276,13 +279,19 @@ describe("DOT robustness: values", () => {
         const { snapshot, report } = await dot('digraph { a [pos="123456789.123,1"]; b [pos="0.25,1"] }');
         expect(codes(report)).toEqual(["W_PRECISION"]);
         expect(issue(report, "W_PRECISION").element).toBe("a");
-        expect(column(snapshot, "nodes", "pos")).toEqual([[123456792, 1, 0], [0.25, 1, 0]]);
+        expect(column(snapshot, "nodes", "pos")).toEqual([
+            [123456792, 1, 0],
+            [0.25, 1, 0],
+        ]);
     });
 
     it("warns when pos values mix two and three coordinates", async () => {
         const { snapshot, report } = await dot('digraph { a [pos="1,2"]; b [pos="1,2,3"] }');
         expect(codes(report)).toEqual(["W_DOT_POS_DIMS"]);
-        expect(column(snapshot, "nodes", "pos")).toEqual([[1, 2, 0], [1, 2, 3]]);
+        expect(column(snapshot, "nodes", "pos")).toEqual([
+            [1, 2, 0],
+            [1, 2, 3],
+        ]);
         expect(snapshot.nodes.require("pos").meta.extra).toMatchObject({ sourceDims: 2 });
     });
 

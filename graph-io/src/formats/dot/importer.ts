@@ -383,17 +383,14 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
  * @returns the tokenizer
  */
 function dotLexer(text: string, reports: { current: ImportReportBuilder }): DotTokenizer {
-    return new DotTokenizer(
-        text,
-        (numeral, line) => {
-            reports.current.warning(
-                "validation-error",
-                DOT_ISSUE.NUMERAL_AMBIGUITY,
-                `badly delimited number ${JSON.stringify(numeral)} splits into two tokens (Graphviz warns the same)`,
-                { line, element: numeral },
-            );
-        },
-    );
+    return new DotTokenizer(text, (numeral, line) => {
+        reports.current.warning(
+            "validation-error",
+            DOT_ISSUE.NUMERAL_AMBIGUITY,
+            `badly delimited number ${JSON.stringify(numeral)} splits into two tokens (Graphviz warns the same)`,
+            { line, element: numeral },
+        );
+    });
 }
 
 /**

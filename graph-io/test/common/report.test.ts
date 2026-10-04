@@ -225,7 +225,9 @@ describe("ImportReportBuilder", () => {
             expect(caught).toBeInstanceOf(ImportError);
             const err = caught as ImportError;
             expect(err.details.code).toBe("E_TOO_LARGE");
-            expect(err.report.issues.map((i) => [i.category, i.code, i.line])).toEqual([["unsupported", "E_TOO_LARGE", 3]]);
+            expect(err.report.issues.map((i) => [i.category, i.code, i.line])).toEqual([
+                ["unsupported", "E_TOO_LARGE", 3],
+            ]);
             expect(err.report.truncated).toBe(false);
         });
 

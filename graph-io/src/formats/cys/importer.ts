@@ -383,7 +383,12 @@ async function networks3(
     if (layout.networkList === null) {
         return choices;
     }
-    const tree = await parseXmlTree(await session.read(layout.networkList, report), layout.networkList.name, report, inner);
+    const tree = await parseXmlTree(
+        await session.read(layout.networkList, report),
+        layout.networkList.name,
+        report,
+        inner,
+    );
     if (typeof tree === "string") {
         // the list only orders the networks: without it they keep the order of their entries
         report.warning(

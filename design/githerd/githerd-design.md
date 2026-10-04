@@ -699,12 +699,17 @@ progressing (queued past its bound, balance, outage) never causes a starvation h
 
 Workers never run `git push` (the guard refuses it). They call `githerd_push`. The daemon:
 
-1. checks the claim, the branch, that news is acknowledged, and the credential state;
-2. puts the push in its queue: incident fixes first, then pushes that finish a job, then the rest;
-3. runs `git -C <worktree> push origin HEAD:refs/heads/<branch>` as its own tracked child
+1. checks the claim, the branch, that news is acknowledged, the credential state, and that
+   `expectHead` is the worktree's HEAD;
+2. puts the push in its queue: incident fixes first, then pushes to the job's open pull request
+   (the work that only waits on them), then the rest, oldest first within each;
+3. when its turn comes, checks again that HEAD is still `expectHead`, checks every commit not on
+   the remote (good signature; no attribution line or secret in its message or added lines), and
+   runs `git -C <worktree> push origin <expectHead>:refs/heads/<branch>` as its own tracked child
    process, with the normal hooks (never `--no-verify`), so the pre-push gate runs exactly as for
-   a person. Pushing an explicit refspec from a detached worktree means no branch is ever checked
-   out twice;
+   a person. Pushing the commit rather than `HEAD` means a commit made while the gate runs is never
+   pushed untested, and an explicit refspec from a detached worktree means no branch is ever
+   checked out twice. In dry-run (write group `workers`) nothing runs and the push is a `would-do`;
 4. records the gate's output; a failure is classified (4.4) with a local failure key;
 5. sets the job's wait to `push` while queued and running, so the worker is idle, not working;
 6. rings the worker with the result.

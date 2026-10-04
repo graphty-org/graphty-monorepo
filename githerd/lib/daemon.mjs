@@ -1546,6 +1546,7 @@ export async function startDaemon({
             redLanes,
             releaseRunning: Object.keys(m.lanes.release?.inFlight ?? {}).length > 0,
             freezeMerges: activePolicies(state, "freeze-merges").length > 0,
+            heldPackages: activePolicies(state, "hold-package").map((/** @type {any} */ p) => String(p.value)),
             starvation: null,
         };
         const posted = await postMergeStatuses({ github: gh, repo: config.repo, branch, prs, ctx, record: gate });

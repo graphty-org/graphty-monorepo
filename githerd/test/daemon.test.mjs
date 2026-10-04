@@ -954,6 +954,30 @@ describe("the poll loop", () => {
         expect(gate.posted).toEqual({});
     });
 
+    it("holds a pull request that changes a package the owner holds, until the policy ends", async () => {
+        scene.prs = [{ ...gatedPr(), id: "PR_7" }];
+        const daemon = await start();
+        const owner = async (/** @type {object} */ cmd) =>
+            (
+                await fetch(`${daemon.url}/owner`, {
+                    method: "POST",
+                    headers: { "x-githerd-caller": "owner" },
+                    body: JSON.stringify(cmd),
+                })
+            ).json();
+        const policy = { op: "policy", text: "hold src during the move", switch: "hold-package", value: "src" };
+        expect(await owner(policy)).toMatchObject({ ok: true });
+        await poll(daemon);
+        expect(daemon.state.mergeGate.posted["7"]).toMatchObject({
+            state: "failure",
+            description: "held: package src is held by the owner",
+        });
+        expect(await owner({ op: "policy-end", id: daemon.state.policies[0].id })).toMatchObject({ ok: true });
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect(daemon.state.mergeGate.posted["7"]).toMatchObject({ state: "success" });
+    });
+
     it("lets the incident's revert pull request through the red-lane hold while the lane is still red", async () => {
         const daemon = await start();
         await poll(daemon);

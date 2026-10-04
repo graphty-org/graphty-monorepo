@@ -106,6 +106,19 @@ describe("githerd/merge decision", () => {
             expect(mergeDecision(pr({ files: null }), running).state).toBe("pending");
         });
 
+        it("hold-package holds only what changes the held package, named by directory or npm name", () => {
+            const held = ctx({ heldPackages: ["@graphty/layout"] });
+            expect(mergeDecision(pr(), held)).toMatchObject({
+                state: "failure",
+                line: 2,
+                description: "held: package @graphty/layout is held by the owner",
+            });
+            expect(mergeDecision(pr({ files: ["algorithms/src/a.ts"] }), ctx({ heldPackages: ["layout"] })).state).toBe(
+                "success",
+            );
+            expect(mergeDecision(pr({ files: null }), held).state).toBe("pending");
+        });
+
         it("freeze-merges and the starvation hold hold everything", () => {
             expect(mergeDecision(pr(), ctx({ freezeMerges: true })).description).toBe("held: the owner froze merges");
             expect(mergeDecision(pr(), ctx({ starvation: "no green commit for 7 hours" })).description).toBe(

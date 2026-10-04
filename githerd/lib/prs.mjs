@@ -415,9 +415,10 @@ const DESCRIPTION_MAX = 140;
  *   3000-file cap): the files not seen may touch any path, so every path-dependent line fails closed
  * @typedef {{
  *   login: string | null, redLanes: RedLane[], releaseRunning?: boolean, freezeMerges?: boolean,
- *   starvation?: string | null, approvedMajors?: string[],
+ *   heldPackages?: string[], starvation?: string | null, approvedMajors?: string[],
  * }} MergeContext the repository-wide facts: the owner's login, the code-red gating lanes, whether
- *   the release job (not its gate job) is running, the `freeze-merges` policy, the starvation hold's
+ *   the release job (not its gate job) is running, the `freeze-merges` policy, the packages the
+ *   owner's `hold-package` policies hold, the starvation hold's
  *   reason when one applies (4.7), and the projects whose major bump the owner approved as a group
  * @typedef {{state: "success" | "failure" | "pending", description: string, line: number | null}}
  *   MergeStatus the `githerd/merge` commit status and the decision line that failed (null otherwise)
@@ -470,6 +471,23 @@ function laneHold(pr, lanes) {
 }
 
 /**
+ * The owner's `hold-package` policies: a pull request that changes a held package is held. A
+ * package is named as its directory or its npm name (`layout`, `@graphty/layout`).
+ * @param {MergeFacts} pr the pull request
+ * @param {string[]} names the held packages
+ * @returns {LineResult} the result
+ */
+function heldPackage(pr, names) {
+    let result = PASS;
+    for (const name of names) {
+        const touched = touchesList(pr, [`${name.replace(/^@[^/]+\//, "")}/`]);
+        if (touched) return `held: package ${name} is held by the owner`;
+        if (touched === null) result = WAIT;
+    }
+    return result;
+}
+
+/**
  * Line 2: no hold applies.
  * @param {MergeFacts} pr the pull request
  * @param {MergeContext} ctx the repository facts
@@ -481,8 +499,10 @@ function noHold(pr, ctx) {
     const release = ctx.releaseRunning ? touchesList(pr, RELEASE_INPUTS) : false;
     if (release) return "held: the release job is running and this pull request changes release inputs";
     if (ctx.freezeMerges) return "held: the owner froze merges";
+    const held = heldPackage(pr, ctx.heldPackages ?? []);
+    if (held !== PASS && held !== WAIT) return held;
     if (ctx.starvation) return `held: starvation hold (${ctx.starvation})`;
-    return lane === WAIT || release === null ? WAIT : PASS;
+    return lane === WAIT || release === null || held === WAIT ? WAIT : PASS;
 }
 
 /**

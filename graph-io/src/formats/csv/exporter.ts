@@ -1105,28 +1105,7 @@ function headerlessNotes(plan: Plan): LossNote[] {
     if (csv.header || csv.table === "adjacency") {
         return [];
     }
-    const names: string[] = [];
-    if (csv.table === "nodes") {
-        if (plan.nodeLabel !== null) {
-            names.push(plan.nodeLabel.meta.name);
-        }
-        names.push(...plan.nodeColumns.map((c) => c.header));
-    } else {
-        if (csv.dialect.type !== null) {
-            names.push(csv.dialect.type);
-        }
-        if (plan.edgeId !== null) {
-            names.push(plan.edgeId.meta.name);
-        }
-        if (plan.edgeLabel !== null) {
-            names.push(plan.edgeLabel.meta.name);
-        }
-        // a weight right after the target is where a headerless read expects it
-        if (plan.weights.weighted && names.length > 0) {
-            names.push(csv.dialect.weight);
-        }
-        names.push(...plan.edgeColumns.map((c) => c.header));
-    }
+    const names = csv.table === "nodes" ? headerlessNodeColumns(plan) : headerlessEdgeColumns(plan);
     if (names.length === 0) {
         return [];
     }
@@ -1139,6 +1118,42 @@ function headerlessNotes(plan: Plan): LossNote[] {
             count: names.length,
         }),
     ];
+}
+
+/**
+ * The node columns a headerless node table does not read back by position: every one after the id.
+ * @param plan - the export plan
+ * @returns their names
+ */
+function headerlessNodeColumns(plan: Plan): string[] {
+    const label = plan.nodeLabel === null ? [] : [plan.nodeLabel.meta.name];
+    return [...label, ...plan.nodeColumns.map((c) => c.header)];
+}
+
+/**
+ * The edge columns a headerless edge list does not read back by position: every one after the
+ * endpoints and the weight, and the weight when another column comes before it.
+ * @param plan - the export plan
+ * @returns their names
+ */
+function headerlessEdgeColumns(plan: Plan): string[] {
+    const { dialect } = plan.csv;
+    const names: string[] = [];
+    if (dialect.type !== null) {
+        names.push(dialect.type);
+    }
+    if (plan.edgeId !== null) {
+        names.push(plan.edgeId.meta.name);
+    }
+    if (plan.edgeLabel !== null) {
+        names.push(plan.edgeLabel.meta.name);
+    }
+    // a weight right after the target is where a headerless read expects it
+    if (plan.weights.weighted && names.length > 0) {
+        names.push(dialect.weight);
+    }
+    names.push(...plan.edgeColumns.map((c) => c.header));
+    return names;
 }
 
 /**

@@ -169,88 +169,149 @@ export function splitRecords(
     strictQuotes = false,
     collapse = false,
 ): string[][] | null {
-    const rows: string[][] = [];
-    const delimiterCode = delimiter.charCodeAt(0);
-    const whitespace = collapse && delimiterCode === SPACE;
-    const quoteCode = quote.charCodeAt(0);
-    let cells: string[] = [];
-    let state: State = START;
-    let segment = 0;
-    let field = "";
-    const n = text.length;
-    for (let i = 0; i < n && rows.length < maxRows; i++) {
-        const c = text.charCodeAt(i);
-        if (state === QUOTED) {
-            if (c === quoteCode) {
-                field += text.slice(segment, i);
-                state = CLOSING;
-            }
-            continue;
+    const delimiterCode = delimiter.codePointAt(0);
+    const splitter = new RecordSplitter(text, quote, delimiterCode, collapse && delimiterCode === SPACE, strictQuotes);
+    let i = 0;
+    while (i < text.length && splitter.rows.length < maxRows) {
+        i = splitter.step(i);
+        if (i < 0) {
+            return null;
         }
-        const isDelimiter = c === delimiterCode || (whitespace && c === TAB);
-        if (state === CLOSING) {
-            if (c === quoteCode) {
-                field += quote;
-                segment = i + 1;
-                state = QUOTED;
-                continue;
+    }
+    if (splitter.rows.length < maxRows) {
+        splitter.finish();
+    }
+    return splitter.rows;
+}
+
+/** The state machine of splitRecords(): one character at a time, quotes honored. */
+class RecordSplitter {
+    /** The rows read so far. */
+    readonly rows: string[][] = [];
+
+    private cells: string[] = [];
+
+    private state: State = START;
+
+    /** Where the unread part of the current field starts. */
+    private segment = 0;
+
+    private field = "";
+
+    private readonly quoteCode: number | undefined;
+
+    /**
+     * Create a splitter.
+     * @param text - the text
+     * @param quote - the quote character
+     * @param delimiterCode - the delimiter's code
+     * @param whitespace - whether runs of spaces and tabs are one separator
+     * @param strictQuotes - whether text after a closing quote gives up
+     */
+    constructor(
+        private readonly text: string,
+        private readonly quote: string,
+        private readonly delimiterCode: number | undefined,
+        private readonly whitespace: boolean,
+        private readonly strictQuotes: boolean,
+    ) {
+        this.quoteCode = quote.codePointAt(0);
+    }
+
+    /**
+     * Read one character.
+     * @param i - its index
+     * @returns the index of the next character to read, or -1 to give up (strictQuotes)
+     */
+    step(i: number): number {
+        const c = this.text.codePointAt(i);
+        if (this.state === QUOTED) {
+            if (c === this.quoteCode) {
+                this.field += this.text.slice(this.segment, i);
+                this.state = CLOSING;
             }
-            if (strictQuotes && !isDelimiter && c !== LF && c !== CR) {
-                return null;
+            return i + 1;
+        }
+        const isDelimiter = c === this.delimiterCode || (this.whitespace && c === TAB);
+        if (this.state === CLOSING) {
+            if (c === this.quoteCode) {
+                // a doubled quote is one quote character
+                this.field += this.quote;
+                this.segment = i + 1;
+                this.state = QUOTED;
+                return i + 1;
             }
-            state = AFTER_QUOTED;
-            segment = i;
+            if (this.strictQuotes && !isDelimiter && c !== LF && c !== CR) {
+                return -1;
+            }
+            this.state = AFTER_QUOTED;
+            this.segment = i;
         }
         if (isDelimiter || c === LF || c === CR) {
-            if (state === UNQUOTED || state === AFTER_QUOTED) {
-                field += text.slice(segment, i);
-            }
-            if (isDelimiter && whitespace && state === START) {
-                // a run of whitespace, or indentation: one separator
-                segment = i + 1;
-                continue;
-            }
-            if (isDelimiter) {
-                cells.push(field);
-                field = "";
-                state = START;
-            } else {
-                if (state !== START || cells.length > 0) {
-                    if (!(whitespace && state === START)) {
-                        cells.push(field);
-                    }
-                    rows.push(cells);
-                    cells = [];
-                    field = "";
-                }
-                state = START;
-                if (c === CR && text.charCodeAt(i + 1) === LF) {
-                    i++;
-                }
-            }
-            segment = i + 1;
-            continue;
+            return this.separator(i, isDelimiter);
         }
-        if (state === START) {
-            if (c === quoteCode) {
-                state = QUOTED;
-                segment = i + 1;
-            } else {
-                state = UNQUOTED;
-                segment = i;
-            }
+        if (this.state === START) {
+            const quoted = c === this.quoteCode;
+            this.state = quoted ? QUOTED : UNQUOTED;
+            this.segment = quoted ? i + 1 : i;
         }
+        return i + 1;
     }
-    if (rows.length < maxRows && (state !== START || cells.length > 0)) {
-        if (state === UNQUOTED || state === AFTER_QUOTED || state === QUOTED) {
-            field += text.slice(segment, n);
+
+    /**
+     * Read a delimiter or a line break: end the field, and at a line break the row.
+     * @param i - its index
+     * @param isDelimiter - whether it is a delimiter
+     * @returns the index of the next character to read
+     */
+    private separator(i: number, isDelimiter: boolean): number {
+        if (this.state === UNQUOTED || this.state === AFTER_QUOTED) {
+            this.field += this.text.slice(this.segment, i);
         }
-        if (!(whitespace && state === START)) {
-            cells.push(field);
+        let next = i + 1;
+        if (isDelimiter && this.whitespace && this.state === START) {
+            // a run of whitespace, or indentation: one separator
+        } else if (isDelimiter) {
+            this.cells.push(this.field);
+            this.field = "";
+            this.state = START;
+        } else {
+            this.endRow();
+            this.state = START;
+            if (this.text.codePointAt(i) === CR && this.text.codePointAt(i + 1) === LF) {
+                next = i + 2;
+            }
         }
-        rows.push(cells);
+        this.segment = next;
+        return next;
     }
-    return rows;
+
+    /** End the row at a line break; a blank line is no row. */
+    private endRow(): void {
+        if (this.state === START && this.cells.length === 0) {
+            return;
+        }
+        if (!(this.whitespace && this.state === START)) {
+            this.cells.push(this.field);
+        }
+        this.rows.push(this.cells);
+        this.cells = [];
+        this.field = "";
+    }
+
+    /** End the text: the last row, when it has no line break after it. */
+    finish(): void {
+        if (this.state === START && this.cells.length === 0) {
+            return;
+        }
+        if (this.state === UNQUOTED || this.state === AFTER_QUOTED || this.state === QUOTED) {
+            this.field += this.text.slice(this.segment);
+        }
+        if (!(this.whitespace && this.state === START)) {
+            this.cells.push(this.field);
+        }
+        this.rows.push(this.cells);
+    }
 }
 
 /**

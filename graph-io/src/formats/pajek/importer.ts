@@ -29,16 +29,19 @@ import {
 
 import { declareResolved, RENAMED_CODE, ROLE_TAKEN_CODE, uniqueColumnName } from "../../common/attributes.js";
 import {
+    DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_NODE_CODE,
     ENCODING_FALLBACK_CODE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MULTIPLE_GRAPHS_CODE,
     OPTION_IGNORED_CODE,
+    PRECISION_CODE,
     SYNTAX_CODE,
     UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
+import { survivesF32 } from "../../common/format.js";
 import { coerceIdText, ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { LineReader, throwIfAborted } from "../../common/input.js";
 import {
@@ -57,6 +60,7 @@ import {
     decodeCharacterReferences,
     isCommentOrBlank,
     isIntervalToken,
+    isProjectObject,
     isSectionLine,
     isShapeKeyword,
     isVertexNumber,
@@ -71,6 +75,7 @@ import {
     SHAPE_COLUMN,
     SPELLS_COLUMN,
     tokenize,
+    type TokenNotes,
     VALUE_COLUMN,
     VALUE_FIELD,
     VECTOR_COLUMN,
@@ -155,6 +160,24 @@ export const PAJEK_ISSUE = Object.freeze({
     OPTION_IGNORED: OPTION_IGNORED_CODE,
     /** A builder-policy option the caller passed that the caller's sink does not use (the shared W_SINK_OPTION). */
     SINK_OPTION: SINK_OPTION_CODE,
+    /** A `%` comment after the data of a line; the comment is not read. */
+    INLINE_COMMENT: "W_PAJEK_INLINE_COMMENT",
+    /** A double quote inside a token (a CSV-style doubled quote, a quote mid-word): removed and the parts joined. */
+    QUOTE_IN_TOKEN: "W_PAJEK_QUOTE_IN_TOKEN",
+    /** The same parameter twice on one line; the later value stands. */
+    DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
+    /** A character reference beyond U+10FFFF in a label; kept as written. */
+    REFERENCE_RANGE: "W_PAJEK_REFERENCE_RANGE",
+    /** A line of a two-mode network whose endpoints are both in one mode. */
+    TWO_MODE_LINE: "W_PAJEK_TWO_MODE_LINE",
+    /** A bare non-integer number read as a vertex label before two coordinates (`1 0.1 0.2 0.3`); it may be an x y z line without a label. */
+    NUMERIC_LABEL: "W_PAJEK_NUMERIC_LABEL",
+    /** A relation number given a second name by a later `*Arcs :k "name"` header. */
+    RELATION_RENAMED: "W_PAJEK_RELATION_RENAMED",
+    /** A negative vertex number in an adjacency list, read as its absolute value. */
+    NEGATIVE_LIST_ENTRY: "W_PAJEK_NEGATIVE_LIST_ENTRY",
+    /** A coordinate the f32 position column cannot hold exactly (warned once). */
+    PRECISION: PRECISION_CODE,
 });
 
 /** The common options the Pajek importer reads (the rest is reported by reportUnusedOptions). */
@@ -180,6 +203,16 @@ const DEFAULTS: ImportFormatDefaults = { ids: "canonical", defaultDirected: true
 const ABORT_CHECK_INTERVAL = 64;
 
 const FIRST_VERTEX_VALUES: ReadonlySet<unknown> = new Set([0, 1, "auto"]);
+
+/**
+ * The most vertices a `*Vertices N` may declare: the builder keeps its ids in one Map, which V8
+ * caps at 2^24 entries (a RangeError, not an issue, beyond it).
+ */
+// ponytail: the cap is graph-format's Map limit; lift it when the builder's id map shards
+const MAX_VERTICES = 2 ** 24 - 1;
+
+/** A numeral that is not a finite number (`1e999`, `NaN`, `Infinity`): never a parameter key. */
+const NON_FINITE_NUMERAL = /^[+-]?(?:(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|nan|inf|infinity)$/i;
 
 const LABEL_DECL: ColumnDecl = {
     name: LABEL_COLUMN,
@@ -358,6 +391,12 @@ class PajekParser {
     /** Set when the previous line was a project-object header, whose `*Vertices N` line comes next. */
     private objectHeader = false;
 
+    /** The first unsupported section keyword, for the message of a file without `*Vertices`. */
+    private firstUnsupported: string | null = null;
+
+    /** Vertex lines skipped because their number is outside the declared range (not lines of declared vertices). */
+    private outOfRange = 0;
+
     /** Node index per vertex position (vertex number minus base). */
     private indexOfPos: U32 = new Uint32Array(0);
 
@@ -462,7 +501,7 @@ class PajekParser {
                     this.matrixLine(text, line);
                     return false;
                 case "object":
-                    this.objectLine(text);
+                    this.objectLine(text, line);
                     return false;
                 case "skip":
                     return false;
@@ -487,7 +526,8 @@ class PajekParser {
      */
     finish(): void {
         if (this.vertexCount < 0) {
-            this.report.fail(PAJEK_ISSUE.NO_VERTICES, "not a Pajek network: no *Vertices section found");
+            const seen = this.firstUnsupported === null ? "" : ` (the file has the unrecognised section *${this.firstUnsupported})`;
+            this.report.fail(PAJEK_ISSUE.NO_VERTICES, `not a Pajek network: no *Vertices section found${seen}`);
         }
         this.endSection();
         this.finishVertices();
@@ -639,7 +679,9 @@ class PajekParser {
                 return;
             case "unsupported":
                 this.section = "skip";
-                this.objectHeader = true;
+                // only a project object's next line is its own `*Vertices N`
+                this.objectHeader = isProjectObject(h.keyword);
+                this.firstUnsupported ??= h.keyword;
                 this.report.warning(
                     "unsupported",
                     PAJEK_ISSUE.UNSUPPORTED_SECTION,
@@ -687,6 +729,13 @@ class PajekParser {
                 },
             );
         }
+        if (h.count > MAX_VERTICES) {
+            this.report.fail(
+                PAJEK_ISSUE.VERTICES_COUNT,
+                `*Vertices ${h.count}: more vertices than the builder can hold (${MAX_VERTICES})`,
+                { line },
+            );
+        }
         this.vertexCount = h.count;
         if (h.secondCount !== null) {
             this.firstMode = h.secondCount;
@@ -729,7 +778,17 @@ class PajekParser {
         this.kind = kind;
         this.relation = h.relation === null ? null : (h.name ?? String(h.relation));
         if (h.relation !== null) {
-            this.relationNames.set(h.relation, this.relation ?? String(h.relation));
+            const name = this.relation ?? String(h.relation);
+            const before = this.relationNames.get(h.relation);
+            if (before !== undefined && before !== name) {
+                this.report.warning(
+                    "validation-error",
+                    PAJEK_ISSUE.RELATION_RENAMED,
+                    `relation ${h.relation} was named ${JSON.stringify(before)} and is now named ${JSON.stringify(name)}; its lines carry the name of their own section`,
+                    { line, element: String(h.relation) },
+                );
+            }
+            this.relationNames.set(h.relation, name);
         }
     }
 
@@ -844,7 +903,7 @@ class PajekParser {
             }
         }
         // a partial list: fewer lines than declared, counting the lines skipped after an error
-        const lines = this.seenCount + this.report.counts.skippedNodes;
+        const lines = this.seenCount + this.report.counts.skippedNodes - this.outOfRange;
         if (this.seenCount > 0 && lines < n) {
             this.report.warning(
                 "validation-error",
@@ -860,7 +919,7 @@ class PajekParser {
      * @param line - the line number
      */
     private vertexLine(text: string, line: number): void {
-        const tokens = this.tokens(text, "node");
+        const tokens = this.tokens(text, "node", line);
         if (!isVertexNumber(tokens[0])) {
             this.report.counts.skippedNodes++;
             throw new LineError(
@@ -876,6 +935,7 @@ class PajekParser {
         const pos = k - this.base;
         if (pos < 0 || pos >= this.vertexCount) {
             this.report.counts.skippedNodes++;
+            this.outOfRange++;
             throw new LineError(
                 "validation-error",
                 PAJEK_ISSUE.VERTEX_RANGE,
@@ -886,7 +946,7 @@ class PajekParser {
         let i = 1;
         let label: string | null = null;
         if (tokens.length > 1 && !startsWithCoordinates(text, tokens)) {
-            label = decodeCharacterReferences(tokens[1]);
+            label = this.labelOf(tokens[1], k, line);
             i = 2;
         }
         let x = 0;
@@ -911,12 +971,13 @@ class PajekParser {
                 `vertex ${k}: a single coordinate "${tokens[i]}"; coordinates are x y [z]`,
             );
         }
+        this.checkCoordinates(text, tokens, i, dims === 2 && label !== null, k, line);
         let shape: string | null = null;
         if (i < tokens.length && isShapeKeyword(tokens[i])) {
             shape = tokens[i].toLowerCase();
             i++;
         }
-        const extras = this.extras(tokens, i, "node");
+        const extras = this.extras(tokens, i, "node", line);
         const restored = this.restoredId(extras);
         this.createNodes();
         // write
@@ -970,18 +1031,7 @@ class PajekParser {
             sink.setNodeValue(this.labelHandle, index, label);
         }
         if (dims > 0) {
-            if (this.positionHandle === INVALID_INDEX) {
-                this.coordDims = dims;
-                this.positionHandle = declareResolved(sink, "node", positionDecl(dims), this.report, { line }).handle;
-            } else if (dims !== this.coordDims) {
-                this.report.warnOnce(
-                    "validation-error",
-                    PAJEK_ISSUE.COORD_DIMS,
-                    `vertex lines mix ${this.coordDims} and ${dims} coordinates; the position column records sourceDims ${this.coordDims}`,
-                    { line, element: String(k) },
-                );
-            }
-            sink.setNodeValue(this.positionHandle, index, [x, y, z]);
+            this.writePosition(index, dims, [x, y, z], k, line);
         }
         if (shape !== null) {
             if (this.shapeHandle === INVALID_INDEX && this.nodeParams.has(SHAPE_COLUMN)) {
@@ -1003,6 +1053,95 @@ class PajekParser {
             }
             sink.setNodeValue(this.nodeSpellsHandle, index, extras.spells);
         }
+    }
+
+    /**
+     * A vertex label as written, its character references decoded.
+     * @param token - the label token
+     * @param k - the vertex number
+     * @param line - the line number
+     * @returns the label
+     */
+    private labelOf(token: string, k: number, line: number): string {
+        return decodeCharacterReferences(token, (reference) => {
+            this.report.warnOnce(
+                "validation-error",
+                PAJEK_ISSUE.REFERENCE_RANGE,
+                `character reference ${reference} is beyond U+10FFFF; it is kept as written`,
+                { line, element: String(k) },
+                `${PAJEK_ISSUE.REFERENCE_RANGE}:${reference}`,
+            );
+        });
+    }
+
+    /**
+     * Check the token after a vertex line's coordinates (or where they would stand): a numeral the
+     * number range cannot hold is a broken coordinate, never a parameter named "1e999" or "NaN";
+     * and a bare non-integer label before two coordinates may be the x of an x y z line.
+     * @param text - the line
+     * @param tokens - its tokens
+     * @param i - the index after the coordinates
+     * @param labelAndXy - whether the line was read as a label and two coordinates
+     * @param k - the vertex number
+     * @param line - the line number
+     */
+    private checkCoordinates(
+        text: string,
+        tokens: readonly string[],
+        i: number,
+        labelAndXy: boolean,
+        k: number,
+        line: number,
+    ): void {
+        if (i < tokens.length && NON_FINITE_NUMERAL.test(tokens[i]) && !isNumericText(tokens[i])) {
+            this.report.counts.skippedNodes++;
+            throw new LineError(
+                "parse-error",
+                PAJEK_ISSUE.VERTEX_LINE,
+                `vertex ${k}: coordinate "${tokens[i]}" is not a finite number`,
+            );
+        }
+        const label = tokens[1];
+        if (labelAndXy && isNumericText(label) && !Number.isInteger(Number(label)) && !quotedAfterNumber(text, tokens)) {
+            this.report.warnOnce(
+                "validation-error",
+                PAJEK_ISSUE.NUMERIC_LABEL,
+                `vertex ${k}: "${label} ${tokens[2]} ${tokens[3]}" is read as the label ${label} and x y; quote the label, or it may be meant as x y z`,
+                { line, element: String(k) },
+            );
+        }
+    }
+
+    /**
+     * Write a vertex's coordinates into the position column (f32 x 3), declared on first use.
+     * @param index - the node index
+     * @param dims - 2 or 3, the coordinates the line gave
+     * @param point - x, y, z (0 when absent)
+     * @param k - the vertex number
+     * @param line - the line number
+     */
+    private writePosition(index: number, dims: number, point: readonly number[], k: number, line: number): void {
+        if (this.positionHandle === INVALID_INDEX) {
+            this.coordDims = dims;
+            this.positionHandle = declareResolved(this.sink, "node", positionDecl(dims), this.report, { line }).handle;
+        } else if (dims !== this.coordDims) {
+            this.report.warnOnce(
+                "validation-error",
+                PAJEK_ISSUE.COORD_DIMS,
+                `vertex lines mix ${this.coordDims} and ${dims} coordinates; the position column records sourceDims ${this.coordDims}`,
+                { line, element: String(k) },
+            );
+        }
+        if (!point.every(survivesF32)) {
+            this.report.warnOnce(
+                "precision",
+                PAJEK_ISSUE.PRECISION,
+                `vertex ${k} has a coordinate the f32 position column rounds (warned once)`,
+                { line, element: String(k) },
+                `${PAJEK_ISSUE.PRECISION}:position`,
+            );
+        }
+        this.sink.setNodeValue(this.positionHandle, index, point);
     }
 
     /**
@@ -1094,7 +1233,7 @@ class PajekParser {
      * @param line - the line number
      */
     private edgeLine(text: string, line: number): void {
-        let tokens = this.tokens(text, "edge");
+        let tokens = this.tokens(text, "edge", line);
         // a `k:` prefix puts this one line in relation k
         let { relation } = this;
         const prefix = RELATION_PREFIX.exec(tokens[0]);
@@ -1119,7 +1258,7 @@ class PajekParser {
             valueText = tokens[i];
             i++;
         }
-        const extras = this.extras(tokens, i, "edge");
+        const extras = this.extras(tokens, i, "edge", line);
         const { weightFrom } = this.options;
         let weight: number | undefined;
         let valueIsWeight = false;
@@ -1151,7 +1290,7 @@ class PajekParser {
      * @param line - the line number
      */
     private listLine(text: string, line: number): void {
-        const tokens = this.tokens(text, "edge");
+        const tokens = this.tokens(text, "edge", line);
         for (const token of tokens) {
             if (!LIST_VERTEX.test(token)) {
                 this.report.counts.skippedEdges++;
@@ -1161,6 +1300,14 @@ class PajekParser {
                     `an adjacency list holds vertex numbers only, not "${token}"`,
                 );
             }
+        }
+        if (tokens.some((token) => token.startsWith("-"))) {
+            this.report.warnOnce(
+                "coercion",
+                PAJEK_ISSUE.NEGATIVE_LIST_ENTRY,
+                "an adjacency list holds a negative vertex number; it is read as its absolute value and the sign is dropped",
+                { line },
+            );
         }
         const u = this.endpoint(Math.abs(Number(tokens[0])));
         for (let i = 1; i < tokens.length; i++) {
@@ -1178,7 +1325,7 @@ class PajekParser {
      * @param line - the line number
      */
     private matrixLine(text: string, line: number): void {
-        const tokens = this.tokens(text, "edge");
+        const tokens = this.tokens(text, "edge", line);
         const row = this.matrixRows;
         this.matrixRows++;
         const offset = this.firstMode ?? 0;
@@ -1229,10 +1376,11 @@ class PajekParser {
      * A value line of a `*Partition` (integers) or `*Vector` (numbers): the values of the next
      * vertices, usually one per line.
      * @param text - the line
+     * @param line - the line number
      */
-    private objectLine(text: string): void {
+    private objectLine(text: string, line: number): void {
         const object = this.objects[this.objects.length - 1];
-        const tokens = this.tokens(text, "node");
+        const tokens = this.tokens(text, "node", line);
         for (const token of tokens) {
             if (!isNumericText(token) || (object.kind === "partition" && !isI32(Number(token)))) {
                 // keep the later values on their vertices
@@ -1262,6 +1410,14 @@ class PajekParser {
         if (!this.directionSet) {
             this.directionSet = true;
             this.resolver.setHeader(this.kind === "directed", { line });
+        }
+        if (this.firstMode !== null && u < this.firstMode === v < this.firstMode) {
+            this.report.warnOnce(
+                "validation-error",
+                PAJEK_ISSUE.TWO_MODE_LINE,
+                `a line of the two-mode network joins two vertices of the ${u < this.firstMode ? "first" : "second"} mode`,
+                { line },
+            );
         }
         const before = sink.edgeCount;
         const e = this.resolver.addEdge(this.idAt(u), this.idAt(v), this.kind, weight, { line });
@@ -1344,10 +1500,28 @@ class PajekParser {
      * Tokenize a data line.
      * @param text - the line
      * @param domain - what is skipped on an unterminated quote
+     * @param line - the line number
      * @returns the tokens (at least one: blank lines never reach here)
      */
-    private tokens(text: string, domain: "node" | "edge"): string[] {
-        const tokens = tokenize(text);
+    private tokens(text: string, domain: "node" | "edge", line: number): string[] {
+        const notes: TokenNotes = { comment: false, oddQuote: false };
+        const tokens = tokenize(text, notes);
+        if (notes.comment) {
+            this.report.warnOnce(
+                "unsupported",
+                PAJEK_ISSUE.INLINE_COMMENT,
+                "a % comment after the data of a line is not read (Pajek comments are whole lines)",
+                { line },
+            );
+        }
+        if (notes.oddQuote) {
+            this.report.warnOnce(
+                "coercion",
+                PAJEK_ISSUE.QUOTE_IN_TOKEN,
+                "a double quote inside a token is removed and the parts joined (Pajek has no escape for a quote)",
+                { line },
+            );
+        }
         if (tokens === null) {
             if (domain === "node") {
                 this.report.counts.skippedNodes++;
@@ -1365,12 +1539,17 @@ class PajekParser {
      * @param tokens - the row's tokens
      * @param start - the first token to read
      * @param domain - what is skipped when the row is malformed
+     * @param line - the line number
      * @returns the parsed extras
      */
-    private extras(tokens: readonly string[], start: number, domain: "node" | "edge"): RowExtras {
+    private extras(tokens: readonly string[], start: number, domain: "node" | "edge", line: number): RowExtras {
         const extras: RowExtras = { keys: [], values: [], spells: null };
         for (let i = start; i < tokens.length;) {
             const token = tokens[i];
+            if (token.startsWith("[") && !isIntervalToken(token)) {
+                this.skip(domain);
+                throw new LineError("validation-error", PAJEK_ISSUE.INTERVAL, `time interval ${token} is not closed by "]"`);
+            }
             if (isIntervalToken(token)) {
                 try {
                     const spells = parseIntervals(token);
@@ -1393,6 +1572,14 @@ class PajekParser {
                     "parse-error",
                     domain === "node" ? PAJEK_ISSUE.VERTEX_LINE : PAJEK_ISSUE.LINE,
                     `parameter "${token}" has no value`,
+                );
+            }
+            if (extras.keys.includes(token)) {
+                this.report.warning(
+                    "merged",
+                    PAJEK_ISSUE.DUPLICATE_ATTRIBUTE,
+                    `parameter ${JSON.stringify(token)} is given twice on one line; the later value ${JSON.stringify(tokens[i + 1])} stands`,
+                    { line, element: token },
                 );
             }
             extras.keys.push(token);
@@ -1449,7 +1636,7 @@ class PajekParser {
  * @returns true when tokens[1] is the first coordinate
  */
 function startsWithCoordinates(text: string, tokens: readonly string[]): boolean {
-    if (text.trimStart().slice(tokens[0].length).trimStart().startsWith('"')) {
+    if (quotedAfterNumber(text, tokens)) {
         return false;
     }
     let run = 0;
@@ -1457,6 +1644,16 @@ function startsWithCoordinates(text: string, tokens: readonly string[]): boolean
         run++;
     }
     return run === 2;
+}
+
+/**
+ * Whether the token after a row's vertex number is written in quotes.
+ * @param text - the line
+ * @param tokens - its tokens
+ * @returns true when the second token was quoted
+ */
+function quotedAfterNumber(text: string, tokens: readonly string[]): boolean {
+    return text.trimStart().slice(tokens[0].length).trimStart().startsWith('"');
 }
 
 /**
@@ -1544,7 +1741,7 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
             report.warning(
                 "unsupported",
                 PAJEK_ISSUE.MULTIPLE_GRAPHS,
-                `the project file holds ${rest.count} more network(s) after the first; import() reads the first, importAll() reads every one`,
+                `the project file holds ${rest.count} more network(s) after the first; import() reads the first, importAll() reads every one${rest.objects > 0 ? `; ${rest.objects} *Partition / *Vector object(s) after them are not read` : ""}`,
                 { line: restLine },
             );
         }
@@ -1608,6 +1805,9 @@ class NetworkCounter {
     /** Networks started so far (the first header fed opens the first). */
     count = 0;
 
+    /** `*Partition` / `*Vector` objects seen; import() does not read them. */
+    objects = 0;
+
     private named = false;
 
     private populated = false;
@@ -1632,8 +1832,11 @@ class NetworkCounter {
             return;
         }
         const { kind } = h;
-        if (kind === "partition" || kind === "vector" || kind === "unsupported") {
+        if (kind === "partition" || kind === "vector") {
             this.afterObjectHeader = true;
+            this.objects++;
+        } else if (kind === "unsupported") {
+            this.afterObjectHeader = isProjectObject(h.keyword);
         } else if (kind === "network") {
             if (this.count === 0 || this.named || this.populated) {
                 this.count++;

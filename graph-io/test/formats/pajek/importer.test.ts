@@ -375,7 +375,8 @@ describe("pajekImporter: numbering and ids", () => {
         expect(codes(zero.report)).toEqual([PAJEK_ISSUE.ZERO_BASED]);
         const one = await load("*Vertices 2\n0 a\n1 b\n*Edges\n0 1\n", { firstVertex: 1 });
         expect(one.snapshot.ids.toArray()).toEqual([1, 2]);
-        expect(codes(one.report)).toEqual([PAJEK_ISSUE.VERTEX_RANGE, PAJEK_ISSUE.UNKNOWN_NODE]);
+        // updated: vertex 2 has no line once the line numbered 0 is out of range, now reported
+        expect(codes(one.report)).toEqual([PAJEK_ISSUE.VERTEX_RANGE, PAJEK_ISSUE.VERTEX_COUNT, PAJEK_ISSUE.UNKNOWN_NODE]);
         await expect(load("*Vertices 1\n1 a\n*Edges\n", { firstVertex: 2 as unknown as 1 })).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
         });
@@ -932,7 +933,8 @@ describe("pajekImporter: the manual's line forms", () => {
 
     it("reads negative vertex numbers of *Arcslist as their absolute values", async () => {
         const { snapshot, report } = await load("*Vertices 4\n*Arcslist\n1 -2 3\n-3 4\n");
-        expect(report.issues).toEqual([]);
+        // updated: the dropped sign is now reported once (it was dropped silently)
+        expect(codes(report)).toEqual([PAJEK_ISSUE.NEGATIVE_LIST_ENTRY]);
         const { src, dst } = snapshot.edgeList();
         expect(Array.from(src)).toEqual([0, 0, 2]);
         expect(Array.from(dst)).toEqual([1, 2, 3]);

@@ -259,7 +259,8 @@ export function quotePajekLabel(text: string): string {
             value: text,
         });
     }
-    if (text.length > 0 && !/[\s"]/.test(text) && !text.startsWith("[")) {
+    // a bare `%` token starts a comment for the importer, so such a text is quoted too
+    if (text.length > 0 && !/[\s"]/.test(text) && !text.startsWith("[") && !text.startsWith("%")) {
         return text;
     }
     return `"${text}"`;

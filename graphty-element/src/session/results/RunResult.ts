@@ -684,8 +684,8 @@ function summaryValueField(shape: ResultShape): string | null {
  * Read the `sizes` or `categories` table a result published as summary groups.
  * @param value - The published table.
  * @param limit - How many rows a summary may carry.
- * @param named - Whether each group gets its display name, which a partition into groups does
- *   and a table of levels or of named categories does not.
+ * @param named - Whether each group gets its rank and display name, which a partition into
+ *   groups does and a table of levels or of named categories does not.
  * @returns The groups, bounded, or undefined when the value is not a table this can read.
  */
 function toSummaryGroups(value: unknown, limit: number, named: boolean): readonly SummaryGroup[] | undefined {
@@ -704,7 +704,8 @@ function toSummaryGroups(value: unknown, limit: number, named: boolean): readonl
         const group = record.group ?? record.category;
         const size = record.size ?? record.count;
         if (isGroupKey(group) && typeof size === "number") {
-            groups.push(Object.freeze(named ? { group, size, name: groupName(groups.length + 1) } : { group, size }));
+            const rank = groups.length + 1;
+            groups.push(Object.freeze(named ? { group, size, rank, name: groupName(rank) } : { group, size }));
         }
 
         if (groups.length === limit) {

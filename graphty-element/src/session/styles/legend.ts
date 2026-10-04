@@ -65,6 +65,13 @@ export interface LegendSwatch {
      * `sizes` table and its per-node values, never the string `"0"`.
      */
     readonly value: unknown;
+    /**
+     * The group's place by size, from 1 for the largest, on a block that colours a run's groups
+     * (`results.<run>.group`): the same `rank` the run summary's group carries, so a list of
+     * groups, a table column and the legend can name one group the same way. Absent on any other
+     * row.
+     */
+    readonly rank?: number;
     /** The colour the encoding paints it, as `#rrggbb` or `#rrggbbaa`. */
     readonly color?: string;
     /** The size or width the encoding paints it. */
@@ -457,6 +464,7 @@ function categorySwatches(prepared: PreparedBinding, order: readonly string[]): 
     const swatches: LegendSwatch[] = categories.map((category, index) => ({
         label: groups ? groupName(index + 1) : category,
         value: valueOf(category),
+        ...(groups ? { rank: index + 1 } : {}),
         ...swatchPaint(prepared.paint(category)),
     }));
     const { lumped } = prepared;

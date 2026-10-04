@@ -71,6 +71,31 @@ Find clusters of related nodes:
 await graph.runAlgorithm("graphty", "louvain");
 ```
 
+#### Naming the groups
+
+A community's group ids are whatever the algorithm assigned (`0`, `7`, `12`), and they mean
+nothing to a reader. Each group also has a `rank`: its place by size, 1 for the largest, ties
+ordered by id. The run's summary, the legend of a color encoding over the groups, and a table
+column of the group field all carry the same rank for the same group, so name a group from its
+rank and every surface agrees:
+
+```typescript
+const result = await element.run("louvain");
+await element.session.styles.encode({ run: result, channel: "node.color" });
+
+for (const { group, size, rank } of result.summary().groups ?? []) {
+    console.log(`Group ${rank}`, group, size); // "Group 1" 2 6 -- the largest group first
+}
+
+const block = element.session.styles.legend().find((entry) => entry.runId === result.runId);
+for (const swatch of block?.swatches ?? []) {
+    console.log(swatch.rank, swatch.value, swatch.color); // 1 2 "#e69f00" -- value === group
+}
+```
+
+`SummaryGroup.name` ("Group 1") is deprecated and will be removed in the next major; word the
+group from `rank` in your own language instead.
+
 #### Is the grouping meaningful?
 
 A community run publishes its modularity, and the run says how to read it. `band("modularity")`

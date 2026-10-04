@@ -443,8 +443,8 @@ describe("a community result", () => {
             { group: 1, size: 2 },
         ]);
         assert.deepStrictEqual(result.summary().groups, [
-            { group: 0, size: 3, name: "Group 1" },
-            { group: 1, size: 2, name: "Group 2" },
+            { group: 0, size: 3, rank: 1, name: "Group 1" },
+            { group: 1, size: 2, rank: 2, name: "Group 2" },
         ]);
         assert.strictEqual(result.summary().count, 5);
         assert.strictEqual(result.summary().measured, 5);

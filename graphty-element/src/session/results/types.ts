@@ -771,8 +771,16 @@ export interface SummaryGroup {
     /** How many elements are in it. */
     readonly size: number;
     /**
-     * What to call it, such as "Group 1", for a result that partitions into groups. The legend
-     * of a colour encoding over the same groups labels its swatches with the same names.
+     * Its place by size, from 1 for the largest, ties ordered by group id, for a result that
+     * partitions into groups. The legend of a colour encoding over the same groups carries the
+     * same `rank` on each swatch, and a page column of the group field carries it per cell, so
+     * every surface names a group the same way: word it from the rank ("Group 3").
+     */
+    readonly rank?: number;
+    /**
+     * What to call it, such as "Group 1", for a result that partitions into groups.
+     * @deprecated English words; word the group from {@link SummaryGroup.rank} instead. Removed in
+     *   the next major.
      */
     readonly name?: string;
 }

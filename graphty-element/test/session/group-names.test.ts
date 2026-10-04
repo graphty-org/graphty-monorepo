@@ -78,6 +78,16 @@ describe("the names of a partition's groups", () => {
             groups.map((group) => [group.name, group.group]),
             "each swatch carries the summary's name and the group exactly as the summary spells it",
         );
+        assert.deepStrictEqual(
+            groups.map((group) => group.rank),
+            [1, 2, 3, 4],
+            "each group carries its place by size, the fact its name is worded from (#921)",
+        );
+        assert.deepStrictEqual(
+            block?.swatches.map((swatch) => [swatch.rank, swatch.value]),
+            groups.map((group) => [group.rank, group.group]),
+            "the legend carries the same rank for the same group",
+        );
         const sizes = result.graph.sizes as readonly { readonly group: unknown }[];
         assert.deepStrictEqual(
             sizes.map((row) => row.group),

@@ -24,9 +24,9 @@ import { execFileSync } from "node:child_process";
  *   comments?: { body: string, createdAt: string }[] }} Detail
  * @typedef {"SUCCESS" | "FAILURE" | "PENDING" | "MISSING"} CheckState
  * @typedef {{
- *   verdict: "green" | "red" | "unknown", branch: string, fixPr?: number | null,
+ *   verdict: "green" | "red" | "unknown", branch: string,
  *   fixedAt?: string | null,
- * }} MasterView `branch` is the default branch; `fixPr` the recorded master fix; `fixedAt` when
+ * }} MasterView `branch` is the default branch; `fixedAt` when
  *   the commit that ended the last incident was made
  * @typedef {{
  *   headSha: string, headRef: string, baseRef: string, draft: boolean, author: string | null,

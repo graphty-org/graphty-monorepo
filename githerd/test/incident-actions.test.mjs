@@ -85,7 +85,9 @@ function fakeRepo(init = {}) {
             return ok({ number, id: number, url: `https://api.github.com/${R}issues/${number}` }, 201);
         }
         if ((m = /^issues\/(\d+)(\/comments|\/labels(?:\/(.+))?)?$/.exec(p))) {
-            const i = s.issues.find((x) => x.number === Number(m[1]));
+            // A pull request is an issue too: its labels are written through the issues API.
+            const i = s.issues.find((x) => x.number === Number(m[1])) ?? s.pulls.find((x) => x.number === Number(m[1]));
+            i.labels ??= [];
             if (method === "PATCH") Object.assign(i, body);
             else if (m[2] === "/comments") {
                 i.comments.push(body.body);
@@ -292,6 +294,8 @@ describe("codeRed: the incident procedure's daemon steps", () => {
         expect(out).toMatchObject({ outcome: "revert", reland: 701, revertPr: 901 });
         await actions.codeRed(incident(suspects));
         expect(repo.s.pulls.map((p) => p.title)).toEqual(["fix(tools): x", 'Revert "fix(tools): x"']);
+        // Mergify's priority rule puts it first; the red lane's hold lets it through.
+        expect(repo.s.pulls[1].labels).toEqual(["priority:critical"]);
         const mutation = JSON.parse(repo.gh.calls.find((c) => c.args.includes("graphql"))?.input ?? "{}");
         expect(mutation.variables.body).toMatch(/^Reverts #701\. /);
     });

@@ -328,7 +328,8 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
 
     /**
      * Opens the revert pull request of the one merge between green and red (GraphQL
-     * `revertPullRequest`), once per reverted pull request. Its title is GitHub's own revert form,
+     * `revertPullRequest`), once per reverted pull request, and labels it `priority:critical`, which
+     * Mergify's priority rule puts first. Its title is GitHub's own revert form,
      * which commitlint ignores. An open pull request with that title (one a crash kept githerd from
      * recording, or one the owner opened) is taken as the revert instead of opening another.
      * @param {number} pr the pull request to revert
@@ -364,8 +365,22 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
         );
         if (!res.performed) wouldDo[`revert ${pr}`] = iso();
         const n = Number(res.body?.data?.revertPullRequest?.revertPullRequest?.number ?? 0);
-        if (n) reverts[pr] = n;
-        return n || null;
+        if (!n) return null;
+        reverts[pr] = n;
+        // A red master's fix goes first in Mergify's queue (its priority rule) and through the hold.
+        const at = `${r}issues/${n}/labels`;
+        await github.write(
+            "POST",
+            at,
+            { labels: [CRITICAL] },
+            {
+                group: GROUP,
+                check: { path: at, expect: [{ name: CRITICAL }] },
+                retry: true,
+                fields: { situation: "revert-critical", pr: n },
+            },
+        );
+        return n;
     }
 
     /**

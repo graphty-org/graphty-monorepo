@@ -22,7 +22,8 @@ const TARGET_NOUN = /** @type {Record<string, string>} */ ({
 
 /** What a job of each kind is for, in one line. */
 const PURPOSE = /** @type {Record<string, string>} */ ({
-    incident: "Something shared is broken. Find the cause, fix it in one pull request, and get the fix onto master.",
+    incident:
+        "Something shared is broken. Find the cause, fix it in one pull request, and get the fix onto master. Label your fix pull request priority:critical (gh pr edit --add-label priority:critical): Mergify then merges it first, and githerd lets it through the hold on the red lane.",
     pr: "This pull request is stuck. Make its required checks pass on its current head.",
     issue: "Resolve this issue with a pull request against master, or show that it needs no change.",
     triage: "Label and judge each issue in this batch. Change no code.",

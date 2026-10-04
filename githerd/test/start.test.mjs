@@ -152,6 +152,7 @@ describe("fillSlots", () => {
             ownerItems: [],
             subagents: 2,
             browsers: 4,
+            incident: false,
         });
         expect(JSON.parse(readFileSync(join(jobDir, "settings.json"), "utf8")).permissions.deny).toContain("Workflow");
         expect(lines.map((l) => l.kind)).toEqual(["job-admitted", "session-started"]);

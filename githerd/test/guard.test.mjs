@@ -414,6 +414,22 @@ describe("guard: Bash refusals of design 10.1", () => {
     });
 });
 
+describe("guard: priority:critical", () => {
+    it("lets only an incident's worker mark its fix priority:critical", () => {
+        const commands = [
+            "gh pr edit 12 --add-label priority:critical",
+            `gh api -X POST ${API}/issues/12/labels -f 'labels[]=priority:critical'`,
+        ];
+        for (const command of commands) {
+            const r = bash(job, command);
+            expect(r.status, command).toBe(2);
+            expect(r.stderr).toMatch(/only an incident's worker marks its fix priority:critical/);
+        }
+        const incident = makeJob("incident", { incident: true });
+        for (const command of commands) expect(bash(incident, command).status, command).toBe(0);
+    });
+});
+
 describe("guard: the write log", () => {
     it("logs every allowed gh write with its verb and item, and no reads", () => {
         const logged = makeJob("writes");

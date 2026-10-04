@@ -11,7 +11,7 @@
  *
  * Files in the job directory (`~/.githerd/<repo>/jobs/<id>/`):
  *
- * - `guard.json`, written by the daemon: `{root, repo, ownerItems, subagents?, browsers?}`. `root`
+ * - `guard.json`, written by the daemon: `{root, repo, ownerItems, subagents?, browsers?, incident?}`. `root`
  *   is the job's worktree, `repo` is `owner/name`, `ownerItems` the issue and pull request numbers
  *   with an open owner item. Missing or malformed, every PreToolUse call is refused (the checks
  *   that need the daemon's facts fail closed).
@@ -49,6 +49,7 @@ import { checkOutgoing } from "../lib/text.mjs";
  * @property {number[]} ownerItems issues and pull requests with an open owner item
  * @property {number} subagents concurrent subagents allowed
  * @property {number} browsers Chromium trees allowed machine-wide
+ * @property {boolean} incident the job is an incident, whose worker marks its fix `priority:critical`
  */
 
 /**
@@ -68,6 +69,23 @@ const DENIED_FILES = new Set(["tools/prepush.sh"]);
 
 /** Labels only the owner and the daemon set. */
 const OWNER_LABEL = /^(needs-decision|hold|intermittent|githerd:.*)$/;
+/**
+ * The label that makes Mergify put a pull request first and githerd exempt it from a red lane's
+ * hold: only an incident's worker sets it, on its fix.
+ */
+const CRITICAL = "priority:critical";
+
+/**
+ * Refuses `priority:critical` to every worker but an incident's (design 4.6, line 2).
+ * @param {string[]} labels the labels a write adds or removes
+ * @param {string} what the write, for the refusal
+ * @param {Context} ctx the context
+ */
+function checkCritical(labels, what, ctx) {
+    if (!ctx.config.incident && labels.some((l) => l.trim() === CRITICAL)) {
+        refuse(`${what} ${CRITICAL}: only an incident's worker marks its fix ${CRITICAL}`);
+    }
+}
 
 class Refused extends Error {}
 
@@ -695,7 +713,7 @@ function checkGh(args, ctx) {
     if (command === "pr edit" && optValues(opts, "-B", "--base").length > 0) {
         refuse("gh pr edit --base: the daemon retargets pull requests");
     }
-    checkLabels(group, verb, pos, opts);
+    checkLabels(group, verb, pos, opts, ctx);
     const item = itemNumber(pos[0]);
     if (["issue comment", "pr comment", "pr review"].includes(command)) checkComment(command, item, ctx);
     ctx.writes.push({ verb: command, item, repo });
@@ -733,14 +751,16 @@ function checkCommentReads(opts) {
  * @param {string} verb the gh verb
  * @param {string[]} pos the positional words after them
  * @param {Map<string, string[]>} opts the parsed options
+ * @param {Context} ctx the context
  */
-function checkLabels(group, verb, pos, opts) {
+function checkLabels(group, verb, pos, opts, ctx) {
     const labels =
         group === "label"
             ? pos.slice(0, 1)
             : optValues(opts, "-l", "--label", "--add-label", "--remove-label").flatMap((v) => v.split(","));
     const owned = labels.find((l) => OWNER_LABEL.test(l.trim()));
     if (owned) refuse(`gh ${group} ${verb} ${owned}: that label belongs to the owner and githerd`);
+    checkCritical(labels, `gh ${group} ${verb}`, ctx);
 }
 
 /**
@@ -806,7 +826,7 @@ function checkGhApi(endpoint, opts, ctx) {
         refuse(`gh api ${method} ${path}: workers write only to ${org} repositories`);
     }
     for (const [re, why] of API_REFUSED) if (re.test(path)) refuse(`gh api ${method} ${path}: ${why}`);
-    checkApiFields(method, path, fields);
+    checkApiFields(method, path, fields, ctx);
     const item = itemNumber(/\/(?:issues|pulls)\/\d+/.exec(path)?.[0]);
     if (/\/(issues|pulls)\/\d+\/(comments|reviews)$/.test(path)) {
         checkComment(`api ${method} ${path}`, item, ctx);
@@ -821,8 +841,9 @@ function checkGhApi(endpoint, opts, ctx) {
  * @param {string} method the HTTP method
  * @param {string} path the path
  * @param {string[]} fields the `key=value` fields
+ * @param {Context} ctx the context
  */
-function checkApiFields(method, path, fields) {
+function checkApiFields(method, path, fields, ctx) {
     const keys = new Set(fields.map((f) => f.split("=")[0].replace(/\[\]$/, "")));
     if (/\/(issues|pulls)\/\d+$/.test(path) && keys.has("state")) {
         refuse(`gh api ${method} ${path} state: the daemon closes and reopens; report it in githerd_done`);
@@ -834,6 +855,7 @@ function checkApiFields(method, path, fields) {
     const names = fields.filter((f) => /^(labels|name)(\[\])?=/.test(f)).map((f) => f.slice(f.indexOf("=") + 1));
     const owned = [decodeURIComponent(label ?? ""), ...names].find((l) => OWNER_LABEL.test(l));
     if (owned) refuse(`gh api ${method} ${path}: the label ${owned} belongs to the owner and githerd`);
+    checkCritical([decodeURIComponent(label ?? ""), ...names], `gh api ${method} ${path}`, ctx);
 }
 
 /**
@@ -981,6 +1003,7 @@ function readConfig(jobDir) {
         ownerItems: raw.ownerItems,
         subagents: Number.isInteger(raw.subagents) ? raw.subagents : SUBAGENTS,
         browsers: Number.isInteger(raw.browsers) ? raw.browsers : BROWSERS,
+        incident: raw.incident === true,
     };
 }
 

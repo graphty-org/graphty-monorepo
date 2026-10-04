@@ -1028,6 +1028,55 @@ describe("the poll loop", () => {
         expect(posted["7"]).toMatchObject({ sha: B, state: "failure", description: expect.stringMatching(/^held: /) });
     });
 
+    it("lets a red master's fix through the hold: priority:critical by the owner's account, or an incident job's", async () => {
+        const daemon = await start();
+        await poll(daemon);
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/x"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["2026-10-02T12:03:00Z", "2026-10-02T12:06:00Z"]) {
+            clock = new Date(at);
+            await poll(daemon);
+        }
+        const pr = (/** @type {number} */ number, /** @type {string} */ sha, /** @type {string[]} */ labels = []) => ({
+            ...gatedPr(),
+            id: `PR_${number}`,
+            number,
+            headRefName: `fix/${number}`,
+            headRefOid: sha,
+            autoMergeRequest: null,
+            labels: { nodes: labels.map((name) => ({ name })) },
+        });
+        const labeled = (/** @type {string} */ login) => ({
+            event: "labeled",
+            label: { name: "priority:critical" },
+            actor: { login },
+        });
+        // #8 labelled by the owner's account, #9 by another account, #10 is an incident job's, #7 nothing.
+        scene.prs = [
+            pr(7, B),
+            pr(8, C, ["priority:critical"]),
+            pr(9, D, ["priority:critical"]),
+            pr(10, "e".repeat(40)),
+        ];
+        scene.events = { 8: [labeled("owner")], 9: [labeled("stranger")] };
+        const job = Object.values(daemon.state.jobs).find((j) => j.kind === "incident");
+        job.pr = 10;
+        clock = new Date("2026-10-02T12:09:00Z");
+        await poll(daemon);
+        expect(daemon.state.master.verdict).toBe("red");
+        const posted = daemon.state.mergeGate.posted;
+        expect(posted["8"]).toMatchObject({ state: "success" });
+        // The incident job's fix passes the hold and waits only for its review (line 6).
+        expect(posted["10"]).toMatchObject({ state: "pending", description: "githerd is evaluating" });
+        for (const n of ["7", "9"]) {
+            expect(posted[n]).toMatchObject({
+                state: "failure",
+                description: expect.stringMatching(/^held: ci lane red/),
+            });
+        }
+    });
+
     it("posts open owner items as would-dos, and counts only the owner's CLI and typing as presence", async () => {
         const daemon = await start();
         daemon.state.ownerItems = {

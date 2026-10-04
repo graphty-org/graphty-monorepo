@@ -502,7 +502,8 @@ async function startTask(ctx, job, busy) {
 
 /**
  * Writes the guard's `guard.json` for a job (design 10.1): its worktree, the repository, the
- * issues and pull requests with an open owner item, and the subagent and browser limits.
+ * issues and pull requests with an open owner item, the subagent and browser limits, and whether it
+ * is an incident's.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @param {any} job the job, with its worktree
@@ -513,7 +514,15 @@ export function writeGuard(state, config, job, jobDir) {
         .filter((i) => !i.endedAt)
         .map((i) => Number(/^(?:pr:|issue:|#)(\d+)$/.exec(i.target ?? "")?.[1]))
         .filter((n) => n > 0);
-    const guard = { root: job.worktree, repo: config.repo, ownerItems, subagents: SUBAGENTS, browsers: BROWSERS };
+    const guard = {
+        root: job.worktree,
+        repo: config.repo,
+        ownerItems,
+        subagents: SUBAGENTS,
+        browsers: BROWSERS,
+        // An incident's worker marks its fix priority:critical (design 4.6); no other worker may.
+        incident: job.kind === "incident",
+    };
     writeFileSync(join(jobDir, "guard.json"), `${JSON.stringify(guard)}\n`);
 }
 

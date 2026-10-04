@@ -163,8 +163,13 @@ const ITEM_KINDS = /** @type {Record<string, "workers" | null>} */ ({
     approval: null,
     "visual-review": null,
 });
-/** The owner's override labels; honored only when the owner applied them. */
-const OVERRIDES = new Set([NEXT, SKIP]);
+/**
+ * The labels honored only when the owner's account applied them (the issue's events): the owner's
+ * overrides, and `priority:critical`, which Mergify puts first and a red lane's hold lets through.
+ * Workers act as the owner's account too; the guard lets only an incident's worker set it.
+ */
+const CRITICAL = "priority:critical";
+const OVERRIDES = new Set([NEXT, SKIP, CRITICAL]);
 
 /**
  * The open pull requests and the default branch's head (design section 6.1).
@@ -1748,15 +1753,22 @@ export async function startDaemon({
 
     /**
      * The pull requests that are a red master's fix, exempt from its merge hold (design 4.6, line
-     * 2): the one a session claimed `master` with, and every revert pull request the open
-     * incident's procedure opened.
+     * 2), which Mergify's priority rule puts first: every open incident job's pull request, every
+     * revert pull request the open incident's procedure opened, and every owner pull request
+     * labelled `priority:critical` by the owner's account (the owner, or an incident's worker: the
+     * guard refuses the label to every other worker).
      * @returns {number[]} their numbers
      */
     function incidentFixPrs() {
-        const claimed = Number(state.claims?.master?.fixPr ?? 0);
+        const jobs = Object.values(state.jobs ?? {})
+            .filter((j) => j.kind === "incident" && !board.TERMINAL.includes(j.state))
+            .map((j) => Number(j.pr ?? 0));
         const open = Object.values(state.incidents).find((i) => i.status === "open");
         const reverts = Object.values(open?.keys ?? {}).map((k) => Number(/** @type {any} */ (k).revertPr ?? 0));
-        return [...new Set([claimed, ...reverts].filter((n) => n > 0))];
+        const critical = Object.entries(state.prs ?? {})
+            .filter(([, p]) => board.byOwner(state, p.author) && (p.ownerLabels ?? []).includes(CRITICAL))
+            .map(([n]) => Number(n));
+        return [...new Set([...jobs, ...reverts, ...critical].filter((n) => n > 0))];
     }
 
     /**
@@ -1803,7 +1815,6 @@ export async function startDaemon({
         const view = {
             verdict: m.verdict,
             branch,
-            fixPr: state.claims?.master?.fixPr ?? null,
             fixedAt: m.fixedAt ?? null,
         };
         const prs = updatePrs(state.prs, nodes, view, config, iso);

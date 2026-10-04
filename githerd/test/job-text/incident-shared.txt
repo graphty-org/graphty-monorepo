@@ -1,6 +1,6 @@
 JOB incident-ci/test/graphty-element-browser-3
 TARGET: failure ci/test/graphty-element-browser-3
-WHAT FOR: Something shared is broken. Find the cause, fix it in one pull request, and get the fix onto master.
+WHAT FOR: Something shared is broken. Find the cause, fix it in one pull request, and get the fix onto master. Label your fix pull request priority:critical (gh pr edit --add-label priority:critical): Mergify then merges it first, and githerd lets it through the hold on the red lane.
 DONE WHEN: the failing check passes on master at a commit with your fix, and on one other open pull request after it is updated from master.
 TO FINISH: Call githerd_done with the outcome, the pull request and the head you pushed. githerd checks the claim against GitHub and tells you what is missing if it does not hold.
 RULES:

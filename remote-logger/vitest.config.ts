@@ -1,12 +1,14 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+
 export default defineConfig({
     test: {
         globals: true,
         testTimeout: 30000,
         hookTimeout: 30000,
-        reporters: ["verbose"],
+        reporters: ["verbose", ...ciJunitReporter()],
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],

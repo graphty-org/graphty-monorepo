@@ -83,6 +83,7 @@ import { createMcpServer, TOOL_PROTOCOL } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
+import { activePolicies, ownerCommand, resumeAnswered } from "./owner.mjs";
 import { containerStart, identify } from "./proc.mjs";
 import { buildPrompt } from "./prompts.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
@@ -960,11 +961,19 @@ export async function startDaemon({
     }
 
     /**
-     * Whether a configured lane gates master.
+     * Whether a configured lane gates master. A `park-gate` policy naming the lane or its workflow
+     * parks it: its failures stop being incidents and holds until the owner ends the policy.
+     * ponytail: a park-gate naming a paid service rather than a lane matches no lane; map services
+     * to the lanes that use them when one is configured.
      * @param {string} name the lane
-     * @returns {boolean} true unless it is unknown or only watched
+     * @returns {boolean} true unless it is unknown, only watched or parked
      */
-    const gatingLane = (name) => Boolean(config.lanes[name]) && config.lanes[name].gating !== "watch";
+    const gatingLane = (name) =>
+        Boolean(config.lanes[name]) &&
+        config.lanes[name].gating !== "watch" &&
+        !activePolicies(state, "park-gate").some(
+            (/** @type {any} */ p) => p.value === name || p.value === state.master.lanes?.[name]?.workflowName,
+        );
 
     /**
      * Moves the incident record along with the code-red lanes: opens it (and raises its owner item
@@ -1336,6 +1345,10 @@ export async function startDaemon({
             digestHourUtc: config.digest.hourUtc,
             ledger,
         });
+        for (const r of resumeAnswered(state, t)) {
+            void ledger({ kind: "owner-answered", job: r.job });
+            await ringJob(state.jobs[r.job]);
+        }
         for (const change of await pollVerifying(state, { config, io: doneReader(), now: t })) {
             void ledger({ kind: "done-verify", ...change });
             if (change.action === "working") await ringJob(state.jobs[change.job]);
@@ -1525,9 +1538,7 @@ export async function startDaemon({
             login: state.trust.login,
             redLanes,
             releaseRunning: Object.keys(m.lanes.release?.inFlight ?? {}).length > 0,
-            freezeMerges: (state.policies ?? []).some(
-                (/** @type {any} */ p) => !p.endedAt && p.switch === "freeze-merges",
-            ),
+            freezeMerges: activePolicies(state, "freeze-merges").length > 0,
             starvation: null,
         };
         const posted = await postMergeStatuses({ github: gh, repo: config.repo, branch, prs, ctx, record: gate });
@@ -2007,6 +2018,7 @@ export async function startDaemon({
                 },
                 uid: process.getuid?.() ?? 0,
                 io: doneReader(),
+                ring: ringJob,
             });
         },
     });
@@ -2138,10 +2150,13 @@ export async function startDaemon({
     }
 
     /**
-     * The owner's CLI commands that change state: `ack` and `veto`.
-     * @param {any} cmd `{op: "ack", key}` or `{op: "veto", id}` with `id` `issue:<n>` or `pr:<n>`
-     * @returns {{status: number, text: string, entry?: {kind: string} & Record<string, unknown>}} the
-     *   answer, and the ledger entry when something changed
+     * The owner's CLI commands that change state: `ack`, `veto`, and the owner layer's `answer`,
+     * `order`, `policy` and `policy-end` (owner.mjs).
+     * @param {any} cmd `{op: "ack", key}`, `{op: "veto", id}` with `id` `issue:<n>` or `pr:<n>`, or
+     *   an owner-layer command
+     * @returns {{status: number, text: string, entry?: {kind: string} & Record<string, unknown>,
+     *   resumed?: {job: string}[]}} the answer, the ledger entry when something changed, and the
+     *   jobs an answer sent back to work
      */
     function owner(cmd) {
         if (cmd?.op === "ack") {
@@ -2166,7 +2181,8 @@ export async function startDaemon({
                 entry: { kind: "veto", target, by: "owner" },
             };
         }
-        return { status: 400, text: "op must be ack or veto" };
+        if (["answer", "order", "policy", "policy-end"].includes(cmd?.op)) return ownerCommand(state, cmd, now());
+        return { status: 400, text: "op must be ack, veto, answer, order, policy or policy-end" };
     }
 
     /**
@@ -2225,6 +2241,7 @@ export async function startDaemon({
             await save();
             await ledger(answer.entry);
         }
+        for (const r of answer.resumed ?? []) await ringJob(state.jobs[r.job]);
         return [answer.status, { ok: answer.status === 200, text: answer.text }];
     }
 

@@ -51,6 +51,11 @@ const USAGE = `usage: githerd <command>
   mode dry-run|paused|clear                lower the mode locally, or remove the override
   ack <key>                                clear an escalation
   veto <issue:N|pr:N>                      never let githerd close this issue or pull request
+  answer <item> <words>                    answer an owner item ("not yet" keeps it open)
+  order <N...> <words>                     record an order: these issues, in this order
+  policy [freeze-merges | park-gate <lane> | hold-package <name>] <words>
+                                           record a policy: a switch, or free text for every worker
+  policy end <id>                          end a policy
   attach                                   attach to githerd's tmux server, one window per worker
   install                                  prepare the daemon's code and environment, and print
                                            the servherd command that starts it
@@ -394,6 +399,77 @@ async function cmdOwner(c) {
     return answer.ok ? 0 : 1;
 }
 
+/** The policy switches that name a lane, service or package. */
+const VALUE_SWITCHES = new Set(["park-gate", "hold-package"]);
+
+/**
+ * `order <N...> <words>` as `POST /owner` takes it; null when it lacks issues or words.
+ * @param {string[]} args the positional arguments
+ * @returns {Record<string, unknown> | null} the command
+ */
+function orderCommand(args) {
+    const at = args.findIndex((a) => !/^#?\d+$/.test(a));
+    if (at < 1) return null;
+    return {
+        op: "order",
+        issues: args.slice(0, at).map((a) => Number(a.replace("#", ""))),
+        text: args.slice(at).join(" "),
+    };
+}
+
+/**
+ * `policy [switch [value]] <words>` or `policy end <id>` as `POST /owner` takes it; null when
+ * incomplete.
+ * @param {string[]} args the positional arguments
+ * @returns {Record<string, unknown> | null} the command
+ */
+function policyCommand(args) {
+    if (args[0] === "end") return args[1] ? { op: "policy-end", id: args[1] } : null;
+    if (VALUE_SWITCHES.has(args[0])) {
+        return args.length > 2
+            ? { op: "policy", switch: args[0], value: args[1], text: args.slice(2).join(" ") }
+            : null;
+    }
+    const sw = args[0] === "freeze-merges" ? args[0] : undefined;
+    const words = args.slice(sw ? 1 : 0);
+    return words.length ? { op: "policy", switch: sw, text: words.join(" ") } : null;
+}
+
+/**
+ * The owner-layer command a CLI line asks for: `answer`, `order` or `policy`, as `POST /owner`
+ * takes it; null when the line is incomplete.
+ * @param {string} name the command
+ * @param {string[]} args its positional arguments
+ * @returns {Record<string, unknown> | null} the command
+ */
+function recordCommand(name, args) {
+    if (name === "order") return orderCommand(args);
+    if (name === "policy") return policyCommand(args);
+    return args.length > 1 ? { op: "answer", item: args[0], text: args.slice(1).join(" ") } : null;
+}
+
+/**
+ * `answer`, `order` and `policy`: what the owner says, recorded through the daemon (design 5.6, 5.7).
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdRecord(c) {
+    const cmd = recordCommand(c.name, c.positional);
+    if (!cmd) {
+        c.err(
+            `usage: ${USAGE.split("\n")
+                .find((l) => l.startsWith(`  ${c.name} `))
+                ?.trim()}`,
+        );
+        return 2;
+    }
+    const port = await daemonPort(c);
+    if (port === null) return 1;
+    const answer = await post(port, "/owner", cmd, callerHeader(c.env));
+    (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
+    return answer.ok ? 0 : 1;
+}
+
 /**
  * `attach`: githerd's tmux server, where every worker has a window (design 7.6). Typing into a
  * worker's window steers it.
@@ -651,6 +727,9 @@ const HANDLERS = {
     why: cmdWhy,
     ack: cmdOwner,
     veto: cmdOwner,
+    answer: cmdRecord,
+    order: cmdRecord,
+    policy: cmdRecord,
     attach: cmdAttach,
     ledger: cmdLedger,
     runs: cmdRuns,

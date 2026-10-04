@@ -767,9 +767,10 @@ describe("the session proxy", () => {
         call(2, "githerd_expect", { job: "issue-1", minutes: 999, reason: "x" });
         expect((await reply(2)).result).toMatchObject({ isError: true });
         expect((await reply(2)).result.content[0].text).toMatch(/^invalid arguments/);
-        // A tool the daemon does not have yet answers so, and is listed all the same.
+        // A call the daemon refuses comes back as a tool error, not a transport failure.
         call(3, "githerd_record", { kind: "order", text: "x" });
-        expect((await reply(3)).result.content[0].text).toMatch(/^not available yet/);
+        expect((await reply(3)).result).toMatchObject({ isError: true });
+        expect((await reply(3)).result.content[0].text).toBe("an order lists its issues");
 
         const before = readFileSync(join(stateDir(), "state.json"), "utf8");
         const res = await fetch(`http://127.0.0.1:${daemonFile().port}/rpc`, {

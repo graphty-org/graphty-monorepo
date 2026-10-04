@@ -271,13 +271,35 @@ describe("sessionToolSet", () => {
         expect(other).toMatchObject({ isError: true, text: expect.stringMatching(/does not hold pr-7/) });
     });
 
-    it("says the owner-layer tools are not available yet, and changes nothing", async () => {
+    it("parks the job on the owner's item, and an owner session's answer sends it back to work", async () => {
         const job = heldJob("pr-7");
-        const { ctx, commits } = setup({ jobs: { "pr-7": job } });
+        /** @type {any[]} */
+        const rung = [];
+        const { ctx, commits } = setup(
+            { jobs: { "pr-7": job } },
+            { ring: async (/** @type {any} */ j) => rung.push(j.id) },
+        );
         const ask = { job: "pr-7", kind: "money", question: "q", options: [{ choice: "a", undoCost: "none" }] };
-        expect((await call(ctx, "githerd_ask_owner", ask)).isError).toBe(true);
-        expect((await call(ctx, "githerd_record", { kind: "order", text: "x" })).isError).toBe(true);
+        expect(JSON.parse((await call(ctx, "githerd_ask_owner", ask)).text)).toEqual({
+            item: "ask-pr-7",
+            parked: true,
+        });
+        expect(job.state).toBe("parked");
+        expect(JSON.parse((await call(ctx, "githerd_ask_owner", ask)).text)).toEqual({
+            item: "ask-pr-7",
+            parked: true,
+        });
+        const refused = await call(ctx, "githerd_record", { kind: "answer", item: "ask-pr-7", text: "a" });
+        expect(refused).toMatchObject({ isError: true, text: expect.stringMatching(/within 30 minutes/) });
+        const answer = await call(
+            ctx,
+            "githerd_record",
+            { kind: "answer", item: "ask-pr-7", text: "a" },
+            { session: "o1" },
+        );
+        expect(answer.text).toBe("answered ask-pr-7; back at work: pr-7");
         expect(job.state).toBe("working");
-        expect(commits).toEqual([]);
+        expect(rung).toEqual(["pr-7"]);
+        expect(commits.map((c) => c.kind)).toEqual(["owner-item", "owner-item"]);
     });
 });

@@ -6,9 +6,8 @@
  * this daemon does not serve before any handler runs.
  *
  * A worker is known by its job and nonce: a call that names a job is refused unless the caller holds
- * it. `githerd_done` checks the claim against GitHub before accepting it (done.mjs); `githerd_ask_owner`
- * and `githerd_record` belong to the owner layer (plan milestone 6) and answer that they are not
- * available yet.
+ * it. `githerd_done` checks the claim against GitHub before accepting it (done.mjs);
+ * `githerd_ask_owner` and `githerd_record` are the owner layer (owner.mjs).
  */
 
 import { availableParallelism, loadavg } from "node:os";
@@ -16,6 +15,7 @@ import { availableParallelism, loadavg } from "node:os";
 import * as board from "./board.mjs";
 import { githerdDone } from "./done.mjs";
 import { taskOutputPath } from "./hook.mjs";
+import { askOwner, recordOwner } from "./owner.mjs";
 import { jobText } from "./job-text.mjs";
 import { TOOLS } from "./mcp.mjs";
 import { statusData, statusText } from "./tools.mjs";
@@ -60,6 +60,8 @@ const WAIT_KEYS = /** @type {Record<string, string>} */ ({
  *   state, then appends the ledger entry
  * @property {number} uid the user id, for a background task's output path
  * @property {import("./done.mjs").DoneIo} io what `githerd_done` reads to check a claim
+ * @property {(job: any) => Promise<void>} ring rings a job's worker, for a job an answer sent back
+ *   to work
  */
 
 /**
@@ -203,8 +205,21 @@ export function sessionToolSet(ctx) {
             const session = sessionOf(caller, client);
             return githerdDone(ctx, heldJob(state, args.job, session, client), args, session);
         },
-        githerd_ask_owner: notYet,
-        githerd_record: notYet,
+        githerd_ask_owner: async (args, caller, client) => {
+            const session = sessionOf(caller, client);
+            const { result, entry } = askOwner(state, heldJob(state, args.job, session, client), args, {
+                session,
+                now,
+            });
+            if (entry) await ctx.commit(entry);
+            return JSON.stringify(result);
+        },
+        githerd_record: async (args, caller, client) => {
+            const r = recordOwner(state, args, { session: sessionOf(caller, client), worker: client.job ?? null, now });
+            await ctx.commit(r.entry);
+            for (const back of r.resumed) await ctx.ring(state.jobs[back.job]);
+            return r.text;
+        },
     };
 
     return TOOLS.map((tool) => ({
@@ -215,17 +230,6 @@ export function sessionToolSet(ctx) {
             return handlers[tool.name](args, caller, client ?? {});
         },
     }));
-}
-
-/**
- * The answer of a tool whose behavior is not built yet.
- * @returns {import("./mcp.mjs").ToolResult} the refusal
- */
-function notYet() {
-    return {
-        text: "not available yet: githerd does not run this tool until its job kinds and owner layer land; nothing was done",
-        isError: true,
-    };
 }
 
 /**

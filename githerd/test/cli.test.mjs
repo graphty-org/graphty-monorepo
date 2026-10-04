@@ -450,6 +450,45 @@ describe("ack and veto", () => {
     });
 });
 
+describe("answer, order and policy", () => {
+    it("records orders, policies and answers through the daemon", async () => {
+        const d = await daemon();
+        expect(await cli(["order", "#4", "5", "fix", "these", "first"])).toMatchObject({
+            code: 0,
+            out: "recorded order-1: #4 #5",
+        });
+        expect(d.state.orders[0]).toMatchObject({ issues: [4, 5], text: "fix these first", by: "owner" });
+        expect((await cli(["policy", "no", "new", "dependencies"])).out).toBe("recorded policy-1: no new dependencies");
+        expect((await cli(["policy", "freeze-merges", "release", "week"])).out).toBe(
+            "recorded policy-2 (freeze-merges): release week",
+        );
+        expect((await cli(["policy", "park-gate", "GPU", "over", "budget"])).out).toBe(
+            "recorded policy-3 (park-gate GPU): over budget",
+        );
+        expect(d.state.policies[2]).toMatchObject({ switch: "park-gate", value: "GPU" });
+        expect((await cli(["policy", "end", "policy-2"])).out).toBe("ended policy-2: release week");
+        expect(await cli(["policy", "end", "policy-2"])).toMatchObject({ code: 1, err: "no active policy policy-2" });
+        expect(await cli(["answer", "nope", "yes"])).toMatchObject({ code: 1, err: "no open owner item nope" });
+        const kinds = (await readLedger(d.stateDir)).map((e) => e.kind).filter((k) => k === "order" || k === "policy");
+        expect(kinds).toEqual(["order", "policy", "policy", "policy", "policy"]);
+    });
+
+    it("prints the usage for an incomplete line", async () => {
+        for (const argv of [
+            ["answer", "item-1"],
+            ["order", "4"],
+            ["order", "fix"],
+            ["policy"],
+            ["policy", "end"],
+            ["policy", "park-gate"],
+        ]) {
+            const r = await cli(argv);
+            expect(r.code).toBe(2);
+            expect(r.err).toMatch(new RegExp(`^usage: ${argv[0]} `));
+        }
+    });
+});
+
 describe("attach", () => {
     it("attaches to githerd's tmux server and exits with tmux's code", async () => {
         const log = join(dir, "tmux.log");

@@ -296,8 +296,8 @@ const DAYS_KEPT = 60;
  *   blocks?: "workers" | "release" | null}} ItemInput what raises an owner item; `target` is
  *   `pr:<n>` or `issue:<n>`, `blocks` says it blocks every worker start or the release
  * @typedef {ItemInput & {options: ItemOption[], target: string | null, blocks: "workers" | "release" | null,
- *   raisedAt: string, updatedAt: string, endedAt?: string, endedBy?: string,
- *   paged?: {text: string, at: string, via: "page" | "digest"},
+ *   raisedAt: string, updatedAt: string, endedAt?: string, endedBy?: string, answer?: string,
+ *   deferredAt?: string, paged?: {text: string, at: string, via: "page" | "digest" | "deferred"},
  *   github?: {text: string, performed: boolean, at: string, labeled?: boolean, unlabeled?: boolean}}} OwnerItem
  */
 
@@ -356,6 +356,35 @@ export function endItem(state, id, by, now) {
     if (!item || item.endedAt) return false;
     item.endedAt = now.toISOString();
     item.endedBy = by;
+    return true;
+}
+
+/** An answer that keeps the item open: the owner has seen it and will answer later. */
+const NOT_YET = /^\s*not yet\b/i;
+
+/**
+ * Whether an answer is "not yet".
+ * @param {string} text the answer
+ * @returns {boolean} true when it defers the item
+ */
+export function isNotYet(text) {
+    return NOT_YET.test(text);
+}
+
+/**
+ * Keeps an open item open after the owner answered "not yet" (design 5.3): marked as paged with its
+ * current text, so it pages again only when its text changes, and the answer is remembered so the
+ * same comment is not read twice.
+ * @param {any} state the daemon state, mutated
+ * @param {string} id the item id
+ * @param {string} at when the owner answered, ISO
+ * @returns {boolean} false when no open item has that id
+ */
+export function deferItem(state, id, at) {
+    const item = state.ownerItems?.[id];
+    if (!item || item.endedAt) return false;
+    item.deferredAt = at;
+    item.paged = { text: itemText(item), at, via: "deferred" };
     return true;
 }
 
@@ -611,7 +640,8 @@ async function unlabel(item, others, remove) {
 
 /**
  * Ends open items the owner answered on GitHub: a comment by him after the item's post that is
- * not one of githerd's own, or the `needs-decision` label gone. Only items whose post was
+ * not one of githerd's own (its text kept as the item's `answer`), or the `needs-decision` label
+ * gone. A comment that says "not yet" keeps the item open with no new page (`deferItem`). Only items whose post was
  * performed are read; each read is a conditional GET, free when nothing changed. Every answer also
  * counts as presence.
  * @param {{api: any, repo: string, state: any, login: string, now: Date}} options the GitHub
@@ -625,16 +655,20 @@ export async function readAnswers({ api, repo, state, login, now }) {
         if (item.endedAt || n === null || !item.github?.performed) continue;
         const base = `repos/${repo}/issues/${n}`;
         try {
-            const comments = (await api.get(`${base}/comments?since=${item.github.at}&per_page=100`)).body ?? [];
+            const since = item.deferredAt && item.deferredAt > item.github.at ? item.deferredAt : item.github.at;
+            const comments = (await api.get(`${base}/comments?since=${since}&per_page=100`)).body ?? [];
             const answer = comments.find(
                 (/** @type {any} */ c) =>
-                    c.user?.login === login &&
-                    c.created_at > item.github.at &&
-                    !String(c.body).includes("<!-- githerd"),
+                    c.user?.login === login && c.created_at > since && !String(c.body).includes("<!-- githerd"),
             );
             if (answer) {
                 notePresence(state, "github", answer.created_at);
+                if (isNotYet(String(answer.body))) {
+                    deferItem(state, item.id, answer.created_at);
+                    continue;
+                }
                 endItem(state, item.id, "comment", now);
+                item.answer = String(answer.body);
                 ended.push(item.id);
                 continue;
             }

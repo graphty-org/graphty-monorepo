@@ -220,7 +220,9 @@ describe("Neo4j robustness: rows and counts", () => {
         expect(codes(report)).toEqual([]);
     });
 
-    it("neo4j-unguarded-sink-writes: a refused node or relationship write skips that row and goes on", async () => {
+    // the node or relationship is already in the sink when a value write fails, so it is kept and
+    // counted; the refused value alone is recorded on the row's line and the other values are written
+    it("neo4j-unguarded-sink-writes: a refused value write is recorded on its line and the import goes on", async () => {
         const builder = new GraphBuilder({ directed: true });
         const refuse = new GraphFormatError("E_COLUMN_TYPE", "refused by the sink", {});
         const sink = new Proxy(builder, {
@@ -237,13 +239,14 @@ describe("Neo4j robustness: rows and counts", () => {
                 };
             },
         });
-        const text = ":ID,name\n1,a\n2,bad\n3,c\n:START_ID,:END_ID,name\n1,3,bad\n3,1,ok\n";
+        const text = ":ID,name,k\n1,a,x\n2,bad,y\n3,c,z\n:START_ID,:END_ID,name\n1,3,bad\n3,1,ok\n";
         const report = await neo4jImporter.import(text, sink);
         expect(codes(report)).toEqual(["E_COLUMN_TYPE", "E_COLUMN_TYPE"]);
-        expect(report.counts.skippedNodes).toBe(1);
-        expect(report.counts.skippedEdges).toBe(1);
         expect(report.issues.map((i) => i.line)).toEqual([3, 6]);
-        expect(report.counts.edges).toBe(1);
+        expect(report.counts).toMatchObject({ nodes: 3, edges: 2, skippedNodes: 0, skippedEdges: 0 });
+        const s = builder.freeze();
+        expect(s.nodes.require("name").isSet(1)).toBe(false);
+        expect(s.nodes.require("k").value(1)).toBe("y");
     });
 });
 

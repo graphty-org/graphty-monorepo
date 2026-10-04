@@ -58,12 +58,14 @@ import {
     uniqueColumnName,
 } from "../../common/attributes.js";
 import {
+    DANGLING_REFERENCE_CODE as SHARED_DANGLING_REFERENCE_CODE,
     DUPLICATE_NODE_CODE as SHARED_DUPLICATE_NODE_CODE,
     MISSING_ENDPOINT_CODE as SHARED_MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE as SHARED_MISSING_ID_CODE,
     ROLE_TAKEN_CODE as SHARED_ROLE_TAKEN_CODE,
 } from "../../common/codes.js";
 import { type DeclaredTypeSpec } from "../../common/declared-types.js";
+import { parseTemporal } from "../../common/temporal.js";
 import { DirectionResolver } from "../../common/direction.js";
 import { ID_MERGED_CODE as SHARED_ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { inputLength, isImportInput, type ReadOptions, throwIfAborted } from "../../common/input.js";
@@ -150,6 +152,15 @@ export const HEADER_OPTION_CODE = "W_NEO4J_HEADER_OPTION_IGNORED";
 
 /** Issue code: a reserved column (labels / type / idSpace) lost its role because the sink already holds it. */
 export const ROLE_TAKEN_CODE = SHARED_ROLE_TAKEN_CODE;
+
+/** Issue code: a relationship row with an empty `:TYPE` cell (neo4j-admin requires a type); the relationship is kept. */
+export const MISSING_TYPE_CODE = "W_NEO4J_MISSING_TYPE";
+
+/** Issue code: a file given under the `nodes` option holds a relationship header, or the reverse. */
+export const SECTION_KIND_CODE = "W_NEO4J_SECTION_KIND";
+
+/** Issue code: relationship endpoints that no node row declares became nodes (the shared W_DANGLING_REFERENCE). */
+export const DANGLING_REFERENCE_CODE = SHARED_DANGLING_REFERENCE_CODE;
 
 /** Loss code: `:IGNORE` columns were skipped. */
 export const IGNORED_COLUMNS_LOSS = "W_NEO4J_IGNORED_COLUMNS";
@@ -284,6 +295,13 @@ function resolveNeo4jOptions(options: Neo4jImportOptions | undefined): ResolvedN
         throw new GraphFormatError(
             "E_UNSUPPORTED",
             `option arrayDelimiter: ${JSON.stringify(arrayDelimiter)} is not one of ";", ",", "|"`,
+            { option: "arrayDelimiter", found: arrayDelimiter },
+        );
+    }
+    if (arrayDelimiter === "," && o.delimiter === undefined) {
+        throw new GraphFormatError(
+            "E_UNSUPPORTED",
+            'option arrayDelimiter "," needs the delimiter option: the field delimiter is a comma unless another is given',
             { option: "arrayDelimiter", found: arrayDelimiter },
         );
     }
@@ -484,6 +502,18 @@ class Neo4jImportSession {
     /** Scratch: the property slots of the current row that lost precision. */
     private readonly precisionSlots: PropertySlot[] = [];
 
+    /** Scratch: the values of the current row that overflowed their float / double type. */
+    private readonly overflows: string[] = [];
+
+    /** The section kind the option of the input being read names, or null for the primary input. */
+    private expectedKind: Section["kind"] | null = null;
+
+    /** Whether any node row was read. */
+    private nodeRows = false;
+
+    /** Nodes relationship endpoints created (no node row declared them yet), the first few by id. */
+    private readonly placeholders: { readonly id: NodeId; readonly index: number }[] = [];
+
     /**
      * Create a session.
      * @param sink - the sink
@@ -506,13 +536,29 @@ class Neo4jImportSession {
     }
 
     /**
-     * Read every input.
-     * @param inputs - the inputs in reading order
+     * Read every input. A header-only input lends its header to the headerless input after it (the
+     * neo4j-admin convention `--nodes=header.csv,part1.csv`); an empty input is an error only when
+     * it is the only one.
+     * @param inputs - the inputs in reading order, each with the kind of section its option names (null for the primary input)
      */
-    async run(inputs: readonly ImportInput[]): Promise<void> {
-        const progress = new ProgressTracker(this.common.onProgress, inputs);
-        for (const input of inputs) {
-            await this.readInput(input, { ...progress.optionsFor(this.common.signal), encoding: this.common.encoding });
+    async run(inputs: readonly { readonly input: ImportInput; readonly kind: Section["kind"] | null }[]): Promise<void> {
+        const progress = new ProgressTracker(
+            this.common.onProgress,
+            inputs.map((i) => i.input),
+        );
+        let carried: Section | null = null;
+        for (const { input, kind } of inputs) {
+            this.expectedKind = kind;
+            if (carried !== null && kind !== null && carried.kind !== kind) {
+                // a nodes header never lends itself to a relationships file, nor the reverse
+                carried = null;
+            }
+            carried = await this.readInput(
+                input,
+                { ...progress.optionsFor(this.common.signal), encoding: this.common.encoding },
+                carried,
+                inputs.length > 1,
+            );
             progress.finishInput();
         }
         if (this.ignoredColumns > 0) {
@@ -523,22 +569,42 @@ class Neo4jImportSession {
                 this.ignoredColumns,
             );
         }
+        this.reportDangling();
     }
 
     /**
      * Read one input: a header row, then data rows until the next header row.
      * @param input - the input
      * @param readOptions - cancellation and progress
+     * @param carried - the section of a header-only input just before this one, or null
+     * @param mayBeEmpty - whether an input without any record is allowed (other inputs exist)
+     * @returns this input's section when it held a header and no data row (lent to the next input), else null
      */
-    private async readInput(input: ImportInput, readOptions: ReadOptions): Promise<void> {
+    private async readInput(
+        input: ImportInput,
+        readOptions: ReadOptions,
+        carried: Section | null,
+        mayBeEmpty: boolean,
+    ): Promise<Section | null> {
         const reader = new RecordReader(input, this.report, this.options.syntax, readOptions);
-        let section: Section | null = null;
+        let section: Section | null = carried;
+        let records = 0;
+        let rows = 0;
         let sinceCheck = 0;
         for await (const count of reader) {
-            if (section === null || isHeaderRecord(reader.cells, count)) {
-                section = this.declareSection(reader, count);
+            const { cells, quoted } = reader;
+            if (records === 0 && count === 1 && !quoted[0] && cells[0].trim().length === 0) {
+                // a whitespace-only line before anything else is a blank line, not an empty header
                 continue;
             }
+            records++;
+            // a quoted cell is data: a data cell such as "ref:id" never starts a new section
+            if (section === null || isHeaderRecord(cells, count, quoted)) {
+                section = this.declareSection(reader, count);
+                rows = 0;
+                continue;
+            }
+            rows++;
             if (section.kind === "node") {
                 this.nodeRow(section, reader, count);
             } else {
@@ -549,9 +615,14 @@ class Neo4jImportSession {
                 throwIfAborted(readOptions.signal);
             }
         }
-        if (section === null) {
+        if (records === 0 && carried === null && !mayBeEmpty) {
             this.report.fail(HEADER_CODE, "the input has no header row", { line: 1 });
         }
+        // the header lent on: a header-only input's, or the one lent to this input when it had none
+        if (section === carried) {
+            return carried;
+        }
+        return rows === 0 ? section : null;
     }
 
     /**
@@ -585,8 +656,19 @@ class Neo4jImportSession {
                 throw headerError("a header mixes :ID with :START_ID / :END_ID");
             }
             if (!isNode && !isRelationship) {
+                const apoc = fields.some((f) => f.name === "_id" || f.name === "_start");
                 throw headerError(
-                    "a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)",
+                    apoc
+                        ? "a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _end, _type), which is not the neo4j-admin import format"
+                        : "a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)",
+                );
+            }
+            if (this.expectedKind !== null && this.expectedKind !== (isNode ? "node" : "relationship")) {
+                this.report.warning(
+                    "validation-error",
+                    SECTION_KIND_CODE,
+                    `a ${isNode ? "node" : "relationship"} header in a file given as ${this.expectedKind === "node" ? "nodes" : "relationships"}; read by its header`,
+                    { line },
                 );
             }
             checkPropertyNames(fields);
@@ -619,7 +701,12 @@ class Neo4jImportSession {
             );
         } catch (err) {
             if (err instanceof GraphFormatError && !(err instanceof ImportError)) {
-                this.report.fail(HEADER_CODE, `line ${line}: ${err.message}`, { line }, { cause: err.code });
+                // a header written with another delimiter reads as one cell holding it
+                const other = [";", "|", "\t", ","].find(
+                    (d) => d !== reader.delimiter && reader.cells.slice(0, count).some((c) => c.includes(d)),
+                );
+                const hint = other === undefined ? "" : `; if the file is delimited by ${JSON.stringify(other)}, pass the delimiter option`;
+                this.report.fail(HEADER_CODE, `line ${line}: ${err.message}${hint}`, { line }, { cause: err.code });
             }
             throw err;
         }
@@ -921,7 +1008,16 @@ class Neo4jImportSession {
         if (section.labelCells.length > 0 || section.extraLabels.length > 0) {
             labels = this.labelsOf(section, cells, quoted);
         }
-        const index = sink.addNode(id);
+        this.nodeRows = true;
+        const existed = sink.indexOf(id) !== INVALID_INDEX;
+        let index: number;
+        try {
+            index = sink.addNode(id);
+        } catch (err) {
+            report.recordError(err, { line, element: idText });
+            report.counts.skippedNodes++;
+            return;
+        }
         const status = this.registry.declare(index, section.spaceCode);
         if (status === "collision") {
             report.error(
@@ -944,19 +1040,65 @@ class Neo4jImportSession {
                 },
             );
         }
+        // a write the sink refuses is recorded and the rest of the row is still written
+        const set = (column: ColumnHandle, value: unknown): void => this.guarded(line, idText, () => sink.setNodeValue(column, index, value));
         if (section.idHandle !== INVALID_INDEX) {
-            sink.setNodeValue(section.idHandle, index, idText);
+            set(section.idHandle, idText);
         }
         if (section.space !== null) {
-            sink.setNodeValue(this.idSpaceHandle, index, section.space);
-            sink.setNodeValue(this.originalIdHandle, index, idText);
+            set(this.idSpaceHandle, section.space);
+            set(this.originalIdHandle, idText);
         }
         if (labels !== undefined) {
-            sink.setNodeValue(this.labelsHandle, index, labels);
+            set(this.labelsHandle, labels);
         }
-        this.writeProperties("node", section.properties, index);
+        this.writeProperties("node", section.properties, index, line, idText);
         this.reportPrecision(line, idText);
-        report.counts.nodes++;
+        // a node a relationship created before its row (or an earlier row) is counted once
+        if (!existed) {
+            report.counts.nodes++;
+        }
+    }
+
+    /**
+     * Run one sink write, recording a refusal (a GraphFormatError) on the row's line instead of
+     * letting it escape the import.
+     * @param line - the row's line
+     * @param element - the row's element name
+     * @param write - the write
+     */
+    private guarded(line: number, element: string, write: () => void): void {
+        try {
+            write();
+        } catch (err) {
+            if (!(err instanceof GraphFormatError) || err instanceof ImportError) {
+                throw err;
+            }
+            this.report.recordError(err, { line, element });
+        }
+    }
+
+    /**
+     * Report the relationship endpoints no node row declared (the shared W_DANGLING_REFERENCE,
+     * once) when the input has node rows: each became a node, where neo4j-admin refuses the
+     * relationship.
+     */
+    private reportDangling(): void {
+        const dangling = this.placeholders.filter((p) => this.registry.codeAt(p.index) === 0);
+        // without any node row, every node comes from the relationships (a relationships-only file)
+        if (dangling.length === 0 || !this.nodeRows) {
+            return;
+        }
+        const shown = dangling
+            .slice(0, 5)
+            .map((p) => String(p.id))
+            .join(", ");
+        this.report.warning(
+            "validation-error",
+            DANGLING_REFERENCE_CODE,
+            `${dangling.length} relationship endpoint(s) name no node row and became nodes: ${shown}${dangling.length > 5 ? ", ..." : ""} (neo4j-admin refuses such relationships)`,
+            { element: String(dangling[0].id) },
+        );
     }
 
     /**
@@ -1038,6 +1180,7 @@ class Neo4jImportSession {
             report.counts.skippedEdges++;
             return;
         }
+        const created = [source, target].filter((id, k) => (k === 0 || id !== source) && sink.indexOf(id) === INVALID_INDEX);
         let edge: number;
         try {
             edge = this.direction.addEdge(source, target, "directed", weight, { line, element });
@@ -1046,13 +1189,25 @@ class Neo4jImportSession {
             report.counts.skippedEdges++;
             return;
         }
+        for (const id of created) {
+            // a node no row declared yet: counted now; reported at the end unless a node row follows
+            report.counts.nodes++;
+            this.placeholders.push({ id, index: sink.indexOf(id) });
+        }
         if (section.typeCell >= 0) {
             const type = cells[section.typeCell];
             if (type.length > 0) {
-                sink.setEdgeValue(this.typeHandle, edge, type);
+                this.guarded(line, element, () => sink.setEdgeValue(this.typeHandle, edge, type));
+            } else {
+                report.warning(
+                    "missing-value",
+                    MISSING_TYPE_CODE,
+                    "empty :TYPE cell; neo4j-admin requires a relationship type, the relationship is kept without one",
+                    { line, element },
+                );
             }
         }
-        this.writeProperties("edge", section.properties, edge);
+        this.writeProperties("edge", section.properties, edge, line, element);
         this.reportPrecision(line, element);
         report.counts.edges++;
     }
@@ -1122,6 +1277,7 @@ class Neo4jImportSession {
     ): boolean {
         const { values, texts, precisionSlots } = this;
         precisionSlots.length = 0;
+        this.overflows.length = 0;
         for (const slot of slots) {
             const text = cells[slot.cell];
             texts[slot.cell] = null;
@@ -1132,15 +1288,21 @@ class Neo4jImportSession {
             const { spec } = slot;
             try {
                 if (spec.temporal !== null && !spec.list) {
-                    const parsed = parseDeclaredTemporal(text, spec);
+                    const zoned = withZoneOffset(text, spec);
+                    const parsed = parseDeclaredTemporal(zoned, spec);
                     values[slot.cell] = parsed.value;
-                    texts[slot.cell] = parsed.text;
+                    // a zone name is kept in the companion text, the value is its instant
+                    texts[slot.cell] = zoned === text ? parsed.text : text;
                 } else {
                     values[slot.cell] = parseDeclaredValue(text, spec, this.options.listSyntax);
+                    checkNeo4jRange(spec, values[slot.cell], text);
                 }
             } catch (err) {
                 this.report.recordError(err, { line, element: `${element} ${slot.name}` });
                 return false;
+            }
+            if (overflows(spec, values[slot.cell], text)) {
+                this.overflows.push(slot.name);
             }
             if (spec.precision && losesPrecision(spec, text)) {
                 precisionSlots.push(slot);
@@ -1154,8 +1316,16 @@ class Neo4jImportSession {
      * @param domain - node or edge
      * @param slots - the section's property slots
      * @param row - the node or edge index
+     * @param line - the row's line
+     * @param element - the row's element name for issues
      */
-    private writeProperties(domain: "node" | "edge", slots: readonly PropertySlot[], row: number): void {
+    private writeProperties(
+        domain: "node" | "edge",
+        slots: readonly PropertySlot[],
+        row: number,
+        line: number,
+        element: string,
+    ): void {
         const { sink, values, texts } = this;
         for (const slot of slots) {
             const value = values[slot.cell];
@@ -1163,20 +1333,23 @@ class Neo4jImportSession {
                 continue;
             }
             const text = texts[slot.cell];
-            if (text !== null && slot.companion === INVALID_INDEX && slot.companionDecl !== null) {
-                slot.companion = declareCompanion(sink, domain, slot.companionDecl);
-            }
-            if (domain === "node") {
-                sink.setNodeValue(slot.handle, row, value);
-                if (text !== null) {
-                    sink.setNodeValue(slot.companion, row, text);
+            // a value the sink refuses is recorded on the row's line; the other properties are written
+            this.guarded(line, `${element} ${slot.name}`, () => {
+                if (text !== null && slot.companion === INVALID_INDEX && slot.companionDecl !== null) {
+                    slot.companion = declareCompanion(sink, domain, slot.companionDecl);
                 }
-            } else {
-                sink.setEdgeValue(slot.handle, row, value);
-                if (text !== null) {
-                    sink.setEdgeValue(slot.companion, row, text);
+                if (domain === "node") {
+                    sink.setNodeValue(slot.handle, row, value);
+                    if (text !== null) {
+                        sink.setNodeValue(slot.companion, row, text);
+                    }
+                } else {
+                    sink.setEdgeValue(slot.handle, row, value);
+                    if (text !== null) {
+                        sink.setEdgeValue(slot.companion, row, text);
+                    }
                 }
-            }
+            });
         }
     }
 
@@ -1195,6 +1368,15 @@ class Neo4jImportSession {
             );
         }
         this.precisionSlots.length = 0;
+        for (const name of this.overflows) {
+            this.report.warning(
+                "precision",
+                PRECISION_CODE,
+                `the value of "${name}" is beyond the range of its float / double type and was stored as the nearest representable value`,
+                { line, element },
+            );
+        }
+        this.overflows.length = 0;
     }
 
     /**
@@ -1240,6 +1422,102 @@ class Neo4jImportSession {
  */
 function qualify(id: NodeId, space: string | null): NodeId {
     return space === null ? id : `${space}:${String(id)}`;
+}
+
+/** The integer range of the narrow neo4j-admin types (Java byte and short). */
+const INTEGER_RANGES: Readonly<Record<string, readonly [number, number]>> = { byte: [-128, 127], short: [-32768, 32767] };
+
+/**
+ * A Cypher duration (ISO 8601): unit form `P14DT16H12M` / `PT0.75M` / `P2.5W` (components may be
+ * signed or fractional) or the date-time form `P2012-02-02T14:37:21.545`.
+ */
+const DURATION_TEXT =
+    /^[+-]?P(?:(?=[-+]?[0-9.]|T[-+]?[0-9.])(?:[-+]?[0-9]+(?:\.[0-9]+)?Y)?(?:[-+]?[0-9]+(?:\.[0-9]+)?M)?(?:[-+]?[0-9]+(?:\.[0-9]+)?W)?(?:[-+]?[0-9]+(?:\.[0-9]+)?D)?(?:T(?=[-+]?[0-9.])(?:[-+]?[0-9]+(?:\.[0-9]+)?H)?(?:[-+]?[0-9]+(?:\.[0-9]+)?M)?(?:[-+]?[0-9]+(?:\.[0-9]+)?S)?)?|[0-9]{4}-?[0-9]{2}-?[0-9]{2}T[0-9]{2}:?[0-9]{2}:?[0-9]{2}(?:\.[0-9]+)?)$/i;
+
+/**
+ * Check the neo4j-admin types the shared parser maps to a wider dtype: byte and short values within
+ * their Java range, a char of one character, a duration in Cypher's syntax.
+ * @param spec - the declared type
+ * @param value - the parsed value (a list of items for an array type)
+ * @param text - the cell text, for the error
+ */
+function checkNeo4jRange(spec: DeclaredTypeSpec, value: unknown, text: string): void {
+    const base = spec.declared.trim().toLowerCase().replace(/\[\]$/, "");
+    const items: unknown[] = spec.list && Array.isArray(value) ? value : [value];
+    const range = INTEGER_RANGES[base];
+    for (const item of items) {
+        let bad = false;
+        if (range !== undefined) {
+            bad = typeof item === "number" && (item < range[0] || item > range[1]);
+        } else if (base === "char") {
+            bad = typeof item === "string" && [...item].length !== 1;
+        } else if (base === "duration") {
+            bad = typeof item === "string" && !DURATION_TEXT.test(item.trim());
+        }
+        if (bad) {
+            throw new GraphFormatError("E_COLUMN_TYPE", `"${text}" is not a ${base}${range === undefined ? "" : ` (${range[0]} to ${range[1]})`}`, {
+                value: text,
+                kind: base,
+            });
+        }
+    }
+}
+
+/** The largest finite f32. */
+const F32_MAX = 3.4028234663852886e38;
+
+/**
+ * Whether a float / double cell overflowed: a finite literal read as an infinity, or a float beyond
+ * the f32 range (Java's Double.parseDouble accepts both silently; the value changes).
+ * @param spec - the declared type
+ * @param value - the parsed value
+ * @param text - the cell text
+ * @returns true when the stored value is not the one written
+ */
+function overflows(spec: DeclaredTypeSpec, value: unknown, text: string): boolean {
+    if ((spec.kind !== "float" && spec.kind !== "double") || /inf|nan/i.test(text)) {
+        return false;
+    }
+    const items: unknown[] = spec.list && Array.isArray(value) ? value : [value];
+    return items.some(
+        (v) => typeof v === "number" && (!Number.isFinite(v) || (spec.kind === "float" && Math.abs(v) > F32_MAX)),
+    );
+}
+
+/**
+ * A Cypher date-time with a zone name (`2020-01-01T00:00:00[Europe/Berlin]`) as one with a UTC
+ * offset the temporal parser reads: the offset the text gives, else the zone's offset at that wall
+ * time. Any other text is returned unchanged.
+ * @param text - the cell text
+ * @param spec - the declared type
+ * @returns the text to parse
+ */
+function withZoneOffset(text: string, spec: DeclaredTypeSpec): string {
+    const m = /^(.*)\[([^\]]+)\]$/.exec(text.trim());
+    if (m === null || spec.temporal !== "dateTime") {
+        return text;
+    }
+    const [, local, zone] = m;
+    let format: Intl.DateTimeFormat;
+    try {
+        format = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longOffset" });
+    } catch {
+        throw new GraphFormatError("E_COLUMN_TYPE", `"${text}" names an unknown time zone ${zone}`, { value: text });
+    }
+    if (/(Z|z|[+-][0-9]{2}(:?[0-9]{2})?)$/.test(local)) {
+        return local;
+    }
+    const wall = parseTemporal(local, "localDateTime").value;
+    const offsetAt = (ms: number): number => {
+        const name = format.formatToParts(new Date(ms)).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
+        const o = /GMT([+-])([0-9]{2}):([0-9]{2})/.exec(name);
+        return o === null ? 0 : (o[1] === "-" ? -1 : 1) * (Number(o[2]) * 60 + Number(o[3]));
+    };
+    // the offset at the instant the wall time names (twice, so a wall time near a transition settles)
+    const minutes = offsetAt(wall - offsetAt(wall) * 60_000);
+    const sign = minutes < 0 ? "-" : "+";
+    const abs = Math.abs(minutes);
+    return `${local}${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
 }
 
 /**
@@ -1324,7 +1602,11 @@ export const neo4jImporter: GraphImporter<Neo4jImportOptions> = Object.freeze({
         // column and every relationship is directed
         reportUnusedOptions(options, report, USED_OPTIONS);
         const session = new Neo4jImportSession(sink, report, common, format);
-        await session.run([input, ...format.nodes, ...format.relationships]);
+        await session.run([
+            { input, kind: null },
+            ...format.nodes.map((file) => ({ input: file, kind: "node" as const })),
+            ...format.relationships.map((file) => ({ input: file, kind: "relationship" as const })),
+        ]);
         throwIfAborted(common.signal);
         return report.finish();
     },

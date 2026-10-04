@@ -113,9 +113,10 @@ describe("ring", () => {
         const rang = await ring(window, { nonce: "n0nce", job: "issue-4", sleep });
         expect(rang).toMatchObject({ rung: false, why: "doorbell blocked by dialog" });
         if (!rang.rung) expect(rang.capture).toContain("Do you want to proceed?");
-        const keys = fw.keys("issue-4");
-        expect(keys.at(-1)).toEqual({ key: "C-u" });
-        expect(keys.some((k) => k.submit !== undefined)).toBe(false);
+        // tmux has delivered C-u when ring returns, but the fake logs a key only once it has read
+        // it from its terminal, which can come later on a busy machine.
+        await expect.poll(() => fw.keys("issue-4").at(-1)).toEqual({ key: "C-u" });
+        expect(fw.keys("issue-4").some((k) => k.submit !== undefined)).toBe(false);
     });
 
     it("does not ring while a client views the window", async () => {

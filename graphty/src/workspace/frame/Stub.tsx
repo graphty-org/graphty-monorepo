@@ -8,7 +8,7 @@ import type React from "react";
  * @param props.children - What goes here
  * @returns The line
  */
-export function Stub({ children }: { children: React.ReactNode }): React.JSX.Element {
+export function Stub({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
     return (
         <Text size="xs" c="dimmed" p="xs" data-stub="">
             {children}

@@ -34,7 +34,7 @@ interface FrameProps {
  * @param props.onElementReady - Called with the element and its session
  * @returns The frame
  */
-export function Frame({ onElementReady }: FrameProps): React.JSX.Element {
+export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
     const { store } = useWorkspace();
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);

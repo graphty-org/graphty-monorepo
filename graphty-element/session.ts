@@ -63,15 +63,28 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import type { SelectionOp } from "./src/session/selection";
 
 export type {
+    ColumnRole,
     CommandOutcome,
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
     DataSourceDescriptor,
     DataSourceInput,
+    DraftColumn,
+    DraftRow,
+    DraftRowOptions,
+    DraftTable,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
+    Endpoint,
+    FindEnd,
+    FindHit,
+    FindHitBase,
+    FindKind,
+    FindOptions,
+    FindResult,
+    FindValueRow,
     GraphSession,
     GraphStatistics,
     HistoryCause,
@@ -79,6 +92,14 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    LoadChoices,
+    LoadDraft,
+    LoadMapping,
+    LoadMappingRead,
+    Neighbor,
+    NeighborOptions,
+    NeighborPage,
+    NeighborSort,
     NodeRecord,
     NodeRecordInput,
     PageColumn,
@@ -93,6 +114,7 @@ export type {
     RecordSort,
     ResultCell,
     ResultColumn,
+    ResultColumnDescriptor,
     ResultSort,
     RowUpdate,
     SessionAttributes,
@@ -109,6 +131,8 @@ export type {
     SessionStatus,
     SessionViews,
     StyleProblem,
+    TableMapping,
+    TableMappingRead,
     TransactionOptions,
     TransactionScope,
 } from "./src/session";
@@ -124,7 +148,7 @@ export { createGraphSession } from "./src/session";
  * `data-loaded` and `data-loading-complete`.
  */
 export type { EndpointSpelling } from "./src/data/endpoints";
-export type { ImportReport, RepeatedEdgeCounts } from "./src/data/report";
+export type { ImportReport, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
 
 // ---------------------------------------------------------------------------------------------
 // The node coordinates
@@ -288,6 +312,7 @@ export type {
     ProjectStatus,
     SavedProject,
 } from "./src/session/projectFile";
+export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 
 // ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
@@ -408,6 +433,7 @@ export type {
     LayerPosition,
     LayerProblem,
     LegendBlock,
+    LegendReading,
     LegendSwatch,
     RepaintReason,
     RepaintReport,

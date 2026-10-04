@@ -45,7 +45,7 @@ import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
-import type { ImportReport } from "../data/report";
+import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
@@ -142,6 +142,8 @@ import type {
     CommandOutcome,
     CreateGraphSessionOptions,
     ElementSession,
+    FindOptions,
+    FindResult,
     GraphSession,
     HistoryOutcome,
     PositionEntry,
@@ -782,6 +784,17 @@ class Session implements ElementSession {
      */
     fingerprint(): string {
         return this.sessionData.fingerprint();
+    }
+
+    /**
+     * What a find box lists, without selecting anything.
+     * @param text - What was typed.
+     * @param options - The window, the kinds and the scope.
+     * @returns A page of hits and at most three value rows.
+     * @throws A `GraphtyError` coded `E_OPTION_RANGE` for a bad window or kind.
+     */
+    find(text: string, options?: FindOptions): FindResult {
+        return this.sessionData.find(text, options);
     }
 
     /**
@@ -1544,6 +1557,22 @@ function fieldWordsOf(
 }
 
 /**
+ * Each group's place by size in one run, from 1 for the largest, read from the run's `sizes`
+ * table -- the order its summary and its page columns rank the groups in.
+ * @param runs - The session's runs.
+ * @returns The reader, keyed by the group as a category name.
+ */
+function groupRanksOf(runs: RunsApi): (runId: RunId) => ReadonlyMap<string, number> | undefined {
+    return (runId: RunId): ReadonlyMap<string, number> | undefined => {
+        const sizes = runs.get(runId)?.result?.graph.sizes;
+
+        return Array.isArray(sizes)
+            ? new Map((sizes as readonly { readonly group: unknown }[]).map((row, at) => [String(row.group), at + 1]))
+            : undefined;
+    };
+}
+
+/**
  * The run id behind any of the three ways a caller names a run.
  * @param ref - The run, its result, or its id.
  * @returns The run id.
@@ -1842,7 +1871,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const records = sliceRecords(
         slice,
         snapshot,
-        () => (slice().values.get("importReport") as ImportReport | undefined) ?? store.store.lastImport ?? null,
+        () => (slice().values.get("importReport") as LoadReport | undefined) ?? store.store.lastImport ?? null,
         options.records ?? null,
     );
     const data = new SessionData(
@@ -1853,6 +1882,24 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
             importer: () => dispatcher.capturedDispatch(),
             slice,
+            measure: async (command, config) => {
+                const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });
+                try {
+                    await dispatcherOf(scratch).dispatch(command);
+                    const report = scratch.data.lastImport();
+                    if (report === null) {
+                        throw new GraphtyError({
+                            code: "E_INTERNAL",
+                            source: "data",
+                            message: "A measured load finished without a report.",
+                        });
+                    }
+
+                    return report;
+                } finally {
+                    scratch.dispose();
+                }
+            },
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
             declarations: () => dispatcher.state.attributes,
         },
@@ -1860,6 +1907,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             revision: () => inputs.tick.value,
             // Read through a call: the resolver is built below.
             resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
+            // And the query engine, below that.
+            search: (text, request) => requireQuery(query).search(text, request),
             // Read through calls: the runs are built below.
             run: (id: RunId) => runs.get(id),
             runIds: () => runs.list().map((run) => run.id),
@@ -2296,6 +2345,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const paths = pathDirectoryOf(data, runs);
     query = createQueryEngine({
         snapshot,
+        revision: () => inputs.tick.value,
         elements,
         answers: (path, target) => paths.answers(path, target),
         searchPaths: () =>
@@ -2303,6 +2353,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 .attributes()
                 .filter((attribute) => attribute.kind === "node")
                 .map((attribute) => attribute.path),
+        edgeSearchPaths: () =>
+            data
+                .attributes()
+                .filter((attribute) => attribute.kind === "edge")
+                .map((attribute) => attribute.path),
+        labelPath: () => {
+            const key = readData().knownFields.nodeLabelPath;
+            return key === null ? null : `data.${key}`;
+        },
+        idPath: () => `data.${readData().knownFields.nodeIdPath}`,
+        excluded: (target, index) =>
+            !(target === "node" ? visibility.masks.nodes() : visibility.masks.edges()).has(index),
     });
     const engine = query;
 
@@ -2387,6 +2449,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeIndex: nodeIndexOf(snapshot),
         edgeIndex: edgeIndexOf(snapshot),
         field: fieldWordsOf(data, runs),
+        groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an

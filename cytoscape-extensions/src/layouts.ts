@@ -61,6 +61,8 @@ import { type CytoscapeSnapshot, hold, indexOf, indicesOf, type NodeSelection, t
 /**
  * Every option this package defines for the "graphty-*" layouts, shared and per layout. A layout takes the shared ones
  * and its own (see GraphtyLayoutOptionsByName); its other options go to the @graphty/layout function unchanged.
+ * Exported for scripts/reference.ts, which documents every layout option from it.
+ * @internal
  */
 export interface LayoutOptionFields {
     readonly name: GraphtyLayoutName;

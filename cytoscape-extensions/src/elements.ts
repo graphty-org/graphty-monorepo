@@ -34,7 +34,7 @@ export function flipY(y: number): number {
 }
 
 /** A column that arrives under another data field name, because Cytoscape reserves its own. */
-export interface RenamedColumn {
+interface RenamedColumn {
     readonly domain: "node" | "edge";
     readonly from: string;
     readonly to: string;

@@ -529,18 +529,14 @@ function settleNames(domain: Domain, candidates: readonly Candidate[], note: Not
         const lower = c.name.toLowerCase();
         const builtIn = BUILT_IN[domain].get(lower);
         let { name } = c;
-        if (taken.has(lower) || (builtIn !== undefined && builtIn !== c.javaClass)) {
+        const clash = builtIn !== undefined && builtIn !== c.javaClass ? builtIn : null;
+        if (taken.has(lower) || clash !== null) {
             let k = 2;
             while (taken.has(`${lower}#${k}`)) {
                 k++;
             }
             name = `${c.name}#${k}`;
-            let why = `its name is taken (Cytoscape column names ignore case)`;
-            if (lower === "suid") {
-                why = "SUID is Cytoscape's key column";
-            } else if (builtIn !== undefined && builtIn !== c.javaClass) {
-                why = `Cytoscape's own "${lower}" column holds ${builtIn}`;
-            }
+            const why = renameReason(lower, clash);
             const set = c.source === null ? null : c.source.length - c.source.nullCount;
             note(LOSS.COLUMN_NAME_CHANGED, `${domain} column "${c.name}" is written as "${name}": ${why}`, c.name, set);
         } else if (c.source !== null && IMPORTER_NAMES[domain].has(c.name)) {
@@ -555,6 +551,22 @@ function settleNames(domain: Domain, candidates: readonly Candidate[], note: Not
         out.push({ name, javaClass: c.javaClass, cell: c.cell });
     }
     return out;
+}
+
+/**
+ * Why a column is renamed.
+ * @param lower - the column name, lower-cased
+ * @param clash - the Java class of Cytoscape's own column of that name when it holds another, else null
+ * @returns the reason
+ */
+function renameReason(lower: string, clash: string | null): string {
+    if (lower === "suid") {
+        return "SUID is Cytoscape's key column";
+    }
+    if (clash !== null) {
+        return `Cytoscape's own "${lower}" column holds ${clash}`;
+    }
+    return "its name is taken (Cytoscape column names ignore case)";
 }
 
 /**
@@ -588,44 +600,7 @@ function cellNotes(domain: Domain, c: Candidate, rows: number, note: NoteFn): vo
     const label = `${domain} column "${source.meta.name}"`;
     const { name } = source.meta;
     const text = c.javaClass === STRING;
-    const stringList = c.javaClass === `java.util.List<${STRING}>`;
-    let unset = 0;
-    let equations = 0;
-    let lists = 0;
-    let set = 0;
-    const heuristic = new DictHeuristic();
-    for (let r = 0; r < rows; r++) {
-        const cell = c.cell(r);
-        if (cell === null) {
-            unset++;
-        } else {
-            set++;
-        }
-        const written = cell ?? "";
-        if (text && !heuristic.decided) {
-            heuristic.observe(written);
-        }
-        if (written.startsWith("=")) {
-            equations++;
-            continue;
-        }
-        if (source.dtype === "list") {
-            let back: string[] | null = null;
-            if (stringList) {
-                back = written.length === 0 ? [""] : javaSplit(written);
-            } else if (written.length > 0) {
-                back = javaSplit(written).filter((item) => item.length > 0);
-            }
-            const items = cell === null ? null : [...source.sliceOf(r)].map((v) => valueText(v, "", null));
-            const same =
-                back === null || items === null
-                    ? back === items
-                    : back.length === items.length && (!stringList || back.every((b, i) => b === items[i]));
-            if (!same) {
-                lists++;
-            }
-        }
-    }
+    const { unset, equations, lists, set, heuristic } = cellCounts(c, source, rows);
     if (source.dtype === "json") {
         note(CYS_LOSS.JSON_AS_STRING, `${label} holds nested values; written as their JSON text`, name, set);
     }
@@ -663,6 +638,70 @@ function cellNotes(domain: Domain, c: Candidate, rows: number, note: NoteFn): vo
             note(LOSS.STORAGE_CLASS, `${label} reads back as ${readsAs} (the cardinality heuristic)`, name, null);
         }
     }
+}
+
+/**
+ * Count what CyCSV changes in a column's cells: unset cells, text read as a formula, lists that
+ * read back changed; and feed the text cells to the dict heuristic.
+ * @param c - the candidate
+ * @param source - its column
+ * @param rows - the row count
+ * @returns the counts and the heuristic
+ */
+function cellCounts(
+    c: Candidate,
+    source: Column,
+    rows: number,
+): { unset: number; equations: number; lists: number; set: number; heuristic: DictHeuristic } {
+    const text = c.javaClass === STRING;
+    const stringList = c.javaClass === `java.util.List<${STRING}>`;
+    const counts = { unset: 0, equations: 0, lists: 0, set: 0, heuristic: new DictHeuristic() };
+    for (let r = 0; r < rows; r++) {
+        const cell = c.cell(r);
+        if (cell === null) {
+            counts.unset++;
+        } else {
+            counts.set++;
+        }
+        const written = cell ?? "";
+        if (text && !counts.heuristic.decided) {
+            counts.heuristic.observe(written);
+        }
+        if (written.startsWith("=")) {
+            counts.equations++;
+        } else if (source.dtype === "list" && listChanges(source, r, cell, stringList)) {
+            counts.lists++;
+        }
+    }
+    return counts;
+}
+
+/**
+ * Whether a list cell reads back changed from the text CyCSV writes for it.
+ * @param source - the list column
+ * @param r - the row
+ * @param cell - the written text, or null when unset
+ * @param stringList - whether Cytoscape reads the column as a list of text
+ * @returns true when it changes
+ */
+function listChanges(
+    source: Extract<Column, { dtype: "list" }>,
+    r: number,
+    cell: string | null,
+    stringList: boolean,
+): boolean {
+    const written = cell ?? "";
+    let back: string[] | null = null;
+    if (stringList) {
+        back = written.length === 0 ? [""] : javaSplit(written);
+    } else if (written.length > 0) {
+        back = javaSplit(written).filter((item) => item.length > 0);
+    }
+    const items = cell === null ? null : [...source.sliceOf(r)].map((v) => valueText(v, "", null));
+    if (back === null || items === null) {
+        return back !== items;
+    }
+    return back.length !== items.length || (stringList && back.some((b, i) => b !== items[i]));
 }
 
 /**
@@ -760,20 +799,16 @@ interface PlannedIds {
 }
 
 /**
- * The SUIDs: node ids that are positive integers keep them, the others get new ones (or refuse
- * under sanitizeIds "error"); edge ids likewise, from the id role column. Every new SUID comes
- * from one counter above the kept ones.
+ * Note the node ids whose text changes on the way back: numbers read back as text, and the error
+ * for two ids with the same text.
  * @param snapshot - the snapshot
- * @param common - the resolved common options
  * @param note - the recorder
- * @returns the SUIDs
+ * @returns the error the save throws for a collision, or null
  */
-function planIds(snapshot: GraphSnapshot, common: ResolvedExportOptions, note: NoteFn): PlannedIds {
-    let fatal: GraphFormatError | null = null;
-    const { kept, bad } = keptNodeSuids(snapshot);
+function idTextNotes(snapshot: GraphSnapshot, note: NoteFn): GraphFormatError | null {
     let collisions = 0;
-    const texts = new Set<string>();
     let numeric = 0;
+    const texts = new Set<string>();
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const id = snapshot.ids.idOf(i);
         numeric += typeof id === "number" ? 1 : 0;
@@ -783,6 +818,7 @@ function planIds(snapshot: GraphSnapshot, common: ResolvedExportOptions, note: N
         }
         texts.add(text);
     }
+    let fatal: GraphFormatError | null = null;
     if (collisions > 0) {
         note(
             LOSS.ID_TEXT_COLLISION,
@@ -793,10 +829,7 @@ function planIds(snapshot: GraphSnapshot, common: ResolvedExportOptions, note: N
         fatal = new GraphFormatError(
             "E_INVALID_ID",
             `${collisions} node id${plural(collisions)} ${agree(collisions, "shares", "share")} their text with another id`,
-            {
-                reason: "collision",
-                count: collisions,
-            },
+            { reason: "collision", count: collisions },
         );
     }
     if (numeric > 0) {
@@ -807,29 +840,60 @@ function planIds(snapshot: GraphSnapshot, common: ResolvedExportOptions, note: N
             numeric,
         );
     }
-    if (bad.length > 0) {
-        if (common.sanitizeIds === "mangle") {
-            note(
-                LOSS.ID_MANGLED,
-                `${bad.length} node id${plural(bad.length)} that ${agree(bad.length, "is", "are")} not positive integers ${agree(bad.length, "is", "are")} renumbered, since Cytoscape ids are positive integers; the originals are kept in the "${ORIGINAL_ID_ATTRIBUTE}" column (restored by restoreMangledIds)`,
-                null,
-                bad.length,
-            );
-        } else {
-            note(
-                LOSS.ID_CHARSET,
-                `${bad.length} node id${plural(bad.length)} ${agree(bad.length, "is", "are")} not positive integers, which Cytoscape requires; the save fails unless sanitizeIds is "mangle"`,
-                null,
-                bad.length,
-            );
-            const first = snapshot.ids.idOf(bad[0]);
-            fatal ??= new GraphFormatError(
-                "E_INVALID_ID",
-                `${bad.length} node id${plural(bad.length)} cannot be written as Cytoscape ids, which are positive integers (first: ${JSON.stringify(first)} at index ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
-                { reason: "charset", charset: "integer", count: bad.length, index: bad[0] },
-            );
-        }
+    return fatal;
+}
+
+/**
+ * Note the node ids that are not positive integers: renumbered under "mangle", else refused.
+ * @param snapshot - the snapshot
+ * @param bad - the indices of those ids
+ * @param mangle - whether sanitizeIds is "mangle"
+ * @param note - the recorder
+ * @returns the error the save throws, or null under "mangle"
+ */
+function badIdNotes(
+    snapshot: GraphSnapshot,
+    bad: readonly number[],
+    mangle: boolean,
+    note: NoteFn,
+): GraphFormatError | null {
+    if (mangle) {
+        note(
+            LOSS.ID_MANGLED,
+            `${bad.length} node id${plural(bad.length)} that ${agree(bad.length, "is", "are")} not positive integers ${agree(bad.length, "is", "are")} renumbered, since Cytoscape ids are positive integers; the originals are kept in the "${ORIGINAL_ID_ATTRIBUTE}" column (restored by restoreMangledIds)`,
+            null,
+            bad.length,
+        );
+        return null;
     }
+    note(
+        LOSS.ID_CHARSET,
+        `${bad.length} node id${plural(bad.length)} ${agree(bad.length, "is", "are")} not positive integers, which Cytoscape requires; the save fails unless sanitizeIds is "mangle"`,
+        null,
+        bad.length,
+    );
+    const first = snapshot.ids.idOf(bad[0]);
+    return new GraphFormatError(
+        "E_INVALID_ID",
+        `${bad.length} node id${plural(bad.length)} cannot be written as Cytoscape ids, which are positive integers (first: ${JSON.stringify(first)} at index ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
+        { reason: "charset", charset: "integer", count: bad.length, index: bad[0] },
+    );
+}
+
+/**
+ * The SUIDs: node ids that are positive integers keep them, the others get new ones (or refuse
+ * under sanitizeIds "error"); edge ids likewise, from the id role column. Every new SUID comes
+ * from one counter above the kept ones.
+ * @param snapshot - the snapshot
+ * @param common - the resolved common options
+ * @param note - the recorder
+ * @returns the SUIDs
+ */
+function planIds(snapshot: GraphSnapshot, common: ResolvedExportOptions, note: NoteFn): PlannedIds {
+    const { kept, bad } = keptNodeSuids(snapshot);
+    const collision = idTextNotes(snapshot, note);
+    const charset = bad.length > 0 ? badIdNotes(snapshot, bad, common.sanitizeIds === "mangle", note) : null;
+    const fatal = collision ?? charset;
     const nodeSet = new Set(kept.filter((s) => s > 0));
     const edgeKept = keptEdgeSuids(snapshot, nodeSet);
     let next = 1;
@@ -1142,24 +1206,42 @@ function* viewFile(snapshot: GraphSnapshot, p: Plan, viewSuid: number): Generato
     yield `<graph id="${viewSuid}" label="${viewSuid}" cy:view="1" cy:networkId="${p.subSuid}" cy:visualStyle="default" cy:rendererId="org.cytoscape.ding" cy:documentVersion="3.0" ${NAMESPACES}>\n`;
     let view = p.viewNodeBase;
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const coords: string[] = [];
-        if (p.position?.isSet(i) === true) {
-            const [x, y, z] = Array.from(p.position.value(i) as ArrayLike<number>);
-            if (Number.isFinite(x) && Number.isFinite(y)) {
-                coords.push(`x="${formatF32(x)}"`, `y="${formatF32(y === 0 ? 0 : -y)}"`);
-                if (p.positionZ && z !== undefined && z !== 0 && Number.isFinite(z)) {
-                    coords.push(`z="${formatF32(z)}"`);
-                }
-            }
-        }
-        if (p.z?.isSet(i) === true) {
-            coords.push(`z="${formatDecimal(p.z.value(i) as number)}"`);
-        }
+        const coords = viewCoords(p, i);
         if (coords.length > 0) {
             yield `  <node id="${view++}" cy:nodeId="${p.nodeSuids[i]}">\n    <graphics ${coords.join(" ")}/>\n  </node>\n`;
         }
     }
     yield "</graph>\n";
+}
+
+/**
+ * The graphics attributes of one node's view: x and y (y down, as Cytoscape draws), and z.
+ * @param p - the plan
+ * @param i - the node
+ * @returns the attributes, none when the node has no position
+ */
+function viewCoords(p: Plan, i: number): string[] {
+    const coords: string[] = [];
+    if (p.position?.isSet(i) === true) {
+        const [x, y, z] = Array.from(p.position.value(i) as ArrayLike<number>);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+            coords.push(`x="${formatF32(x)}"`, `y="${formatF32(y === 0 ? 0 : -y)}"`);
+        }
+        if (
+            Number.isFinite(x) &&
+            Number.isFinite(y) &&
+            p.positionZ &&
+            z !== undefined &&
+            z !== 0 &&
+            Number.isFinite(z)
+        ) {
+            coords.push(`z="${formatF32(z)}"`);
+        }
+    }
+    if (p.z?.isSet(i) === true) {
+        coords.push(`z="${formatDecimal(p.z.value(i) as number)}"`);
+    }
+    return coords;
 }
 
 /**

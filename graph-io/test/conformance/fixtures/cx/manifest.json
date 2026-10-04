@@ -2484,14 +2484,14 @@
     },
     {
       "file": "authored/multi-key-fragment.cx",
-      "exercises": "a fragment with two keys: the first is read, the others reported",
+      "exercises": "a fragment with two array-valued keys: each is read as its own fragment, with a warning",
       "oracle": "spec",
       "expected": {
         "outcome": "pass",
         "nodes": 2,
-        "edges": 0,
+        "edges": 1,
         "warnings": [
-          "E_BAD_ASPECT_BLOCK"
+          "W_MULTI_ASPECT_FRAGMENT"
         ]
       },
       "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",

@@ -37,7 +37,7 @@ export const registration = defineRegistration({
                 }
                 try {
                     const layer = await ctx.session.styles.encode({ column, channel: "node.label" });
-                    ctx.workspace.set({ inspected: { kind: "layer", id: layer.id } });
+                    ctx.workspace.set({ inspected: { kind: "layer-row", id: layer.id } });
                 } catch {
                     ctx.workspace.set({ notice: { message: `${column.name} could not label the nodes` } });
                 }

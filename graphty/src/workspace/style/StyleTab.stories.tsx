@@ -37,12 +37,10 @@ async function loadRing(canvasElement: HTMLElement): Promise<GraphtyElement> {
  * @param store - the story's store.
  */
 async function inspectPageRank(element: GraphtyElement, store: WorkspaceStore): Promise<void> {
-    await element.session.runs.start("pagerank");
+    const { runId } = await element.session.runs.start("pagerank");
     await element.session.styles.settled();
-    const layer = element.session.styles.list().find((l) => l.source.by === "run");
-    if (layer !== undefined) {
-        store.set({ inspected: { kind: "measure-row", id: layer.id } });
-    }
+    // As the paint tree opens a run's row: the row's kind and the run id.
+    store.set({ inspected: { kind: "measure-row", id: runId } });
     await element.waitForStableFrame();
 }
 
@@ -142,7 +140,7 @@ export const BindingUnknownPath: Story = styleStory(async (_canvas, element, sto
         selector: { match: "everything" },
         encode: { "node.color": { by: "data.department", scale: "ordinal" } },
     });
-    store.set({ inspected: { kind: "layer", id: layer.id } });
+    store.set({ inspected: { kind: "layer-row", id: layer.id } });
 });
 
 /** The Label "+": an empty line at Above, its attribute list open (`#/style-pickers/label-new-line`). */

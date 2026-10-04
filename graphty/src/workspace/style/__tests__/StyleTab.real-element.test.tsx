@@ -189,6 +189,39 @@ describe("the Style tab on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // The paint tree opens a row as `{ kind, id }` with the row's kind and id: a run's row carries
+    // the run id, never a layer id, and the Everything row its own name.
+    it(
+        "T9: a run's row, opened as the paint tree opens it, lists the run's layers",
+        async () => {
+            const { session, store } = await openWithGraph();
+            const { runId } = await session.runs.start("pagerank");
+            await session.styles.settled();
+            const layers = session.runs.bindings(runId);
+            assert.isNotEmpty(layers, "PageRank painted");
+            assert.notInclude(layers, runId, "a run id is not a layer id");
+
+            for (const kind of ["measure-row", "run-row"]) {
+                store.set({ inspected: { kind, id: runId } });
+                // The run's own Color line, bound to its result: the Detach door is the run's.
+                await waitFor(
+                    () => {
+                        assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach Color/ }));
+                        assert.isNotNull(within(styleTab()).getByRole("radio", { name: "Nodes, set" }));
+                    },
+                    { timeout: TIMEOUT_MS },
+                );
+            }
+
+            store.set({ inspected: { kind: "everything-row", id: "everything" } });
+            await waitFor(() => {
+                assert.isNull(within(styleTab()).queryByRole("button", { name: /Detach Color/ }));
+                assert.isNotNull(within(styleTab()).getByRole("button", { name: /^Color #6366F1 100%$/ }));
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+
     it(
         "T9: sizes a measure row by its result, storing the chosen scale and the range",
         async () => {
@@ -200,7 +233,7 @@ describe("the Style tab on the real element", () => {
             if (measure === undefined) {
                 throw new Error("PageRank painted nothing");
             }
-            store.set({ inspected: { kind: "measure-row", id: measure.id } });
+            store.set({ inspected: { kind: "measure-row", id: runId } });
 
             // Shape "+" > Size adds a Size line.
             // The tab remounts for the new row: read it afresh.
@@ -357,10 +390,9 @@ describe("labels from an attribute (task T10) on the real element", () => {
                 "while an empty line exists, + adds no second one",
             );
 
-            await session.runs.start("degree");
+            const degree = await session.runs.start("degree");
             await session.styles.settled();
-            const degree = readerLayers(session)[0];
-            store.set({ inspected: { kind: "measure-row", id: degree.id } });
+            store.set({ inspected: { kind: "measure-row", id: degree.runId } });
             await waitFor(() => {
                 assert.isNull(within(styleTab()).queryByText("Pick an attribute"));
             });
@@ -381,7 +413,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
             const top = session.styles.list().at(-1);
             const binding = top?.encode?.["node.label"];
             assert.equal(binding !== undefined && "by" in binding ? binding.by : undefined, "data.name");
-            assert.deepEqual(store.get().inspected, { kind: "layer", id: top?.id });
+            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: top?.id });
         },
         TIMEOUT_MS * 2,
     );
@@ -525,7 +557,7 @@ describe("editing lines on the real element", () => {
                 selector: { match: "everything" },
                 set: { "node.opacity": 1 },
             });
-            store.set({ inspected: { kind: "layer", id: top.id } });
+            store.set({ inspected: { kind: "layer-row", id: top.id } });
             // The tab remounts for the new row: read it afresh.
             await waitFor(
                 () => {
@@ -571,7 +603,7 @@ describe("editing lines on the real element", () => {
                 encode: { "node.color": { by: "data.department", scale: "ordinal" } },
                 set: { "node.label": "Hi" },
             });
-            store.set({ inspected: { kind: "layer", id: layer.id } });
+            store.set({ inspected: { kind: "layer-row", id: layer.id } });
             // The tab remounts for the new row: read it afresh.
             await waitFor(
                 () => {

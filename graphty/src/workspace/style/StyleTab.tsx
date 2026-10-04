@@ -16,25 +16,41 @@ import { channelWord, isLineChannel, SECTIONS, type StyleSection } from "./words
 /** Props for StyleTab. */
 interface StyleTabProps {
     /**
-     * The row's style layers (one per side it paints). Left out, the row is the inspected one when
-     * the inspector names a layer, else the Everything row.
+     * The row's style layers (one per side it paints). Left out, the row is the inspected row's.
      */
     layers?: readonly LayerId[];
 }
 
 /**
- * The row the Style tab edits when the caller names none: the Everything row while nothing with
- * an id is inspected, the inspected layer, and nothing at all for anything else (a run, a group),
- * so an edit never lands on a row the reader is not looking at.
+ * The row the Style tab edits when the caller names none, read from `inspected` as the paint tree
+ * writes it (`{ kind, id }`, the inspector's kinds): the Everything row while nothing is inspected
+ * or the Everything row is; a run's row (measure or run) is the run's layers, its id being the run
+ * id; a reader's own layer row is that layer. Anything else (a group, an element, the selection)
+ * has no row here, so an edit never lands on a row the reader is not looking at.
  * @param session - the element's session.
- * @param inspected - the inspected id, if any.
- * @returns the row's layer ids, or null when the inspected thing is not a layer.
+ * @param inspected - what is inspected, if anything.
+ * @returns the row's layer ids, or null when the inspected thing has no layers to edit.
  */
-function defaultRow(session: GraphSession, inspected: string | undefined): readonly LayerId[] | null {
-    if (inspected === undefined) {
-        return everythingRow(session);
+function defaultRow(
+    session: GraphSession,
+    inspected: { readonly kind: string; readonly id?: string } | null | undefined,
+): readonly LayerId[] | null {
+    const id = inspected?.id;
+    switch (inspected?.kind) {
+        case undefined:
+        case "everything-row":
+            return everythingRow(session);
+        case "measure-row":
+        case "run-row": {
+            // A run that has painted nothing yet (queued, failed, styled off) has no row to edit.
+            const layers = id === undefined ? [] : session.runs.bindings(id);
+            return layers.length === 0 ? null : layers;
+        }
+        case "layer-row":
+            return id !== undefined && session.styles.get(id) !== undefined ? [id] : null;
+        default:
+            return null;
     }
-    return session.styles.get(inspected) === undefined ? null : [inspected];
 }
 
 /**
@@ -69,7 +85,7 @@ function documentColors(session: GraphSession): string[] {
 export function StyleTab({ layers }: Readonly<StyleTabProps>): React.JSX.Element | null {
     const { session, element } = useWorkspace();
     useStyleVersion(session, element);
-    const inspected = useWorkspaceState((state) => state.inspected?.id);
+    const inspected = useWorkspaceState((state) => state.inspected);
     if (session === null) {
         return null;
     }

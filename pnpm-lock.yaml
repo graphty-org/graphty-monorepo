@@ -64,6 +64,9 @@ importers:
       '@graphty/visual-review':
         specifier: workspace:*
         version: link:visual-review
+      '@microsoft/api-extractor':
+        specifier: 7.55.2
+        version: 7.55.2(@types/node@20.19.27)
       '@nx/eslint':
         specifier: 22.7.12
         version: 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)

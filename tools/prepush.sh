@@ -205,6 +205,9 @@ run_step "Formatting (changed files)" "pnpm run format:check:changed"
 # over the entry file and every chunk it statically imports. Needs the build above.
 if affected graphty-element; then
     run_step "Bundle size (graphty-element)" "pnpm run check:bundle-size"
+    # The built public API must match the committed report, graphty-element/api/*.api.md
+    # (CLAUDE.md, "Public API review"). Needs the build above.
+    run_step "Public API report (graphty-element)" "pnpm run check:api-report"
 fi
 
 # Every tool a package's scripts run or its *.config.* files import is declared by that package,
@@ -226,6 +229,10 @@ run_step "Migration count script" "pnpm run check:migration-counts"
 # bypass trailer, token leaks) against a throwaway repository, a fake server and a fake scanner.
 # Needs no server. A few seconds.
 run_step "SonarQube gate script tests" "pnpm run test:sonar-gate"
+
+# The CI shape: the test matrix's shard groups, and what ci.yml and pr-title.yml run on a draft,
+# a pull request and a merge-queue branch. Reads files only, under a second.
+run_step "CI workflow tests" "pnpm run test:ci-workflows"
 
 # No use of the legacy graph API that the graph-format migration replaced (a legacy algorithms or
 # layout name, the legacy Graph, a positional layout call, an element parser not on graph-io). Reads

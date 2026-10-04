@@ -1,3 +1,57 @@
+## 3.14.2 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty-element:** hand a frame the time of the ticks skipped for the GPU ([2d363c971](https://github.com/graphty-org/graphty-monorepo/commit/2d363c971))
+- **graphty-element:** draw no frame while the GPU is still drawing the last one ([c19587620](https://github.com/graphty-org/graphty-monorepo/commit/c19587620))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.14.1 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.32
+- Updated @graphty/remote-logger to 2.0.4
+- Updated graph-samples to 0.1.18
+- Updated graph-format to 1.3.3
+- Updated algorithms to 3.3.3
+- Updated graph-io to 0.3.23
+- Updated layout to 2.2.4
+
+## 3.14.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** hide and show the paint of one value of an encoding ([#907](https://github.com/graphty-org/graphty-monorepo/pull/907))
+- **graphty-element:** a grouping result bins its groups by size ([#932](https://github.com/graphty-org/graphty-monorepo/pull/932))
+- **graphty-element:** list the runs a node or edge page takes as a column ([#922](https://github.com/graphty-org/graphty-monorepo/pull/922))
+- **graphty-element:** a community page column carries each cell's group rank ([#905](https://github.com/graphty-org/graphty-monorepo/pull/905))
+- **graphty-element:** a partition's groups publish their rank by size ([#921](https://github.com/graphty-org/graphty-monorepo/pull/921))
+
+### 🩹 Fixes
+
+- **graphty-element:** hide a value in one field, rank legend groups by the run ([f763976d9](https://github.com/graphty-org/graphty-monorepo/commit/f763976d9))
+- **graphty-element:** a legend swatch spells its value as the data does ([#906](https://github.com/graphty-org/graphty-monorepo/pull/906))
+- **graphty-element:** sizing by a run result gets the default size range ([#915](https://github.com/graphty-org/graphty-monorepo/pull/915))
+- **graphty-element:** a run whose caveats say it stopped early reports partial ([#933](https://github.com/graphty-org/graphty-monorepo/pull/933))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.31
+- Updated @graphty/remote-logger to 2.0.3
+- Updated graph-samples to 0.1.17
+- Updated graph-format to 1.3.2
+- Updated algorithms to 3.3.2
+- Updated graph-io to 0.3.22
+- Updated layout to 2.2.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.13.0 (2026-10-04)
 
 ### 🚀 Features

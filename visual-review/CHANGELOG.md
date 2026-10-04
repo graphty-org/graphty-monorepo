@@ -1,3 +1,24 @@
+## 0.2.7 (2026-10-04)
+
+### 🩹 Fixes
+
+- **visual-review:** with Focus on, show an image only once its focus point is known ([96302a86b](https://github.com/graphty-org/graphty-monorepo/commit/96302a86b))
+- **visual-review:** label a loading Flash, Highlight or Spotlight as that view ([74af30a73](https://github.com/graphty-org/graphty-monorepo/commit/74af30a73))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.6 (2026-10-04)
+
+### 🚀 Features
+
+- **visual-review:** ask the reject reason in its own box; J previous, K next ([#862](https://github.com/graphty-org/graphty-monorepo/issues/862), [#863](https://github.com/graphty-org/graphty-monorepo/issues/863))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.5 (2026-10-04)
 
 This was a version bump only for visual-review to align it with other projects, there were no code changes.

@@ -280,7 +280,7 @@ function redLines(inc, since) {
     }
     if (inc?.rangeNote) second.push(`No code suspects: ${inc.rangeNote}.`);
     if (inc?.fixJob) second.push(`Incident job ${inc.fixJob} at work.`);
-    second.push("Hold pushes and merges.");
+    second.push("Hold merges; pushes to pull request branches are fine.");
     return [`MASTER: RED${since}${id}.${lanes.join("")}`, `  ${second.join(" ")}`];
 }
 

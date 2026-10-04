@@ -197,7 +197,7 @@ describe("githerd_status", () => {
             [
                 "githerd 0.1.0 (dry-run) -- polled 40 s ago, next in 2 min",
                 "MASTER: RED since 15:26 UTC (inc-20261002-1). ci run 37040000000 failed at abc1234 (Build).",
-                "  Suspect: #718 abc1234. Incident job incident-ci-build at work. Hold pushes and merges.",
+                "  Suspect: #718 abc1234. Incident job incident-ci-build at work. Hold merges; pushes to pull request branches are fine.",
                 "  Verified green: dc12f9a. CI in flight on 2 newer commits. Last release f449e10, 3 h ago.",
                 "PRS (4):",
                 "  #519 ... -- conflicting [auto-merge on]",

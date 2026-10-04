@@ -40,7 +40,7 @@ contract, importer and exporter shape, the report).
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | New subpaths                                             | `@graphty/graph-io/xgmml`, `/cx`, `/cx2`, `/cys`, `/obo`, one per format. OBO Graphs JSON is read by `/json` (dialect `"obographs"`)                                                                                                                                                                                                                                                                                        |
 | New format names (registry, sniffing, `GraphFormatName`) | `"xgmml"`, `"cx"`, `"cx2"`, `"cys"`, `"obo"`                                                                                                                                                                                                                                                                                                                                                                                |
-| Exporters                                                | XGMML and CX2 only. CX1, `.cys` and OBO are read-only (sections 1.2, 1.4, 1.5 say why)                                                                                                                                                                                                                                                                                                                                      |
+| Exporters                                                | XGMML, CX2 and CX1 (section 1.2). `.cys` and OBO are read-only (sections 1.4, 1.5 say why)                                                                                                                                                                                                                                                                                                                                      |
 | Visual information                                       | Style import is issue #706. Per-element visual values become plain columns, as the existing importers' GEXF viz values and GML graphics do: XGMML `graphics` as a `json` column, CX and CX2 bypasses as one column per visual property. Style rules (defaults, mappings, dependencies, visual property aspects) are not applied; each importer reports them with the loss code `W_STYLES_NOT_IMPORTED` (section 2)          |
 | Several graphs in one file                               | `importAll()` returns one snapshot per network (`.cys`, CX1 collections, the XGMML session dialect, OBO Graphs `graphs[]`); `import()` reads one, chosen by `graphIndex` / `graphName`; a new optional importer method `listGraphs()` lists them cheaply so a picker can be shown first                                                                                                                                     |
 | Zip                                                      | A dependency-free central-directory reader in `src/common/zip.ts`; deflate is inflated by wrapping each entry in a gzip member and using `DecompressionStream("gzip")`, which every supported runtime has (Node 18+), and which checks the CRC itself                                                                                                                                                                       |
@@ -285,12 +285,23 @@ as String), plus the shared `xmlIllegalTextNotes`, `W_TEMPORAL_DROPPED`,
 
 ### 1.2 CX version 1 (`@graphty/graph-io/cx`)
 
-Exports: `cxImporter`, `CxImportOptions`, `CX_ISSUE`. Format name `"cx"`, extension `.cx`, MIME
-type `application/json` (NDEx serves it so; there is no registered CX type).
+Exports: `cxImporter`, `cxExporter`, `CxImportOptions`, `CxExportOptions`, `CX_ISSUE`, `CX_LOSS`,
+`CX_CAPABILITIES`. Format name `"cx"`, extension `.cx`, MIME type `application/json` (NDEx serves it
+so; there is no registered CX type).
 
-**Exporter: no.** CX1 is superseded by CX2 for every writer that matters: NDEx serves and accepts
-CX2, Cytoscape 3.10+ writes it, and NDEx converts between them. A CX1 writer would duplicate the
-CX2 exporter for a legacy reader. Add one when someone needs to feed a CX1-only tool.
+**Exporter: yes** (reversing the first decision here, at the owner's request to finish the
+exporters). It writes the NDEx form: one network, at most one view, no `cySubNetworks`, aspects in
+the order Cytoscape and NDEx write them, values as JSON strings with `d` and a `cyTableColumn` entry
+per column. Node ids follow the CX2 exporter's rule (shared in `common/cx-export.ts`, with
+`sanitizeIds: "mangle"` keeping the original in `graphty:originalId`, which the CX importer now
+restores under `restoreMangledIds`); `parent` / `parents` become `cyGroups` with computed internal
+and external edge lists; the `cx.bypass` columns become per-element `cyVisualProperties`; the
+provenance a CX import made (`cx:citations`, `cx:supports`, the link columns, `functionTerm`,
+`reifiedEdge`) is written back; and the style rules and unknown aspects a CX import kept are
+written back for its own subnetwork only (view references rewritten to 0), never the collection's
+`cySubNetworks`, `cyNetworkRelations`, `cyViews` or `CX Element ID`. NaN and the infinities are
+spelled in double attributes; a non-finite position or a NaN weight is not written
+(`W_NONFINITE_AS_NULL`). The loss notes are `CX_LOSS`.
 
 **Mapping** (`research-cx.md` section 6 is the full table; the decisions):
 

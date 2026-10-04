@@ -955,6 +955,16 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
                 return b.freeze();
             },
         ],
+        [
+            LOSS.NONFINITE_AS_NULL,
+            "json",
+            () => {
+                const b = cycle();
+                b.declareNodeColumn({ name: "real", dtype: "f64" });
+                b.setNodeValue("real", 0, NaN);
+                return b.freeze();
+            },
+        ],
     ];
 
     for (const [code, format, build, options] of CASES) {
@@ -981,7 +991,7 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
         // the cases above plus this one cover the whole table
         const covered = new Set([...CASES.map((c) => c[0]), LOSS.SELF_LOOPS]);
         expect([...Object.values(LOSS)].filter((code) => !covered.has(code))).toEqual([]);
-        expect(Object.keys(LOSS)).toHaveLength(40);
+        expect(Object.keys(LOSS)).toHaveLength(41);
     });
 });
 

@@ -23,7 +23,7 @@ import { resolveImportOptions } from "./common/options.js";
 import { ImportReportBuilder, isAbortError, messageOf } from "./common/report.js";
 import { collectBytes } from "./common/writer.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
-import { cxImporter } from "./formats/cx/index.js";
+import { cxExporter, cxImporter } from "./formats/cx/index.js";
 import { cx2Exporter, cx2Importer } from "./formats/cx2/index.js";
 import { cysImporter } from "./formats/cys/index.js";
 import { dotExporter, dotImporter } from "./formats/dot/index.js";
@@ -613,6 +613,7 @@ export function createRegistry(): FormatRegistry {
         .registerImporter(cx2Importer)
         .registerExporter(cx2Exporter)
         .registerImporter(cxImporter)
+        .registerExporter(cxExporter)
         .registerImporter(oboImporter)
         .registerExporter(oboExporter)
         .registerImporter(cysImporter);

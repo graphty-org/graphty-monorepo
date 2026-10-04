@@ -117,7 +117,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { zAsOption } from "../cx2/importer.js";
+import { ORIGINAL_ID_ATTRIBUTE, zAsOption } from "../cx2/importer.js";
 
 /** The format name. */
 const CX_FORMAT = "cx";
@@ -250,6 +250,7 @@ const USED_OPTIONS: ReadonlySet<keyof CommonImportOptions> = new Set<keyof Commo
     "weightFrom",
     "weightDtype",
     "long",
+    "restoreMangledIds",
     "errorLimit",
     "signal",
     "onProgress",
@@ -1300,6 +1301,9 @@ class CxReader {
     /** CX edge id (as written) -> sink edge index, for this graph. */
     private readonly edgeRows = new Map<NodeId, number>();
 
+    /** CX node id -> the id given to the sink, for the nodes whose original id was restored. */
+    private readonly sinkIds = new Map<NodeId, NodeId>();
+
     /** The subnetwork ids of the document. */
     private readonly subnetworks = new Set<NodeId>();
 
@@ -1483,11 +1487,15 @@ class CxReader {
     }
 
     /**
-     * The id the sink holds a CX node under: the `ids` option applied.
+     * The id the sink holds a CX node under: its restored original id, else the `ids` option applied.
      * @param id - the CX id
      * @returns the sink id
      */
     private sinkId(id: NodeId): NodeId {
+        const original = this.sinkIds.get(id);
+        if (original !== undefined) {
+            return original;
+        }
         return this.options.ids === "keep" ? id : this.coercer.value(id);
     }
 
@@ -1640,7 +1648,10 @@ class CxReader {
         const declared = this.tableColumns(domain === "node" ? "node_table" : "edge_table");
         const names = new Set<string>([...declared.keys(), ...this.doc.attributes[domain].keys()]);
         for (const name of names) {
-            if (domain === "edge" && name === this.options.weightFrom) {
+            if (
+                (domain === "edge" && name === this.options.weightFrom) ||
+                (domain === "node" && name === ORIGINAL_ID_ATTRIBUTE && this.options.restoreMangledIds)
+            ) {
                 continue;
             }
             const types: CxType[] = [];
@@ -1986,6 +1997,7 @@ class CxReader {
     /** Read the nodes of this graph. */
     private readNodes(): void {
         const { report } = this;
+        const originals = this.originalIds();
         for (const held of aspect(this.doc, "nodes")) {
             this.checkAbort();
             const { value, line } = held;
@@ -2020,6 +2032,11 @@ class CxReader {
             let row = this.nodeRows.get(id);
             let added = false;
             if (row === undefined) {
+                const original = originals.get(refId(value["@id"]) ?? id);
+                if (original !== undefined) {
+                    this.idType = "mixed";
+                    this.sinkIds.set(id, original);
+                }
                 try {
                     ({ row, added } = this.addNode(id));
                 } catch (err) {
@@ -2041,6 +2058,25 @@ class CxReader {
             this.writeCore("node", row, "name", value.n, element, line);
             this.writeCore("node", row, "represents", value.r, element, line);
         }
+    }
+
+    /**
+     * The original ids the exporter's `sanitizeIds: "mangle"` kept in the `graphty:originalId`
+     * attribute, when they are to be restored.
+     * @returns CX node id -> original id
+     */
+    private originalIds(): Map<NodeId, string> {
+        const out = new Map<NodeId, string>();
+        if (!this.options.restoreMangledIds) {
+            return out;
+        }
+        for (const { value } of this.doc.attributes.node.get(ORIGINAL_ID_ATTRIBUTE) ?? []) {
+            const po = isRecord(value) && this.scopePeek(value.s) !== 0 ? refId(value.po) : null;
+            if (po !== null && isRecord(value) && typeof value.v === "string") {
+                out.set(po, value.v);
+            }
+        }
+        return out;
     }
 
     /**
@@ -2746,7 +2782,7 @@ class CxReader {
                         name: property,
                         dtype: "string",
                         nullable: true,
-                        origin: { format: CX_FORMAT, id: null, namespace: CX_BYPASS_NAMESPACE },
+                        origin: { format: CX_FORMAT, id: property, namespace: CX_BYPASS_NAMESPACE },
                     },
                     this.report,
                 );

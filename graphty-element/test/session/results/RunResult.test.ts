@@ -451,6 +451,61 @@ describe("a community result", () => {
         assert.strictEqual(result.summary().min, null);
     });
 
+    it("bins its groups by size, counting groups rather than elements (#932)", () => {
+        /**
+         * A community result whose groups have the given sizes.
+         * @param sizes - one size per group
+         * @returns the result
+         */
+        const partition = (sizes: readonly number[]): RunResult =>
+            createRunResult({
+                runId: "louvain",
+                shape: "community",
+                fields: [
+                    field({ name: "group", plainName: "Group", technicalName: "group", kind: "node", type: "integer" }),
+                ],
+                measured: { nodes: sizes.reduce((sum, size) => sum + size, 0), edges: 0 },
+                nodes: sizes.flatMap((size, group) =>
+                    Array.from({ length: size }, (_unused, index) => ({ id: `g${group}-${index}`, values: { group } })),
+                ),
+                caveats: CAVEATS,
+                durationMs: 1,
+            });
+        const total = (bins: readonly { readonly count: number }[]): number =>
+            bins.reduce((sum, bin) => sum + bin.count, 0);
+
+        const few = partition([3, 3, 2, 1, 1, 1]).groupSizes();
+        assert.strictEqual(few.binning, "per-value");
+        assert.deepStrictEqual(
+            few.bins.map((bin) => [bin.from, bin.count]),
+            [
+                [1, 3],
+                [2, 1],
+                [3, 2],
+            ],
+        );
+
+        const many = partition(Array.from({ length: 400 }, (_unused, index) => index + 1)).groupSizes();
+        assert.strictEqual(many.binning, "banded", "400 distinct sizes are banded");
+        assert.strictEqual(total(many.bins), 400, "every group is counted once");
+
+        const metric = createRunResult({
+            runId: "degree",
+            shape: "node-metric",
+            fields: [field({ name: "value", plainName: "Value", technicalName: "value", kind: "node", type: "number" })],
+            measured: { nodes: 1, edges: 0 },
+            nodes: [{ id: "a", values: { value: 1 } }],
+            caveats: CAVEATS,
+            durationMs: 1,
+        });
+        try {
+            metric.groupSizes();
+            assert.fail("a measurement has no groups to count");
+        } catch (error) {
+            assert.strictEqual(isGraphtyError(error) ? error.code : null, "E_BAD_COMMAND");
+        }
+    });
+
     it("bounds the groups a summary carries", () => {
         const result = createRunResult({
             runId: "components",

@@ -27,6 +27,7 @@ import { nearestNames } from "./ResultsApi";
 import {
     analyzeColumn,
     type AnalyzedColumn,
+    arrayColumn,
     buildHistogram,
     isNormalization,
     type NumericColumnSource,
@@ -923,6 +924,31 @@ class Result implements RunResult {
             ...options,
             integerValued: descriptor.type === "integer",
         });
+    }
+
+    /**
+     * The distribution of the group sizes, read from the full `sizes` table.
+     * @param options - How to cut the bins.
+     * @returns The distribution, one count per group.
+     * @throws A GraphtyError coded E_BAD_COMMAND when the result publishes no `sizes` table, or
+     *   E_OPTION_RANGE when the bin count is outside the permitted range.
+     */
+    groupSizes(options?: HistogramOptions): Histogram {
+        const { sizes } = this.graph;
+        if (!Array.isArray(sizes)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `Run "${this.runId}" is a ${this.shape} result, which publishes no groups to count.`,
+                source: "run",
+                details: { runId: this.runId, shape: this.shape },
+            });
+        }
+
+        const values = (sizes as readonly { readonly size?: unknown }[]).map((row) =>
+            typeof row.size === "number" ? row.size : Number.NaN,
+        );
+
+        return buildHistogram(arrayColumn(values), { ...options, integerValued: true });
     }
 
     /**

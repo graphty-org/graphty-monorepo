@@ -96,6 +96,26 @@ for (const swatch of block?.swatches ?? []) {
 `SummaryGroup.name` ("Group 1") is deprecated and will be removed in the next major; word the
 group from `rank` in your own language instead.
 
+#### How big the groups are
+
+`summary().groups` lists the largest groups; a run with hundreds of communities needs their
+spread instead. `result.groupSizes()` bins the groups by size and counts GROUPS, so the counts add
+up to the number of groups. It returns the same `Histogram` `result.histogram(field)` does, so one
+chart draws both: one bar per size when there are few distinct sizes (`binning: "per-value"`),
+bands otherwise (`"banded"`):
+
+```typescript
+const result = await element.run("louvain");
+const { bins, binning } = result.groupSizes();
+
+for (const bin of bins) {
+    console.log(bin.from, bin.to, bin.count); // groups of size from..to, and how many there are
+}
+```
+
+It takes the same `{ bins, scale }` options as `histogram()`, and refuses a result that publishes
+no groups (a measurement, a path) with `E_BAD_COMMAND`.
+
 #### Is the grouping meaningful?
 
 A community run publishes its modularity, and the run says how to read it. `band("modularity")`

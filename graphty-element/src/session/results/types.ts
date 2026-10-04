@@ -886,6 +886,18 @@ export interface RunResult {
      */
     histogram(field: string, options?: HistogramOptions): Histogram;
     /**
+     * The distribution of a grouping result's group sizes: how many groups have each size.
+     *
+     * A bar counts GROUPS, not elements, so the counts add up to the number of groups. It is the
+     * same {@link Histogram} {@link RunResult.histogram} returns, so one chart draws both: one bar
+     * per size when there are few distinct sizes (`"per-value"`), bands otherwise (`"banded"`).
+     * @param options - How to cut the bins.
+     * @returns The bins, in ascending order of size.
+     * @throws A GraphtyError coded E_BAD_COMMAND when the result publishes no groups (it is not a
+     *   community or a layered grouping), or E_OPTION_RANGE when the bin count is out of range.
+     */
+    groupSizes(options?: HistogramOptions): Histogram;
+    /**
      * The bounded form of this result.
      * @returns The summary.
      */

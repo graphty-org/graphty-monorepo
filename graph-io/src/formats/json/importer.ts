@@ -155,13 +155,13 @@ export interface JsonImportOptions extends GraphChoiceOptions {
     typedefs?: "metadata" | "nodes" | undefined;
     /**
      * node-link / d3 / vis / graphology: where the node array is, as a dotted path of object keys
-     * from the document root (`"data.nodes"`); the object holding it is read as the graph record
+     * and array positions from the document root (`"data.nodes"`, `"graphs.0.nodes"`); the object holding it is read as the graph record
      * (its `directed`, `multigraph`, `graph` and edge keys). "nodes" by default. A path that names
      * nothing is an E_MISSING_SECTION issue and the graph has no node records.
      */
     nodesPath?: string | undefined;
     /**
-     * node-link / d3 / vis / graphology: where the edge array is, as a dotted path of object keys
+     * node-link / d3 / vis / graphology: where the edge array is, as a dotted path of object keys and array positions
      * from the document root (`"data.links"`); by default the edges or links key of the object
      * holding the nodes. A path that names nothing is an E_MISSING_SECTION issue and the graph has
      * no edge records.
@@ -430,18 +430,22 @@ function pathOption(name: string, value: unknown): readonly string[] | null {
 }
 
 /**
- * The value at a path of object keys, or undefined when a step is missing or not an object.
+ * The value at a path of object keys and array positions (`graphs.0.nodes`), or undefined when a
+ * step is missing.
  * @param root - the document
- * @param segments - the keys
+ * @param segments - the keys; a decimal integer indexes an array
  * @returns the value
  */
 function valueAt(root: unknown, segments: readonly string[]): unknown {
     let value = root;
     for (const segment of segments) {
-        if (!isJsonObject(value) || !hasKey(value, segment)) {
+        if (Array.isArray(value) && /^(0|[1-9][0-9]*)$/.test(segment) && Number(segment) < value.length) {
+            value = value[Number(segment)];
+        } else if (isJsonObject(value) && hasKey(value, segment)) {
+            value = value[segment];
+        } else {
             return undefined;
         }
-        value = value[segment];
     }
     return value;
 }

@@ -408,7 +408,10 @@ async function refFault(ledger, check, r) {
     const log = typeof r === "string" ? r : stripVTControlCharacters(`${r.stderr}\n${r.stdout}`);
     const v = classify({ workflow: "local", job: "reference", steps: [check], log }, { where: "master" });
     let reason = r;
-    if (typeof r !== "string") reason = `${check} ${r.timedOut ? "timed out" : `exited ${r.code}`}: ${tail(r, 5)}`;
+    if (typeof r !== "string") {
+        const outcome = r.timedOut ? "timed out" : `exited ${r.code}`;
+        reason = `${check} ${outcome}: ${tail(r, 5)}`;
+    }
     const f = /** @type {Fault} */ ({
         verdict: "fault",
         check,
@@ -450,6 +453,28 @@ async function haveCommit(cwd, sha, remote, ref, env = process.env) {
 }
 
 /**
+ * Puts the reference worktree at `sha`: switches it when it exists, otherwise adds and locks it.
+ * @param {string} root the repository's main worktree
+ * @param {string} dir the reference worktree's directory
+ * @param {string} sha the commit
+ * @param {Record<string, string | undefined>} env the environment
+ * @returns {Promise<{check: string, r: RunResult} | null>} the step that failed, or null
+ */
+async function placeReference(root, dir, sha, env) {
+    if (existsSync(dir)) {
+        const r = await run("git", ["switch", "--detach", sha], { cwd: dir, env });
+        return r.code === 0 ? null : { check: "switch", r };
+    }
+    const add = await run("git", ["worktree", "add", "--detach", dir, sha], { cwd: root, env });
+    if (add.code !== 0) return { check: "worktree add", r: add };
+    const lock = await run("git", ["worktree", "lock", "--reason", "githerd reference worktree", dir], {
+        cwd: root,
+        env,
+    });
+    return lock.code === 0 ? null : { check: "worktree lock", r: lock };
+}
+
+/**
  * Moves the reference worktree to the green commit when it moved (creating and locking it the
  * first time), then installs and builds it with `setup`. Nothing runs when it is already prepared
  * at `sha`. A worktree with local changes is not moved: git refuses, and that is a fault.
@@ -475,18 +500,8 @@ export async function refreshReference({
     state.reference = { sha, ready: false, gate: null };
     const fetched = await haveCommit(root, sha, remote, undefined, env);
     if (fetched.code !== 0) return refFault(ledger, "fetch", fetched);
-    if (existsSync(dir)) {
-        const r = await run("git", ["switch", "--detach", sha], { cwd: dir, env });
-        if (r.code !== 0) return refFault(ledger, "switch", r);
-    } else {
-        const add = await run("git", ["worktree", "add", "--detach", dir, sha], { cwd: root, env });
-        if (add.code !== 0) return refFault(ledger, "worktree add", add);
-        const lock = await run("git", ["worktree", "lock", "--reason", "githerd reference worktree", dir], {
-            cwd: root,
-            env,
-        });
-        if (lock.code !== 0) return refFault(ledger, "worktree lock", lock);
-    }
+    const placed = await placeReference(root, dir, sha, env);
+    if (placed) return refFault(ledger, placed.check, placed.r);
     if (setup && setup.length > 0) {
         const r = await run(setup[0], setup.slice(1), { cwd: dir, timeoutMs: SETUP_TIMEOUT_MS, env: refEnv(env) });
         if (r.code !== 0) return refFault(ledger, "setup", r);

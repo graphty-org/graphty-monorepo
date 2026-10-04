@@ -544,6 +544,32 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
     tick();
 }
 
+/** Each layout object's run body, set by its registrant's constructor. */
+const RUN_BODIES = new WeakMap<LayoutThis, (layout: LayoutThis) => void>();
+
+/**
+ * A registrant's run(): runs the layout's body.
+ * @returns the layout
+ */
+function runLayout(this: LayoutThis): LayoutThis {
+    RUN_BODIES.get(this)?.(this);
+    return this;
+}
+
+/**
+ * A simulation registrant's stop(). A running loop ends itself on its next frame and emits layoutstop; otherwise
+ * act as the registry would.
+ * @returns the layout
+ */
+function stopLayout(this: LayoutThis): LayoutThis {
+    if (this.looping) {
+        this.stopped = true;
+    } else {
+        this.emit({ type: "layoutstop", layout: this });
+    }
+    return this;
+}
+
 /**
  * A Cytoscape layout registrant. It must be a function constructor: the registry calls it as
  * `registrant.call(this, options)`, which a native class rejects.
@@ -556,21 +582,11 @@ function registrant(run: (layout: LayoutThis) => void, withStop: boolean): unkno
         this.options = { ...DEFAULTS, ...options };
         this.stopped = false;
         this.looping = false;
+        RUN_BODIES.set(this, run);
     }
-    GraphtyLayout.prototype.run = function (this: LayoutThis): LayoutThis {
-        run(this);
-        return this;
-    };
+    GraphtyLayout.prototype.run = runLayout;
     if (withStop) {
-        // A running loop ends itself on its next frame and emits layoutstop; otherwise act as the registry would
-        GraphtyLayout.prototype.stop = function (this: LayoutThis): LayoutThis {
-            if (this.looping) {
-                this.stopped = true;
-            } else {
-                this.emit({ type: "layoutstop", layout: this });
-            }
-            return this;
-        };
+        GraphtyLayout.prototype.stop = stopLayout;
     }
     return GraphtyLayout;
 }

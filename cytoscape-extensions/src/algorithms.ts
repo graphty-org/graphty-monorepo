@@ -423,7 +423,9 @@ function req(c: Ctx, sel: NodeSelection | undefined, what: string): number {
  */
 function lookup(c: Ctx, ref: ElementRef, edges = false): number | undefined {
     const list = (edges ? c.cs.edges : c.cs.nodes) as unknown as Collection;
-    const ele = typeof ref === "string" ? list.filter(ref)[0] : (ref as Collection)[0];
+    // a selector goes through Cytoscape's own matching (a collection has no find() that takes one)
+    const matches = typeof ref === "string" ? list.filter(ref) : (ref as Collection);
+    const ele = matches[0];
     if (ele === undefined) {
         return undefined;
     }
@@ -559,7 +561,9 @@ function partition<T extends object>(c: Ctx, labels: ArrayLike<number>, extra: T
     for (let i = 0; i < labels.length; i++) {
         const l = labels[i];
         if (l !== INVALID_INDEX) {
-            (groups[l] ??= []).push(i);
+            const group = groups[l] ?? [];
+            group.push(i);
+            groups[l] = group;
         }
     }
     if (c.field !== undefined) {
@@ -611,7 +615,7 @@ function search(
     if (c.field !== undefined) {
         writeData(
             c.cs.nodes,
-            Array.from(r.depth, (d) => (d === INVALID_INDEX ? NaN : d)),
+            Array.from(r.depth, (d) => (d === INVALID_INDEX ? Number.NaN : d)),
             c.field,
         );
     }
@@ -1344,7 +1348,7 @@ const IMPLS = {
         const level = (k: number): NodeCollection[] => [...partition(quiet, r.levels[k] ?? [], {})];
         const best = bestLevel(r.modularity);
         return partition(c, r.levels[best] ?? [], {
-            modularity: r.modularity[best] ?? NaN,
+            modularity: r.modularity[best] ?? Number.NaN,
             levels: r.levels.length,
             level,
             modularities: Array.from(r.modularity),

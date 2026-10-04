@@ -37,20 +37,33 @@ function plain(v: unknown): unknown {
  * @returns the nodes, then the edges
  */
 export function snapshotToElements(snapshot: GraphSnapshot): ElementDefinition[] {
-    const kept = (c: Column): boolean => !RESERVED.has(c.meta.name) && c.meta.role !== "id" && c.meta.role !== "parent";
-    const nodeCols = [...snapshot.nodes].filter(kept);
-    const position = nodeCols.find((c) => c.meta.role === "position" && c.meta.components >= 2);
-    const nodeData = nodeCols.filter((c) => c !== position);
-    const parent = snapshot.nodes.byRole("parent");
-    const edgeCols = [...snapshot.edges].filter(kept);
-    const named = edgeCols.some((c) => c.meta.name === "weight");
-    const weightColumn = edgeCols.find((c) => c.meta.role === "weight");
-    const edgeIds = snapshot.edges.byRole("id");
     const ids: string[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
         ids.push(String(snapshot.ids.idOf(i)));
     }
-    const nodeIds = new Set(ids);
+    return [...nodeElements(snapshot, ids), ...edgeElements(snapshot, ids)];
+}
+
+/**
+ * Whether a column becomes a data field of its own (not a reserved name, an id or a parent).
+ * @param c - the column
+ * @returns true to copy it into data
+ */
+function kept(c: Column): boolean {
+    return !RESERVED.has(c.meta.name) && c.meta.role !== "id" && c.meta.role !== "parent";
+}
+
+/**
+ * The node elements of snapshotToElements().
+ * @param snapshot - the snapshot
+ * @param ids - the node ids as strings, by node index
+ * @returns one element per node
+ */
+function nodeElements(snapshot: GraphSnapshot, ids: readonly string[]): ElementDefinition[] {
+    const nodeCols = [...snapshot.nodes].filter(kept);
+    const position = nodeCols.find((c) => c.meta.role === "position" && c.meta.components >= 2);
+    const nodeData = nodeCols.filter((c) => c !== position);
+    const parent = snapshot.nodes.byRole("parent");
     const out: ElementDefinition[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const data: Record<string, unknown> = {};
@@ -71,7 +84,23 @@ export function snapshotToElements(snapshot: GraphSnapshot): ElementDefinition[]
         }
         out.push(el);
     }
+    return out;
+}
+
+/**
+ * The edge elements of snapshotToElements().
+ * @param snapshot - the snapshot
+ * @param ids - the node ids as strings, by node index
+ * @returns one element per edge
+ */
+function edgeElements(snapshot: GraphSnapshot, ids: readonly string[]): ElementDefinition[] {
+    const edgeCols = [...snapshot.edges].filter(kept);
+    const named = edgeCols.some((c) => c.meta.name === "weight");
+    const weightColumn = edgeCols.find((c) => c.meta.role === "weight");
+    const edgeIds = snapshot.edges.byRole("id");
+    const nodeIds = new Set(ids);
     const usedEdgeIds = new Set<string>();
+    const out: ElementDefinition[] = [];
     for (let e = 0; e < snapshot.edgeCount; e++) {
         const data: Record<string, unknown> = {};
         for (const c of edgeCols) {

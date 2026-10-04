@@ -203,6 +203,18 @@ function messageOf(e: unknown): string {
 }
 
 /**
+ * Disposes a decision's device once the decision settles. A decision that failed holds no device, and its error
+ * already reached the caller that awaited it.
+ * @param decision - the decision, or null when there is none
+ */
+function disposeWhenDecided(decision: Promise<Decision> | null): void {
+    decision?.then(
+        (d) => d.gpu?.accelerator.dispose(),
+        () => undefined,
+    );
+}
+
+/**
  * The per-core state; the first call subscribes to the core's destroy event.
  * @param cy - the core
  * @returns its state
@@ -213,7 +225,7 @@ function coreGpu(cy: Core): CoreGpu {
         const created: CoreGpu = { decision: null, by: null, destroyed: false };
         cy.one("destroy", () => {
             created.destroyed = true;
-            void created.decision?.then((d) => d.gpu?.accelerator.dispose());
+            disposeWhenDecided(created.decision);
             created.decision = null;
         });
         cores.set(cy, created);
@@ -302,7 +314,7 @@ export async function gpuFor(cy: Core, mode: GpuMode = "auto"): Promise<Decision
                 throw new Error("graphty: the Cytoscape core was destroyed");
             }
             if (g.decision === null || g.by !== src) {
-                void g.decision?.then((old) => old.gpu?.accelerator.dispose());
+                disposeWhenDecided(g.decision);
                 // deferred one tick so decide() sees its own promise in g.decision
                 g.decision = Promise.resolve().then(() => decide(cy, g, src));
                 g.by = src;

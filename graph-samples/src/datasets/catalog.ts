@@ -5,6 +5,7 @@ import { davisSouthernWomenMeta } from "./davis-southern-women/meta.js";
 import { dolphinsMeta } from "./dolphins/meta.js";
 import { florentineFamiliesMeta } from "./florentine-families/meta.js";
 import { footballMeta } from "./football/meta.js";
+import { goSlimGenericMeta } from "./go-slim-generic/meta.js";
 import { HOSTED_DATASETS } from "./hosted.js";
 import { karateMeta } from "./karate/meta.js";
 import { knuthMilesMeta } from "./knuth-miles/meta.js";
@@ -12,6 +13,9 @@ import { lesMiserablesMeta } from "./les-miserables/meta.js";
 import { openflightsMeta } from "./openflights/meta.js";
 import { politicalBlogsMeta } from "./political-blogs/meta.js";
 import { politicalBooksMeta } from "./political-books/meta.js";
+import { stelzlInteractomeMeta } from "./stelzl-interactome/meta.js";
+import { wikipathwaysSenescenceAutophagyMeta } from "./wikipathways-senescence-autophagy/meta.js";
+import { yeastPerturbationMeta } from "./yeast-perturbation/meta.js";
 
 /**
  * The metadata of every dataset (no graph data). A bundled dataset's edges load only from its own
@@ -31,5 +35,9 @@ export const DATASETS: readonly DatasetMeta[] = [
     celegansNeuralMeta,
     politicalBlogsMeta,
     openflightsMeta,
+    yeastPerturbationMeta,
+    stelzlInteractomeMeta,
+    wikipathwaysSenescenceAutophagyMeta,
+    goSlimGenericMeta,
     ...HOSTED_DATASETS,
 ];

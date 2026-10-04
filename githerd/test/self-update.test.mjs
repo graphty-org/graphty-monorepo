@@ -211,6 +211,24 @@ describe("the protocol gate", () => {
         expect(old.ok).toBe(false);
         expect(old.detail).toMatch(/githerd_status from the previous client: .*protocol/);
     });
+
+    it("serves a previous client exactly one tool protocol behind the new copy", async () => {
+        // The new copy is this package with its tool protocol raised by one.
+        const next = join(dir, "next");
+        for (const sub of ["lib", "bin"]) cpSync(join(PACKAGE_DIR, sub), join(next, sub), { recursive: true });
+        cpSync(join(PACKAGE_DIR, "package.json"), join(next, "package.json"));
+        const mcp = join(next, "lib", "mcp.mjs");
+        const text = readFileSync(mcp, "utf8");
+        const current = Number(/export const TOOL_PROTOCOL = (\d+);/.exec(text)?.[1]);
+        writeFileSync(
+            mcp,
+            text.replace(/export const TOOL_PROTOCOL = \d+;/, `export const TOOL_PROTOCOL = ${current + 1};`),
+        );
+        expect(await protocolGate({ root, env, dir: next, previous: PACKAGE_DIR })).toEqual({
+            ok: true,
+            detail: `the previous client (tool protocol ${current}) is served`,
+        });
+    });
 });
 
 describe("the protocol check", () => {

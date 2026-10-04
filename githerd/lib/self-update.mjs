@@ -10,7 +10,8 @@
  *    suite reads other packages' files, so it runs in a whole tree, not the archived copy).
  * 2. **protocol**: the new daemon, started on a scratch state directory with no polling, serves the
  *    previous copy's client: every tool the previous client offers is still listed, and its
- *    `githerd_status` call, with its tool protocol, is answered.
+ *    `githerd_status` call, with its tool protocol, is answered while a session that has not yet
+ *    called in the new protocol is live, as it is during a real update.
  * 3. **self-test**: the platform self-test (design 11.4) run by the new copy's CLI.
  *
  * Each gate is a child process of its own, bounded by a timeout that kills its process group. The
@@ -317,6 +318,14 @@ export async function protocolCheck({ root, previous, env, startDaemon }) {
         const missing = prev.TOOLS.map((/** @type {{name: string}} */ t) => t.name).filter((n) => !served.has(n));
         if (missing.length)
             return { ok: false, detail: `the new daemon lacks the previous client's ${missing.join(", ")}` };
+        // In production the previous client's sessions are live before they call the new daemon,
+        // and a live session that has not called in the new protocol is what makes the daemon serve
+        // the previous one. The scratch daemon has no session yet, so this one registers first.
+        await fetch(`${daemon.url}/heartbeat`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ session: "protocol-test", cwd: root }),
+        });
         const status = prev
             .forwardingTools(send, () => ({ protocol: prev.TOOL_PROTOCOL }))
             .find((/** @type {{name: string}} */ t) => t.name === "githerd_status");

@@ -1541,23 +1541,7 @@ class GmlImport {
         const positionPlan = plan.position;
         let rest: unknown = first;
         if (isRecord(first) && positionPlan !== null) {
-            const { x, y, z } = first;
-            if (typeof x === "number" && typeof y === "number") {
-                sink.setNodeValue(this.handleOf(positionPlan, "node"), index, [x, y, typeof z === "number" ? z : 0]);
-                delete first.x;
-                delete first.y;
-                if (typeof z === "number") {
-                    delete first.z;
-                }
-                rest = Object.keys(first).length > 0 ? first : undefined;
-            }
-            if ("x" in first || "y" in first || "z" in first) {
-                this.graphicsWarning(
-                    "coordinate",
-                    `node ${where.element}'s graphics x / y / z is not one number each`,
-                    where,
-                );
-            }
+            rest = this.writePosition(positionPlan, index, first, where);
         } else if (!isRecord(first)) {
             this.graphicsWarning("scalar", `node ${where.element}'s graphics is not a record`, where);
         }
@@ -1572,6 +1556,42 @@ class GmlImport {
         if (rest !== undefined && plan.rest !== null) {
             sink.setNodeValue(this.handleOf(plan.rest, "node"), index, rest);
         }
+    }
+
+    /**
+     * Write a node's position from the x / y / z of its graphics record, taking them out of it.
+     * @param positionPlan - the position column's plan
+     * @param index - the node index
+     * @param record - the graphics record
+     * @param where - the line and the node, for issues
+     * @returns what is left of the record for the json column, or undefined when nothing is
+     */
+    private writePosition(
+        positionPlan: ColumnPlan,
+        index: number,
+        record: Record<string, unknown>,
+        where: IssueWhere,
+    ): unknown {
+        const { x, y, z } = record;
+        let rest: unknown = record;
+        if (typeof x === "number" && typeof y === "number") {
+            const depth = typeof z === "number" ? z : 0;
+            this.sink.setNodeValue(this.handleOf(positionPlan, "node"), index, [x, y, depth]);
+            delete record.x;
+            delete record.y;
+            if (typeof z === "number") {
+                delete record.z;
+            }
+            rest = Object.keys(record).length > 0 ? record : undefined;
+        }
+        if ("x" in record || "y" in record || "z" in record) {
+            this.graphicsWarning(
+                "coordinate",
+                `node ${where.element}'s graphics x / y / z is not one number each`,
+                where,
+            );
+        }
+        return rest;
     }
 
     /**

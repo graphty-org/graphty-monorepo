@@ -1,10 +1,24 @@
-import { defineRegistration, stubCommands } from "../commands/registry";
+import { defineRegistration } from "../commands/registry";
 
-/**
- * The Export dialog package's commands. Stubs until that package builds them: each holds its id, label
- * and keys, and nothing draws it.
- */
+/** The Export dialog package's commands: Export... (the File list), which opens the dialog on Image. */
 export const registration = defineRegistration({
     owner: "export",
-    commands: stubCommands([{ id: "file.export", label: "Export...", group: "Project", keys: ["Mod+E"] }]),
+    commands: [
+        {
+            id: "file.export",
+            label: "Export...",
+            group: "Project",
+            keys: ["Mod+E"],
+            keywords: ["image", "picture", "screenshot", "png", "csv", "spreadsheet", "data", "download"],
+            disabled: ({ workspace, element }) => {
+                if (workspace.get().project === null) {
+                    return "No project is open";
+                }
+                return element === null ? "The graph is still loading" : null;
+            },
+            run: ({ workspace }) => {
+                workspace.set({ dialog: "export", exportOn: "image" });
+            },
+        },
+    ],
 });

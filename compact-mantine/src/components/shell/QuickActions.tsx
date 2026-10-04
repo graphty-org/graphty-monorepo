@@ -45,6 +45,13 @@ export interface QuickAction {
     keywords?: readonly string[];
     /** Shown, but cannot be run or highlighted. */
     disabled?: boolean;
+    /**
+     * A second, dimmed line under the name: why a disabled action cannot be run ("Holds
+     * groups, not amounts"), or what it does. It is the option's accessible description, so its
+     * accessible name stays `label` alone, and it survives a search (which drops the section
+     * headings).
+     */
+    description?: string;
 }
 
 /**
@@ -79,12 +86,35 @@ export interface QuickActionsProps {
     "aria-label"?: string;
     /** Placeholder of the search field. Defaults to the "Search actions" label. */
     placeholder?: string;
+    /**
+     * How a name too long for its row is cut. `"end"` (the default) ends it with an ellipsis;
+     * `"middle"` keeps its start and its end ("shared_ch...apters"), for names that differ at
+     * the end. A middle-cut name carries the full name as its tooltip.
+     */
+    truncate?: "end" | "middle";
     /** Panel width. Default 529 (Figma's, the toolbar's width). */
     width?: number;
     /** Panel height. Default 354. */
     height?: number;
     className?: string;
     style?: React.CSSProperties;
+}
+
+/**
+ * A name drawn so a long one is cut in the middle: the head shrinks to an ellipsis, the tail
+ * (up to its last eight characters) always shows.
+ * @param props - Component props
+ * @param props.label - The name
+ * @returns The two halves
+ */
+function MiddleCut({ label }: Readonly<{ label: string }>): React.JSX.Element {
+    const tail = Math.min(8, Math.ceil(label.length / 3));
+    return (
+        <>
+            <span className="cm-qa-row-head">{label.slice(0, label.length - tail)}</span>
+            <span className="cm-qa-row-tail">{label.slice(label.length - tail)}</span>
+        </>
+    );
 }
 
 function defaultFilter(action: QuickAction, query: string): boolean {
@@ -111,6 +141,7 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props.filter - Which actions match the search
  * @param props.header - Rendered between the search field and the list
  * @param props.searchAction - A trailing action at the right end of the search field
+ * @param props.truncate - Cut a long name at the end or in the middle
  * @param props.placeholder - Placeholder of the search field
  * @param props.width - Panel width
  * @param props.height - Panel height
@@ -127,6 +158,7 @@ export function QuickActions({
     filter = defaultFilter,
     header,
     searchAction,
+    truncate = "end",
     placeholder,
     width = 529,
     height = 354,
@@ -170,6 +202,7 @@ export function QuickActions({
     };
     useEffect(() => {
         input.current?.focus();
+        // Only on open: the reader moves focus from here.
     }, []);
 
     const optionId = (value: string): string => `${id}-option-${value}`;
@@ -260,6 +293,14 @@ export function QuickActions({
                                 role="option"
                                 aria-selected={action.value === current}
                                 aria-disabled={action.disabled || undefined}
+                                // Named by the label alone: not by the second line, and not by
+                                // the two halves of a middle cut, which accname would join with a space.
+                                aria-label={action.description || truncate === "middle" ? action.label : undefined}
+                                aria-describedby={
+                                    action.description ? `${optionId(action.value)}-description` : undefined
+                                }
+                                title={truncate === "middle" ? action.label : undefined}
+                                data-two-line={action.description ? "" : undefined}
                                 className="cm-qa-row"
                                 data-highlighted={action.value === current || undefined}
                                 onMouseMove={() => {
@@ -288,7 +329,19 @@ export function QuickActions({
                                 <span className="cm-qa-row-icon" aria-hidden="true">
                                     {action.icon}
                                 </span>
-                                <span className="cm-qa-row-label">{action.label}</span>
+                                <span className="cm-qa-row-text">
+                                    <span className="cm-qa-row-label" data-truncate={truncate}>
+                                        {truncate === "middle" ? <MiddleCut label={action.label} /> : action.label}
+                                    </span>
+                                    {action.description ? (
+                                        <span
+                                            className="cm-qa-row-description"
+                                            id={`${optionId(action.value)}-description`}
+                                        >
+                                            {action.description}
+                                        </span>
+                                    ) : null}
+                                </span>
                                 {action.shortcut ? <span className="cm-qa-row-shortcut">{action.shortcut}</span> : null}
                             </div>
                         ))}

@@ -22,7 +22,7 @@ const COLLECTED = [
  * @param props.headline - Whether to draw the first sentence as the card's headline
  * @returns The text
  */
-export function UsageDataText({ headline = true }: { headline?: boolean }): React.JSX.Element {
+export function UsageDataText({ headline = true }: Readonly<{ headline?: boolean }>): React.JSX.Element {
     return (
         <>
             {headline ? (

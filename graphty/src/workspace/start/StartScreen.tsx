@@ -2,7 +2,7 @@ import "./start.css";
 
 import { Button, Kbd, Paper, Stack, Text, Title, UnstyledButton } from "@mantine/core";
 import { FilePlus, FolderOpen, Lock, Network, Settings, Upload } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
 import { CommandButton } from "../frame/CommandButton";
@@ -20,7 +20,7 @@ import { openFile, openSample } from "./open";
  * @param props.icon - The glyph
  * @returns The row, or nothing for a stub command
  */
-function Door({ id, icon }: { id: string; icon: React.ReactNode }): React.JSX.Element | null {
+function Door({ id, icon }: Readonly<{ id: string; icon: React.ReactNode }>): React.JSX.Element | null {
     const door = useCommand(id);
     if (door === null) {
         return null;
@@ -48,7 +48,7 @@ function Door({ id, icon }: { id: string; icon: React.ReactNode }): React.JSX.El
  * @param props.children - The column's rows
  * @returns The column
  */
-function Column({ title, children }: { title: string; children: React.ReactNode }): React.JSX.Element {
+function Column({ title, children }: Readonly<{ title: string; children: React.ReactNode }>): React.JSX.Element {
     return (
         <section className="ws-start-col" aria-label={title}>
             <Title order={2} size="xs" className="ws-start-h">
@@ -69,27 +69,38 @@ export function StartScreen(): React.JSX.Element {
     const workspace = useWorkspace();
     const [dragging, setDragging] = useState(false);
 
-    return (
-        <div
-            className="ws-start"
-            onDragOver={(event) => {
-                event.preventDefault();
-                setDragging(true);
-            }}
-            onDragLeave={(event) => {
-                if (event.relatedTarget === null) {
-                    setDragging(false);
-                }
-            }}
-            onDrop={(event) => {
-                event.preventDefault();
+    // The drop target is the whole window ("drop a file anywhere in this window"), so the
+    // listeners go on globalThis (the window) rather than on an element.
+    useEffect(() => {
+        const over = (event: DragEvent): void => {
+            event.preventDefault();
+            setDragging(true);
+        };
+        const leave = (event: DragEvent): void => {
+            if (event.relatedTarget === null) {
                 setDragging(false);
-                const file = event.dataTransfer.files.item(0);
-                if (file !== null) {
-                    openFile(workspace, file);
-                }
-            }}
-        >
+            }
+        };
+        const drop = (event: DragEvent): void => {
+            event.preventDefault();
+            setDragging(false);
+            const file = event.dataTransfer?.files.item(0) ?? null;
+            if (file !== null) {
+                openFile(workspace, file);
+            }
+        };
+        globalThis.addEventListener("dragover", over);
+        globalThis.addEventListener("dragleave", leave);
+        globalThis.addEventListener("drop", drop);
+        return () => {
+            globalThis.removeEventListener("dragover", over);
+            globalThis.removeEventListener("dragleave", leave);
+            globalThis.removeEventListener("drop", drop);
+        };
+    }, [workspace]);
+
+    return (
+        <div className="ws-start">
             <header className="ws-start-head">
                 <h1 className="ws-start-brand">
                     <Network size={16} aria-hidden />

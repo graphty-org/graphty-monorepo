@@ -21,6 +21,7 @@ import { readonlyPositions } from "../data/lane";
 import type { ImportReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
+import { eachAdjacentArc } from "./adjacency";
 import { describeAttributes } from "./attributes";
 import { resolveColumn } from "./columns";
 import {
@@ -38,7 +39,7 @@ import type { GraphSlice } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
 import { type ResolvedResult, resolveResult, resultCell, resultSortValue } from "./results/pageColumns";
 import { RevisionCache } from "./revision";
-import type { ResolvedScope, Run } from "./runs/types";
+import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { ColumnRef } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
@@ -53,6 +54,9 @@ import type {
     FindResult,
     GraphStatistics,
     ImportOptions,
+    Neighbor,
+    NeighborOptions,
+    NeighborPage,
     NodeRecord,
     NodeRecordInput,
     PageColumn,
@@ -115,6 +119,26 @@ interface PageSources {
     runIds(): readonly RunId[];
 }
 
+/** One neighbor while its list is built: its row, and its name once a name sort read it. */
+interface NeighborListRow {
+    readonly other: number;
+    weight: number;
+    edgeCount: number;
+    name?: string;
+}
+
+/** A node's neighbors in order, before a window is cut from them. */
+interface NeighborList {
+    readonly rows: readonly NeighborListRow[];
+    readonly measuredBy: WeightMeaning | null;
+    readonly missing: number;
+}
+
+/** How many neighbor lists are kept per revision: an inspector re-reads the last few. */
+const NEIGHBOR_LISTS_KEPT = 8;
+
+/** The mark on a neighbor the session's visibility hides. */
+const FILTERED: Neighbor["excludedBy"] = Object.freeze({ kind: "filter" });
 /** How many hits a find returns when the caller does not say. */
 const DEFAULT_FIND_LIMIT = 20;
 
@@ -205,7 +229,10 @@ function isAbsent(value: unknown): boolean {
  * @returns the offset and the limit
  * @throws A `GraphtyError` with `E_OPTION_RANGE` for a negative or fractional value.
  */
-function pageWindow(options: RecordPageOptions, verb: string): { offset: number; limit: number } {
+function pageWindow(
+    options: Pick<RecordPageOptions, "offset" | "limit">,
+    verb: string,
+): { offset: number; limit: number } {
     const offset = options.offset ?? 0;
     const limit = options.limit ?? DEFAULT_PAGE_LIMIT;
     for (const [name, value] of [
@@ -299,6 +326,8 @@ export class SessionData implements SessionDataApi {
     private derived: Derived | null = null;
     /** Row orders computed for pages, by what they were asked with, for the current revision. */
     private readonly orders: RevisionCache<Uint32Array>;
+    /** The last few neighbor lists, by node and options, for the current revision. */
+    private readonly neighborLists: RevisionCache<NeighborList>;
     /** The attribute walk, for the current revision. */
     private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
     private disposed = false;
@@ -327,6 +356,7 @@ export class SessionData implements SessionDataApi {
         this.writes = writes;
         this.pages = pages;
         this.orders = new RevisionCache(() => pages.revision());
+        this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
         this.attributeCache = new RevisionCache(() => pages.revision());
     }
 
@@ -604,6 +634,182 @@ export class SessionData implements SessionDataApi {
         return this.page(snapshot, "edge", options, "edgePage", (index) =>
             this.edgeAt(snapshot, index, space.idOf(index)),
         );
+    }
+
+    /**
+     * Each distinct neighbor of a node once, with the combined weight of the edges between them.
+     * @param id - the node
+     * @param options - the direction, the weight, the scope, the order and the window
+     * @returns the page
+     * @throws A `GraphtyError` with `E_UNKNOWN_ELEMENT` for an id the graph does not hold,
+     *     `E_UNKNOWN_ATTRIBUTE` for a weight column no edge carries, `E_OPTION_RANGE` for a bad
+     *     window, `E_DISPOSED` once disposed.
+     */
+    neighbors(id: NodeId, options: NeighborOptions = {}): NeighborPage {
+        const snapshot = this.current();
+        const { offset, limit } = pageWindow(options, "neighbors");
+        // Before the revision: the first read of the visible scope brings its masks up to date,
+        // which moves the tick.
+        const visible = this.pages.resolve("visible").nodes;
+        const revision = this.pages.revision();
+        const node = snapshot.ids.indexOf(id);
+        if (node === INVALID_INDEX) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_ELEMENT",
+                source: "data",
+                message: `The graph holds no node ${JSON.stringify(id)}.`,
+                details: { kind: "node", id },
+            });
+        }
+
+        // JSON keeps 1 and "1" apart, which the ids need.
+        const key = JSON.stringify([id, options.direction, options.weight, options.scope, options.sort]);
+        const list = this.neighborLists.get(key, () => this.computeNeighbors(snapshot, node, options));
+        const records = list.rows.slice(offset, offset + limit).map((row) => {
+            const neighborId = snapshot.ids.idOf(row.other);
+            return Object.freeze({
+                node: this.nodeAt(row.other, neighborId),
+                name: row.name ?? this.nameOf(row.other, neighborId),
+                weight: row.weight,
+                edgeCount: row.edgeCount,
+                ...(visible.has(neighborId) ? {} : { excludedBy: FILTERED }),
+            });
+        });
+
+        return Object.freeze({
+            records: Object.freeze(records),
+            offset,
+            total: list.rows.length,
+            revision: String(revision),
+            measuredBy: list.measuredBy,
+            missing: list.missing,
+        });
+    }
+
+    /**
+     * Walk one node's adjacency once, combine each neighbor's edges, then order the neighbors.
+     * @param snapshot - the current snapshot
+     * @param node - the node's row
+     * @param options - what the caller asked for
+     * @returns the ordered rows, the weight they were combined by and the missing count
+     */
+    private computeNeighbors(snapshot: GraphSnapshot, node: number, options: NeighborOptions): NeighborList {
+        const { measuredBy, read } = this.neighborWeight(snapshot, options.weight);
+        const scope =
+            options.scope === undefined || options.scope === "graph" ? null : this.pages.resolve(options.scope);
+        const distance = measuredBy?.meaning === "distance";
+        // Keyed by the neighbor's row, never by its id: ids 1 and "1" stay apart.
+        const byRow = new Map<number, NeighborListRow>();
+        let missing = 0;
+        eachAdjacentArc(snapshot, node, options.direction ?? "all", (other, edge) => {
+            if (other === node || (scope !== null && !scope.nodes.has(snapshot.ids.idOf(other)))) {
+                return;
+            }
+
+            let value = 1;
+            if (read !== null) {
+                const got = read(edge);
+                if (got === undefined) {
+                    missing++;
+                } else {
+                    value = got;
+                }
+            }
+
+            const row = byRow.get(other);
+            if (row === undefined) {
+                byRow.set(other, { other, weight: read === null ? 1 : value, edgeCount: 1 });
+                return;
+            }
+
+            row.edgeCount++;
+            if (read === null) {
+                row.weight = row.edgeCount;
+            } else {
+                row.weight = distance ? Math.min(row.weight, value) : row.weight + value;
+            }
+        });
+
+        // Graph order first, so a stable sort keeps it among equals.
+        const rows = [...byRow.values()].sort((a, b) => a.other - b.other);
+        const sort = options.sort ?? (measuredBy === null ? { by: "name" } : { by: "weight", descending: !distance });
+        const direction = sort.descending === true ? -1 : 1;
+        if (sort.by === "name") {
+            for (const row of rows) {
+                row.name = this.nameOf(row.other, snapshot.ids.idOf(row.other));
+            }
+
+            // ponytail: a collator sort per (node, options) per revision; share item 3's per-revision
+            // name rank if a host clicks through many 40,000-degree hubs.
+            rows.sort((a, b) => direction * NATURAL.compare(a.name ?? "", b.name ?? ""));
+        } else {
+            rows.sort((a, b) => direction * (a.weight - b.weight));
+        }
+
+        return { rows, measuredBy, missing };
+    }
+
+    /**
+     * Which weight a neighbor page combines its edges by, and how one edge's weight is read.
+     * @param snapshot - the current snapshot
+     * @param asked - the `weight` option
+     * @returns the weight, or null to count edges; and the reader, which answers undefined for an
+     *     edge with no number there
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no edge carries.
+     */
+    private neighborWeight(
+        snapshot: GraphSnapshot,
+        asked: WeightMeaning | null | undefined,
+    ): { measuredBy: WeightMeaning | null; read: ((edge: number) => number | undefined) | null } {
+        if (asked === null) {
+            return { measuredBy: null, read: null };
+        }
+
+        const fromRecords = (attribute: string) => (edge: number) => {
+            const value = this.records?.edgeAttributes(edge)?.[attribute];
+            return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+        };
+        if (asked !== undefined) {
+            resolveColumn(this.attributes(), { kind: "edge", name: asked.attribute });
+            return { measuredBy: asked, read: fromRecords(asked.attribute) };
+        }
+
+        // The weight the graph was loaded with.
+        const attribute = this.lastImport()?.weights.attribute ?? null;
+        const { weights } = snapshot;
+        if (attribute === null || weights === null) {
+            return { measuredBy: null, read: null };
+        }
+
+        const measuredBy: WeightMeaning = { attribute, meaning: "strength" };
+        const carried = this.attributes().some((column) => column.kind === "edge" && column.name === attribute);
+        // A session with no view holds no record attributes, only the store's weights, where a
+        // missing number already weighs 1.
+        return {
+            measuredBy,
+            read: carried ? fromRecords(attribute) : (edge) => weights[snapshot.edgeToArc[edge]],
+        };
+    }
+
+    /**
+     * A node's name: the value at `data.knownFields.nodeLabelPath`, as text, else its id.
+     * @param index - the node's row
+     * @param id - the node's id
+     * @returns the name
+     */
+    private nameOf(index: number, id: NodeId): string {
+        const key = this.readConfig().knownFields.nodeLabelPath;
+        const value = key === null ? undefined : this.records?.nodeAttributes(index, id)?.[key];
+        switch (typeof value) {
+            case "string":
+                return value;
+            case "number":
+            case "bigint":
+            case "boolean":
+                return String(value);
+            default:
+                return String(id);
+        }
     }
 
     /**

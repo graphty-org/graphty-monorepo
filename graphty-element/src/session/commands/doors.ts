@@ -1370,6 +1370,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
+            neighbors: READ,
             lastImport: READ,
             source: READ,
             attributes: READ,

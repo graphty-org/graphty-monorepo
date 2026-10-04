@@ -1057,28 +1057,15 @@ class TableReader {
         sample: readonly (readonly string[])[],
         optionalLast: boolean,
     ): EdgePlan | NodePlan | AdjacencyPlan {
-        const { csv, report } = this.state;
+        const { csv } = this.state;
         if (this.kind === "adjacency") {
             return { kind: "adjacency", names: [] };
         }
-        const width = names.length;
         let source = -1;
         let target = -1;
         if (this.kind !== "nodes") {
-            if (csv.sourceColumn !== null) {
-                source = resolveColumnRef(names, csv.sourceColumn, "sourceColumn");
-            } else if (header) {
-                source = findColumn(names, SOURCE_NAMES);
-            } else {
-                source = width >= 2 ? 0 : -1;
-            }
-            if (csv.targetColumn !== null) {
-                target = resolveColumnRef(names, csv.targetColumn, "targetColumn");
-            } else if (header) {
-                target = findColumn(names, TARGET_NAMES);
-            } else {
-                target = width >= 2 ? 1 : -1;
-            }
+            source = endpointColumn(names, header, csv.sourceColumn, "sourceColumn", SOURCE_NAMES, 0);
+            target = endpointColumn(names, header, csv.targetColumn, "targetColumn", TARGET_NAMES, 1);
             if (source >= 0 && target >= 0 && source === target) {
                 throw new GraphFormatError("E_UNSUPPORTED", "sourceColumn and targetColumn name the same column", {
                     option: "targetColumn",
@@ -1089,6 +1076,27 @@ class TableReader {
         if (source >= 0 && target >= 0) {
             return this.edgePlan(names, header, source, target, line, sample, optionalLast);
         }
+        this.refuseWithoutEndpoints(names, header, source, target, line);
+        return this.nodePlan(names, header, line, optionalLast);
+    }
+
+    /**
+     * Refuse a table without both endpoint columns, unless it can be a node table: an edge table
+     * was asked for, a single endpoint column was found, or nothing names an id.
+     * @param names - the column names
+     * @param header - whether the file has a header row
+     * @param source - the source column, or -1
+     * @param target - the target column, or -1
+     * @param line - the header line
+     */
+    private refuseWithoutEndpoints(
+        names: readonly string[],
+        header: boolean,
+        source: number,
+        target: number,
+        line: number,
+    ): void {
+        const { csv, report } = this.state;
         const shown = names.map((n) => JSON.stringify(n)).join(", ");
         if (source >= 0 || target >= 0) {
             // one endpoint column is a broken edge table, never a node table
@@ -1111,7 +1119,7 @@ class TableReader {
                 { columns: [...names] },
             );
         }
-        const idResolves = header ? findColumn(names, ID_NAMES) >= 0 : width >= 1;
+        const idResolves = header ? findColumn(names, ID_NAMES) >= 0 : names.length >= 1;
         if (this.kind === "auto" && csv.idColumn === null && !idResolves && !this.rowNumbers) {
             report.fail(
                 NO_ENDPOINT_COLUMNS_CODE,
@@ -1120,7 +1128,6 @@ class TableReader {
                 { columns: [...names] },
             );
         }
-        return this.nodePlan(names, header, line, optionalLast);
     }
 
     /**
@@ -1143,64 +1150,16 @@ class TableReader {
         sample: readonly (readonly string[])[],
         optionalLast: boolean,
     ): EdgePlan {
-        const { csv, common, report } = this.state;
+        const { csv } = this.state;
         const claimed = new Set<number>([source, target]);
-        let weight = -1;
-        if (common.weightFrom !== null) {
-            if (header) {
-                weight = findFree(names, [common.weightFrom], claimed);
-                if (weight < 0 && this.state.weightFromExplicit) {
-                    report.warning(
-                        "missing-value",
-                        COLUMN_MISSING_CODE,
-                        `weight column ${JSON.stringify(common.weightFrom)} not found; edges are unweighted`,
-                        { line, element: common.weightFrom },
-                    );
-                }
-            } else if (names.length >= 3 && !claimed.has(2)) {
-                if (isTextTriple(names.length, sample)) {
-                    report.warnOnce(
-                        "validation-error",
-                        WEIGHT_AS_ATTRIBUTE_CODE,
-                        `the third column holds text in the first rows, so it is read as the attribute ${names[2]}, not the weight`,
-                        { line, element: names[2] },
-                    );
-                } else {
-                    weight = 2;
-                }
-            }
-        }
+        const weight = this.weightColumn(names, header, claimed, line, sample);
         if (weight >= 0) {
             claimed.add(weight);
         }
         if (header) {
-            if (csv.sourceColumn === null) {
-                this.reportRivals(names, SOURCE_NAMES, source, "source", line);
-            }
-            if (csv.targetColumn === null) {
-                this.reportRivals(names, TARGET_NAMES, target, "target", line);
-            }
-            if (weight >= 0 && common.weightFrom !== null) {
-                this.reportRivals(names, [common.weightFrom], weight, "weight", line);
-            }
+            this.reportEndpointRivals(names, source, target, weight, line);
         }
-        let type = -1;
-        if (csv.typeColumn === undefined) {
-            if (header && names[source] === "Source" && names[target] === "Target") {
-                type = findFree(names, [TYPE_NAME], claimed);
-                if (type >= 0 && names[type] !== TYPE_NAME) {
-                    type = -1;
-                }
-            }
-        } else if (csv.typeColumn !== null) {
-            type = resolveColumnRef(names, csv.typeColumn, "typeColumn");
-            if (claimed.has(type)) {
-                throw new GraphFormatError("E_UNSUPPORTED", "typeColumn names an endpoint or weight column", {
-                    option: "typeColumn",
-                    found: names[type],
-                });
-            }
-        }
+        const type = this.typeColumn(names, header, source, target, claimed);
         if (type >= 0) {
             claimed.add(type);
         }
@@ -1234,6 +1193,116 @@ class TableReader {
             attributes,
             optionalLast,
         };
+    }
+
+    /**
+     * The weight column of an edge table: the weightFrom column of a header (a warning when it was
+     * asked for and is missing), else the third column of a headerless edge list unless it holds text.
+     * @param names - the column names
+     * @param header - whether the file has a header row
+     * @param claimed - the endpoint columns
+     * @param line - the header (or first) line
+     * @param sample - the data rows read so far
+     * @returns the column index, or -1
+     */
+    private weightColumn(
+        names: readonly string[],
+        header: boolean,
+        claimed: ReadonlySet<number>,
+        line: number,
+        sample: readonly (readonly string[])[],
+    ): number {
+        const { common, report } = this.state;
+        if (common.weightFrom === null) {
+            return -1;
+        }
+        if (header) {
+            const weight = findFree(names, [common.weightFrom], claimed);
+            if (weight < 0 && this.state.weightFromExplicit) {
+                report.warning(
+                    "missing-value",
+                    COLUMN_MISSING_CODE,
+                    `weight column ${JSON.stringify(common.weightFrom)} not found; edges are unweighted`,
+                    { line, element: common.weightFrom },
+                );
+            }
+            return weight;
+        }
+        if (names.length < 3 || claimed.has(2)) {
+            return -1;
+        }
+        if (isTextTriple(names.length, sample)) {
+            report.warnOnce(
+                "validation-error",
+                WEIGHT_AS_ATTRIBUTE_CODE,
+                `the third column holds text in the first rows, so it is read as the attribute ${names[2]}, not the weight`,
+                { line, element: names[2] },
+            );
+            return -1;
+        }
+        return 2;
+    }
+
+    /**
+     * Warn about header columns that name the source, target or weight beside the chosen one.
+     * @param names - the header names
+     * @param source - the source column
+     * @param target - the target column
+     * @param weight - the weight column, or -1
+     * @param line - the header line
+     */
+    private reportEndpointRivals(
+        names: readonly string[],
+        source: number,
+        target: number,
+        weight: number,
+        line: number,
+    ): void {
+        const { csv, common } = this.state;
+        if (csv.sourceColumn === null) {
+            this.reportRivals(names, SOURCE_NAMES, source, "source", line);
+        }
+        if (csv.targetColumn === null) {
+            this.reportRivals(names, TARGET_NAMES, target, "target", line);
+        }
+        if (weight >= 0 && common.weightFrom !== null) {
+            this.reportRivals(names, [common.weightFrom], weight, "weight", line);
+        }
+    }
+
+    /**
+     * The edge type column: the typeColumn option, else Gephi's `Type` beside `Source` and `Target`.
+     * @param names - the column names
+     * @param header - whether the file has a header row
+     * @param source - the source column
+     * @param target - the target column
+     * @param claimed - the columns other roles took
+     * @returns the column index, or -1
+     */
+    private typeColumn(
+        names: readonly string[],
+        header: boolean,
+        source: number,
+        target: number,
+        claimed: ReadonlySet<number>,
+    ): number {
+        const { typeColumn } = this.state.csv;
+        if (typeColumn === null) {
+            return -1;
+        }
+        if (typeColumn === undefined) {
+            const gephi = header && names[source] === "Source" && names[target] === "Target";
+            const type = gephi ? findFree(names, [TYPE_NAME], claimed) : -1;
+            return type >= 0 && names[type] === TYPE_NAME ? type : -1;
+        }
+        const type = resolveColumnRef(names, typeColumn, "typeColumn");
+        if (claimed.has(type)) {
+            throw new GraphFormatError("E_UNSUPPORTED", "typeColumn names an endpoint or weight column", {
+                option: "typeColumn",
+                found: names[type],
+            });
+        }
+        return type;
     }
 
     /**
@@ -1289,49 +1358,13 @@ class TableReader {
      * @returns the plan; the import aborts when no id column resolves
      */
     private nodePlan(names: readonly string[], header: boolean, line: number, optionalLast: boolean): NodePlan {
-        const { csv, common, report } = this.state;
+        const { common } = this.state;
         const claimed = new Set<number>();
-        let idColumn = -1;
-        if (csv.idColumn !== null) {
-            idColumn = resolveColumnRef(names, csv.idColumn, "idColumn");
-        } else if (header) {
-            idColumn = findColumn(names, ID_NAMES);
-        } else if (names.length >= 1) {
-            idColumn = 0;
-        }
+        const idColumn = this.idColumnOf(names, header);
         const label = this.labelOf(names, header, new Set(idColumn >= 0 ? [idColumn] : []));
-        let id: number;
-        switch (common.nodeIdFrom) {
-            case "label":
-                if (label < 0) {
-                    report.fail(
-                        NO_ID_COLUMN_CODE,
-                        `nodeIdFrom is "label", but the node table has no column named "label" (${names.map((n) => JSON.stringify(n)).join(", ")}); pass labelColumn to name the column that holds the labels`,
-                        { line },
-                        { columns: [...names] },
-                    );
-                }
-                id = label;
-                break;
-            case "index":
-                id = -1;
-                break;
-            default:
-                if (idColumn < 0 && this.rowNumbers) {
-                    id = -1;
-                    break;
-                }
-                if (idColumn < 0) {
-                    report.fail(
-                        NO_ID_COLUMN_CODE,
-                        `no id column in the node table header (${names.map((n) => JSON.stringify(n)).join(", ")})`,
-                        { line },
-                        { columns: [...names] },
-                    );
-                }
-                id = idColumn;
-                claimed.add(idColumn);
-                break;
+        const id = this.nodeIdColumn(names, idColumn, label, line);
+        if (id >= 0) {
+            claimed.add(id);
         }
         if (label >= 0) {
             claimed.add(label);
@@ -1344,6 +1377,61 @@ class TableReader {
         }
         const rowNumber = id < 0 && common.nodeIdFrom !== "index";
         return { kind: "nodes", names, width: names.length, id, rowNumber, label, attributes, optionalLast };
+    }
+
+    /**
+     * The id column of a node table: the idColumn option, else a header column with an id name,
+     * else the first column of a headerless table.
+     * @param names - the column names
+     * @param header - whether the file has a header row
+     * @returns the column index, or -1
+     */
+    private idColumnOf(names: readonly string[], header: boolean): number {
+        const { idColumn } = this.state.csv;
+        if (idColumn !== null) {
+            return resolveColumnRef(names, idColumn, "idColumn");
+        }
+        if (header) {
+            return findColumn(names, ID_NAMES);
+        }
+        return names.length >= 1 ? 0 : -1;
+    }
+
+    /**
+     * The column node ids come from, as nodeIdFrom says: the label, none (row numbers), or the id
+     * column. The import aborts when that column is missing.
+     * @param names - the column names
+     * @param idColumn - the id column, or -1
+     * @param label - the label column, or -1
+     * @param line - the header line
+     * @returns the column index, or -1 for row numbers
+     */
+    private nodeIdColumn(names: readonly string[], idColumn: number, label: number, line: number): number {
+        const { common, report } = this.state;
+        const shown = names.map((n) => JSON.stringify(n)).join(", ");
+        if (common.nodeIdFrom === "index") {
+            return -1;
+        }
+        if (common.nodeIdFrom === "label") {
+            if (label < 0) {
+                report.fail(
+                    NO_ID_COLUMN_CODE,
+                    `nodeIdFrom is "label", but the node table has no column named "label" (${shown}); pass labelColumn to name the column that holds the labels`,
+                    { line },
+                    { columns: [...names] },
+                );
+            }
+            return label;
+        }
+        if (idColumn < 0 && !this.rowNumbers) {
+            report.fail(
+                NO_ID_COLUMN_CODE,
+                `no id column in the node table header (${shown})`,
+                { line },
+                { columns: [...names] },
+            );
+        }
+        return idColumn;
     }
 
     /**
@@ -1491,22 +1579,11 @@ class TableReader {
      * @param line - the row's line
      */
     private processEdgeRow(plan: EdgePlan, row: string[], cellQuoted: readonly boolean[], line: number): void {
-        const { report, sink, resolver, common } = this.state;
+        const { report } = this.state;
         const { counts } = report;
         const quoted = completeRow(plan, row, cellQuoted, report, line);
         if (row.length !== plan.width) {
-            // the first row too long for an auto table says what an adjacency list needs, since one reads this way
-            const hint =
-                this.state.csv.table === "auto" && row.length > plan.width && !this.adjacencyHinted
-                    ? '; if each line is a node followed by its neighbors, pass table: "adjacency"'
-                    : "";
-            this.adjacencyHinted ||= hint !== "";
-            report.error(
-                "validation-error",
-                FIELD_COUNT_CODE,
-                `${row.length} field${plural(row.length)}, expected ${plan.width}${hint}`,
-                { line },
-            );
+            this.reportRowWidth(plan, row, line);
             counts.skippedEdges++;
             return;
         }
@@ -1520,22 +1597,10 @@ class TableReader {
             counts.skippedEdges++;
             return;
         }
-        let kind: EdgeKind = (this.state.commentDirected ?? common.defaultDirected) ? "directed" : "undirected";
-        if (plan.type >= 0) {
-            const parsed = parseKind(row[plan.type]);
-            if (parsed === null) {
-                report.error(
-                    "validation-error",
-                    BAD_TYPE_CODE,
-                    `Type ${JSON.stringify(row[plan.type])} is not Directed, Undirected or Mutual`,
-                    { line },
-                );
-                counts.skippedEdges++;
-                return;
-            }
-            if (parsed !== undefined) {
-                kind = parsed;
-            }
+        const kind = this.rowKind(plan, row, line);
+        if (kind === null) {
+            counts.skippedEdges++;
+            return;
         }
         const { where } = this;
         where.line = line;
@@ -1555,19 +1620,7 @@ class TableReader {
         this.checkPadded(targetText, quoted[plan.target], line);
         let edge: number;
         try {
-            const source = this.coerce(sourceText);
-            const target = this.coerce(targetText);
-            const weight = plan.weight >= 0 ? parseWeightText(row[plan.weight], report) : undefined;
-            if (!this.state.headerSet) {
-                this.state.headerSet = true;
-                resolver.setHeader(kind !== "undirected", where);
-            }
-            const sourceNew = sink.indexOf(source) === INVALID_INDEX;
-            const targetNew = source !== target && sink.indexOf(target) === INVALID_INDEX;
-            const before = sink.edgeCount;
-            edge = resolver.addEdge(source, target, kind, weight, where);
-            counts.edges += sink.edgeCount - before;
-            counts.nodes += (sourceNew ? 1 : 0) + (targetNew ? 1 : 0);
+            edge = this.addEdge(sourceText, targetText, kind, plan.weight >= 0 ? row[plan.weight] : null);
         } catch (err) {
             where.element = idText ?? `${sourceText}->${targetText}`;
             report.recordError(err, where);
@@ -1591,6 +1644,80 @@ class TableReader {
             this.writeRole(this.labelHandle, "edge", edge, row[plan.label], plan.names[plan.label], line);
         }
         this.writeAttributes(plan, row, quoted, edge, line);
+    }
+
+    /**
+     * Report a row with the wrong number of cells. The first row too long for an auto table says
+     * what an adjacency list needs, since one reads this way.
+     * @param plan - the edge plan
+     * @param row - the cells
+     * @param line - the row's line
+     */
+    private reportRowWidth(plan: EdgePlan, row: readonly string[], line: number): void {
+        const hint =
+            this.state.csv.table === "auto" && row.length > plan.width && !this.adjacencyHinted
+                ? '; if each line is a node followed by its neighbors, pass table: "adjacency"'
+                : "";
+        this.adjacencyHinted ||= hint !== "";
+        this.state.report.error(
+            "validation-error",
+            FIELD_COUNT_CODE,
+            `${row.length} field${plural(row.length)}, expected ${plan.width}${hint}`,
+            { line },
+        );
+    }
+
+    /**
+     * The direction of an edge row: its Type cell, else the file's or the default direction.
+     * @param plan - the edge plan
+     * @param row - the cells
+     * @param line - the row's line
+     * @returns the kind, or null when the Type cell is not a direction (reported)
+     */
+    private rowKind(plan: EdgePlan, row: readonly string[], line: number): EdgeKind | null {
+        const directed = this.state.commentDirected ?? this.state.common.defaultDirected;
+        const kind: EdgeKind = directed ? "directed" : "undirected";
+        if (plan.type < 0) {
+            return kind;
+        }
+        const parsed = parseKind(row[plan.type]);
+        if (parsed === null) {
+            this.state.report.error(
+                "validation-error",
+                BAD_TYPE_CODE,
+                `Type ${JSON.stringify(row[plan.type])} is not Directed, Undirected or Mutual`,
+                { line },
+            );
+            return null;
+        }
+        return parsed ?? kind;
+    }
+
+    /**
+     * Add an edge row's edge, counting the edge and the nodes it brings in.
+     * @param sourceText - the source cell
+     * @param targetText - the target cell
+     * @param kind - the direction
+     * @param weightText - the weight cell, or null
+     * @returns the edge's index
+     */
+    private addEdge(sourceText: string, targetText: string, kind: EdgeKind, weightText: string | null): number {
+        const { report, sink, resolver } = this.state;
+        const { where } = this;
+        const source = this.coerce(sourceText);
+        const target = this.coerce(targetText);
+        const weight = weightText === null ? undefined : parseWeightText(weightText, report);
+        if (!this.state.headerSet) {
+            this.state.headerSet = true;
+            resolver.setHeader(kind !== "undirected", where);
+        }
+        const sourceNew = sink.indexOf(source) === INVALID_INDEX;
+        const targetNew = source !== target && sink.indexOf(target) === INVALID_INDEX;
+        const before = sink.edgeCount;
+        const edge = resolver.addEdge(source, target, kind, weight, where);
+        report.counts.edges += sink.edgeCount - before;
+        report.counts.nodes += (sourceNew ? 1 : 0) + (targetNew ? 1 : 0);
+        return edge;
     }
 
     /**
@@ -1834,6 +1961,34 @@ const HEAD_BYTES = 4096;
  * array, a DOT graph, a Pajek section, GML's `Creator "..."` or `graph [`. Matched against the
  * start of the input.
  */
+/**
+ * An endpoint column: the one the option names, else (with a header) the first with a known
+ * endpoint name, else (without one) the column at its position in a headerless edge list.
+ * @param names - the column names
+ * @param header - whether the file has a header row
+ * @param option - the sourceColumn / targetColumn option, or null
+ * @param optionName - the option's name, for its error
+ * @param known - the endpoint names to look for
+ * @param position - the column of this endpoint in a headerless edge list
+ * @returns the column index, or -1
+ */
+function endpointColumn(
+    names: readonly string[],
+    header: boolean,
+    option: CsvColumnRef | null,
+    optionName: string,
+    known: readonly string[],
+    position: number,
+): number {
+    if (option !== null) {
+        return resolveColumnRef(names, option, optionName);
+    }
+    if (header) {
+        return findColumn(names, known);
+    }
+    return names.length >= 2 ? position : -1;
+}
+
 const TAG_NAME = String.raw`<[a-z_][\w.-]*(?::[a-z_][\w.-]*)?`;
 const OTHER_FORMATS: readonly RegExp[] = [
     /^\s*<(?:\?xml|!doctype|!--)/i, // an XML declaration, a doctype or a comment

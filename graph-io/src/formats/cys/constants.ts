@@ -80,6 +80,8 @@ export const CYS_ISSUE = Object.freeze({
     ENTRY_SKIPPED: "W_CYS_ENTRY_SKIPPED",
     /** Two entries with one name; the first is read. */
     DUPLICATE_ENTRY: "W_CYS_DUPLICATE_ENTRY",
+    /** A cysession.xml network record without an id, or naming a file an earlier record names. */
+    SESSION_RECORD: "W_CYS_SESSION_RECORD",
     /** The archive inflates beyond maxUncompressedBytes, or an entry beyond the ratio limit. */
     TOO_LARGE: TOO_LARGE_CODE,
     /** The session's styles are not applied (issue #706). */

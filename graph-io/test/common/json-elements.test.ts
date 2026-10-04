@@ -135,12 +135,22 @@ describe("scanAspects", () => {
         expect(events[4]).toMatchObject({ kind: "extraKeys", aspect: "nodes", keys: ["x"] });
     });
 
+    it("reads the array-valued keys of a member whatever their order, and names the others", async () => {
+        for (const text of ['[{"x":1,"nodes":[{"id":1}]}]', '[{"networkAttributes":{"n":"a"},"nodes":[{"id":1}]}]']) {
+            const events = await scan(text);
+            expect(events.map((e) => e.kind)).toEqual(["block", "element", "extraKeys"]);
+            expect(events[0]).toMatchObject({ kind: "block", aspect: "nodes", shared: true });
+            expect(events[1]).toMatchObject({ kind: "element", value: { id: 1 } });
+            expect(events[2]).toMatchObject({ kind: "extraKeys", aspect: "nodes", keys: [text.includes('"x"') ? "x" : "networkAttributes"] });
+        }
+    });
+
     it("parses members that are not blocks whole: scalars, empty objects, several keys", async () => {
-        const events = await scan('[1, {}, {"CXVersion": "2.0", "hasFragments": [true]}, "x", [2]]');
+        const events = await scan('[1, {}, {"CXVersion": "2.0", "hasFragments": true}, "x", [2]]');
         expect(events.map((e) => (e.kind === "member" ? e.value : e.kind))).toEqual([
             1,
             {},
-            { CXVersion: "2.0", hasFragments: [true] },
+            { CXVersion: "2.0", hasFragments: true },
             "x",
             [2],
         ]);
@@ -172,7 +182,8 @@ describe("scanAspects", () => {
             ['[{"nodes" []}]', /expected ":"/, 1],
             ['[{"nodes":[]}]\n]', /after the closing bracket/, 2],
             ['"a" x', /after the document/, 1],
-            ['[{"nodes":[] "x"}]', /expected "\}"/, 1],
+            ['[{"nodes":[] "x"}]', /expected "," or "\}"/, 1],
+            ['[{"x":1 "nodes":[]}]', /expected "," or "\}"/, 1],
             ['[{"metaData":[{"name":"nodes"}}]}]', /expected "," or "\]" in the "metaData" block, found "\}"/, 1],
         ];
         for (const [text, message, line] of cases) {

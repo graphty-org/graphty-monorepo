@@ -189,6 +189,23 @@ describe("cx2 robustness: values", () => {
         expect(opaque.foo).toEqual([{ a: repaired }]);
     });
 
+    it("repairs a lone surrogate in an opaque element's own key, and warns when two keys become one", async () => {
+        const text = cx2([{ foo: [{ KEY: 1 }] }, { nodes: [{ id: 0, v: { ONE: 1, TWO: 2 } }] }]);
+        const kept = await load(text.replace("KEY", "\\ud800k").replace("ONE", "\\ud800").replace("TWO", "\\ud801"));
+        expect(codes(kept.report)).toEqual([CX2_ISSUE.BAD_VALUE, CX2_ISSUE.DUPLICATE_ATTRIBUTE, CX2_ISSUE.UNDECLARED_ATTRIBUTE]);
+        const { opaque } = kept.snapshot.meta.extra.cx2 as { opaque: Record<string, unknown> };
+        expect(opaque.foo).toEqual([{ [`${String.fromCharCode(0xfffd)}k`]: 1 }]);
+        expect(value(kept.snapshot, String.fromCharCode(0xfffd), 0)).toBe(2);
+    });
+
+    it("reads the array-valued keys of a block whatever their order, naming the others", async () => {
+        const { snapshot, report } = await load(
+            `[${JSON.stringify(DESCRIPTOR)},{"networkAttributes":{"name":"a"},"nodes":[{"id":1}]},${JSON.stringify(STATUS)}]`,
+        );
+        expect(codes(report)).toEqual([CX2_ISSUE.MULTI_ASPECT_FRAGMENT, CX2_ISSUE.BAD_ASPECT_BLOCK]);
+        expect(snapshot.ids.toArray()).toEqual([1]);
+    });
+
     it("reports a declaration table CX2 does not define and keeps it, also one named __proto__", async () => {
         const text = cx2([{ attributeDeclarations: [{ nodez: { q: { d: "string" } }, PROTO: { x: 1 } }] }, NODES]).replace(
             '"PROTO"',

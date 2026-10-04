@@ -58,6 +58,7 @@ import {
     OPTION_IGNORED_CODE,
     PRECISION_CODE,
     ROLE_TAKEN_CODE,
+    SINGLE_OBJECT_ASPECT_CODE,
     SINK_OPTION_CODE,
     STATUS_FAILED_CODE,
     STATUS_WARNING_CODE,
@@ -171,7 +172,7 @@ export const CX2_ISSUE = Object.freeze({
     /** A CX1 cartesianLayout aspect next to node coordinates; kept, not applied. */
     LEGACY_LAYOUT: "W_CX2_LEGACY_LAYOUT",
     /** An aspect CX2 defines as an array of elements written as one object; read as one element. */
-    SINGLE_OBJECT_ASPECT: "W_CX2_SINGLE_OBJECT_ASPECT",
+    SINGLE_OBJECT_ASPECT: SINGLE_OBJECT_ASPECT_CODE,
     /** A member holding several aspects; each array-valued key is read as its own block. */
     MULTI_ASPECT_FRAGMENT: MULTI_ASPECT_FRAGMENT_CODE,
     /** The bare tokens NaN / Infinity / -Infinity (Python's json writes them), read as numbers. */

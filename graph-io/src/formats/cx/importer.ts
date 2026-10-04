@@ -63,6 +63,7 @@ import {
     PARENT_CYCLE_CODE,
     PRECISION_CODE,
     ROLE_TAKEN_CODE,
+    SINGLE_OBJECT_ASPECT_CODE,
     SINK_OPTION_CODE,
     STATUS_FAILED_CODE,
     STATUS_WARNING_CODE,
@@ -200,6 +201,8 @@ export const CX_ISSUE = Object.freeze({
     UNKNOWN_ELEMENT: UNKNOWN_ELEMENT_CODE,
     /** A member holding several aspects; each array-valued key is read as its own fragment. */
     MULTI_ASPECT_FRAGMENT: MULTI_ASPECT_FRAGMENT_CODE,
+    /** An aspect written as one object, not an array of elements; read as one element. */
+    SINGLE_OBJECT_ASPECT: SINGLE_OBJECT_ASPECT_CODE,
     /** The bare tokens NaN / Infinity / -Infinity (Python's json writes them), read as numbers. */
     JSON_NONSTANDARD_NUMBER: JSON_NONSTANDARD_NUMBER_CODE,
     /** An edge endpoint naming no node of the graph (addMissingNodes false, the default). */
@@ -921,6 +924,14 @@ async function readDocument(
                     if (isRecord(value) && keys.length === 1 && isRecord(value[keys[0]])) {
                         countMember(event.block, keys[0]);
                         const name = canonical(keys[0], event.line);
+                        if (isCxAspect(name)) {
+                            report.warning(
+                                "validation-error",
+                                CX_ISSUE.SINGLE_OBJECT_ASPECT,
+                                `the "${keys[0]}" aspect is one object, not an array of elements; read as one element`,
+                                { line: event.line, element: keys[0] },
+                            );
+                        }
                         structure.block(name, event.line);
                         collect(name, value[keys[0]], event.text, event.line, event.exact, 2);
                         break;

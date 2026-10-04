@@ -289,11 +289,12 @@ const MAYBE_SURROGATE = /\\u[dD][89a-fA-F]|[\ud800-\udfff]/;
 /**
  * Replace every lone surrogate of a parsed value's strings and keys with U+FFFD, in place.
  * @param value - the parsed value
- * @param fixed - counts the strings repaired
+ * @param fixed - counts the strings repaired and names the keys two repaired keys collapse into
  * @param fixed.count - the count
- * @returns the value (a string is returned repaired)
+ * @param fixed.collisions - a key one object holds twice once repaired (the later value is kept)
+ * @returns the value (a string, or an object with a repaired key, is returned as a new value)
  */
-function repairSurrogates(value: unknown, fixed: { count: number }): unknown {
+function repairSurrogates(value: unknown, fixed: { count: number; collisions: string[] }): unknown {
     if (typeof value === "string") {
         const repaired = value.replace(LONE_SURROGATE, "\ufffd");
         if (repaired !== value) {
@@ -315,6 +316,9 @@ function repairSurrogates(value: unknown, fixed: { count: number }): unknown {
         keys.forEach((key, i) => {
             if (repairedKeys[i] !== key) {
                 fixed.count++;
+            }
+            if (renamed && Object.prototype.hasOwnProperty.call(out, repairedKeys[i])) {
+                fixed.collisions.push(repairedKeys[i]);
             }
             setOwn(out, repairedKeys[i], repairSurrogates(value[key], fixed));
         });
@@ -361,7 +365,7 @@ function duplicateKey(text: string): string | null {
                 }
             }
             const keys = stack.length > 0 ? stack[stack.length - 1] : null;
-            if (keys !== null && /^\s*:/.test(text.slice(i + 1, i + 64))) {
+            if (keys !== null && text[skipSpace(text, i + 1)] === ":") {
                 const key = JSON.parse(text.slice(start, i + 1)) as string;
                 if (keys.has(key)) {
                     return key;
@@ -373,22 +377,47 @@ function duplicateKey(text: string): string | null {
     return null;
 }
 
+/**
+ * The index of the first character at or after `from` that is not JSON whitespace.
+ * @param text - the text
+ * @param from - the first index
+ * @returns the index (text.length at the end)
+ */
+function skipSpace(text: string, from: number): number {
+    let i = from;
+    while (i < text.length && isSpace(text.charCodeAt(i))) {
+        i++;
+    }
+    return i;
+}
+
 /** A key followed by its colon, for the cheap duplicate-key check. */
 const KEY_COLON = /"\s*:/g;
 
 /**
  * The checks of a parsed element that JSON.parse cannot make, recorded in the report: lone
  * surrogates (replaced with U+FFFD, E_BAD_VALUE) and a key held twice by one object
- * (W_DUPLICATE_ATTRIBUTE; the later value is the one read).
+ * (W_DUPLICATE_ATTRIBUTE; the later value is the one read, also for two keys that a repair makes one).
  * @param text - the element text
- * @param value - the parsed element
+ * @param parsed - the parsed element
  * @param line - its line
  * @param report - the report
+ * @returns the value, repaired
  */
-function checkParsed(text: string, value: unknown, line: number, report: ImportReportBuilder): void {
+function checkParsed(text: string, parsed: unknown, line: number, report: ImportReportBuilder): unknown {
+    let value = parsed;
     if (MAYBE_SURROGATE.test(text)) {
-        const fixed = { count: 0 };
-        repairSurrogates(value, fixed);
+        const fixed = { count: 0, collisions: [] as string[] };
+        value = repairSurrogates(value, fixed);
+        for (const key of fixed.collisions) {
+            report.warnOnce(
+                "validation-error",
+                DUPLICATE_ATTRIBUTE_CODE,
+                `an object holds two keys that are the same key ${JSON.stringify(key)} once their lone surrogates are replaced with U+FFFD; the later value is read`,
+                { line, element: key },
+                `${DUPLICATE_ATTRIBUTE_CODE}:json:${key}`,
+            );
+        }
         if (fixed.count > 0) {
             report.error(
                 "validation-error",
@@ -410,6 +439,7 @@ function checkParsed(text: string, value: unknown, line: number, report: ImportR
             );
         }
     }
+    return value;
 }
 
 // ============================================================ the streaming aspect scanner
@@ -470,7 +500,7 @@ export type AspectEvent =
           readonly line: number;
       }
     | {
-          /** Keys after the first one of a block member whose value is not an array (`{"nodes": [...], "x": 1}`); skipped. */
+          /** The keys of a block member whose values are not arrays (`{"nodes": [...], "x": 1}`, in any order); skipped. */
           readonly kind: "extraKeys";
           readonly aspect: string;
           readonly block: number;
@@ -798,7 +828,7 @@ function parseAt(
         parsed = recovered;
     }
     if (report !== null) {
-        checkParsed(text, parsed.value, line, report);
+        parsed = { ...parsed, value: checkParsed(text, parsed.value, line, report) };
     }
     return parsed;
 }
@@ -943,74 +973,71 @@ async function* member(
         yield { kind: "member", block, value: parsed.value, exact: parsed.exact, text, line };
         return;
     }
-    // the outer capture keeps the member's text in case it is not a block; readString nests its own
+    // every array-valued key is a block whose elements stream, whatever the key order; any other
+    // value is kept as text, so a member without an array is parsed whole (a CX2 descriptor, a
+    // one-object aspect) and one with an array names its other keys (extraKeys), skipped
     const outer = cur.endCapture();
-    const keyLine = cur.line();
-    const aspect = await cur.readString();
-    if ((await cur.peek()) !== ":") {
-        throw new JsonScanError(`expected ":" after the key "${aspect}"`, cur.line());
-    }
-    cur.pos++;
-    const v = await cur.peek();
-    if (v !== "[") {
-        // not a block: read the rest of the object and parse the member whole
-        cur.beginCapture();
-        await cur.skipValue(1);
-        if (cur.deepest > MAX_ELEMENT_DEPTH) {
-            cur.dropCapture();
-            yield { kind: "deep", aspect, block, depth: cur.deepest, line };
-            return;
-        }
-        const rest = cur.endCapture();
-        const text = `${outer}${JSON.stringify(aspect)}:${rest}`;
-        const parsed = parseAt(text, keyLine, report);
-        yield { kind: "member", block, value: parsed.value, exact: parsed.exact, text, line };
-        return;
-    }
-    cur.pos++;
-    yield { kind: "block", aspect, block, shared: false, line };
-    yield* blockElements(cur, aspect, block, report);
-    // more keys: a block per array-valued key; any other value is skipped and named
-    const keys: string[] = [];
-    const extraLine = cur.line();
-    while ((await cur.peek()) === ",") {
-        cur.pos++;
+    const firstLine = cur.line();
+    const others: { key: string; text: string | null; line: number }[] = [];
+    let firstBlock: string | null = null;
+    let deep = 0;
+    for (let index = 0; ; index++) {
         if ((await cur.peek()) !== '"') {
             throw new JsonScanError("expected a key", cur.line());
         }
-        const nextLine = cur.line();
+        const keyLine = cur.line();
         const key = await cur.readString();
         if ((await cur.peek()) !== ":") {
-            throw new JsonScanError('expected ":"', cur.line());
+            throw new JsonScanError(`expected ":" after the key "${key}"`, cur.line());
         }
         cur.pos++;
         if ((await cur.peek()) === "[") {
             cur.pos++;
-            yield { kind: "block", aspect: key, block, shared: true, line: nextLine };
+            yield { kind: "block", aspect: key, block, shared: index > 0, line: keyLine };
+            firstBlock ??= key;
             yield* blockElements(cur, key, block, report);
+        } else {
+            cur.beginCapture();
+            await cur.skipValue();
+            // the member's own brace is one level more
+            if (cur.deepest + 1 > MAX_ELEMENT_DEPTH) {
+                // never parse (recursively) what no one reads
+                cur.dropCapture();
+                deep = Math.max(deep, cur.deepest + 1);
+                others.push({ key, text: null, line: keyLine });
+            } else {
+                others.push({ key, text: cur.endCapture(), line: keyLine });
+            }
+        }
+        const next = await cur.peek();
+        if (next === ",") {
+            cur.pos++;
             continue;
         }
-        keys.push(key);
-        cur.beginCapture();
-        await cur.skipValue();
-        if (cur.deepest > MAX_ELEMENT_DEPTH) {
-            // skipped either way: never parse (recursively) what no one reads
-            cur.dropCapture();
-        } else {
-            parseAt(cur.endCapture(), cur.line(), null);
+        if (next === "}") {
+            cur.pos++;
+            break;
         }
+        throw new JsonScanError(next === "" ? "the document ends inside a member" : `expected "," or "}" after the key "${key}"`, cur.line());
     }
-    const end = await cur.peek();
-    if (end === "") {
-        throw new JsonScanError("the document ends inside a member", cur.line());
+    if (firstBlock !== null) {
+        for (const other of others) {
+            if (other.text !== null) {
+                parseAt(other.text, other.line, null);
+            }
+        }
+        if (others.length > 0) {
+            yield { kind: "extraKeys", aspect: firstBlock, block, keys: others.map((o) => o.key), line: others[0].line };
+        }
+        return;
     }
-    if (end !== "}") {
-        throw new JsonScanError(keys.length > 0 ? 'expected "}"' : `expected "}" after the "${aspect}" block`, cur.line());
+    if (deep > 0) {
+        yield { kind: "deep", aspect: others[0].key, block, depth: deep, line };
+        return;
     }
-    cur.pos++;
-    if (keys.length > 0) {
-        yield { kind: "extraKeys", aspect, block, keys, line: extraLine };
-    }
+    const text = `${outer}${others.map((o) => `${JSON.stringify(o.key)}:${o.text ?? ""}`).join(",")}}`;
+    const parsed = parseAt(text, firstLine, report);
+    yield { kind: "member", block, value: parsed.value, exact: parsed.exact, text, line };
 }
 
 /**
@@ -1177,6 +1204,9 @@ function invalidCxId(raw: unknown, reason: string): GraphFormatError {
     });
 }
 
+/** A number literal at lastIndex (sticky). */
+const NUMBER_LITERAL = /-?[0-9][0-9.eE+-]*/y;
+
 /**
  * Whether the element text writes a top-level key's number as a non-integer literal (`"id": 5.0`,
  * `"@id": 1e3`). A lexical check, so the parsed value (5) cannot tell. Only a key of the element
@@ -1204,9 +1234,11 @@ export function inexactLiteral(text: string, key: string, keyDepth = 1): boolean
                 }
             }
             // the key itself (a string at depth 1 followed by a colon), not a value spelled like it
-            if (depth === keyDepth && text.startsWith(quoted, start) && /^\s*:/.test(text.slice(i + 1, i + 16))) {
-                const match = /^\s*:\s*(-?[0-9][0-9.eE+-]*)/.exec(text.slice(i + 1, i + 64));
-                return match !== null && /[.eE]/.test(match[1]);
+            const colon = skipSpace(text, i + 1);
+            if (depth === keyDepth && text.startsWith(quoted, start) && text[colon] === ":") {
+                NUMBER_LITERAL.lastIndex = skipSpace(text, colon + 1);
+                const match = NUMBER_LITERAL.exec(text);
+                return match !== null && /[.eE]/.test(match[0]);
             }
         }
     }

@@ -221,6 +221,25 @@ describe("cx robustness: encodings", () => {
         expect(value(snapshot, "NODE_LABEL", 1)).toBe(repaired);
     });
 
+    it("repairs a lone surrogate in an element's own key, in what is kept and in what is reported", async () => {
+        const kept = await load(cx([TWO_NODES, { myAspect: [{ LONE: 1 }] }]).replace("LONE", "\\ud800k"));
+        expect(codes(kept.report)).toEqual([CX_ISSUE.BAD_VALUE]);
+        expect((kept.snapshot.meta.extra.cx as Record<string, unknown>).myAspect).toEqual([{ [`${String.fromCharCode(0xfffd)}k`]: 1 }]);
+        const node = await load('[{"nodes":[{"@id":1,"\\udc00":1}]}]');
+        expect(codes(node.report)).toEqual([CX_ISSUE.BAD_VALUE, CX_ISSUE.UNKNOWN_ELEMENT]);
+        const unknown = issuesOf(node.report, CX_ISSUE.UNKNOWN_ELEMENT)[0];
+        expect(unknown.message).not.toMatch(/[\ud800-\udfff]/);
+        expect(unknown.message).toContain(String.fromCharCode(0xfffd));
+    });
+
+    it("warns W_DUPLICATE_ATTRIBUTE when two keys become one once their lone surrogates are repaired", async () => {
+        const text = cx([TWO_NODES, { myAspect: [{ a: { ONE: 1, TWO: 2 } }] }]);
+        const { snapshot, report } = await load(text.replace("ONE", "\\ud800").replace("TWO", "\\ud801"));
+        expect(codes(report)).toEqual([CX_ISSUE.DUPLICATE_ATTRIBUTE, CX_ISSUE.BAD_VALUE]);
+        expect(issuesOf(report, CX_ISSUE.BAD_VALUE)[0].message).toMatch(/^2 string/);
+        expect((snapshot.meta.extra.cx as Record<string, unknown>).myAspect).toEqual([{ a: { [String.fromCharCode(0xfffd)]: 2 } }]);
+    });
+
     it("fails a file cut inside a UTF-8 character with E_INVALID_UTF8, without a windows-1252 fallback", async () => {
         const error = await failure(bytes('[{"nodes":[{"@id":1,"n":"', [0xe2, 0x82]));
         expect(codes(error.report)).toEqual([CX_ISSUE.INVALID_UTF8]);
@@ -299,6 +318,20 @@ describe("cx robustness: malformed syntax and truncation", () => {
         const twice = await load('[{"nodes":[{"@id":1}],"nodes":[{"@id":2}]}]');
         expect(codes(twice.report)).toEqual([CX_ISSUE.MULTI_ASPECT_FRAGMENT]);
         expect(twice.snapshot.ids.toArray()).toEqual([1, 2]);
+    });
+
+    it("reads the array-valued keys of a fragment whatever their order, naming the others", async () => {
+        for (const first of ['"x":1', '"networkAttributes":{"n":"name","v":"a"}']) {
+            const { snapshot, report } = await load(`[{${first},"nodes":[{"@id":1}]}]`);
+            expect(codes(report)).toEqual([CX_ISSUE.MULTI_ASPECT_FRAGMENT, CX_ISSUE.BAD_ASPECT_BLOCK]);
+            expect(snapshot.ids.toArray()).toEqual([1]);
+        }
+    });
+
+    it("reports a CX aspect written as one object with W_SINGLE_OBJECT_ASPECT and reads it", async () => {
+        const { snapshot, report } = await load('[{"nodes":{"@id":1}}]');
+        expect(codes(report)).toEqual([CX_ISSUE.SINGLE_OBJECT_ASPECT]);
+        expect(snapshot.ids.toArray()).toEqual([1]);
     });
 
     it("reads a stream split inside an escaped aspect key, after a backslash and inside a big id the same way", async () => {
@@ -400,6 +433,16 @@ describe("cx robustness: values", () => {
         expect(snapshot.ids.toArray()).toEqual([2]);
     });
 
+    it("finds a repeated key and a non-integer id literal however much whitespace precedes the colon", async () => {
+        const pad = " ".repeat(80);
+        const dup = await load(`[{"nodes":[{"@id":1,"n":"a","n"${pad}:"b"}]}]`);
+        expect(codes(dup.report)).toEqual([CX_ISSUE.DUPLICATE_ATTRIBUTE]);
+        expect(value(dup.snapshot, "name", 1)).toBe("b");
+        const inexact = await load(`[{"nodes":[{"@id"${pad}:${pad}1.${"0".repeat(80)}}]}]`);
+        expect(codes(inexact.report)).toEqual([CX_ISSUE.ID_TEXT_TYPE]);
+        expect(inexact.snapshot.ids.toArray()).toEqual([1]);
+    });
+
     it("stores a double beyond its range as Infinity with W_PRECISION; reads integer 007 as 7 silently", async () => {
         const { snapshot, report } = await load(
             cx([
@@ -478,10 +521,10 @@ describe("cx robustness: values", () => {
 
     it("warns W_ID_TEXT_TYPE for a non-integer id literal in a single-object aspect", async () => {
         const node = await load('[{"nodes":{"@id":1.0}}]');
-        expect(codes(node.report)).toEqual([CX_ISSUE.ID_TEXT_TYPE]);
+        expect(codes(node.report)).toEqual([CX_ISSUE.SINGLE_OBJECT_ASPECT, CX_ISSUE.ID_TEXT_TYPE]);
         expect(node.snapshot.ids.toArray()).toEqual([1]);
         const edge = await load('[{"nodes":[{"@id":1},{"@id":2}]},{"edges":{"@id":3,"s":1e0,"t":2}}]');
-        expect(codes(edge.report)).toEqual([CX_ISSUE.ID_TEXT_TYPE]);
+        expect(codes(edge.report)).toEqual([CX_ISSUE.SINGLE_OBJECT_ASPECT, CX_ISSUE.ID_TEXT_TYPE]);
         expect(edge.snapshot.edgeCount).toBe(1);
     });
 

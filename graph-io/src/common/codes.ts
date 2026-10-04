@@ -145,6 +145,9 @@ export const BAD_ASPECT_BLOCK_CODE = "E_BAD_ASPECT_BLOCK";
 /** A CX array member holding several aspects (`{"nodes": [...], "edges": [...]}`); each array-valued key is read as its own fragment. */
 export const MULTI_ASPECT_FRAGMENT_CODE = "W_MULTI_ASPECT_FRAGMENT";
 
+/** A CX aspect, an array of elements, written as one object (`{"nodes": {"@id": 1}}`); read as one element. */
+export const SINGLE_OBJECT_ASPECT_CODE = "W_SINGLE_OBJECT_ASPECT";
+
 /**
  * The document uses the bare tokens NaN, Infinity or -Infinity (Python's json writes them), which
  * strict JSON does not allow; read as the numbers.

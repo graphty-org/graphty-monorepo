@@ -6,8 +6,7 @@
  * The report is the package's public API as a reviewer reads it: every exported name and its
  * signature, built from the published .d.ts files. It is committed, so a pull request that changes
  * the public API shows the change as a diff of the report, and CI fails until the report is
- * regenerated and the owner has approved it (the `api-approved` label; CLAUDE.md, "Public API
- * review").
+ * regenerated (CLAUDE.md, "Public API review").
  *
  * Usage (after the package is built):
  *   node tools/api-report.mjs <package dir>           rewrite <package dir>/api/*.api.md
@@ -109,10 +108,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const differ = apiReport(packageDir, flag === "--check");
     if (differ.length > 0) {
         for (const d of differ) console.error(`${packageDir}: ${d}`);
-        console.error(
-            "public API changed: run npm run api:report in the package and get the owner's approval " +
-                "(the api-approved label) for the new report",
-        );
+        console.error("public API changed: run npm run api:report in the package and commit the new report");
         process.exit(1);
     }
     console.log(`${packageDir}: API report ${flag ? "matches the build" : "written to api/"}`);

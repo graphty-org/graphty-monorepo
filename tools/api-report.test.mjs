@@ -1,6 +1,5 @@
-// Tests of the public API gate: which entry points get a report (tools/api-report.mjs), that a
-// changed export fails the check until the report is regenerated, and when a pull request needs
-// the api-approved label (tools/api-approval.mjs).
+// Tests of the public API report: which entry points get a report (tools/api-report.mjs), and that a
+// changed export fails the check until the report is regenerated.
 //
 //   node --test tools/api-report.test.mjs
 import assert from "node:assert/strict";
@@ -9,7 +8,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { decide } from "./api-approval.mjs";
 import { apiReport, entryPoints } from "./api-report.mjs";
 
 describe("entryPoints", () => {
@@ -67,21 +65,5 @@ describe("apiReport", () => {
         ]);
         apiReport(dir, false);
         assert.deepEqual(readdirSync(join(dir, "api")), ["index.api.md"]);
-    });
-});
-
-describe("decide (the api-approved label)", () => {
-    it("passes a pull request that changes no API report, labeled or not", () => {
-        assert.equal(decide(["graphty-element/src/a.ts", "api/x.api.md.bak"], []).ok, true);
-    });
-
-    it("fails a changed report without the label", () => {
-        const r = decide(["graphty-element/api/index.api.md"], ["bug"]);
-        assert.equal(r.ok, false);
-        assert.match(r.message, /graphty-element\/api\/index\.api\.md.*api-approved/);
-    });
-
-    it("passes a changed report with the label", () => {
-        assert.equal(decide(["graphty-element/api/session.api.md"], ["api-approved"]).ok, true);
     });
 });

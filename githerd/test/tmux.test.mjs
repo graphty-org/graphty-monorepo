@@ -88,9 +88,12 @@ describe("ring", () => {
     it("types the doorbell into the empty box, checks it landed, and submits it", async () => {
         const { window } = await fw.start("issue-2", { screen: "idle" });
         expect(await ring(window, { nonce: "n0nce", job: "issue-2", sleep })).toEqual({ rung: true });
-        const keys = fw.keys("issue-2");
-        expect(typed(keys)).toBe(doorbellText("n0nce", "issue-2"));
-        expect(keys.at(-1)).toEqual({ submit: "[githerd n0nce] job issue-2 has news. Call githerd_next." });
+        // tmux has delivered Enter when ring returns, but the fake logs the submit only once it has
+        // read it from its terminal, which can come later on a busy machine.
+        await expect
+            .poll(() => fw.keys("issue-2").at(-1))
+            .toEqual({ submit: "[githerd n0nce] job issue-2 has news. Call githerd_next." });
+        expect(typed(fw.keys("issue-2"))).toBe(doorbellText("n0nce", "issue-2"));
     });
 
     it.each([

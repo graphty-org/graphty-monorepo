@@ -132,7 +132,15 @@ export function communityFields(value: {
 }): readonly FieldDescriptor[] {
     const { plainName } = value;
     const fields = [
-        metricField({ name: "group", plainName, technicalName: value.technicalName, kind: "node", type: "integer" }),
+        metricField({
+            name: "group",
+            plainName,
+            technicalName: value.technicalName,
+            kind: "node",
+            type: "integer",
+            // Group ids are names, not amounts: group 3 is not more than group 1.
+            measurement: "categorical",
+        }),
         metricField({
             name: "groupSize",
             plainName: `${plainName} size`,

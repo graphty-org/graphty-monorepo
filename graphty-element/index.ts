@@ -46,6 +46,7 @@ import "./src/graphty-element";
 // =============================================================================
 export { Edge } from "./src/Edge";
 export { Graph } from "./src/Graph";
+export type { GraphtyElementEventMap } from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
 export type { NodeIdType } from "./src/Node";
 export { Node } from "./src/Node";
@@ -110,6 +111,28 @@ export {
 // `StyleSuggestion`s, and `session.styles.encode()` / `highlight()` apply them.
 export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./src/session/styles";
 
+// The shapes every session verb names things with: a data column, a run's result column, a coded
+// fact (graphty-element reports facts, never sentences) and a progress report
+export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
+
+// What a find box lists without selecting: `element.session.find(text)`
+export type {
+    FindEnd,
+    FindHit,
+    FindHitBase,
+    FindKind,
+    FindOptions,
+    FindResult,
+    FindValueRow,
+} from "./src/session/types";
+// `session.data.neighbors(id)`: a node's neighbors, one row each, with their combined weight
+export type { WeightMeaning } from "./src/session/runs";
+export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./src/session/types";
+// The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
+export type { NodeId } from "./src/catalog/types";
+// What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
+export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
+
 // Notes: text people write about the graph, as `element.session.notes`
 export type {
     Note,
@@ -130,6 +153,19 @@ export type {
     NoteTargetStatus,
     Problem,
 } from "./src/session/notes/types";
+
+// The project file: the whole session as one graphty document, as `element.session.project`
+export type {
+    ProjectApi,
+    ProjectOpenOptions,
+    ProjectOpenReport,
+    ProjectProblem,
+    ProjectSaveOptions,
+    ProjectSaveReport,
+    ProjectSource,
+    ProjectStatus,
+    SavedProject,
+} from "./src/session/projectFile";
 
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";

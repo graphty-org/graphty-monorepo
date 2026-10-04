@@ -396,6 +396,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     // Its coordinate and pin columns are copies, so a write there moves nothing.
     snapshot: READ,
     fingerprint: READ,
+    // What a find box lists; selects nothing.
+    find: READ,
     run: calls([{ op: "algo.run", algorithm: "degree" }], [RUN_DEGREE]),
     execute: EXECUTE,
     undo: HISTORY,
@@ -403,6 +405,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     canUndo: READ,
     canRedo: READ,
     history: READ,
+    project: READ,
     transaction: HISTORY,
     estimate: READ,
     plan: READ,
@@ -503,6 +506,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
     legend: READ,
+    proposeEncoding: READ,
     settled: READ,
     explain: READ,
     resolveToStatic: calls(
@@ -639,6 +643,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getCameraPresets: READ,
             exportCameraPresets: READ,
             exportGraph: READ,
+            downloadProject: exempt(
+                "Hands the saved project to the reader as a file; it changes nothing a project saves.",
+            ),
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -1359,9 +1366,31 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
+            neighbors: READ,
             lastImport: READ,
             source: READ,
             attributes: READ,
+            declare: {
+                kind: "dispatches",
+                op: "data.declare",
+                call: {
+                    kind: "call",
+                    args: [{ kind: "node", name: "doorLevel" }, { measurement: "categorical" }],
+                    // A measurement is declared on a column some record carries.
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-level", doorLevel: 1 }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "data.declare",
+                        column: { kind: "node", name: "doorLevel" },
+                        declaration: { measurement: "categorical" },
+                    },
+                ],
+            },
             statistics: READ,
             fingerprint: READ,
             addNodes: calls([[{ id: "door-a" }]], [addNodes({ id: "door-a" })]),
@@ -1391,6 +1420,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
             bindings: READ,
+            painting: READ,
             queue: READ,
         },
     },
@@ -1550,6 +1580,26 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        name: "ProjectApi",
+        file: "src/session/projectFile.ts",
+        half: "session",
+        doors: {
+            name: READ,
+            dirty: READ,
+            rename: {
+                kind: "dispatches",
+                op: "config.set",
+                call: { kind: "call", args: ["Fixture project"] },
+                expect: [{ op: "config.set", values: { name: "Fixture project" } }],
+            },
+            save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
+            open: exempt(
+                "Opens a file as one transaction: every write goes through the session's own doors, " +
+                    "which have rows of their own.",
+            ),
+        },
+    },
+    {
         name: "NotesApi",
         file: "src/session/notes/types.ts",
         half: "session",
@@ -1648,6 +1698,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             selectionStyle: READ,
             layoutBehavior: READ,
             author: READ,
+            name: READ,
             acceleration: READ,
             set: calls([{ runAlgorithmsOnLoad: true }], [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
         },

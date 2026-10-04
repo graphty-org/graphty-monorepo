@@ -1,9 +1,9 @@
-import { Group, Stack } from "@mantine/core";
+import { ActionIcon, Group, Menu, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, fn, userEvent, within } from "@storybook/test";
-import { useState } from "react";
+import React, { useState } from "react";
 
-import { PageList, PageRow } from "../../../src";
+import { PageList, PageRow, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { Panel } from "./fixtures";
@@ -46,6 +46,24 @@ const PAGES = [
  * />
  * ```
  *
+ * ## A second line, a value and a row menu
+ *
+ * An item can carry a `value` at the end of its name's line (a size, a count), a `description`
+ * on a second line (a time, a hint, or with `descriptionTone="danger"` an error), and a `menu`:
+ * the row's own control, drawn in a cell after the row so a click on it never switches. The
+ * row is named by its visible text; name the menu button after the row.
+ *
+ * ```tsx
+ * {
+ *     id: "les",
+ *     name: "Les Miserables",
+ *     value: "77 nodes",
+ *     description: "This file can no longer be read",
+ *     descriptionTone: "danger",
+ *     menu: <RecentMenu file={file} />,
+ * }
+ * ```
+ *
  * ## Keyboard and accessibility
  *
  * - A one-column `grid` with one Tab stop, named by `label` (default "Pages").
@@ -54,6 +72,7 @@ const PAGES = [
  *   group look the selected group carries `aria-selected`.
  * - F2 or a double-click renames while `onRename` is given (field named by `renameLabel`,
  *   default "Page name"). Enter commits, Escape cancels.
+ * - ArrowRight moves into a row's `menu`, ArrowLeft back to the row.
  *
  * ## Measurements
  *
@@ -177,4 +196,50 @@ export const CollectionGroups: Story = {
             />
         </Panel>
     ),
+};
+
+/**
+ * A recent-files list: each row has a size, a second line (one an error, in the danger ink) and
+ * a "More" menu of its own.
+ */
+export const SecondLineValueAndMenu: Story = {
+    render: () => {
+        const more = (name: string): React.JSX.Element => (
+            <Menu position="bottom-end">
+                <Menu.Target>
+                    <ActionIcon variant="subtle" aria-label={`More for ${name}`}>
+                        <UiGlyph name="more" />
+                    </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                    <Menu.Item>Locate...</Menu.Item>
+                    <Menu.Item>Remove from list</Menu.Item>
+                </Menu.Dropdown>
+            </Menu>
+        );
+        return (
+            <Panel>
+                <PageList
+                    label="Recent projects"
+                    items={[
+                        {
+                            id: "les",
+                            name: "Les Miserables",
+                            value: "77 nodes",
+                            description: "Saved 2 minutes ago",
+                            menu: more("Les Miserables"),
+                        },
+                        {
+                            id: "karate",
+                            name: "Karate club",
+                            value: "34 nodes",
+                            description: "This file can no longer be read",
+                            descriptionTone: "danger",
+                            menu: more("Karate club"),
+                        },
+                    ]}
+                />
+            </Panel>
+        );
+    },
 };

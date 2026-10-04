@@ -196,6 +196,10 @@ jobs:
                   }
             - if: steps.pw.outputs.cache-hit != 'true'
               run: pnpm exec playwright install chromium --with-deps # a fresh VM each job
+            # The cache holds the browser, not its system libraries, and the container starts bare every job: on a
+            # hit the step above is skipped and chrome-headless-shell cannot load libglib-2.0.so.0 (run 37211866080).
+            - if: steps.pw.outputs.cache-hit == 'true'
+              run: pnpm exec playwright install-deps chromium
             - name: Browser smoke on NVIDIA
               run: node scripts/run-browser-project.js # G0 decides whether this needs `xvfb-run -a` on the T4 image (design 12.2)
             - name: graphty-element's accelerated layout on NVIDIA (the element is the only consumer that drives the layout kernels end to end)

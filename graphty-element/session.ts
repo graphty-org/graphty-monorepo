@@ -419,6 +419,7 @@ export type {
     LayerPosition,
     LayerProblem,
     LegendBlock,
+    LegendReading,
     LegendSwatch,
     RepaintReason,
     RepaintReport,

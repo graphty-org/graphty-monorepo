@@ -1405,7 +1405,7 @@ describe("unreadable state", () => {
         ]);
     });
 
-    it("rebuilds from the ledger's record lines when both files are lost, and escalates", async () => {
+    it("rebuilds from the ledger's record lines when both files are lost, and workers go on", async () => {
         const stateDir = join(dir, ".githerd");
         const first = await start();
         const beat = { method: "POST", body: JSON.stringify({ session: "wt-2", cwd: "/x", branch: "feat/y" }) };
@@ -1418,11 +1418,12 @@ describe("unreadable state", () => {
         const daemon = await start();
         expect(daemon.state.sessions["wt-2"]).toMatchObject({ cwd: "/x", branch: "feat/y" });
         expect(daemon.state.recovery).toMatchObject({ emptyStart: true, at: clock.toISOString() });
-        expect(daemon.state.escalations["state-from-ledger"]).toMatchObject({ kind: "blocked", resolvedAt: null });
+        expect(daemon.state.escalations["state-from-ledger"]).toMatchObject({ kind: "other", resolvedAt: null });
+        // A recovery, not a stop: workers go on with the rebuilt state (design 9.1).
+        expect(Object.values(daemon.state.ownerItems).map((i) => i.blocks)).toEqual([null]);
         await poll(daemon);
-        expect(pages().filter((p) => p.message.includes("rebuilt"))).toEqual([
-            { status: "waiting", message: expect.stringContaining("from the ledger") },
-        ]);
+        // Nothing waits on him, so nothing pages at once: the item reaches him as any other does.
+        expect(pages().filter((p) => p.message.includes("rebuilt"))).toEqual([]);
     });
 
     it("escalates without paging when it starts from the backup", async () => {

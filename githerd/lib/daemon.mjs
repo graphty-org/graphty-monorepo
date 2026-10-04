@@ -2576,16 +2576,14 @@ export async function startDaemon({
     say("info", `githerd ${version} listening on 127.0.0.1:${boundPort} for ${root} (${mode()})`);
 
     /**
-     * The owner item for state githerd could not read: what it knew about incidents, proposals
-     * and runs is gone, and runs wait. It blocks every worker start, so it pages while he is away.
+     * The owner item for state githerd could not read whole. An empty start blocks every worker
+     * start, since what was in flight is unknown, so it pages while he is away; state rebuilt from
+     * the ledger is a recovery (design 9.1), and workers go on with it.
      * @param {string} summary what happened
+     * @param {"workers" | null} blocks what it stops
      */
-    function stateItem(summary) {
-        raiseItem(
-            state,
-            { id: `state-reset:${startedAt}`, kind: "state-reset", question: summary, blocks: "workers" },
-            now(),
-        );
+    function stateItem(summary, blocks) {
+        raiseItem(state, { id: `state-reset:${startedAt}`, kind: "state-reset", question: summary, blocks }, now());
     }
 
     /**
@@ -2604,11 +2602,11 @@ export async function startDaemon({
         if (loaded.source === "empty") {
             const summary = `state.json unreadable; githerd started empty (files kept as ${kept})`;
             raise({ key: "state-reset", kind: "blocked", summary, detail });
-            stateItem(summary);
+            stateItem(summary, "workers");
         } else if (loaded.source === "ledger") {
             const summary = `state.json and its backup unreadable; githerd rebuilt jobs, claims and sessions from the ledger (files kept as ${kept})`;
-            raise({ key: "state-from-ledger", kind: "blocked", summary, detail });
-            stateItem(summary);
+            raise({ key: "state-from-ledger", kind: "other", summary, detail });
+            stateItem(summary, null);
         } else if (loaded.source === "bak") {
             const summary = `state.json unreadable; githerd started from state.json.bak (file kept as ${kept})`;
             raise({ key: "state-from-backup", kind: "other", summary, detail });

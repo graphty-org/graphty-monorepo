@@ -40,6 +40,12 @@ export interface ReadOptions {
      * windows-1252 (ASCII-compatible), the encoding label it declares, or null.
      */
     readonly declaredEncoding?: ((head: string) => string | null) | undefined;
+    /**
+     * Whether a NUL byte in undeclared input fails the import as binary data (or BOM-less UTF-16)
+     * even where the bytes are valid UTF-8: for formats whose grammar never reports a NUL itself
+     * (CSV). False by default, so a format's own syntax error names it.
+     */
+    readonly nulIsBinary?: boolean | undefined;
 }
 
 /** How many leading bytes the declaration check sees (an XML prolog, a DOT `charset` near the top). */
@@ -182,8 +188,26 @@ class ByteDecoder {
                 this.carry = all.slice(text.length);
             }
         }
+        if (this.mayFallBack && this.options.nulIsBinary === true && text.includes("\0")) {
+            // a NUL never occurs in a text file: undeclared bytes holding one are binary or BOM-less UTF-16
+            this.binary(this.offset + bytes.indexOf(0));
+        }
         this.offset += bytes.byteLength;
         return text;
+    }
+
+    /**
+     * Fail on undeclared input holding NUL bytes.
+     * @param at - the byte offset of the first NUL
+     * @returns never
+     */
+    private binary(at: number): never {
+        return this.report.fail(
+            INVALID_UTF8_CODE,
+            `the input holds NUL bytes (at byte ${at}): binary data such as a compressed or archived file, or UTF-16 without a byte order mark; pass the encoding option if it is text`,
+            undefined,
+            { byteOffset: at },
+        );
     }
 
     /**
@@ -193,32 +217,42 @@ class ByteDecoder {
      * @returns the bytes decoded as windows-1252
      */
     private recover(bytes: Uint8Array, stream: boolean): string {
-        const where = { byteOffset: this.offset };
         const all = this.carry.byteLength === 0 ? bytes : concatBytes([this.carry, bytes]);
+        const base = this.offset - this.carry.byteLength;
         // a NUL byte never occurs in windows-1252 text: it marks binary data (or BOM-less UTF-16)
-        if (this.mayFallBack && this.asciiSoFar && !all.includes(0) && !startsWithUtf8(all)) {
+        if (this.encoding === "utf-8" && all.includes(0)) {
+            return this.binary(base + all.indexOf(0));
+        }
+        // a valid UTF-8 sequence cut by the end of the input is a truncated file, not windows-1252
+        const cut = this.encoding === "utf-8" && !stream && endsInCutUtf8(all);
+        if (this.mayFallBack && this.asciiSoFar && !cut && !startsWithUtf8(all)) {
             this.report.warning(
                 "coercion",
                 ENCODING_FALLBACK_CODE,
-                `the input is not valid UTF-8 (near byte ${this.offset}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
+                `the input is not valid UTF-8 (near byte ${base + firstInvalidUtf8(all)}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
             );
             this.use("windows-1252", false);
             return (this.decoder as TextDecoder).decode(all, { stream });
         }
-        if (this.encoding === "utf-8") {
-            const after = this.mayFallBack ? " after valid non-ASCII UTF-8 text; pass the encoding option" : "";
+        if (cut) {
             return this.report.fail(
                 INVALID_UTF8_CODE,
-                `invalid UTF-8 near byte ${this.offset}${after}`,
+                `a multi-byte UTF-8 sequence is cut at the end of the input (byte ${this.offset + bytes.byteLength}): the file is truncated`,
                 undefined,
-                where,
+                { byteOffset: this.offset + bytes.byteLength },
             );
+        }
+        const at = base + firstInvalidUtf8(all);
+        const where = { byteOffset: at };
+        if (this.encoding === "utf-8") {
+            const after = this.mayFallBack ? " after valid non-ASCII UTF-8 text; pass the encoding option" : "";
+            return this.report.fail(INVALID_UTF8_CODE, `invalid UTF-8 at byte ${at}${after}`, undefined, where);
         }
         return this.report.fail(
             INVALID_ENCODING_CODE,
             `the bytes near byte ${this.offset} are not valid ${this.encoding}`,
             undefined,
-            where,
+            { byteOffset: this.offset },
         );
     }
 
@@ -232,6 +266,69 @@ class ByteDecoder {
         this.encoding = this.decoder.encoding;
         this.mayFallBack = mayFallBack;
     }
+}
+
+/**
+ * Whether bytes decode as UTF-8.
+ * @param bytes - the bytes
+ * @param stream - true to accept an incomplete sequence at the end (streaming mode holds it back)
+ * @returns true when they decode
+ */
+function decodesAsUtf8(bytes: Uint8Array, stream: boolean): boolean {
+    try {
+        new TextDecoder("utf-8", { fatal: true }).decode(bytes, { stream });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Whether bytes are valid UTF-8 up to an incomplete sequence at their end.
+ * @param bytes - bytes that failed to decode as complete UTF-8
+ * @returns true when the only defect is a sequence cut at the end
+ */
+function isUtf8Prefix(bytes: Uint8Array): boolean {
+    return decodesAsUtf8(bytes, true);
+}
+
+/**
+ * Whether bytes end in a UTF-8 sequence cut short: valid up to an incomplete final sequence that
+ * holds its lead byte and at least one continuation byte. A lone lead byte at the end is as likely
+ * a windows-1252 letter (`caf` + 0xE9) and is not taken as a cut.
+ * @param bytes - bytes that failed to decode as complete UTF-8
+ * @returns true when the input looks truncated inside a multi-byte character
+ */
+function endsInCutUtf8(bytes: Uint8Array): boolean {
+    const n = bytes.byteLength;
+    return n >= 2 && bytes[n - 1] >= 0x80 && bytes[n - 1] < 0xc0 && isUtf8Prefix(bytes);
+}
+
+/**
+ * The index of the first byte of the invalid UTF-8 sequence in a run: the longest prefix that
+ * decodes in streaming mode (binary search, run only on the failure path), less the incomplete
+ * sequence it may end with.
+ * @param bytes - bytes that failed to decode
+ * @returns the index where the offending sequence starts
+ */
+function firstInvalidUtf8(bytes: Uint8Array): number {
+    let lo = 0;
+    let hi = bytes.byteLength + 1;
+    // invariant: the prefix of length lo decodes, the prefix of length hi does not
+    while (hi - lo > 1) {
+        const mid = (lo + hi) >>> 1;
+        if (isUtf8Prefix(bytes.subarray(0, mid))) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    // the prefix may end inside the offending sequence (a lead byte the next byte does not continue)
+    let start = lo;
+    while (start > 0 && lo - start < 4 && !decodesAsUtf8(bytes.subarray(0, start), false)) {
+        start--;
+    }
+    return start;
 }
 
 /**

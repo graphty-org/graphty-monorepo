@@ -141,6 +141,9 @@ const css = `
     margin-inline-end: 8px;
 }
 .cm-tree-actions > * + * { margin-inline-start: -4px; }
+/* The buttons overlap by 4px (24 targets on a 20 pitch), so the shared button ring (1px outside the
+   24 box) would run into the neighbor's glyph. A focused row action rings its 20 pitch instead. */
+.cm-tree-actions :is(.cm-action-icon, .cm-button):is(:focus-visible, [data-state="focus"]) { outline-offset: -2px; }
 .cm-tree-actions > * {
     opacity: 0;
     transition: opacity var(--cm-duration-sm) var(--cm-ease-out);

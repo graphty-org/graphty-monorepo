@@ -4,7 +4,7 @@
  * @module ai/AiManager
  */
 
-import { debounce } from "lodash";
+import debounce from "lodash/debounce.js";
 
 import type { Graph } from "../Graph";
 import { AiController, type ExecutionResult } from "./AiController";

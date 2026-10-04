@@ -142,7 +142,7 @@ function asCategory(value: unknown): string | null {
  * @param high - The upper bound.
  * @returns The number, moved to the nearest bound when it was outside.
  */
-function clamp(value: number, low: number, high: number): number {
+export function clamp(value: number, low: number, high: number): number {
     return Math.max(low, Math.min(high, value));
 }
 

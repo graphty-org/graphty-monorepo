@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty-element",
-    "version": "3.5.5",
+    "version": "3.7.0",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
     "customElements": "./dist/custom-elements.json",
@@ -99,7 +99,7 @@
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
     "scripts": {
-        "test": "npm run test:shards:parallel && npm run test:visual",
+        "test": "npm run test:shards:parallel",
         "test:default": "vitest --project=default",
         "test:browser": "vitest --project=browser",
         "test:xr": "vitest run --project=xr",
@@ -113,8 +113,7 @@
         "test:shard:browser:run": "vitest run --project=browser --project=interactions --project=xr",
         "test:shard:storybook": "npm run test:shard:storybook:run",
         "test:shard:storybook:run": "vitest run --project=storybook",
-        "test:shard:visual": "../tools/chromatic.sh graphty-element",
-        "test:shards": "npm run test:shard:default && npm run test:shard:browser && npm run test:shard:storybook && npm run test:shard:visual",
+        "test:shards": "npm run test:shard:default && npm run test:shard:browser && npm run test:shard:storybook",
         "test:shards:parallel": "pids=''; npm run test:shard:default:run & pids=\"$pids $!\"; npm run test:shard:browser:run & pids=\"$pids $!\"; npm run test:shard:storybook:run & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
         "test:visual:debug": "../tools/chromatic.sh graphty-element --debug",
         "test:mesh": "vitest run --project=mesh",

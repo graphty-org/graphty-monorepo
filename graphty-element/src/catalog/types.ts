@@ -968,6 +968,12 @@ export type RuleTree =
       }
     | { readonly kind: "component"; readonly id: number }
     | { readonly kind: "neighborhood"; readonly seeds: readonly NodeId[]; readonly depth: number }
+    /**
+     * The nodes with no edge to another node: each is a component of its own, so these are exactly
+     * the nodes `data.statistics().components.isolatedCount` counts. A node whose only edges are
+     * self-loops is one. Speaks nodes.
+     */
+    | { readonly kind: "isolated" }
     | { readonly kind: "edges"; readonly where: Query }
     /**
      * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed

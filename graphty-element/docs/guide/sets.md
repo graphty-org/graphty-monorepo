@@ -103,6 +103,15 @@ const top = sets.create(
 );
 ```
 
+Some leaves select by the shape of the graph rather than by a value, and match the counts
+`session.data.statistics()` reports, so a count you show and the elements you select agree:
+
+```typescript
+// The nodes with no edge to another node: statistics().components.isolatedCount of them.
+const isolated = { define: { kind: "rule", where: { kind: "isolated" }, reading: "induced" } } as const;
+await session.selection.apply({ scope: isolated });
+```
+
 A field path in a rule -- a `threshold`'s `path`, a `range` or `categories` leaf's `attribute` --
 starts with `data.` (an attribute the data carries) or `results.` (a value a run published). Any
 other root is refused with `E_BAD_COMMAND`, reason `reserved-root`, because a later release may give

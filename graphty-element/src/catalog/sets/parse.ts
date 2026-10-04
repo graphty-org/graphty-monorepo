@@ -439,6 +439,10 @@ function checkTree(value: unknown, walker: Walker): void {
             }
 
             return;
+        case "isolated":
+            known([]);
+
+            return;
         case "member":
             known(["of"]);
             checkScope(value.of, walker);

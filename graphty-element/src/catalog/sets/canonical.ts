@@ -222,6 +222,7 @@ const KNOWN_LEAVES = new Set([
     "degree",
     "component",
     "neighborhood",
+    "isolated",
     "threshold",
 ]);
 

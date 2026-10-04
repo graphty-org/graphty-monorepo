@@ -245,6 +245,7 @@ function elementLocal(filter: RuleTree): boolean {
         case "range":
         case "categories":
         case "degree":
+        case "isolated":
         case "item":
             return true;
         case "threshold":

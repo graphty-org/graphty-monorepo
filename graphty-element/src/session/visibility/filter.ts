@@ -264,6 +264,7 @@ const FILTER_KINDS = [
     "degree",
     "component",
     "neighborhood",
+    "isolated",
     "edges",
     "member",
     "item",
@@ -450,6 +451,8 @@ function assertFilter(filter: RuleTree): void {
                 });
             }
 
+            return;
+        case "isolated":
             return;
         case "member":
             // The filter computes "visible", and "search" will read the filter: either one here is
@@ -909,6 +912,28 @@ function degreeTest(
 }
 
 /**
+ * A test for the nodes with no edge to another node, in either direction: the one-node components
+ * `statistics().components.isolatedCount` counts, so a node with only self-loops passes.
+ * @param context - The compile context.
+ * @returns The test.
+ */
+function isolatedTest(context: CompileContext): ElementTest {
+    const { graph } = context;
+    const reverse = graph.reverse();
+    const alone = (rowPtr: U32, colIdx: U32, index: number): boolean => {
+        for (let arc = rowPtr[index]; arc < rowPtr[index + 1]; arc++) {
+            if (colIdx[arc] !== index) {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    return (index) => alone(graph.rowPtr, graph.colIdx, index) && alone(reverse.rowPtr, reverse.colIdx, index);
+}
+
+/**
  * A test over which connected component a node belongs to.
  * @param context - The compile context.
  * @param id - The component number.
@@ -1237,6 +1262,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: componentTest(context, filter.id), edge: null };
         case "neighborhood":
             return { node: neighborhoodTest(context, filter.seeds, filter.depth), edge: null };
+        case "isolated":
+            return { node: isolatedTest(context), edge: null };
         case "edges":
             return { node: null, edge: edgeQueryTest(context, filter.where) };
         case "member": {

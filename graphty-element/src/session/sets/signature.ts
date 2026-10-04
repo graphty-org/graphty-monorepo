@@ -300,6 +300,7 @@ function rulePart(
         case "degree":
         case "component":
         case "neighborhood":
+        case "isolated":
             // Topology and ids: the serial and the key say it all.
             return "t";
         case "member": {

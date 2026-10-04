@@ -32,6 +32,7 @@ describe("normalizeConfig", () => {
             runWrites: false,
             proposals: false,
             incidents: false,
+            ownerItems: false,
         });
         expect(c.protectedPaths).toEqual(DEFAULTS.protectedPaths);
         expect(c.noAutoMergePaths).toEqual(DEFAULTS.noAutoMergePaths);

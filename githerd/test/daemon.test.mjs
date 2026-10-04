@@ -799,6 +799,37 @@ describe("the poll loop", () => {
         expect(gate.posted).toEqual({});
     });
 
+    it("posts open owner items as would-dos and counts the owner's CLI as presence", async () => {
+        const daemon = await start();
+        daemon.state.ownerItems = {
+            "ask-7": {
+                id: "ask-7",
+                kind: "decision",
+                question: "Merge #7 as a major?",
+                options: [],
+                target: "pr:7",
+                blocks: null,
+                raisedAt: clock.toISOString(),
+                updatedAt: clock.toISOString(),
+            },
+        };
+        await poll(daemon);
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        expect(wouldDo.map((e) => [e.group, e.op])).toEqual([
+            ["owner-items", "POST issues/7/comments"],
+            ["owner-items", "POST issues/7/labels"],
+        ]);
+        expect(gh.writes()).toEqual([]);
+
+        expect(daemon.state.presence?.lastAt).toBeUndefined();
+        const res = await fetch(`${daemon.url}/owner`, {
+            method: "POST",
+            body: JSON.stringify({ op: "ack", key: "x" }),
+        });
+        expect(res.status).toBe(404);
+        expect(daemon.state.presence).toMatchObject({ lastAt: clock.toISOString(), source: "cli" });
+    });
+
     it("takes the reject marker from the owner's comments only", async () => {
         writeConfig({
             requiredChecks: ["All Checks Pass"],

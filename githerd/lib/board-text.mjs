@@ -22,12 +22,12 @@ export const SECTIONS = [
     "health",
 ];
 
-/** The write groups of the rollout, each with the config switch that lets it act, if any. */
+/** The write groups of the rollout, each with the config switch that lets it act. */
 const GROUPS = {
     statuses: "statuses",
     upkeep: "prUpkeep",
     incidents: "incidents",
-    "owner-items": null,
+    "owner-items": "ownerItems",
     proposals: "proposals",
     workers: "runWrites",
 };
@@ -330,7 +330,7 @@ export function groupModes(config, override) {
     const mode = effectiveMode(config, override);
     return Object.fromEntries(
         Object.entries(GROUPS).map(([group, action]) => {
-            const on = action !== null && config.actions?.[action] === true;
+            const on = config.actions?.[action] === true;
             return [group, mode === "acting" && !on ? "dry-run" : mode];
         }),
     );

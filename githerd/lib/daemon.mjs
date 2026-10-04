@@ -67,7 +67,7 @@ import { dispatch } from "./dispatch.mjs";
 import { createMcpServer } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
-import { createNotifier } from "./notify.mjs";
+import { createNotifier, notePresence, ownerItemsPoll } from "./notify.mjs";
 import { pagesFor } from "./paging.mjs";
 import { containerStart, identify } from "./proc.mjs";
 import { buildPrompt } from "./prompts.mjs";
@@ -885,6 +885,17 @@ export async function startDaemon({
         if (pace.level === "normal") await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
         // Holds post at every rate tier; the client's budget refuses a success below its floor.
         await mergeGate(gh, prList.repository.pullRequests.nodes, branch);
+        await ownerItemsPoll({
+            api: gh,
+            repo: config.repo,
+            state,
+            notifier,
+            acting: writeMode("owner-items") === "acting",
+            login: state.trust.login,
+            now: t,
+            digestHourUtc: config.digest.hourUtc,
+            ledger,
+        });
 
         // No owner, no runs: every run kind acts only on the owner's items.
         if (runner && state.trust.login) await runs(t);
@@ -1554,6 +1565,8 @@ export async function startDaemon({
         const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
         /** @type {import("./board.mjs").Caller} */
         let caller = session ? { session: String(session) } : {};
+        // A call with neither a session nor a run token is the owner's CLI.
+        if (!session && !bearer) notePresence(state, "cli", now().toISOString());
         if (bearer) {
             const auth = authenticate(state, bearer);
             if (!auth.ok) return [401, { error: /** @type {{error: string}} */ (auth).error }];
@@ -1582,6 +1595,7 @@ export async function startDaemon({
      * @returns {Promise<[number, unknown?]>} the status and the reply
      */
     async function ownerRoute(req) {
+        notePresence(state, "cli", now().toISOString());
         const answer = owner(JSON.parse(await body(req)));
         if (answer.entry) {
             await save();

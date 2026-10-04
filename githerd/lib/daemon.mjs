@@ -73,7 +73,15 @@ import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
 import { syncJobs } from "./jobs.mjs";
 import { checkFaults, noteGitHubChanges, settleWaits, tickJobs, waitNews } from "./advance.mjs";
-import { endIdleSessions, fillSlots, isUrgent, realPlatform, refreshGuards, tidyEndedJobs } from "./start.mjs";
+import {
+    endIdleSessions,
+    fillSlots,
+    isUrgent,
+    realPlatform,
+    refreshGuards,
+    retireStrayWindows,
+    tidyEndedJobs,
+} from "./start.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
 import { doneIo, pollVerifying } from "./done.mjs";
@@ -1971,6 +1979,11 @@ export async function startDaemon({
     /** @type {Map<string, Promise<void>>} worker starts in flight, by job (start.mjs) */
     const tasks = new Map();
     const platform = { ...realPlatform({ env, stateDir }), ...platformOptions };
+    // The development daemon never starts a worker, so the windows on githerd's server are not its.
+    if (workersOn && !env.GITHERD_DEV) {
+        for (const id of retireStrayWindows(state, platform.windows(), now()))
+            void ledger({ kind: "stray-window", job: id });
+    }
     /** @type {string} the open owner items' targets as last written to the guards */
     let guardItems = "";
 

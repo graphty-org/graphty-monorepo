@@ -75,6 +75,25 @@ function sessionOf(caller, client) {
 }
 
 /**
+ * The refusal of a worker whose start is no longer its job's.
+ * @param {string} id the job
+ * @returns {string} the message
+ */
+const STALE = (id) => `githerd no longer runs this window for ${id}: end this session (/exit)`;
+
+/**
+ * Whether a worker's window is the one githerd opened for its job now: the job's holder carries the
+ * worker's nonce. A window whose job was requeued without it (githerd restarted during its start)
+ * has no holder to match, and is refused rather than taken for an owner session.
+ * @param {any} job the job
+ * @param {import("./mcp.mjs").ClientMeta} client the client's metadata
+ * @returns {boolean} the worker holds the job
+ */
+function startedFor(job, client) {
+    return Boolean(client.nonce) && job?.holder?.nonce === client.nonce;
+}
+
+/**
  * The job a call names, when the caller holds it: a worker must name its own job and carry its
  * nonce, and the job's session must be the caller's.
  * @param {any} state the daemon state
@@ -86,12 +105,11 @@ function sessionOf(caller, client) {
 function heldJob(state, id, session, client) {
     const job = state.jobs?.[id];
     if (!job) throw new Error(`no job ${id}`);
-    if (client.job && (client.job !== id || (job.holder?.nonce && job.holder.nonce !== client.nonce))) {
-        throw new Error(`this worker is started for job ${client.job}, not ${id}`);
-    }
+    if (client.job && client.job !== id) throw new Error(`this worker is started for job ${client.job}, not ${id}`);
     if (!session || job.holder?.session !== session) {
         throw new Error(`this session does not hold ${id}; claim it with githerd_claim first`);
     }
+    if (client.job && !startedFor(job, client)) throw new Error(STALE(id));
     return job;
 }
 
@@ -127,9 +145,8 @@ export function sessionToolSet(ctx) {
             const snap = snapshot(ctx);
             if (client.job) {
                 const job = state.jobs?.[client.job];
-                if (!job || (job.holder?.nonce && job.holder.nonce !== client.nonce)) {
-                    throw new Error(`no job ${client.job} for this worker`);
-                }
+                if (!job) throw new Error(`no job ${client.job} for this worker`);
+                if (!startedFor(job, client)) throw new Error(STALE(client.job));
                 const news = job.news.filter((/** @type {any} */ n) => !n.acked).map((/** @type {any} */ n) => n.text);
                 for (const n of job.news) n.acked = true;
                 // The worker read its issue's current revision (merge decision line 8).
@@ -165,6 +182,7 @@ export function sessionToolSet(ctx) {
             const session = sessionOf(caller, client);
             if (!session) throw new Error("this session is not identified yet; try again in a moment");
             if (client.job && client.job !== args.job) throw new Error(`this worker is started for job ${client.job}`);
+            if (client.job && !startedFor(state.jobs?.[args.job], client)) throw new Error(STALE(args.job));
             const result = board.claimJob(state, args, { session }, snapshot(ctx), now);
             if (!result.ok) return { text: JSON.stringify(result), isError: true };
             await ctx.commit({ kind: "job-claim", job: args.job, session, decision: args.overlap.decision });

@@ -231,6 +231,8 @@ async function start(options = {}) {
         stateDir: join(dir, ".githerd"),
         autoPoll: false,
         log: (line) => lines.push(line),
+        // githerd's real tmux server is never read by a test.
+        platform: { windows: () => [] },
         ...options,
     });
     daemons.push(daemon);
@@ -1595,6 +1597,40 @@ describe("liveness", () => {
             expect.objectContaining({ job: "issue-14", reason: "container restarted" }),
         ]);
         expect(ledger.filter((e) => e.kind === "session-death")).toEqual([]);
+    });
+
+    it("ends a window whose start the restart lost, and keeps the windows jobs hold", async () => {
+        const stateDir = join(dir, ".githerd");
+        mkdirSync(stateDir);
+        // The daemon stopped while issue-16's window waited for its registry entry.
+        const lost = newJob({ kind: "issue", target: "#16", id: "issue-16" }, clock);
+        move(lost, "starting", clock);
+        lost.holder = { nonce: "old", socket: "githerd", startedBy: "githerd", session: null };
+        const kept = newJob({ kind: "issue", target: "#17", id: "issue-17" }, clock);
+        move(kept, "starting", clock);
+        move(kept, "working", clock);
+        kept.holder = { pane: "%2", window: "@2", pid: 1, startTime: "0", session: "s2", name: "githerd-issue-17" };
+        const jobs = { "issue-16": lost, "issue-17": kept };
+        writeFileSync(join(stateDir, "state.json"), JSON.stringify({ schema: 1, jobs }));
+        const win = (/** @type {string} */ id, /** @type {string} */ job) => ({
+            socket: "githerd",
+            window: id,
+            pane: `%${id.slice(1)}`,
+            pid: 4242,
+            name: `githerd-${job}`,
+            job,
+            startTime: "9",
+        });
+        const windows = [win("@0", "bash"), win("@2", "issue-17"), win("@3", "issue-16")];
+        const daemon = await start({ platform: { windows: () => windows } });
+        expect(daemon.state.jobs["issue-16"]).toMatchObject({ state: "queued", holder: null });
+        expect(daemon.state.retiring).toEqual([
+            { job: "issue-16", holder: windows[2], reason: "a window no job holds", at: clock.toISOString() },
+        ]);
+        await daemon.shutdown();
+        expect((await readLedger(stateDir)).filter((e) => e.kind === "stray-window")).toEqual([
+            expect.objectContaining({ job: "issue-16" }),
+        ]);
     });
 
     it("makes the push queue at start and recovers a push the stopped daemon was running", async () => {

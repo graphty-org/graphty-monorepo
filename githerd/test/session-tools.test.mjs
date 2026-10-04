@@ -118,7 +118,10 @@ describe("sessionToolSet", () => {
         expect(JSON.parse((await call(ctx, "githerd_next", {})).text).news).toEqual([]);
         expect(commits.map((c) => c.kind)).toEqual(["next", "next"]);
         const wrong = await call(ctx, "githerd_next", {}, { session: "w1", job: "pr-7", nonce: "other" });
-        expect(wrong).toEqual({ text: "no job pr-7 for this worker", isError: true });
+        expect(wrong).toEqual({
+            text: "githerd no longer runs this window for pr-7: end this session (/exit)",
+            isError: true,
+        });
     });
 
     it("gives an owner session the news githerd left for it once, such as a push overlapping its files", async () => {

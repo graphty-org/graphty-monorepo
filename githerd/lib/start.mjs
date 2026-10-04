@@ -25,7 +25,7 @@ import { startFailed } from "./advance.mjs";
 import { endItem, raiseItem } from "./notify.mjs";
 import { jobOrder } from "./queue.mjs";
 import { resumeVerified, runSelftest } from "./selftest.mjs";
-import { startWorker } from "./tmux.mjs";
+import { listWindows, startWorker } from "./tmux.mjs";
 import { codeEnv, loginPath, readSigningEnv, workerArgv, workerEnv, writeJobFiles } from "./worker-settings.mjs";
 import { prepareJobWorktree, run, signingProbe } from "./worktrees.mjs";
 
@@ -58,6 +58,7 @@ const FAULT_RETRY_MS = 30 * 60_000;
  *   signing probe with a worker's environment
  * @property {typeof prepareJobWorktree} prepare prepares a job's worktree
  * @property {typeof startWorker} start opens a worker's window and waits for its registry entry
+ * @property {() => ReturnType<typeof listWindows>} windows the windows on githerd's tmux server
  */
 
 /**
@@ -112,6 +113,7 @@ export function realPlatform({ env, stateDir }) {
         signing: (workerVars) => signingProbe({ env: workerVars }),
         prepare: prepareJobWorktree,
         start: startWorker,
+        windows: () => listWindows(),
     };
 }
 
@@ -357,6 +359,32 @@ export function endIdleSessions(ctx) {
         ended.push(retire(job, `more than ${cap} sessions waiting`));
     }
     return ended;
+}
+
+/**
+ * Puts on `state.retiring` every window named after a job that neither the job's holder nor a
+ * session being ended names: a window whose start githerd lost when it restarted (the job went back
+ * to the queue). Its session still runs the launch prompt and would otherwise work unwatched.
+ * @param {any} state the daemon state
+ * @param {ReturnType<typeof listWindows>} windows the windows on githerd's tmux server
+ * @param {Date} now the clock
+ * @returns {string[]} the jobs whose stray window is to be ended
+ */
+export function retireStrayWindows(state, windows, now) {
+    const owned = new Set(
+        [
+            ...Object.values(state.jobs ?? {}).map((j) => j.holder),
+            ...(state.retiring ?? []).map((/** @type {any} */ r) => r.holder),
+        ]
+            .map((h) => h?.window)
+            .filter(Boolean),
+    );
+    const stray = windows.filter((w) => state.jobs?.[w.job] && !owned.has(w.window));
+    state.retiring = [
+        ...(state.retiring ?? []),
+        ...stray.map((w) => ({ job: w.job, holder: w, reason: "a window no job holds", at: now.toISOString() })),
+    ];
+    return stray.map((w) => w.job);
 }
 
 /**

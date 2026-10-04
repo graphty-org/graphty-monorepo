@@ -208,6 +208,29 @@ export function killServer(socket) {
 }
 
 /**
+ * The windows on githerd's server, each with the job it is named after.
+ * @param {string} [socket] the server
+ * @returns {(Window & {job: string, startTime: string})[]} the windows; none when no server runs
+ */
+export function listWindows(socket = SOCKET) {
+    let out;
+    try {
+        out = tmux(socket, ["list-windows", "-t", SESSION, "-F", "#{window_id} #{pane_id} #{pane_pid} #{window_name}"]);
+    } catch {
+        return [];
+    }
+    return out
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+            const [window, pane, pid, ...name] = line.split(" ");
+            const job = name.join(" ");
+            const startTime = identify(Number(pid))?.startTime ?? "";
+            return { socket, window, pane, pid: Number(pid), name: `githerd-${job}`, job, startTime };
+        });
+}
+
+/**
  * Kills the window, if it is still there.
  * @param {Window} window the window
  */

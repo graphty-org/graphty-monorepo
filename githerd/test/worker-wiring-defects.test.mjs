@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import * as board from "../lib/board.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { normalizeConfig } from "../lib/config.mjs";
 import { answerHook } from "../lib/hook.mjs";
@@ -198,16 +199,21 @@ describe("a worker session whose job was requeued without it", () => {
         const meta = { protocol: TOOL_PROTOCOL, session: "orphan", job: "issue-7", nonce: "old-nonce" };
         const call = async (/** @type {string} */ name, /** @type {any} */ args) => {
             const res = await server.handle(
-                { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args, _meta: { githerd: meta } } },
+                {
+                    jsonrpc: "2.0",
+                    id: 1,
+                    method: "tools/call",
+                    params: { name, arguments: args, _meta: { githerd: meta } },
+                },
                 { session: "orphan" },
             );
             const result = /** @type {any} */ (res?.result);
             return { text: result.content[0].text, isError: Boolean(result.isError) };
         };
-        const next = JSON.parse((await call("githerd_next", {})).text);
+        expect(await call("githerd_next", {})).toMatchObject({ isError: true, text: expect.stringContaining("/exit") });
         const claim = await call("githerd_claim", {
             job: "issue-7",
-            snapshotVersion: next.snapshot.version,
+            snapshotVersion: board.claimSnapshot(state, ctx.snapshotFacts()).version,
             plan: "p",
             overlap: { decision: "independent", reason: "alone" },
         });

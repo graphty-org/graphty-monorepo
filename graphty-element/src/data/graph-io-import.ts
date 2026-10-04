@@ -172,7 +172,10 @@ export async function importDocument<Opts>(
  * @returns a `GraphtyError` with `E_EMPTY_LOAD`, or null when the input was not empty
  */
 export function emptyLoad(error: unknown, format: string): GraphtyError | null {
-    if (!(error instanceof ImportError) || !error.report.issues.some((issue) => issue.code === INPUT_ISSUE.EMPTY_INPUT)) {
+    if (
+        !(error instanceof ImportError) ||
+        !error.report.issues.some((issue) => issue.code === INPUT_ISSUE.EMPTY_INPUT)
+    ) {
         return null;
     }
 

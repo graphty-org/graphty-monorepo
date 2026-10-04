@@ -23,7 +23,16 @@
  * It makes no network call and never needs the daemon to answer.
  */
 
-import { appendFileSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import {
+    appendFileSync,
+    existsSync,
+    mkdirSync,
+    readdirSync,
+    readFileSync,
+    realpathSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -358,6 +367,9 @@ const GIT_READS = new Set([
 /** git subcommands refused outright, with what to do instead. */
 const GIT_REFUSED = {
     push: "call githerd_push with the job, the branch and the local HEAD",
+    "send-pack": "call githerd_push with the job, the branch and the local HEAD",
+    "http-push": "call githerd_push with the job, the branch and the local HEAD",
+    "receive-pack": "call githerd_push with the job, the branch and the local HEAD",
     stash: "commit the work in progress on the branch instead",
     reset: "make a new commit (git revert) or a new branch at the commit you want (git switch -c)",
     clean: "delete the files you mean with rm",
@@ -400,6 +412,10 @@ function checkGit(cmd, args, ctx) {
  */
 function checkGitSubcommand(sub, rest) {
     if (sub.startsWith("credential")) refuse("git credential: workers never handle credentials");
+    // Any word "push": `-P <prefix>` puts a word before the subcommand.
+    if (sub === "subtree" && rest.includes("push")) {
+        refuse(`git subtree push: ${GIT_REFUSED.push}`);
+    }
     if (rest.includes("--no-verify") || (sub === "commit" && rest.some((r) => /^-[^-mFcCt]*n/.test(r)))) {
         refuse(`git ${sub} --no-verify: the hooks always run; fix what they report`);
     }
@@ -814,37 +830,65 @@ function checkFileTool(tool, params, config, cwd) {
 }
 
 /**
- * The running subagents of a session.
+ * A file or directory name made from a hook's id: anything but letters, digits, `-` and `_` becomes
+ * `_`, so an id can never name a path outside the agents directory.
+ * @param {string} id the id
+ * @returns {string} the name
+ */
+const safeName = (id) => id.replaceAll(/[^A-Za-z0-9_-]/g, "_");
+
+/**
+ * The directory holding one marker file per running subagent of a session. The SessionStart hook
+ * removes the job's `agents/` at startup and resume, so agents that died with an earlier process
+ * are not counted (a resume keeps the session id).
  * @param {string} jobDir the job directory
  * @param {string} session the session id
- * @returns {string[]} their ids
+ * @returns {string} the directory
+ */
+const agentsDir = (jobDir, session) => join(jobDir, "agents", safeName(session));
+
+/**
+ * The running subagents of a session: one marker file each, so two hooks running at once never
+ * lose each other's update.
+ * @param {string} jobDir the job directory
+ * @param {string} session the session id
+ * @returns {string[]} their marker names
  */
 function readAgents(jobDir, session) {
     try {
-        const saved = JSON.parse(readFileSync(join(jobDir, "agents.json"), "utf8"));
-        return saved.session === session && Array.isArray(saved.ids) ? saved.ids : [];
+        return readdirSync(agentsDir(jobDir, session)).filter((n) => !n.endsWith(STOPPED));
     } catch {
         return [];
     }
 }
 
+/** The suffix of a stopped agent's tombstone. */
+const STOPPED = ".stopped";
+
 /**
- * Counts a subagent in or out. In at PostToolUse (`agentId`) or SubagentStart, out at SubagentStop
- * with the same id; a stop with no recorded start (Claude Code's hidden agents) changes nothing.
+ * Counts a subagent in or out. In at SubagentStart, or at PostToolUse of an Agent call that went to
+ * the background (`isAsync`); a foreground call's PostToolUse comes after the agent has already
+ * stopped, so it never counts. Out at SubagentStop, which leaves a tombstone so a later
+ * PostToolUse for the same id does not count it in again; a stop with no recorded start (Claude
+ * Code's hidden agents) changes nothing else.
  * @param {string} jobDir the job directory
  * @param {any} input the hook input
  */
 function trackAgent(jobDir, input) {
     const session = String(input.session_id ?? "");
     const event = input.hook_event_name;
+    if (event === "PostToolUse" && input.tool_response?.isAsync !== true) return;
     const id = event === "PostToolUse" ? input.tool_response?.agentId : input.agent_id;
     if (typeof id !== "string" || id === "") return;
-    const ids = readAgents(jobDir, session).filter((a) => a !== id);
-    if (event !== "SubagentStop") ids.push(id);
-    // ponytail: last writer wins; Claude Code ran these hooks one at a time in every recorded session.
-    const file = join(jobDir, "agents.json");
-    writeFileSync(`${file}.${process.pid}.tmp`, JSON.stringify({ session, ids }));
-    renameSync(`${file}.${process.pid}.tmp`, file);
+    const dir = agentsDir(jobDir, session);
+    const marker = join(dir, safeName(id));
+    mkdirSync(dir, { recursive: true });
+    if (event === "SubagentStop") {
+        rmSync(marker, { force: true });
+        writeFileSync(`${marker}${STOPPED}`, "");
+    } else if (!existsSync(`${marker}${STOPPED}`)) {
+        writeFileSync(marker, "");
+    }
 }
 
 /**
@@ -951,7 +995,7 @@ function main() {
         try {
             if (jobDir) trackAgent(jobDir, input);
         } catch {
-            // A lost count only makes the cap looser for this session; never block a stop.
+            // A count that could not be written is lost; never block a stop over it.
         }
         return 0;
     }

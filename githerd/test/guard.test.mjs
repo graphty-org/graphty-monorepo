@@ -144,6 +144,13 @@ const REFUSED = [
         "echo origin | xargs git push",
         "find . -maxdepth 0 -exec git push \\;",
         "npx -c 'git push'",
+        // plumbing and porcelain that push without `git push`
+        "git send-pack git@github.com:graphty-org/graphty-monorepo.git HEAD:refs/heads/x",
+        "git http-push https://github.com/graphty-org/graphty-monorepo.git x",
+        "git receive-pack /tmp/x.git",
+        "git subtree push --prefix=a origin x",
+        "git subtree --prefix=a push origin x",
+        "git subtree -P a push origin x",
     ].map((c) => /** @type {[string, RegExp]} */ ([c, /githerd_push/])),
     // spellings that hide a subcommand or skip the hooks
     ["git -c alias.p=push p", /aliases/],
@@ -311,6 +318,7 @@ const ALLOWED = [
     "git fetch origin",
     "git remote -v",
     "git remote get-url origin",
+    "git subtree split --prefix=a -b x",
     "git config user.name",
     "git config --get user.email",
     "git worktree list",
@@ -485,7 +493,7 @@ describe("guard: the Agent cap", () => {
             event(agents, {
                 hook_event_name: "PostToolUse",
                 tool_name: "Agent",
-                tool_response: { agentId: "a2" },
+                tool_response: { isAsync: true, status: "async_launched", agentId: "a2" },
             }),
         ).toBe(0);
         const third = launch(agents);
@@ -500,6 +508,40 @@ describe("guard: the Agent cap", () => {
         expect(event(agents, { hook_event_name: "SubagentStart", agent_id: "a3" })).toBe(0);
         expect(launch(agents).status).toBe(2);
         expect(launch(agents, "s2").status).toBe(0);
+    });
+
+    it("never counts a foreground agent, or an agent again after it stopped", () => {
+        const fg = makeJob("agents-foreground", { subagents: 1 });
+        // A foreground Agent call: start, stop, then its PostToolUse with the id.
+        event(fg, { hook_event_name: "SubagentStart", agent_id: "f1" });
+        event(fg, { hook_event_name: "SubagentStop", agent_id: "f1" });
+        event(fg, { hook_event_name: "PostToolUse", tool_name: "Agent", tool_response: { agentId: "f1" } });
+        expect(launch(fg).status).toBe(0);
+        // A background agent that stopped before its PostToolUse arrived.
+        event(fg, { hook_event_name: "SubagentStart", agent_id: "b1" });
+        event(fg, { hook_event_name: "SubagentStop", agent_id: "b1" });
+        event(fg, {
+            hook_event_name: "PostToolUse",
+            tool_name: "Agent",
+            tool_response: { isAsync: true, agentId: "b1" },
+        });
+        expect(launch(fg).status).toBe(0);
+    });
+
+    it("loses no count when starts and stops run at once", async () => {
+        const many = makeJob("agents-race", { subagents: 1 });
+        const { spawn } = await import("node:child_process");
+        const send = (/** @type {object} */ input) =>
+            new Promise((done) => {
+                const child = spawn(process.execPath, [GUARD, many.jobDir], { stdio: ["pipe", "ignore", "ignore"] });
+                child.on("close", done);
+                child.stdin.end(JSON.stringify({ session_id: "s1", ...input }));
+            });
+        for (let i = 0; i < 10; i++) await send({ hook_event_name: "SubagentStart", agent_id: `r${i}` });
+        await Promise.all(
+            Array.from({ length: 10 }, (_, i) => send({ hook_event_name: "SubagentStop", agent_id: `r${i}` })),
+        );
+        expect(launch(many).status).toBe(0);
     });
 
     it("takes the cap from guard.json", () => {

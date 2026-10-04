@@ -16,7 +16,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -269,6 +269,11 @@ export async function runHook(event, input, { cwd, env, fetch: fetcher = fetch, 
     const stateDir = env.GITHERD_STATE_DIR ?? defaultStateDir(root, env.HOME);
     const job = env.GITHERD_JOB || null;
     if (event === "PostToolUse") return job ? newsOutput(join(stateDir, "jobs", job), job) : null;
+    const source = /** @type {any} */ (hookInput).source;
+    // A new or resumed process runs no subagent yet; the guard's count starts again from none.
+    if (event === "SessionStart" && job && (source === "startup" || source === "resume")) {
+        rmSync(join(stateDir, "jobs", job, "agents"), { recursive: true, force: true });
+    }
     /** @type {HookRequest} */
     const request = { event, job, nonce: env.GITHERD_NONCE || null, input: hookInput };
     let answer;

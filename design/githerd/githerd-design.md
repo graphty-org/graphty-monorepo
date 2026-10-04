@@ -1282,7 +1282,7 @@ Everything is under `~/.githerd/graphty-monorepo/`, outside the repository:
 | Progress | `progress` (current reconcile step and when it began) | n/a |
 | Starts | `starts` (the last 10 start times, for the crash-loop rule) | n/a |
 | Hook events while the daemon was down | `spool/` | n/a |
-| Per job | `jobs/<id>/`: settings, MCP config, news, pane captures, findings; the guard's `guard.json` (written by the daemon), `writes.jsonl`, `refusals.jsonl` and `agents.json` (written by the guard) | n/a |
+| Per job | `jobs/<id>/`: settings, MCP config, news, pane captures, findings; the guard's `guard.json` (written by the daemon), `writes.jsonl`, `refusals.jsonl` and `agents/` (written by the guard) | n/a |
 | githerd code | `versions/<sha>/`, `current` -> the running version | master |
 | Fatal reason | `FATAL` | n/a |
 
@@ -1423,9 +1423,14 @@ enforces:
   through `env -C` or `--chdir`, inside `sh -c` too, counts as a `cd`.
 - **Refused in Edit and Write** (and MultiEdit and NotebookEdit): paths outside the job's worktree
   (its own `tmp/` included); the denied paths of 7.2.
-- **Agent tool**: at most 2 concurrent subagents, counted by id: in at PostToolUse (`agentId`) or
-  SubagentStart, out at SubagentStop with the same id; a stop with no recorded start (Claude Code's
-  hidden agents) is ignored [PF 10.11]; **browsers**: no launch at the machine cap.
+- **Agent tool**: at most 2 concurrent subagents, counted by id: in at SubagentStart, or at
+  PostToolUse (`agentId`) only for a background call (`isAsync`), since a foreground call's
+  PostToolUse arrives after its agent stopped; out at SubagentStop with the same id, which leaves a
+  tombstone so a late PostToolUse never counts it in again; a stop with no recorded start (Claude
+  Code's hidden agents) is ignored [PF 10.11]. One marker file per running agent
+  (`jobs/<id>/agents/<session>/<agent>`), so hooks running at once lose no count; the SessionStart
+  hook removes the job's `agents/` at startup and resume, because a resume keeps the session id
+  and the old process's agents died with it; **browsers**: no launch at the machine cap.
 - Every refusal names the allowed alternative. Fixed refusals need no daemon; claim checks fail
   closed.
 - The guard logs every allowed `gh` write a worker makes (verb, item) to `jobs/<id>/writes.jsonl`,

@@ -1,6 +1,7 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import {
+    existsSync,
     mkdirSync,
     mkdtempSync,
     readFileSync,
@@ -546,6 +547,18 @@ describe("runHook", () => {
         expect(restarts).toEqual([]);
     });
 
+    it("forgets the guard's subagent count when a worker's process starts or resumes, not at compaction", async () => {
+        await fakeDaemon(stateDir, workingState());
+        options.env = { ...options.env, GITHERD_JOB: "pr-7", GITHERD_NONCE: "n0nce-77" };
+        const agents = join(stateDir, "jobs", "pr-7", "agents", "s1");
+        for (const source of ["compact", "resume", "startup"]) {
+            mkdirSync(agents, { recursive: true });
+            writeFileSync(join(agents, "a1"), "");
+            await runHook("SessionStart", JSON.stringify({ ...REC.startStartup, source, cwd: repo }), options);
+            expect(existsSync(agents), source).toBe(source === "compact");
+        }
+    });
+
     it("never calls anything but the local daemon", async () => {
         const state = workingState();
         await fakeDaemon(stateDir, state);
@@ -604,6 +617,8 @@ describe("the committed project settings", () => {
         let stderr = "";
         child.stdout.on("data", (c) => (stdout += c));
         child.stderr.on("data", (c) => (stderr += c));
+        // Not installed, the command exits without reading its input: the write then fails with EPIPE.
+        child.stdin.on("error", () => {});
         child.stdin.end(JSON.stringify({ cwd: repo, session_id: "s", source: "startup" }));
         const [status] = await once(child, "exit");
         return { status, stdout, stderr };

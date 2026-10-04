@@ -281,6 +281,75 @@ interface Synonym {
 }
 
 /** One OBO Graphs export: the plan (ids, columns, notes) and the writer. */
+/**
+ * The basicPropertyValue texts a property column gives one node: one per item of a list, JSON text
+ * for nested values, none when unset.
+ * @param column - the column
+ * @param i - the node
+ * @returns the texts
+ */
+function propertyTexts(column: Column, i: number): string[] {
+    const v = cellOf(column, i);
+    if (v === undefined) {
+        return [];
+    }
+    if (column.dtype === "list") {
+        return (v as readonly unknown[]).map((item) => textOf(item, column.child.dtype));
+    }
+    const nested = column.dtype === "json" || column.meta.components > 1;
+    return [nested ? (JSON.stringify(v) ?? "null") : textOf(v, column.dtype)];
+}
+
+/**
+ * The graph columns as basicPropertyValues of the graph's meta.
+ * @param snapshot - the snapshot
+ * @returns one record per value
+ */
+function graphPropertyValues(snapshot: GraphSnapshot): { pred: string; val: string }[] {
+    const values: { pred: string; val: string }[] = [];
+    for (const column of snapshot.graph) {
+        const dtype = column.dtype === "list" ? column.child.dtype : column.dtype;
+        for (const item of valuesOf(cellOf(column, 0))) {
+            values.push({ pred: column.meta.name, val: typeof item === "string" ? item : textOf(item, dtype) });
+        }
+    }
+    return values;
+}
+
+/**
+ * Note a placed node column whose dtype reads back as another.
+ * @param note - records a note
+ * @param want - the dtype the column reads back as
+ * @param column - the column
+ */
+function dtypeNote(note: NoteFn, want: string, column: Column): void {
+    const listItems = column.dtype === "list" && column.child.dtype !== "string";
+    if (((want === "string" || want === "dict") && column.dtype !== want) || listItems) {
+        note(
+            LOSS.DTYPE,
+            `node column "${column.meta.name}" holds ${listItems ? "non-string items" : column.dtype}; it reads back as ${listItems ? "string items" : want}`,
+            column.meta.name,
+            column.length - column.nullCount,
+        );
+    }
+}
+
+/**
+ * The property values of the written nodes that carry an xsd datatype.
+ * @param pv - the property_value column
+ * @param rows - the written nodes
+ * @returns the count
+ */
+function countDatatypes(pv: Column, rows: readonly number[]): number {
+    let datatypes = 0;
+    for (const i of rows) {
+        for (const item of (cellOf(pv, i) ?? []) as { datatype: unknown }[]) {
+            datatypes += item.datatype === null ? 0 : 1;
+        }
+    }
+    return datatypes;
+}
+
 class ObographsExport {
     readonly notes: LossNote[] = [];
 
@@ -544,6 +613,13 @@ class ObographsExport {
             }
         }
         this.label = slotColumn(snapshot.nodes, "label", "name").column;
+        this.placeColumns();
+        this.planProperties();
+    }
+
+    /** The node columns written in their own places of a node (def, synonyms, xrefs...), not as property values. */
+    private placeColumns(): void {
+        const { snapshot } = this;
         const reproducible = (id: unknown): boolean => typeof id === "string" && this.iriOf(id).exact;
         for (const name of PLACED) {
             const column = snapshot.nodes.get(name);
@@ -567,6 +643,11 @@ class ObographsExport {
         if (def !== undefined && !this.placed.has("def.xrefs") && snapshot.nodes.get("def.xrefs") !== null) {
             this.placed.delete("def");
         }
+    }
+
+    /** The node columns written as property values, each with its note. */
+    private planProperties(): void {
+        const { snapshot } = this;
         const slotted = new Set<Column>([...this.placed.values(), ...(this.label === null ? [] : [this.label])]);
         for (const column of snapshot.nodes) {
             const { role, name } = column.meta;
@@ -596,26 +677,10 @@ class ObographsExport {
             );
         }
         for (const [name, column] of [...this.placed, ...(label === null ? [] : ([["name", label]] as const))]) {
-            const want = name === "name" ? "string" : OBO_NODE_COLUMNS[name].dtype;
-            const listItems = column.dtype === "list" && column.child.dtype !== "string";
-            if (((want === "string" || want === "dict") && column.dtype !== want) || listItems) {
-                note(
-                    LOSS.DTYPE,
-                    `node column "${column.meta.name}" holds ${listItems ? "non-string items" : column.dtype}; it reads back as ${listItems ? "string items" : want}`,
-                    column.meta.name,
-                    column.length - column.nullCount,
-                );
-            }
+            dtypeNote(note, name === "name" ? "string" : OBO_NODE_COLUMNS[name].dtype, column);
         }
-        let datatypes = 0;
         const pv = this.placed.get("property_value");
-        if (pv !== undefined) {
-            for (const i of rows) {
-                for (const item of (cellOf(pv, i) ?? []) as { datatype: unknown }[]) {
-                    datatypes += item.datatype === null ? 0 : 1;
-                }
-            }
-        }
+        const datatypes = pv === undefined ? 0 : countDatatypes(pv, rows);
         if (datatypes > 0) {
             note(
                 OBOGRAPHS_LOSS.DATATYPE_DROPPED,
@@ -900,18 +965,8 @@ class ObographsExport {
             values.push({ pred: this.iriOf(item.relation).iri, val: item.value });
         }
         for (const column of this.properties) {
-            const v = cellOf(column, i);
-            if (v === undefined) {
-                continue;
-            }
-            const pred = column.meta.name;
-            if (column.dtype === "list") {
-                for (const item of v as readonly unknown[]) {
-                    values.push({ pred, val: textOf(item, column.child.dtype) });
-                }
-            } else {
-                const nested = column.dtype === "json" || column.meta.components > 1;
-                values.push({ pred, val: nested ? (JSON.stringify(v) ?? "null") : textOf(v, column.dtype) });
+            for (const val of propertyTexts(column, i)) {
+                values.push({ pred: column.meta.name, val });
             }
         }
         return values;
@@ -956,9 +1011,8 @@ class ObographsExport {
         const graph: Record<string, unknown> = {
             id: typeof kept.graph.id === "string" ? kept.graph.id : this.ontologyIri,
         };
-        const lbl =
-            kept.graph.lbl ??
-            (snapshot.meta.name !== null && kept.graph.id === undefined ? snapshot.meta.name : undefined);
+        const named = snapshot.meta.name !== null && kept.graph.id === undefined;
+        const lbl = kept.graph.lbl ?? (named ? snapshot.meta.name : undefined);
         if (lbl !== undefined) {
             graph.lbl = lbl;
         }
@@ -966,13 +1020,7 @@ class ObographsExport {
         const values: unknown[] = Array.isArray(meta.basicPropertyValues)
             ? [...(meta.basicPropertyValues as unknown[])]
             : [];
-        for (const column of snapshot.graph) {
-            const v = cellOf(column, 0);
-            const dtype = column.dtype === "list" ? column.child.dtype : column.dtype;
-            for (const item of valuesOf(v)) {
-                values.push({ pred: column.meta.name, val: typeof item === "string" ? item : textOf(item, dtype) });
-            }
-        }
+        values.push(...graphPropertyValues(snapshot));
         if (values.length > 0) {
             meta.basicPropertyValues = values;
         }

@@ -36,6 +36,7 @@ import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
+import type { SearchAnswer, SearchRequest } from "./query";
 import { type ResolvedResult, resolveResult, resultCell, resultSortValue } from "./results/pageColumns";
 import { RevisionCache } from "./revision";
 import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
@@ -48,6 +49,9 @@ import type {
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
+    FindKind,
+    FindOptions,
+    FindResult,
     GraphStatistics,
     ImportOptions,
     Neighbor,
@@ -96,6 +100,13 @@ interface PageSources {
      */
     resolve(spec: ScopeInput): ResolvedScope;
     /**
+     * The find box's search, over the session's query engine.
+     * @param text - what was typed
+     * @param request - the checked window, kinds and scope
+     * @returns the hits
+     */
+    search(text: string, request: SearchRequest): SearchAnswer;
+    /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
      * @returns the run, or undefined when the session holds none with that id
@@ -128,6 +139,11 @@ const NEIGHBOR_LISTS_KEPT = 8;
 
 /** The mark on a neighbor the session's visibility hides. */
 const FILTERED: Neighbor["excludedBy"] = Object.freeze({ kind: "filter" });
+/** How many hits a find returns when the caller does not say. */
+const DEFAULT_FIND_LIMIT = 20;
+
+/** What a find lists when the caller does not say. */
+const FIND_KINDS: readonly FindKind[] = ["node", "edge"];
 
 /** How many records a page holds when the caller does not say. */
 const DEFAULT_PAGE_LIMIT = 100;
@@ -227,7 +243,7 @@ function pageWindow(
         if (!whole || value < 0) {
             throw new GraphtyError({
                 code: "E_OPTION_RANGE",
-                message: `data.${verb}() takes a ${name} that is a whole number of zero or more, not ${String(value)}`,
+                message: `${verb}() takes a ${name} that is a whole number of zero or more, not ${String(value)}`,
                 source: "data",
                 details: { option: name, value, min: 0 },
             });
@@ -797,6 +813,37 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * What a find box lists, without selecting anything: `session.find`, which documents it.
+     * @param text - what was typed
+     * @param options - the window, the kinds and the scope
+     * @returns a page of hits and the value rows
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window or kind, `E_DISPOSED` once disposed.
+     */
+    find(text: string, options: FindOptions = {}): FindResult {
+        this.requireLive("find");
+        const { offset, limit } = pageWindow(
+            { offset: options.offset, limit: options.limit ?? DEFAULT_FIND_LIMIT },
+            "find",
+        );
+        const kinds = options.kinds ?? FIND_KINDS;
+        for (const kind of kinds as readonly unknown[]) {
+            if (!FIND_KINDS.includes(kind as FindKind)) {
+                throw new GraphtyError({
+                    code: "E_OPTION_RANGE",
+                    message: `find() lists "node" and "edge", not ${JSON.stringify(kind)}`,
+                    source: "data",
+                    details: { option: "kinds", value: kind },
+                });
+            }
+        }
+
+        const scope = options.scope === undefined ? null : this.pages.resolve(options.scope);
+        const revision = this.pages.revision();
+        const found = this.pages.search(text, { offset, limit, kinds: new Set(kinds), scope });
+        return { ...found, offset, revision: String(revision) };
+    }
+
+    /**
      * A page: the ordered rows, then the records for the window only.
      * @param snapshot - the current snapshot, already frozen
      * @param target - nodes or edges
@@ -812,7 +859,7 @@ export class SessionData implements SessionDataApi {
         verb: string,
         recordAt: (index: number) => TRecord,
     ): RecordPage<TRecord> {
-        const { offset, limit } = pageWindow(options, verb);
+        const { offset, limit } = pageWindow(options, `data.${verb}`);
         const columns = options.columns?.map((column) => resolveResult(column, target, this.pages, verb));
         // Read after the snapshot: a freeze moves the tick, so reading it first would name a
         // revision the page was not read at.

@@ -46,6 +46,7 @@ import "./src/graphty-element";
 // =============================================================================
 export { Edge } from "./src/Edge";
 export { Graph } from "./src/Graph";
+export type { GraphtyElementEventMap } from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
 export type { NodeIdType } from "./src/Node";
 export { Node } from "./src/Node";
@@ -124,6 +125,8 @@ export type {
     FindResult,
     FindValueRow,
 } from "./src/session/types";
+// What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
+export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
 
 // Notes: text people write about the graph, as `element.session.notes`
 export type {
@@ -145,6 +148,19 @@ export type {
     NoteTargetStatus,
     Problem,
 } from "./src/session/notes/types";
+
+// The project file: the whole session as one graphty document, as `element.session.project`
+export type {
+    ProjectApi,
+    ProjectOpenOptions,
+    ProjectOpenReport,
+    ProjectProblem,
+    ProjectSaveOptions,
+    ProjectSaveReport,
+    ProjectSource,
+    ProjectStatus,
+    SavedProject,
+} from "./src/session/projectFile";
 
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";

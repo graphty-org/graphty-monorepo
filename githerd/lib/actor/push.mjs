@@ -14,11 +14,15 @@
  * `pushRunBranch` runs every git command in the main checkout, never in the run's worktree: the run
  * can write that worktree's `.git` file and hook directories, and git would run what they name with
  * the daemon's privileges. The run's head is read from its local branch, which createWorktree named.
- * The queue instead pushes from the job's worktree, because the gate must run as a hook there; a
- * worker cannot redirect the hooks (the guard refuses `core.hooksPath`, `git config` writes and
- * `HUSKY=`, design 10.1), and the commit checks still run in the main checkout with hooks off.
+ * The queue instead pushes from the job's worktree, because the gate must run as a hook there, but
+ * with the main checkout's hooks (`-c core.hooksPath`), and it refuses a push whose new commits or
+ * uncommitted changes touch a path the gate runs: the guard refuses Edit and Write to them, not
+ * Bash. The push and its gate run the branch's code, so they get an allow-listed environment,
+ * never the daemon's own. The commit checks run in the main checkout with hooks off.
  */
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
 import { escalate, move, TERMINAL } from "../board.mjs";
@@ -274,12 +278,34 @@ async function deny(state, ledger, run, branch, head, reasons, now) {
     return { pushed: false, head, reasons };
 }
 
-/** The gate's duration before one has been measured; a push is bounded at twice the measured one. */
-// ponytail: the last successful push's duration is the measure; keep a median of several if one
-// fast or slow push throws the bound off.
+/**
+ * The gate's duration before one has been measured, and the least a push is bounded by: a push is
+ * bounded at twice the longest of this and the recent successful gates, so a gate the Nx cache
+ * made fast never cuts the next, cold one short.
+ */
 const DEFAULT_GATE_MS = 30 * 60_000;
-/** The shortest measure kept: a push whose gate found nothing to do must not bound the next one at seconds. */
-const MIN_GATE_MS = 5 * 60_000;
+/** How many recent successful gate durations are kept. */
+const GATE_RUNS = 5;
+
+/**
+ * Paths that decide what the pre-push gate runs, or that githerd and its hooks are made of. A push
+ * whose new commits change one, or whose worktree has uncommitted changes to one, is refused: the
+ * gate must run exactly as for a person (design 4.8), and the guard refuses only Edit and Write to
+ * them, not a Bash command.
+ * ponytail: the root package.json's `prepush:fast` script also points at the gate; it is not on the
+ * list because jobs change package.json for dependencies. Compare that one script if it matters.
+ */
+const GATE_PATHS = [
+    ".husky/",
+    "tools/prepush.sh",
+    "tools/lfs-pre-push.sh",
+    "tools/scan-secrets.sh",
+    "tools/sonar-gate.mjs",
+    "tools/sonar/",
+    "githerd/",
+    ".claude/",
+    ".github/workflows/",
+];
 
 /**
  * @typedef {object} PushEntry one push in the queue, kept in `state.pushQueue.entries`
@@ -342,6 +368,9 @@ const rank = (job) => {
 /**
  * The push queue (design section 4.8). Its entries, the measured gate duration and the recent gate
  * failures live in `state.pushQueue`, so the board shows them and they are saved with the state.
+ * Entries saved as `running` by a githerd that has since stopped are recovered when the queue is
+ * made: the push is killed if its process still runs, the job is told it was interrupted and goes
+ * back to work, and the queued entries start.
  * @param {{
  *   root: string,
  *   state: any,
@@ -352,12 +381,20 @@ const rank = (job) => {
  *   credentialBlocked?: () => string | null,
  *   defaultBranch?: string,
  *   remote?: string,
- *   env?: Record<string, string | undefined>,
+ *   env: Record<string, string>,
+ *   secrets?: Record<string, string | undefined>,
+ *   hooksPath?: string,
+ *   protectedPaths?: string[],
+ *   defaultGateMs?: number,
  *   now?: () => Date,
  * }} options `root` is the main checkout, where commits are checked; `mode` answers a write
  *   group's mode (pushes are group `workers`); `ring` delivers a result to the job's session (the
- *   doorbell); `credentialBlocked` names a blocked credential, or null; `env` is the environment
- *   pushes run with and the outgoing check reads
+ *   doorbell); `credentialBlocked` names a blocked credential, or null; `env` is the whole
+ *   environment of the push and its gate, which run the branch's code: an allow-list
+ *   (`codeEnv` in worker-settings.mjs), never the daemon's own, which holds the notify keys;
+ *   `secrets` are the values the outgoing check refuses; `hooksPath` the hooks the push runs, the
+ *   main checkout's `.husky/_` by default, never the worktree's; `protectedPaths` the config's
+ *   list, refused like the gate's own paths
  * @returns {{
  *   request: (args: {job: string, branch: string, expectHead: string}, session: string | null) =>
  *     Promise<{queued: true, position: number, estimateMinutes: number} | {ok: false, reason: string}>,
@@ -377,15 +414,21 @@ export function createPushQueue({
     credentialBlocked = () => null,
     defaultBranch = "master",
     remote = "origin",
-    env = process.env,
+    env,
+    secrets = {},
+    hooksPath = join(root, ".husky", "_"),
+    protectedPaths = [],
+    defaultGateMs = DEFAULT_GATE_MS,
     now = () => new Date(),
 }) {
-    state.pushQueue ??= { next: 1, entries: [], gateMs: null, failures: [] };
+    if (!env) throw new TypeError("createPushQueue needs the push's allow-listed environment");
+    state.pushQueue ??= { next: 1, entries: [], failures: [] };
     const q = state.pushQueue;
+    q.gateRuns ??= [];
     /** @type {Promise<unknown> | null} */
     let running = null;
 
-    const gateMs = () => q.gateMs ?? DEFAULT_GATE_MS;
+    const gateMs = () => Math.max(defaultGateMs, ...q.gateRuns);
     /**
      * The entries in the order they run: by rank, then by when they were queued.
      * @returns {PushEntry[]} the entries
@@ -505,12 +548,16 @@ export function createPushQueue({
         const head = await worktreeHead(e.worktree);
         if (head !== e.head) return `push refused: the worktree's HEAD moved from ${e.head} to ${head}; push again`;
         const reasons = [];
-        for (const sha of lines(await git(root, ["rev-list", e.head, "--not", `--remotes=${remote}`]))) {
-            reasons.push(...(await commitReasons(root, sha, null, env)));
+        const shas = lines(await git(root, ["rev-list", e.head, "--not", `--remotes=${remote}`]));
+        for (const sha of shas) {
+            reasons.push(...(await commitReasons(root, sha, null, secrets)));
             const patch = await git(root, ["show", "--format=", "--no-color", "--no-ext-diff", "-U0", sha]);
             const added = patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++ "));
-            for (const r of checkOutgoing(added.join("\n"), env)) reasons.push(`commit ${sha.slice(0, 9)}'s diff ${r}`);
+            for (const r of checkOutgoing(added.join("\n"), secrets)) {
+                reasons.push(`commit ${sha.slice(0, 9)}'s diff ${r}`);
+            }
         }
+        reasons.push(...(await gateReasons(e, shas)));
         if (reasons.length) {
             await ledger({ kind: "push-refused", job: job.id, branch: e.branch, head: e.head, reasons });
             return `push refused: ${reasons.join("; ")}`;
@@ -523,7 +570,7 @@ export function createPushQueue({
         const started = performance.now();
         const r = await pushChild(e);
         if (r.code === 0) {
-            q.gateMs = Math.max(MIN_GATE_MS, Math.round(performance.now() - started));
+            q.gateRuns = [...q.gateRuns, Math.round(performance.now() - started)].slice(-GATE_RUNS);
             job.pushedHead = e.head;
             state.pushedByGitherd ??= {};
             state.pushedByGitherd[e.head] = job.target;
@@ -534,9 +581,52 @@ export function createPushQueue({
     }
 
     /**
-     * Runs `git push` in the job's worktree with the normal hooks, as a child of the daemon leading
-     * its own process group, so a worker's death never touches it and a timeout or `stop` kills
-     * the gate with every child it started. Bounded at twice the gate's measured duration.
+     * Why the gate would not run as for a person: a new commit changes a path the gate runs or
+     * githerd is made of (a path whose content equals the default branch's is the branch's merge
+     * of it, not a change), or the worktree has uncommitted changes to one.
+     * @param {PushEntry} e the entry
+     * @param {string[]} shas the commits the remote does not have
+     * @returns {Promise<string[]>} the reasons
+     */
+    async function gateReasons(e, shas) {
+        const guarded = [...GATE_PATHS, ...protectedPaths];
+        const changed = new Set();
+        for (const sha of shas) {
+            const out = await git(root, [
+                "diff-tree",
+                "-r",
+                "-m",
+                "--first-parent",
+                "--no-commit-id",
+                "--name-only",
+                sha,
+            ]);
+            for (const p of lines(out)) if (isProtected(p, guarded)) changed.add(p);
+        }
+        const reasons = [];
+        const master = `refs/remotes/${remote}/${defaultBranch}`;
+        for (const p of changed) {
+            const at = (/** @type {string} */ rev) =>
+                exec("git", [...SAFE, "rev-parse", "-q", "--verify", `${rev}:${p}`], { cwd: root });
+            const [mine, theirs] = await Promise.all([at(e.head), at(master)]);
+            // The same blob, or absent from both: the default branch's content, not this branch's change.
+            if (mine.code === theirs.code && mine.stdout === theirs.stdout) continue;
+            reasons.push(`it changes ${p}, which decides what the gate runs or is githerd's own`);
+        }
+        const dirty = await exec("git", [...SAFE, "status", "--porcelain", "--", ...guarded], { cwd: e.worktree });
+        if (dirty.code !== 0 || dirty.stdout.trim()) {
+            const what = dirty.stdout.trim().split("\n").slice(0, 3).join(", ") || dirty.stderr.trim();
+            reasons.push(`the worktree has uncommitted changes to gate paths: ${what}`);
+        }
+        if (!existsSync(join(hooksPath, "pre-push"))) reasons.push(`no pre-push hook in ${hooksPath}`);
+        return reasons;
+    }
+
+    /**
+     * Runs `git push` in the job's worktree with the main checkout's hooks (never the worktree's,
+     * which the worker can write), as a child of the daemon leading its own process group, so a
+     * worker's death never touches it and a timeout or `stop` kills the gate with every child it
+     * started. Bounded at twice the longest recent gate, never less than twice the default.
      * @param {PushEntry} e the entry
      * @returns {Promise<{code: number, out: string, timedOut: boolean}>} the exit code and output
      */
@@ -546,7 +636,7 @@ export function createPushQueue({
             let timedOut = false;
             const child = spawn(
                 "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
-                ["push", remote, `${e.head}:refs/heads/${e.branch}`],
+                ["-c", `core.hooksPath=${hooksPath}`, "push", remote, `${e.head}:refs/heads/${e.branch}`],
                 { cwd: e.worktree, env, detached: true, stdio: ["ignore", "pipe", "pipe"] },
             );
             e.pid = child.pid ?? null;
@@ -628,6 +718,34 @@ export function createPushQueue({
         await running;
         await drain();
     }
+
+    /**
+     * Recovers the entries a stopped githerd left `running`: their result is lost with it, so the
+     * push is killed if it still runs, the entry dropped, and the job told to check the remote and
+     * push again. Then the queued entries start, which nothing else would start until a new request.
+     */
+    function recover() {
+        const t = now();
+        for (const e of q.entries.filter((/** @type {PushEntry} */ x) => x.status === "running")) {
+            if (livePush(e)) kill(e.pid);
+            q.entries = q.entries.filter((/** @type {PushEntry} */ x) => x !== e);
+            const job = state.jobs?.[e.job];
+            void ledger({ kind: "push-interrupted", job: e.job, branch: e.branch, head: e.head });
+            if (!job) continue;
+            job.news.push({
+                at: t.toISOString(),
+                text:
+                    `your push of ${e.head} to ${e.branch} was interrupted by a githerd restart; ` +
+                    "check the remote head and push again",
+                acked: false,
+            });
+            if (job.state === "waiting" && job.waitingFor?.push === e.id) move(job, "working", t);
+        }
+        for (const e of q.entries) Object.assign(e, { pid: null, startTime: null });
+        void save();
+        pump();
+    }
+    recover();
 
     return {
         request,

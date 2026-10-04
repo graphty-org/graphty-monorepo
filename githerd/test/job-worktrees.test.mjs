@@ -11,6 +11,7 @@ import {
     removeJobWorktree,
     signingProbe,
 } from "../lib/worktrees.mjs";
+import { codeEnv } from "../lib/worker-settings.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
 /** @type {{tmp: string, root: string, remote: string}} */
@@ -34,11 +35,31 @@ const step = (name, extra = "") => [
 ];
 const STEPS = { install: step("install"), build: step("build"), smoke: step("smoke") };
 
+/**
+ * The steps' environment as the daemon builds it, plus the test's git isolation.
+ * @param {Record<string, string>} [extra] variables in the daemon's own environment
+ * @returns {Record<string, string>} the environment
+ */
+function testEnv(extra = {}) {
+    return {
+        ...codeEnv({ env: { ...process.env, ...extra }, path: /** @type {string} */ (process.env.PATH), signing: {} }),
+        GIT_CONFIG_GLOBAL: /** @type {string} */ (process.env.GIT_CONFIG_GLOBAL),
+        GIT_CONFIG_NOSYSTEM: "1",
+    };
+}
+
+/**
+ * Prepares a job worktree with the test's environment.
+ * @param {Omit<Parameters<typeof prepareJobWorktree>[0], "env">} options the options
+ * @returns {ReturnType<typeof prepareJobWorktree>} the answer
+ */
+const prepare = (options) => prepareJobWorktree({ env: testEnv(), ...options });
+
 beforeAll(() => isolateGit());
 beforeEach(() => {
     repo = makeRepo();
     // The steps' log is build output, ignored like node_modules and dist are in the real repository.
-    put(join(repo.root, ".gitignore"), "/.worktrees/\nsteps.log\ndist/\n");
+    put(join(repo.root, ".gitignore"), "/.worktrees/\nsteps.log\nenv.json\ndist/\n");
     green = commitAll(repo.root, "chore: ignore build output");
     git(repo.root, "push", "-q", "origin", "master");
     entries = [];
@@ -108,7 +129,7 @@ describe("prepareJobWorktree", () => {
 
     it("fetches a pull request's head by its ref and detaches there", async () => {
         const head = pushPr("feat/x", 7);
-        const r = await prepareJobWorktree({
+        const r = await prepare({
             root: repo.root,
             job: "pr-7",
             sha: head,
@@ -126,24 +147,24 @@ describe("prepareJobWorktree", () => {
         const owner = join(repo.tmp, "owner");
         git(repo.root, "fetch", "-q", "origin", "feat/y:refs/remotes/origin/feat/y");
         git(repo.root, "worktree", "add", "-q", "-b", "feat/y", owner, head);
-        const prepare = () =>
-            prepareJobWorktree({ root: repo.root, job: "pr-8", sha: head, branch: "feat/y", steps: STEPS, ledger });
+        const prepareIt = () =>
+            prepare({ root: repo.root, job: "pr-8", sha: head, branch: "feat/y", steps: STEPS, ledger });
 
         // Clean and pushed: no holder.
         expect(await branchHolders({ root: repo.root, branch: "feat/y" })).toEqual([]);
 
         put(join(owner, "wip.txt"), "wip\n");
-        expect(await prepare()).toEqual({ verdict: "held", holders: [{ dir: owner, dirty: true, unpushed: 0 }] });
+        expect(await prepareIt()).toEqual({ verdict: "held", holders: [{ dir: owner, dirty: true, unpushed: 0 }] });
 
         commitAll(owner, "wip: more");
-        expect(await prepare()).toEqual({ verdict: "held", holders: [{ dir: owner, dirty: false, unpushed: 1 }] });
+        expect(await prepareIt()).toEqual({ verdict: "held", holders: [{ dir: owner, dirty: false, unpushed: 1 }] });
         expect(existsSync(jobWorktreeDir(repo.root, "pr-8"))).toBe(false);
         expect(entries.filter((e) => e.kind === "job-worktree-held")).toHaveLength(2);
     });
 
     it("is a fault, and leaves no worktree, when the smoke test fails", async () => {
         const steps = { ...STEPS, smoke: [process.execPath, "-e", "console.error('smoke broke'); process.exit(3)"] };
-        const r = await prepareJobWorktree({ root: repo.root, job: "issue-1", sha: green, steps, ledger });
+        const r = await prepare({ root: repo.root, job: "issue-1", sha: green, steps, ledger });
         expect(r).toMatchObject({ verdict: "faulted", step: "smoke", dir: null });
         expect(r.verdict === "faulted" && r.reason).toMatch(/^smoke exited 3: .*smoke broke/s);
         expect(existsSync(jobWorktreeDir(repo.root, "issue-1"))).toBe(false);
@@ -154,28 +175,83 @@ describe("prepareJobWorktree", () => {
     it("is a fault when the build leaves a built package without dist", async () => {
         put(join(repo.root, "pkg", "package.json"), JSON.stringify({ scripts: { build: "x" } }));
         green = commitAll(repo.root, "feat: a package");
-        const r = await prepareJobWorktree({ root: repo.root, job: "issue-2", sha: green, steps: STEPS, ledger });
+        const r = await prepare({ root: repo.root, job: "issue-2", sha: green, steps: STEPS, ledger });
         expect(r).toMatchObject({ verdict: "faulted", step: "build", reason: "build left no dist in pkg" });
 
         const steps = { ...STEPS, build: step("build", "require('fs').mkdirSync('pkg/dist')") };
-        expect(await prepareJobWorktree({ root: repo.root, job: "issue-2", sha: green, steps, ledger })).toMatchObject({
+        expect(await prepare({ root: repo.root, job: "issue-2", sha: green, steps, ledger })).toMatchObject({
             verdict: "ready",
         });
     });
 
     it("is a fault when the commit cannot be fetched or the directory exists", async () => {
         const missing = "0123456789abcdef0123456789abcdef01234567";
-        expect(
-            await prepareJobWorktree({ root: repo.root, job: "j", sha: missing, steps: STEPS, ledger }),
-        ).toMatchObject({ verdict: "faulted", step: "fetch", dir: null });
+        expect(await prepare({ root: repo.root, job: "j", sha: missing, steps: STEPS, ledger })).toMatchObject({
+            verdict: "faulted",
+            step: "fetch",
+            dir: null,
+        });
         mkdirSync(jobWorktreeDir(repo.root, "j"), { recursive: true });
-        expect(await prepareJobWorktree({ root: repo.root, job: "j", sha: green, steps: STEPS, ledger })).toMatchObject(
-            {
-                verdict: "faulted",
-                step: "worktree add",
-                dir: jobWorktreeDir(repo.root, "j"),
-            },
-        );
+        expect(await prepare({ root: repo.root, job: "j", sha: green, steps: STEPS, ledger })).toMatchObject({
+            verdict: "faulted",
+            step: "worktree add",
+            dir: jobWorktreeDir(repo.root, "j"),
+        });
+    });
+
+    it("removes a worktree a stopped githerd left half prepared, and prepares again", async () => {
+        const dir = jobWorktreeDir(repo.root, "issue-10");
+        git(repo.root, "worktree", "add", "-q", "--detach", dir, green);
+        git(repo.root, "worktree", "lock", "--reason", "githerd job issue-10", dir);
+        put(join(dir, "steps.log"), "half\n");
+        const r = await prepare({ root: repo.root, job: "issue-10", sha: green, steps: STEPS, ledger });
+        expect(r).toEqual({ verdict: "ready", dir, sha: green });
+        expect(readFileSync(join(dir, "steps.log"), "utf8")).not.toContain("half");
+        expect(entries.map((e) => e.kind)).toEqual(["job-worktree-removed", "job-worktree-ready"]);
+
+        // The job's own prepared worktree, or another job's, is never removed.
+        entries = [];
+        const again = await prepare({
+            root: repo.root,
+            job: "issue-10",
+            sha: green,
+            steps: STEPS,
+            prepared: dir,
+            ledger,
+        });
+        expect(again).toMatchObject({ verdict: "faulted", step: "worktree add", dir });
+        const other = jobWorktreeDir(repo.root, "issue-11");
+        git(repo.root, "worktree", "add", "-q", "--detach", other, green);
+        git(repo.root, "worktree", "lock", "--reason", "githerd job issue-99", other);
+        expect(await prepare({ root: repo.root, job: "issue-11", sha: green, steps: STEPS, ledger })).toMatchObject({
+            verdict: "faulted",
+            reason: `${other} already exists`,
+        });
+        expect(existsSync(join(dir, "steps.log"))).toBe(true);
+    });
+
+    it("runs the steps with the allow-listed environment, never the daemon's own", async () => {
+        process.env.PUSHOVER_TEST = "daemon-only";
+        const dump = [process.execPath, "-e", "require('fs').writeFileSync('env.json', JSON.stringify(process.env))"];
+        try {
+            const r = await prepare({
+                root: repo.root,
+                job: "issue-12",
+                sha: green,
+                steps: { ...STEPS, smoke: dump },
+                env: testEnv({ PUSHOVER_TEST: "daemon-only" }),
+                ledger,
+            });
+            expect(r).toMatchObject({ verdict: "ready" });
+        } finally {
+            delete process.env.PUSHOVER_TEST;
+        }
+        const seen = JSON.parse(readFileSync(join(jobWorktreeDir(repo.root, "issue-12"), "env.json"), "utf8"));
+        expect(seen.PATH).toBeTruthy();
+        expect(seen.PUSHOVER_TEST).toBeUndefined();
+        await expect(
+            prepareJobWorktree(/** @type {any} */ ({ root: repo.root, job: "issue-13", sha: green, ledger })),
+        ).rejects.toThrow(/allow-listed environment/);
     });
 
     it("names the worktree it could not remove after a failed step", async () => {
@@ -183,7 +259,7 @@ describe("prepareJobWorktree", () => {
             ...STEPS,
             smoke: [process.execPath, "-e", "require('fs').writeFileSync('stray', ''); process.exit(1)"],
         };
-        const r = await prepareJobWorktree({ root: repo.root, job: "issue-3", sha: green, steps, ledger });
+        const r = await prepare({ root: repo.root, job: "issue-3", sha: green, steps, ledger });
         const dir = jobWorktreeDir(repo.root, "issue-3");
         expect(r).toMatchObject({ verdict: "faulted", step: "smoke", dir });
         expect(r.verdict === "faulted" && r.reason).toMatch(/not removed: .*untracked/);
@@ -198,7 +274,7 @@ describe("removeJobWorktree", () => {
      * @returns {Promise<string>} the worktree
      */
     async function prepared(job) {
-        const r = await prepareJobWorktree({ root: repo.root, job, sha: green, steps: STEPS, ledger });
+        const r = await prepare({ root: repo.root, job, sha: green, steps: STEPS, ledger });
         if (r.verdict !== "ready") throw new Error(JSON.stringify(r));
         return r.dir;
     }

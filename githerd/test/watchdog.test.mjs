@@ -379,7 +379,8 @@ describe("watchPass", () => {
             j.compactions = 3;
             const state = { jobs: { [j.id]: j } };
             const kinds = [];
-            for (const m of [0, 20, 40]) kinds.push(...(await watchPass(state, at(m), options())).ledger.map((l) => l.kind));
+            for (const m of [0, 20, 40])
+                kinds.push(...(await watchPass(state, at(m), options())).ledger.map((l) => l.kind));
             expect(kinds).not.toContain("recycled");
             expect(kinds).not.toContain("escaped");
             expect(fw.keys(id)).toEqual([]);

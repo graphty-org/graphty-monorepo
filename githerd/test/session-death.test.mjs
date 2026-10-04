@@ -6,6 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { createPushQueue } from "../lib/actor/push.mjs";
+import { codeEnv } from "../lib/worker-settings.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { recoverDeath, sweepWorktree, worktreeProcesses } from "../lib/session-death.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
@@ -62,6 +63,12 @@ beforeEach(() => {
         state,
         ledger: (e) => entries.push(e),
         mode: () => "acting",
+        env: {
+            ...codeEnv({ env: process.env, path: /** @type {string} */ (process.env.PATH), signing: {} }),
+            GIT_CONFIG_GLOBAL: /** @type {string} */ (process.env.GIT_CONFIG_GLOBAL),
+            GIT_CONFIG_NOSYSTEM: "1",
+        },
+        hooksPath: join(repo.tmp, "hooks"),
         now: () => t0,
     });
 });

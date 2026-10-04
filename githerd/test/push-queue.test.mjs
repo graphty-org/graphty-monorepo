@@ -7,6 +7,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { createPushQueue } from "../lib/actor/push.mjs";
 import { move, newJob } from "../lib/board.mjs";
+import { identify } from "../lib/proc.mjs";
+import { codeEnv } from "../lib/worker-settings.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
 /**
@@ -18,6 +20,7 @@ import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
  */
 const gateScript = (tmp) => `#!/bin/sh
 echo $$ > "${tmp}/gate-pid"
+env > "${tmp}/gate-env"
 while read local_ref local_sha remote_ref remote_sha; do echo "$remote_ref" >> "${tmp}/gate-log"; done
 case "$(cat "${tmp}/gate-mode")" in
   fail) printf '\\033[0;31m[FAIL] Lint failed\\033[0m\\n'; echo "Pre-push validation failed"; exit 1;;
@@ -58,16 +61,41 @@ beforeEach(() => {
     mode = "acting";
     blocked = null;
     spawned = [];
-    queue = createPushQueue({
+    queue = makeQueue();
+});
+
+/**
+ * A queue on the test's state, as the daemon makes one.
+ * @param {Partial<Parameters<typeof createPushQueue>[0]>} [over] options to change
+ * @returns {ReturnType<typeof createPushQueue>} the queue
+ */
+function makeQueue(over = {}) {
+    return createPushQueue({
         root: repo.root,
         state,
         ledger: (e) => entries.push(e),
         mode: () => mode,
         ring: async (job, text) => rings.push({ job: job.id, text }),
         credentialBlocked: () => blocked,
+        env: testEnv(),
+        hooksPath: join(repo.tmp, "hooks"),
         now: () => now,
+        ...over,
     });
-});
+}
+
+/**
+ * The push's environment as the daemon builds it, plus the test's git isolation.
+ * @param {Record<string, string>} [extra] variables in the daemon's own environment
+ * @returns {Record<string, string>} the environment
+ */
+function testEnv(extra = {}) {
+    return {
+        ...codeEnv({ env: { ...process.env, ...extra }, path: /** @type {string} */ (process.env.PATH), signing: {} }),
+        GIT_CONFIG_GLOBAL: /** @type {string} */ (process.env.GIT_CONFIG_GLOBAL),
+        GIT_CONFIG_NOSYSTEM: "1",
+    };
+}
 afterEach(async () => {
     queue.stop();
     await queue.drain();
@@ -259,7 +287,7 @@ describe("a push", () => {
         expect(rings).toEqual([{ job: "a", text: `pushed ${head} to githerd/a` }]);
         expect(entries.map((e) => e.kind)).toEqual(["push-queued", "action"]);
         expect(state.pushQueue.entries).toEqual([]);
-        expect(state.pushQueue.gateMs).toBe(5 * 60_000);
+        expect(state.pushQueue.gateRuns).toHaveLength(1);
     });
 
     it("pushes nothing in dry-run and says so", async () => {
@@ -352,12 +380,160 @@ describe("gate failures", () => {
 
     it("kills a push that runs past twice the gate's duration, gate included", async () => {
         gate("hang");
-        state.pushQueue.gateMs = 100;
+        queue = makeQueue({ defaultGateMs: 50 });
+        state.pushQueue.gateRuns = [10];
         const a = workingJob("a");
         await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
         await queue.drain();
         expect(a.job.news.at(-1).text).toMatch(/^push failed \(outside: timed out after 0 minutes\)/);
         expect(alive(Number(readFileSync(join(repo.tmp, "gate-pid"), "utf8")))).toBe(false);
+    });
+});
+
+describe("the gate runs as for a person", () => {
+    it("refuses a new commit that changes a path the gate runs, without running the gate", async () => {
+        const { job, dir } = workingJob("a");
+        put(join(dir, "tools", "prepush.sh"), "exit 0\n");
+        const head = commitAll(dir, "fix: skip the flaky step");
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: head }, "s-a");
+        await queue.drain();
+        expect(remoteHead("githerd/a")).toBeNull();
+        expect(existsSync(join(repo.tmp, "gate-log"))).toBe(false);
+        expect(job.news.at(-1).text).toMatch(/^push refused: .*it changes tools\/prepush\.sh/);
+    });
+
+    it("refuses a config-protected path and uncommitted changes to the gate's files", async () => {
+        queue = makeQueue({ protectedPaths: ["visual-baselines/"] });
+        const a = workingJob("a");
+        put(join(a.dir, "visual-baselines", "x.png"), "x");
+        const head = commitAll(a.dir, "test: new baseline");
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: head }, "s-a");
+        await queue.drain();
+        expect(a.job.news.at(-1).text).toMatch(/it changes visual-baselines\/x\.png/);
+
+        const b = workingJob("b");
+        put(join(b.dir, ".husky", "pre-push"), "exit 0\n");
+        await queue.request({ job: "b", branch: "githerd/b", expectHead: b.head }, "s-b");
+        await queue.drain();
+        expect(b.job.news.at(-1).text).toMatch(/uncommitted changes to gate paths: \?\? \.husky\//);
+        expect(existsSync(join(repo.tmp, "gate-log"))).toBe(false);
+    });
+
+    it("allows a merge of the default branch that brought a gate change in", async () => {
+        const { job, dir } = workingJob("a");
+        put(join(repo.root, "tools", "prepush.sh"), "echo new gate\n");
+        commitAll(repo.root, "chore: new gate");
+        git(repo.root, "push", "-q", "origin", "master");
+        git(repo.root, "fetch", "-q", "origin");
+        git(dir, "merge", "-q", "-S", "--no-edit", "origin/master");
+        const head = git(dir, "rev-parse", "HEAD");
+        expect(git(dir, "rev-list", "--parents", "-n", "1", "HEAD").split(" ")).toHaveLength(3);
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: head }, "s-a");
+        await queue.drain();
+        expect(job.news.at(-1).text).toBe(`pushed ${head} to githerd/a`);
+    });
+
+    it("runs the main checkout's hooks, whatever the repository's config names", async () => {
+        const evil = join(repo.tmp, "evil");
+        put(join(evil, "pre-push"), `#!/bin/sh\ntouch "${repo.tmp}/evil-ran"\nexit 0\n`);
+        chmodSync(join(evil, "pre-push"), 0o755);
+        git(repo.root, "config", "core.hooksPath", evil);
+        const a = workingJob("a");
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        await queue.drain();
+        expect(existsSync(join(repo.tmp, "evil-ran"))).toBe(false);
+        expect(readFileSync(join(repo.tmp, "gate-log"), "utf8")).toBe("refs/heads/githerd/a\n");
+
+        queue = makeQueue({ hooksPath: join(repo.tmp, "none") });
+        const b = workingJob("b");
+        await queue.request({ job: "b", branch: "githerd/b", expectHead: b.head }, "s-b");
+        await queue.drain();
+        expect(b.job.news.at(-1).text).toMatch(/no pre-push hook in/);
+    });
+
+    it("never hands the daemon's own environment to the gate", async () => {
+        process.env.PUSHOVER_TEST = "daemon-only";
+        try {
+            queue = makeQueue({ env: testEnv({ PUSHOVER_TEST: "daemon-only" }) });
+            const a = workingJob("a");
+            await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+            await queue.drain();
+        } finally {
+            delete process.env.PUSHOVER_TEST;
+        }
+        const env = readFileSync(join(repo.tmp, "gate-env"), "utf8");
+        expect(env).toContain("PATH=");
+        expect(env).not.toContain("PUSHOVER_TEST");
+        expect(() => makeQueue({ env: /** @type {any} */ (undefined) })).toThrow(/allow-listed environment/);
+    });
+
+    it("bounds a push at twice the longest recent gate, never below twice the default", async () => {
+        gate("wait");
+        state.pushQueue.gateRuns = [60_000];
+        const a = workingJob("a");
+        const r = await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        expect(r).toMatchObject({ estimateMinutes: 30 });
+        expect(a.job.clock.budgetMs).toBe(2 * 30 * 60_000);
+        state.pushQueue.gateRuns = [60_000, 50 * 60_000, 60_000];
+        const b = workingJob("b");
+        expect(await queue.request({ job: "b", branch: "githerd/b", expectHead: b.head }, "s-b")).toMatchObject({
+            estimateMinutes: 100,
+        });
+        writeFileSync(join(repo.tmp, "go"), "");
+    });
+});
+
+describe("a githerd restart", () => {
+    it("ends a push the old daemon was running and starts the queued ones", async () => {
+        const a = workingJob("a");
+        const b = workingJob("b");
+        const old = spawn("sleep", ["1000"], { stdio: "ignore", detached: true });
+        spawned.push(/** @type {number} */ (old.pid));
+        await until(() => identify(/** @type {number} */ (old.pid)) !== null);
+        const dead = spawn("true");
+        await new Promise((r) => dead.on("close", r));
+        const saved = (/** @type {any} */ job, /** @type {string} */ id, /** @type {any} */ over) => {
+            move(job.job, "waiting", now, { waitingFor: { push: id } });
+            return {
+                id,
+                job: job.job.id,
+                branch: `githerd/${job.job.id}`,
+                head: job.head,
+                worktree: job.dir,
+                rank: 2,
+                queuedAt: now.toISOString(),
+                ...over,
+            };
+        };
+        const c = workingJob("c");
+        state.pushQueue.entries = [
+            saved(a, "push-1", { status: "running", pid: dead.pid, startTime: "1" }),
+            saved(b, "push-2", { status: "queued", pid: null, startTime: null }),
+            saved(c, "push-3", {
+                status: "running",
+                pid: old.pid,
+                startTime: identify(/** @type {number} */ (old.pid))?.startTime,
+            }),
+        ];
+        state.pushQueue.next = 4;
+        queue = makeQueue();
+        await queue.drain();
+        expect(a.job.state).toBe("working");
+        expect(a.job.news.at(-1).text).toMatch(
+            /interrupted by a githerd restart; check the remote head and push again/,
+        );
+        expect(c.job.state).toBe("working");
+        await until(() => old.exitCode !== null || old.signalCode !== null);
+        expect(b.job.state).toBe("working");
+        expect(remoteHead("githerd/b")).toBe(b.head);
+        expect(state.pushQueue.entries).toEqual([]);
+        expect(entries.filter((e) => e.kind === "push-interrupted").map((e) => e.job)).toEqual(["a", "c"]);
+        // A later push of an interrupted job is accepted.
+        a.job.news.forEach((/** @type {any} */ n) => (n.acked = true));
+        expect(await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a")).toMatchObject({
+            queued: true,
+        });
+        await queue.drain();
     });
 });
 

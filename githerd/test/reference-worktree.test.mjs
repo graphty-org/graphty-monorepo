@@ -271,6 +271,10 @@ describe("referenceDryRun", () => {
         expect(calls()).toEqual(['exec nx release --dry-run\t"" false']);
         expect(readFileSync(join(refDir(), "nx.json"), "utf8")).toBe(NX_JSON);
         expect(git(refDir(), "status", "--porcelain")).toBe("");
+        // It runs the repository's code, a pull request's after a merge: never with the daemon's own environment.
+        await expect(referenceDryRun(/** @type {any} */ ({ root: repo.root, state, ledger }))).rejects.toThrow(
+            /allow-listed environment/,
+        );
     });
 
     it("merges a pull request head locally, signed, and returns to the green commit", async () => {

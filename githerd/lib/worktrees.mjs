@@ -374,10 +374,11 @@ const GATE_TIMEOUT_MS = 90 * 60_000;
 
 /**
  * @typedef {{verdict: "fault", check: string, class: "outside" | "credential", reason: string}} Fault
- * @typedef {{root: string, state: any, env?: Record<string, string | undefined>,
+ * @typedef {{root: string, state: any, env: Record<string, string | undefined>,
  *   ledger: Ledger}} RefOptions the main checkout, the daemon state (its `reference` record), the
- *   environment checks run in (the daemon's by default; the owner's signing variables for a merge)
- *   and the ledger
+ *   environment checks run in, and the ledger. The checks run the repository's code, a pull
+ *   request's after a merge, so `env` is an allow-list (`codeEnv` in worker-settings.mjs, with the
+ *   owner's signing variables for a merge), never the daemon's own, which holds the notify keys
  */
 
 /**
@@ -387,6 +388,7 @@ const GATE_TIMEOUT_MS = 90 * 60_000;
  * @returns {Record<string, string | undefined>} the environment to run with
  */
 function refEnv(env) {
+    if (!env) throw new TypeError("code githerd runs needs its allow-listed environment");
     return { ...withoutNxCache(env), NX_DAEMON: "false" };
 }
 
@@ -492,7 +494,7 @@ export async function refreshReference({
     state,
     sha,
     setup = null,
-    env = process.env,
+    env,
     remote = "origin",
     ledger,
     now = () => new Date(),
@@ -502,7 +504,7 @@ export async function refreshReference({
         return { verdict: "ready", dir, sha };
     }
     state.reference = { sha, ready: false, gate: null };
-    const fetched = await haveCommit(root, sha, remote, undefined, env);
+    const fetched = await haveCommit(root, sha, remote, undefined, refEnv(env));
     if (fetched.code !== 0) return refFault(ledger, "fetch", fetched);
     const placed = await placeReference(root, dir, sha, env);
     if (placed) return refFault(ledger, placed.check, placed.r);
@@ -533,7 +535,7 @@ export async function referenceAudit(options) {
     const r = await run("pnpm", ["audit", "--audit-level=high"], {
         cwd: at.dir,
         timeoutMs: SETUP_TIMEOUT_MS,
-        env: refEnv(options.env ?? process.env),
+        env: refEnv(options.env),
     });
     if (r.code === 0) return { verdict: "pass", sha: at.sha };
     const text = `${r.stdout}\n${r.stderr}`;
@@ -560,7 +562,7 @@ export async function referenceCommitlint(options) {
     if ("verdict" in at) return at;
     const r = await run("pnpm", ["exec", "commitlint"], {
         cwd: at.dir,
-        env: refEnv(options.env ?? process.env),
+        env: refEnv(options.env),
         input: `${options.title}\n`,
     });
     if (r.code === 0) return { verdict: "pass" };
@@ -590,7 +592,7 @@ export async function referenceDryRun(options) {
     const at = await prepared(options, "release dry-run");
     if ("verdict" in at) return at;
     const { ledger, merge, remote = "origin" } = options;
-    const env = refEnv(options.env ?? process.env);
+    const env = refEnv(options.env);
     if (merge) {
         const fetched = await haveCommit(at.dir, merge.sha, remote, merge.ref, env);
         if (fetched.code !== 0) return refFault(ledger, "fetch", fetched);
@@ -641,7 +643,7 @@ export async function referenceGate(options) {
     const r = await run("bash", ["tools/prepush.sh"], {
         cwd: at.dir,
         timeoutMs: options.timeoutMs ?? GATE_TIMEOUT_MS,
-        env: { ...refEnv(options.env ?? process.env), PREPUSH_ALL: "1" },
+        env: { ...refEnv(options.env), PREPUSH_ALL: "1" },
     });
     let result;
     if (r.code === 0) {
@@ -758,13 +760,18 @@ async function jobFault(ledger, job, step, dir, r) {
  * branch, fetches the start commit, adds the worktree detached at it, locks it, then installs,
  * builds, checks that every built package has its `dist` and runs the smoke test. When a step
  * after the worktree was added fails, the worktree is removed again (`removeJobWorktree`), so a
- * later attempt starts clean; the fault names it when it could not be removed.
+ * later attempt starts clean; the fault names it when it could not be removed. A worktree a
+ * preparation left behind when githerd stopped halfway (locked for this job, and not the job's
+ * prepared worktree) is removed first, its unpushed commits salvaged; githerd's own crash is never
+ * the job's fault.
  * @param {{root: string, job: string, sha: string, ref?: string, branch?: string, remote?: string,
  *   steps?: {install: string[], build: string[], smoke: string[]},
- *   env?: Record<string, string | undefined>, ledger: Ledger}} options `sha` is the green commit or
- *   the pull request's head, fetched by `ref` (`refs/pull/<n>/head`) when absent; `branch` is a
- *   `pr` job's head branch, checked for holders; `env` is the daemon's environment with the
- *   owner's signing variables
+ *   env: Record<string, string | undefined>, prepared?: string | null, ledger: Ledger}} options
+ *   `sha` is the green commit or the pull request's head, fetched by `ref` (`refs/pull/<n>/head`)
+ *   when absent; `branch` is a `pr` job's head branch, checked for holders; `env` is the
+ *   allow-listed environment the steps run the branch's code with (`codeEnv`, with the owner's
+ *   signing variables), never the daemon's own; `prepared` is the job record's worktree, if it has
+ *   one
  * @returns {Promise<{verdict: "ready", dir: string, sha: string} |
  *   {verdict: "held", holders: Holder[]} | JobFault>} the prepared worktree; the worktrees holding
  *   the branch; or the fault
@@ -777,15 +784,26 @@ export async function prepareJobWorktree({
     branch,
     remote = "origin",
     steps = JOB_STEPS,
-    env = process.env,
+    env,
+    prepared = null,
     ledger,
 }) {
     const dir = jobWorktreeDir(root, job);
+    if (!env) throw new TypeError("prepareJobWorktree needs the steps' allow-listed environment");
     if (branch) {
         const held = await heldBy({ root, job, branch, env, ledger });
         if (held) return held;
     }
-    if (existsSync(dir)) return jobFault(ledger, job, "worktree add", dir, `${dir} already exists`);
+    if (existsSync(dir)) {
+        const left = prepared !== dir && (await lockReason(root, dir, env)) === `githerd job ${job}`;
+        const removed = left
+            ? await removeJobWorktree({ root, job, dir, base: sha, salvage: true, env, ledger })
+            : null;
+        if (!removed?.ok) {
+            const why = removed && "reason" in removed ? `; not removed: ${removed.reason}` : "";
+            return jobFault(ledger, job, "worktree add", dir, `${dir} already exists${why}`);
+        }
+    }
     const fetched = await haveCommit(root, sha, remote, ref, env);
     if (fetched.code !== 0) return jobFault(ledger, job, "fetch", null, fetched);
     const add = await run("git", ["worktree", "add", "--detach", dir, sha], { cwd: root, env });
@@ -800,6 +818,20 @@ export async function prepareJobWorktree({
     }
     await ledger({ kind: "job-worktree-ready", job, dir, sha });
     return { verdict: "ready", dir, sha };
+}
+
+/**
+ * Why git has a worktree locked.
+ * @param {string} root the main checkout
+ * @param {string} dir the worktree
+ * @param {Record<string, string | undefined>} env the environment
+ * @returns {Promise<string | null>} the lock reason, or null when it is not a locked worktree
+ */
+async function lockReason(root, dir, env) {
+    const list = await run("git", ["worktree", "list", "--porcelain"], { cwd: root, env });
+    const block = list.stdout.split("\n\n").find((b) => b.split("\n")[0] === `worktree ${dir}`);
+    const locked = block?.split("\n").find((l) => l.startsWith("locked"));
+    return locked === undefined ? null : locked.slice("locked ".length);
 }
 
 /**

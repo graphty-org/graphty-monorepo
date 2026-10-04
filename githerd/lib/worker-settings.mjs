@@ -225,15 +225,18 @@ export function loginPath({ shell, home, user = "", lang = "C.UTF-8" }) {
 }
 
 /**
- * A worker's environment for `env -i` (design section 7.1): a few variables from the daemon's own,
- * the login PATH, the signing variables and the job's two, and nothing else, so the Pushover keys
- * and stale Claude variables servherd's pm2 carries never reach a worker (platform facts 7.2).
- * @param {{env: Record<string, string | undefined>, path: string, signing: Record<string, string>,
- *   job: string, nonce: string}} options the daemon's environment, the login PATH, the signing
- *   variables, the job id and its doorbell nonce
+ * The environment of anything that runs a branch's code for githerd: a push and its gate, a job
+ * worktree's install, build and smoke test, the release dry-run on a merged pull request. A few
+ * variables from the daemon's own, the PATH and the signing variables, and nothing else, so the
+ * notify command's keys and stale Claude variables servherd's pm2 carries never reach code a worker
+ * or a pull request wrote (design 9.4, platform facts 7.2).
+ * @param {object} options what it is made from
+ * @param {Record<string, string | undefined>} options.env the daemon's environment
+ * @param {string} options.path the PATH
+ * @param {Record<string, string>} options.signing the signing variables
  * @returns {Record<string, string>} the environment
  */
-export function workerEnv({ env, path, signing, job, nonce }) {
+export function codeEnv({ env, path, signing }) {
     /** @type {Record<string, string>} */
     const out = {};
     for (const name of PASSED) if (env[name] !== undefined) out[name] = /** @type {string} */ (env[name]);
@@ -243,9 +246,19 @@ export function workerEnv({ env, path, signing, job, nonce }) {
         if (!/^GIT_CONFIG_(COUNT|KEY_\d+|VALUE_\d+)$/.test(name)) throw new Error(`${name} is not a signing variable`);
         out[name] = value;
     }
-    out.GITHERD_JOB = job;
-    out.GITHERD_NONCE = nonce;
     return out;
+}
+
+/**
+ * A worker's environment for `env -i` (design section 7.1): `codeEnv` with the login PATH, plus
+ * the job's two variables.
+ * @param {{env: Record<string, string | undefined>, path: string, signing: Record<string, string>,
+ *   job: string, nonce: string}} options the daemon's environment, the login PATH, the signing
+ *   variables, the job id and its doorbell nonce
+ * @returns {Record<string, string>} the environment
+ */
+export function workerEnv({ env, path, signing, job, nonce }) {
+    return { ...codeEnv({ env, path, signing }), GITHERD_JOB: job, GITHERD_NONCE: nonce };
 }
 
 /**

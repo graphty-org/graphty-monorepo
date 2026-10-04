@@ -704,10 +704,20 @@ Workers never run `git push` (the guard refuses it). They call `githerd_push`. T
 2. puts the push in its queue: incident fixes first, then pushes to the job's open pull request
    (the work that only waits on them), then the rest, oldest first within each;
 3. when its turn comes, checks again that HEAD is still `expectHead`, checks every commit not on
-   the remote (good signature; no attribution line or secret in its message or added lines), and
-   runs `git -C <worktree> push origin <expectHead>:refs/heads/<branch>` as its own tracked child
-   process, with the normal hooks (never `--no-verify`), so the pre-push gate runs exactly as for
-   a person. Pushing the commit rather than `HEAD` means a commit made while the gate runs is never
+   the remote (good signature; no attribution line or secret in its message or added lines; no
+   change to a path that decides what the gate runs or that githerd is made of: `.husky/`,
+   `tools/prepush.sh` and the scripts it and the hook call, `githerd/`, `.claude/`,
+   `.github/workflows/`, plus the config's `protectedPaths`; a path whose content equals the
+   default branch's came in with a merge of it and is not a change), refuses a worktree with
+   uncommitted changes to those paths, and runs
+   `git -C <worktree> -c core.hooksPath=<main checkout>/.husky/_ push origin <expectHead>:refs/heads/<branch>`
+   as its own tracked child process, with the normal hooks (never `--no-verify`), so the pre-push
+   gate runs exactly as for a person. The guard refuses Edit and Write to the gate's files but not
+   a Bash command that rewrites them, so these checks, and hooks taken from the main checkout
+   rather than the worktree's ignored `.husky/_`, are what keep a worker from gating its own push.
+   The push and its gate run the branch's code, so their environment is an allow-list (home,
+   user, language, SSH agent, terminal, PATH and the signing variables), never the daemon's own,
+   which holds the notify command's keys (9.4). Pushing the commit rather than `HEAD` means a commit made while the gate runs is never
    pushed untested, and an explicit refspec from a detached worktree means no branch is ever
    checked out twice. In dry-run (write group `workers`) nothing runs and the push is a `would-do`;
 4. records the gate's output; a failure is classified (4.4) with a local failure key;
@@ -729,11 +739,16 @@ name; `/proc/locks` is not used, because it hides a lock whose `flock` process h
 which is how a script takes it [S24]. Every worktree already shares the main checkout's Nx cache:
 Nx 22.7 resolves the cache directory to the main worktree's `.nx/cache` on its own, so a fresh
 worktree's first gate is not a cold build [S23]. `NX_CACHE_DIRECTORY` is never set: with it, Nx
-reported cache hits and restored no output [S23]. A push is bounded at twice the gate's measured
-duration.
+reported cache hits and restored no output [S23]. A push is bounded at twice the longest of the
+last 5 successful gates' durations and 30 minutes, so a gate the Nx cache made fast never cuts the
+next, cold one short.
 
 Because the daemon runs the push, the permission classifier never judges it, a worker's death does
-not kill it, and its queue position is real.
+not kill it, and its queue position is real. The queue is saved with the state. A push that was
+running when githerd stopped lost its result with it: at the next start its process is killed if it
+still runs (recognized by pid and start time, never by pid alone), the job is told the push was
+interrupted and to check the remote head and push again, and goes back to work; the queued pushes
+then start.
 
 ### 4.9 The reference worktree
 
@@ -1024,7 +1039,11 @@ Workers are prepared in parallel and started one at a time; only the span from `
    check that every built package's `dist` exists (with `NX_CACHE_DIRECTORY` inherited from
    anywhere, a cache hit reported success with no output [S23]), and one package's smoke test. A failure is `faulted`, never a session. A `pr` job whose pull request
    branch is checked out in any worktree with uncommitted changes or unpushed commits, live session
-   or not, does not start; the board names that worktree.
+   or not, does not start; the board names that worktree. These steps run the start commit's code,
+   a pull request's for `pr` and `review` jobs, so they get the allow-listed environment of 4.8,
+   never the daemon's own. A directory left by a preparation githerd did not finish (it stopped
+   halfway) is locked for this job and is not the job's prepared worktree: it is removed, unpushed
+   commits salvaged, and the preparation starts again; githerd's own crash is not the job's fault.
 3. **Generated files** under `~/.githerd/graphty-monorepo/jobs/<id>/`: `settings.json`,
    `mcp.json`, `news`. Nothing in `~/.claude` is written.
 4. **Window**, on the githerd tmux server, created if missing (`tmux -L githerd has-session -t

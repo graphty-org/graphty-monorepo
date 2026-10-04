@@ -332,7 +332,11 @@ export async function watchPass(state, now, options = {}) {
             if (decision.action === "dead") dead.push(job.id);
             else await carryOut(state, job, window, { decision, screen: look.screen, now, sleep }, ledger);
         } catch (err) {
-            ledger.push({ kind: "watch-error", job: job.id, error: String(/** @type {Error} */ (err)?.message ?? err) });
+            ledger.push({
+                kind: "watch-error",
+                job: job.id,
+                error: String(/** @type {Error} */ (err)?.message ?? err),
+            });
         }
     }
     return { workers, ledger, dead };

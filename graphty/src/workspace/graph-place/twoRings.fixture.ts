@@ -13,21 +13,23 @@ type FixtureNode = {
     readonly position: { readonly x: number; readonly y: number; readonly z: number };
 };
 
-const H = 1.732;
+// Six world units between neighbors, about six default node widths (a default node is one unit
+// across), so every edge reads as a line rather than a gap between touching nodes.
+const H = 5.196;
 
 export const NODES: readonly FixtureNode[] = [
-    { id: "n0", name: "Ada", ring: "east", position: { x: 1, y: 0, z: 0 } },
-    { id: "n1", name: "Bea", ring: "east", position: { x: 2, y: -H, z: 0 } },
-    { id: "n2", name: "Cy", ring: "east", position: { x: 4, y: -H, z: 0 } },
-    { id: "n3", name: "Dot", ring: "east", position: { x: 5, y: 0, z: 0 } },
-    { id: "n4", name: "Eve", ring: "east", position: { x: 4, y: H, z: 0 } },
-    { id: "n5", name: "Flo", ring: "east", position: { x: 2, y: H, z: 0 } },
-    { id: "n6", name: "Gus", ring: "west", position: { x: -1, y: 0, z: 0 } },
-    { id: "n7", name: "Hal", ring: "west", position: { x: -2, y: H, z: 0 } },
-    { id: "n8", name: "Ivy", ring: "west", position: { x: -4, y: H, z: 0 } },
-    { id: "n9", name: "Jo", ring: "west", position: { x: -5, y: 0, z: 0 } },
-    { id: "n10", name: "Kit", ring: "west", position: { x: -4, y: -H, z: 0 } },
-    { id: "n11", name: "Lou", ring: "west", position: { x: -2, y: -H, z: 0 } },
+    { id: "n0", name: "Ada", ring: "east", position: { x: 3, y: 0, z: 0 } },
+    { id: "n1", name: "Bea", ring: "east", position: { x: 6, y: -H, z: 0 } },
+    { id: "n2", name: "Cy", ring: "east", position: { x: 12, y: -H, z: 0 } },
+    { id: "n3", name: "Dot", ring: "east", position: { x: 15, y: 0, z: 0 } },
+    { id: "n4", name: "Eve", ring: "east", position: { x: 12, y: H, z: 0 } },
+    { id: "n5", name: "Flo", ring: "east", position: { x: 6, y: H, z: 0 } },
+    { id: "n6", name: "Gus", ring: "west", position: { x: -3, y: 0, z: 0 } },
+    { id: "n7", name: "Hal", ring: "west", position: { x: -6, y: H, z: 0 } },
+    { id: "n8", name: "Ivy", ring: "west", position: { x: -12, y: H, z: 0 } },
+    { id: "n9", name: "Jo", ring: "west", position: { x: -15, y: 0, z: 0 } },
+    { id: "n10", name: "Kit", ring: "west", position: { x: -12, y: -H, z: 0 } },
+    { id: "n11", name: "Lou", ring: "west", position: { x: -6, y: -H, z: 0 } },
 ];
 
 /** Each ring closed, plus the bridge n0 -- n6. */

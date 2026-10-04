@@ -162,7 +162,8 @@ export function sniffJsonDialect(root: unknown): JsonImportDialect | null {
     }
     // NetworkX's own keys (links, directed, multigraph, graph) settle node-link: one attribute named
     // like a graphology or vis field (`attributes`, `undirected`, `key`, `from`) must not re-route it
-    const networkx = hasKey(root, "links") || hasKey(root, "directed") || hasKey(root, "multigraph") || hasKey(root, "graph");
+    const networkx =
+        hasKey(root, "links") || hasKey(root, "directed") || hasKey(root, "multigraph") || hasKey(root, "graph");
     if (!networkx && firstNode !== null && hasKey(firstNode, "key") && !hasKey(firstNode, "id")) {
         return "graphology";
     }
@@ -171,7 +172,13 @@ export function sniffJsonDialect(root: unknown): JsonImportDialect | null {
             return "graphology";
         }
     }
-    if (!networkx && firstEdge !== null && hasKey(firstEdge, "from") && hasKey(firstEdge, "to") && !hasKey(firstEdge, "source")) {
+    if (
+        !networkx &&
+        firstEdge !== null &&
+        hasKey(firstEdge, "from") &&
+        hasKey(firstEdge, "to") &&
+        !hasKey(firstEdge, "source")
+    ) {
         return "vis";
     }
     const bare = !hasKey(root, "directed") && !hasKey(root, "multigraph") && !hasKey(root, "graph");

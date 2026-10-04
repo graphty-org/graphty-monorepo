@@ -5,11 +5,17 @@
  * condition the format tests and the audit suite do not already pin.
  */
 
-import { GraphBuilder, GraphFormatError, type GraphBuilderOptions, type GraphSnapshot } from "@graphty/graph-format";
+import { GraphBuilder, type GraphBuilderOptions, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { NEO4J_ISSUE, neo4jImporter, type Neo4jImportOptions } from "../../src/formats/neo4j/index.js";
-import { type CommonImportOptions, ImportError, type ImportInput, type ImportIssue, type ImportReport } from "../../src/types.js";
+import {
+    type CommonImportOptions,
+    ImportError,
+    type ImportInput,
+    type ImportIssue,
+    type ImportReport,
+} from "../../src/types.js";
 
 type Options = Neo4jImportOptions & CommonImportOptions;
 
@@ -18,7 +24,11 @@ interface Loaded {
     report: ImportReport;
 }
 
-async function load(input: ImportInput, options?: Options, builder: Partial<GraphBuilderOptions> = {}): Promise<Loaded> {
+async function load(
+    input: ImportInput,
+    options?: Options,
+    builder: Partial<GraphBuilderOptions> = {},
+): Promise<Loaded> {
     const b = new GraphBuilder({ directed: true, weightDtype: "f64", ...builder });
     const report = await neo4jImporter.import(input, b, options);
     return { s: b.freeze(), report };

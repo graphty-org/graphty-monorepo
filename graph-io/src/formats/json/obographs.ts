@@ -387,7 +387,9 @@ function writeNode(
     }
     const { meta } = record;
     if (isJsonObject(meta)) {
-        writeMeta(columns, vocabulary, meta, row, unrecognized, (message) => badValue(ctx, `${element}.${message}`));
+        writeMeta(columns, vocabulary, meta, row, unrecognized, (message) => {
+            badValue(ctx, `${element}.${message}`);
+        });
     } else if (meta !== undefined && meta !== null) {
         badValue(ctx, `${element}.meta must be an object`);
     }
@@ -605,9 +607,14 @@ function readEdges(
             for (const key of Object.keys(record)) {
                 if (!EDGE_KEYS.has(key) && !unread.has(key)) {
                     unread.add(key);
-                    report.warning("unsupported", JSON_ISSUE.UNREAD_KEY, `edge key ${key} is not an OBO Graphs field; dropped`, {
-                        element: key,
-                    });
+                    report.warning(
+                        "unsupported",
+                        JSON_ISSUE.UNREAD_KEY,
+                        `edge key ${key} is not an OBO Graphs field; dropped`,
+                        {
+                            element: key,
+                        },
+                    );
                 }
             }
         } catch (err) {

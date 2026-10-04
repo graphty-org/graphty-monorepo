@@ -127,7 +127,8 @@ describe("JSON robustness: truncation and malformed syntax", () => {
     });
 
     it("json-ndjson-jsonlines: JSON Lines is E_SYNTAX naming JSON Lines, never the first line alone", async () => {
-        const text = '{"type":"node","id":"1"}\n{"type":"node","id":"2"}\n{"type":"relationship","start":"1","end":"2"}\n';
+        const text =
+            '{"type":"node","id":"1"}\n{"type":"node","id":"2"}\n{"type":"relationship","start":"1","end":"2"}\n';
         const error = await fail(text);
         expect(issue(error.report, JSON_ISSUE.SYNTAX).message).toMatch(/JSON Lines/);
     });
@@ -331,7 +332,11 @@ describe("JSON robustness: document shape", () => {
     });
 
     it("json-dialect-misdetect-graphology-attributes-key: a node key attribute without an id stays node-link", async () => {
-        const text = doc({ directed: false, nodes: [{ key: "k1" }, { id: "b" }], links: [{ source: "b", target: "b" }] });
+        const text = doc({
+            directed: false,
+            nodes: [{ key: "k1" }, { id: "b" }],
+            links: [{ source: "b", target: "b" }],
+        });
         const { s, report } = await load(text);
         expect((s.meta.extra.json as { dialect?: string }).dialect).toBe("node-link");
         expect(codes(report)).toEqual([JSON_ISSUE.MISSING_ID]);
@@ -344,7 +349,9 @@ describe("JSON robustness: document shape", () => {
 
 describe("JSON robustness: ids and endpoints", () => {
     it("json-empty-string-id: the empty string is an id", async () => {
-        const { s, report } = await load(doc({ nodes: [{ id: "" }, { id: "b" }], links: [{ source: "", target: "b" }] }));
+        const { s, report } = await load(
+            doc({ nodes: [{ id: "" }, { id: "b" }], links: [{ source: "", target: "b" }] }),
+        );
         expect(ids(s)).toEqual(["", "b"]);
         expect(edges(s)).toEqual(["->b"]);
         expect(codes(report)).toEqual([]);
@@ -365,16 +372,25 @@ describe("JSON robustness: ids and endpoints", () => {
         ["node-link", doc({ nodes: [{ id: "a" }], links: [{ source: "a", target: "z" }] })],
         ["vis", doc({ nodes: [{ id: "a" }], edges: [{ from: "a", to: "z" }] })],
         ["jgf", doc({ graph: { nodes: { a: {} }, edges: [{ source: "a", target: "z" }] } })],
-        ["graphology", doc({ options: { type: "directed" }, nodes: [{ key: "a" }], edges: [{ source: "a", target: "z" }] })],
-        ["cytoscape", doc({ elements: { nodes: [{ data: { id: "a" } }], edges: [{ data: { source: "a", target: "z" } }] } })],
-    ])("json-dangling-endpoint (%s): the placeholder is counted and W_DANGLING_REFERENCE recorded", async (_n, text) => {
-        const { s, report } = await load(text);
-        expect(ids(s)).toEqual(["a", "z"]);
-        expect(report.counts.nodes).toBe(2);
-        const dangling = issue(report, JSON_ISSUE.DANGLING_REFERENCE);
-        expect(dangling.severity).toBe("warning");
-        expect(dangling.message).toMatch(/"z"/);
-    });
+        [
+            "graphology",
+            doc({ options: { type: "directed" }, nodes: [{ key: "a" }], edges: [{ source: "a", target: "z" }] }),
+        ],
+        [
+            "cytoscape",
+            doc({ elements: { nodes: [{ data: { id: "a" } }], edges: [{ data: { source: "a", target: "z" } }] } }),
+        ],
+    ])(
+        "json-dangling-endpoint (%s): the placeholder is counted and W_DANGLING_REFERENCE recorded",
+        async (_n, text) => {
+            const { s, report } = await load(text);
+            expect(ids(s)).toEqual(["a", "z"]);
+            expect(report.counts.nodes).toBe(2);
+            const dangling = issue(report, JSON_ISSUE.DANGLING_REFERENCE);
+            expect(dangling.severity).toBe("warning");
+            expect(dangling.message).toMatch(/"z"/);
+        },
+    );
 
     it("json-dangling-endpoint: E_UNKNOWN_NODE when the sink refuses, without a dangling warning", async () => {
         const text = doc({ nodes: [{ id: "a" }], links: [{ source: "a", target: "z" }] });
@@ -558,7 +574,7 @@ describe("JSON robustness: node-link semantics", () => {
         const s = b.freeze();
         expect(codes(report)).toEqual(["E_COLUMN_TYPE"]);
         expect(value(s, "nodes", "c", 0)).toBe(2);
-        expect([...(value(s, "nodes", "position", 0) as ArrayLike<number>)]).toEqual([1, 2, 0]);
+        expect(Array.from(value(s, "nodes", "position", 0) as ArrayLike<number>)).toEqual([1, 2, 0]);
         expect(value(s, "nodes", "classes", 0)).toEqual(["k"]);
     });
 
@@ -608,7 +624,13 @@ describe("JSON robustness: node-link semantics", () => {
 
     it("json-null-attribute-dropped: a key that is null on every node is reported", async () => {
         const { s, report } = await load(
-            doc({ nodes: [{ id: "a", color: null }, { id: "b", color: null, size: 1 }], links: [] }),
+            doc({
+                nodes: [
+                    { id: "a", color: null },
+                    { id: "b", color: null, size: 1 },
+                ],
+                links: [],
+            }),
         );
         expect(s.nodes.has("color")).toBe(false);
         const dropped = issue(report, JSON_ISSUE.EMPTY_COLUMN_DROPPED);
@@ -633,7 +655,9 @@ describe("JSON robustness: Cytoscape", () => {
     // Cytoscape.js infers the group the same way: an element is an edge only when its data has both
     // source and target, so a node with a source attribute is legal and stays a node.
     it("json-cy-edge-missing-target-flat: data with a source but no target is a node, as Cytoscape.js infers", async () => {
-        const { s, report } = await load(doc({ elements: [{ data: { id: "a" } }, { data: { id: "e", source: "a" } }] }));
+        const { s, report } = await load(
+            doc({ elements: [{ data: { id: "a" } }, { data: { id: "e", source: "a" } }] }),
+        );
         expect(ids(s)).toEqual(["a", "e"]);
         expect(value(s, "nodes", "source", 1)).toBe("a");
         expect(codes(report)).toEqual([]);
@@ -654,10 +678,17 @@ describe("JSON robustness: Cytoscape", () => {
 
     it("json-cy-position-z: a z coordinate is kept in the third component", async () => {
         const { s, report } = await load(
-            doc({ elements: { nodes: [{ data: { id: "a" }, position: { x: 1, y: 2, z: 3 } }, { data: { id: "b" }, position: { x: 4, y: 5 } }] } }),
+            doc({
+                elements: {
+                    nodes: [
+                        { data: { id: "a" }, position: { x: 1, y: 2, z: 3 } },
+                        { data: { id: "b" }, position: { x: 4, y: 5 } },
+                    ],
+                },
+            }),
         );
-        expect([...(value(s, "nodes", "position", 0) as ArrayLike<number>)]).toEqual([1, 2, 3]);
-        expect([...(value(s, "nodes", "position", 1) as ArrayLike<number>)]).toEqual([4, 5, 0]);
+        expect(Array.from(value(s, "nodes", "position", 0) as ArrayLike<number>)).toEqual([1, 2, 3]);
+        expect(Array.from(value(s, "nodes", "position", 1) as ArrayLike<number>)).toEqual([4, 5, 0]);
         expect(codes(report)).toEqual([]);
     });
 
@@ -679,7 +710,9 @@ describe("JSON robustness: Cytoscape", () => {
     });
 
     it("json-cy-group-conflicts-section: an edge-shaped record in elements.nodes is reported", async () => {
-        const text = doc({ elements: { nodes: [{ data: { id: "a" } }, { data: { id: "e", source: "a", target: "a" } }] } });
+        const text = doc({
+            elements: { nodes: [{ data: { id: "a" } }, { data: { id: "e", source: "a", target: "a" } }] },
+        });
         const { s, report } = await load(text);
         expect(ids(s)).toEqual(["a", "e"]);
         expect(codes(report)).toEqual([JSON_ISSUE.INCONSISTENT]);
@@ -699,7 +732,8 @@ describe("JSON robustness: Cytoscape", () => {
     });
 
     it("json-cy-position-nonfinite-or-f32-overflow: a NaN or out-of-f32 coordinate is E_BAD_VALUE", async () => {
-        const text = '{"elements":{"nodes":[{"data":{"id":"a"},"position":{"x":1e39,"y":1}},{"data":{"id":"b"},"position":{"x":1,"y":NaN}}]}}';
+        const text =
+            '{"elements":{"nodes":[{"data":{"id":"a"},"position":{"x":1e39,"y":1}},{"data":{"id":"b"},"position":{"x":1,"y":NaN}}]}}';
         const { s, report } = await load(text);
         expect(codes(report)).toEqual([JSON_ISSUE.NONSTANDARD_NUMBER, JSON_ISSUE.BAD_VALUE, JSON_ISSUE.BAD_VALUE]);
         expect(s.nodes.require("position").isSet(0)).toBe(false);
@@ -802,7 +836,11 @@ describe("JSON robustness: NetworkX adjacency and tree data", () => {
     });
 
     it("json-adjacency-fewer-lists-than-nodes: nodes without an adjacency list are reported", async () => {
-        const text = doc({ directed: true, nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], adjacency: [[{ id: "b" }]] });
+        const text = doc({
+            directed: true,
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+            adjacency: [[{ id: "b" }]],
+        });
         const { s, report } = await load(text);
         expect(s.nodeCount).toBe(3);
         expect(edges(s)).toEqual(["a->b"]);
@@ -821,7 +859,10 @@ describe("JSON robustness: NetworkX adjacency and tree data", () => {
 
     it("json-tree-deep-chain: a 1M-node path written as nested children imports", async () => {
         const depth = 1_000_000;
-        const text = '{"id":0,"children":['.repeat(1) + Array.from({ length: depth - 1 }, (_, i) => `{"id":${i + 1},"children":[`).join("") + "]}".repeat(depth);
+        const text =
+            '{"id":0,"children":['.repeat(1) +
+            Array.from({ length: depth - 1 }, (_, i) => `{"id":${i + 1},"children":[`).join("") +
+            "]}".repeat(depth);
         const { s, report } = await load(text);
         expect(s.nodeCount).toBe(depth);
         expect(s.edgeCount).toBe(depth - 1);
@@ -836,7 +877,10 @@ describe("JSON robustness: OBO Graphs", () => {
 
     it("obographs-edge-unknown-keys-and-bad-meta: extra keys, a non-object meta and a numeric pred", async () => {
         const text = graph({
-            nodes: [{ id: "GO:1", lbl: "x" }, { id: "GO:2", lbl: "y" }],
+            nodes: [
+                { id: "GO:1", lbl: "x" },
+                { id: "GO:2", lbl: "y" },
+            ],
             edges: [
                 { sub: "GO:1", pred: "is_a", obj: "GO:2", weight: 3, id: "e1", meta: "bad" },
                 { sub: "GO:2", pred: 5, obj: "GO:1" },
@@ -883,7 +927,7 @@ describe("JSON robustness: OBO Graphs", () => {
         });
         const { s, report } = await load(text);
         expect(codes(report)).toEqual([JSON_ISSUE.DUPLICATE_NODE]);
-        const properties = (s.meta.extra.obographs as { properties: Record<string, { lbl: string }> }).properties;
+        const { properties } = s.meta.extra.obographs as { properties: Record<string, { lbl: string }> };
         expect(properties["RO:1"].lbl).toBe("q");
     });
 
@@ -915,7 +959,9 @@ describe("JSON robustness: resources", () => {
             const { jsonImporter: mocked } = await import("../../src/formats/json/importer.js");
             const { ImportError: MockedImportError } = await import("../../src/types.js");
             const sink: GraphSink = new GraphBuilder({ directed: true });
-            const caught = await mocked.import('{"nodes":[{"id":"a","w":NaN}],"links":[]}', sink).catch((e: unknown) => e);
+            const caught = await mocked
+                .import('{"nodes":[{"id":"a","w":NaN}],"links":[]}', sink)
+                .catch((e: unknown) => e);
             expect(caught).toBeInstanceOf(MockedImportError);
             expect((caught as ImportError).report.issues.map((i) => i.code)).toEqual([JSON_ISSUE.TOO_LARGE]);
         } finally {

@@ -65,7 +65,6 @@ import {
     ROLE_TAKEN_CODE as SHARED_ROLE_TAKEN_CODE,
 } from "../../common/codes.js";
 import { type DeclaredTypeSpec } from "../../common/declared-types.js";
-import { parseTemporal } from "../../common/temporal.js";
 import { DirectionResolver } from "../../common/direction.js";
 import { ID_MERGED_CODE as SHARED_ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { inputLength, isImportInput, type ReadOptions, throwIfAborted } from "../../common/input.js";
@@ -77,6 +76,7 @@ import {
     resolveImportOptions,
 } from "../../common/options.js";
 import { ImportReportBuilder } from "../../common/report.js";
+import { parseTemporal } from "../../common/temporal.js";
 import { parseWeightText } from "../../common/weights.js";
 import {
     type CommonImportOptions,
@@ -541,7 +541,9 @@ class Neo4jImportSession {
      * it is the only one.
      * @param inputs - the inputs in reading order, each with the kind of section its option names (null for the primary input)
      */
-    async run(inputs: readonly { readonly input: ImportInput; readonly kind: Section["kind"] | null }[]): Promise<void> {
+    async run(
+        inputs: readonly { readonly input: ImportInput; readonly kind: Section["kind"] | null }[],
+    ): Promise<void> {
         const progress = new ProgressTracker(
             this.common.onProgress,
             inputs.map((i) => i.input),
@@ -705,7 +707,10 @@ class Neo4jImportSession {
                 const other = [";", "|", "\t", ","].find(
                     (d) => d !== reader.delimiter && reader.cells.slice(0, count).some((c) => c.includes(d)),
                 );
-                const hint = other === undefined ? "" : `; if the file is delimited by ${JSON.stringify(other)}, pass the delimiter option`;
+                const hint =
+                    other === undefined
+                        ? ""
+                        : `; if the file is delimited by ${JSON.stringify(other)}, pass the delimiter option`;
                 this.report.fail(HEADER_CODE, `line ${line}: ${err.message}${hint}`, { line }, { cause: err.code });
             }
             throw err;
@@ -1041,7 +1046,11 @@ class Neo4jImportSession {
             );
         }
         // a write the sink refuses is recorded and the rest of the row is still written
-        const set = (column: ColumnHandle, value: unknown): void => this.guarded(line, idText, () => sink.setNodeValue(column, index, value));
+        const set = (column: ColumnHandle, value: unknown): void => {
+            this.guarded(line, idText, () => {
+                sink.setNodeValue(column, index, value);
+            });
+        };
         if (section.idHandle !== INVALID_INDEX) {
             set(section.idHandle, idText);
         }
@@ -1180,7 +1189,9 @@ class Neo4jImportSession {
             report.counts.skippedEdges++;
             return;
         }
-        const created = [source, target].filter((id, k) => (k === 0 || id !== source) && sink.indexOf(id) === INVALID_INDEX);
+        const created = [source, target].filter(
+            (id, k) => (k === 0 || id !== source) && sink.indexOf(id) === INVALID_INDEX,
+        );
         let edge: number;
         try {
             edge = this.direction.addEdge(source, target, "directed", weight, { line, element });
@@ -1197,7 +1208,9 @@ class Neo4jImportSession {
         if (section.typeCell >= 0) {
             const type = cells[section.typeCell];
             if (type.length > 0) {
-                this.guarded(line, element, () => sink.setEdgeValue(this.typeHandle, edge, type));
+                this.guarded(line, element, () => {
+                    sink.setEdgeValue(this.typeHandle, edge, type);
+                });
             } else {
                 report.warning(
                     "missing-value",
@@ -1425,7 +1438,10 @@ function qualify(id: NodeId, space: string | null): NodeId {
 }
 
 /** The integer range of the narrow neo4j-admin types (Java byte and short). */
-const INTEGER_RANGES: Readonly<Record<string, readonly [number, number]>> = { byte: [-128, 127], short: [-32768, 32767] };
+const INTEGER_RANGES: Readonly<Record<string, readonly [number, number]>> = {
+    byte: [-128, 127],
+    short: [-32768, 32767],
+};
 
 /**
  * A Cypher duration (ISO 8601): unit form `P14DT16H12M` / `PT0.75M` / `P2.5W` (components may be
@@ -1450,15 +1466,20 @@ function checkNeo4jRange(spec: DeclaredTypeSpec, value: unknown, text: string): 
         if (range !== undefined) {
             bad = typeof item === "number" && (item < range[0] || item > range[1]);
         } else if (base === "char") {
-            bad = typeof item === "string" && [...item].length !== 1;
+            // a Java char: one UTF-16 code unit
+            bad = typeof item === "string" && item.length !== 1;
         } else if (base === "duration") {
             bad = typeof item === "string" && !DURATION_TEXT.test(item.trim());
         }
         if (bad) {
-            throw new GraphFormatError("E_COLUMN_TYPE", `"${text}" is not a ${base}${range === undefined ? "" : ` (${range[0]} to ${range[1]})`}`, {
-                value: text,
-                kind: base,
-            });
+            throw new GraphFormatError(
+                "E_COLUMN_TYPE",
+                `"${text}" is not a ${base}${range === undefined ? "" : ` (${range[0]} to ${range[1]})`}`,
+                {
+                    value: text,
+                    kind: base,
+                },
+            );
         }
     }
 }

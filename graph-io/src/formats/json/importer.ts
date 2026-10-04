@@ -1408,7 +1408,9 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
         throw report.abort(message, { code: JSON_ISSUE.TOO_LARGE });
     }
     if (syntaxError !== null) {
-        return report.fail(JSON_ISSUE.SYNTAX, syntaxMessage(text, syntaxError), { line: syntaxLine(text, syntaxError) });
+        return report.fail(JSON_ISSUE.SYNTAX, syntaxMessage(text, syntaxError), {
+            line: syntaxLine(text, syntaxError),
+        });
     }
     reportDuplicateKeys(text, report);
     if (scan.tokens.size > 0) {
@@ -1877,6 +1879,7 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
  * @param edgeList - the edge records
  * @param edgesKey - the top-level key they came from, for issues
  * @param positionIds - the ids by array position under index links, or null
+ * @param multigraph - the declared multigraph flag, or null when the document has none
  * @returns the source and target keys the first well-formed edge used (null when none did)
  */
 function importNodeLinkEdges(
@@ -2191,7 +2194,11 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
     }
     // vis.js draws arrows from the `arrows` edge option; the file declares no graph direction, so the
     // arrows stay an attribute and the graph is read as the dialect's default
-    const arrows = kind === "undirected" ? edges.filter((e) => isJsonObject(e) && e.arrows !== undefined && e.arrows !== null && e.arrows !== "").length : 0;
+    const arrows =
+        kind === "undirected"
+            ? edges.filter((e) => isJsonObject(e) && e.arrows !== undefined && e.arrows !== null && e.arrows !== "")
+                  .length
+            : 0;
     if (arrows > 0) {
         report.warning(
             "validation-error",
@@ -2645,7 +2652,9 @@ function reportGraphologyViolations(
         notes.push(`options.multi is false, but ${violations.parallels} parallel edge(s) are listed`);
     }
     if (violations.flags > 0) {
-        notes.push(`options.type is ${type}, but ${violations.flags} edge(s) carry the other undirected flag; read as ${type}`);
+        notes.push(
+            `options.type is ${type}, but ${violations.flags} edge(s) carry the other undirected flag; read as ${type}`,
+        );
     }
     for (const note of notes) {
         ctx.report.warning("validation-error", JSON_ISSUE.INCONSISTENT, `${note}; every edge is kept`, {
@@ -3092,7 +3101,12 @@ function importHyperedges(
     }
     // each expanded edge is pushed on its own, so one the sink refuses is reported and counted
     // while the others stay
-    const expand = (record: JsonRecord, pairs: readonly (readonly [NodeId, NodeId])[], kind: EdgeKind, element: string): void => {
+    const expand = (
+        record: JsonRecord,
+        pairs: readonly (readonly [NodeId, NodeId])[],
+        kind: EdgeKind,
+        element: string,
+    ): void => {
         for (const [u, v] of pairs) {
             try {
                 push(record, u, v, kind, element, JGF_HYPEREDGE_KEYS);
@@ -3110,7 +3124,11 @@ function importHyperedges(
         }
         try {
             if (Array.isArray(record.nodes)) {
-                const members = distinctMembers(ctx, record.nodes.map((raw) => ctx.requireId(raw, element)), element);
+                const members = distinctMembers(
+                    ctx,
+                    record.nodes.map((raw) => ctx.requireId(raw, element)),
+                    element,
+                );
                 if (members.length < 2) {
                     throw new GraphFormatError(
                         "E_INVALID_ID",

@@ -229,7 +229,8 @@ class ByteDecoder {
         if (this.encoding === "utf-8") {
             let after = this.mayFallBack ? " after valid non-ASCII UTF-8 text; pass the encoding option" : "";
             if (all.includes(0)) {
-                after = ": the input holds NUL bytes, so it is binary or compressed data (gzip, zip), not text; decompress it first";
+                after =
+                    ": the input holds NUL bytes, so it is binary or compressed data (gzip, zip), not text; decompress it first";
             }
             return this.report.fail(
                 INVALID_UTF8_CODE,

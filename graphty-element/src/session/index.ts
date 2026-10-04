@@ -37,6 +37,7 @@ export type {
     FindResult,
     FindValueRow,
     GraphSession,
+    GraphShapeStatistics,
     GraphStatistics,
     HistoryCause,
     HistoryOutcome,

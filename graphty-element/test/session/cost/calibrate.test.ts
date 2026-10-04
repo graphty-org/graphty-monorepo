@@ -11,10 +11,10 @@ import {
     machineFingerprint,
     resetCalibration,
 } from "../../../src/session/cost";
-import type { GraphStatistics } from "../../../src/session/types";
+import type { GraphShapeStatistics } from "../../../src/session/types";
 
 /** A graph of a stated size. */
-function statistics(over: Partial<GraphStatistics> = {}): GraphStatistics {
+function statistics(over: Partial<GraphShapeStatistics> = {}): GraphShapeStatistics {
     const nodeCount = over.nodeCount ?? 1000;
 
     return {

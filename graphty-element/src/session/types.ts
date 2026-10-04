@@ -52,6 +52,7 @@ import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
 import type { ResultsApi, RunRef } from "./results";
+import type { Histogram } from "./results/types";
 import type {
     Caveats,
     EngineVersions,
@@ -494,9 +495,28 @@ export interface GraphStatistics {
      * number measured from the same vector as the range cannot drift from it.
      */
     readonly meanDegree: number;
+    /**
+     * How the total degree is distributed: the same measure {@link GraphStatistics.degreeRange}
+     * summarises, binned the way `RunResult.histogram` bins a count. One bar per degree when there
+     * are few distinct degrees, whole-number bands otherwise; the bars' counts add up to
+     * {@link GraphStatistics.nodeCount}.
+     *
+     * ```ts
+     * const { bins, binning } = session.data.statistics().degreeHistogram;
+     * // binning "per-value": bins[i].from === bins[i].to, one degree each
+     * ```
+     */
+    readonly degreeHistogram: Histogram;
     /** The connected-component shape. */
     readonly components: ComponentStatistics;
 }
+
+/**
+ * The graph statistics a function that reads the graph's shape takes: {@link GraphStatistics}
+ * without the fields derived for display, so a caller who builds the numbers by hand need not
+ * build a histogram too. `session.data.statistics()` can be passed as it is.
+ */
+export type GraphShapeStatistics = Omit<GraphStatistics, "degreeHistogram">;
 
 /**
  * The O(1) half of a session: the facts a status chip or a disabled button needs before it can

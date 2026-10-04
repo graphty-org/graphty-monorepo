@@ -204,6 +204,25 @@ In 1.x this was `getEdgeBetween`, singular, and an edge's id was its two endpoin
 colon. Neither could represent a graph that holds two edges between one pair -- see
 [Data Sources](./data-sources#two-edges-between-the-same-pair).
 
+### Describing the data
+
+`session.data.statistics()` answers the graph's shape -- counts, density, direction, components --
+and the distribution of the node degrees, ready to draw as a histogram. It is computed once per
+change to the graph, so reading it on every render costs nothing:
+
+```typescript
+const stats = session.data.statistics();
+stats.degreeRange; // [smallest, largest]
+stats.meanDegree;
+for (const bin of stats.degreeHistogram.bins) {
+    // one bar: degrees bin.from to bin.to, bin.count nodes
+}
+```
+
+`degreeHistogram` has the shape `RunResult.histogram()` returns: one bar per degree when there are
+few distinct degrees (`binning: "per-value"`), whole-number bands otherwise (`"banded"`). The bars
+add up to `stats.nodeCount`.
+
 ### Result values as table columns
 
 A page can carry an algorithm run's values as a column and sort by them -- see

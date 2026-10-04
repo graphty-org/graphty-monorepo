@@ -54,7 +54,7 @@ import type { AlgorithmKey } from "../../../src/catalog/types";
 import type { DataManager } from "../../../src/managers/DataManager";
 import { calibrateCost, DEFAULT_COST_RATES, estimateCost, type MachineCalibration } from "../../../src/session/cost";
 import type { CostRates } from "../../../src/session/cost/estimate";
-import type { GraphStatistics } from "../../../src/session/types";
+import type { GraphShapeStatistics } from "../../../src/session/types";
 
 /**
  * How far UNDER the stopwatch an estimate may sit, as estimate / measured. Carried over from the
@@ -463,7 +463,7 @@ function measuredGraph(shape: Shape, nodes: number): Measured {
  * @param maxDegree - The largest total degree.
  * @returns Statistics with nothing set that would make an algorithm unavailable.
  */
-function statistics(nodeCount: number, edgeCount: number, maxDegree: number): GraphStatistics {
+function statistics(nodeCount: number, edgeCount: number, maxDegree: number): GraphShapeStatistics {
     return {
         nodeCount,
         edgeCount,

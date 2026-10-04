@@ -25,7 +25,7 @@
 import { LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import type { LayoutDescriptor, LayoutId } from "../catalog/types";
 import { DEFAULT_LIMITS } from "./limits";
-import type { GraphStatistics } from "./types";
+import type { GraphShapeStatistics } from "./types";
 
 /** Which arrangement suits this graph, and why. */
 export interface LayoutRecommendation {
@@ -85,7 +85,7 @@ interface LayoutRule {
 /** Everything the rules branch on, gathered once. */
 interface RuleInput {
     /** The graph's shape. */
-    readonly statistics: GraphStatistics;
+    readonly statistics: GraphShapeStatistics;
     /** How many nodes carry a coordinate; zero when the caller said nothing. */
     readonly placedNodes: number;
     /** The node count above which this graph counts as large. */
@@ -173,7 +173,7 @@ function servable(descriptor: LayoutDescriptor, nodeCount: number): boolean {
  * ```
  */
 export function recommendLayout(
-    statistics: GraphStatistics,
+    statistics: GraphShapeStatistics,
     options: LayoutRecommendationOptions = {},
 ): LayoutRecommendation | undefined {
     const input: RuleInput = {

@@ -42,11 +42,9 @@ export async function deleteRow(session: GraphSession, store: WorkspaceStore, ro
         return step !== undefined && now?.kind === "undo" && now.step.id === step;
     };
     const groups = row.children?.length ?? 0;
+    const noun = groups === 1 ? "group" : "groups";
     const notice: Notice = {
-        message:
-            groups > 0
-                ? `Deleted ${row.name} and ${String(groups)} ${groups === 1 ? "group" : "groups"}.`
-                : `Deleted ${row.name}.`,
+        message: groups > 0 ? `Deleted ${row.name} and ${String(groups)} ${noun}.` : `Deleted ${row.name}.`,
         action: {
             label: "Undo",
             run: () => {

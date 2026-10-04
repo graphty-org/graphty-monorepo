@@ -55,7 +55,7 @@ export function FindBox(): React.JSX.Element {
     const version = useSessionVersion(session);
 
     const found: FindResult | null = useMemo(() => {
-        void version;
+        void version; // NOSONAR(S3735): reads the change count so the memo runs again on each session change
         return session === null || text.trim() === "" ? null : session.find(text, { limit: LIMIT });
     }, [session, text, version]);
     const options: Option[] = found
@@ -131,9 +131,17 @@ export function FindBox(): React.JSX.Element {
                 disabled={session === null}
             />
             {found !== null && options.length > 0 ? (
-                <div id={listId} role="listbox" aria-label="Find results" className="ws-find-list">
+                <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
+                    id={listId}
+                    role="listbox"
+                    aria-label="Find results"
+                    className="ws-find-list"
+                >
                     {found.records.length > 0 ? (
-                        <div role="group" aria-label="Elements">
+                        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+                            role="group"
+                            aria-label="Elements"
+                        >
                             <Text component="div" className="ws-find-heading" aria-hidden="true">
                                 Elements
                             </Text>
@@ -161,7 +169,10 @@ export function FindBox(): React.JSX.Element {
                         </div>
                     ) : null}
                     {found.values.length > 0 && session !== null ? (
-                        <div role="group" aria-label="Values">
+                        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+                            role="group"
+                            aria-label="Values"
+                        >
                             <Text component="div" className="ws-find-heading" aria-hidden="true">
                                 Values
                             </Text>

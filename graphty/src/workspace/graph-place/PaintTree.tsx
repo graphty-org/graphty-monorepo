@@ -193,7 +193,8 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
                 height="100%"
                 selected={selected}
                 onSelect={(ids) => {
-                    const row = ids.length === 0 ? undefined : findRow(rows, ids[ids.length - 1]);
+                    const last = ids.at(-1);
+                    const row = last === undefined ? undefined : findRow(rows, last);
                     store.set({
                         inspected: row === undefined ? null : { kind: row.kind, id: row.id },
                     });

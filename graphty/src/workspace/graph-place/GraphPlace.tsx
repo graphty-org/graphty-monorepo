@@ -17,7 +17,7 @@ import { useSessionVersion } from "./useSessionVersion";
  * @param props.hasRuns - Whether anything has been run
  * @returns The line, or null when there is nothing to say
  */
-function Footer({ hasGraph, hasRuns }: { hasGraph: boolean; hasRuns: boolean }): React.JSX.Element | null {
+function Footer({ hasGraph, hasRuns }: Readonly<{ hasGraph: boolean; hasRuns: boolean }>): React.JSX.Element | null {
     const analyze = useCommand("analyze.open");
     if (!hasGraph) {
         return <Text className="ws-graph-footer">Add data to start</Text>;
@@ -51,7 +51,7 @@ export function GraphPlace(): React.JSX.Element {
     const version = useSessionVersion(session);
 
     const { rows, name, hasGraph } = useMemo(() => {
-        void version;
+        void version; // NOSONAR(S3735): reads the change count so the memo runs again on each session change
         return session === null
             ? { rows: [], name: projectName, hasGraph: false }
             : {

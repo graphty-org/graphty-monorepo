@@ -313,31 +313,42 @@ export function findDuplicateKeys(text: string): DuplicateKey[] {
         const c = text.codePointAt(at);
         if (c === 123 || c === 91) {
             // { or [
-            if (spans.length === depth) {
-                spans.push([]);
-                wide.push(null);
-            }
-            spans[depth].length = 0;
-            if (c === 91) {
-                spans[depth].push(-1);
-            }
-            wide[depth] = null;
+            openContainer(spans, wide, depth, c === 91);
             depth++;
         } else if (c === 125 || c === 93) {
             depth--;
         } else if (c === 34) {
             const end = closingQuote(text, at + 1);
             const keys = depth > 0 ? spans[depth - 1] : null;
-            if (keys !== null && keys[0] !== -1 && isKey(text, end + 1)) {
-                if (isRepeated(text, at + 1, end, keys, wide, depth - 1)) {
-                    found.push({ key: text.slice(at + 1, end), offset: at });
-                }
+            // an array's span list starts with -1: its strings are values, never keys
+            const isObjectKey = keys !== null && keys[0] !== -1 && isKey(text, end + 1);
+            if (isObjectKey && isRepeated(text, at + 1, end, keys, wide, depth - 1)) {
+                found.push({ key: text.slice(at + 1, end), offset: at });
             }
             at = end;
         }
         at++;
     }
     return found;
+}
+
+/**
+ * Start the key list of a container just opened at a depth (reusing the list of an earlier one).
+ * @param spans - the key spans per depth
+ * @param wide - the key sets per depth, for wide objects
+ * @param depth - the container's depth
+ * @param isArray - whether it is an array, whose strings are never keys
+ */
+function openContainer(spans: number[][], wide: (Set<string> | null)[], depth: number, isArray: boolean): void {
+    if (spans.length === depth) {
+        spans.push([]);
+        wide.push(null);
+    }
+    spans[depth].length = 0;
+    if (isArray) {
+        spans[depth].push(-1);
+    }
+    wide[depth] = null;
 }
 
 /**
@@ -1154,51 +1165,71 @@ export async function* scanAspects(
             cur.line(),
         );
     }
-    if (first !== "[") {
-        const line = cur.line();
-        if (first === "{") {
-            yield { kind: "root", value: undefined, object: true, line };
-            return;
-        }
-        cur.beginCapture();
-        await cur.skipValue();
-        let value: unknown;
-        try {
-            ({ value } = parseAt(cur.endCapture(), line, null));
-        } catch (err) {
-            if (err instanceof JsonScanError && hint !== "") {
-                throw new JsonScanError(`${err.message}${hint}`, err.line);
-            }
-            throw err;
-        }
-        if ((await cur.peek()) !== "") {
-            throw new JsonScanError("unexpected text after the document", cur.line());
-        }
-        yield { kind: "root", value, object: false, line };
+    if (first === "[") {
+        cur.pos++;
+        yield* members(cur, report);
         return;
     }
-    cur.pos++;
+    const line = cur.line();
+    if (first === "{") {
+        yield { kind: "root", value: undefined, object: true, line };
+        return;
+    }
+    yield { kind: "root", value: await scalarRoot(cur, line, hint), object: false, line };
+}
+
+/**
+ * Read a document that is neither an array nor an object: one value, and nothing after it.
+ * @param cur - the cursor at the value
+ * @param line - the value's line
+ * @param hint - what the input looks like when it is not JSON, for the error
+ * @returns the value
+ */
+async function scalarRoot(cur: ChunkCursor, line: number, hint: string): Promise<unknown> {
+    cur.beginCapture();
+    await cur.skipValue();
+    let value: unknown;
+    try {
+        ({ value } = parseAt(cur.endCapture(), line, null));
+    } catch (err) {
+        if (err instanceof JsonScanError && hint !== "") {
+            throw new JsonScanError(`${err.message}${hint}`, err.line);
+        }
+        throw err;
+    }
+    if ((await cur.peek()) !== "") {
+        throw new JsonScanError("unexpected text after the document", cur.line());
+    }
+    return value;
+}
+
+/**
+ * Read the members of the top-level array, and check that nothing follows it.
+ * @param cur - the cursor after the opening bracket
+ * @param report - the report of parseAt(), or null
+ * @yields the members' events
+ * @returns nothing
+ */
+async function* members(
+    cur: ChunkCursor,
+    report: ImportReportBuilder | null,
+): AsyncGenerator<AspectEvent, void, undefined> {
     let block = 0;
-    if ((await cur.peek()) === "]") {
+    let next = await cur.peek();
+    if (next === "]") {
         cur.pos++;
-    } else {
-        for (;;) {
-            yield* member(cur, block, report);
-            block++;
-            const next = await cur.peek();
-            if (next === ",") {
-                cur.pos++;
-                continue;
-            }
-            if (next === "]") {
-                cur.pos++;
-                break;
-            }
+    }
+    while (next !== "]") {
+        yield* member(cur, block, report);
+        block++;
+        next = await cur.peek();
+        if (next !== "," && next !== "]") {
             throw new JsonScanError(
                 next === "" ? "the document ends before its closing bracket" : `expected "," or "]", found "${next}"`,
                 cur.line(),
             );
         }
+        cur.pos++;
     }
     if ((await cur.peek()) !== "") {
         throw new JsonScanError("unexpected text after the closing bracket", cur.line());
@@ -1223,33 +1254,17 @@ async function* member(
     if (c === "" || c === "]" || c === ",") {
         throw new JsonScanError(c === "" ? "the document ends inside its array" : `unexpected "${c}"`, line);
     }
+    cur.beginCapture();
     if (c !== "{") {
-        cur.beginCapture();
         await cur.skipValue();
-        if (cur.deepest > MAX_ELEMENT_DEPTH) {
-            cur.dropCapture();
-            yield { kind: "deep", aspect: null, block, depth: cur.deepest, line };
-            return;
-        }
-        const text = cur.endCapture();
-        const parsed = parseAt(text, line, report);
-        yield { kind: "member", block, value: parsed.value, exact: parsed.exact, text, line };
+        yield wholeMember(cur, block, line, report);
         return;
     }
-    cur.beginCapture();
     cur.pos++;
-    const k = await cur.peek();
-    if (k !== '"') {
+    if ((await cur.peek()) !== '"') {
         // `{}` or not JSON: parse the whole member so a syntax error is reported as such
         await cur.skipValue(1);
-        if (cur.deepest > MAX_ELEMENT_DEPTH) {
-            cur.dropCapture();
-            yield { kind: "deep", aspect: null, block, depth: cur.deepest, line };
-            return;
-        }
-        const text = cur.endCapture();
-        const parsed = parseAt(text, line, report);
-        yield { kind: "member", block, value: parsed.value, exact: parsed.exact, text, line };
+        yield wholeMember(cur, block, line, report);
         return;
     }
     // every array-valued key is a block whose elements stream, whatever the key order; any other
@@ -1257,51 +1272,130 @@ async function* member(
     // one-object aspect) and one with an array names its other keys (extraKeys), skipped
     const outer = cur.endCapture();
     const firstLine = cur.line();
-    const others: { key: string; text: string | null; line: number }[] = [];
-    let firstBlock: string | null = null;
-    let deep = 0;
-    for (let index = 0; ; index++) {
-        if ((await cur.peek()) !== '"') {
-            throw new JsonScanError("expected a key", cur.line());
-        }
-        const keyLine = cur.line();
-        const key = await cur.readString();
-        if ((await cur.peek()) !== ":") {
-            throw new JsonScanError(`expected ":" after the key "${key}"`, cur.line());
+    const keys: MemberKeys = { others: [], firstBlock: null, deep: 0 };
+    let next = ",";
+    for (let index = 0; next === ","; index++) {
+        const key = await readKey(cur);
+        yield* keyValue(cur, key, index, block, keys, report);
+        next = await cur.peek();
+        if (next !== "," && next !== "}") {
+            throw new JsonScanError(
+                next === "" ? "the document ends inside a member" : `expected "," or "}" after the key "${key.name}"`,
+                cur.line(),
+            );
         }
         cur.pos++;
-        if ((await cur.peek()) === "[") {
-            cur.pos++;
-            yield { kind: "block", aspect: key, block, shared: index > 0, line: keyLine };
-            firstBlock ??= key;
-            yield* blockElements(cur, key, block, report);
-        } else {
-            cur.beginCapture();
-            await cur.skipValue();
-            // the member's own brace is one level more
-            if (cur.deepest + 1 > MAX_ELEMENT_DEPTH) {
-                // never parse (recursively) what no one reads
-                cur.dropCapture();
-                deep = Math.max(deep, cur.deepest + 1);
-                others.push({ key, text: null, line: keyLine });
-            } else {
-                others.push({ key, text: cur.endCapture(), line: keyLine });
-            }
-        }
-        const next = await cur.peek();
-        if (next === ",") {
-            cur.pos++;
-            continue;
-        }
-        if (next === "}") {
-            cur.pos++;
-            break;
-        }
-        throw new JsonScanError(
-            next === "" ? "the document ends inside a member" : `expected "," or "}" after the key "${key}"`,
-            cur.line(),
-        );
     }
+    yield* memberEnd(keys, block, line, { outer, firstLine }, report);
+}
+
+/** What one-object member's keys held: the non-array values as text, the first block, the deepest value. */
+interface MemberKeys {
+    readonly others: { key: string; text: string | null; line: number }[];
+    firstBlock: string | null;
+    deep: number;
+}
+
+/**
+ * The event of a member read whole (its capture already taken): the member, or "deep" when it
+ * nests too deep to parse.
+ * @param cur - the cursor after the member
+ * @param block - the member's position among the members
+ * @param line - the member's line
+ * @param report - the report of parseAt(), or null
+ * @returns the event
+ */
+function wholeMember(cur: ChunkCursor, block: number, line: number, report: ImportReportBuilder | null): AspectEvent {
+    if (cur.deepest > MAX_ELEMENT_DEPTH) {
+        cur.dropCapture();
+        return { kind: "deep", aspect: null, block, depth: cur.deepest, line };
+    }
+    const text = cur.endCapture();
+    const parsed = parseAt(text, line, report);
+    return { kind: "member", block, value: parsed.value, exact: parsed.exact, text, line };
+}
+
+/**
+ * Read a member's key and the colon after it.
+ * @param cur - the cursor at the key
+ * @returns the key and its line
+ */
+async function readKey(cur: ChunkCursor): Promise<{ name: string; line: number }> {
+    if ((await cur.peek()) !== '"') {
+        throw new JsonScanError("expected a key", cur.line());
+    }
+    const line = cur.line();
+    const name = await cur.readString();
+    if ((await cur.peek()) !== ":") {
+        throw new JsonScanError(`expected ":" after the key "${name}"`, cur.line());
+    }
+    cur.pos++;
+    return { name, line };
+}
+
+/**
+ * Read one key's value: an array is a block whose elements stream; any other value is kept as text
+ * (or, when it nests too deep to parse, only its depth).
+ * @param cur - the cursor at the value
+ * @param key - the key
+ * @param key.name - its name
+ * @param key.line - its line
+ * @param index - the key's position in the member
+ * @param block - the member's position among the members
+ * @param keys - what the member's keys held so far
+ * @param report - the report of parseAt(), or null
+ * @yields the block's events
+ * @returns nothing
+ */
+async function* keyValue(
+    cur: ChunkCursor,
+    key: { name: string; line: number },
+    index: number,
+    block: number,
+    keys: MemberKeys,
+    report: ImportReportBuilder | null,
+): AsyncGenerator<AspectEvent, void, undefined> {
+    if ((await cur.peek()) === "[") {
+        cur.pos++;
+        yield { kind: "block", aspect: key.name, block, shared: index > 0, line: key.line };
+        keys.firstBlock ??= key.name;
+        yield* blockElements(cur, key.name, block, report);
+        return;
+    }
+    cur.beginCapture();
+    await cur.skipValue();
+    // the member's own brace is one level more
+    if (cur.deepest + 1 > MAX_ELEMENT_DEPTH) {
+        // never parse (recursively) what no one reads
+        cur.dropCapture();
+        keys.deep = Math.max(keys.deep, cur.deepest + 1);
+        keys.others.push({ key: key.name, text: null, line: key.line });
+    } else {
+        keys.others.push({ key: key.name, text: cur.endCapture(), line: key.line });
+    }
+}
+
+/**
+ * The events after a one-object member's keys: with a block, its other keys (checked, then named
+ * as extraKeys); without one, the member parsed whole from its kept text.
+ * @param keys - what the member's keys held
+ * @param block - the member's position among the members
+ * @param line - the member's line
+ * @param start - the member's opening text and the line after it
+ * @param start.outer - the text up to the first key
+ * @param start.firstLine - the line of the first key
+ * @param report - the report of parseAt(), or null
+ * @yields the events
+ * @returns nothing
+ */
+function* memberEnd(
+    keys: MemberKeys,
+    block: number,
+    line: number,
+    start: { outer: string; firstLine: number },
+    report: ImportReportBuilder | null,
+): Generator<AspectEvent, void, undefined> {
+    const { others, firstBlock, deep } = keys;
     if (firstBlock !== null) {
         for (const other of others) {
             if (other.text !== null) {
@@ -1324,8 +1418,8 @@ async function* member(
         return;
     }
     const members = others.map((o) => [JSON.stringify(o.key), o.text ?? ""].join(":"));
-    const text = `${outer}${members.join(",")}}`;
-    const parsed = parseAt(text, firstLine, report);
+    const text = `${start.outer}${members.join(",")}}`;
+    const parsed = parseAt(text, start.firstLine, report);
     yield { kind: "member", block, value: parsed.value, exact: parsed.exact, text, line };
 }
 
@@ -1514,7 +1608,8 @@ const NUMBER_LITERAL = /-?\d[\d.eE+-]*/y;
 export function inexactLiteral(text: string, key: string, keyDepth = 1): boolean {
     const quoted = JSON.stringify(key);
     let depth = 0;
-    for (let i = 0; i < text.length; i++) {
+    let i = 0;
+    while (i < text.length) {
         const c = text[i];
         if (c === "{" || c === "[") {
             depth++;
@@ -1522,21 +1617,28 @@ export function inexactLiteral(text: string, key: string, keyDepth = 1): boolean
             depth--;
         } else if (c === '"') {
             const start = i;
-            for (i++; i < text.length && text[i] !== '"'; i++) {
-                if (text[i] === "\\") {
-                    i++;
-                }
-            }
+            i = stringEnd(text, i + 1);
             // the key itself (a string at depth 1 followed by a colon), not a value spelled like it
             const colon = skipSpace(text, i + 1);
             if (depth === keyDepth && text.startsWith(quoted, start) && text[colon] === ":") {
-                NUMBER_LITERAL.lastIndex = skipSpace(text, colon + 1);
-                const match = NUMBER_LITERAL.exec(text);
-                return match !== null && /[.eE]/.test(match[0]);
+                return inexactNumberAt(text, skipSpace(text, colon + 1));
             }
         }
+        i++;
     }
     return false;
+}
+
+/**
+ * Whether a number literal at an offset holds a fraction or an exponent.
+ * @param text - the text
+ * @param at - the offset
+ * @returns true when it does; false for an integer or no number
+ */
+function inexactNumberAt(text: string, at: number): boolean {
+    NUMBER_LITERAL.lastIndex = at;
+    const match = NUMBER_LITERAL.exec(text);
+    return match !== null && /[.eE]/.test(match[0]);
 }
 
 // ============================================================ Cytoscape positions (design section 1.0.2)

@@ -310,8 +310,8 @@ function reviewAnswer(job, report) {
     const r = report.result;
     if (!r || Array.isArray(r) || !REVIEW_VERDICTS.has(r.verdict)) return { missing: ["result: a review verdict"] };
     const want = job.facts?.patchId;
-    if (want && r.patchId !== want)
-        return { missing: [`the verdict is for patch ${r.patchId}, not the job's ${want}`] };
+    if (!want) return { missing: ["the job names no patch id; githerd cannot check this verdict"] };
+    if (r.patchId !== want) return { missing: [`the verdict is for patch ${r.patchId}, not the job's ${want}`] };
     return { holds: true };
 }
 

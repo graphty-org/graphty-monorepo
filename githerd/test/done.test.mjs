@@ -297,6 +297,16 @@ const FALSE_CLAIMS = [
         "review verdict",
     ],
     [
+        "review of a job that names no patch",
+        "review",
+        "7",
+        {},
+        { result: { verdict: "pass", patchId: "p1" } },
+        {},
+        {},
+        "names no patch id",
+    ],
+    [
         "review of another patch",
         "review",
         "7",

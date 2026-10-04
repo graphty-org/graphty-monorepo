@@ -80,6 +80,20 @@ export interface ProjectSaveOptions {
      * reserved.
      */
     readonly extensions?: Readonly<Record<string, unknown>>;
+    /**
+     * Whether the save clears `dirty` at once. Pass `false` when you write the file yourself,
+     * then call `project.markSaved(saved)` once the write succeeded: a failed write leaves the
+     * project dirty, and so does any change made while the write was under way. Default `true`.
+     */
+    readonly markSaved?: boolean;
+}
+
+/** Where the project was last saved: a history step, and whether that step has changed since. */
+interface SavePoint {
+    step: string | null;
+    lost: boolean;
+    /** Later saves have larger numbers, so an older save never replaces a newer one. */
+    readonly seq: number;
 }
 
 /** What `project.save` wrote. */
@@ -165,13 +179,29 @@ export interface ProjectApi {
      */
     rename(name: string | null): Promise<void>;
     /**
-     * Save the whole session as a graphty document. Clears `dirty`.
+     * Save the whole session as a graphty document. Clears `dirty`, unless `markSaved` is false.
      * @param options - What to leave out, and your own extensions.
      * @returns The file's text, and what it holds.
      * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` for an extension name that
      *     is not reverse-domain or a value over 64 KB.
      */
     save(options?: ProjectSaveOptions): Promise<SavedProject>;
+    /**
+     * Record that a file `save({ markSaved: false })` produced has been written. `dirty` clears
+     * unless something changed since that save, and undo returns to it as the save point.
+     *
+     * Marking a save older than the last one marked, or than the last open, does nothing, and so
+     * does marking one twice or one `save` already marked.
+     * @param saved - What `save` returned.
+     * @example
+     * ```typescript
+     * const saved = await session.project.save({ markSaved: false });
+     * await writable.write(saved.text); // a failed write throws, and the project stays dirty
+     * await writable.close();
+     * session.project.markSaved(saved);
+     * ```
+     */
+    markSaved(saved: SavedProject): void;
     /**
      * Open a graphty document. A project replaces the session, with a fresh history; any other
      * graphty document (a style, notes) is added as one undoable step.
@@ -449,7 +479,15 @@ function write(
             version: VERSION,
             format: "json",
             dialect: "node-link",
-            graph: { nodes, links: edges.map(({ id: _id, ...edge }) => edge) },
+            // The node-link convention's `directed` key, written only once something settled
+            // the direction, so a graph nobody described still opens with nothing said.
+            graph: {
+                ...(session.data.store.directionSettledBy.by === "unsettled"
+                    ? {}
+                    : { directed: session.status.directed }),
+                nodes,
+                links: edges.map(({ id: _id, ...edge }) => edge),
+            },
         },
         {
             kind: "graphty-session",
@@ -714,6 +752,7 @@ function unknownFormat(): GraphtyError {
 
 /** A data member's graph, checked. */
 interface NodeLink {
+    readonly directed?: unknown;
     readonly nodes: readonly Record<string, unknown>[];
     readonly links: readonly Record<string, unknown>[];
 }
@@ -794,7 +833,13 @@ async function importInto(tx: TransactionScope, graph: NodeLink): Promise<(EdgeI
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
     await tx.execute({
         op: "data.apply",
-        mutation: { kind: "add-edges", records: graph.links, source: "source", target: "target" },
+        mutation: {
+            kind: "add-edges",
+            records: graph.links,
+            source: "source",
+            target: "target",
+            ...(typeof graph.directed === "boolean" ? { directed: graph.directed } : {}),
+        },
     });
     return tx.data
         .edges()
@@ -1105,6 +1150,34 @@ function rowsOf<Key, Id extends NodeId>(
 }
 
 /**
+ * How a project file is named and typed: what `element.downloadProject()` gives the file, and
+ * what to hand a save picker (`showSaveFilePicker`'s `suggestedName` and `accept`) or a server.
+ * @example
+ * ```typescript
+ * const handle = await showSaveFilePicker({
+ *     suggestedName: projectFileName(session.project.name),
+ *     types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
+ * });
+ * ```
+ */
+export const PROJECT_FILE = Object.freeze({
+    /** The file name's ending, with its leading dot. */
+    extension: ".graphty.json",
+    /** The file's media type. */
+    mediaType: "application/vnd.graphty+json",
+} as const);
+
+/**
+ * The file name the element gives a project: `<name>.graphty.json`, or `project.graphty.json`
+ * for a project with no name. Opening a file with that name gives a named project its name back.
+ * @param name - The project's name, such as `session.project.name`; blank or null for none.
+ * @returns The file name.
+ */
+export function projectFileName(name: string | null | undefined): string {
+    return `${name === null || name === undefined || name.trim() === "" ? "project" : name}${PROJECT_FILE.extension}`;
+}
+
+/**
  * The project's name from a file's name: without `.graphty.json` or `.json`.
  * @param fileName - The file's name.
  * @returns The name, or null for none.
@@ -1136,14 +1209,19 @@ export function projectOf(
     hooks: { readonly announce: (change: ProjectStatus) => void; readonly isDerived: (id: RunId) => boolean },
 ): ProjectApi {
     const { announce, isDerived } = hooks;
-    // Clean means: the history's cursor is on the step that was on top at the last save or open
-    // (null: the baseline), and nothing has been merged into that step or cleared from under it.
-    let marker: string | null = null;
-    let lost = false;
+    // Clean means: the history's cursor is on the save point's step (null: the baseline), and
+    // nothing has been merged into that step or cleared from under it. A save made with
+    // `markSaved: false` keeps its own point, followed the same way, until `markSaved` adopts it.
+    let point: SavePoint = { step: null, lost: false, seq: 0 };
+    // Unmarked saves: the point alone is followed, and the SavedProject (with its text) is held
+    // only weakly, so a write that failed and is never marked keeps no copy of the file alive.
+    const waiting = new Set<SavePoint>();
+    const pointOf = new WeakMap<SavedProject, SavePoint>();
+    let seq = 0;
     let top: string | null = null;
     let last: ProjectStatus = { name: null, dirty: false };
     const topNow = (): string | null => session.history.steps[session.history.position - 1]?.id ?? null;
-    const isDirty = (): boolean => lost || topNow() !== marker;
+    const isDirty = (): boolean => point.lost || topNow() !== point.step;
     const nameNow = (): string | null => session.config.name ?? null;
     const tell = (): void => {
         const now = { name: nameNow(), dirty: isDirty() };
@@ -1152,21 +1230,28 @@ export function projectOf(
             announce(now);
         }
     };
-    const mark = (): void => {
-        marker = topNow();
-        top = marker;
-        lost = false;
+    const pointNow = (): SavePoint => ({ step: topNow(), lost: false, seq: ++seq });
+    const adopt = (next: SavePoint): void => {
+        point = next;
+        for (const each of waiting) {
+            if (each.seq <= next.seq) {
+                waiting.delete(each);
+            }
+        }
+
         tell();
     };
 
     session.on("history:changed", ({ reason }) => {
-        if (reason === "merge" && topNow() === marker) {
-            lost = true;
-        } else if (reason === "clear") {
-            lost ||= top !== marker;
-            marker = null;
-        } else if (reason === "evict" && marker === null) {
-            lost = true;
+        for (const each of [point, ...waiting.values()]) {
+            if (reason === "merge" && topNow() === each.step) {
+                each.lost = true;
+            } else if (reason === "clear") {
+                each.lost ||= top !== each.step;
+                each.step = null;
+            } else if (reason === "evict" && each.step === null) {
+                each.lost = true;
+            }
         }
 
         top = topNow();
@@ -1186,17 +1271,29 @@ export function projectOf(
         save(options = {}) {
             const { document, leftOut } = write(session, dispatcher, isDerived, options);
             const text = JSON.stringify(document);
-            mark();
-            return Promise.resolve(
-                Object.freeze({
-                    text,
-                    report: Object.freeze({
-                        bytes: new TextEncoder().encode(text).length,
-                        written: (document.members as { kind: string }[]).map((member) => member.kind),
-                        leftOut,
-                    }),
+            const saved: SavedProject = Object.freeze({
+                text,
+                report: Object.freeze({
+                    bytes: new TextEncoder().encode(text).length,
+                    written: (document.members as { kind: string }[]).map((member) => member.kind),
+                    leftOut,
                 }),
-            );
+            });
+            if (options.markSaved === false) {
+                const waited = pointNow();
+                waiting.add(waited);
+                pointOf.set(saved, waited);
+            } else {
+                adopt(pointNow());
+            }
+
+            return Promise.resolve(saved);
+        },
+        markSaved(saved) {
+            const waited = pointOf.get(saved);
+            if (waited !== undefined && waiting.has(waited)) {
+                adopt(waited);
+            }
         },
         async open(source, options = {}) {
             const text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
@@ -1228,7 +1325,7 @@ export function projectOf(
                 );
                 // A project opens with a fresh history: its opened state is the baseline.
                 session.history.clear();
-                mark();
+                adopt(pointNow());
             } else {
                 const data = doc.members.get("graphty-data")?.[0];
                 const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);

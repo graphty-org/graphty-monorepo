@@ -130,19 +130,20 @@ export function staleGraphicsRows(column: Column, table: Iterable<Column>, domai
  * PolyLineEdge's for an edge; nothing for any other graphics (GenericNode, BezierEdge, ...).
  * @param domain - node or edge
  * @param tree - the `<data>` content as tree.ts builds it
+ * @param unmapped - receives the fields whose text is present but not a number (not mapped)
  * @returns field name -> value, in declaration order
  */
-export function graphicsValues(domain: "node" | "edge", tree: unknown): [string, unknown][] {
+export function graphicsValues(domain: "node" | "edge", tree: unknown, unmapped: string[] = []): [string, unknown][] {
     const out: [string, unknown][] = [];
     if (domain === "node") {
         const shape = child(tree, "ShapeNode");
         if (shape !== undefined) {
-            shapeNodeValues(shape, out);
+            shapeNodeValues(shape, out, unmapped);
         }
     } else {
         const edge = child(tree, "PolyLineEdge");
         if (edge !== undefined) {
-            polyLineEdgeValues(edge, out);
+            polyLineEdgeValues(edge, out, unmapped);
         }
     }
     return out;
@@ -152,21 +153,22 @@ export function graphicsValues(domain: "node" | "edge", tree: unknown): [string,
  * Read a ShapeNode.
  * @param shape - the ShapeNode element
  * @param out - receives the values
+ * @param unmapped - receives the fields whose text is not a number
  */
-function shapeNodeValues(shape: unknown, out: [string, unknown][]): void {
+function shapeNodeValues(shape: unknown, out: [string, unknown][], unmapped: string[]): void {
     const geometry = child(shape, "Geometry");
     // yFiles requires x, y, width and height on Geometry; a position needs both coordinates
-    const x = number(attr(geometry, "x"));
-    const y = number(attr(geometry, "y"));
+    const x = checked(attr(geometry, "x"), "x", unmapped);
+    const y = checked(attr(geometry, "y"), "y", unmapped);
     if (x !== undefined && y !== undefined) {
         out.push(["position", [x, y, 0]]);
     }
-    push(out, "width", number(attr(geometry, "width")));
-    push(out, "height", number(attr(geometry, "height")));
+    push(out, "width", checked(attr(geometry, "width"), "width", unmapped));
+    push(out, "height", checked(attr(geometry, "height"), "height", unmapped));
     push(out, "color", color(attr(child(shape, "Fill"), "color")));
     const border = child(shape, "BorderStyle");
     push(out, "borderColor", color(attr(border, "color")));
-    push(out, "borderWidth", number(attr(border, "width")));
+    push(out, "borderWidth", checked(attr(border, "width"), "borderWidth", unmapped));
     const label = child(shape, "NodeLabel");
     // an element with no text and no attributes is "" (no label); one with attributes but no text is a blank label
     if (typeof label === "string" ? label.length > 0 : label !== undefined) {
@@ -180,11 +182,12 @@ function shapeNodeValues(shape: unknown, out: [string, unknown][]): void {
  * Read a PolyLineEdge.
  * @param edge - the PolyLineEdge element
  * @param out - receives the values
+ * @param unmapped - receives the fields whose text is not a number
  */
-function polyLineEdgeValues(edge: unknown, out: [string, unknown][]): void {
+function polyLineEdgeValues(edge: unknown, out: [string, unknown][], unmapped: string[]): void {
     const line = child(edge, "LineStyle");
     push(out, "color", color(attr(line, "color")));
-    push(out, "width", number(attr(line, "width")));
+    push(out, "width", checked(attr(line, "width"), "width", unmapped));
     const arrows = child(edge, "Arrows");
     if (arrows !== undefined && typeof arrows === "object") {
         const target = attr(arrows, "target");
@@ -270,6 +273,21 @@ function number(value: string | undefined): number | undefined {
     }
     const n = Number.parseFloat(value);
     return Number.isNaN(n) ? undefined : n;
+}
+
+/**
+ * A number attribute, recording a present text that is not a number.
+ * @param value - the text
+ * @param field - the field it maps to
+ * @param unmapped - receives the field when the text is not a number
+ * @returns the number, or undefined
+ */
+function checked(value: string | undefined, field: string, unmapped: string[]): number | undefined {
+    const n = number(value);
+    if (n === undefined && value !== undefined && value.length > 0) {
+        unmapped.push(field);
+    }
+    return n;
 }
 
 /**

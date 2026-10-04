@@ -467,6 +467,8 @@ describe("graphmlImporter keys and data", () => {
             GRAPHML_ISSUE.PORT_DECLARATION,
             GRAPHML_ISSUE.LOCATOR_DROPPED,
             GRAPHML_ISSUE.UNKNOWN_ELEMENT,
+            // targetport="p2": node b declares no port p2
+            GRAPHML_ISSUE.DANGLING_REFERENCE,
         ]);
         expect(report.issues.every((i) => i.severity === "warning")).toBe(true);
         expect(snapshot.edges.require("sourceport").meta.role).toBe("sourcePort");
@@ -496,6 +498,8 @@ describe("graphmlImporter unread XML attributes", () => {
             [GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE, "warning", "foo"],
             [GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE, "warning", "bar"],
             [GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE, "warning", "baz"],
+            // sourceport="p": node 1 declares no port p
+            [GRAPHML_ISSUE.DANGLING_REFERENCE, "warning", "1:p"],
         ]);
     });
 

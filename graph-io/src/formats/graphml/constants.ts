@@ -8,11 +8,16 @@ import {
     BAD_DEFAULT_CODE,
     COLUMN_RENAMED_CODE,
     COUNT_HINT_CODE,
+    COUNT_MISMATCH_CODE,
+    DANGLING_REFERENCE_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
+    DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_KEY_CODE,
     DUPLICATE_NODE_CODE,
+    EMPTY_INPUT_CODE,
+    ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
     HYPEREDGE_CODE,
     ID_MERGED_CODE,
@@ -36,6 +41,8 @@ import {
     UNKNOWN_ATTR_TYPE_CODE,
     UNKNOWN_ELEMENT_CODE,
     UNKNOWN_ENCODING_CODE,
+    UNKNOWN_PARENT_CODE,
+    UNKNOWN_XML_ATTRIBUTE_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 
@@ -125,8 +132,14 @@ export const GRAPHML_ISSUE = Object.freeze({
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
+    /** A declared encoding the byte order mark contradicts (the mark wins). */
+    ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
+    /** Fatal: the input holds no markup at all (empty, whitespace or a byte order mark only). */
+    EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** Fatal: the root element is not `<graphml>`. */
     NOT_GRAPHML: "E_NOT_GRAPHML",
+    /** The `<graphml>` root is in a namespace other than GraphML's; it is read as GraphML. */
+    NAMESPACE: "W_GRAPHML_NAMESPACE",
     /** Fatal: the document has no `<graph>`. */
     NO_GRAPH: NO_GRAPH_CODE,
     /** A `<key>` without an id. */
@@ -139,8 +152,18 @@ export const GRAPHML_ISSUE = Object.freeze({
     MISSING_ID: MISSING_ID_CODE,
     /** An `<edge>` without a source or a target. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
+    /** An edge endpoint that names no declared node under `addMissingNodes: false`; the edge is skipped. */
+    UNKNOWN_NODE: "E_UNKNOWN_NODE",
+    /** An edge endpoint that names a nested `<graph>`, not a node; a node of that id is created. */
+    GRAPH_ENDPOINT: "W_GRAPHML_GRAPH_ENDPOINT",
+    /** The nodes of a nested graph whose container node was skipped lose their parent. */
+    UNKNOWN_PARENT: UNKNOWN_PARENT_CODE,
+    /** Two `<data>` of one key on one element, two `<default>` in one key, or two weight keys; one is kept. */
+    DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
     /** A `<data>` whose key was never declared. */
     UNKNOWN_KEY: "E_GRAPHML_UNKNOWN_KEY",
+    /** A `<key>` declared after `<data>` that used it; those values were already reported and dropped. */
+    KEY_DECLARED_LATE: "W_GRAPHML_KEY_DECLARED_LATE",
     /** A `<data>` whose key is declared for another domain. */
     KEY_DOMAIN: "W_GRAPHML_KEY_DOMAIN",
     /** A `<data>` without a key attribute. */
@@ -167,6 +190,8 @@ export const GRAPHML_ISSUE = Object.freeze({
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
     /** A `parse.nodes` / `parse.edges` hint the sink cannot reserve (ignored). */
     COUNT_HINT: COUNT_HINT_CODE,
+    /** A `parse.nodes` / `parse.edges` hint that disagrees with what the graph holds. */
+    COUNT_MISMATCH: COUNT_MISMATCH_CODE,
     /** A hyperedge under `hyperedges: "error"`. */
     HYPEREDGE: HYPEREDGE_CODE,
     /** Hyperedges skipped under `hyperedges: "skip"`. */
@@ -175,10 +200,20 @@ export const GRAPHML_ISSUE = Object.freeze({
     HYPEREDGE_ENDPOINT: "E_GRAPHML_HYPEREDGE_ENDPOINT",
     /** `<port>` declarations (and their data) are not kept; sourceport / targetport edge attributes are. */
     PORT_DECLARATION: "W_GRAPHML_PORT_DECLARATION",
+    /** A `sourceport` / `targetport` naming a port its node does not declare (once, with the count). */
+    DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,
+    /** A `<graph>` inside an `<edge>` (legal GraphML): it and the nodes and edges it holds are dropped. */
+    EDGE_GRAPH_DROPPED: "W_GRAPHML_EDGE_GRAPH_DROPPED",
+    /** A `<node>` whose id is that of a hub `hyperedges: "star"` created; the node is merged into the hub. */
+    HUB_ID_CLASH: "W_GRAPHML_HUB_ID_CLASH",
+    /** A `graphty:originalId` value that is not text, or arrives after the node was added (after its nested graph). */
+    ORIGINAL_ID_IGNORED: "W_GRAPHML_ORIGINAL_ID_IGNORED",
+    /** A yFiles graphics value (a geometry coordinate, a width) that is not a number; it is not mapped. */
+    YFILES_VALUE: "W_GRAPHML_YFILES_VALUE",
     /** A GraphML `parse.*` hint on `<graph>`, `<node>` or `<edge>` the importer does not act on (parse.nodeids, parse.order, ...). */
     PARSE_HINT_IGNORED: "W_GRAPHML_PARSE_HINT_IGNORED",
-    /** An XML attribute GraphML does not define on `<graph>`, `<node>` or `<edge>`; it is not kept. */
-    UNKNOWN_XML_ATTRIBUTE: "W_GRAPHML_UNKNOWN_XML_ATTRIBUTE",
+    /** An XML attribute GraphML does not define (or the importer does not keep) on an element; it is not kept. */
+    UNKNOWN_XML_ATTRIBUTE: UNKNOWN_XML_ATTRIBUTE_CODE,
     /** A `<locator>` element. */
     LOCATOR_DROPPED: "W_GRAPHML_LOCATOR_DROPPED",
     /** A `<desc>` of a node, an edge or a hyperedge. */

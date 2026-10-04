@@ -310,6 +310,17 @@ export function parseDecimalText(text: string, kind: ValueKind = "double"): numb
 }
 
 /**
+ * Whether a number text is finite as written but too large for a double (`1e400`, a 400-digit
+ * integer), so it parses as Infinity: a value the importer should report, unlike `INF`.
+ * @param text - the value text
+ * @returns true when the text overflows
+ */
+export function overflowsToInfinity(text: string): boolean {
+    const trimmed = text.trim();
+    return /^[+-]?[0-9.]/.test(trimmed) && Number(trimmed) === (trimmed.startsWith("-") ? -Infinity : Infinity);
+}
+
+/**
  * Parse a Neo4j point literal `{x:1.0, y:2.0, crs:'cartesian'}` (also `latitude` / `longitude` /
  * `height` / `z` / `srid`) into a JSON object; a JSON object text is accepted as well.
  * @param text - the value text

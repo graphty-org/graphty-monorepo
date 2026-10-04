@@ -18,11 +18,11 @@ function graphml(prolog: string, id: readonly number[] | string): Uint8Array {
 }
 
 describe("robustness: XML prolog, BOM, option and bytes", () => {
-    it("refuses BOM-less UTF-16 whose prolog declares UTF-16 with E_INVALID_ENCODING, not a syntax error", async () => {
+    it("reads BOM-less UTF-16 whose prolog declares UTF-16 by the byte pattern of `<?` (XML 1.0 Appendix F)", async () => {
         const text = `<?xml version="1.0" encoding="UTF-16"?><graphml ${NS}><graph edgedefault="directed"><node id="a"/></graph></graphml>`;
-        const err = await importFailure(importGraph(utf16(text, false, false), { format: "graphml" }));
-        expect(codes(err.report)).toEqual(["E_INVALID_ENCODING"]);
-        expect(err.message).toContain("without a byte order mark");
+        const read = await importGraph(utf16(text, false, false), { format: "graphml" });
+        expect(codes(read.report)).toEqual([]);
+        expect(read.snapshot.ids.toArray()).toEqual(["a"]);
         const { snapshot } = await importGraph(utf16(text, false, false), { format: "graphml", encoding: "utf-16be" });
         expect(snapshot.ids.toArray()).toEqual(["a"]);
     });

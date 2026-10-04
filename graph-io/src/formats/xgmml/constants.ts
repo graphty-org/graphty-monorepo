@@ -16,6 +16,7 @@ import {
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
     EMPTY_INPUT_CODE,
+    ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
     EQUATION_AS_TEXT_CODE,
     GRAPH_NOT_FOUND_CODE,
@@ -134,6 +135,8 @@ export const XGMML_ISSUE = Object.freeze({
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
+    /** A declared encoding the byte order mark contradicts (the mark wins). */
+    ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
     /** Fatal: the root element is not `<graph>` (an XHTML page embedding one, a GraphML file). */
     NO_GRAPH: NO_GRAPH_CODE,
     /** Fatal: a session view document (`cy:view="1"`): view SUIDs and no topology. */

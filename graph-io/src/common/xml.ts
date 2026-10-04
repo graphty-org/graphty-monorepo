@@ -38,8 +38,11 @@ export interface XmlHandler {
      * @param name - the element name as written, prefix included
      * @param attrs - the attributes, entities decoded, in document order
      * @param line - the 1-based line of the `<`
+     * @param ns - the namespace URI the element's prefix (or the default namespace) is bound to:
+     * "" when the element is in no namespace, null when its prefix is undeclared or the name is not
+     * namespace-well-formed (a leading or trailing colon, two colons)
      */
-    start(name: string, attrs: ReadonlyMap<string, string>, line: number): void;
+    start(name: string, attrs: ReadonlyMap<string, string>, line: number, ns: string | null): void;
     /**
      * An element ends.
      * @param name - the element name
@@ -69,6 +72,21 @@ export class XmlSyntaxError extends Error {
         super(message);
         this.name = "XmlSyntaxError";
         this.line = line;
+    }
+}
+
+/**
+ * The input holds no markup at all (empty, whitespace only, a byte order mark only): an importer
+ * reports it as E_EMPTY_INPUT rather than as a syntax error.
+ */
+export class XmlEmptyInputError extends XmlSyntaxError {
+    /**
+     * Create the error.
+     * @param line - the 1-based line where the input ended
+     */
+    constructor(line: number) {
+        super("the input is empty: no root element", line);
+        this.name = "XmlEmptyInputError";
     }
 }
 
@@ -122,6 +140,7 @@ const OPEN_BRACKET = 91;
 const CLOSE_BRACKET = 93;
 const BANG = 33;
 const DASH = 45;
+const QUESTION = 63;
 
 /** The longest entity reference held back at a chunk boundary (`&#x10FFFF;` is 10 characters). */
 const MAX_ENTITY_LENGTH = 16;
@@ -181,6 +200,16 @@ const ILLEGAL_CHAR = new RegExp(
  */
 export function hasIllegalXmlChar(text: string): boolean {
     return ILLEGAL_CHAR.test(text);
+}
+
+/**
+ * Where the first character XML 1.0 forbids is in a text.
+ * @param text - the text
+ * @returns its index, or -1
+ */
+function illegalCharIndex(text: string): number {
+    const match = ILLEGAL_CHAR.exec(text);
+    return match === null ? -1 : match.index;
 }
 
 /**
@@ -273,6 +302,22 @@ export function xmlDeclaredEncoding(head: string): string | null {
 }
 
 /**
+ * The head of a document as text for an XML format's sniff(): UTF-16 when a byte order mark (or
+ * BOM-less UTF-16 `<?`, XML 1.0 Appendix F) says so, else UTF-8, never failing.
+ * @param head - the first bytes
+ * @returns the text, a leading byte order mark removed
+ */
+export function sniffXmlText(head: Uint8Array): string {
+    let label = "utf-8";
+    if ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0x3c && head[1] === 0x00 && head[2] === 0x3f)) {
+        label = "utf-16le";
+    } else if ((head[0] === 0xfe && head[1] === 0xff) || (head[0] === 0x00 && head[1] === 0x3c && head[3] === 0x3f)) {
+        label = "utf-16be";
+    }
+    return new TextDecoder(label, { fatal: false }).decode(head);
+}
+
+/**
  * Whether a text is an XML Name.
  * @param text - the text
  * @returns true for a well-formed name
@@ -338,13 +383,14 @@ export function decodeEntities(raw: string, line: number, repairs?: XmlRepairs):
             continue;
         }
         if (semi < 0) {
-            throw new XmlSyntaxError("unterminated entity reference", line);
+            throw new XmlSyntaxError("unterminated entity reference", lineAt(raw, amp, line));
         }
         const name = raw.slice(amp + 1, semi);
         if (name.startsWith("#")) {
             const hex = name.startsWith("#x") || name.startsWith("#X");
             const digits = name.slice(hex ? 2 : 1);
-            const ok = hex ? /^[0-9a-fA-F]{1,6}$/.test(digits) : /^[0-9]{1,7}$/.test(digits);
+            // XML 1.0 puts no limit on leading zeros (&#x0000000041; is "A")
+            const ok = hex ? /^0*[0-9a-fA-F]{1,6}$/.test(digits) : /^0*[0-9]{1,7}$/.test(digits);
             const cp = ok ? Number.parseInt(digits, hex ? 16 : 10) : -1;
             const low = cp >= 0xd800 && cp <= 0xdbff ? lowSurrogateAfter(raw, semi + 1, repairs) : null;
             if (low !== null) {
@@ -355,13 +401,13 @@ export function decodeEntities(raw: string, line: number, repairs?: XmlRepairs):
                 continue;
             }
             if (cp < 0 || !isXmlChar(cp)) {
-                throw new XmlSyntaxError(`invalid character reference &${name};`, line);
+                throw new XmlSyntaxError(`invalid character reference &${name};`, lineAt(raw, amp, line));
             }
             out += String.fromCodePoint(cp);
         } else {
             const value = NAMED_ENTITIES[name];
             if (value === undefined) {
-                throw new XmlSyntaxError(`unknown entity &${name};`, line);
+                throw new XmlSyntaxError(`unknown entity &${name};`, lineAt(raw, amp, line));
             }
             out += value;
         }
@@ -481,6 +527,8 @@ interface StartTag {
     readonly attrs: Map<string, string>;
     /** Whether the tag ends with `/>`. */
     readonly selfClosing: boolean;
+    /** Whether an attribute name starts with `xmlns` (a namespace declaration may be among them). */
+    readonly declaresNamespace: boolean;
     /** The buffer index one past the `>`. */
     readonly end: number;
 }
@@ -501,7 +549,7 @@ const TERMINATORS: Readonly<Partial<Record<PendingKind, string>>> = {
  * until the end is found, so a token spanning many chunks costs its length once) and the state
  * the terminator scan is in. `tail` holds the last characters of the pieces a fixed terminator
  * could straddle; `quote` is the open quote character (0 outside a value) of a start tag or a
- * DOCTYPE; `depth`, `comment` and `run` track a DOCTYPE's internal subset.
+ * DOCTYPE; `depth`, `comment`, `pi` and `run` track a DOCTYPE's internal subset.
  */
 interface Pending {
     kind: PendingKind;
@@ -510,8 +558,25 @@ interface Pending {
     quote: number;
     depth: number;
     comment: boolean;
+    pi: boolean;
     run: number;
 }
+
+/** One `xmlns` / `xmlns:prefix` declaration in scope. */
+interface NamespaceBinding {
+    /** The prefix; "" for the default namespace. */
+    readonly prefix: string;
+    /** The namespace URI; "" undeclares the default namespace. */
+    readonly uri: string;
+    /** The element depth that declared it (the stack length before the element was pushed). */
+    readonly depth: number;
+}
+
+/** The namespace the `xml` prefix is bound to by definition. */
+const XML_NAMESPACE = "http://www.w3.org/XML/1998/namespace";
+
+/** The markup declarations a truncated `<!...` at the end of the input may have been cut from. */
+const DECLARATION_OPENERS: readonly string[] = ["<!--", "<![CDATA[", "<!DOCTYPE"];
 
 /**
  * The tokenizer state: the unconsumed tail of the input, the current line, the open element
@@ -552,6 +617,27 @@ export class XmlTokenizer {
 
     private rootClosed = false;
 
+    /** Whether any markup was consumed (an input with none is empty, not malformed). */
+    private markupSeen = false;
+
+    /** Whether nothing has been consumed yet: the XML declaration may only appear here. */
+    private atStart = true;
+
+    /** Whether a DOCTYPE declaration was read (one is allowed, in the prolog). */
+    private doctypeSeen = false;
+
+    /** The version of the XML declaration, or null. */
+    private version: string | null = null;
+
+    /** The last two characters of the character data since the last markup, for the `]]>` check. */
+    private textTail = "";
+
+    /** A high surrogate held back from the end of the previous chunk (its low half may start the next). */
+    private pendingHigh = "";
+
+    /** The namespace declarations in scope, innermost last. */
+    private readonly bindings: NamespaceBinding[] = [];
+
     private readonly repairs: XmlRepairs | undefined;
 
     /**
@@ -570,6 +656,16 @@ export class XmlTokenizer {
      */
     push(chunk: string): void {
         let text = chunk;
+        if (this.pendingHigh.length > 0) {
+            text = this.pendingHigh + text;
+            this.pendingHigh = "";
+        }
+        const last = text.charCodeAt(text.length - 1);
+        if (last >= 0xd800 && last <= 0xdbff) {
+            // a text chunk may end between the two halves of an astral character
+            this.pendingHigh = text.slice(-1);
+            text = text.slice(0, -1);
+        }
         if (this.pendingCr) {
             text = `\r${text}`;
             this.pendingCr = false;
@@ -587,11 +683,13 @@ export class XmlTokenizer {
     /** Signal the end of the input: flush the last text run and check well-formedness. */
     finish(): void {
         this.final = true;
+        const held = this.pendingHigh;
+        this.pendingHigh = "";
         if (this.pendingCr) {
             this.pendingCr = false;
-            this.feed("\n");
+            this.feed(`\n${held}`);
         } else {
-            this.feed("");
+            this.feed(held);
         }
         if (this.pending !== null || this.buffer.length > 0) {
             throw new XmlSyntaxError("unexpected end of input inside markup", this.line);
@@ -601,6 +699,9 @@ export class XmlTokenizer {
             throw new XmlSyntaxError(`unclosed element <${this.stack[this.stack.length - 1]}>`, this.line);
         }
         if (!this.rootSeen) {
+            if (!this.markupSeen) {
+                throw new XmlEmptyInputError(this.line);
+            }
             throw new XmlSyntaxError("no root element", this.line);
         }
     }
@@ -717,9 +818,19 @@ export class XmlTokenizer {
      * @returns the index one past the `>`, or -1
      */
     private scanDoctype(pending: Pending, text: string, from: number): number {
-        let { quote, depth, comment, run } = pending;
+        let { quote, depth, comment, pi, run } = pending;
         for (let i = from; i < text.length; i++) {
             const c = text.charCodeAt(i);
+            if (pi) {
+                // a processing instruction in the subset ends at `?>`; quotes inside it are text
+                if (c === GT && run === 1) {
+                    pi = false;
+                    run = 0;
+                } else {
+                    run = c === QUESTION ? 1 : 0;
+                }
+                continue;
+            }
             if (comment) {
                 if (c === DASH) {
                     run++;
@@ -751,6 +862,11 @@ export class XmlTokenizer {
                     run = 0;
                     continue;
                 }
+                if (run === 1 && c === QUESTION) {
+                    pi = true;
+                    run = 0;
+                    continue;
+                }
                 run = 0;
                 if (c === LT) {
                     run = 1;
@@ -767,6 +883,7 @@ export class XmlTokenizer {
                 pending.quote = 0;
                 pending.depth = 0;
                 pending.comment = false;
+                pending.pi = false;
                 pending.run = 0;
                 return i + 1;
             }
@@ -774,6 +891,7 @@ export class XmlTokenizer {
         pending.quote = quote;
         pending.depth = depth;
         pending.comment = comment;
+        pending.pi = pi;
         pending.run = run;
         return -1;
     }
@@ -795,7 +913,13 @@ export class XmlTokenizer {
                 if (!this.final) {
                     // an entity reference may be split across chunks: hold back from its "&"
                     const amp = buffer.lastIndexOf("&");
-                    if (amp >= pos && amp >= length - MAX_ENTITY_LENGTH && buffer.indexOf(";", amp) < 0) {
+                    if (
+                        amp >= pos &&
+                        buffer.indexOf(";", amp) < 0 &&
+                        // ponytail: a zero-padded reference longer than MAX_ENTITY_LENGTH is held back
+                        // whole, so an absurdly long run of zeros is re-scanned once per chunk
+                        (amp >= length - MAX_ENTITY_LENGTH || /^&#[xX]?0+[0-9a-fA-F]*$/.test(buffer.slice(amp)))
+                    ) {
                         end = amp;
                     }
                     if (this.repairs?.surrogatePair !== undefined) {
@@ -842,6 +966,7 @@ export class XmlTokenizer {
             quote: 0,
             depth: 0,
             comment: false,
+            pi: false,
             run: 0,
         };
         if (piece.length < MIN_DECIDABLE_MARKUP) {
@@ -886,60 +1011,32 @@ export class XmlTokenizer {
      * @returns the index after the markup, or -1 when the buffer ends before the markup does
      */
     private consumeMarkup(pos: number): number {
+        const end = this.markupEnd(pos);
+        if (end >= 0) {
+            this.markupSeen = true;
+            this.atStart = false;
+            // markup ends a run of character data: a `]]>` cannot straddle it
+            this.textTail = "";
+        }
+        return end;
+    }
+
+    /**
+     * Read the markup starting at `pos` (a `<`) and deliver what it means.
+     * @param pos - the index of the `<`
+     * @returns the index after the markup, or -1 when the buffer ends before the markup does
+     */
+    private markupEnd(pos: number): number {
         const { buffer } = this;
         if (buffer.startsWith("<!", pos)) {
-            if (buffer.length - pos < MIN_DECIDABLE_MARKUP && !this.final) {
-                // "<![CDATA[" is 9 characters; wait until the kind of declaration is decidable
-                return -1;
-            }
-            if (buffer.startsWith("<!--", pos)) {
-                const end = buffer.indexOf("-->", pos + 4);
-                if (end < 0) {
-                    return -1;
-                }
-                this.advanceLine(pos, end + 3);
-                return end + 3;
-            }
-            if (buffer.startsWith("<![CDATA[", pos)) {
-                const end = buffer.indexOf("]]>", pos + 9);
-                if (end < 0) {
-                    return -1;
-                }
-                if (this.text.length === 0) {
-                    this.textLine = this.line;
-                }
-                const cdata = buffer.slice(pos + 9, end);
-                if (hasIllegalXmlChar(cdata)) {
-                    throw new XmlSyntaxError("a character XML 1.0 forbids appears in a CDATA section", this.line);
-                }
-                this.text += cdata;
-                this.advanceLine(pos, end + 3);
-                return end + 3;
-            }
-            if (!buffer.startsWith("<!DOCTYPE", pos)) {
-                throw new XmlSyntaxError("unexpected markup declaration", this.line);
-            }
-            const state: Pending = {
-                kind: "doctype",
-                pieces: [],
-                tail: "",
-                quote: 0,
-                depth: 0,
-                comment: false,
-                run: 0,
-            };
-            const end = this.scanDoctype(state, buffer, pos + 9);
-            if (end < 0) {
-                return -1;
-            }
-            this.advanceLine(pos, end);
-            return end;
+            return this.declarationEnd(pos);
         }
         if (buffer.startsWith("<?", pos)) {
             const end = buffer.indexOf("?>", pos + 2);
             if (end < 0) {
                 return -1;
             }
+            this.processingInstruction(pos, end);
             this.advanceLine(pos, end + 2);
             return end + 2;
         }
@@ -948,7 +1045,8 @@ export class XmlTokenizer {
             if (end < 0) {
                 return -1;
             }
-            const name = buffer.slice(pos + 2, end).trim();
+            // whitespace may follow the name, never precede it
+            const name = buffer.slice(pos + 2, end).trimEnd();
             if (!isXmlName(name)) {
                 throw new XmlSyntaxError(`malformed end tag </${name}>`, this.line);
             }
@@ -962,12 +1060,160 @@ export class XmlTokenizer {
             return -1;
         }
         this.flushText();
-        this.startElement(tag.name, tag.attrs);
+        this.startElement(tag.name, tag.attrs, tag.declaresNamespace);
         if (tag.selfClosing) {
             this.endElement(tag.name);
         }
         this.advanceLine(pos, tag.end);
         return tag.end;
+    }
+
+    /**
+     * Read the `<!...>` markup at `pos`: a comment, a CDATA section or the DOCTYPE.
+     * @param pos - the index of the `<`
+     * @returns the index after the markup, or -1 when the buffer ends before the markup does
+     */
+    private declarationEnd(pos: number): number {
+        const { buffer } = this;
+        if (buffer.length - pos < MIN_DECIDABLE_MARKUP) {
+            // "<![CDATA[" is 9 characters; wait until the kind of declaration is decidable, and at
+            // the end of the input read the start of one cut short as a truncation
+            const head = buffer.slice(pos);
+            if (!this.final || DECLARATION_OPENERS.some((opener) => opener.startsWith(head))) {
+                return -1;
+            }
+        }
+        if (buffer.startsWith("<!--", pos)) {
+            const end = buffer.indexOf("-->", pos + 4);
+            if (end < 0) {
+                return -1;
+            }
+            const body = buffer.slice(pos + 4, end);
+            if (body.includes("--") || body.endsWith("-")) {
+                throw new XmlSyntaxError('"--" is not allowed inside a comment', this.lineIn(pos, pos + 4 + body.indexOf("-")));
+            }
+            this.advanceLine(pos, end + 3);
+            return end + 3;
+        }
+        if (buffer.startsWith("<![CDATA[", pos)) {
+            const end = buffer.indexOf("]]>", pos + 9);
+            if (end < 0) {
+                return -1;
+            }
+            if (this.text.length === 0) {
+                this.textLine = this.line;
+            }
+            const cdata = buffer.slice(pos + 9, end);
+            const bad = illegalCharIndex(cdata);
+            if (bad >= 0) {
+                throw new XmlSyntaxError(
+                    "a character XML 1.0 forbids appears in a CDATA section",
+                    this.lineIn(pos, pos + 9 + bad),
+                );
+            }
+            this.text += cdata;
+            this.advanceLine(pos, end + 3);
+            return end + 3;
+        }
+        if (!buffer.startsWith("<!DOCTYPE", pos)) {
+            if (buffer.slice(pos + 2, pos + 9).toUpperCase() === "DOCTYPE") {
+                throw new XmlSyntaxError(
+                    `<!${buffer.slice(pos + 2, pos + 9)}> is not XML (it must be written <!DOCTYPE>); the input looks like an HTML document`,
+                    this.line,
+                );
+            }
+            throw new XmlSyntaxError("unexpected markup declaration", this.line);
+        }
+        if (this.rootSeen || this.doctypeSeen) {
+            throw new XmlSyntaxError("a DOCTYPE declaration is allowed once, before the root element", this.line);
+        }
+        const state: Pending = {
+            kind: "doctype",
+            pieces: [],
+            tail: "",
+            quote: 0,
+            depth: 0,
+            comment: false,
+            pi: false,
+            run: 0,
+        };
+        const end = this.scanDoctype(state, buffer, pos + 9);
+        if (end < 0) {
+            return -1;
+        }
+        this.doctypeSeen = true;
+        this.advanceLine(pos, end);
+        return end;
+    }
+
+    /**
+     * Check a processing instruction `<?target ...?>` (skipped otherwise): its target must be a
+     * name, and the reserved target `xml` is the XML declaration, allowed only at the very start
+     * of the document with a 1.x version.
+     * @param pos - the index of the `<`
+     * @param end - the index of the `?>`
+     */
+    private processingInstruction(pos: number, end: number): void {
+        const body = this.buffer.slice(pos + 2, end);
+        const target = /^[^\s]*/.exec(body)?.[0] ?? "";
+        if (!isXmlName(target)) {
+            throw new XmlSyntaxError(`a processing instruction needs a target name, not "${target}"`, this.line);
+        }
+        if (target.toLowerCase() !== "xml") {
+            return;
+        }
+        if (target !== "xml") {
+            throw new XmlSyntaxError(
+                `<?${target} is not an XML declaration (which is written <?xml in lower case); the target is reserved`,
+                this.line,
+            );
+        }
+        if (!this.atStart || pos !== 0) {
+            throw new XmlSyntaxError(
+                "an XML declaration (<?xml ...?>) may appear only at the very start of the document; the target xml is reserved",
+                this.line,
+            );
+        }
+        const version = /\bversion\s*=\s*(["'])([^"']*)\1/.exec(body)?.[2];
+        if (version === undefined) {
+            throw new XmlSyntaxError("the XML declaration has no version", this.line);
+        }
+        if (!/^1\.[0-9]+$/.test(version)) {
+            throw new XmlSyntaxError(`XML version ${version} is not supported (only 1.x)`, this.line);
+        }
+        this.version = version;
+    }
+
+    /**
+     * The line of a buffer position after `start`, the position the current line count refers to.
+     * Used on the error path only.
+     * @param start - a position on line `this.line`
+     * @param at - the position
+     * @returns its line
+     */
+    private lineIn(start: number, at: number): number {
+        return lineAt(this.buffer.slice(start, at), at - start, this.line);
+    }
+
+    /**
+     * Decode the entities of a text, naming XML 1.1 when a character reference XML 1.0 forbids
+     * appears in a document that declares version 1.1.
+     * @param raw - the text as written
+     * @param line - the line the text starts on
+     * @returns the decoded text
+     */
+    private decode(raw: string, line: number): string {
+        try {
+            return decodeEntities(raw, line, this.repairs);
+        } catch (err) {
+            if (err instanceof XmlSyntaxError && this.version !== null && this.version !== "1.0") {
+                throw new XmlSyntaxError(
+                    `${err.message} (the document declares XML ${this.version}, whose character rules are not supported; it is read as XML 1.0)`,
+                    err.line,
+                );
+            }
+            throw err;
+        }
     }
 
     /**
@@ -989,7 +1235,9 @@ export class XmlTokenizer {
         const name = buffer.slice(i, nameEnd);
         i = nameEnd;
         const attrs = new Map<string, string>();
+        let declaresNamespace = false;
         for (;;) {
+            const before = i;
             while (i < length && isSpace(buffer.charCodeAt(i))) {
                 i++;
             }
@@ -998,23 +1246,27 @@ export class XmlTokenizer {
             }
             const c = buffer.charCodeAt(i);
             if (c === GT) {
-                return { name, attrs, selfClosing: false, end: i + 1 };
+                return { name, attrs, selfClosing: false, declaresNamespace, end: i + 1 };
             }
             if (c === SLASH) {
                 if (i + 1 >= length) {
                     return null;
                 }
                 if (buffer.charCodeAt(i + 1) !== GT) {
-                    throw new XmlSyntaxError(`unexpected "/" in <${name}>`, this.line);
+                    throw new XmlSyntaxError(`unexpected "/" in <${name}>`, this.lineIn(pos, i));
                 }
-                return { name, attrs, selfClosing: true, end: i + 2 };
+                return { name, attrs, selfClosing: true, declaresNamespace, end: i + 2 };
+            }
+            if (i === before) {
+                // the name, or the previous value's closing quote, runs into the next attribute
+                throw new XmlSyntaxError(`the attributes of <${name}> must be separated by whitespace`, this.lineIn(pos, i));
             }
             const attrEnd = this.readName(i);
             if (attrEnd < 0) {
                 return null;
             }
             if (attrEnd === i) {
-                throw new XmlSyntaxError(`malformed attribute in <${name}>`, this.line);
+                throw new XmlSyntaxError(`malformed attribute in <${name}>`, this.lineIn(pos, i));
             }
             const attrName = buffer.slice(i, attrEnd);
             i = attrEnd;
@@ -1025,7 +1277,7 @@ export class XmlTokenizer {
                 return null;
             }
             if (buffer.charCodeAt(i) !== EQUALS) {
-                throw new XmlSyntaxError(`attribute ${attrName} of <${name}> has no value`, this.line);
+                throw new XmlSyntaxError(`attribute ${attrName} of <${name}> has no value`, this.lineIn(pos, i));
             }
             i++;
             while (i < length && isSpace(buffer.charCodeAt(i))) {
@@ -1036,23 +1288,27 @@ export class XmlTokenizer {
             }
             const quote = buffer.charCodeAt(i);
             if (quote !== QUOTE && quote !== APOS) {
-                throw new XmlSyntaxError(`attribute ${attrName} of <${name}> is not quoted`, this.line);
+                throw new XmlSyntaxError(`attribute ${attrName} of <${name}> is not quoted`, this.lineIn(pos, i));
             }
             const close = buffer.indexOf(quote === QUOTE ? '"' : "'", i + 1);
             if (close < 0) {
                 return null;
             }
+            const line = this.lineIn(pos, i);
             if (attrs.has(attrName)) {
-                throw new XmlSyntaxError(`duplicate attribute ${attrName} in <${name}>`, this.line);
+                throw new XmlSyntaxError(`duplicate attribute ${attrName} in <${name}>`, line);
             }
             const raw = buffer.slice(i + 1, close);
             if (hasIllegalXmlChar(raw)) {
-                throw new XmlSyntaxError(
-                    `a character XML 1.0 forbids appears in attribute ${attrName} of <${name}>`,
-                    this.line,
-                );
+                throw new XmlSyntaxError(`a character XML 1.0 forbids appears in attribute ${attrName} of <${name}>`, line);
             }
-            attrs.set(attrName, decodeEntities(normalizeAttributeValue(raw), this.line, this.repairs));
+            if (raw.includes("<")) {
+                throw new XmlSyntaxError(`a "<" in the value of attribute ${attrName} of <${name}> (write &lt;)`, line);
+            }
+            if (attrName.startsWith("xmlns")) {
+                declaresNamespace = true;
+            }
+            attrs.set(attrName, this.decode(normalizeAttributeValue(raw), line));
             i = close + 1;
         }
     }
@@ -1116,10 +1372,26 @@ export class XmlTokenizer {
             this.textLine = this.line;
         }
         const raw = this.buffer.slice(start, end);
-        if (hasIllegalXmlChar(raw)) {
-            throw new XmlSyntaxError("a character XML 1.0 forbids appears in character data", this.line);
+        const bad = illegalCharIndex(raw);
+        if (bad >= 0) {
+            throw new XmlSyntaxError(
+                "a character XML 1.0 forbids appears in character data",
+                lineAt(raw, bad, this.line),
+            );
         }
-        this.text += decodeEntities(raw, this.line, this.repairs);
+        if (raw.includes(">")) {
+            const probe = this.textTail + raw;
+            const close = probe.indexOf("]]>");
+            if (close >= 0) {
+                throw new XmlSyntaxError(
+                    '"]]>" is not allowed in character data (write ]]&gt;)',
+                    lineAt(raw, Math.max(0, close - this.textTail.length), this.line),
+                );
+            }
+        }
+        this.textTail = raw.length >= 2 ? raw.slice(-2) : (this.textTail + raw).slice(-2);
+        this.atStart = false;
+        this.text += this.decode(raw, this.line);
         this.advanceLine(start, end);
     }
 
@@ -1165,16 +1437,49 @@ export class XmlTokenizer {
      * Open an element.
      * @param name - the element name
      * @param attrs - its attributes
+     * @param declaresNamespace - whether an attribute name starts with `xmlns`
      */
-    private startElement(name: string, attrs: Map<string, string>): void {
+    private startElement(name: string, attrs: Map<string, string>, declaresNamespace: boolean): void {
         if (this.stack.length === 0) {
             if (this.rootClosed) {
                 throw new XmlSyntaxError(`a second root element <${name}> follows the document element`, this.line);
             }
             this.rootSeen = true;
         }
+        if (declaresNamespace) {
+            for (const [key, uri] of attrs) {
+                if (key === "xmlns") {
+                    this.bindings.push({ prefix: "", uri, depth: this.stack.length });
+                } else if (key.startsWith("xmlns:")) {
+                    this.bindings.push({ prefix: key.slice(6), uri, depth: this.stack.length });
+                }
+            }
+        }
         this.stack.push(name);
-        this.handler.start(name, attrs, this.line);
+        this.handler.start(name, attrs, this.line, this.namespaceOf(name));
+    }
+
+    /**
+     * The namespace an element name is in (Namespaces in XML 1.0 section 6).
+     * @param name - the element name as written
+     * @returns the URI; "" for no namespace; null for an undeclared prefix or a name that is not
+     * namespace-well-formed
+     */
+    private namespaceOf(name: string): string | null {
+        const colon = name.indexOf(":");
+        if (colon >= 0 && (colon === 0 || colon === name.length - 1 || name.indexOf(":", colon + 1) >= 0)) {
+            return null;
+        }
+        const prefix = colon < 0 ? "" : name.slice(0, colon);
+        for (let i = this.bindings.length - 1; i >= 0; i--) {
+            if (this.bindings[i].prefix === prefix) {
+                return this.bindings[i].uri;
+            }
+        }
+        if (prefix === "xml") {
+            return XML_NAMESPACE;
+        }
+        return prefix === "" ? "" : null;
     }
 
     /**
@@ -1190,6 +1495,9 @@ export class XmlTokenizer {
             throw new XmlSyntaxError(`end tag </${name}> does not match <${open}>`, this.line);
         }
         this.stack.pop();
+        while (this.bindings.length > 0 && this.bindings[this.bindings.length - 1].depth >= this.stack.length) {
+            this.bindings.pop();
+        }
         if (this.stack.length === 0) {
             this.rootClosed = true;
         }

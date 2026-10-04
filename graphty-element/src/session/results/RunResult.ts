@@ -27,6 +27,7 @@ import { nearestNames } from "./ResultsApi";
 import {
     analyzeColumn,
     type AnalyzedColumn,
+    arrayColumn,
     buildHistogram,
     isNormalization,
     type NumericColumnSource,
@@ -684,8 +685,8 @@ function summaryValueField(shape: ResultShape): string | null {
  * Read the `sizes` or `categories` table a result published as summary groups.
  * @param value - The published table.
  * @param limit - How many rows a summary may carry.
- * @param named - Whether each group gets its display name, which a partition into groups does
- *   and a table of levels or of named categories does not.
+ * @param named - Whether each group gets its rank and display name, which a partition into
+ *   groups does and a table of levels or of named categories does not.
  * @returns The groups, bounded, or undefined when the value is not a table this can read.
  */
 function toSummaryGroups(value: unknown, limit: number, named: boolean): readonly SummaryGroup[] | undefined {
@@ -704,7 +705,8 @@ function toSummaryGroups(value: unknown, limit: number, named: boolean): readonl
         const group = record.group ?? record.category;
         const size = record.size ?? record.count;
         if (isGroupKey(group) && typeof size === "number") {
-            groups.push(Object.freeze(named ? { group, size, name: groupName(groups.length + 1) } : { group, size }));
+            const rank = groups.length + 1;
+            groups.push(Object.freeze(named ? { group, size, rank, name: groupName(rank) } : { group, size }));
         }
 
         if (groups.length === limit) {
@@ -922,6 +924,31 @@ class Result implements RunResult {
             ...options,
             integerValued: descriptor.type === "integer",
         });
+    }
+
+    /**
+     * The distribution of the group sizes, read from the full `sizes` table.
+     * @param options - How to cut the bins.
+     * @returns The distribution, one count per group.
+     * @throws A GraphtyError coded E_BAD_COMMAND when the result publishes no `sizes` table, or
+     *   E_OPTION_RANGE when the bin count is outside the permitted range.
+     */
+    groupSizes(options?: HistogramOptions): Histogram {
+        const { sizes } = this.graph;
+        if (!Array.isArray(sizes)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `Run "${this.runId}" is a ${this.shape} result, which publishes no groups to count.`,
+                source: "run",
+                details: { runId: this.runId, shape: this.shape },
+            });
+        }
+
+        const values = (sizes as readonly { readonly size?: unknown }[]).map((row) =>
+            typeof row.size === "number" ? row.size : Number.NaN,
+        );
+
+        return buildHistogram(arrayColumn(values), { ...options, integerValued: true });
     }
 
     /**

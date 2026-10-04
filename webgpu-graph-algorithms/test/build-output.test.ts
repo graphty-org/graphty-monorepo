@@ -158,7 +158,7 @@ describe("package.json (contract 2.1)", () => {
         // imports from it, so 1.x, 2.x and 3.x are all accepted; the range holds the current version before and after
         // the 3.0.0 bump, as nx release requires.
         expect(packageJson.peerDependencies["@graphty/algorithms"]).toBe("^1.0.0 || ^2.0.0 || ^3.0.0");
-        expect(packageJson.devDependencies.webgpu).toBe("0.4.0");
+        expect(packageJson.devDependencies.webgpu).toBe("0.6.1");
         expect(packageJson.devDependencies["@vitest/browser-playwright"]).toBeTypeOf("string");
         expect(packageJson.devDependencies.playwright).toBeTypeOf("string");
         expect(packageJson.devDependencies["fast-check"]).toBeTypeOf("string");

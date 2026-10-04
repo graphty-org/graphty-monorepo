@@ -76,6 +76,7 @@ import type {
     Binding,
     Channel,
     EdgeId,
+    Encoding,
     FieldDescriptor,
     LayerId,
     LayerSource,
@@ -449,6 +450,34 @@ export interface StylesApi {
      */
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
     /**
+     * Hide or show the paint of one value of a layer's encoding -- one group of a community run's
+     * colours, say -- as one undoable step that is saved with the project.
+     *
+     * The value is hidden in `channel` and in every other channel of the layer that reads the same
+     * field, so a group drawn by colour and shape disappears from both; a channel reading another
+     * field is left alone, because a value of one field is not the same value in another. An
+     * element carrying it is drawn as the layers beneath paint it, as an unmeasured element is.
+     * The legend keeps the value's row, marked `hidden`, with the colour it comes back in. Values
+     * are compared as the legend spells them, so `0` and `"0"` are the same group; pass the
+     * `channel` and a swatch `value` of a legend block, or the `group` of a run summary's group.
+     * @param id - The layer, such as the one `encode()` returned.
+     * @param channel - The channel whose value it is, such as a legend block's `channel`.
+     * @param value - The value to hide or show.
+     * @param hidden - True to hide it, false to paint it again.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layer as it now stands (its bindings' `hidden` lists),
+     *     and rejects with `E_PROTECTED` for an element-owned layer, `E_UNKNOWN_LAYER` for an id
+     *     the stack does not hold, and `E_BAD_COMMAND` when the layer does not encode `channel`
+     *     from the data.
+     */
+    setValueHidden(
+        id: LayerId,
+        channel: Channel,
+        value: string | number | boolean,
+        hidden: boolean,
+        options?: RunOptions,
+    ): Run<Layer>;
+    /**
      * Add a saved stack of layers to this one.
      *
      * THREE OUTCOMES PER LAYER, AND ALL THREE ARE REPORTED. A layer whose paths this session
@@ -648,6 +677,13 @@ export interface StylesSources {
      * @returns The words, or undefined when nothing in the session names that path.
      */
     readonly field?: (path: Path, target: SelectorTarget) => FieldWords | undefined;
+    /**
+     * Each group's place by size in one run, from the run's `sizes` table, keyed by the group as
+     * a category name. Absent, a legend ranks a run's groups by their place among its swatches.
+     * @param runId - The run.
+     * @returns The rank by group, or undefined when the run has no sizes table.
+     */
+    readonly groupRanks?: (runId: RunId) => ReadonlyMap<string, number> | undefined;
     /**
      * What paints the elements a change touched.
      *
@@ -1136,6 +1172,54 @@ function halfOfStyle(set: StaticStyle | undefined, half: SelectorTarget): Static
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * The patch that hides or shows one value in the bindings of a layer that read one field.
+ *
+ * Only the bindings reading the same field as `channel` are touched: a value of one field is not
+ * the same value in another, so hiding community 2 must not hide the nodes whose degree is 2.
+ * @param layer - The layer, or undefined when the stack holds none with that id.
+ * @param channel - The channel whose field the value belongs to.
+ * @param value - The value.
+ * @param hidden - Whether to hide it.
+ * @returns The patch: the layer's whole `encode` with the matching bindings' `hidden` lists
+ *   updated, or nothing to change for a layer that is not there (the update then refuses it).
+ * @throws `E_BAD_COMMAND` when the layer does not encode `channel` from the data.
+ */
+function hiddenValuePatch(
+    layer: Layer | undefined,
+    channel: Channel,
+    value: string | number | boolean,
+    hidden: boolean,
+): Partial<LayerSpec> {
+    if (layer === undefined) {
+        return {};
+    }
+
+    const own = layer.encode?.[channel];
+    if (own === undefined || !("by" in own)) {
+        throw badCommand(`Layer ${layer.id} does not encode ${channel} from the data, so it has no value to hide.`, {
+            id: layer.id,
+            channel,
+        });
+    }
+
+    const encode: Encoding = {};
+    for (const [name, binding] of Object.entries(layer.encode ?? {}) as [Channel, Binding][]) {
+        if (!("by" in binding) || binding.by !== own.by) {
+            encode[name] = binding;
+            continue;
+        }
+
+        // The same spelling the legend compares by: 0 and "0" are one value.
+        const kept = (binding.hidden ?? []).filter((entry) => String(entry) !== String(value));
+        const list = hidden ? [...kept, value] : kept;
+        const { hidden: _previous, ...rest } = binding;
+        encode[name] = list.length === 0 ? rest : { ...rest, hidden: list };
+    }
+
+    return { encode };
+}
+
+/**
  * Build the style stack one session holds.
  * @param sources - What a selector compiles against, the element's own layers, the scales, the
  *     repaint seam, the dispatcher and the change hook.
@@ -1228,6 +1312,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         encoding: encodingOf,
         scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
+        ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         // Only a `{match:"has"}` layer below can be answered: its elements are the ones a column
         // lists, and each is put to the compiled test of the layer above. Every other shape would
         // need a walk over the whole graph, and a legend is read on every style change.
@@ -2238,6 +2323,31 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 "resolve",
                 `Fix ${channel} on layer ${id}`,
                 { op: "style.patch", action: "resolveToStatic", id, channel, ...(at === undefined ? {} : { at }) },
+                options,
+            );
+        },
+
+        setValueHidden(
+            id: LayerId,
+            channel: Channel,
+            value: string | number | boolean,
+            hidden: boolean,
+            options: RunOptions = {},
+        ): Run<Layer> {
+            return edit<Layer>(
+                "update",
+                `${hidden ? "Hide" : "Show"} ${String(value)} on layer ${id}`,
+                (state) => ({
+                    op: "style.patch",
+                    action: "update",
+                    id,
+                    patch: hiddenValuePatch(
+                        state.styles.find((entry) => entry.layer.id === id)?.layer,
+                        channel,
+                        value,
+                        hidden,
+                    ),
+                }),
                 options,
             );
         },

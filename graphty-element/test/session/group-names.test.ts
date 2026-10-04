@@ -119,7 +119,7 @@ describe("the names of a partition's groups", () => {
         const colour = swatchOf(2)?.color;
         assert.strictEqual(painter("a"), layer.id, "group 2 is painted by the run's layer");
 
-        const hidden = await styles.setValueHidden(layer.id, 2, true);
+        const hidden = await styles.setValueHidden(layer.id, "node.color", 2, true);
 
         assert.deepStrictEqual((hidden.encode?.["node.color"] as { hidden?: unknown }).hidden, [2]);
         assert.notStrictEqual(painter("a"), layer.id, "a node of the hidden group is left to the layers beneath");
@@ -138,10 +138,98 @@ describe("the names of a partition's groups", () => {
         assert.strictEqual(painter("a"), layer.id, "undo paints the group again");
         assert.isUndefined(swatchOf(2)?.hidden);
 
-        await styles.setValueHidden(layer.id, "2", true);
-        await styles.setValueHidden(layer.id, 2, false);
-        assert.strictEqual(painter("a"), layer.id, "2 and \"2\" are one value, so showing it clears it");
+        await styles.setValueHidden(layer.id, "node.color", "2", true);
+        await styles.setValueHidden(layer.id, "node.color", 2, false);
+        assert.strictEqual(painter("a"), layer.id, '2 and "2" are one value, so showing it clears it');
         assert.isUndefined((styles.get(layer.id)?.encode?.["node.color"] as { hidden?: unknown }).hidden);
+        harness.session.dispose();
+    });
+    it("hides a value only in the bindings that read its field", async () => {
+        const harness = makeSession({ runs: { execute: partition } });
+        // Each node's weight equals its group, so a value of one field is also a value of the other.
+        harness.add(MEMBERSHIP.map(([id, group]) => ({ id, weight: group })));
+        const result = await harness.session.runs.start("louvain", {}, { style: false });
+        const { styles } = harness.session;
+        const layer = await styles.add({
+            name: "group and weight",
+            target: "node",
+            selector: { match: "has", path: `results.${result.runId}.group` },
+            encode: {
+                "node.color": { by: `results.${result.runId}.group`, scale: "ordinal" },
+                "node.size": { by: "data.weight", scale: "linear", range: [1, 4] },
+            },
+        });
+
+        const hidden = await styles.setValueHidden(layer.id, "node.color", 2, true);
+
+        assert.deepStrictEqual((hidden.encode?.["node.color"] as { hidden?: unknown }).hidden, [2]);
+        assert.isUndefined(
+            (hidden.encode?.["node.size"] as { hidden?: unknown }).hidden,
+            "a weight of 2 is not community 2",
+        );
+        harness.session.dispose();
+    });
+
+    it("ranks a group in the legend as the run does when an order re-sorts the rows", async () => {
+        const harness = makeSession({ runs: { execute: partition } });
+        harness.add(MEMBERSHIP.map(([id]) => ({ id })));
+        const result = await harness.session.runs.start("louvain", {}, { style: false });
+        const { styles } = harness.session;
+        const layer = await styles.add({
+            name: "ordered groups",
+            target: "node",
+            selector: { match: "has", path: `results.${result.runId}.group` },
+            encode: {
+                "node.color": {
+                    by: `results.${result.runId}.group`,
+                    scale: "ordinal",
+                    map: { "7": "#ff0000", "0": "#00ff00" },
+                },
+            },
+        });
+        const block = styles.legend().find((entry) => entry.layerId === layer.id);
+        const summary = new Map((result.summary().groups ?? []).map((group) => [group.group, group.rank]));
+
+        assert.deepStrictEqual(
+            block?.swatches.map((swatch) => swatch.value),
+            [0, 7, 2, 10],
+            "the mapped groups come first",
+        );
+        for (const swatch of block?.swatches ?? []) {
+            assert.strictEqual(swatch.rank, summary.get(swatch.value), `group ${String(swatch.value)}`);
+        }
+        harness.session.dispose();
+    });
+
+    it("takes a hidden value out of the other row", async () => {
+        const harness = makeSession({ runs: { execute: partition } });
+        harness.add(MEMBERSHIP.map(([id]) => ({ id })));
+        const result = await harness.session.runs.start("louvain", {}, { style: false });
+        const { styles } = harness.session;
+        const layer = await styles.add({
+            name: "folded groups",
+            target: "node",
+            selector: { match: "has", path: `results.${result.runId}.group` },
+            encode: {
+                "node.color": {
+                    by: `results.${result.runId}.group`,
+                    scale: "ordinal",
+                    other: { threshold: 3, value: "#888888" },
+                },
+            },
+        });
+        const swatches = () => styles.legend().find((entry) => entry.layerId === layer.id)?.swatches ?? [];
+        assert.deepStrictEqual(swatches().at(-1)?.value, [0, 7], "0 and 7 fold into other");
+
+        await styles.setValueHidden(layer.id, "node.color", 7, true);
+
+        const other = swatches().at(-1);
+        assert.strictEqual(other?.role, "other");
+        assert.deepStrictEqual(other?.value, [0], "the other row holds only what it still paints");
+        assert.strictEqual(other?.count, 2);
+        const seven = swatches().find((swatch) => swatch.value === 7);
+        assert.isTrue(seven?.hidden, "the hidden value has a row of its own, marked hidden");
+        assert.strictEqual(seven?.color?.toLowerCase(), "#888888", "with the colour it comes back in");
         harness.session.dispose();
     });
 });

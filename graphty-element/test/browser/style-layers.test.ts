@@ -719,13 +719,13 @@ describe("hiding one group of a run's encoding", () => {
         assert.notStrictEqual(painted.f, base, "the run painted f's group");
         const group = result.node("f")?.group as string | number;
 
-        await session.styles.setValueHidden(layer.id, group, true);
+        await session.styles.setValueHidden(layer.id, "node.color", group, true);
         await operationQueueOf(graph).waitForCompletion();
 
         assert.strictEqual(colorOf("f"), base, "f is back to the colour beneath the run's layer");
         assert.strictEqual(colorOf("a"), painted.a, "the other group keeps the run's colour");
 
-        await session.styles.setValueHidden(layer.id, group, false);
+        await session.styles.setValueHidden(layer.id, "node.color", group, false);
         await operationQueueOf(graph).waitForCompletion();
 
         assert.strictEqual(colorOf("f"), painted.f, "shown again, f takes the run's colour back");

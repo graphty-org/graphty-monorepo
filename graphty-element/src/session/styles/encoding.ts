@@ -158,6 +158,8 @@ export interface PreparedBinding {
      * hands back the value a result or a column published. Empty when there are no categories.
      */
     readonly categoryValues: ReadonlyMap<string, unknown>;
+    /** How many elements carry each category, by name. Empty when there are no categories. */
+    readonly categoryCounts: ReadonlyMap<string, number>;
     /** The values the binding was told not to paint, as category names. Empty when none are. */
     readonly hidden: ReadonlySet<string>;
     /** How many distinct values the encoding paints, or 0 when it is a continuous ramp. */
@@ -933,6 +935,7 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
         categories: [],
         lumped: [],
         categoryValues: new Map(),
+        categoryCounts: new Map(),
         hidden: new Set(),
         groups: 0,
         counts: NO_COUNTS,
@@ -1411,6 +1414,7 @@ function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: As
         categories: parts.categories.categories,
         lumped: parts.categories.lumped,
         categoryValues: parts.facts.categoryValues,
+        categoryCounts: parts.facts.categoryCounts,
         hidden,
         groups: painter.groups,
         counts,

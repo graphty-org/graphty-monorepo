@@ -229,6 +229,15 @@ export interface LegendSources {
      * @returns True only when every element `below` selects is also selected by `above`.
      */
     readonly covers?: (above: Layer, below: Layer) => boolean;
+    /**
+     * Each group's place by size in one run, from its `sizes` table, keyed by the group as a
+     * category name: the rank the run summary and the page columns carry.
+     *
+     * Absent, or undefined for a run, a swatch's rank is its place among the swatches.
+     * @param runId - The run.
+     * @returns The rank by group, or undefined when the run has no sizes table.
+     */
+    readonly groupRanks?: (runId: string) => ReadonlyMap<string, number> | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -438,17 +447,17 @@ function sweepRuns(prepared: PreparedBinding, domain: readonly [number, number])
 }
 
 /**
- * Whether a path reads the groups a run partitioned its elements into.
+ * The run whose groups a path reads.
  *
  * Those swatches are labelled with the names the run's summary gives the same groups, so a reader
  * sees "Group 1" in the key and in the list of groups rather than a raw id in one of them.
  * @param path - The column path.
- * @returns True for `results.<run>.group`.
+ * @returns The run id for `results.<run>.group`, otherwise undefined.
  */
-function readsGroups(path: Path | null): boolean {
+function groupsRunOf(path: Path | null): string | undefined {
     const parts = path?.split(".") ?? [];
 
-    return parts.length === 3 && parts[0] === RESULT_ROOT && parts[2] === "group";
+    return parts.length === 3 && parts[0] === RESULT_ROOT && parts[2] === "group" ? parts[1] : undefined;
 }
 
 /**
@@ -456,10 +465,21 @@ function readsGroups(path: Path | null): boolean {
  * @param prepared - The prepared binding.
  * @param order - The values the binding maps, in the order it maps them: an ordinal column's
  *   declared order, which the rows follow before the rest.
+ * @param sources - Where a run's group ranks come from.
  * @returns One swatch per category, largest group first, before the cap is applied.
  */
-function categorySwatches(prepared: PreparedBinding, order: readonly string[]): readonly LegendSwatch[] {
-    const groups = readsGroups(prepared.path);
+function categorySwatches(
+    prepared: PreparedBinding,
+    order: readonly string[],
+    sources: LegendSources,
+): readonly LegendSwatch[] {
+    const run = groupsRunOf(prepared.path);
+    const groups = run !== undefined;
+    // The run's own ranks, so a group is ranked here as in its summary and its page column even
+    // when an `order` re-sorts the rows or the layer's selector covers part of the run.
+    const ranks = run === undefined ? undefined : sources.groupRanks?.(run);
+    const rankOf = (category: string, index: number): number | undefined =>
+        ranks === undefined ? index + 1 : ranks.get(category);
     const rank = (category: string): number => {
         const at = order.indexOf(category);
         return at === -1 ? order.length : at;
@@ -467,24 +487,43 @@ function categorySwatches(prepared: PreparedBinding, order: readonly string[]): 
     // A stable sort, so the categories no order names keep their largest-first order.
     const categories = [...prepared.categories].sort((left, right) => rank(left) - rank(right));
     const valueOf = (category: string): unknown => prepared.categoryValues.get(category) ?? category;
-    const swatches: LegendSwatch[] = categories.map((category, index) => ({
-        label: groups ? groupName(index + 1) : category,
-        value: valueOf(category),
-        ...(groups ? { rank: index + 1 } : {}),
-        ...swatchPaint(prepared.paintIgnoringHidden(category)),
-        ...(prepared.hidden.has(category) ? { hidden: true as const } : {}),
-    }));
-    const { lumped } = prepared;
-    const folded = lumped.length > 0 ? prepared.paintIgnoringHidden(lumped[0]) : undefined;
+    const row = (category: string, index: number): LegendSwatch => {
+        const rank = groups ? rankOf(category, index) : undefined;
+        return {
+            label: rank === undefined ? category : groupName(rank),
+            value: valueOf(category),
+            ...(rank === undefined ? {} : { rank }),
+            ...swatchPaint(prepared.paintIgnoringHidden(category)),
+            ...(prepared.hidden.has(category) ? { hidden: true as const } : {}),
+        };
+    };
+    const swatches: LegendSwatch[] = categories.map(row);
+    const folded = prepared.lumped.length > 0 ? prepared.paintIgnoringHidden(prepared.lumped[0]) : undefined;
+
+    if (folded === undefined) {
+        return swatches;
+    }
+
+    // A hidden value the bucket folded is not painted, so it leaves the bucket's row for a row of
+    // its own marked hidden, and the bucket's row says only what is still painted grey.
+    const lumped = prepared.lumped.filter((category) => !prepared.hidden.has(category));
+    for (const category of prepared.lumped) {
+        if (prepared.hidden.has(category)) {
+            swatches.push({ ...row(category, categories.length), ...swatchPaint(folded) });
+        }
+    }
 
     // The bucket gets one row saying what it holds, so a reader is told what the grey means
     // rather than left to guess. A binding that paints nothing for the bucket gets no row.
-    if (folded !== undefined) {
+    if (lumped.length > 0) {
+        const hiddenCount = prepared.lumped
+            .filter((category) => prepared.hidden.has(category))
+            .reduce((sum, category) => sum + (prepared.categoryCounts.get(category) ?? 0), 0);
         swatches.push({
             label: `other: ${String(lumped.length)} ${lumped.length === 1 ? "group" : "groups"}`,
             value: lumped.map(valueOf),
             ...swatchPaint(folded),
-            count: prepared.counts.other,
+            count: prepared.counts.other - hiddenCount,
             role: "other",
         });
     }
@@ -546,9 +585,10 @@ function literalSwatches(prepared: PreparedBinding, layer: Layer): readonly Lege
  * Every swatch one encoding has to show, before the cap.
  * @param prepared - The prepared binding.
  * @param layer - The layer it belongs to.
+ * @param sources - Where a run's group ranks come from.
  * @returns The swatches, in the order a legend reads them.
  */
-function allSwatches(prepared: PreparedBinding, layer: Layer): readonly LegendSwatch[] {
+function allSwatches(prepared: PreparedBinding, layer: Layer, sources: LegendSources): readonly LegendSwatch[] {
     if (prepared.path === null) {
         return literalSwatches(prepared, layer);
     }
@@ -556,7 +596,7 @@ function allSwatches(prepared: PreparedBinding, layer: Layer): readonly LegendSw
     if (prepared.categories.length > 0) {
         // ponytail: the order is the map's key order, which JavaScript puts integer-like keys
         // first in ascending order; a numeric ordinal declared high-to-low lists low-to-high.
-        return categorySwatches(prepared, Object.keys(authoredRule(layer, prepared.channel)?.map ?? {}));
+        return categorySwatches(prepared, Object.keys(authoredRule(layer, prepared.channel)?.map ?? {}), sources);
     }
 
     if (prepared.domain === null) {
@@ -700,7 +740,7 @@ function buildBlock(
 ): LegendBlock {
     const { channel } = prepared;
     const rule = authoredRule(layer, channel);
-    const all = allSwatches(prepared, layer);
+    const all = allSwatches(prepared, layer, sources);
     // The "other" row is what the paint folded, so it is kept whatever the cap drops.
     const other = all.at(-1)?.role === "other" ? all.at(-1) : undefined;
     const rows = other === undefined ? all : all.slice(0, -1);

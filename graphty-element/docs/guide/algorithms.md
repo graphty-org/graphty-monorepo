@@ -98,8 +98,10 @@ group from `rank` in your own language instead.
 
 #### Hiding one group
 
-`styles.setValueHidden(layerId, value, hidden)` takes one group out of a layer's paint and puts
-it back. The group's nodes are drawn as the layers beneath paint them, every other group keeps its
+`styles.setValueHidden(layerId, channel, value, hidden)` takes one group out of a layer's paint
+and puts it back. `channel` says which field the value belongs to: the value is hidden in that
+channel and in any other channel of the layer that reads the same field, while a channel sized or
+colored by a different field keeps painting. The group's nodes are drawn as the layers beneath paint them, every other group keeps its
 color, and the legend keeps the group's row, marked `hidden: true`, with the color it comes back
 in. Each call is one undoable step, and the hidden list is part of the layer, so a saved project
 keeps it:
@@ -108,12 +110,12 @@ keeps it:
 const layer = await element.session.styles.encode({ run: result, channel: "node.color" });
 const [largest] = result.summary().groups ?? [];
 
-await element.session.styles.setValueHidden(layer.id, largest.group, true); // hide it
-await element.session.styles.setValueHidden(layer.id, largest.group, false); // paint it again
+await element.session.styles.setValueHidden(layer.id, "node.color", largest.group, true); // hide it
+await element.session.styles.setValueHidden(layer.id, "node.color", largest.group, false); // paint it again
 ```
 
 It works on any layer that encodes from the data, not only a run's: pass the `value` of a legend
-swatch. The values are stored on each binding as `hidden`, which you can also write yourself in a
+swatch together with its block's `channel`. The values are stored on each binding as `hidden`, which you can also write yourself in a
 layer you add.
 
 #### How big the groups are

@@ -14,7 +14,14 @@ import "../data/index";
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
-import type { AttributeDescriptor, EdgeId, MeasurementDeclaration, RunId, ScopeInput } from "../catalog/types";
+import type {
+    AttributeDescriptor,
+    AttributeRole,
+    EdgeId,
+    MeasurementDeclaration,
+    RunId,
+    ScopeInput,
+} from "../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
@@ -335,6 +342,12 @@ export class SessionData implements SessionDataApi {
     private readonly neighborLists: RevisionCache<NeighborList>;
     /** The attribute walk, for the current revision. */
     private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
+    /** The descriptors with their declarations and roles laid over, and what they were laid from. */
+    private attributeOverlay: {
+        readonly described: readonly AttributeDescriptor[];
+        readonly key: string;
+        readonly result: readonly AttributeDescriptor[];
+    } | null = null;
     private disposed = false;
 
     /**
@@ -1110,19 +1123,68 @@ export class SessionData implements SessionDataApi {
         const snapshot = this.current();
         const described = this.attributeCache.get("", () => describeAttributes(snapshot, this.records));
         const declarations = this.writes.declarations();
-        if (declarations.size === 0) {
-            return described;
+        const roles = this.columnRoles();
+        // The same array back while nothing it was laid from moved, so a consumer can memo on it.
+        const key = JSON.stringify([[...declarations], [...roles]]);
+        const memo = this.attributeOverlay;
+        if (memo?.described === described && memo.key === key) {
+            return memo.result;
         }
 
-        // ponytail: overlaid per call while anything is declared; a few dozen spreads.
-        return Object.freeze(
-            described.map((each) => {
-                const declared = declarations.get(declarationKey(each));
-                return declared === undefined
-                    ? each
-                    : Object.freeze({ ...each, measurement: declared.measurement, measurementSource: "declared" });
-            }),
-        );
+        const result =
+            declarations.size === 0 && roles.size === 0
+                ? described
+                : Object.freeze(
+                      described.map((each) => {
+                          const declared = declarations.get(declarationKey(each));
+                          const played = roles.get(declarationKey(each));
+                          return declared === undefined && played === undefined
+                              ? each
+                              : Object.freeze({
+                                    ...each,
+                                    ...(declared === undefined
+                                        ? {}
+                                        : { measurement: declared.measurement, measurementSource: "declared" as const }),
+                                    ...(played === undefined ? {} : { roles: Object.freeze(played) }),
+                                });
+                      }),
+                  );
+        this.attributeOverlay = { described, key, result };
+        return result;
+    }
+
+    /**
+     * The roles columns play, by `<kind>:<name>`: from the data configuration and the last load.
+     * A path the element reads as an expression names the column it is a plain or quoted key of;
+     * one it reads as a literal key names that column.
+     * @returns the roles, each column's in a fixed order
+     */
+    private columnRoles(): Map<string, AttributeRole[]> {
+        const { knownFields } = this.readConfig();
+        const report = this.lastImport();
+        const out = new Map<string, AttributeRole[]>();
+        const add = (kind: "node" | "edge", role: AttributeRole, path: string | null | undefined): void => {
+            if (path === null || path === undefined) {
+                return;
+            }
+
+            for (const name of new Set([path, keyOfExpression(path)])) {
+                if (name !== null) {
+                    const at = `${kind}:${name}`;
+                    out.set(at, [...(out.get(at) ?? []), role]);
+                }
+            }
+        };
+
+        add("node", "key", knownFields.nodeIdPath);
+        add("node", "label", knownFields.nodeLabelPath);
+        add("node", "time", knownFields.nodeTimePath);
+        add("edge", "source", report?.endpoints.source ?? knownFields.edgeSrcIdPath);
+        add("edge", "target", report?.endpoints.target ?? knownFields.edgeDstIdPath);
+        add("edge", "weight", report?.weights.attribute ?? knownFields.edgeWeightPath);
+        add("edge", "time", knownFields.edgeTimePath);
+        add("edge", "edgeId", knownFields.edgeIdPath);
+        return out;
     }
 
     /**
@@ -1337,6 +1399,22 @@ export function recordsInRowOrder(
 
 /** A JMESPath expression that is nothing but a top-level property name. */
 const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** A JMESPath quoted identifier: a top-level property name written as a JSON string. */
+const QUOTED_KEY = /^"(?:[^"\\]|\\.)*"$/;
+
+/**
+ * The top-level key a JMESPath expression reads, when that is all it does.
+ * @param expression - The expression, such as `id` or `"shared chapters"`.
+ * @returns The key, or null for an expression that reads anything else.
+ */
+function keyOfExpression(expression: string): string | null {
+    if (PLAIN_KEY.test(expression)) {
+        return expression;
+    }
+
+    return QUOTED_KEY.test(expression) ? (JSON.parse(expression) as string) : null;
+}
 
 /**
  * An edge record without the keys its endpoints were read from.

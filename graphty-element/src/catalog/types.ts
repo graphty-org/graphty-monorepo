@@ -850,6 +850,16 @@ export interface FunctionDescriptor {
 // Attributes, metrics and validation
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * What a column does for the graph, beyond holding values: the node ids were read from it
+ * (`"key"`), nodes are named by it (`"label"`), edge weights were read from it (`"weight"`),
+ * edge endpoints (`"source"`, `"target"`), times (`"time"`) or the file's own edge ids
+ * (`"edgeId"`).
+ *
+ * OPEN UNION: roles may be added in a minor release; handle unknown roles.
+ */
+export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
+
 /** One attribute available on this session, whether it was imported, joined or computed. */
 export interface AttributeDescriptor {
     /** The column's key, `data.<name>`, with the name unquoted; see {@link Path}. Quote it with `quotePath` before using it inside an expression. */
@@ -878,6 +888,16 @@ export interface AttributeDescriptor {
     sampleValues: readonly unknown[];
     /** Set when the attribute came from a run. */
     runId?: RunId;
+    /**
+     * What the column does for the graph: the roles it plays, read from the data configuration
+     * (`data.knownFields`) and the last load. Absent when it plays none. A column named with
+     * spaces (`shared chapters`) is matched by its literal name.
+     *
+     * ```ts
+     * const key = session.data.attributes().find((a) => a.roles?.includes("key")); // the node ids
+     * ```
+     */
+    roles?: readonly AttributeRole[];
 }
 
 /**

@@ -208,6 +208,14 @@ jobs:
             - name: Bundle size (graphty-element)
               run: pnpm run check:bundle-size
 
+            # graphty-element's public API, as built, must match the committed report
+            # (graphty-element/api/*.api.md, one per typed entry point in its package.json "exports").
+            # A change fails here until `npm run api:report` in graphty-element regenerates the report,
+            # so every API change shows up in the pull request as a diff of that report.
+            # The same check runs in tools/prepush.sh.
+            - name: Public API report (graphty-element)
+              run: pnpm run check:api-report
+
             - name: Declared build tools
               run: pnpm run check:declared-tools
 

@@ -291,10 +291,10 @@ describe("runCommunityDetection", () => {
         const stub = makeStub({
             louvain: {
                 groups: [
-                    { group: 0, name: "Group 1", size: 4 },
-                    { group: 1, name: "Group 2", size: 3 },
-                    { group: 2, name: "Group 3", size: 2 },
-                    { group: 3, name: "Group 4", size: 1 },
+                    { group: 0, rank: 1, name: "Group 1", size: 4 },
+                    { group: 1, rank: 2, name: "Group 2", size: 3 },
+                    { group: 2, rank: 3, name: "Group 3", size: 2 },
+                    { group: 3, rank: 4, name: "Group 4", size: 1 },
                 ],
                 graph: { modularity: 0.4471 },
                 bands: { modularity: CLEAR },
@@ -317,16 +317,16 @@ describe("runCommunityDetection", () => {
         ]);
     });
 
-    it("keeps the element's order and names, which are what the legend shows", async () => {
+    it("keeps the element's order and ranks, which are what the legend shows", async () => {
         /* Out of id order on purpose: the element settled the ties, and the legend beside the
            result panel lists the groups in the element's order under the element's names. A
            panel that re-sorted or renumbered them would name a different group "Group 1". */
         const stub = makeStub({
             louvain: {
                 groups: [
-                    { group: 5, name: "Group 1", size: 2 },
-                    { group: 1, name: "Group 2", size: 2 },
-                    { group: 3, name: "Group 3", size: 2 },
+                    { group: 5, rank: 1, name: "Group 1", size: 2 },
+                    { group: 1, rank: 2, name: "Group 2", size: 2 },
+                    { group: 3, rank: 3, name: "Group 3", size: 2 },
                 ],
                 graph: { modularity: 0.2 },
             },

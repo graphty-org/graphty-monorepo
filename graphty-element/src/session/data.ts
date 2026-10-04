@@ -26,12 +26,13 @@ import type {
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
-import type { ImportReport } from "../data/report";
+import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { eachAdjacentArc } from "./adjacency";
 import { describeAttributes } from "./attributes";
 import { resolveColumn } from "./columns";
+import type { BatchCommand } from "./commands";
 import {
     type DataImportCommand,
     type DataMutation,
@@ -40,12 +41,20 @@ import {
     type ImportSource,
     SOURCE_VALUE,
 } from "./commands/data";
+import { Draft, isPair, readSource } from "./draft";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice, RunEntry } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
-import { type ResolvedResult, resolveResult, resultCell, resultSortValue } from "./results/pageColumns";
+import {
+    primaryResultColumn,
+    type ResolvedResult,
+    resolveResult,
+    resultCell,
+    resultCellRanks,
+    resultSortValue,
+} from "./results/pageColumns";
 import { buildHistogram, resolveBinCount } from "./results/statistics";
 import type { HistogramOptions } from "./results/types";
 import { RevisionCache } from "./revision";
@@ -67,7 +76,7 @@ import type {
     FindOptions,
     FindResult,
     GraphStatistics,
-    ImportOptions,
+    LoadChoices,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -78,6 +87,7 @@ import type {
     RecordPageOptions,
     RecordSort,
     ResultColumn,
+    ResultColumnDescriptor,
     RowUpdate,
     SessionAttributes,
     SessionDataApi,
@@ -94,9 +104,11 @@ interface DataWrites {
      * Where a `data.import` made now would go -- the session, or the transaction a routed verb
      * runs in -- held for a verb that dispatches it after an await.
      */
-    importer(): (command: DataImportCommand) => Promise<unknown>;
+    importer(): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
     /** The `graph` slice now. */
     slice(): GraphSlice;
+    /** Runs an import in a scratch session with this data configuration and returns its report. */
+    measure(command: DataImportCommand, config: SessionDataConfig): Promise<LoadReport>;
     /** Dispatch `data.declare`. */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
     /** Dispatch `data.setSource`. */
@@ -329,6 +341,11 @@ function pageColumn(
     target: "node" | "edge",
     records: readonly { readonly id: NodeId | EdgeId }[],
 ): PageColumn {
+    const ranks = resultCellRanks(
+        column,
+        target,
+        records.map((record) => record.id),
+    );
     return Object.freeze({
         run: column.run,
         field: column.field,
@@ -336,6 +353,7 @@ function pageColumn(
         type: column.type,
         pending: column.result === undefined,
         values: Object.freeze(records.map((record) => resultCell(column, target, record.id))),
+        ...(ranks === undefined ? {} : { ranks: Object.freeze(ranks) }),
     });
 }
 
@@ -368,6 +386,8 @@ export class SessionData implements SessionDataApi {
     private readonly writes: DataWrites;
     private readonly pages: PageSources;
     private derived: Derived | null = null;
+    /** The draft `prepare` returned last, until it is loaded or disposed: one is held at a time. */
+    private draft: Draft | null = null;
     /** Row orders computed for pages, by what they were asked with, for the current revision. */
     private readonly orders: RevisionCache<Uint32Array>;
     /** The last few neighbor lists, by node and options, for the current revision. */
@@ -486,11 +506,23 @@ export class SessionData implements SessionDataApi {
      * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
      *     load fails.
      */
-    async import(source: DataSourceInput, options: ImportOptions = {}): Promise<void> {
+    async import(source: DataSourceInput, options: LoadChoices = {}): Promise<void> {
         this.requireLive("import");
         // Taken before the first await: a transaction routes only what a verb dispatches
         // synchronously, and detecting the format may have to read the file or fetch the URL.
         const send = this.writes.importer();
+        this.draft?.dispose();
+        if (options.mapping !== undefined || options.unmatched !== undefined || options.directed !== undefined) {
+            const draft = await this.prepare(source);
+            try {
+                await draft.loadVia(send, options);
+            } finally {
+                draft.dispose();
+            }
+
+            return;
+        }
+
         const command = (resolved: ImportSource): DataImportCommand => ({
             op: "data.import",
             source: resolved,
@@ -501,6 +533,37 @@ export class SessionData implements SessionDataApi {
         // takes its turn in the order it was asked for.
         const resolved = resolveImportSource(source);
         await send(command(resolved instanceof Promise ? await resolved : resolved));
+    }
+
+    /**
+     * Read a source once and hold its rows, loading nothing until `draft.load()`.
+     * @param source - What `import` takes.
+     * @param options - How to read it.
+     * @param options.signal - Abandons the read.
+     * @returns The draft.
+     * @throws What `import` would reject with while reading, with the same code.
+     */
+    async prepare(source: DataSourceInput, options: { readonly signal?: AbortSignal } = {}): Promise<Draft> {
+        this.requireLive("prepare");
+        this.draft?.dispose();
+        const resolved = resolveImportSource(source);
+        const read = await readSource(resolved instanceof Promise ? await resolved : resolved, options.signal);
+        const draft = new Draft(read, {
+            config: () => this.readConfig(),
+            graph: () => {
+                const slice = this.writes.slice();
+                return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size };
+            },
+            importer: () => this.writes.importer(),
+            measure: (command, config) => this.writes.measure(command, config),
+            released: (released) => {
+                if (this.draft === released) {
+                    this.draft = null;
+                }
+            },
+        });
+        this.draft = draft;
+        return draft;
     }
 
     /**
@@ -695,6 +758,26 @@ export class SessionData implements SessionDataApi {
         return this.page(snapshot, "edge", options, "edgePage", (index) =>
             this.edgeAt(snapshot, index, space.idOf(index)),
         );
+    }
+
+    /**
+     * The runs a page of one kind can show as a column.
+     * @param kind - nodes or edges
+     * @returns one entry per run, in the session's order
+     * @throws A `GraphtyError` with `E_DISPOSED` once disposed.
+     */
+    resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[] {
+        this.current();
+        const columns: ResultColumnDescriptor[] = [];
+        for (const id of this.pages.runIds()) {
+            const run = this.pages.run(id);
+            const column = run === undefined ? undefined : primaryResultColumn(run, kind);
+            if (column !== undefined) {
+                columns.push(column);
+            }
+        }
+
+        return Object.freeze(columns);
     }
 
     /**
@@ -1146,9 +1229,9 @@ export class SessionData implements SessionDataApi {
      * @returns the report, or null when nothing has been loaded into this graph
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    lastImport(): ImportReport | null {
+    lastImport(): LoadReport | null {
         this.requireLive("lastImport");
-        const recorded = this.writes.slice().values.get("importReport") as ImportReport | undefined;
+        const recorded = this.writes.slice().values.get("importReport") as LoadReport | undefined;
         return recorded ?? this.graphStore.lastImport ?? null;
     }
 
@@ -1426,7 +1509,7 @@ export class SessionData implements SessionDataApi {
 export function sliceRecords(
     slice: () => GraphSlice,
     snapshot: () => GraphSnapshot,
-    lastImport: () => ImportReport | null,
+    lastImport: () => LoadReport | null,
     fallback: SessionRecordSource | null,
 ): SessionRecordSource {
     return {
@@ -1661,6 +1744,11 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
 
     if (source.type !== undefined) {
         return { type: source.type, config, ...described };
+    }
+
+    // A node file and an edge file handed over as a pair are only ever CSV.
+    if (isPair(config)) {
+        return { type: "csv", config, ...described };
     }
 
     const byName = filename === undefined ? null : detectFormat({ filename });

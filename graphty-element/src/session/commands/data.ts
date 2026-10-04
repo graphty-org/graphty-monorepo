@@ -28,6 +28,8 @@ import type { DuplicatePolicy } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
 import type { EdgeId, MeasurementDeclaration, NodeId } from "../../catalog/types";
+import type { DeclaredDirection } from "../../data/DataSource";
+import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
@@ -56,6 +58,15 @@ export type DataMutation =
           readonly target?: string;
           /** The repeated-edge policy for this call. */
           readonly repeated?: DuplicatePolicy;
+          /**
+           * The graph's direction, declared the way a node-link JSON file's `"directed"` key
+           * declares it, and taken on the same terms: only while the graph holds no edges, and
+           * never over a `data.directed` the configuration set to a boolean. On a graph that
+           * already holds edges it changes nothing, not even where the direction came from; a
+           * value that disagrees is logged. Undo takes it back with the edges. Default: leave
+           * the direction as it is.
+           */
+          readonly directed?: boolean;
       }
     | {
           /** The same values on many rows: "set type to hub on these nodes". */
@@ -113,6 +124,15 @@ export interface DataImportCommand {
     readonly mode?: "replace" | "merge";
     /** `"recommended"` also chooses a layout for what was loaded, in the same step. */
     readonly layout?: "recommended" | "keep";
+    /** Rows a draft already read: loaded in place of reading the source again, on redo too. */
+    readonly held?: HeldRows;
+    /** An edge naming a node no node record holds: made (the default), or left out. */
+    readonly unmatched?: "add" | "leave-out";
+    /**
+     * Count the load instead of refusing it: a limit it passes is recorded in the report, and
+     * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
+     */
+    readonly measure?: { readonly nodes: ReadonlySet<NodeId>; readonly edges: number };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
     /**
@@ -120,6 +140,28 @@ export interface DataImportCommand {
      * properties assigned one after the other are one load.
      */
     readonly coalesce?: string;
+}
+
+/** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */
+export interface HeldRows {
+    /** Node records. */
+    readonly nodes: readonly Record<string, unknown>[];
+    /** Edge records. */
+    readonly edges: readonly Record<string, unknown>[];
+    /** The direction the file declared, read when the rows were. */
+    readonly declaredDirection: DeclaredDirection | null;
+    /** The rows reading the source refused. */
+    readonly errors: readonly DataLoadingError[];
+    /** How many refused rows end a read: the source's error limit. */
+    readonly errorLimit: number;
+    /** The expression a node record's id is read with; the configured one when absent. */
+    readonly idPath?: string;
+    /** The expression an edge's source is read with; probed when absent. */
+    readonly source?: string;
+    /** The expression an edge's target is read with; probed when absent. */
+    readonly target?: string;
+    /** The record key weights are read from, with no `value` fallback; null reads none; configured when absent. */
+    readonly weight?: string | null;
 }
 
 /** `data.expand`: what a double-click on `seed` fetched, captured so redo does not fetch again. */
@@ -449,8 +491,9 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
     // A load writes rows it cannot name before it has read them, so it holds the whole slice.
     keys: () => ["graph"],
     lane: { kind: "queued", category: "data-add", coalesce: (command) => command.coalesce ?? null },
-    // The options can carry a `File` and a whole file's text; neither is copied.
-    byReference: ["config"],
+    // The options can carry a `File` and a whole file's text, and a draft's held rows a whole
+    // file's records, an error tally and the graph a measured merge counts; none is copied.
+    byReference: ["config", "held", "measure"],
     closesBaseline: true,
     execute: async (command, ctx) => {
         if (command.layout === "recommended") {

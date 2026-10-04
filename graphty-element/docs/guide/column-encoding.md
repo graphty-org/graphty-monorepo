@@ -25,6 +25,10 @@ A column is named with a [`ColumnRef`](./vocabulary#a-column-of-your-data-column
 `attributes()` lists the columns of the data loaded now: it is empty before the first load, so
 await the load first. `declare` and `encode` name a column the graph already has.
 
+A swatch's `value` is the value as your data holds it: department code 3 is the number `3`, not
+the text `"3"`, so it compares with `===` to a record's value, and a run's group is spelled the
+same in the legend as in the run's summary and its per-node values.
+
 `encode` returns a run you can await; it resolves to the layer it added, whose `id` names it in
 `styles.get(id)`, `styles.remove(id)` and the legend. `styles.legend()` returns one entry per layer
 and channel, so match yours by `layerId`.
@@ -142,3 +146,32 @@ which the "other" row always has. Word that row yourself from those facts rather
 `overflow.hidden`, present only when rows were cut, counts the rows that did not fit. An ordinal column's
 rows are listed in its declared order. A legend block's `kind` (`"categorical"`, `"sequential"`,
 ...) names the kind of palette drawn, not what the column measures.
+
+## What a higher value means, and the range a size is bound to
+
+A legend for a ramp usually says which way the picture reads ("Darker means more Influence") and,
+for a size or a width, the range the values are drawn across ("1 to 3"). Both are on the legend
+block, as facts you word yourself:
+
+```typescript
+for (const block of session.styles.legend()) {
+    const name = block.field?.plainName ?? "";
+    if (block.reading) {
+        const { direction } = block.reading.params; // "darker" | "lighter" | "larger" | "smaller"
+        console.log(`${direction} means more ${name}`);
+    }
+    if (block.range) {
+        console.log(`${block.channel}: ${String(block.range.min)} to ${String(block.range.max)}`);
+    }
+}
+```
+
+- `reading` is `{ code: "legend.higher", params: { channel, direction, field } }`. A color's
+  direction compares the luminance of the colors painted at the two ends of the domain; a number's
+  compares the two numbers, so a reversed binding reads the other way. It is absent where there is
+  no one direction to state: categories, a diverging palette, a fixed value, a domain of one value.
+- `range` is `{ min, max }`, the range the binding maps onto in the channel's own units, for a
+  channel that carries a number (`node.size`, `edge.width`, an opacity). Node size is unitless, so
+  print it as a number, not in pixels. It is absent when the binding has a `map` or an `other` value, whose values
+  are drawn instead of the range. It is the binding's range, so read it rather than the
+  smallest and largest swatch, which are only samples.

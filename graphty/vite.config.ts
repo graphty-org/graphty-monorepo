@@ -5,6 +5,7 @@ import { resolve } from "path";
 import { defineConfig, loadEnv, UserConfig } from "vite";
 
 import { aliases } from "./vite.aliases";
+import { buildStampPlugin } from "./vite.build-stamp";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -14,6 +15,8 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, monorepoRoot, "");
     const plugins = [
         react(),
+        // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
+        buildStampPlugin(),
         // Only include Sentry plugin in CI when auth token is available
         process.env.SENTRY_AUTH_TOKEN &&
             sentryVitePlugin({

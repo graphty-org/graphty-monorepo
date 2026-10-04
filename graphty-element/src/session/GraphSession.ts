@@ -45,7 +45,7 @@ import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
-import type { ImportReport } from "../data/report";
+import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
@@ -1557,6 +1557,22 @@ function fieldWordsOf(
 }
 
 /**
+ * Each group's place by size in one run, from 1 for the largest, read from the run's `sizes`
+ * table -- the order its summary and its page columns rank the groups in.
+ * @param runs - The session's runs.
+ * @returns The reader, keyed by the group as a category name.
+ */
+function groupRanksOf(runs: RunsApi): (runId: RunId) => ReadonlyMap<string, number> | undefined {
+    return (runId: RunId): ReadonlyMap<string, number> | undefined => {
+        const sizes = runs.get(runId)?.result?.graph.sizes;
+
+        return Array.isArray(sizes)
+            ? new Map((sizes as readonly { readonly group: unknown }[]).map((row, at) => [String(row.group), at + 1]))
+            : undefined;
+    };
+}
+
+/**
  * The run id behind any of the three ways a caller names a run.
  * @param ref - The run, its result, or its id.
  * @returns The run id.
@@ -1855,7 +1871,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const records = sliceRecords(
         slice,
         snapshot,
-        () => (slice().values.get("importReport") as ImportReport | undefined) ?? store.store.lastImport ?? null,
+        () => (slice().values.get("importReport") as LoadReport | undefined) ?? store.store.lastImport ?? null,
         options.records ?? null,
     );
     const data = new SessionData(
@@ -1866,6 +1882,24 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
             importer: () => dispatcher.capturedDispatch(),
             slice,
+            measure: async (command, config) => {
+                const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });
+                try {
+                    await dispatcherOf(scratch).dispatch(command);
+                    const report = scratch.data.lastImport();
+                    if (report === null) {
+                        throw new GraphtyError({
+                            code: "E_INTERNAL",
+                            source: "data",
+                            message: "A measured load finished without a report.",
+                        });
+                    }
+
+                    return report;
+                } finally {
+                    scratch.dispose();
+                }
+            },
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
             setSource: (source) => dispatcher.dispatch({ op: "data.setSource", source }),
             declarations: () => dispatcher.state.attributes,
@@ -2418,6 +2452,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeIndex: nodeIndexOf(snapshot),
         edgeIndex: edgeIndexOf(snapshot),
         field: fieldWordsOf(data, runs),
+        groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an

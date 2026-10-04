@@ -143,9 +143,18 @@ session.data.source()?.name; // "Les Miserables characters"
 With nothing loaded, `renameSource` rejects with `E_BAD_COMMAND` and `details.reason` `"no-source"`;
 an empty name rejects with `"empty-name"`.
 
+## Preview a Load Before Loading It
+
+`session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and
+columns, choose which column is the node id, the edge endpoints or the weight, and see the counts
+the load would produce before anything is added to the graph. See
+[Previewing a Load](./load-preview).
+
 ## Replacing the Graph
 
-A load ADDS to the graph unless you pass `replace: true`. A replacing load swaps the graph as one
+A load through `loadFromFile`, `loadFromUrl` or `addDataFromSource` ADDS to the graph unless you
+pass `replace: true`. (`session.data.import()` and a draft's `load()` take `mode` instead, and
+replace by default; see [Previewing a Load](./load-preview).) A replacing load swaps the graph as one
 undoable step, and a load that fails rolls its whole step back, so a malformed or empty file
 rejects and leaves the current graph exactly as it was:
 
@@ -326,6 +335,21 @@ as `directed` -- and the element logs a warning naming how many edges it overrod
 own `type` or `directed` agrees with the graph carries no such key: it is drawn like every other
 edge. GEXF keywords are read in any case, so `defaultedgetype="Directed"` is directed. Direction is settled once per graph: a second file loaded into a graph
 that already holds edges cannot reinterpret the edges already in it, and that is logged too.
+
+**Edges you add yourself** can declare the direction the same way a node-link JSON file does,
+with `directed` on an `add-edges` change:
+
+```typescript
+await session.execute({
+    op: "data.apply",
+    mutation: { kind: "add-edges", records: edges, directed: false },
+});
+session.data.statistics().directednessSource; // { by: "file", statedBy: '"directed": false' }
+```
+
+It counts only while the graph holds no edges and `data.directed` is `"auto"`. Undo takes the
+declaration back with the edges. On a graph that already has edges, a matching value changes
+nothing and a different one is logged and ignored, exactly as a second file would be.
 
 ## GEXF and GraphML Records
 

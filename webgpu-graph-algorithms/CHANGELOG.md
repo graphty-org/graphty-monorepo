@@ -1,3 +1,35 @@
+## 0.6.31 (2026-10-04)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** let a caller turn a Dawn toggle off, and stop quantising timestamps in the node tests ([ce6659adb](https://github.com/graphty-org/graphty-monorepo/commit/ce6659adb))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** follow the webgpu pin in the two tests that hard-code it ([9b2442ea4](https://github.com/graphty-org/graphty-monorepo/commit/9b2442ea4))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** count the dense-row loops down so Dawn 0.6 leaves them unguarded ([cc6e852b3](https://github.com/graphty-org/graphty-monorepo/commit/cc6e852b3))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.2
+- Updated algorithms to 3.3.2
+- Updated layout to 2.2.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.30 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.1
+- Updated algorithms to 3.3.1
+- Updated layout to 2.2.2
+
 ## 0.6.29 (2026-10-04)
 
 ### 🧱 Updated Dependencies

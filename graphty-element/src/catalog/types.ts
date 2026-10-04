@@ -595,6 +595,14 @@ export type Binding =
            */
           overflow?: BindingOverflow;
           missing?: "skip" | { value: string | number };
+          /**
+           * Values this binding does not paint: an element carrying one is left exactly as the
+           * layers beneath paint it, as an unmeasured element is. Compared as the legend spells a
+           * category, so the group `0` and the text `"0"` are the same value. The legend keeps
+           * the value's row, marked `hidden`, so it can be shown again. Set it per value with
+           * `styles.setValueHidden()`, which is one undoable step.
+           */
+          hidden?: (string | number | boolean)[];
           reverse?: boolean;
           midpoint?: number;
           bins?: number;

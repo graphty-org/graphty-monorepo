@@ -97,6 +97,9 @@ const line =
  */
 const rented = (f) => (f.labels ?? []).some((l) => l.startsWith(RENTED_PREFIX));
 
+/** What names the benchmark comparison step of the GPU lane (`node scripts/bench-compare.js`). */
+const BENCHMARK_STEP = "bench-compare";
+
 /** A connection error code, as Node and npm print them. */
 const NET_ERROR = /\bE(?:TIMEDOUT|CONNRESET|CONNREFUSED|AI_AGAIN|NOTFOUND)\b/;
 /** A remote host: a URL that is not loopback, or a public domain name. */
@@ -162,6 +165,17 @@ export const PATTERNS = /** @type {Pattern[]} */ ([
         test: line(/Host system is missing dependencies|Executable doesn't exist at \S*ms-playwright/),
     },
     { class: "drift", name: "runner out of disk space", test: line(/No space left on device|\bENOSPC\b/) },
+    // gpu.yml locks the T4's clock before the benchmarks and warns when the runner refuses (issue
+    // #703); at the power governor's clock a benchmark can run several times slower than its
+    // baseline. Only when the comparison is the sole failure: a failing test is still code.
+    {
+        class: "drift",
+        name: "benchmark run at an unlocked GPU clock",
+        test: (f, text) =>
+            f.steps.length > 0 &&
+            f.steps.every((s) => s.includes(BENCHMARK_STEP)) &&
+            text.some((l) => l.includes("nvidia-smi -lgc") && l.includes("was refused")),
+    },
 ]);
 
 /**

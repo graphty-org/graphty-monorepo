@@ -117,7 +117,7 @@ let clock;
 /**
  * @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null,
  *   events?: Record<string, any[]>, merged?: any[], release?: any[], annotations?: any[], gpu?: any[],
- *   jobs?: Record<string, any[]>, logs?: Record<string, string>}}
+ *   jobs?: Record<string, any[]>, logs?: Record<string, string>, compare?: string[]}}
  */
 let scene;
 /** @type {ReturnType<typeof createFakeGh>} */
@@ -213,6 +213,7 @@ function respond({ args, input }) {
         return httpOutput({ status: 201, body: { id: 5, url: "https://api.github.com/repos/o/r/issues/comments/5" } });
     }
     if (path === "repos/o/r/issues/comments/5") return ok({ id: 5 });
+    if (path.includes("/compare/")) return ok({ files: (scene.compare ?? []).map((filename) => ({ filename })) });
     throw new Error(`unexpected gh call: ${args.join(" ")}`);
 }
 
@@ -1404,6 +1405,82 @@ describe("failure classes on master", () => {
         // The log is read once, when the job's steps and annotations alone read as code.
         const logReads = gh.calls.filter((c) => c.args.at(-1)?.endsWith("/actions/jobs/2100/logs"));
         expect(logReads).toHaveLength(1);
+    });
+
+    it("parks a benchmark regression measured at a refused clock lock: no incident, no suspects, no hold", async () => {
+        gpuConfig();
+        scene.gpu = [{ ...run(220, A, "failure"), name: "GPU" }];
+        scene.jobs = {
+            220: [
+                {
+                    id: 2200,
+                    run_attempt: 1,
+                    name: "Test (NVIDIA T4)",
+                    conclusion: "failure",
+                    labels: [RENTED],
+                    steps: [{ name: "Run node scripts/bench-compare.js", conclusion: "failure" }],
+                },
+            ],
+        };
+        // GPU job 111514123789's annotations, as recorded on 2026-10-04.
+        scene.annotations = [
+            { message: "Process completed with exit code 1." },
+            {
+                message:
+                    "nvidia-smi -lgc 1590,1590 was refused: the benchmarks run at the power governor's clock (issue #703)",
+            },
+        ];
+        const daemon = await start();
+        for (const at of ["12:00", "12:03"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        expect(daemon.state.master.lanes.gpu).toMatchObject({ verdict: "red", redClass: "drift" });
+        expect(daemon.state.master.lanes.gpu.redJobs[0].reason).toBe("benchmark run at an unlocked GPU clock");
+        expect(daemon.state.incidents).toEqual({});
+        // The release still waits for a green GPU run; merges do not.
+        expect(daemon.state.ownerItems["drift:gpu"]).toMatchObject({ blocks: "release" });
+        expect(gh.writes()).toEqual([]);
+    });
+
+    it("names no code suspect when no commit since the last green one touches the red lane's code", async () => {
+        gpuConfig();
+        scene.gpu = [{ ...run(230, A, "success"), name: "GPU" }];
+        const daemon = await start();
+        await poll(daemon);
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/docs"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "success"), run(100, A, "success")];
+        scene.gpu = [{ ...run(231, B, "failure"), name: "GPU" }, ...scene.gpu];
+        scene.jobs = {
+            231: [
+                {
+                    id: 2310,
+                    run_attempt: 1,
+                    name: "Test (NVIDIA T4)",
+                    conclusion: "failure",
+                    labels: [RENTED],
+                    steps: [{ name: "Run node tests", conclusion: "failure" }],
+                },
+            ],
+        };
+        scene.compare = ["design/notes.md", "README.md"];
+        for (const at of ["12:03", "12:06"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        const [incident] = Object.values(daemon.state.incidents);
+        expect(incident).toMatchObject({ status: "open", lastGreenSha: A, redSha: B, suspects: [] });
+        expect(incident.rangeNote).toBe("no commit since aaaaaaa touches the GPU lane's code");
+        // A range that touches the lane keeps its suspects.
+        scene.compare = ["graph-format/src/a.ts"];
+        delete incident.rangeFor;
+        delete incident.rangeNote;
+        incident.suspects = [{ sha: B, pr: 2 }];
+        clock = new Date("2026-10-02T12:09:00Z");
+        await poll(daemon);
+        expect(incident.suspects).toEqual([{ sha: B, pr: 2 }]);
+        expect(incident.rangeNote).toBeUndefined();
     });
 
     it("raises lane-not-progressing while a gating job waits for a runner past its bound, and ends it once picked up", async () => {

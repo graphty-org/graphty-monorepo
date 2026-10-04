@@ -82,7 +82,7 @@ import {
     retireStrayWindows,
     tidyEndedJobs,
 } from "./start.mjs";
-import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
+import { LANE_CODE, findSuspects, masterVerdict, rangeMissesLanes, releaseState, updateLane } from "./master.mjs";
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
 import { doneIo, pollVerifying } from "./done.mjs";
 import { classify, isNoLog } from "./classify.mjs";
@@ -1047,8 +1047,10 @@ export async function startDaemon({
         const codeLanes = Object.entries(m.lanes).filter(
             ([name, l]) => gatingLane(name) && /** @type {any} */ (l).verdict === "red" && codeRed(l),
         );
-        if (m.verdict === "red" && codeLanes.length) trackRed(codeLanes, open, previousGreen, iso);
-        else if (m.verdict !== "unknown" && open) {
+        if (m.verdict === "red" && codeLanes.length) {
+            trackRed(codeLanes, open, previousGreen, iso);
+            await readRange(codeLanes);
+        } else if (m.verdict !== "unknown" && open) {
             open.status = "resolved";
             open.resolvedAt = iso;
             const fix = commits.find((c) => c.sha === m.greenSha);
@@ -1316,6 +1318,34 @@ export async function startDaemon({
             issue: null,
         };
         return state.incidents[id];
+    }
+
+    /**
+     * Reads what the open incident's change range touches (the compare of the last green commit and
+     * the red one), once per set of code-red lanes. When it leaves every one of those lanes' code
+     * alone, no commit in it is a code suspect: the suspects are dropped, so nothing is reverted, and
+     * the incident says why. A lane that can be broken by any file (CI) keeps them, and so does a
+     * list GitHub cut short (300 files). A read that fails is tried again next poll.
+     * @param {[string, any][]} codeLanes the code-red gating lanes
+     */
+    async function readRange(codeLanes) {
+        const inc = Object.values(state.incidents).find((i) => i.status === "open");
+        const workflows = codeLanes.map(([name, l]) => l.workflowName ?? name);
+        if (!inc?.lastGreenSha || inc.rangeFor === workflows.join(",")) return;
+        let files = null;
+        if (workflows.every((w) => LANE_CODE[w])) {
+            const path = `repos/${config.repo}/compare/${inc.lastGreenSha}...${inc.redSha}`;
+            const listed = (await github().get(path)).body?.files;
+            if (Array.isArray(listed) && listed.length < 300) files = listed.map((/** @type {any} */ f) => f.filename);
+        }
+        inc.rangeFor = workflows.join(",");
+        if (rangeMissesLanes(files, workflows)) {
+            inc.suspects = [];
+            inc.rangeNote = `no commit since ${inc.lastGreenSha.slice(0, 7)} touches the ${workflows.join(" or ")} lane's code`;
+        } else if (inc.rangeNote) {
+            inc.suspects = findSuspects(commits, inc.lastGreenSha, inc.redSha);
+            delete inc.rangeNote;
+        }
     }
 
     /**

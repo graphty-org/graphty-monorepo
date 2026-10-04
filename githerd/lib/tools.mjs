@@ -108,6 +108,7 @@ function masterData(state) {
                   id: incident.id,
                   lanes: Object.entries(incident.lanes ?? {}).map(([lane, l]) => ({ lane, ...l })),
                   suspects: incident.suspects ?? [],
+                  rangeNote: incident.rangeNote ?? null,
                   fixJob:
                       Object.values(state.jobs ?? {}).find(
                           (j) => j.kind === "incident" && j.facts?.scope === "master" && j.holder,
@@ -277,6 +278,7 @@ function redLines(inc, since) {
         const list = inc.suspects.map((s) => (s.pr ? `#${s.pr} ` : "") + short(s.sha)).join(", ");
         second.push(`${inc.suspects.length === 1 ? "Suspect" : "Suspects"}: ${list}.`);
     }
+    if (inc?.rangeNote) second.push(`No code suspects: ${inc.rangeNote}.`);
     if (inc?.fixJob) second.push(`Incident job ${inc.fixJob} at work.`);
     second.push("Hold pushes and merges.");
     return [`MASTER: RED${since}${id}.${lanes.join("")}`, `  ${second.join(" ")}`];

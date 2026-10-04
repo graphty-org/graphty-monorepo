@@ -17,6 +17,13 @@ import {
  */
 const job = (f) => ({ workflow: "CI", job: "Build", steps: ["Run tests"], labels: ["ubuntu-latest"], ...f });
 const RENTED = ["machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand"];
+/** The annotation messages of GPU job 111514123789, as GitHub answered them. */
+const GPU_CLOCK_REFUSED = [
+    "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4, actions/setup-node@v4, actions/upload-artifact@v4, pnpm/action-setup@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+    "Process completed with exit code 1.",
+    "nvidia-smi -lgc 1590,1590 was refused: the benchmarks run at the power governor's clock (issue #703)",
+    "core_pattern is read-only inside the job container; issue #273's guard does not hold on this lane",
+];
 
 /**
  * One failure per pattern, each text as it was recorded. Where the month recorded no instance,
@@ -140,6 +147,15 @@ const FIXTURES = {
     }),
     // The kernel's answer when the runner's disk is full.
     "runner out of disk space": job({ log: "Error: ENOSPC: no space left on device, write" }),
+    // GPU job 111514123789 (run 37228458287, 7fd13ca, 2026-10-04): one benchmark 2.8x over its
+    // baseline after the clock lock was refused; its annotations as recorded.
+    "benchmark run at an unlocked GPU clock": job({
+        workflow: "GPU",
+        job: "Test (NVIDIA T4)",
+        steps: ["Run node scripts/bench-compare.js"],
+        labels: RENTED,
+        annotations: GPU_CLOCK_REFUSED,
+    }),
 };
 
 describe("the pattern table", () => {
@@ -148,6 +164,24 @@ describe("the pattern table", () => {
         expect(v).toMatchObject({ class: "drift", reason: "missing system library" });
         // Without its log the same job is code: the error is in no step name or annotation.
         expect(classify({ ...FIXTURES["missing system library"], log: null }, { where: "master" }).class).toBe("code");
+    });
+
+    it("reads a benchmark regression at a refused clock lock as the environment, and nothing else", () => {
+        const bench = FIXTURES["benchmark run at an unlocked GPU clock"];
+        expect(classify(bench, { where: "master" })).toMatchObject({
+            class: "drift",
+            reason: "benchmark run at an unlocked GPU clock",
+        });
+        // The lock held: the regression is the code's.
+        const locked = GPU_CLOCK_REFUSED.filter((a) => !a.includes("nvidia-smi"));
+        expect(classify({ ...bench, annotations: locked }, { where: "master" }).class).toBe("code");
+        // A test failed besides the comparison: code, whatever the clock.
+        const tests = { ...bench, steps: ["Run node tests", "Run node scripts/bench-compare.js"] };
+        expect(classify(tests, { where: "master" }).class).toBe("code");
+        // The warning as the log prints it counts the same as its annotation.
+        const log =
+            "2026-10-04T19:31:02Z ##[warning]nvidia-smi -lgc 1590,1590 was refused: the benchmarks run at the power governor's clock (issue #703)";
+        expect(classify({ ...bench, annotations: locked, log }, { where: "master" }).class).toBe("drift");
     });
 
     it("has one fixture per pattern, and each fixture is matched by its own pattern", () => {

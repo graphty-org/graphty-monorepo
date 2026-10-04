@@ -5,6 +5,8 @@
  * milliseconds in and ISO strings in the records.
  */
 
+import { touches } from "./prs.mjs";
+
 /** Default for `lanes.<x>.maxMinutes`. */
 const DEFAULT_MAX_MINUTES = 180;
 
@@ -398,4 +400,55 @@ export function sightRuns(saved, runs, branch) {
     }
     sightings.sort((a, b) => (a.updated_at ?? "").localeCompare(b.updated_at ?? "") || a.id - b.id);
     return { record, sightings };
+}
+
+/**
+ * What each path-scoped lane's run builds and tests, by workflow name: a commit that touches none
+ * of it cannot have turned the lane red. A lane not listed here (CI) can be broken by anything.
+ * GPU: the package, the workspace packages it builds against, the lane's workflow, and the root
+ * build configuration. Hosts: the `paths` filter of `hosts.yml`.
+ * ponytail: fixed lists for this repository's two scoped lanes; move them into `lanes.<x>` of the
+ * config when another repository uses githerd.
+ */
+const ROOT_BUILD = [
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "nx.json",
+    "tsconfig.base.json",
+    "vite.shared.config.ts",
+    "vitest.shared.config.ts",
+];
+export const LANE_CODE = /** @type {Record<string, string[]>} */ ({
+    GPU: [
+        "webgpu-graph-algorithms/",
+        "graph-format/",
+        "layout/",
+        "algorithms/",
+        ".github/workflows/gpu.yml",
+        ...ROOT_BUILD,
+    ],
+    Hosts: [
+        "webgpu-graph-algorithms/",
+        "graph-format/",
+        "layout/",
+        "graphty-element/",
+        ".github/workflows/hosts.yml",
+        "pnpm-lock.yaml",
+    ],
+});
+
+/**
+ * Whether a range of changes leaves every one of some lanes' code alone, so none of its commits
+ * can be a code suspect for them.
+ * @param {string[] | null} files every path the range changes; null when the list is not whole
+ * @param {string[]} workflows the red lanes' workflow names
+ * @returns {boolean} true only when every lane has a code list and no file is on any of them
+ */
+export function rangeMissesLanes(files, workflows) {
+    if (!files || workflows.length === 0) return false;
+    return workflows.every((w) => {
+        const code = LANE_CODE[w];
+        return code !== undefined && !touches(files, code);
+    });
 }

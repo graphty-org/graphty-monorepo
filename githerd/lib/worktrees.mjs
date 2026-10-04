@@ -272,7 +272,9 @@ async function placeReference(root, dir, sha, env) {
 /**
  * Moves the reference worktree to the green commit when it moved (creating and locking it the
  * first time), then installs and builds it with `setup`. Nothing runs when it is already prepared
- * at `sha`. A worktree with local changes is not moved: git refuses, and that is a fault.
+ * at `sha`. A worktree with local changes is not moved: git refuses, and that is a fault. A commit
+ * whose preparation failed is not tried again (`failedSha`) until the green commit moves or the
+ * daemon restarts: the install and build are never rerun on a clock with nothing changed.
  * @param {RefOptions & {sha: string, setup?: string[] | null, remote?: string,
  *   now?: () => Date}} options `sha` is the green commit; `setup` the config's `worktreeSetup`
  * @returns {Promise<{verdict: "ready", dir: string, sha: string} | Fault>} the prepared worktree,
@@ -292,16 +294,22 @@ export async function refreshReference({
     if (state.reference?.ready && state.reference.sha === sha && existsSync(dir)) {
         return { verdict: "ready", dir, sha };
     }
+    if (state.reference?.failedSha === sha) return state.reference.fault;
     state.reference = { sha, ready: false, gate: null };
+    const failed = async (/** @type {string} */ check, /** @type {RunResult | string} */ r) => {
+        const fault = await refFault(ledger, check, r);
+        Object.assign(state.reference, { failedSha: sha, fault });
+        return fault;
+    };
     const fetched = await haveCommit(root, sha, remote, undefined, refEnv(env));
-    if (fetched.code !== 0) return refFault(ledger, "fetch", fetched);
+    if (fetched.code !== 0) return failed("fetch", fetched);
     const placed = await placeReference(root, dir, sha, env);
-    if (placed) return refFault(ledger, placed.check, placed.r);
+    if (placed) return failed(placed.check, placed.r);
     if (setup && setup.length > 0) {
         const r = await run(setup[0], setup.slice(1), { cwd: dir, timeoutMs: SETUP_TIMEOUT_MS, env: refEnv(env) });
-        if (r.code !== 0) return refFault(ledger, "setup", r);
+        if (r.code !== 0) return failed("setup", r);
         const missing = missingDist(dir);
-        if (missing.length > 0) return refFault(ledger, "setup", `setup left no dist in ${missing.join(", ")}`);
+        if (missing.length > 0) return failed("setup", `setup left no dist in ${missing.join(", ")}`);
     }
     state.reference = { sha, ready: true, at: now().toISOString(), gate: null };
     await ledger({ kind: "reference-refreshed", dir, sha });

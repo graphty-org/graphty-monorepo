@@ -511,6 +511,8 @@ export async function startDaemon({
     state.schedule ??= {};
     // Resolved again by the first poll; a login saved by an earlier process is not trusted.
     state.trust = { login: null, resolvedAt: null, error: null, hidden: state.trust?.hidden ?? {} };
+    // A restart is how the owner asks for a failed reference worktree setup to be tried again.
+    if (state.reference) delete state.reference.failedSha;
     if (containerRestarted)
         say("info", `the container restarted (PID 1 start time ${previous.alive.pid1Start} -> ${pid1Start})`);
     // After a container restart every recorded pid and pane is void (design 3.5, 9.2): a worker's
@@ -1717,6 +1719,8 @@ export async function startDaemon({
         );
         const ref = state.reference;
         const fresh = ref?.ready && ref.sha === sha;
+        // The green commit's setup failed: nothing runs again until it moves (worktrees.mjs).
+        if (ref?.failedSha === sha) return;
         const gate = state.referenceGateWanted && ref?.gate?.sha !== sha;
         if (fresh && ref.audit?.sha === sha && !dryRuns.length && !gate) return;
         const opts = { root, state, env: pushEnv(), ledger };

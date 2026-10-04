@@ -152,6 +152,13 @@ describe("refreshReference", () => {
             },
         );
         expect(state.reference.ready).toBe(false);
+        // Nothing changed: the next poll does not run the install and build again.
+        const marker = join(repo.root, "setup-ran");
+        const records = [process.execPath, "-e", `require("fs").writeFileSync(${JSON.stringify(marker)}, "")`];
+        expect(
+            await refreshReference({ root: repo.root, state, sha: green, setup: records, env, ledger }),
+        ).toMatchObject({ verdict: "fault", check: "setup" });
+        expect(existsSync(marker)).toBe(false);
         expect(await referenceAudit({ root: repo.root, state, env, ledger })).toMatchObject({
             verdict: "fault",
             reason: "the reference worktree is not prepared",

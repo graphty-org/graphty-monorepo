@@ -121,7 +121,8 @@ export function isJsonImportDialect(value: unknown): value is JsonImportDialect 
  * `elements` or a top-level array of `{ data }` elements; OBO Graphs: `graphs[]` whose first graph
  * has an edge with `sub` (or `subj`) and `obj` or a `pred`, or a node with `lbl`, `meta` or an OWL
  * `type`; JGF: `graph.nodes` / `graph.edges` or any other `graphs[]`; graphology: `options.type` / `options.multi`, `key` nodes without `id`, edges with
- * `undirected` or an `attributes` record; vis: edges with `from` / `to`; d3: `links` without
+ * `undirected` or an `attributes` record, and vis: edges with `from` / `to`, both only without
+ * NetworkX's `links` / `directed` / `multigraph` / `graph` keys; d3: `links` without
  * `directed` / `multigraph` / `graph`; NetworkX adjacency_data: `nodes` and `adjacency` without
  * `links` / `edges`; NetworkX tree_data: `children` without `nodes` / `links` / `edges`; else
  * node-link). Pure: the importer wraps it with its issue
@@ -159,15 +160,18 @@ export function sniffJsonDialect(root: unknown): JsonImportDialect | null {
     if (isJsonObject(root.options) && (hasKey(root.options, "type") || hasKey(root.options, "multi"))) {
         return "graphology";
     }
-    if (firstNode !== null && hasKey(firstNode, "key") && !hasKey(firstNode, "id")) {
+    // NetworkX's own keys (links, directed, multigraph, graph) settle node-link: one attribute named
+    // like a graphology or vis field (`attributes`, `undirected`, `key`, `from`) must not re-route it
+    const networkx = hasKey(root, "links") || hasKey(root, "directed") || hasKey(root, "multigraph") || hasKey(root, "graph");
+    if (!networkx && firstNode !== null && hasKey(firstNode, "key") && !hasKey(firstNode, "id")) {
         return "graphology";
     }
-    if (firstEdge !== null && !hasKey(firstEdge, "from")) {
+    if (!networkx && firstEdge !== null && !hasKey(firstEdge, "from")) {
         if (hasKey(firstEdge, "undirected") || isJsonObject(firstEdge.attributes)) {
             return "graphology";
         }
     }
-    if (firstEdge !== null && hasKey(firstEdge, "from") && hasKey(firstEdge, "to") && !hasKey(firstEdge, "source")) {
+    if (!networkx && firstEdge !== null && hasKey(firstEdge, "from") && hasKey(firstEdge, "to") && !hasKey(firstEdge, "source")) {
         return "vis";
     }
     const bare = !hasKey(root, "directed") && !hasKey(root, "multigraph") && !hasKey(root, "graph");

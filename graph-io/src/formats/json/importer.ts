@@ -548,6 +548,15 @@ function pathDialect(record: unknown, forced: JsonImportDialect | "auto"): JsonI
     if (forced !== "auto") {
         return forced;
     }
+    // the edge array sits under links only so a bare d3 document stays d3; under edges, vis and
+    // graphology edges are told apart from NetworkX links again
+    if (isJsonObject(record) && hasKey(record, "links") && !hasKey(record, "edges")) {
+        const { links, ...rest } = record;
+        const asEdges = sniffJsonDialect({ ...rest, edges: links });
+        if (asEdges === "vis" || asEdges === "graphology") {
+            return asEdges;
+        }
+    }
     const sniffed = sniffJsonDialect(record);
     return sniffed !== null && PATH_DIALECTS.has(sniffed) ? sniffed : "node-link";
 }

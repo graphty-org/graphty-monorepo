@@ -103,7 +103,7 @@ export function pushQueueTickets(root) {
             return { name, rank: Number(rank), at: BigInt(at), pid: Number(pid) };
         })
         .filter((t) => Number.isInteger(t.pid) && alive(t.pid))
-        .sort((a, b) => a.rank - b.rank || (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+        .sort((a, b) => a.rank - b.rank || Math.sign(Number(a.at - b.at)));
     const running = live.slice(0, PUSH_QUEUE_SLOTS).map((t) => {
         const cwd = (readFileSync(join(dir, t.name), "utf8").split(" :: ")[0] ?? "").trim();
         return `pid ${t.pid} (${basename(cwd)})`;

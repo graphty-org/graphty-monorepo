@@ -677,56 +677,64 @@ async function unlabel(item, others, remove) {
  */
 export async function readAnswers({ api, repo, state, login, now, isSessionWrite = () => false }) {
     const ended = [];
+    const ctx = { api, state, login, now, isSessionWrite };
     for (const item of /** @type {OwnerItem[]} */ (Object.values(state.ownerItems ?? {}))) {
         const n = targetNumber(item.target);
         if (item.endedAt || n === null || !item.github?.performed) continue;
-        const base = `repos/${repo}/issues/${n}`;
         try {
-            const since = item.deferredAt && item.deferredAt > item.github.at ? item.deferredAt : item.github.at;
-            const comments = (await api.get(`${base}/comments?since=${since}&per_page=100`)).body ?? [];
-            const answer = comments.find(
-                (/** @type {any} */ c) =>
-                    c.user?.login === login &&
-                    c.created_at > since &&
-                    !String(c.body).includes("<!-- githerd") &&
-                    !isSessionWrite(/** @type {string} */ (item.target), c.created_at),
-            );
-            if (answer) {
-                notePresence(state, "github", answer.created_at);
-                if (isNotYet(String(answer.body))) {
-                    deferItem(state, item.id, answer.created_at);
-                    continue;
-                }
-                endItem(state, item.id, "comment", now);
-                item.answer = String(answer.body);
-                ended.push(item.id);
-                continue;
-            }
-            const labels = (await api.get(`${base}/labels`)).body ?? [];
-            if (!labels.some((/** @type {any} */ l) => l.name === LABEL)) {
-                const target = /** @type {string} */ (item.target);
-                // Only when a session wrote there lately is the removal's own time read (one call).
-                let sessions = isSessionWrite(target, now.toISOString());
-                if (sessions) {
-                    const events = (await api.get(`${base}/events?per_page=100`)).body ?? [];
-                    const off = events.findLast(
-                        (/** @type {any} */ e) => e.event === "unlabeled" && e.label?.name === LABEL,
-                    );
-                    sessions = isSessionWrite(target, off?.created_at ?? now.toISOString());
-                }
-                if (sessions) {
-                    // A session took the label off, not the owner: postItems puts it back.
-                    item.github.labeled = false;
-                    continue;
-                }
-                endItem(state, item.id, "label-removed", now);
-                ended.push(item.id);
-            }
+            if (await readItemAnswer(ctx, item, `repos/${repo}/issues/${n}`)) ended.push(item.id);
         } catch {
             // unknown is not an answer; the next poll reads again
         }
     }
     return ended;
+}
+
+/**
+ * Reads one owner item's answer on GitHub: the owner's comment, or the label's removal.
+ * @param {{api: any, state: any, login: string, now: Date,
+ *   isSessionWrite: (target: string, at: string) => boolean}} ctx what `readAnswers` was given
+ * @param {OwnerItem} item the item
+ * @param {string} base the issue's API path
+ * @returns {Promise<boolean>} whether the item ended
+ */
+async function readItemAnswer({ api, state, login, now, isSessionWrite }, item, base) {
+    const since = item.deferredAt && item.deferredAt > item.github.at ? item.deferredAt : item.github.at;
+    const comments = (await api.get(`${base}/comments?since=${since}&per_page=100`)).body ?? [];
+    const answer = comments.find(
+        (/** @type {any} */ c) =>
+            c.user?.login === login &&
+            c.created_at > since &&
+            !String(c.body).includes("<!-- githerd") &&
+            !isSessionWrite(/** @type {string} */ (item.target), c.created_at),
+    );
+    if (answer) {
+        notePresence(state, "github", answer.created_at);
+        if (isNotYet(String(answer.body))) {
+            deferItem(state, item.id, answer.created_at);
+            return false;
+        }
+        endItem(state, item.id, "comment", now);
+        item.answer = String(answer.body);
+        return true;
+    }
+    const labels = (await api.get(`${base}/labels`)).body ?? [];
+    if (labels.some((/** @type {any} */ l) => l.name === LABEL)) return false;
+    const target = /** @type {string} */ (item.target);
+    // Only when a session wrote there lately is the removal's own time read (one call).
+    let sessions = isSessionWrite(target, now.toISOString());
+    if (sessions) {
+        const events = (await api.get(`${base}/events?per_page=100`)).body ?? [];
+        const off = events.findLast((/** @type {any} */ e) => e.event === "unlabeled" && e.label?.name === LABEL);
+        sessions = isSessionWrite(target, off?.created_at ?? now.toISOString());
+    }
+    if (sessions) {
+        // A session took the label off, not the owner: postItems puts it back.
+        item.github.labeled = false;
+        return false;
+    }
+    endItem(state, item.id, "label-removed", now);
+    return true;
 }
 
 /**

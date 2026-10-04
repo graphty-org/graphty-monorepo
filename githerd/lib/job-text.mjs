@@ -80,13 +80,14 @@ function refreshLines(facts) {
     const lines = ["MERGED SINCE THE LAST REFRESH:"];
     for (const pr of facts.merged ?? []) {
         const more = pr.truncated ? " (more files than listed)" : "";
-        lines.push(`  #${pr.number} ${pr.title ?? ""} (merge ${String(pr.mergeSha ?? "unknown").slice(0, 12)})${more}`);
-        lines.push(...(pr.paths ?? []).map((/** @type {string} */ p) => `      ${p}`));
+        lines.push(
+            `  #${pr.number} ${pr.title ?? ""} (merge ${String(pr.mergeSha ?? "unknown").slice(0, 12)})${more}`,
+            ...(pr.paths ?? []).map((/** @type {string} */ p) => `      ${p}`),
+        );
     }
     if (facts.batch?.length) {
-        lines.push(
-            `MUST JUDGE (a merge mentions them without closing them): ${facts.batch.map((/** @type {number} */ n) => `#${n}`).join(" ")}`,
-        );
+        const refs = facts.batch.map((/** @type {number} */ n) => `#${n}`).join(" ");
+        lines.push(`MUST JUDGE (a merge mentions them without closing them): ${refs}`);
     }
     lines.push("OPEN ISSUES:", ...(facts.open ?? []).map((/** @type {any} */ i) => `  #${i.number} ${i.title}`));
     return lines;
@@ -168,11 +169,9 @@ function earlier(job) {
 export function jobText(job, ctx = {}) {
     if (!(job.kind in TARGET_NOUN)) throw new Error(`no job text for kind ${job.kind}`);
     const refresh = job.kind === "triage" && job.facts?.scope === "refresh";
-    const done = refresh
-        ? REFRESH_DONE
-        : job.kind === "incident"
-          ? INCIDENT_DONE[job.facts?.scope ?? "master"]
-          : DONE[job.kind];
+    let done = DONE[job.kind];
+    if (refresh) done = REFRESH_DONE;
+    else if (job.kind === "incident") done = INCIDENT_DONE[job.facts?.scope ?? "master"];
     if (!done) throw new Error(`no done-condition for incident scope ${job.facts?.scope}`);
     const purpose = refresh ? REFRESH_PURPOSE : PURPOSE[job.kind];
     const lines = [`JOB ${job.id}`, `TARGET: ${TARGET_NOUN[job.kind]} ${job.target}`, `WHAT FOR: ${purpose}`];

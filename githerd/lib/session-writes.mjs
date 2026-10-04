@@ -105,7 +105,7 @@ export function logSessionWrites(stateDir, input, job, now) {
  */
 export function sessionWriteCheck(stateDir) {
     return (target, at) => {
-        const n = Number(/(\d+)$/.exec(target)?.[1]);
+        const n = Number(/(\d+)$/.exec(target)?.[1]); // NOSONAR(S5852): a target is a short id such as issue:123
         const t = Date.parse(at);
         return readLog(stateDir).some((w) => {
             const d = t - Date.parse(w.at);

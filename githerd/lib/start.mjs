@@ -69,7 +69,7 @@ const FAULT_RETRY_MS = 30 * 60_000;
  * @property {string} stateDir githerd's state directory
  * @property {Record<string, string | undefined>} env the daemon's environment
  * @property {() => Date} now the clock
- * @property {(entry: {kind: string} & Record<string, unknown>) => Promise<void> | void} ledger the ledger
+ * @property {(entry: {kind: string} & Record<string, unknown>) => Promise<void>} ledger the ledger
  * @property {() => Promise<void>} save persists the state
  * @property {string} mode the `workers` write group's mode
  * @property {Platform} platform the outside world
@@ -137,7 +137,8 @@ function readJson(file) {
 function memoryShare() {
     try {
         const info = readFileSync("/proc/meminfo", "utf8");
-        const kb = (/** @type {string} */ name) => Number(new RegExp(`^${name}:\\s+(\\d+)`, "m").exec(info)?.[1] ?? 0);
+        const kb = (/** @type {string} */ name) =>
+            Number(new RegExp(String.raw`^${name}:\s+(\d+)`, "m").exec(info)?.[1] ?? 0);
         return kb("MemTotal") ? kb("MemAvailable") / kb("MemTotal") : 1;
     } catch {
         return 1;
@@ -214,30 +215,8 @@ export function resetAt(text, at) {
 function blocker(ctx, version) {
     const { state, now } = ctx;
     const stop = state.apiStop;
-    if (state.settings?.paused) return { reason: "githerd pause (githerd resume ends it)", canary: false };
-    if (state.settings?.stopped)
-        return { reason: "githerd workers --stop (githerd workers <n> ends it)", canary: false };
-    if (stop?.kind === "credential") return { reason: `credential stop: ${stop.error}`, canary: false };
-    const item = Object.values(state.ownerItems ?? {}).find((i) => !i.endedAt && i.blocks === "workers");
-    if (item) return { reason: `owner item ${item.id} blocks every worker start`, canary: false };
-    const test = ctx.platform.selftest();
-    if (state.startsStopped && test?.passed && test.at > state.startsStopped.at) {
-        // A self-test that passed after the failed starts clears the stop.
-        state.startsStopped = null;
-        endItem(state, "worker-start-failed", "cleared", now());
-    }
-    if (test?.passed) endItem(state, "selftest-failed", "cleared", now());
-    if (state.startsStopped) return { reason: state.startsStopped.reason, canary: false };
-    // Before the first start and after a Claude Code version change the daemon runs the self-test
-    // itself, once per version (design 11.4): the owner is paged only when it fails.
-    if (version && test?.claudeVersion !== version) selftestOnce(ctx, version);
-    if (selftests.has(state))
-        return { reason: `the platform self-test is running on Claude Code ${version}`, canary: false };
-    if (!test?.passed) return { reason: "the platform self-test has not passed (githerd selftest)", canary: false };
-    if (!version) return { reason: "claude --version did not answer", canary: false };
-    if (test.claudeVersion !== version) {
-        return { reason: `the self-test ran on Claude Code ${test.claudeVersion}, not ${version}`, canary: false };
-    }
+    const reason = heldBy(state) ?? unproven(ctx, version);
+    if (reason) return { reason, canary: false };
     if (stop?.kind === "usage") {
         releaseCanary(ctx);
         const at = canaryAt(stop, stop.probes ?? 0);
@@ -246,6 +225,46 @@ function blocker(ctx, version) {
         return { reason: null, canary: true };
     }
     return { reason: null, canary: false };
+}
+
+/**
+ * Why the owner, a credential or an owner item holds every worker start, or null.
+ * @param {any} state the daemon state
+ * @returns {string | null} the reason
+ */
+function heldBy(state) {
+    if (state.settings?.paused) return "githerd pause (githerd resume ends it)";
+    if (state.settings?.stopped) return "githerd workers --stop (githerd workers <n> ends it)";
+    if (state.apiStop?.kind === "credential") return `credential stop: ${state.apiStop.error}`;
+    const item = Object.values(state.ownerItems ?? {}).find((i) => !i.endedAt && i.blocks === "workers");
+    return item ? `owner item ${item.id} blocks every worker start` : null;
+}
+
+/**
+ * Why the platform is not proven for this Claude Code version, or null: failed starts, or no
+ * passing self-test on it. Starts the self-test when this version has none.
+ * @param {StartContext} ctx the context
+ * @param {string | null} version the installed Claude Code version, null when unknown
+ * @returns {string | null} the reason
+ */
+function unproven(ctx, version) {
+    const { state, now } = ctx;
+    const test = ctx.platform.selftest();
+    if (state.startsStopped && test?.passed && test.at > state.startsStopped.at) {
+        // A self-test that passed after the failed starts clears the stop.
+        state.startsStopped = null;
+        endItem(state, "worker-start-failed", "cleared", now());
+    }
+    if (test?.passed) endItem(state, "selftest-failed", "cleared", now());
+    if (state.startsStopped) return state.startsStopped.reason;
+    // Before the first start and after a Claude Code version change the daemon runs the self-test
+    // itself, once per version (design 11.4): the owner is paged only when it fails.
+    if (version && test?.claudeVersion !== version) selftestOnce(ctx, version);
+    if (selftests.has(state)) return `the platform self-test is running on Claude Code ${version}`;
+    if (!test?.passed) return "the platform self-test has not passed (githerd selftest)";
+    if (!version) return "claude --version did not answer";
+    if (test.claudeVersion !== version) return `the self-test ran on Claude Code ${test.claudeVersion}, not ${version}`;
+    return null;
 }
 
 /** The self-test the daemon runs, by state: at most one at a time. */
@@ -395,15 +414,9 @@ export function retireStrayWindows(state, windows, now) {
  *   starts are open), and the jobs admitted this call
  */
 export async function fillSlots(ctx) {
-    const { state, config, now } = ctx;
+    const { state, now } = ctx;
     const t = now();
-    // ponytail: a fault clears by waiting 30 minutes; read the fault's cause (load, the platform)
-    // and requeue when it clears if a fixed wait proves too slow or too eager.
-    for (const job of Object.values(state.jobs ?? {})) {
-        if (job.state === "faulted" && t.getTime() - Date.parse(job.stateSince) >= FAULT_RETRY_MS) {
-            board.move(job, "queued", t, { reason: `retry after: ${job.reason}` });
-        }
-    }
+    retryFaulted(state, t);
     const hours = workerHours(state, t);
     const candidates = [
         ...Object.values(state.jobs ?? {})
@@ -425,39 +438,80 @@ export async function fillSlots(ctx) {
     }
     const block = blocker(ctx, version);
     if (block.reason) return { blocked: block.reason, admitted: [] };
+    const admitted = admitInto(ctx, candidates, block.canary, hours);
+    for (const id of admitted) void ctx.ledger({ kind: "job-admitted", job: id });
+    if (admitted.length) await ctx.save();
+    return { blocked: null, admitted };
+}
 
+/**
+ * Queues again each faulted job whose fault is 30 minutes old.
+ * @param {any} state the daemon state
+ * @param {Date} t the time
+ */
+function retryFaulted(state, t) {
+    // ponytail: a fault clears by waiting 30 minutes; read the fault's cause (load, the platform)
+    // and requeue when it clears if a fixed wait proves too slow or too eager.
+    for (const job of Object.values(state.jobs ?? {})) {
+        if (job.state === "faulted" && t.getTime() - Date.parse(job.stateSince) >= FAULT_RETRY_MS) {
+            board.move(job, "queued", t, { reason: `retry after: ${job.reason}` });
+        }
+    }
+}
+
+/**
+ * Admits candidates, in order, while slots, the machine and the day's worker hours allow.
+ * @param {StartContext} ctx the context
+ * @param {any[]} candidates the jobs, in order
+ * @param {boolean} canary only one worker may start, as a usage stop's canary
+ * @param {number} hours the worker hours used today
+ * @returns {string[]} the jobs admitted
+ */
+function admitInto(ctx, candidates, canary, hours) {
+    const { state, config } = ctx;
     const { load, cores, memory } = ctx.platform.machine();
-    const busy = load >= LOAD_SHARE * cores || memory <= MEMORY_SHARE;
     const held = Object.values(state.jobs ?? {}).filter(
         (j) => WORKING.has(j.state) && (j.holder || ctx.tasks.has(j.id)),
     );
-    let routine = held.filter((j) => !isUrgent(j)).length;
-    let urgent = held.filter((j) => isUrgent(j)).length;
-    const slots = state.settings?.slots ?? config.workers?.slots ?? 3;
-    const overflow = config.workers?.urgent ?? 1;
+    const room = {
+        busy: load >= LOAD_SHARE * cores || memory <= MEMORY_SHARE,
+        routine: held.filter((j) => !isUrgent(j)).length,
+        urgent: held.filter((j) => isUrgent(j)).length,
+        slots: state.settings?.slots ?? config.workers?.slots ?? 3,
+        overflow: config.workers?.urgent ?? 1,
+        hoursLeft: hours < (config.workers?.hoursPerDay ?? 24),
+    };
     const admitted = [];
     for (const job of candidates) {
-        const isU = isUrgent(job);
-        // Over the machine limits no worker starts, but one urgent may when none runs (design 8.1).
-        if (busy && !(isU && urgent === 0)) continue;
-        // Routine work fills the working slots; urgent work may also take the overflow slot.
-        if (isU ? routine + urgent >= slots + overflow : routine >= slots) continue;
-        if (!isU && hours >= (config.workers?.hoursPerDay ?? 24)) continue;
-        if (!startCommit(state, job)) continue;
-        admit(ctx, job, { busy });
+        if (!fits(job, room) || !startCommit(state, job)) continue;
+        admit(ctx, job, { busy: room.busy });
         admitted.push(job.id);
-        if (isU) urgent += 1;
-        else routine += 1;
+        if (isUrgent(job)) room.urgent += 1;
+        else room.routine += 1;
         // A canary is one worker; the rest wait for its turn to complete (design 8.3).
-        if (block.canary) {
+        if (canary) {
             state.apiStop.canary = job.id;
             state.apiStop.probes = (state.apiStop.probes ?? 0) + 1;
             break;
         }
     }
-    for (const id of admitted) void ctx.ledger({ kind: "job-admitted", job: id });
-    if (admitted.length) await ctx.save();
-    return { blocked: null, admitted };
+    return admitted;
+}
+
+/**
+ * Whether a job fits the room left.
+ * @param {any} job the job
+ * @param {{busy: boolean, routine: number, urgent: number, slots: number, overflow: number,
+ *   hoursLeft: boolean}} room the machine, the slots held and the day's worker hours
+ * @returns {boolean} it may be admitted
+ */
+function fits(job, room) {
+    const urgent = isUrgent(job);
+    // Over the machine limits no worker starts, but one urgent may when none runs (design 8.1).
+    if (room.busy && !(urgent && room.urgent === 0)) return false;
+    // Routine work fills the working slots; urgent work may also take the overflow slot.
+    if (urgent) return room.routine + room.urgent < room.slots + room.overflow;
+    return room.routine < room.slots && room.hoursLeft;
 }
 
 /**
@@ -469,7 +523,9 @@ export async function fillSlots(ctx) {
  */
 function startCommit(state, job) {
     if (job.worktree && existsSync(job.worktree)) return { sha: job.base ?? "" };
-    const pr = job.kind === "pr" ? job.pr : job.kind === "review" ? job.facts?.pr : null;
+    let pr = null;
+    if (job.kind === "pr") pr = job.pr;
+    else if (job.kind === "review") pr = job.facts?.pr;
     if (pr) {
         const rec = state.prs?.[String(pr)];
         if (!rec?.headSha) return null;
@@ -559,34 +615,11 @@ const wanted = (job) => WORKING.has(job.state) && !job.holder;
  * @returns {Promise<void>} once started or given up
  */
 async function startTask(ctx, job, busy) {
-    const { state, root, stateDir, now } = ctx;
+    const { state, stateDir, now } = ctx;
     const signing = ctx.platform.signingEnv();
     const path = ctx.platform.loginPath();
     const code = codeEnv({ env: ctx.env, path, signing });
-    if (!(job.worktree && existsSync(job.worktree))) {
-        const at = /** @type {{sha: string, ref?: string, branch?: string}} */ (startCommit(state, job));
-        const prep = await ctx.platform.prepare({
-            root,
-            job: job.id,
-            ...at,
-            env: code,
-            prepared: job.worktree ?? null,
-            ledger: ctx.ledger,
-        });
-        // Recorded even when the job left meanwhile, so tidyEndedJobs or its next preparation owns it.
-        if (prep.verdict === "ready") Object.assign(job, { worktree: prep.dir, base: prep.sha });
-        if (!wanted(job)) return;
-        if (prep.verdict === "held") {
-            const names = prep.holders.map((h) => h.dir).join(", ");
-            if (job.state === "starting") board.move(job, "queued", now(), { reason: `branch held by ${names}` });
-            return;
-        }
-        if (prep.verdict === "faulted") {
-            const result = board.fault(job, `${prep.step}: ${prep.reason}`, now(), { counted: !busy });
-            void ctx.ledger({ kind: "job-faulted", ...result, reason: prep.reason });
-            return;
-        }
-    }
+    if (!(job.worktree && existsSync(job.worktree)) && !(await prepareWorktree(ctx, job, busy, code))) return;
     const jobDir = join(stateDir, "jobs", job.id);
     writeJobFiles(jobDir, {
         stateDir,
@@ -603,6 +636,41 @@ async function startTask(ctx, job, busy) {
         return;
     }
     await serially(state, isUrgent(job), () => openSession(ctx, job, { jobDir, path, signing }));
+}
+
+/**
+ * Prepares a job's worktree at its start commit.
+ * @param {StartContext} ctx the context
+ * @param {any} job the job
+ * @param {boolean} busy whether the machine was over its limits
+ * @param {Record<string, string>} code the environment code runs with
+ * @returns {Promise<boolean>} whether the start goes on
+ */
+async function prepareWorktree(ctx, job, busy, code) {
+    const { state, root, now } = ctx;
+    const at = /** @type {{sha: string, ref?: string, branch?: string}} */ (startCommit(state, job));
+    const prep = await ctx.platform.prepare({
+        root,
+        job: job.id,
+        ...at,
+        env: code,
+        prepared: job.worktree ?? null,
+        ledger: ctx.ledger,
+    });
+    // Recorded even when the job left meanwhile, so tidyEndedJobs or its next preparation owns it.
+    if (prep.verdict === "ready") Object.assign(job, { worktree: prep.dir, base: prep.sha });
+    if (!wanted(job)) return false;
+    if (prep.verdict === "held") {
+        const names = prep.holders.map((h) => h.dir).join(", ");
+        if (job.state === "starting") board.move(job, "queued", now(), { reason: `branch held by ${names}` });
+        return false;
+    }
+    if (prep.verdict === "faulted") {
+        const result = board.fault(job, `${prep.step}: ${prep.reason}`, now(), { counted: !busy });
+        void ctx.ledger({ kind: "job-faulted", ...result, reason: prep.reason });
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -688,6 +756,20 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
         startFailed(state, job, now(), `session start failed: ${error}`);
         return;
     }
+    settleStart(ctx, job, nonce, started, resume);
+}
+
+/**
+ * Takes the window a start opened, or retires it when the job left meanwhile or the session runs a
+ * model outside the allowed ones.
+ * @param {StartContext} ctx the context
+ * @param {any} job the job
+ * @param {string} nonce this start's nonce
+ * @param {any} started what `startWorker` answered
+ * @param {string | null} resume the session resumed, or null
+ */
+function settleStart(ctx, job, nonce, started, resume) {
+    const { state, now } = ctx;
     const left = job.holder?.nonce !== nonce;
     // SessionStart reported a model outside the allowed ones before the window was known (hook.mjs).
     const wrong = left ? null : job.holder.wrongModel;
@@ -706,22 +788,33 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
     }
     if (left) return;
     if (started.ok && !wrong) {
-        const w = started.window;
-        const session = job.holder.session ?? started.registry?.sessionId ?? null;
-        Object.assign(job.holder, { ...w, startTime: started.startTime, session });
-        if (session && !job.sessions.includes(session)) job.sessions.push(session);
-        job.fresh = false;
-        state.startFailures = 0;
-        if (job.state === "starting") {
-            board.startPhase(job, "first-call", now());
-            job.phase = "first-call";
-        }
-        void ctx.ledger({ kind: "session-started", job: job.id, session, window: w.window, resume: Boolean(resume) });
+        adoptSession(ctx, job, started, resume);
         return;
     }
     const capture = "capture" in started ? started.capture : null;
     void ctx.ledger({ kind: "session-start-failed", job: job.id, capture, model: wrong ?? null });
     startFailed(state, job, now(), wrong ? `the session ran ${wrong}, not an allowed model` : "session start failed");
+}
+
+/**
+ * Records the window and session a start opened as the job's.
+ * @param {StartContext} ctx the context
+ * @param {any} job the job
+ * @param {any} started what `startWorker` answered
+ * @param {string | null} resume the session resumed, or null
+ */
+function adoptSession(ctx, job, started, resume) {
+    const w = started.window;
+    const session = job.holder.session ?? started.registry?.sessionId ?? null;
+    Object.assign(job.holder, { ...w, startTime: started.startTime, session });
+    if (session && !job.sessions.includes(session)) job.sessions.push(session);
+    job.fresh = false;
+    ctx.state.startFailures = 0;
+    if (job.state === "starting") {
+        board.startPhase(job, "first-call", ctx.now());
+        job.phase = "first-call";
+    }
+    void ctx.ledger({ kind: "session-started", job: job.id, session, window: w.window, resume: Boolean(resume) });
 }
 
 /**
@@ -745,7 +838,7 @@ export async function tidyEndedJobs(ctx) {
             // A session still being ended may run in it (design 7.8: end it first, then remove).
             !(state.retiring ?? []).some((/** @type {any} */ r) => r.job === j.id) &&
             // A removal that failed is tried again an hour later, not on every pass.
-            !(t - Date.parse(j.tidyAt ?? "") < HOUR) &&
+            !(t - Date.parse(j.tidyAt ?? "") < HOUR) && // NOSONAR(S1940): a NaN age (never tried) must count as due
             (j.state === "cancelled" || (j.state === "done" && !state.prs?.[String(j.pr ?? j.report?.pr)])),
     );
     if (!ended.length) return [];

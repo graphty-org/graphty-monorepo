@@ -300,12 +300,10 @@ export function recordOwner(state, args, { session, worker, now, via = "session"
     else throw new Error(`kind is order, policy or answer, not ${args.kind}`);
     if (said) {
         out.entry.said = said;
-        const kept =
-            args.kind === "order"
-                ? state.orders.at(-1)
-                : args.kind === "policy"
-                  ? state.policies.at(-1)
-                  : state.ownerItems[/** @type {string} */ (args.item)];
+        let kept;
+        if (args.kind === "order") kept = state.orders.at(-1);
+        else if (args.kind === "policy") kept = state.policies.at(-1);
+        else kept = state.ownerItems[/** @type {string} */ (args.item)];
         kept.said = said;
     }
     notePresence(state, via === "cli" ? "cli" : "session", at);
@@ -429,28 +427,7 @@ export function controlCommand(state, cmd, now) {
         return { status: 200, text, entry: entry({}) };
     }
     if (cmd.op === "workers") return workersCommand(state, settings, cmd, now, entry);
-    if (cmd.op === "keep") {
-        const job = jobOfWindow(state, String(cmd.window ?? ""));
-        if (!job) return { status: 404, text: `no worker window ${cmd.window}` };
-        const window = job.holder.name ?? job.holder.window;
-        if (cmd.withJob) {
-            job.holder = { session: job.holder.session ?? null, window: job.holder.window, startedBy: "owner" };
-            job.kept = true;
-            return {
-                status: 200,
-                text: `${window} and job ${job.id} are yours; githerd release ${job.id} gives the job back`,
-                entry: entry({ job: job.id, withJob: true }),
-            };
-        }
-        state.kept = [...(state.kept ?? []), { job: job.id, window: job.holder.window, at: now.toISOString() }];
-        job.holder = null;
-        job.fresh = true;
-        return {
-            status: 200,
-            text: `${window} is yours; job ${job.id} continues in a new window`,
-            entry: entry({ job: job.id }),
-        };
-    }
+    if (cmd.op === "keep") return keepCommand(state, cmd, now, entry);
     if (cmd.op === "release") {
         const job = state.jobs?.[String(cmd.job ?? "")];
         if (!job) return { status: 404, text: `no job ${cmd.job}` };
@@ -465,6 +442,37 @@ export function controlCommand(state, cmd, now) {
         return { status: 200, text: `released ${job.id}; githerd continues it`, entry: entry({ job: job.id }) };
     }
     return { status: 400, text: `op must be one of ${[...CONTROL_OPS].join(", ")}` };
+}
+
+/**
+ * `keep <window> [--with-job]`.
+ * @param {any} state the daemon state, mutated
+ * @param {any} cmd the command
+ * @param {Date} now the current time
+ * @param {(fields: Record<string, unknown>) => LedgerEntry} entry makes the ledger entry
+ * @returns {{status: number, text: string, entry?: LedgerEntry}} the answer
+ */
+function keepCommand(state, cmd, now, entry) {
+    const job = jobOfWindow(state, String(cmd.window ?? ""));
+    if (!job) return { status: 404, text: `no worker window ${cmd.window}` };
+    const window = job.holder.name ?? job.holder.window;
+    if (cmd.withJob) {
+        job.holder = { session: job.holder.session ?? null, window: job.holder.window, startedBy: "owner" };
+        job.kept = true;
+        return {
+            status: 200,
+            text: `${window} and job ${job.id} are yours; githerd release ${job.id} gives the job back`,
+            entry: entry({ job: job.id, withJob: true }),
+        };
+    }
+    state.kept = [...(state.kept ?? []), { job: job.id, window: job.holder.window, at: now.toISOString() }];
+    job.holder = null;
+    job.fresh = true;
+    return {
+        status: 200,
+        text: `${window} is yours; job ${job.id} continues in a new window`,
+        entry: entry({ job: job.id }),
+    };
 }
 
 /**

@@ -489,19 +489,29 @@ async function cmdRecord(c) {
 }
 
 /**
+ * The `POST /owner` body of a worker control command, or null when its argument is missing.
+ * @param {Command} c the command
+ * @returns {Record<string, unknown> | null} the body
+ */
+function controlCommand(c) {
+    const [arg] = c.positional;
+    if (c.name === "workers") {
+        if (c.flags.stop) return { op: "workers", stop: true };
+        return arg ? { op: "workers", slots: Number(arg) } : null;
+    }
+    if (c.name === "keep") return arg ? { op: "keep", window: arg, withJob: Boolean(c.flags["with-job"]) } : null;
+    if (c.name === "release") return arg ? { op: "release", job: arg } : null;
+    return { op: c.name };
+}
+
+/**
  * `pause`, `resume`, `workers <n>|--stop`, `keep <window> [--with-job]` and `release <job>`: the
  * owner's control of the workers (design 7.6), as `POST /owner` takes them.
  * @param {Command} c the command
  * @returns {Promise<number>} the exit code
  */
 async function cmdControl(c) {
-    const [arg] = c.positional;
-    /** @type {Record<string, unknown> | null} */
-    let cmd = { op: c.name };
-    if (c.name === "workers")
-        cmd = c.flags.stop ? { op: "workers", stop: true } : arg ? { op: "workers", slots: Number(arg) } : null;
-    else if (c.name === "keep") cmd = arg ? { op: "keep", window: arg, withJob: Boolean(c.flags["with-job"]) } : null;
-    else if (c.name === "release") cmd = arg ? { op: "release", job: arg } : null;
+    const cmd = controlCommand(c);
     if (!cmd) {
         c.err(
             `usage: ${USAGE.split("\n")

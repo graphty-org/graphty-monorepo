@@ -396,6 +396,23 @@ function voidHolders(state, restarted) {
 }
 
 /**
+ * What a restart settles before anything else: a failed reference worktree setup is tried again
+ * (a restart is how the owner asks for that), and a start this process did not finish (its
+ * preparation or its window, before the registry answered) is githerd's own loss, not the job's:
+ * the job goes back to the queue.
+ * @param {any} state the daemon state
+ * @param {Date} at the start time
+ */
+function requeueLostStarts(state, at) {
+    if (state.reference) delete state.reference.failedSha;
+    for (const job of Object.values(state.jobs ?? {})) {
+        if (job.state === "starting" && !job.holder?.pane) {
+            board.move(job, "queued", at, { reason: "githerd restarted during the start" });
+        }
+    }
+}
+
+/**
  * Starts the daemon.
  * @param {object} options what it runs on
  * @param {string} options.root the repository's main checkout
@@ -519,20 +536,12 @@ export async function startDaemon({
     state.schedule ??= {};
     // Resolved again by the first poll; a login saved by an earlier process is not trusted.
     state.trust = { login: null, resolvedAt: null, error: null, hidden: state.trust?.hidden ?? {} };
-    // A restart is how the owner asks for a failed reference worktree setup to be tried again.
-    if (state.reference) delete state.reference.failedSha;
     if (containerRestarted)
         say("info", `the container restarted (PID 1 start time ${previous.alive.pid1Start} -> ${pid1Start})`);
     // After a container restart every recorded pid and pane is void (design 3.5, 9.2): a worker's
     // session did not die of anything the job did, so no death is counted; the job continues.
     const voided = voidHolders(state, containerRestarted);
-    // A start this process did not finish (its preparation or its window, before the registry
-    // answered) is githerd's own loss, not the job's: the job goes back to the queue.
-    for (const job of Object.values(state.jobs ?? {})) {
-        if (job.state === "starting" && !job.holder?.pane) {
-            board.move(job, "queued", startedAtDate, { reason: "githerd restarted during the start" });
-        }
-    }
+    requeueLostStarts(state, startedAtDate);
 
     let fenced = false;
     /** set once halt releases the lock: work that ends later must not write the state */
@@ -1427,20 +1436,7 @@ export async function startDaemon({
         }
         for (const job of Object.values(state.jobs ?? {})) {
             const rec = job.pr && job.kind !== "pr" && job.kind !== "review" ? state.prs?.[String(job.pr)] : null;
-            if (!rec || rec.patchFor === rec.headSha) continue;
-            const fetched = await runGit(["fetch", "-q", "--no-tags", "origin", `refs/pull/${job.pr}/head`]);
-            try {
-                if (fetched.code !== 0) throw new Error(fetched.stderr.trim() || `git fetch exited ${fetched.code}`);
-                rec.patchId = patchId(root, `origin/${branch}`, rec.headSha);
-                rec.patchFor = rec.headSha;
-            } catch (err) {
-                void ledger({
-                    kind: "error",
-                    where: "patch-id",
-                    pr: job.pr,
-                    error: /** @type {Error} */ (err).message,
-                });
-            }
+            if (rec && rec.patchFor !== rec.headSha) await readPatchId(job, rec, branch);
         }
         // An issue edited since its worker last read it: the worker reads it again (line 8).
         for (const job of Object.values(state.jobs ?? {})) {
@@ -1452,6 +1448,28 @@ export async function startDaemon({
                 at: t.toISOString(),
                 text: `issue ${job.target} changed; read it again with githerd_read`,
                 acked: false,
+            });
+        }
+    }
+
+    /**
+     * Fetches the new head of a job's pull request and records its patch id.
+     * @param {any} job the job
+     * @param {any} rec the pull request's record
+     * @param {string} branch the default branch
+     */
+    async function readPatchId(job, rec, branch) {
+        const fetched = await runGit(["fetch", "-q", "--no-tags", "origin", `refs/pull/${job.pr}/head`]);
+        try {
+            if (fetched.code !== 0) throw new Error(fetched.stderr.trim() || `git fetch exited ${fetched.code}`);
+            rec.patchId = patchId(root, `origin/${branch}`, rec.headSha);
+            rec.patchFor = rec.headSha;
+        } catch (err) {
+            void ledger({
+                kind: "error",
+                where: "patch-id",
+                pr: job.pr,
+                error: /** @type {Error} */ (err).message,
             });
         }
     }
@@ -1697,7 +1715,7 @@ export async function startDaemon({
         const green = commits.find((c) => c.sha === m.greenSha);
         // Not among the recent commits: more merges than the commit list holds went on past it.
         const at = Date.parse(green?.commit?.committer?.date ?? "");
-        if (green && !(now().getTime() - at >= STARVATION_MS)) return null;
+        if (green && !(now().getTime() - at >= STARVATION_MS)) return null; // NOSONAR(S1940): a NaN age must not count as starved
         const lanes = Object.entries(m.lanes).filter(([name]) => gatingLane(name));
         const stuck = lanes.some(([, l]) => l.notProgressing || (l.verdict === "red" && !codeRed(l)));
         if (stuck) return null;
@@ -1720,7 +1738,7 @@ export async function startDaemon({
         const sha = state.master.greenSha;
         // Only what acts reads its answers: the posted merge statuses and the workers' incidents.
         const acting = writeMode("statuses") === "acting" || writeMode("workers") === "acting";
-        if (refWork || !sha || !config || env.GITHERD_DEV || !workersOn || !acting) return;
+        if (refWork !== null || !sha || !config || env.GITHERD_DEV || !workersOn || !acting) return;
         const heads = state.mergeGate?.heads ?? {};
         const dryRuns = Object.entries(heads).filter(
             ([, h]) => h.files && h.releaseFor !== h.sha && touches(h.files, RELEASE_INPUTS),
@@ -1741,8 +1759,8 @@ export async function startDaemon({
                 const d = await referenceDryRun({ ...opts, merge: { sha: head, ref: `refs/pull/${n}/head` } });
                 if (h.sha !== head) continue;
                 h.releaseFor = head;
-                h.releaseBumps =
-                    d.verdict === "conflict" ? [] : d.verdict === "answer" ? bumps(ready.dir, d.bumps) : null;
+                if (d.verdict === "conflict") h.releaseBumps = [];
+                else h.releaseBumps = d.verdict === "answer" ? bumps(ready.dir, d.bumps) : null;
             }
             if (gate) {
                 await referenceGate(opts);
@@ -1980,10 +1998,8 @@ export async function startDaemon({
     const tasks = new Map();
     const platform = { ...realPlatform({ env, stateDir }), ...platformOptions };
     // The development daemon never starts a worker, so the windows on githerd's server are not its.
-    if (workersOn && !env.GITHERD_DEV) {
-        for (const id of retireStrayWindows(state, platform.windows(), now()))
-            void ledger({ kind: "stray-window", job: id });
-    }
+    const strays = workersOn && !env.GITHERD_DEV ? retireStrayWindows(state, platform.windows(), now()) : [];
+    for (const id of strays) void ledger({ kind: "stray-window", job: id });
     /** @type {string} the open owner items' targets as last written to the guards */
     let guardItems = "";
 
@@ -2381,19 +2397,7 @@ export async function startDaemon({
                 entry: { kind: "escalation", key: cmd.key, resolved: true, by: "owner" },
             };
         }
-        if (cmd?.op === "veto") {
-            const target = String(cmd.id);
-            if (!/^(issue|pr):\d+$/.test(target))
-                return { status: 400, text: `veto takes issue:<n> or pr:<n>, not ${target}` };
-            if (state.vetoes?.[target]) return { status: 409, text: `${target} is already vetoed` };
-            const ended = veto(state, target, { by: "owner", reason: "githerd veto", at: now().toISOString() });
-            const what = ended ? `: its ${ended.kind} proposal ended` : "";
-            return {
-                status: 200,
-                text: `vetoed ${target}${what}; githerd will never propose closing it`,
-                entry: { kind: "veto", target, by: "owner" },
-            };
-        }
+        if (cmd?.op === "veto") return ownerVeto(String(cmd.id));
         if (["answer", "order", "policy", "policy-end"].includes(cmd?.op))
             return ownerCommand(state, cmd, now(), worker);
         if (CONTROL_OPS.has(cmd?.op)) {
@@ -2403,6 +2407,24 @@ export async function startDaemon({
         return {
             status: 400,
             text: "op must be ack, veto, answer, order, policy, policy-end, pause, resume, workers, keep or release",
+        };
+    }
+
+    /**
+     * The owner's `veto <issue:N|pr:N>`.
+     * @param {string} target the issue or pull request
+     * @returns {any} the answer
+     */
+    function ownerVeto(target) {
+        if (!/^(issue|pr):\d+$/.test(target))
+            return { status: 400, text: `veto takes issue:<n> or pr:<n>, not ${target}` };
+        if (state.vetoes?.[target]) return { status: 409, text: `${target} is already vetoed` };
+        const ended = veto(state, target, { by: "owner", reason: "githerd veto", at: now().toISOString() });
+        const what = ended ? `: its ${ended.kind} proposal ended` : "";
+        return {
+            status: 200,
+            text: `vetoed ${target}${what}; githerd will never propose closing it`,
+            entry: { kind: "veto", target, by: "owner" },
         };
     }
 

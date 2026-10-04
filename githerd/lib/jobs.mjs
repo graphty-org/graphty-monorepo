@@ -211,28 +211,37 @@ function reviewJobs(state, add, cancel) {
     for (const job of Object.values(state.jobs)) {
         if (job.pr && job.kind !== "review" && job.kind !== "pr") makers.set(String(job.pr), job);
     }
-    for (const [n, maker] of makers) {
-        const patchId = state.prs?.[n]?.patchId;
-        if (!patchId) continue;
-        const id = `review-${n}`;
-        const old = state.jobs[id];
-        if (old?.facts?.patchId === patchId) continue;
-        const spec = {
-            id,
-            kind: "review",
-            target: `#${n} at patch ${patchId.slice(0, 12)}`,
-            reason: `${maker.id} pushed a new patch`,
-            facts: { patchId, pr: Number(n), since: state.prs[n].createdAt ?? null, urgent: maker.kind === "incident" },
-        };
-        if (old?.state === "queued") Object.assign(old, { target: spec.target, facts: spec.facts });
-        else if (!old || TERMINAL.includes(old.state)) {
-            if (old) delete state.jobs[id];
-            add(spec);
-        }
-    }
+    for (const [n, maker] of makers) reviewJob(state, n, maker, add);
     for (const job of Object.values(state.jobs)) {
         if (job.kind === "review" && !state.prs?.[String(job.facts?.pr)])
             cancel(job, `#${job.facts?.pr} closed or merged`);
+    }
+}
+
+/**
+ * The `review` job of one pull request a githerd job made, at its current patch id.
+ * @param {any} state the daemon state
+ * @param {string} n the pull request
+ * @param {any} maker the job that made it
+ * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
+ */
+function reviewJob(state, n, maker, add) {
+    const patchId = state.prs?.[n]?.patchId;
+    if (!patchId) return;
+    const id = `review-${n}`;
+    const old = state.jobs[id];
+    if (old?.facts?.patchId === patchId) return;
+    const spec = {
+        id,
+        kind: "review",
+        target: `#${n} at patch ${patchId.slice(0, 12)}`,
+        reason: `${maker.id} pushed a new patch`,
+        facts: { patchId, pr: Number(n), since: state.prs[n].createdAt ?? null, urgent: maker.kind === "incident" },
+    };
+    if (old?.state === "queued") Object.assign(old, { target: spec.target, facts: spec.facts });
+    else if (!old || TERMINAL.includes(old.state)) {
+        if (old) delete state.jobs[id];
+        add(spec);
     }
 }
 
@@ -253,17 +262,7 @@ function triageJobs(state, config, now, add) {
         .filter(([, i]) => i.state === "open" && byOwner(state, i.author))
         .map(([n, i]) => ({ number: Number(n), title: String(i.text ?? "").split("\n")[0] }))
         .sort((a, b) => a.number - b.number);
-    if (merges - passes.fullAt >= FULL_MERGES) {
-        passes.queue = [{ scope: "full", issues: open.map((i) => i.number).sort((a, b) => a - b) }];
-        passes.fullAt = merges;
-        passes.refreshAt = merges;
-    } else if (merges - passes.refreshAt >= REFRESH_MERGES) {
-        const merged = state.merged?.pending ?? [];
-        const closed = new Set(state.merged?.closed ?? []);
-        if (merged.length && open.some((i) => !closed.has(i.number))) passes.queue.push({ scope: "refresh", merged });
-        state.merged.pending = [];
-        passes.refreshAt = merges;
-    }
+    schedulePasses(state, passes, open, merges);
     const inFlight = Object.values(state.jobs).some((j) => j.kind === "triage" && !TERMINAL.includes(j.state));
     if (inFlight) return;
     const unlabeled = readyIssues(state, config, now).triage;
@@ -284,13 +283,35 @@ function triageJobs(state, config, now, add) {
         if (!batch.length) return;
     }
     passes.seq += 1;
+    const refs = batch.map((n) => `#${n}`).join(" ");
     add({
         id: `triage-${scope}-${passes.seq}`,
         kind: "triage",
-        target: `${batch.length} issues: ${batch.map((n) => `#${n}`).join(" ")}`,
+        target: `${batch.length} issues: ${refs}`,
         reason: scope === "new" ? "unlabeled issues" : `${scope} pass after merges`,
         facts: { scope, batch, since: now.toISOString() },
     });
+}
+
+/**
+ * Queues a full triage pass once enough merges landed since the last one, or else a refresh pass.
+ * @param {any} state the daemon state
+ * @param {any} passes the triage passes' record
+ * @param {{number: number}[]} open the open issues
+ * @param {number} merges the merges counted so far
+ */
+function schedulePasses(state, passes, open, merges) {
+    if (merges - passes.fullAt >= FULL_MERGES) {
+        passes.queue = [{ scope: "full", issues: open.map((i) => i.number).sort((a, b) => a - b) }];
+        passes.fullAt = merges;
+        passes.refreshAt = merges;
+    } else if (merges - passes.refreshAt >= REFRESH_MERGES) {
+        const merged = state.merged?.pending ?? [];
+        const closed = new Set(state.merged?.closed ?? []);
+        if (merged.length && open.some((i) => !closed.has(i.number))) passes.queue.push({ scope: "refresh", merged });
+        state.merged.pending = [];
+        passes.refreshAt = merges;
+    }
 }
 
 /**

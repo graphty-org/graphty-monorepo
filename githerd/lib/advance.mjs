@@ -115,24 +115,8 @@ export function tickJobs(state, now, pauses) {
  */
 export function waitNews(state, job) {
     const w = job.waitingFor ?? {};
-    if (w.checks && !w.verify) {
-        const pr = Object.entries(state.prs ?? {}).find(([n, p]) => p.headSha === w.checks || Number(n) === job.pr);
-        if (!pr) return `the pull request of ${String(w.checks).slice(0, 9)} is no longer open`;
-        const [n, rec] = pr;
-        if (rec.headSha !== w.checks) return `#${n}'s head moved to ${String(rec.headSha).slice(0, 9)}`;
-        const states = Object.entries(rec.required ?? {});
-        if (!states.length || states.some(([, s]) => s === "PENDING" || s === "EXPECTED")) return null;
-        return `checks on ${String(w.checks).slice(0, 9)} finished: ${states.map(([k, s]) => `${k} ${s}`).join(", ")}`;
-    }
-    if (w.lane) {
-        const lanes = state.master?.lanes ?? {};
-        const lane = lanes[w.lane] ?? Object.values(lanes).find((l) => /** @type {any} */ (l).workflowName === w.lane);
-        if (!lane) return `githerd has no lane ${w.lane}`;
-        if (Object.keys(lane.inFlight ?? {}).length) return null;
-        return Date.parse(lane.updatedAt ?? "") > Date.parse(job.stateSince)
-            ? `lane ${w.lane} is ${lane.verdict}`
-            : null;
-    }
+    if (w.checks && !w.verify) return checksNews(state, job, w.checks);
+    if (w.lane) return laneNews(state, job, w.lane);
     if (w.release) {
         const rel = state.master?.lastRelease;
         return rel && Date.parse(rel.at) > Date.parse(job.stateSince)
@@ -145,6 +129,39 @@ export function waitNews(state, job) {
     }
     if (w.github) return state.github?.downSince ? null : "GitHub answers again";
     return null;
+}
+
+/**
+ * The news of a wait on a pull request head's required checks, or null while they run.
+ * @param {any} state the daemon state
+ * @param {any} job the waiting job
+ * @param {string} sha the head the job waits on
+ * @returns {string | null} the news line, or null
+ */
+function checksNews(state, job, sha) {
+    const pr = Object.entries(state.prs ?? {}).find(([n, p]) => p.headSha === sha || Number(n) === job.pr);
+    if (!pr) return `the pull request of ${String(sha).slice(0, 9)} is no longer open`;
+    const [n, rec] = pr;
+    if (rec.headSha !== sha) return `#${n}'s head moved to ${String(rec.headSha).slice(0, 9)}`;
+    const states = Object.entries(rec.required ?? {});
+    if (!states.length || states.some(([, s]) => s === "PENDING" || s === "EXPECTED")) return null;
+    const results = states.map(([k, s]) => `${k} ${s}`).join(", ");
+    return `checks on ${String(sha).slice(0, 9)} finished: ${results}`;
+}
+
+/**
+ * The news of a wait on a master lane, or null while it runs or has not moved.
+ * @param {any} state the daemon state
+ * @param {any} job the waiting job
+ * @param {string} name the lane, or its workflow's name
+ * @returns {string | null} the news line, or null
+ */
+function laneNews(state, job, name) {
+    const lanes = state.master?.lanes ?? {};
+    const lane = lanes[name] ?? Object.values(lanes).find((l) => /** @type {any} */ (l).workflowName === name);
+    if (!lane) return `githerd has no lane ${name}`;
+    if (Object.keys(lane.inFlight ?? {}).length) return null;
+    return Date.parse(lane.updatedAt ?? "") > Date.parse(job.stateSince) ? `lane ${name} is ${lane.verdict}` : null;
 }
 
 /**

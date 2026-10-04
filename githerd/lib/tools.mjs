@@ -16,7 +16,7 @@ const OWNER_KINDS = new Set(["decision", "credential", "visual-review", "approva
 
 /** The proposal states status lists. */
 const OPEN_PROPOSALS = new Set(["pending", "dry-run", "unconfirmed", "confirmed", "commenting", "commented"]);
-const SECTIONS = ["all", "master", "prs", "queue", "sessions", "owner", "proposals", "issues"];
+const SECTIONS = new Set(["all", "master", "prs", "queue", "sessions", "owner", "proposals", "issues"]);
 
 /**
  * One request's view of the daemon.
@@ -159,7 +159,7 @@ function prData(number, pr, owned, full) {
  * @returns {Record<string, any>} the status
  */
 export function statusData(state, ctx, { section = "all", pr } = {}) {
-    if (!SECTIONS.includes(section)) throw new Error(`unknown section: ${section}`);
+    if (!SECTIONS.has(section)) throw new Error(`unknown section: ${section}`);
     const { now, startedAt } = ctx;
     const owned = (/** @type {string | null | undefined} */ who) => board.byOwner(state, who);
     const want = (/** @type {string} */ name) => pr === undefined && (section === "all" || section === name);
@@ -362,9 +362,8 @@ function queueLines({ items, skipped, inFlight, ownerWaiting }) {
     for (const i of items) lines.push(`  ${i.job} -- ${i.reason}`);
     for (const i of skipped) lines.push(`  ${i.job} -- skipped: ${i.reason}`);
     if (inFlight.length) {
-        lines.push(
-            `IN FLIGHT${countedList(inFlight.map((j) => `${j.job} ${j.state}${j.reason ? ` (${j.reason})` : ""}`))}`,
-        );
+        const jobs = inFlight.map((j) => (j.reason ? `${j.job} ${j.state} (${j.reason})` : `${j.job} ${j.state}`));
+        lines.push(`IN FLIGHT${countedList(jobs)}`);
     }
     if (ownerWaiting.length) {
         const list = ownerWaiting.map(

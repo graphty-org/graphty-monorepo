@@ -16,7 +16,7 @@ import { byOwner } from "./board.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
 /** Labels that keep an issue out of the queue, besides every `needs-*` label. */
-const NOT_READY = ["blocked", "research", "in-progress"];
+const NOT_READY = new Set(["blocked", "research", "in-progress"]);
 /** Labels that mark a breaking change, held for the next major. */
 const BREAKING = new Set(["breaking", "breaking-change", "breaking-hold"]);
 /** The owner's override labels. */
@@ -207,7 +207,7 @@ export function readyIssues(state, config, now) {
  */
 function issueReady(state, issue, labels) {
     if (issue.state !== "open" || !byOwner(state, issue.author) || ownerLabel(issue, SKIP)) return false;
-    return !labels.some((l) => NOT_READY.includes(l) || l.startsWith("needs-") || BREAKING.has(l));
+    return !labels.some((l) => NOT_READY.has(l) || l.startsWith("needs-") || BREAKING.has(l));
 }
 
 // ---------------------------------------------------------------------------------------------

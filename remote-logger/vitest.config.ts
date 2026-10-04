@@ -14,12 +14,7 @@ export default defineConfig({
             reporter: ["text", "json-summary", "json", "lcov", "html"],
             reportsDirectory: "coverage",
             include: ["src/**/*.ts"],
-            exclude: [
-                "**/*.d.ts",
-                "**/*.test.ts",
-                "**/*.spec.ts",
-                "**/index.ts",
-            ],
+            exclude: ["**/*.d.ts", "**/*.test.ts", "**/*.spec.ts", "**/index.ts"],
             ignoreEmptyLines: true,
             thresholds: {
                 lines: 80,
@@ -54,11 +49,7 @@ export default defineConfig({
                     name: "ui-unit",
                     environment: "happy-dom",
                     include: ["test/ui/**/*.test.ts", "test/bundle/**/*.test.ts"],
-                    exclude: [
-                        "**/node_modules/**",
-                        "**/dist/**",
-                        "**/*.browser.test.ts",
-                    ],
+                    exclude: ["**/node_modules/**", "**/dist/**", "**/*.browser.test.ts"],
                 },
             },
             // Project 3: browser - Playwright browser tests for actual DOM manipulation

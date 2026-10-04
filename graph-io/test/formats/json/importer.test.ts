@@ -551,12 +551,12 @@ describe("node-link", () => {
         expect(s.edgeCount).toBe(1);
     });
 
-    it("reserves both nodes and edges as errors when a section is missing, but still imports", async () => {
+    it("warns when a section is missing, and still imports", async () => {
         const nodesOnly = await load('{"nodes":[{"id":1},{"id":2}]}');
         expect(nodesOnly.s.nodeCount).toBe(2);
         expect(codes(nodesOnly.report)).toEqual([JSON_ISSUE.MISSING_SECTION]);
         expect(nodesOnly.report.issues[0]?.category).toBe("missing-value");
-        expect(nodesOnly.report.issues[0]?.severity).toBe("error");
+        expect(nodesOnly.report.issues[0]?.severity).toBe("warning");
         const edgesOnly = await load('{"edges":[{"source":1,"target":2}]}');
         expect(edgesOnly.s.nodeCount).toBe(2);
         expect(edgesOnly.s.edgeCount).toBe(1);

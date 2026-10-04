@@ -17,7 +17,15 @@ import {
 } from "@graphty/graph-format";
 
 import { CellBudgetBuilder, maxEmptyCellsOption } from "./common/cell-budget.js";
-import { EDGES_MERGED_CODE, FETCH_CODE, SELF_LOOPS_DROPPED_CODE } from "./common/codes.js";
+import {
+    EDGES_MERGED_CODE,
+    EMPTY_INPUT_CODE,
+    FETCH_CODE,
+    OPTION_IGNORED_CODE,
+    SELF_LOOPS_DROPPED_CODE,
+    UNKNOWN_OPTION_CODE,
+    WEIGHT_NOT_FOUND_CODE,
+} from "./common/codes.js";
 import { abortable, foreignKind, lockReader, normalizeInput, throwIfAborted } from "./common/input.js";
 import { chooseGraph, resolveImportOptions } from "./common/options.js";
 import { agree, plural } from "./common/plural.js";
@@ -121,8 +129,8 @@ export interface ImportGraphOptions extends CommonImportOptions, GraphChoiceOpti
      */
     readonly freeze?: FreezeOptions | undefined;
     /**
-     * The most attribute slots that hold no value the import may allocate before it stops with
-     * E_TOO_MANY_EMPTY_CELLS. Every attribute is a column with one slot per node (or edge), so a file
+     * The most attribute slots that hold no value the import may allocate before it stops with an
+     * ImportError whose `issue.code` is E_TOO_MANY_EMPTY_CELLS. Every attribute is a column with one slot per node (or edge), so a file
      * whose nodes each have a differently named attribute would otherwise need nodes x attributes
      * memory. Infinity turns the check off. Files whose elements mostly share their attributes are
      * never stopped.
@@ -161,7 +169,7 @@ export interface ImportGraphResult {
      * What the last step of the import did to the graph: `mergedEdges` (parallel edges merged by
      * `duplicateEdges`), `droppedSelfLoops` (removed by `selfLoops: "drop"`), and `timings` when you
      * passed `freeze: { profile: true }`. Both counts are also reported as warnings, so most callers
-     * can ignore it.
+     * can ignore it. It is not enumerable, so `console.log(result)` and `{ ...result }` leave it out.
      */
     readonly freeze: FreezeReport;
 }
@@ -234,6 +242,39 @@ export interface ExportGraphOptions extends CommonExportOptions {
     /** Format-specific options, passed to the exporter as they are. */
     readonly [formatOption: string]: unknown;
 }
+
+/**
+ * The options the load and save functions take themselves: the common import and export options and the functions'
+ * own. With the formats' own `options` lists, these are the names a load or a save knows.
+ */
+const FUNCTION_OPTIONS: ReadonlySet<string> = new Set([
+    "addMissingNodes",
+    "builder",
+    "defaultDirected",
+    "duplicateEdges",
+    "encoding",
+    "errorLimit",
+    "filename",
+    "format",
+    "freeze",
+    "graphIndex",
+    "graphName",
+    "hyperedges",
+    "ids",
+    "long",
+    "maxEmptyCells",
+    "mimeType",
+    "nodeIdFrom",
+    "onMixedDirection",
+    "onProgress",
+    "request",
+    "restoreMangledIds",
+    "sanitizeIds",
+    "selfLoops",
+    "signal",
+    "weightDtype",
+    "weightFrom",
+]);
 
 /** The keys of ImportGraphOptions that belong to the registry, never to an importer. */
 const REGISTRY_KEYS: ReadonlySet<string> = new Set([
@@ -374,9 +415,24 @@ export class FormatRegistry {
      * @param options - the format, hints, common and format-specific import options
      * @returns the graph (`snapshot`), the format it was read as, and the import report
      */
-    async importGraph(input: ImportInput, options: ImportGraphOptions | CommonImportOptions = {}): Promise<ImportGraphResult> {
+    async importGraph(
+        input: ImportInput,
+        options: ImportGraphOptions | CommonImportOptions = {},
+    ): Promise<ImportGraphResult> {
         const opts = options as ImportGraphOptions;
-        const chosen = await this.choose(input, opts);
+        const picked = await this.choose(input, opts);
+        const unknown = this.unknownOptions(opts).map(
+            (name): ImportIssue =>
+                Object.freeze({
+                    category: "unsupported",
+                    severity: "warning",
+                    code: UNKNOWN_OPTION_CODE,
+                    message: unknownOptionText(name),
+                    line: null,
+                    element: name,
+                }),
+        );
+        const chosen = unknown.length === 0 ? picked : { ...picked, warnings: [...picked.warnings, ...unknown] };
         const { importer } = chosen;
         if (
             (opts.graphIndex !== undefined || opts.graphName !== undefined) &&
@@ -408,7 +464,10 @@ export class FormatRegistry {
      * @param options - import options, plus `request` for fetch
      * @returns the graph, the format it was read as, and the import report
      */
-    async loadFromUrl(url: string | URL, options: LoadFromUrlOptions | CommonImportOptions = {}): Promise<ImportGraphResult> {
+    async loadFromUrl(
+        url: string | URL,
+        options: LoadFromUrlOptions | CommonImportOptions = {},
+    ): Promise<ImportGraphResult> {
         const opts = options as LoadFromUrlOptions;
         const { request, ...rest } = opts;
         const signal = request?.signal ?? rest.signal ?? null;
@@ -459,7 +518,10 @@ export class FormatRegistry {
      * @param options - the format, hints, common and format-specific import options
      * @returns one result per graph, in document order
      */
-    async importAllGraphs(input: ImportInput, options: ImportGraphOptions | CommonImportOptions = {}): Promise<ImportGraphResult[]> {
+    async importAllGraphs(
+        input: ImportInput,
+        options: ImportGraphOptions | CommonImportOptions = {},
+    ): Promise<ImportGraphResult[]> {
         const opts = options as ImportGraphOptions;
         return this.readAll(await this.choose(input, opts), opts);
     }
@@ -491,7 +553,10 @@ export class FormatRegistry {
             }
         } catch (err) {
             await chosen.peeked?.close();
-            throw inGraph(chosen.sniff === null ? notReadableAs(err, importer.format, options.filename) : err, builders.length - 1);
+            throw inGraph(
+                chosen.sniff === null ? notReadableAs(err, importer.format, options.filename) : err,
+                builders.length - 1,
+            );
         }
         return reports.map((report, i) => {
             try {
@@ -511,7 +576,10 @@ export class FormatRegistry {
      * @returns one listing per graph, in document order; null when the format's importer does not
      * list its graphs (importGraph() then reads the first)
      */
-    async listGraphs(input: ImportInput, options: ImportGraphOptions | CommonImportOptions = {}): Promise<readonly GraphListing[] | null> {
+    async listGraphs(
+        input: ImportInput,
+        options: ImportGraphOptions | CommonImportOptions = {},
+    ): Promise<readonly GraphListing[] | null> {
         const opts = options as ImportGraphOptions;
         const chosen = await this.choose(input, opts);
         try {
@@ -572,6 +640,14 @@ export class FormatRegistry {
         const claimed = sniff !== null && sniff.content > 0 && !(foreign?.startsWith("an HTML") ?? false);
         if (sniff === null || (foreign !== null && !claimed)) {
             await peeked.close();
+            const text = typeof head === "string" ? head : new TextDecoder().decode(head ?? new Uint8Array(0));
+            if (text.trim() === "" && text.length < SNIFF_HEAD_BYTES) {
+                // nothing to detect: say the input is empty, as a named format would
+                return failures.fail(
+                    EMPTY_INPUT_CODE,
+                    text === "" ? "the input is empty" : "the input holds only whitespace",
+                );
+            }
             const what = foreign === null ? "" : `: it is ${foreign}`;
             return failures.fail(
                 UNKNOWN_FORMAT_CODE,
@@ -590,7 +666,11 @@ export class FormatRegistry {
      * @param options - the exporter's common and format-specific options
      * @returns the encoded chunks
      */
-    exportGraph(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions | CommonExportOptions): AsyncIterable<Uint8Array> {
+    exportGraph(
+        snapshot: GraphSnapshot,
+        format: FormatName,
+        options?: ExportGraphOptions | CommonExportOptions,
+    ): AsyncIterable<Uint8Array> {
         return this.exporter(format).export(snapshot, options);
     }
 
@@ -617,7 +697,11 @@ export class FormatRegistry {
      * @param options - sanitizeIds, onMixedDirection and the format's own options
      * @returns the encoded file
      */
-    exportGraphToBytes(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions | CommonExportOptions): Promise<Uint8Array> {
+    exportGraphToBytes(
+        snapshot: GraphSnapshot,
+        format: FormatName,
+        options?: ExportGraphOptions | CommonExportOptions,
+    ): Promise<Uint8Array> {
         return collectBytes(this.exportGraph(snapshot, format, options));
     }
 
@@ -629,7 +713,11 @@ export class FormatRegistry {
      * @param options - sanitizeIds, onMixedDirection and the format's own options
      * @returns the file as a Blob
      */
-    async exportGraphToBlob(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions | CommonExportOptions): Promise<Blob> {
+    async exportGraphToBlob(
+        snapshot: GraphSnapshot,
+        format: FormatName,
+        options?: ExportGraphOptions | CommonExportOptions,
+    ): Promise<Blob> {
         const parts: Uint8Array[] = [];
         for await (const chunk of this.exportGraph(snapshot, format, options)) {
             parts.push(chunk);
@@ -645,8 +733,51 @@ export class FormatRegistry {
      * @param options - the exporter's common and format-specific options
      * @returns the loss notes, empty when the export is exact
      */
-    checkExport(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions | CommonExportOptions): readonly LossNote[] {
-        return this.exporter(format).check(snapshot, options);
+    checkExport(
+        snapshot: GraphSnapshot,
+        format: FormatName,
+        options?: ExportGraphOptions | CommonExportOptions,
+    ): readonly LossNote[] {
+        const notes = this.exporter(format).check(snapshot, options);
+        const unknown = this.unknownOptions(options);
+        if (unknown.length === 0) {
+            return notes;
+        }
+        return Object.freeze([
+            ...notes,
+            ...unknown.map((name) =>
+                Object.freeze({
+                    code: UNKNOWN_OPTION_CODE,
+                    message: unknownOptionText(name),
+                    column: null,
+                    count: null,
+                }),
+            ),
+        ]);
+    }
+
+    /**
+     * The option names no registered format and no load or save function takes (misspellings), or none while a
+     * registered format does not list its options.
+     * @param options - the caller's options
+     * @returns the unknown names
+     */
+    private unknownOptions(options: object | null | undefined): string[] {
+        if (options === null || options === undefined) {
+            return [];
+        }
+        const known = new Set(FUNCTION_OPTIONS);
+        for (const plugin of [...this.importerMap.values(), ...this.exporterMap.values()]) {
+            if (plugin.options === undefined) {
+                return [];
+            }
+            for (const name of plugin.options) {
+                known.add(name);
+            }
+        }
+        return Object.entries(options)
+            .filter(([name, value]) => value !== undefined && !known.has(name))
+            .map(([name]) => name);
     }
 
     /**
@@ -762,7 +893,10 @@ export const registry: FormatRegistry = /* @__PURE__ */ createRegistry();
  * @throws the signal's reason when `signal` aborts
  * @category Loading
  */
-export function importGraph(input: ImportInput, options?: ImportGraphOptions | CommonImportOptions): Promise<ImportGraphResult> {
+export function importGraph(
+    input: ImportInput,
+    options?: ImportGraphOptions | CommonImportOptions,
+): Promise<ImportGraphResult> {
     return registry.importGraph(input, options);
 }
 
@@ -775,7 +909,10 @@ export function importGraph(input: ImportInput, options?: ImportGraphOptions | C
  * @returns one result per graph, in file order
  * @category Loading
  */
-export function importAllGraphs(input: ImportInput, options?: ImportGraphOptions | CommonImportOptions): Promise<ImportGraphResult[]> {
+export function importAllGraphs(
+    input: ImportInput,
+    options?: ImportGraphOptions | CommonImportOptions,
+): Promise<ImportGraphResult[]> {
     return registry.importAllGraphs(input, options);
 }
 
@@ -791,7 +928,10 @@ export function importAllGraphs(input: ImportInput, options?: ImportGraphOptions
  * @returns one listing per graph, in file order; null when the format cannot list its graphs
  * @category Loading
  */
-export function listGraphs(input: ImportInput, options?: ImportGraphOptions | CommonImportOptions): Promise<readonly GraphListing[] | null> {
+export function listGraphs(
+    input: ImportInput,
+    options?: ImportGraphOptions | CommonImportOptions,
+): Promise<readonly GraphListing[] | null> {
     return registry.listGraphs(input, options);
 }
 
@@ -890,7 +1030,10 @@ export function checkExport(
  * ```
  * @category Loading
  */
-export function loadFromUrl(url: string | URL, options?: LoadFromUrlOptions | CommonImportOptions): Promise<ImportGraphResult> {
+export function loadFromUrl(
+    url: string | URL,
+    options?: LoadFromUrlOptions | CommonImportOptions,
+): Promise<ImportGraphResult> {
     return registry.loadFromUrl(url, options);
 }
 
@@ -918,7 +1061,10 @@ export function loadFromUrl(url: string | URL, options?: LoadFromUrlOptions | Co
  * ```
  * @category Loading
  */
-export function loadFromFile(file: Blob, options?: ImportGraphOptions | CommonImportOptions): Promise<ImportGraphResult> {
+export function loadFromFile(
+    file: Blob,
+    options?: ImportGraphOptions | CommonImportOptions,
+): Promise<ImportGraphResult> {
     return registry.loadFromFile(file, options);
 }
 
@@ -1243,21 +1389,69 @@ function result(
         throw freezeFailure(err, report);
     }
     const { warnings } = chosen;
-    return Object.freeze({
+    const result = {
         format: chosen.importer.format,
         sniff: chosen.sniff,
         snapshot: frozen.snapshot,
         report: withFreezeWarnings(
-            warnings.length === 0
-                ? report
-                : Object.freeze({
-                      ...report,
-                      issues: Object.freeze([...warnings, ...report.issues]),
-                      warningCount: report.warningCount + warnings.length,
-                  }),
+            weightNotFound(
+                warnings.length === 0
+                    ? report
+                    : Object.freeze({
+                          ...report,
+                          issues: Object.freeze([...warnings, ...report.issues]),
+                          warningCount: report.warningCount + warnings.length,
+                      }),
+                frozen.snapshot,
+                options.weightFrom,
+            ),
             frozen.report,
         ),
-        freeze: frozen.report,
+    };
+    // not enumerable: it holds one entry per edge, and console.log(result) should show the graph, not that
+    Object.defineProperty(result, "freeze", { value: frozen.report, enumerable: false });
+    return Object.freeze(result as ImportGraphResult);
+}
+
+/**
+ * The message of a W_UNKNOWN_OPTION warning or note.
+ * @param name - the option name
+ * @returns the message
+ */
+function unknownOptionText(name: string): string {
+    return `option ${JSON.stringify(name)} is not an option of any format or of the load and save functions, so it has no effect; check its spelling`;
+}
+
+/**
+ * The import report with one W_WEIGHT_NOT_FOUND warning when the caller's `weightFrom` named an attribute that gave
+ * no edge a weight, so a name that misses (a shared options object read against GML's `value`) is not silent. A
+ * format that does not read `weightFrom` already reported it as W_OPTION_IGNORED.
+ * @param report - the import's report
+ * @param snapshot - the graph read
+ * @param weightFrom - the caller's option
+ * @returns the report, with the warning added when it applies
+ */
+function weightNotFound(report: ImportReport, snapshot: GraphSnapshot, weightFrom: unknown): ImportReport {
+    if (
+        typeof weightFrom !== "string" ||
+        snapshot.edgeCount === 0 ||
+        snapshot.edgeList().weights !== null ||
+        report.issues.some((i) => i.code === OPTION_IGNORED_CODE && i.element === "weightFrom")
+    ) {
+        return report;
+    }
+    const issue: ImportIssue = Object.freeze({
+        category: "missing-value",
+        severity: "warning",
+        code: WEIGHT_NOT_FOUND_CODE,
+        message: `weightFrom: ${JSON.stringify(weightFrom)} names no attribute an edge has a value for, so the graph has no weights`,
+        line: null,
+        element: "weightFrom",
+    });
+    return Object.freeze({
+        ...report,
+        issues: Object.freeze([...report.issues, issue]),
+        warningCount: report.warningCount + 1,
     });
 }
 

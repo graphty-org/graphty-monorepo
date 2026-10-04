@@ -1423,9 +1423,14 @@ class CxReader {
         this.readVisualProperties();
         this.readProvenance();
         for (const [kind, count] of this.dangling) {
-            report.warning("validation-error", DANGLING_REFERENCE_CODE, `${count} ${kind}${plural(count)} ${agree(count, "names", "name")} nothing; ignored`, {
-                element: kind,
-            });
+            report.warning(
+                "validation-error",
+                DANGLING_REFERENCE_CODE,
+                `${count} ${kind}${plural(count)} ${agree(count, "names", "name")} nothing; ignored`,
+                {
+                    element: kind,
+                },
+            );
         }
         this.setMeta();
     }
@@ -3136,6 +3141,7 @@ async function run(
  */
 export const cxImporter: GraphImporter<CxImportOptions> = Object.freeze({
     format: CX_FORMAT,
+    options: Object.freeze(["zAs"]),
     extensions: Object.freeze([".cx"]),
     mimeTypes: Object.freeze(["application/json"]),
 

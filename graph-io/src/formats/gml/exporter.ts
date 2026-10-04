@@ -58,10 +58,13 @@ export interface GmlExportOptions extends CommonExportOptions {
      */
     weightKey?: string | undefined;
     /**
-     * What to do with an attribute name or record key that GML cannot write (GML keys are
-     * `[A-Za-z][0-9A-Za-z_]*`, and `id`, `source`, `target` and the like are taken): "error" makes
-     * the save fail, "mangle" rewrites it (`.` and other characters become `_`, a clash gets a `_2`
-     * suffix) and checkExport() lists each rename.
+     * What to do with an attribute name or record key that GML cannot write: one that is not a GML
+     * key (letters, digits and `_`, starting with a letter, so `Edge Label` is not one), or one that
+     * GML uses itself in that record: `id` for a node attribute; `source`, `target` and `directed`
+     * for an edge attribute; `node`, `edge`, `directed` and `multigraph` for a graph attribute. A node
+     * attribute named `source` is fine. "error" makes the save fail, "mangle" rewrites the name (`.`
+     * and other characters become `_`, a clash gets a `_2` suffix) and checkExport() lists each
+     * rename. An options object shared by saves to several formats that include GML should set it.
      * @defaultValue "error"
      */
     sanitizeKeys?: "error" | "mangle" | undefined;
@@ -1406,6 +1409,7 @@ function writeGraphics(w: GmlWriter, context: WriteContext, i: number): void {
  */
 export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
     format: "gml",
+    options: Object.freeze(["sanitizeKeys", "weightKey"]),
     capabilities: GML_CAPABILITIES,
     check,
     /**

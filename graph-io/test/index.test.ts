@@ -5,11 +5,18 @@ import * as graphIo from "../src/index.js";
 /** The value exports of the barrel (classes, functions, constants); the types are checked by test/types. */
 const VALUE_EXPORTS = [
     // re-exported from graph-format
+    "GraphBuilder",
+    "defineLineFormat",
+    "forDecodedText",
+    // testing a plugin
+    "compareSnapshots",
+    "describeDiffs",
     "GraphFormatError",
     // io contract (12.4)
     "ImportError",
     // the simple surface
     "downloadGraph",
+    "edgeWeights",
     "exportGraphToBlob",
     "exportGraphToBytes",
     "listFormats",
@@ -167,6 +174,7 @@ const VALUE_EXPORTS = [
     "ASPECT_ORDER_CODE",
     "BAD_ASPECT_BLOCK_CODE",
     "BAD_VALUE_CODE",
+    "BAD_LINE_CODE",
     "COLUMN_DROPPED_CODE",
     "COLUMN_RENAMED_CODE",
     "COLUMN_RENAMED_LOSS_CODE",
@@ -222,6 +230,8 @@ const VALUE_EXPORTS = [
     "SINGLE_OBJECT_ASPECT_CODE",
     "SELF_LOOP_CODE",
     "SELF_LOOPS_DROPPED_CODE",
+    "UNKNOWN_OPTION_CODE",
+    "WEIGHT_NOT_FOUND_CODE",
     "STATUS_FAILED_CODE",
     "STATUS_WARNING_CODE",
     "STORAGE_CLASS_CODE",

@@ -451,6 +451,13 @@ function sniffXgmml(head: Uint8Array): number {
  */
 export const xgmmlImporter: GraphImporter<XgmmlImportOptions> = Object.freeze({
     format: FORMAT,
+    options: Object.freeze([
+        "cytoscapeEscapes",
+        "labelAliases",
+        "pairSurrogateReferences",
+        "repairBareAmpersands",
+        "zAs",
+    ]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
     sniff: sniffXgmml,

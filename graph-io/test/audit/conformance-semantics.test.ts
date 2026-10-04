@@ -185,7 +185,9 @@ describe("design 4.1: id coercion is the importer's, canonical by default for te
 describe("design 8.4: importGraph and the common options", () => {
     it("returns { snapshot, report, freeze } (plus format and sniff), frozen", async () => {
         const result = await importGraph("source,target\n1,2\n", { format: "csv" });
-        expect(Object.keys(result)).toEqual(["format", "sniff", "snapshot", "report", "freeze"]);
+        // freeze is there but not enumerable: it holds one entry per edge
+        expect(Object.keys(result)).toEqual(["format", "sniff", "snapshot", "report"]);
+        expect(result.freeze.mergedEdges).toBe(0);
         expect(Object.isFrozen(result)).toBe(true);
         expect(result.format).toBe("csv");
         expect(result.sniff).toBeNull();

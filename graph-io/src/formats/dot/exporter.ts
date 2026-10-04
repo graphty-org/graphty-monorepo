@@ -94,7 +94,7 @@ export const DOT_LOSS = Object.freeze({
     /** A declared column whose every row is unset is not written (DOT writes cells, never declarations). */
     EMPTY_COLUMN_DROPPED: LOSS.EMPTY_COLUMN,
     /**
-     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
      * reads back with that role.
      */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
@@ -194,6 +194,7 @@ const TEXT_ROLES: ReadonlySet<string> = new Set(["label", "id", "sourcePort", "t
  */
 export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
     format: DOT_FORMAT,
+    options: Object.freeze(["indent", "name", "strict"]),
     capabilities: CAPABILITIES,
 
     /**

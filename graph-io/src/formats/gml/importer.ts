@@ -35,6 +35,7 @@ import {
 } from "@graphty/graph-format";
 
 import { declareResolved, DictHeuristic, uniqueColumnName } from "../../common/attributes.js";
+import { importChosenGraph } from "../../common/choose.js";
 import {
     COLUMN_RENAMED_CODE,
     DUPLICATE_NODE_CODE as SHARED_DUPLICATE_NODE_CODE,
@@ -50,6 +51,7 @@ import { DirectionResolver } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
 import { readText, throwIfAborted } from "../../common/input.js";
 import {
+    graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,
@@ -59,7 +61,13 @@ import {
 import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { parseWeightText, reportWeightPrecision, weightFromValue } from "../../common/weights.js";
-import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
+import {
+    type CommonImportOptions,
+    type GraphChoiceOptions,
+    type GraphImporter,
+    type ImportInput,
+    type ImportReport,
+} from "../../types.js";
 import {
     EMPTY_LIST_TEXT,
     EMPTY_TUPLE_TEXT,
@@ -82,7 +90,7 @@ import {
  * The format-specific options of the GML importer.
  * @category Built-in formats
  */
-export interface GmlImportOptions extends CommonImportOptions {
+export interface GmlImportOptions extends GraphChoiceOptions, CommonImportOptions {
     /**
      * Read a node's `graphics [ x y z ]` record as its position; false keeps the whole record as a
      * JSON attribute named `graphics`.
@@ -1893,6 +1901,7 @@ function sniffGml(head: Uint8Array): number {
  */
 export const gmlImporter: GraphImporter<GmlImportOptions> = Object.freeze({
     format: "gml",
+    options: Object.freeze(["dictionaries", "positions"]),
     extensions: Object.freeze([".gml"]),
     mimeTypes: Object.freeze(["text/x-gml", "text/plain"]),
     sniff: sniffGml,
@@ -1908,6 +1917,10 @@ export const gmlImporter: GraphImporter<GmlImportOptions> = Object.freeze({
         sink: GraphSink,
         options?: GmlImportOptions & CommonImportOptions,
     ): Promise<ImportReport> {
+        if (graphChosen(options)) {
+            // the choice is honored here too, not only by the registry
+            return importChosenGraph(gmlImporter, input, sink, options);
+        }
         const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
         const report = new ImportReportBuilder("gml", resolved.errorLimit);
         reportSinkOptions(sink, options, report);

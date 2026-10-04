@@ -369,7 +369,8 @@ describe("csv robustness: delimiters and dialects", () => {
             const { snapshot, report } = await load(text);
             expect(report.issues, text).toEqual([]);
             expect(edgesOf(snapshot), text).toEqual([edge]);
-            expect(sniff(encoder.encode(text)), text).toBeGreaterThan(0);
+            // one line alone reads as a sentence; two such lines are an edge list
+            expect(sniff(encoder.encode(text + text)), text).toBeGreaterThan(0);
         }
     });
 

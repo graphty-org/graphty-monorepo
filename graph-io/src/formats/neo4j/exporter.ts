@@ -293,10 +293,14 @@ function resolveNeo4jExportOptions(
     const delimiter = o.delimiter ?? ",";
     const syntax = { ...checkRecordSyntax({ delimiter, quote: o.quote ?? '"' }), delimiter };
     if (syntax.delimiter === arrayDelimiter) {
-        throw new GraphFormatError("E_UNSUPPORTED", `options delimiter and arrayDelimiter must differ: both are ${JSON.stringify(arrayDelimiter)}; pass another arrayDelimiter (";", "," or "|")`, {
-            option: "arrayDelimiter",
-            found: arrayDelimiter,
-        });
+        throw new GraphFormatError(
+            "E_UNSUPPORTED",
+            `options delimiter and arrayDelimiter must differ: both are ${JSON.stringify(arrayDelimiter)}; pass another arrayDelimiter (";", "," or "|")`,
+            {
+                option: "arrayDelimiter",
+                found: arrayDelimiter,
+            },
+        );
     }
     const weightColumn = o.weightColumn === undefined ? (readFrom ?? "weight") : o.weightColumn;
     if (weightColumn !== null && (typeof weightColumn !== "string" || weightColumn.length === 0)) {
@@ -987,7 +991,9 @@ class ExportPlan {
         }
         // a part with no rows (a graph without edges) is a header alone, which neo4j-admin does not need
         const written = [...files].filter(([, f], i) => f.rows.length > 0 || (i === 0 && files.size === 1));
-        return written.map(([header, f]) => Object.freeze({ name: f.name, kind: f.kind, text: header + f.rows.join("") }));
+        return written.map(([header, f]) =>
+            Object.freeze({ name: f.name, kind: f.kind, text: header + f.rows.join("") }),
+        );
     }
 
     /**
@@ -1018,7 +1024,10 @@ class ExportPlan {
                 if (propertyHeaders.length > 0) {
                     header.push(propertyHeaders);
                 }
-                yield { line: `${header.join(delimiter)}\n`, file: { kind: "nodes", name: fileName("nodes", space ?? idName, null) } };
+                yield {
+                    line: `${header.join(delimiter)}\n`,
+                    file: { kind: "nodes", name: fileName("nodes", space ?? idName, null) },
+                };
             }
             cells.length = 0;
             cells.push(this.cell(this.idTextOf(i)));
@@ -1391,6 +1400,7 @@ function textOf(column: Column, row: number): string {
  */
 export const neo4jExporter: GraphExporter<Neo4jExportOptions> = Object.freeze({
     format: NEO4J,
+    options: Object.freeze(["arrayDelimiter", "delimiter", "idColumn", "part", "quote", "weightColumn"]),
     capabilities: NEO4J_CAPABILITIES,
     /**
      * Pre-flight: what export() would lose.

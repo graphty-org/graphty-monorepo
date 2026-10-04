@@ -1218,6 +1218,7 @@ function planFor(snapshot: GraphSnapshot, options: (XgmmlExportOptions & CommonE
  */
 export const xgmmlExporter: GraphExporter<XgmmlExportOptions> = Object.freeze({
     format: FORMAT,
+    options: Object.freeze(["cytoscapeEscapes"]),
     capabilities: CAPABILITIES,
     check: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): readonly LossNote[] =>
         Object.freeze(planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes),

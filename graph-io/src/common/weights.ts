@@ -71,7 +71,12 @@ export function parseWeightText(text: string, report?: ImportReportBuilder): num
  * @param report - the import report
  */
 export function reportWeightPrecision(text: string, value: number, report: ImportReportBuilder): void {
-    if (!Number.isSafeInteger(value) && Number.isFinite(value) && /^[+-]?\d+$/.test(text) && BigInt(text) !== BigInt(value)) {
+    if (
+        !Number.isSafeInteger(value) &&
+        Number.isFinite(value) &&
+        /^[+-]?\d+$/.test(text) &&
+        BigInt(text) !== BigInt(value)
+    ) {
         report.warnOnce(
             "precision",
             PRECISION_CODE,
@@ -241,4 +246,36 @@ export function explicitWeights(snapshot: GraphSnapshot): ExplicitWeights {
             return integral && Number.isInteger(value) ? formatInteger(value) : formatF32(value);
         },
     };
+}
+
+/**
+ * The weight of every edge, in edge order (`weights[e]` is edge `e`'s weight), exactly as the file
+ * wrote it, or null for a graph without weights. `snapshot.edgeList().weights` holds the same
+ * weights as 32-bit floats, in which 0.1 reads back as 0.10000000149011612; this reads the exact
+ * values the import also kept. An edge without a weight of its own has the weight 1.
+ * @example
+ * ```ts
+ * const { snapshot } = await importGraph("source,target,weight\na,b,0.1\n", { format: "csv" });
+ * edgeWeights(snapshot); // Float64Array [ 0.1 ]
+ * ```
+ * @param snapshot - the graph
+ * @returns one weight per edge, or null when the graph has no weights
+ * @category Loading
+ */
+export function edgeWeights(snapshot: GraphSnapshot): Float64Array | null {
+    const { weights } = snapshot.edgeList();
+    if (weights === null) {
+        return null;
+    }
+    const out = Float64Array.from(weights);
+    const exact = snapshot.edges.byRole("weight");
+    if (exact !== null) {
+        for (let e = 0; e < out.length; e++) {
+            const v = exact.value(e);
+            if (typeof v === "number") {
+                out[e] = v;
+            }
+        }
+    }
+    return out;
 }

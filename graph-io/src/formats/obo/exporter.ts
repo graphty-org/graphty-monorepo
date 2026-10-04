@@ -145,12 +145,12 @@ export const OBO_LOSS = Object.freeze({
     /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
     /**
-     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
      * reads back with that role.
      */
     ROLE_ASSUMED: ROLE_ASSUMED_CODE,
     /**
-     * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the
+     * An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the
      * name the format's importer gives it.
      */
     COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
@@ -1997,6 +1997,7 @@ function* written(
  */
 export const oboExporter: GraphExporter<OboExportOptions> = Object.freeze({
     format: "obo",
+    options: Object.freeze(["ontology", "relation"]),
     capabilities: OBO_CAPABILITIES,
 
     /**

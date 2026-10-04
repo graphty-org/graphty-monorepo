@@ -127,7 +127,7 @@ const EDGE_ATTRIBUTES: ReadonlySet<string> = new Set([
 export interface GraphmlImportOptions extends CommonImportOptions {
     /**
      * How yEd graphics (keys with a `yfiles.type`) are read. "json" keeps each one as a JSON
-     * attribute named after the key (`d0`, say) that holds its XML as a tree, which the GraphML
+     * attribute named after the key (for example, `d0`) that holds its XML as a tree, which the GraphML
      * exporter writes back, and also reads the shapes it knows into plain columns beside it:
      * `yfiles.position`, `yfiles.width`, `yfiles.height`, `yfiles.color`, `yfiles.borderColor`,
      * `yfiles.borderWidth`, `yfiles.label` and `yfiles.shape` for nodes, and the line color, width
@@ -2693,6 +2693,7 @@ async function importGraphml(
  */
 export const graphmlImporter: GraphImporter<GraphmlImportOptions> = Object.freeze({
     format: FORMAT,
+    options: Object.freeze(["yfiles"]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
     sniff: sniffGraphml,

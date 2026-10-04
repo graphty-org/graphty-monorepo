@@ -42,6 +42,7 @@ import {
 } from "@graphty/graph-format";
 
 import { declareResolved } from "../../common/attributes.js";
+import { importChosenGraph } from "../../common/choose.js";
 import {
     AMBIGUOUS_GRAPH_NAME_CODE,
     COLUMN_RENAMED_CODE,
@@ -71,6 +72,7 @@ import { survivesF32 } from "../../common/format.js";
 import { IdCoercer } from "../../common/ids.js";
 import { canonicalEncoding, readText, throwIfAborted } from "../../common/input.js";
 import {
+    graphChosen,
     reportSinkOptions,
     reportUnusedOptions,
     type ResolvedImportOptions,
@@ -80,7 +82,13 @@ import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { inferTextDtype, parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { parseWeightText } from "../../common/weights.js";
-import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
+import {
+    type CommonImportOptions,
+    type GraphChoiceOptions,
+    type GraphImporter,
+    type ImportInput,
+    type ImportReport,
+} from "../../types.js";
 import {
     CLUSTER_COLUMN,
     DOT_FORMAT,
@@ -99,7 +107,7 @@ import { DotSyntaxError, type DotToken, DotTokenizer } from "./tokenizer.js";
  * The DOT importer's format-specific options.
  * @category Built-in formats
  */
-export interface DotImportOptions extends CommonImportOptions {
+export interface DotImportOptions extends GraphChoiceOptions, CommonImportOptions {
     /**
      * What an edge operator that contradicts the graph keyword means (`--` in a digraph, `->` in a
      * graph; Graphviz refuses such a file): "operator" reads the edge with the operator's
@@ -308,6 +316,7 @@ interface Scope {
  */
 export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
     format: DOT_FORMAT,
+    options: Object.freeze(["mismatchedEdgeOperator", "positions"]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
 
@@ -338,6 +347,10 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         sink: GraphSink,
         options?: DotImportOptions & CommonImportOptions,
     ): Promise<ImportReport> {
+        if (graphChosen(options)) {
+            // the choice is honored here too, not only by the registry
+            return importChosenGraph(dotImporter, input, sink, options);
+        }
         const resolved = resolveImportOptions(options, {
             ids: "canonical",
             defaultDirected: true,

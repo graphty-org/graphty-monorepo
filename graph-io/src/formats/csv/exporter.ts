@@ -31,7 +31,7 @@ import { capabilities, checkCapabilities, countMixedEdges, LOSS } from "../../co
 import { formatDecimal, formatInteger } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { joinListText } from "../../common/lists.js";
-import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { otherFormatDialect, type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype, type TextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
@@ -47,7 +47,8 @@ import { DELIMITER_CANDIDATES } from "./records.js";
 export interface CsvExportOptions extends CommonExportOptions {
     /**
      * The header spelling: "gephi" writes `Source,Target,Type,...,Weight`, with each edge's
-     * direction in `Type`; "generic" writes `source,target,...,weight` and no direction column.
+     * direction in `Type`; "generic" writes `source,target,...,weight` and no direction column. A JSON
+     * dialect name, from an options object shared with JSON saves, is ignored.
      * @defaultValue "gephi"
      */
     dialect?: "gephi" | "generic" | undefined;
@@ -104,7 +105,7 @@ export const CSV_LOSS = Object.freeze({
     /** An attribute column named like a reserved header is not written. */
     RESERVED_NAME: "W_CSV_RESERVED_NAME",
     /**
-     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
      * reads back with that role.
      */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
@@ -141,7 +142,7 @@ export const CSV_LOSS = Object.freeze({
     /**
      * `header: false` with columns a file without a header cannot name: graph-io reads such a file by position
      * (source, target, weight, then columns it names column4, column5, ...), so these columns read back under other
-     * names or in the wrong place (an edge id in the weight's place, say). Write the header, or write only source,
+     * names or in the wrong place (for example, an edge id in the weight's place). Write the header, or write only source,
      * target and weight with `dialect: "generic"`.
      */
     HEADERLESS: "W_CSV_HEADERLESS",
@@ -243,7 +244,12 @@ function resolveCsvExportOptions(
     options: (CsvExportOptions & CommonExportOptions) | undefined,
 ): ResolvedCsvExportOptions {
     const o: CsvExportOptions = options ?? {};
-    if (o.dialect !== undefined && o.dialect !== "gephi" && o.dialect !== "generic") {
+    if (
+        o.dialect !== undefined &&
+        o.dialect !== "gephi" &&
+        o.dialect !== "generic" &&
+        !otherFormatDialect("csv", o.dialect)
+    ) {
         throw new GraphFormatError("E_UNSUPPORTED", 'option dialect: expected "gephi" or "generic"', {
             option: "dialect",
             found: o.dialect,
@@ -288,7 +294,8 @@ function resolveCsvExportOptions(
         });
     }
     return {
-        dialect: DIALECTS[o.dialect ?? "gephi"],
+        // another format's dialect (a JSON "d3" in a shared options object) leaves CSV's default
+        dialect: DIALECTS[o.dialect === "generic" ? "generic" : "gephi"],
         table: o.table ?? "edges",
         delimiter: o.delimiter ?? ",",
         newline: o.newline ?? "\n",
@@ -387,7 +394,11 @@ function nodeTableNote(
 ): void {
     const written = names.length;
     if (written > 0) {
-        const shown = names.slice(0, 3).map((n) => JSON.stringify(n)).join(", ") + (written > 3 ? ", ..." : "");
+        const shown =
+            names
+                .slice(0, 3)
+                .map((n) => JSON.stringify(n))
+                .join(", ") + (written > 3 ? ", ..." : "");
         note(
             CSV_LOSS.NODE_TABLE,
             `the ${table === "adjacency" ? "adjacency" : "edge"} table has no room for node attributes: ${written} node column${plural(written)} (${shown}) ${agree(written, "is", "are")} written only by a second export with table: "nodes"`,
@@ -818,7 +829,12 @@ function checkValues(
             }
         }
         if (nonFinite > 0) {
-            note(CSV_LOSS.NONFINITE, `${label}: ${nonFinite} non-finite value${plural(nonFinite)} ${agree(nonFinite, "reads", "read")} back as text`, name, nonFinite);
+            note(
+                CSV_LOSS.NONFINITE,
+                `${label}: ${nonFinite} non-finite value${plural(nonFinite)} ${agree(nonFinite, "reads", "read")} back as text`,
+                name,
+                nonFinite,
+            );
         }
         return;
     }
@@ -1147,6 +1163,7 @@ function check(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExpor
  */
 export const csvExporter: GraphExporter<CsvExportOptions> = Object.freeze({
     format: "csv",
+    options: Object.freeze(["delimiter", "dialect", "header", "newline", "table"]),
     capabilities: CSV_CAPABILITIES,
     check,
     export(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {

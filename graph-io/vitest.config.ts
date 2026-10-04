@@ -12,6 +12,8 @@ export default defineConfig({
             { find: /^@graphty\/graph-io$/, replacement: `${src}index.ts` },
             // the notebook examples import it from a CDN, as a page without a bundler does
             { find: /^https:\/\/esm\.sh\/@graphty\/graph-io$/, replacement: `${src}index.ts` },
+            // the React example imports React's hooks, which it only defines a hook with
+            { find: /^react$/, replacement: fileURLToPath(new URL("./test/setup/react-stub.ts", import.meta.url)) },
         ],
     },
     test: {

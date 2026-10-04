@@ -66,7 +66,7 @@ graph-io/
 +-- test/
 |   +-- corpus/<format>/          # fixtures + manifest.json (expected counts); corpus/malformed/<format>/
 |   +-- helpers/corpus.ts         # manifest loaders, input shapes (bytes, chunks, streams)
-|   +-- helpers/roundtrip.ts      # compareSnapshots / expectSameSnapshot / roundTrip
+|   +-- helpers/roundtrip.ts      # expectSameSnapshot / roundTrip (compareSnapshots is public: src/common/compare.ts)
 |   +-- common/*.test.ts          # one per common module
 |   +-- formats/<format>/*.test.ts
 |   +-- registry.test.ts  sniff.test.ts  children.test.ts  index.test.ts  build-output.test.ts
@@ -148,7 +148,9 @@ the two correctly.
 ## Adding a format
 
 1. Create `src/formats/<fmt>/importer.ts` exporting `<fmt>Importer: GraphImporter<FmtImportOptions>`
-   with `format`, `extensions`, `mimeTypes`, `sniff(head)` (0..1) and `import()`:
+   with `format`, `extensions`, `mimeTypes`, `options` (the names of the format's own options, which
+   W_UNKNOWN_OPTION trusts; `test/docs-reference.test.ts` checks them against the type), `sniff(head)`
+   (0..1) and `import()`:
    `resolveImportOptions(options, { ids, defaultDirected, weightFrom })`, then
    `new ImportReportBuilder(format, errorLimit)`, `reportSinkOptions(sink, options, report)` and
    `reportUnusedOptions(options, report, USED_OPTIONS)` (W_OPTION_IGNORED for every common option
@@ -161,7 +163,7 @@ the two correctly.
    record issues with `report.error()` / `report.warning()` / `report.warnOnce()` and the counts in
    `report.counts`, and return `report.finish()`.
 2. Create `src/formats/<fmt>/exporter.ts` exporting `<fmt>Exporter: GraphExporter<FmtExportOptions>`
-   with a `capabilities` table, `check()` = `checkCapabilities(snapshot, capabilities, resolved)`
+   with `options` (its own option names, as for the importer), a `capabilities` table, `check()` = `checkCapabilities(snapshot, capabilities, resolved)`
    plus the format's own notes, `export()` = `encodeChunks(write())` and `exportToString()` =
    `joinText(write())`, where `write()` is a generator of string parts that iterates nodes and
    logical edges in index order, folds expanded pairs (`pair` / `directed` role columns) and writes

@@ -201,6 +201,7 @@ export function rankFormats(
         const extensionMatch = extension !== null && importer.extensions.some((e) => e.toLowerCase() === extension);
         const mimeMatch = mime !== null && importer.mimeTypes.some((m) => m.toLowerCase() === mime);
         let content = 0;
+        const sniffed = head !== null && head.byteLength > 0 && typeof importer.sniff === "function";
         if (head !== null && head.byteLength > 0 && typeof importer.sniff === "function") {
             try {
                 content = clamp(importer.sniff(head));
@@ -217,7 +218,9 @@ export function rankFormats(
             confidence = 0.25 * content + (mimeMatch ? 0.05 : 0);
         } else if (content > 0) {
             confidence = 0.5 + 0.35 * content + (extensionMatch ? 0.1 : 0) + (mimeMatch ? 0.05 : 0);
-        } else if (extensionMatch || mimeMatch) {
+        } else if (extensionMatch || (mimeMatch && !sniffed)) {
+            // a MIME type alone does not override an importer that looked at the content and said no:
+            // servers send text/plain for any text file, and a sentence is not a CSV edge list
             confidence = (extensionMatch ? 0.3 : 0) + (mimeMatch ? 0.1 : 0);
         } else {
             continue;

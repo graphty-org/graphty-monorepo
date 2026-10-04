@@ -383,10 +383,14 @@ function resolveNeo4jOptions(options: Neo4jImportOptions | undefined): ResolvedN
         candidates: NEO4J_DELIMITER_CANDIDATES.filter((d) => d !== arrayDelimiter),
     });
     if (syntax.delimiter === arrayDelimiter) {
-        throw new GraphFormatError("E_UNSUPPORTED", `options delimiter and arrayDelimiter must differ: both are ${JSON.stringify(arrayDelimiter)}; pass another arrayDelimiter (";", "," or "|")`, {
-            option: "arrayDelimiter",
-            found: arrayDelimiter,
-        });
+        throw new GraphFormatError(
+            "E_UNSUPPORTED",
+            `options delimiter and arrayDelimiter must differ: both are ${JSON.stringify(arrayDelimiter)}; pass another arrayDelimiter (";", "," or "|")`,
+            {
+                option: "arrayDelimiter",
+                found: arrayDelimiter,
+            },
+        );
     }
     return {
         nodes: inputList("nodes", o.nodes),
@@ -1684,6 +1688,7 @@ function sniffNeo4j(head: Uint8Array): number {
  */
 export const neo4jImporter: GraphImporter<Neo4jImportOptions> = Object.freeze({
     format: NEO4J,
+    options: Object.freeze(["arrayDelimiter", "delimiter", "nodes", "quote", "relationships"]),
     extensions: Object.freeze([".csv", ".tsv"]),
     mimeTypes: Object.freeze(["text/csv", "text/tab-separated-values"]),
     sniff: sniffNeo4j,

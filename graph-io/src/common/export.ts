@@ -94,8 +94,8 @@ export const LOSS = Object.freeze({
     /** The format numbers nodes 1..N; ids that are not their 1-based index are kept as labels only. */
     ID_RENUMBERED: "W_ID_RENUMBERED",
     /**
-     * An attribute's type is one the format cannot store as it is (a 32-bit float in a format that has only 64-bit
-     * numbers, say), so it reads back with the nearest type the format has.
+     * An attribute's type is one the format cannot store as it is (for example, a 32-bit float in a format that has only 64-bit
+     * numbers), so it reads back with the nearest type the format has.
      */
     DTYPE: "W_DTYPE_UNSUPPORTED",
     /**
@@ -133,17 +133,17 @@ export const LOSS = Object.freeze({
      */
     ID_TEXT_COLLISION: ID_TEXT_COLLISION_CODE,
     /**
-     * An attribute without the weight role is named like the attribute graph-io reads weights from (`weight`, say), so
+     * An attribute without the weight role is named like the attribute graph-io reads weights from (for example, `weight`), so
      * it reads back as the edge weight.
      */
     WEIGHT_KEY_CLASH: WEIGHT_KEY_CLASH_CODE,
     /**
-     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
      * reads back with that role.
      */
     ROLE_ASSUMED: ROLE_ASSUMED_CODE,
     /**
-     * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the
+     * An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the
      * name the format's importer gives it.
      */
     COLUMN_NAME_CHANGED: COLUMN_RENAMED_LOSS_CODE,
@@ -376,7 +376,12 @@ export function checkCapabilities(
 
     if (snapshot.flags.multigraph && !caps.multiEdges) {
         const parallel = countParallelArcs(snapshot);
-        note(LOSS.MULTI_EDGES, `${parallel} parallel edge${plural(parallel)}; the format has no parallel edges`, null, parallel);
+        note(
+            LOSS.MULTI_EDGES,
+            `${parallel} parallel edge${plural(parallel)}; the format has no parallel edges`,
+            null,
+            parallel,
+        );
     }
     if (snapshot.selfLoopCount > 0 && !caps.selfLoops) {
         note(

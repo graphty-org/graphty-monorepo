@@ -8,6 +8,8 @@ exports[`documentation examples > extending/csv-defaults runs 1`] = `[]`;
 
 exports[`documentation examples > extending/csv-stamp runs 1`] = `[]`;
 
+exports[`documentation examples > extending/line-format runs 1`] = `[]`;
+
 exports[`documentation examples > extending/netscope runs 1`] = `[]`;
 
 exports[`documentation examples > extending/netscope-usage runs 1`] = `[]`;
@@ -27,6 +29,8 @@ exports[`documentation examples > extending/pairs-usage runs 1`] = `[]`;
 exports[`documentation examples > extending/sections-format runs 1`] = `[]`;
 
 exports[`documentation examples > extending/sections-usage runs 1`] = `[]`;
+
+exports[`documentation examples > extending/test-plugin runs 1`] = `[]`;
 
 exports[`documentation examples > extending/text-cells runs 1`] = `[]`;
 
@@ -72,6 +76,10 @@ exports[`documentation examples > formats/gexf runs 1`] = `
   "[wrote] got-1.2.gexf (27824 bytes)",
 ]
 `;
+
+exports[`documentation examples > formats/gexf-kind runs 1`] = `[]`;
+
+exports[`documentation examples > formats/gexf-viz runs 1`] = `[]`;
 
 exports[`documentation examples > formats/gml runs 1`] = `
 [
@@ -218,6 +226,8 @@ exports[`documentation examples > saving/pick-format runs 1`] = `
   "[wrote] network.tsv (10733 bytes)",
 ]
 `;
+
+exports[`documentation examples > saving/shared-options runs 1`] = `[]`;
 
 exports[`documentation examples > saving/stream runs 1`] = `
 [

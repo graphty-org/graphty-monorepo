@@ -2376,6 +2376,7 @@ export function zAsOption(value: unknown): "column" | "position" {
  */
 export const cx2Importer: GraphImporter<Cx2ImportOptions> = Object.freeze({
     format: CX2_FORMAT,
+    options: Object.freeze(["zAs"]),
     extensions: Object.freeze([".cx2"]),
     mimeTypes: Object.freeze(["application/json"]),
 

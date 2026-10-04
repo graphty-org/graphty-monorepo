@@ -2834,6 +2834,7 @@ function resolveGexfOptions(options: (GexfImportOptions & CommonImportOptions) |
  */
 export const gexfImporter: GraphImporter<GexfImportOptions> = Object.freeze({
     format: GEXF_FORMAT,
+    options: Object.freeze(["viz"]),
     extensions: Object.freeze([".gexf"]),
     mimeTypes: Object.freeze(["application/gexf+xml", "application/xml", "text/xml"]),
     sniff: sniffGexf,

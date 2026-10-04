@@ -147,9 +147,9 @@ describe("robustness: names, hints and plugins", () => {
         expect(codes(err.report)).toEqual(["W_SNIFF_FAILED", "E_UNKNOWN_FORMAT"]);
     });
 
-    it("refuses whitespace-only input with no hints", async () => {
+    it("refuses whitespace-only input with no hints as empty", async () => {
         const err = await importFailure(importGraph("   \n\n"));
-        expect(err.details.code).toBe("E_UNKNOWN_FORMAT");
+        expect(err.details.code).toBe("E_EMPTY_INPUT");
     });
 
     it("sniffs the head in the caller's encoding, as the importer reads it", async () => {
@@ -172,7 +172,7 @@ describe("robustness: names, hints and plugins", () => {
             },
         });
         const err = await importFailure(importGraph(empty));
-        expect(err.details.code).toBe("E_UNKNOWN_FORMAT");
+        expect(err.details.code).toBe("E_EMPTY_INPUT");
         expect(err.report.truncated).toBe(false);
         const bad = await importFailure(
             importGraph(bytesOf("source,target\ncaf", [0xc3, 0xa9], ",b\nx", [0xe9], ",y\n"), {

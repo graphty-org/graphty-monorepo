@@ -101,7 +101,7 @@ export const PAJEK_LOSS = Object.freeze({
     /** A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label. */
     LABEL_GAINED: "W_PAJEK_LABEL_GAINED",
     /**
-     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
      * reads back with that role.
      */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
@@ -951,6 +951,7 @@ function resolvePajekOptions(
  */
 export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
     format: "pajek",
+    options: Object.freeze(["name", "networkHeader"]),
     capabilities: CAPABILITIES,
 
     /**

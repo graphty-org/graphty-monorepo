@@ -93,6 +93,8 @@ interface DesignGraphImporter<Opts = unknown> {
     readonly format: string;
     readonly extensions: readonly string[];
     readonly mimeTypes: readonly string[];
+    // added after the design: the format's own option names, for W_UNKNOWN_OPTION
+    readonly options?: readonly string[] | undefined;
     sniff?(head: Uint8Array): number;
     import(input: ImportInput, sink: GraphSink, options?: Opts & CommonImportOptions): Promise<ImportReport>;
     importAll?(
@@ -135,6 +137,8 @@ interface DesignGraphExporter<Opts = unknown> {
     readonly capabilities: ExportCapabilities;
     readonly extensions?: readonly string[] | undefined;
     readonly mimeTypes?: readonly string[] | undefined;
+    // added after the design: the format's own option names, for W_UNKNOWN_OPTION
+    readonly options?: readonly string[] | undefined;
     check(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): readonly LossNote[];
     export(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): AsyncIterable<Uint8Array>;
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;

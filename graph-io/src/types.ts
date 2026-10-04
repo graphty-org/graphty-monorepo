@@ -99,10 +99,10 @@ export interface CommonImportOptions {
     /**
      * The edge attribute read as the edge weight. The default is "weight", except "value" for GML
      * and Pajek and none for OBO. Pass null to read every attribute as a plain attribute and leave
-     * the graph unweighted. A name no edge has is not an error: the graph is read unweighted, so one
-     * options object with `weightFrom: "weight"` shared across formats reads GML and Pajek files
-     * without their weights. An edge whose weight cell is empty or missing gets the default weight 1,
-     * and an export writes no weight for it.
+     * the graph unweighted. A name no edge has leaves the graph unweighted, with a W_WEIGHT_NOT_FOUND
+     * warning: one options object with `weightFrom: "weight"` shared across formats reads GML and
+     * Pajek files, which keep their weights in `value`, without weights. An edge whose weight cell is
+     * empty or missing gets the default weight 1, and an export writes no weight for it.
      * @defaultValue per format
      */
     weightFrom?: string | null | undefined;
@@ -126,7 +126,9 @@ export interface CommonImportOptions {
      * Whether to give back the original ids that an export with `sanitizeIds: "mangle"` had to
      * rewrite. The export writes them to the file in an attribute whose name each format page
      * gives. When false, the rewritten ids stay the ids and the originals are an ordinary node
-     * attribute (GraphML's `graphty:originalId` reads back as `graphty.originalId`).
+     * attribute, named after the format's spelling: `graphty.originalId` in GraphML,
+     * `graphty_originalId` in GML and Pajek, `graphty:originalId` in CX, CX2 and Cytoscape sessions,
+     * and a `graphty:originalId` entry of the `property_value` attribute in OBO.
      * @defaultValue true
      */
     restoreMangledIds?: boolean | undefined;
@@ -180,14 +182,16 @@ export interface CommonImportOptions {
 export interface GraphChoiceOptions {
     /**
      * The 0-based position of the graph to read from a file that holds several (`listGraphs()`
-     * gives each graph's `index`). A position past the last graph fails with E_GRAPH_NOT_FOUND.
+     * gives each graph's `index`). A position past the last graph stops the import with an
+     * ImportError whose `issue.code` is E_GRAPH_NOT_FOUND; its message lists the file's graphs.
      * @defaultValue 0
      */
     graphIndex?: number | undefined;
     /**
      * The name of the graph to read from a file that holds several (`listGraphs()` gives each
-     * graph's `name`). A name no graph has fails with E_GRAPH_NOT_FOUND, and a name two graphs
-     * share with E_AMBIGUOUS_GRAPH_NAME.
+     * graph's `name`). A name no graph has stops the import with an ImportError whose `issue.code`
+     * is E_GRAPH_NOT_FOUND, and a name two graphs share with one whose `issue.code` is
+     * E_AMBIGUOUS_GRAPH_NAME.
      */
     graphName?: string | undefined;
 }
@@ -222,6 +226,12 @@ export interface GraphImporter<Opts = unknown> {
     readonly extensions: readonly string[];
     /** MIME types the format is served as, most specific first; used to detect the format from a Content-Type. */
     readonly mimeTypes: readonly string[];
+    /**
+     * The names of this format's own options (`["separator"]`), when you want misspelled options
+     * reported. While every registered importer lists its options, a load warns `W_UNKNOWN_OPTION` for
+     * a name that no format and no load function takes. Leave it out to report nothing.
+     */
+    readonly options?: readonly string[] | undefined;
     /**
      * How sure you are that `head`, the first bytes of a file (up to SNIFF_HEAD_BYTES), is this
      * format: 0 for no, up to 1 for certain. Below 0.5 counts as a weak guess, which loses to a
@@ -377,6 +387,9 @@ export interface CommonExportOptions {
      * What a format with one direction per file does with a graph that has both directed and
      * undirected edges: "error" throws (E_DIRECTED), "directed" writes every edge as directed (an
      * undirected edge once, as one directed edge), "undirected" writes the whole graph undirected.
+     * A format that keeps each edge's own direction (GraphML, GEXF, CSV, Pajek, XGMML, Cytoscape
+     * sessions, and the JGF and graphology JSON dialects) ignores it and writes both kinds; to make
+     * such a graph all one direction, read it with the import option `onMixedDirection`.
      * @defaultValue "error"
      */
     onMixedDirection?: "error" | "directed" | "undirected" | undefined;
@@ -399,6 +412,12 @@ export interface GraphExporter<Opts = unknown> {
     readonly extensions?: readonly string[] | undefined;
     /** MIME types, most specific first. Optional; used the same way as `extensions`. */
     readonly mimeTypes?: readonly string[] | undefined;
+    /**
+     * The names of this format's own save options, when you want misspelled options reported. While
+     * every registered exporter lists its options, `checkExport()` returns a `W_UNKNOWN_OPTION` note for
+     * a name that no format and no save function takes. Leave it out to report nothing.
+     */
+    readonly options?: readonly string[] | undefined;
     /**
      * What a save would lose, without writing anything; checkExport(snapshot, format, options) calls
      * it. Start from `checkCapabilities(snapshot, capabilities, resolveExportOptions(options))` and

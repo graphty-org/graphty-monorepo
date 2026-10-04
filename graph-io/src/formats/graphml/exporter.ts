@@ -575,7 +575,12 @@ function planEdgeIds(snapshot: GraphSnapshot, column: Column, options: ResolvedE
         return;
     }
     if (options.sanitizeIds === "mangle") {
-        note(LOSS.ID_MANGLED, `${bad} edge id${plural(bad)} outside the nmtoken charset ${agree(bad, "is", "are")} rewritten`, column.meta.name, bad);
+        note(
+            LOSS.ID_MANGLED,
+            `${bad} edge id${plural(bad)} outside the nmtoken charset ${agree(bad, "is", "are")} rewritten`,
+            column.meta.name,
+            bad,
+        );
     } else {
         note(
             LOSS.ID_CHARSET,
@@ -1471,6 +1476,7 @@ function* writeNodeSubtree(
  */
 export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freeze({
     format: FORMAT,
+    options: Object.freeze(["edgedefault", "pretty"]),
     capabilities: CAPABILITIES,
     /**
      * Pre-flight: every loss the export would incur.

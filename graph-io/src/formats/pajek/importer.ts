@@ -28,6 +28,7 @@ import {
 } from "@graphty/graph-format";
 
 import { declareResolved, RENAMED_CODE, ROLE_TAKEN_CODE, uniqueColumnName } from "../../common/attributes.js";
+import { importChosenGraph } from "../../common/choose.js";
 import {
     AMBIGUOUS_GRAPH_NAME_CODE,
     DUPLICATE_ATTRIBUTE_CODE,
@@ -49,6 +50,7 @@ import { survivesF32 } from "../../common/format.js";
 import { coerceIdText, ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { LineReader, throwIfAborted } from "../../common/input.js";
 import {
+    graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,
@@ -60,7 +62,13 @@ import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { isNumericText, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
-import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
+import {
+    type CommonImportOptions,
+    type GraphChoiceOptions,
+    type GraphImporter,
+    type ImportInput,
+    type ImportReport,
+} from "../../types.js";
 import {
     decodeCharacterReferences,
     isCommentOrBlank,
@@ -90,7 +98,7 @@ import {
  * The format-specific options of the Pajek importer.
  * @category Built-in formats
  */
-export interface PajekImportOptions extends CommonImportOptions {
+export interface PajekImportOptions extends GraphChoiceOptions, CommonImportOptions {
     /**
      * The number of the first vertex: 1 (Pajek's rule), 0 (files written by zero-based scripts), or
      * "auto": 0 when the first vertex line is numbered 0, 1 otherwise.
@@ -1741,6 +1749,7 @@ const HEAD_PATTERN = /^(\s*%[^\r\n]*)*\s*\*(vertices|network)\b/i;
  */
 export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
     format: "pajek",
+    options: Object.freeze(["firstVertex"]),
     extensions: Object.freeze([".net", ".paj"]),
     mimeTypes: Object.freeze(["text/x-pajek", "text/plain"]),
 
@@ -1771,6 +1780,10 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         sink: GraphSink,
         options?: PajekImportOptions & CommonImportOptions,
     ): Promise<ImportReport> {
+        if (graphChosen(options)) {
+            // the choice is honored here too, not only by the registry
+            return importChosenGraph(pajekImporter, input, sink, options);
+        }
         const resolved = resolveImportOptions(options, DEFAULTS);
         const firstVertex = firstVertexOption(options?.firstVertex);
         const report = new ImportReportBuilder("pajek", resolved.errorLimit);

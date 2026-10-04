@@ -3,17 +3,23 @@
  * documentation and the library did not do.
  */
 
-import { INVALID_INDEX as FORMAT_INVALID_INDEX } from "@graphty/graph-format";
+import { GraphBuilder, INVALID_INDEX as FORMAT_INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { compareSnapshots, describeDiffs } from "../src/common/compare.js";
 import { capabilities, checkCapabilities } from "../src/common/export.js";
-import { resolveExportOptions } from "../src/common/options.js";
-import { DOT_ISSUE } from "../src/formats/dot/index.js";
-import { GML_ISSUE } from "../src/formats/gml/index.js";
+import { defineLineFormat } from "../src/common/line-format.js";
+import { FORMAT_DIALECTS, resolveExportOptions } from "../src/common/options.js";
+import { edgeWeights } from "../src/common/weights.js";
+import { csvImporter } from "../src/formats/csv/index.js";
+import { DOT_ISSUE, dotImporter } from "../src/formats/dot/index.js";
+import { GML_ISSUE, gmlImporter } from "../src/formats/gml/index.js";
+import { JSON_DIALECTS } from "../src/formats/json/index.js";
 import { NEO4J_ISSUE } from "../src/formats/neo4j/index.js";
-import { PAJEK_ISSUE } from "../src/formats/pajek/index.js";
+import { PAJEK_ISSUE, pajekImporter } from "../src/formats/pajek/index.js";
 import { INVALID_INDEX } from "../src/index.js";
-import { checkExport, exportGraphToString, importGraph, loadFromFile } from "../src/registry.js";
+import { checkExport, createRegistry, exportGraphToString, importGraph, loadFromFile } from "../src/registry.js";
+import { rankFormats } from "../src/sniff.js";
 import { ImportError } from "../src/types.js";
 
 /**
@@ -134,5 +140,212 @@ describe("Pajek", () => {
         const { snapshot } = await importGraph("source,target\na,b\n", { format: "csv" });
         const text = await exportGraphToString(snapshot, "pajek", { networkHeader: false, name: "got" });
         expect(text.startsWith("*Vertices")).toBe(true);
+    });
+});
+
+describe("format detection of text that is not a graph", () => {
+    it("refuses prose and a single line rather than reading them as a CSV edge list", async () => {
+        for (const text of [
+            "Dear team, the meeting is on Monday.",
+            "hello world",
+            "hello world foo",
+            "Hello, world. Thanks, Bob",
+            "Thanks, see you there.\nBest, Bob.\n",
+        ]) {
+            const err = await rejection(importGraph(text));
+            expect(err.issue?.code, text).toBe("E_UNKNOWN_FORMAT");
+        }
+        // two lines of ids still read as an edge list, and a named format reads anything
+        expect((await importGraph("a b\nb c\n")).format).toBe("csv");
+        expect((await importGraph("hello world", { format: "csv" })).snapshot.edgeCount).toBe(1);
+    });
+
+    it("does not read text/plain as CSV when the CSV sniffer rejects the content", async () => {
+        const err = await rejection(
+            loadFromFile(new Blob(["Dear team, the meeting is on Monday."], { type: "text/plain" }), {
+                filename: "notes.txt",
+            }),
+        );
+        expect(err.issue?.code).toBe("E_UNKNOWN_FORMAT");
+    });
+
+    it("lets another format's extension beat a space-split line that names an id", () => {
+        const head = new TextEncoder().encode("1 First node\n2 Second node\n#\n1 2 Edge label\n");
+        const ranked = rankFormats({ head, filename: "a.tgf" }, [
+            csvImporter,
+            { format: "tgf", extensions: [".tgf"], mimeTypes: [], import: csvImporter.import },
+        ]);
+        expect(ranked[0].format).toBe("tgf");
+    });
+
+    it("says an empty input is empty, with or without a format", async () => {
+        expect((await rejection(importGraph(""))).issue?.code).toBe("E_EMPTY_INPUT");
+        expect((await rejection(importGraph("  \n"))).issue?.code).toBe("E_EMPTY_INPUT");
+        expect((await rejection(importGraph("", { format: "csv" }))).issue?.code).toBe("E_EMPTY_INPUT");
+    });
+});
+
+describe("the load result and report", () => {
+    it("keeps the per-edge freeze report out of console.log and spreads", async () => {
+        const result = await importGraph("graph { a -- b }");
+        expect(Object.keys(result)).toEqual(["format", "sniff", "snapshot", "report"]);
+        expect(result.freeze.mergedEdges).toBe(0);
+    });
+
+    it("does not echo an encoding name the caller did not type", async () => {
+        const { report } = await importGraph("a,b\nb,c\n", { format: "csv", encoding: "latin1" });
+        expect(report.issues.map((i) => i.message)).toEqual([
+            "option encoding has no effect on text input, which is already decoded",
+        ]);
+    });
+
+    it("records a missing JSON section as a warning, since nothing is skipped", async () => {
+        const { report, snapshot } = await importGraph('{"nodes": [{"id": "a"}, {"id": "b"}]}', { format: "json" });
+        expect(snapshot.nodeCount).toBe(2);
+        expect(report.errorCount).toBe(0);
+        expect(report.issues.map((i) => i.code)).toEqual(["W_MISSING_SECTION"]);
+    });
+
+    it("warns when weightFrom names an attribute no edge has", async () => {
+        const gml = "graph [ node [ id 1 ] node [ id 2 ] edge [ source 1 target 2 value 3 ] ]";
+        const shared = await importGraph(gml, { format: "gml", weightFrom: "weight" });
+        expect(shared.report.issues.map((i) => i.code)).toEqual(["W_WEIGHT_NOT_FOUND"]);
+        expect((await importGraph(gml, { format: "gml" })).report.issues).toEqual([]);
+        // a format that does not read weightFrom says so once, not twice
+        const obo = await importGraph("[Term]\nid: A\nis_a: B\n", { format: "obo", weightFrom: "weight" });
+        const codes = obo.report.issues.map((i) => i.code);
+        expect(codes).toContain("W_OPTION_IGNORED");
+        expect(codes).not.toContain("W_WEIGHT_NOT_FOUND");
+    });
+});
+
+describe("graph choice when an importer is called directly", () => {
+    it("reads the graph graphIndex or graphName chooses in DOT, GML and Pajek", async () => {
+        const dot = "digraph first { a -> b }\ndigraph second { x -> y; y -> z }";
+        const builder = new GraphBuilder({ directed: true });
+        await dotImporter.import(dot, builder, { graphName: "second" });
+        expect(builder.freeze().edgeCount).toBe(2);
+
+        const gml = 'graph [ name "one" node [ id 1 ] ]\ngraph [ name "two" node [ id 1 ] node [ id 2 ] ]';
+        const g = new GraphBuilder({ directed: false });
+        await gmlImporter.import(gml, g, { graphIndex: 1 });
+        expect(g.freeze().nodeCount).toBe(2);
+
+        const paj = "*Network one\n*Vertices 1\n1 a\n*Network two\n*Vertices 3\n1 a\n2 b\n3 c\n";
+        const p = new GraphBuilder({ directed: false });
+        await pajekImporter.import(new TextEncoder().encode(paj), p, { graphName: "two" });
+        expect(p.freeze().nodeCount).toBe(3);
+
+        const err = await rejection(dotImporter.import(dot, new GraphBuilder({ directed: true }), { graphIndex: 5 }));
+        expect(err.issue?.code).toBe("E_GRAPH_NOT_FOUND");
+    });
+});
+
+describe("GEXF 1.2 and the edge kind", () => {
+    it("does not say a kind column is renamed when 1.2 drops it", async () => {
+        const { snapshot } = await importGraph("[Term]\nid: A\nis_a: B\n\n[Term]\nid: B\n", { format: "obo" });
+        const codes = checkExport(snapshot, "gexf", { version: "1.2" }).map((n) => n.code);
+        expect(codes).toContain("W_GEXF_KIND_DROPPED");
+        expect(codes).not.toContain("W_COLUMN_NAME_CHANGED");
+    });
+});
+
+describe("defineLineFormat", () => {
+    const tgfLike = defineLineFormat({
+        format: "test-lines",
+        extensions: [".test-lines"],
+        parseLine(fields, graph) {
+            if (fields.length === 2 && fields[0] === "node") {
+                graph.node(fields[1], { label: fields[1].toUpperCase(), size: "3" });
+            } else if (fields.length === 3) {
+                graph.edge(fields[0], fields[1], { weight: fields[2] });
+            } else if (fields.length === 2) {
+                graph.edge(fields[0], fields[1]);
+            } else {
+                throw new Error("expected two or three fields");
+            }
+        },
+    });
+    const io = createRegistry().registerImporter(tgfLike);
+
+    it("reads nodes, edges, labels, weights and attribute types, and counts what it read", async () => {
+        const text = "# a comment\nnode a\na b 2.5\nb c\n\nx y z w\n";
+        const { snapshot, report } = await io.importGraph(text, { filename: "g.test-lines" });
+        expect(snapshot.directed).toBe(false);
+        expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([3, 2]);
+        expect(snapshot.nodes.byRole("label")?.value(0)).toBe("A");
+        expect(snapshot.nodes.get("size")?.dtype).toBe("i32");
+        expect(snapshot.edgeList().weights?.[0]).toBe(2.5);
+        expect(report.counts).toMatchObject({ nodes: 3, edges: 2 });
+        expect(report.issues.map((i) => `${i.code} ${i.line}: ${i.message}`)).toEqual([
+            "E_BAD_LINE 6: expected two or three fields",
+        ]);
+        expect(io.sniffAll({ filename: "g.test-lines" })[0].format).toBe("test-lines");
+    });
+
+    it("takes the options every importer takes", async () => {
+        const { snapshot, report } = await io.importGraph("1 2\n2 3\n", {
+            format: "test-lines",
+            defaultDirected: true,
+            ids: "string",
+            weightFrom: null,
+            hyperedges: "star",
+        });
+        expect(snapshot.directed).toBe(true);
+        expect(snapshot.ids.idOf(0)).toBe("1");
+        expect(report.issues.map((i) => i.code)).toEqual(["W_OPTION_IGNORED"]);
+    });
+});
+
+describe("compareSnapshots", () => {
+    it("lists what a save in a format did not keep", async () => {
+        const { snapshot } = await importGraph("source,target,weight\na,b,2\n", { format: "csv" });
+        const readBack = (await importGraph(await exportGraphToString(snapshot, "dot"), { format: "dot" })).snapshot;
+        expect(compareSnapshots(snapshot, readBack)).toEqual([]);
+        const pajek = (await importGraph(await exportGraphToString(snapshot, "pajek"), { format: "pajek" })).snapshot;
+        expect(describeDiffs(compareSnapshots(snapshot, pajek))).toMatch(/ids\[0\]/);
+    });
+});
+
+describe("misspelled options", () => {
+    it("are reported by a load and by checkExport(), and options of other formats are not", async () => {
+        const { report } = await importGraph("a;b\nb;c\n", { format: "csv", delimeter: ";", indent: 2 });
+        expect(report.issues.map((i) => `${i.code} ${i.element}`)).toEqual(["W_UNKNOWN_OPTION delimeter"]);
+        const { snapshot } = await importGraph("graph { a -- b }");
+        const notes = checkExport(snapshot, "gml", { sanitizeIDs: "mangle", filename: "x.gml", weightFrom: "w" });
+        expect(notes.filter((n) => n.code === "W_UNKNOWN_OPTION").map((n) => n.message)).toEqual([
+            'option "sanitizeIDs" is not an option of any format or of the load and save functions, so it has no effect; check its spelling',
+        ]);
+    });
+
+    it("are not reported while a registered format does not list its options", async () => {
+        const io = createRegistry().registerImporter({ ...csvImporter, format: "plain-csv", options: undefined });
+        const { report } = await io.importGraph("a,b\nb,c\n", { format: "csv", separator: ";" });
+        expect(report.issues).toEqual([]);
+    });
+});
+
+describe("one options object for several formats", () => {
+    it("lets CSV and JSON ignore each other's dialect, and still refuses a misspelled one", async () => {
+        const { snapshot } = await importGraph("source,target\na,b\n", { format: "csv" });
+        const shared = { dialect: "d3", sanitizeIds: "mangle" } as const;
+        expect(await exportGraphToString(snapshot, "csv", shared)).toBe(
+            await exportGraphToString(snapshot, "csv", { sanitizeIds: "mangle" }),
+        );
+        expect(await exportGraphToString(snapshot, "json", { dialect: "generic" })).toBe(
+            await exportGraphToString(snapshot, "json"),
+        );
+        expect(() => checkExport(snapshot, "csv", { dialect: "gephy" })).toThrow(/dialect/);
+        expect(FORMAT_DIALECTS.json).toEqual(JSON_DIALECTS);
+    });
+});
+
+describe("edgeWeights", () => {
+    it("gives the exact weights in one call, and 1 for an edge without one", async () => {
+        const { snapshot } = await importGraph("source,target,weight\na,b,0.1\nb,c,\nc,d,2\n", { format: "csv" });
+        expect(Array.from(edgeWeights(snapshot) ?? [])).toEqual([0.1, 1, 2]);
+        expect(edgeWeights((await importGraph("graph { a -- b }")).snapshot)).toBeNull();
+        const f32 = await importGraph("source,target,weight\na,b,2\n", { format: "csv", weightDtype: "f32" });
+        expect(Array.from(edgeWeights(f32.snapshot) ?? [])).toEqual([2]);
     });
 });

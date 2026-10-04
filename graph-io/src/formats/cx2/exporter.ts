@@ -724,6 +724,7 @@ function bypassValues(columns: readonly Column[], row: number): Record<string, u
  */
 export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
     format: CX2_FORMAT,
+    options: Object.freeze([]),
     capabilities: CX2_CAPABILITIES,
 
     /**

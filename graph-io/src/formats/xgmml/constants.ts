@@ -371,12 +371,12 @@ export const XGMML_LOSS = Object.freeze({
     /** Nodes whose parent chain never reaches a root are written at the top level. */
     PARENT_CYCLE: "W_XGMML_PARENT_CYCLE",
     /**
-     * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the
+     * An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the
      * name the format's importer gives it.
      */
     COLUMN_NAME_CHANGED: COLUMN_RENAMED_LOSS_CODE,
     /**
-     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
      * reads back with that role.
      */
     ROLE_ASSUMED: ROLE_ASSUMED_CODE,

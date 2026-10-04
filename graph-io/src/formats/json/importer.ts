@@ -219,8 +219,12 @@ export const JSON_ISSUE = Object.freeze({
     DIALECT: "E_JSON_DIALECT",
     /** A section (nodes, edges, elements, graph) has the wrong JSON type. */
     SHAPE: "E_JSON_SHAPE",
-    /** A node-link document lacks its nodes or its edges array, or a Cytoscape document its elements. */
-    MISSING_SECTION: "E_MISSING_SECTION",
+    /**
+     * A section the dialect expects is not there: a node-link document without its nodes or its edges array, an
+     * adjacency document without lists for some nodes, or a `nodesPath` / `edgesPath` that names nothing. Nothing is
+     * skipped: the graph is read without that section (nodes come from the edges, or there are no edges).
+     */
+    MISSING_SECTION: "W_MISSING_SECTION",
     /** A node record or an element is not an object. */
     BAD_ELEMENT: "E_BAD_ELEMENT",
     /** A node record has no id. */
@@ -542,7 +546,7 @@ function applyPaths(root: unknown, json: ResolvedJsonOptions, report: ImportRepo
         const value = valueAt(root, segments);
         if (value === undefined) {
             const path = segments.join(".");
-            report.error(
+            report.warning(
                 "missing-value",
                 JSON_ISSUE.MISSING_SECTION,
                 `${option} ${JSON.stringify(path)} names nothing in the document`,
@@ -1823,7 +1827,7 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
     const nodes = arraySection(root.nodes, "nodes", report);
     const edges = arraySection(root[edgesKey], edgesKey, report);
     if (nodes === null) {
-        report.error(
+        report.warning(
             "missing-value",
             JSON_ISSUE.MISSING_SECTION,
             "the document has no nodes array; nodes come from the edges",
@@ -1832,7 +1836,7 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
         ctx.nodesFromEdges = true;
     }
     if (edges === null) {
-        report.error(
+        report.warning(
             "missing-value",
             JSON_ISSUE.MISSING_SECTION,
             `the document has no ${edgesKey} array; the graph has no edges`,
@@ -2292,7 +2296,7 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
     const nodes = arraySection(root.nodes, "nodes", report) ?? [];
     const adjacency = arraySection(root.adjacency, "adjacency", report);
     if (adjacency === null) {
-        report.error(
+        report.warning(
             "missing-value",
             JSON_ISSUE.MISSING_SECTION,
             "the document has no adjacency array; the graph has no edges",
@@ -2431,7 +2435,7 @@ function reportAdjacencyShape(
 ): void {
     const { report } = ctx;
     if (lists !== null && lists < nodes) {
-        report.error(
+        report.warning(
             "missing-value",
             JSON_ISSUE.MISSING_SECTION,
             `${nodes - lists} node${plural(nodes - lists)} from nodes[${lists}] on ${agree(nodes - lists, "has", "have")} no adjacency list (NetworkX writes one per node); their edges listed elsewhere are kept`,
@@ -2724,10 +2728,14 @@ function reportGraphologyViolations(
 ): void {
     const notes: string[] = [];
     if (violations.selfLoops > 0) {
-        notes.push(`options.allowSelfLoops is false, but ${violations.selfLoops} self-loop${plural(violations.selfLoops)} ${agree(violations.selfLoops, "is", "are")} listed`);
+        notes.push(
+            `options.allowSelfLoops is false, but ${violations.selfLoops} self-loop${plural(violations.selfLoops)} ${agree(violations.selfLoops, "is", "are")} listed`,
+        );
     }
     if (violations.parallels > 0) {
-        notes.push(`options.multi is false, but ${violations.parallels} parallel edge${plural(violations.parallels)} ${agree(violations.parallels, "is", "are")} listed`);
+        notes.push(
+            `options.multi is false, but ${violations.parallels} parallel edge${plural(violations.parallels)} ${agree(violations.parallels, "is", "are")} listed`,
+        );
     }
     if (violations.flags > 0) {
         notes.push(
@@ -3152,15 +3160,25 @@ function importHyperedges(
     const { report } = ctx;
     const policy = ctx.options.hyperedges;
     if (policy === "error") {
-        report.error("unsupported", JSON_ISSUE.HYPEREDGE, `${hyperedges.length} hyperedge${plural(hyperedges.length)} (hyperedges: "error")`, {
-            element: "hyperedges",
-        });
+        report.error(
+            "unsupported",
+            JSON_ISSUE.HYPEREDGE,
+            `${hyperedges.length} hyperedge${plural(hyperedges.length)} (hyperedges: "error")`,
+            {
+                element: "hyperedges",
+            },
+        );
         throw report.abort("hyperedges refused", { code: JSON_ISSUE.HYPEREDGE, count: hyperedges.length });
     }
     if (policy === "skip") {
-        report.warning("unsupported", JSON_ISSUE.HYPEREDGES_SKIPPED, `${hyperedges.length} hyperedge${plural(hyperedges.length)} skipped`, {
-            element: "hyperedges",
-        });
+        report.warning(
+            "unsupported",
+            JSON_ISSUE.HYPEREDGES_SKIPPED,
+            `${hyperedges.length} hyperedge${plural(hyperedges.length)} skipped`,
+            {
+                element: "hyperedges",
+            },
+        );
         report.loss(
             JSON_ISSUE.HYPEREDGES_SKIPPED,
             `${hyperedges.length} hyperedge${plural(hyperedges.length)} ${agree(hyperedges.length, "was", "were")} not imported`,
@@ -3610,7 +3628,7 @@ function cytoscapeSections(
         };
     }
     if (elements === undefined || elements === null) {
-        report.error("missing-value", JSON_ISSUE.MISSING_SECTION, "the document has no elements", {
+        report.warning("missing-value", JSON_ISSUE.MISSING_SECTION, "the document has no elements", {
             element: "elements",
         });
         return { nodes: [], edges: [] };
@@ -3718,6 +3736,18 @@ function writeElementKeys(writer: AttributeWriter, row: number, record: JsonReco
  */
 export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
     format: "json",
+    options: Object.freeze([
+        "dialect",
+        "edgesKey",
+        "edgesPath",
+        "indexLinks",
+        "nodeIdKey",
+        "nodesPath",
+        "oboIds",
+        "sourceKey",
+        "targetKey",
+        "typedefs",
+    ]),
     extensions: Object.freeze([".json"]),
     mimeTypes: Object.freeze(["application/json"]),
 

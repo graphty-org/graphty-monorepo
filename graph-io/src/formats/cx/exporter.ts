@@ -79,7 +79,7 @@ export const CX_LOSS = Object.freeze({
     /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
     /**
-     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
      * reads back with that role.
      */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
@@ -104,7 +104,7 @@ export const CX_LOSS = Object.freeze({
     /** Edges without a usable integer id get generated ids. */
     EDGE_IDS_GENERATED: LOSS.EDGE_IDS_GENERATED,
     /**
-     * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the
+     * An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the
      * name the format's importer gives it.
      */
     COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
@@ -1380,6 +1380,7 @@ function* mapIterable<T, U>(items: Iterable<T>, fn: (item: T) => U): Generator<U
  */
 export const cxExporter: GraphExporter<CxExportOptions> = Object.freeze({
     format: CX_FORMAT,
+    options: Object.freeze([]),
     capabilities: CX_CAPABILITIES,
 
     /**

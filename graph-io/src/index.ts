@@ -12,9 +12,23 @@
 
 // ============================================================ graph-format re-exports
 // The error class every deliberate graph-io failure extends, the graph type every function takes
-// or returns, the graph an importer fills, and the "no such index" value a plugin compares with, so a
-// caller needs no second import.
-export { GraphFormatError, type GraphSink, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+// or returns, the column type its attribute tables hold, the builder that copies or combines graphs,
+// the graph an importer fills, and the "no such index" value a plugin compares with, so a caller
+// needs no second import.
+export {
+    type Column,
+    GraphBuilder,
+    GraphFormatError,
+    type GraphSink,
+    type GraphSnapshot,
+    INVALID_INDEX,
+} from "@graphty/graph-format";
+
+// ============================================================ a line format in one function
+export { defineLineFormat, type LineAttributes, type LineFormat, type LineGraph } from "./common/line-format.js";
+
+// ============================================================ testing a plugin
+export { type CompareOptions, compareSnapshots, describeDiffs, type SnapshotDiff } from "./common/compare.js";
 
 // ============================================================ io contract types (12.4)
 export {
@@ -275,6 +289,7 @@ export {
 export {
     chooseGraph,
     DEFAULT_ERROR_LIMIT,
+    forDecodedText,
     graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
@@ -300,7 +315,13 @@ export {
     type TextDtype,
     WIDENING_UNSUPPORTED_CODE,
 } from "./common/text.js";
-export { type ExplicitWeights, explicitWeights, isWeightField, parseWeightText } from "./common/weights.js";
+export {
+    edgeWeights,
+    type ExplicitWeights,
+    explicitWeights,
+    isWeightField,
+    parseWeightText,
+} from "./common/weights.js";
 export {
     collectBytes,
     decodeChunks,

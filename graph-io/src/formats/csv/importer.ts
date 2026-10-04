@@ -167,8 +167,8 @@ export interface CsvImportOptions extends CommonImportOptions {
     labelColumn?: CsvColumnRef | undefined;
     /**
      * A node table to read before the edges: its ids become nodes and its other columns node
-     * attributes. Pass it as a string, bytes, a stream, or a `File` or `Blob` (the second file a
-     * user picked, say).
+     * attributes. Pass it as a string, bytes, a stream, or a `File` or `Blob` (for example, the second file a
+     * user picked).
      */
     nodes?: ImportInput | Blob | undefined;
     /**
@@ -1606,9 +1606,14 @@ class TableReader {
         const ordinal = this.nodeOrdinal++;
         const quoted = completeRow(plan, row, cellQuoted, report, line);
         if (row.length !== plan.width) {
-            report.error("validation-error", FIELD_COUNT_CODE, `${row.length} field${plural(row.length)}, expected ${plan.width}`, {
-                line,
-            });
+            report.error(
+                "validation-error",
+                FIELD_COUNT_CODE,
+                `${row.length} field${plural(row.length)}, expected ${plan.width}`,
+                {
+                    line,
+                },
+            );
             counts.skippedNodes++;
             return;
         }
@@ -1869,13 +1874,36 @@ function sniff(head: Uint8Array): number {
     if (findColumn(names, SOURCE_NAMES) >= 0 && findColumn(names, TARGET_NAMES) >= 0) {
         return 0.9;
     }
-    if (findColumn(names, ID_NAMES) >= 0) {
+    // a space-split row naming an id is as likely a line of text ("1 First node") as a header
+    if (delimiter !== " " && findColumn(names, ID_NAMES) >= 0) {
         return 0.6;
     }
     if (delimiter === " " && names.length > 3) {
         return 0;
     }
-    return 0.3;
+    return looksLikeProse(body, newline, delimiter) ? 0 : 0.3;
+}
+
+/** A cell that reads as part of a sentence: words with a sentence end after a letter (`Monday.`, `world. Thanks`). */
+const SENTENCE = /[A-Za-z]{2}[.!?](?:\s|$)/;
+
+/**
+ * Whether headerless delimited text is more likely a line of prose than an edge list: a single line
+ * ("hello world", "Dear team, the meeting is on Monday."), or a cell of more than one word that
+ * ends a sentence. An edge list a reader means to load has more than one row and ids, not sentences;
+ * such input is still read as CSV when the caller names the format.
+ * @param body - the head, decoded, without its leading comments
+ * @param newline - the head's newline
+ * @param delimiter - the sniffed delimiter
+ * @returns true for prose
+ */
+function looksLikeProse(body: string, newline: string, delimiter: string): boolean {
+    const lines = body.split(newline).filter((l) => l.trim() !== "");
+    if (lines.length < 2) {
+        return true;
+    }
+    const rows = splitRecords(body, delimiter, '"', 8, false, true) ?? [];
+    return rows.some((row) => row.some((cell) => /\S\s+\S/.test(cell.trim()) && SENTENCE.test(cell.trim())));
 }
 
 /**
@@ -1943,6 +1971,19 @@ async function importCsv(
  */
 export const csvImporter: GraphImporter<CsvImportOptions> = Object.freeze({
     format: "csv",
+    options: Object.freeze([
+        "decimal",
+        "delimiter",
+        "header",
+        "idColumn",
+        "labelColumn",
+        "nodes",
+        "rowNumberIds",
+        "sourceColumn",
+        "table",
+        "targetColumn",
+        "typeColumn",
+    ]),
     extensions: Object.freeze([".csv", ".tsv", ".edges", ".edgelist"]),
     mimeTypes: Object.freeze(["text/csv", "text/tab-separated-values", "text/plain"]),
     sniff,

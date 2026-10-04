@@ -766,17 +766,6 @@ function defaultCell(value: string): string {
 }
 
 /**
- * The first sentence of a doc comment, for a table cell; the whole comment goes in the list under the table.
- * @param doc - the doc text, on one line
- * @returns the first sentence, or the whole text when it is one sentence
- */
-function firstSentence(doc: string): string {
-    // a sentence ends at ". " before a word, a quote or a code span; "1.5" does not end one
-    const m = /^(.+?[.!?])\s+(?=[A-Za-z"`(])/.exec(doc);
-    return m === null ? doc : m[1];
-}
-
-/**
  * An options table with one short line per option, then the full description of every option whose doc says more
  * than its first sentence, each under its own anchor so a page can link to one option.
  * @param rows - the options
@@ -795,16 +784,15 @@ function optionsTable(rows: readonly OptionRow[], anchor: string, usedBy?: (name
             .filter((x) => x !== "")
             .join(" ");
     };
-    const short = (o: OptionRow): string => prose(firstSentence(o.doc.replace(/\s+/g, " ")));
-    // every option gets its own entry, so a page can link to any of them
+    // the table gives the type and the default; the meaning is said once, in the entry under it,
+    // and every option gets its own entry, so a page can link to any of them
     const detailed = rows;
     const out = table(
-        ["Option", "Type", "Default", "Meaning"],
+        ["Option", "Type", "Default"],
         rows.map((o) => [
             detailed.includes(o) ? `[${code(o.name)}](#${id(o)})` : code(o.name),
             code(o.type),
             defaultCell(o.defaultValue),
-            cell(short(o)),
         ]),
     );
     if (detailed.length > 0) {
@@ -955,15 +943,15 @@ function optionsBlock(ctx: Context): string[] {
     return [
         "## Every importer",
         "",
-        "`CommonImportOptions`: every importer accepts these next to its own options. An option a format does not read is reported in the import report as `W_OPTION_IGNORED` when you set it.",
+        "`CommonImportOptions`: every importer accepts these next to its own options. An option a format does not read is reported in the import report as `W_OPTION_IGNORED` when you set it, and a name that no format takes, such as a misspelling, as `W_UNKNOWN_OPTION`.",
         "",
-        "An option whose default is the same in every format (`duplicateEdges: \"keep\"`, `long: \"f64\"`, `restoreMangledIds: true` and the like) is not reported when you set it to that default, so an options object you share between formats can spell those out. `ids`, `defaultDirected`, `weightFrom` and `addMissingNodes` have a default per format, and are reported whenever you set them for a format that does not read them: leave them out of a shared object, or skip `W_OPTION_IGNORED` when you show the report.",
+        'An option whose default is the same in every format (`duplicateEdges: "keep"`, `long: "f64"`, `restoreMangledIds: true` and the like) is not reported when you set it to that default, so an options object you share between formats can spell those out. `ids`, `defaultDirected`, `weightFrom` and `addMissingNodes` have a default per format, and are reported whenever you set them for a format that does not read them: leave them out of a shared object, or skip `W_OPTION_IGNORED` when you show the report.',
         "",
         ...optionsTable(commonImport, "import", (n) => (builderPolicies.has(n) ? "every format" : usedBy(n))),
         "",
         "## Every exporter",
         "",
-        "`CommonExportOptions`: every exporter accepts these next to its own options.",
+        "`CommonExportOptions`: every exporter accepts these next to its own options. `checkExport()` returns a `W_UNKNOWN_OPTION` note for a name that no format takes, such as a misspelling.",
         "",
         ...optionsTable(commonExport, "export"),
         "",
@@ -1436,6 +1424,36 @@ export async function undocumented(): Promise<string[]> {
         }
     }
     return out;
+}
+
+/**
+ * The option names the load and save functions take themselves (the common ones and their own), and each built-in
+ * format's own import and export option names, from the option types. The `options` lists of the built-in importers
+ * and exporters, and the library's list of the functions' own names, must equal these.
+ * @returns the names, sorted
+ */
+export async function optionNames(): Promise<{
+    common: string[];
+    formats: Record<string, { import: string[]; export: string[] }>;
+}> {
+    const ctx = await context();
+    const sorted = (xs: Iterable<string>): string[] => [...new Set(xs)].sort(byCodeUnit);
+    const common = [
+        "CommonImportOptions",
+        "ImportGraphOptions",
+        "LoadFromUrlOptions",
+        "CommonExportOptions",
+        "ExportGraphOptions",
+        "DownloadGraphOptions",
+    ].flatMap((t) => ctx.src.options(ctx.index.get(t) as ts.Symbol).map((o) => o.name));
+    const formats: Record<string, { import: string[]; export: string[] }> = {};
+    for (const f of ctx.formats) {
+        formats[f.name] = {
+            import: sorted((f.importOptions ?? []).map((o) => o.name)),
+            export: sorted((f.exportOptions ?? []).map((o) => o.name)),
+        };
+    }
+    return { common: sorted(common), formats };
 }
 
 /** What a published doc comment must not mention: the package's internal design documents and process. */

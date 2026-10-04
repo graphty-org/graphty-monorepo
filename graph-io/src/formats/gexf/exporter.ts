@@ -273,7 +273,8 @@ function planExport(
             temporalText: true,
             positionDtype: "f32",
             roles: MAPPED_ROLES,
-            roleNames: ROLE_NAMES,
+            // GEXF 1.2 has no edge kind: the kind column is dropped (W_GEXF_KIND_DROPPED), not renamed
+            roleNames: version === "1.2" ? ROLE_NAMES_1_2 : ROLE_NAMES,
         }),
     ];
     const note = (code: string, message: string, column: string | null = null, count: number | null = null): void => {
@@ -514,6 +515,11 @@ const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({
     parent: NODE_COLUMNS.parent,
     parents: NODE_COLUMNS.parents,
 });
+
+/** ROLE_NAMES without the edge kind, which GEXF 1.2 cannot write. */
+const ROLE_NAMES_1_2: Readonly<Record<string, string>> = Object.freeze(
+    Object.fromEntries(Object.entries(ROLE_NAMES).filter(([role]) => role !== "kind")),
+);
 
 /**
  * Find the role columns of a table; a role column of the wrong shape is noted and left to the
@@ -1762,6 +1768,7 @@ function graphExtraText(snapshot: GraphSnapshot, key: string): string | null {
  */
 export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
     format: GEXF_FORMAT,
+    options: Object.freeze(["version"]),
     capabilities: CAPABILITIES_1_3,
     /**
      * Pre-flight: what export() would lose.

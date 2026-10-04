@@ -505,6 +505,46 @@ function encodingOption(value: unknown): string | null {
 }
 
 /**
+ * The options to pass to another importer that you hand text you already decoded with readText():
+ * the caller's options without `encoding` and `onProgress`, which that text no longer needs. Without
+ * this, the other importer would warn that `encoding` has no effect on text, and report progress a
+ * second time.
+ * @example
+ * ```ts
+ * const text = await readText(input, report, opts);
+ * report.include(await csvImporter.import(text, sink, forDecodedText(options)));
+ * ```
+ * @param options - the caller's import options
+ * @returns a copy without `encoding` and `onProgress`
+ * @category Writing a format
+ */
+export function forDecodedText<O extends CommonImportOptions>(options: O | undefined): O {
+    return { ...options, encoding: undefined, onProgress: undefined } as O;
+}
+
+/**
+ * The dialect names of the built-in formats with a `dialect` save option. One options object shared between formats
+ * can hold one format's dialect, and the other formats ignore it, as they ignore any option they do not have.
+ */
+export const FORMAT_DIALECTS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+    csv: Object.freeze(["gephi", "generic"]),
+    json: Object.freeze(["node-link", "d3", "jgf", "cytoscape", "graphology", "vis", "obographs"]),
+});
+
+/**
+ * Whether a `dialect` value names another format's dialect, which this format ignores rather than refuses.
+ * @param format - this format
+ * @param value - the caller's `dialect` option
+ * @returns true for another built-in format's dialect name
+ */
+export function otherFormatDialect(format: string, value: unknown): boolean {
+    return (
+        typeof value === "string" &&
+        Object.entries(FORMAT_DIALECTS).some(([f, names]) => f !== format && names.includes(value))
+    );
+}
+
+/**
  * A short description of an option value for an error message.
  * @param value - the value
  * @returns the JSON text of a primitive, or the type name otherwise

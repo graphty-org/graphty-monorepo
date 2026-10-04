@@ -163,7 +163,7 @@ export const OBO_ISSUE = Object.freeze({
     /** Obsolete terms and their edges left out under obsolete: "drop". */
     OBSOLETE_DROPPED: "W_OBO_OBSOLETE_DROPPED",
     /**
-     * Two different id texts became the same number because `ids` is "number" ("042" and "42", say), so their nodes
+     * Two different id texts became the same number because `ids` is "number" (for example, "042" and "42"), so their nodes
      * were merged.
      */
     ID_MERGED: ID_MERGED_CODE,
@@ -2147,6 +2147,7 @@ function sniffObo(head: Uint8Array): number {
  */
 export const oboImporter: GraphImporter<OboImportOptions> = Object.freeze({
     format: "obo",
+    options: Object.freeze(["obsolete", "typedefs"]),
     extensions: Object.freeze([".obo"]),
     mimeTypes: Object.freeze(["text/obo", "application/obo"]),
 

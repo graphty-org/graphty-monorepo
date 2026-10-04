@@ -53,6 +53,8 @@ describe("Build Output Tests", () => {
 
         expect(packageJson.files).toContain("dist/");
         expect(packageJson.files).toContain("src/");
+        // the sample files the guide's examples read, for a reader who has only the package
+        expect(packageJson.files).toContain("docs/samples/");
         expect(packageJson.files).toContain("README.md");
         expect(packageJson.files).toContain("LICENSE");
 

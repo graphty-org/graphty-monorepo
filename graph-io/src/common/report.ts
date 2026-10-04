@@ -348,7 +348,7 @@ export class ImportReportBuilder {
     /**
      * Add a finished report to this one: its issues after the ones recorded so far, its counts, its
      * loss notes and its truncated flag. Use it when an importer hands part of the work to another
-     * importer (a wrapper around the CSV importer, say) and returns one report for both. The issues
+     * importer (for example, a wrapper around the CSV importer) and returns one report for both. The issues
      * keep their codes; errors added this way do not count toward this report's error limit, since
      * the other importer applied its own.
      * @param report - the report the other importer returned

@@ -729,7 +729,11 @@ async function readVirtuals(
     const tree = await parseXmlTree(await session.read(entry, report), entry.name, report, inner);
     if (typeof tree === "string") {
         // only the shared columns are lost: every table's own columns are still read
-        report.error("parse-error", CYS_ISSUE.TABLE, `${entryLabel(entry.name)}: ${tree}; its virtual columns are not read`);
+        report.error(
+            "parse-error",
+            CYS_ISSUE.TABLE,
+            `${entryLabel(entry.name)}: ${tree}; its virtual columns are not read`,
+        );
         return [];
     }
     const out: VirtualColumn[] = [];
@@ -1474,6 +1478,7 @@ export function sniffCys(head: Uint8Array): number {
  */
 export const cysImporter: GraphImporter<CysImportOptions> = Object.freeze({
     format: FORMAT,
+    options: Object.freeze(["maxUncompressedBytes", "zAs"]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
     sniff: sniffCys,

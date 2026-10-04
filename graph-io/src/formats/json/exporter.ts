@@ -25,7 +25,7 @@ import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { checkCapabilities, countMixedEdges, LOSS } from "../../common/export.js";
 import { formatF32, formatF64 } from "../../common/format.js";
 import { flipY } from "../../common/json-elements.js";
-import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { otherFormatDialect, type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
@@ -52,7 +52,8 @@ export interface JsonExportOptions extends CommonExportOptions {
     /**
      * The dialect to write. The default is the dialect a JSON import read, else "node-link".
      * Attributes are written under their own names; vis.js shows the `label` attribute, so rename
-     * the attribute you want shown to `label` first (`snapshot.nodes.rename("name", "label")`).
+     * the attribute you want shown to `label` first (`snapshot.nodes.rename("name", "label")`). A CSV
+     * dialect name ("gephi", "generic"), from an options object shared with CSV saves, is ignored.
      * @defaultValue as read, else "node-link"
      */
     dialect?: JsonDialect | undefined;
@@ -195,12 +196,12 @@ export const JSON_LOSS = Object.freeze({
     /** Obographs: numeric node ids are written as text and read back as strings. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /**
-     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
      * reads back with that role.
      */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
     /**
-     * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the
+     * An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the
      * name the format's importer gives it.
      */
     COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
@@ -313,7 +314,8 @@ function resolve(snapshot: GraphSnapshot, options: (JsonExportOptions & CommonEx
     const common = resolveExportOptions(options);
     const shape = shapeMetaOf(snapshot.meta);
     let dialect: JsonDialect;
-    if (o.dialect === undefined) {
+    if (o.dialect === undefined || otherFormatDialect("json", o.dialect)) {
+        // no dialect, or another format's (a CSV "generic" in a shared options object)
         dialect = shape.dialect ?? "node-link";
     } else if (isJsonDialect(o.dialect)) {
         ({ dialect } = o);
@@ -1733,6 +1735,17 @@ function parts(snapshot: GraphSnapshot, resolved: Resolved): Generator<string, v
  */
 export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
     format: "json",
+    options: Object.freeze([
+        "dialect",
+        "edgesKey",
+        "indent",
+        "indexLinks",
+        "nodeIdKey",
+        "ontologyIri",
+        "sourceKey",
+        "targetKey",
+        "weightKey",
+    ]),
     capabilities: dialectCapabilities("node-link"),
 
     /**

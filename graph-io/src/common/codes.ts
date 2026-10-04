@@ -125,7 +125,7 @@ export const ROLE_TAKEN_CODE = "W_ROLE_TAKEN";
 export const PRECISION_CODE = "W_PRECISION";
 
 /**
- * Two different id texts became the same number because `ids` is "number" ("042" and "42", say), so their nodes were
+ * Two different id texts became the same number because `ids` is "number" (for example, "042" and "42"), so their nodes were
  * merged.
  * @category Issue and loss codes
  */
@@ -411,6 +411,29 @@ export const EDGES_MERGED_CODE = "W_EDGES_MERGED";
  */
 export const SELF_LOOPS_DROPPED_CODE = "W_SELF_LOOPS_DROPPED";
 
+/**
+ * An option name that no format and no load or save function takes, most often a misspelling (`delimeter`). The
+ * option has no effect. A load records it as a warning, and `checkExport()` returns it as a note. Reported only while
+ * every registered format lists its options, as the built-in formats do.
+ * @category Issue and loss codes
+ */
+export const UNKNOWN_OPTION_CODE = "W_UNKNOWN_OPTION";
+
+/**
+ * A line the `parseLine` function of a format made with defineLineFormat() could not read (it threw). The line is
+ * skipped; the message is the one the function threw with.
+ * @category Issue and loss codes
+ */
+export const BAD_LINE_CODE = "E_BAD_LINE";
+
+/**
+ * The `weightFrom` option names an attribute no edge has a value for, so the graph has no weights. The usual cause
+ * is one options object shared between formats: GML and Pajek keep their weights in `value`, not `weight`. Recorded
+ * once by importGraph().
+ * @category Issue and loss codes
+ */
+export const WEIGHT_NOT_FOUND_CODE = "W_WEIGHT_NOT_FOUND";
+
 // ============================================================ exporter loss notes
 
 /**
@@ -468,21 +491,21 @@ export const TEMPORAL_TEXT_DROPPED_CODE = "W_TEMPORAL_TEXT_DROPPED";
 export const WEIGHTS_DROPPED_CODE = "W_WEIGHTS_DROPPED";
 
 /**
- * An attribute without the weight role is named like the attribute graph-io reads weights from (`weight`, say), so it
+ * An attribute without the weight role is named like the attribute graph-io reads weights from (for example, `weight`), so it
  * reads back as the edge weight.
  * @category Issue and loss codes
  */
 export const WEIGHT_KEY_CLASH_CODE = "W_WEIGHT_KEY_CLASH";
 
 /**
- * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads
+ * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and reads
  * back with that role.
  * @category Issue and loss codes
  */
 export const ROLE_ASSUMED_CODE = "W_ROLE_ASSUMED";
 
 /**
- * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the name
+ * An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the name
  * the format's importer gives it.
  * @category Issue and loss codes
  */

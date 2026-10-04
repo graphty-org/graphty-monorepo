@@ -77,12 +77,12 @@ export const CYS_LOSS = Object.freeze({
     /** A position that cannot be written as it is: another shape, a non-finite coordinate, a z read back in the z column. */
     POSITION: "W_CYS_POSITION",
     /**
-     * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the
+     * An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the
      * name the format's importer gives it.
      */
     COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
     /**
-     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
      * reads back with that role.
      */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
@@ -790,13 +790,22 @@ function planIds(snapshot: GraphSnapshot, common: ResolvedExportOptions, note: N
             null,
             collisions,
         );
-        fatal = new GraphFormatError("E_INVALID_ID", `${collisions} node id${plural(collisions)} ${agree(collisions, "shares", "share")} their text with another id`, {
-            reason: "collision",
-            count: collisions,
-        });
+        fatal = new GraphFormatError(
+            "E_INVALID_ID",
+            `${collisions} node id${plural(collisions)} ${agree(collisions, "shares", "share")} their text with another id`,
+            {
+                reason: "collision",
+                count: collisions,
+            },
+        );
     }
     if (numeric > 0) {
-        note(LOSS.ID_TEXT_TYPE, `${numeric} numeric node id${plural(numeric)} ${agree(numeric, "reads", "read")} back as their text`, null, numeric);
+        note(
+            LOSS.ID_TEXT_TYPE,
+            `${numeric} numeric node id${plural(numeric)} ${agree(numeric, "reads", "read")} back as their text`,
+            null,
+            numeric,
+        );
     }
     if (bad.length > 0) {
         if (common.sanitizeIds === "mangle") {
@@ -1235,6 +1244,7 @@ async function* write(
  */
 export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
     format: FORMAT,
+    options: Object.freeze([]),
     capabilities: CYS_CAPABILITIES,
 
     /**
@@ -1267,7 +1277,11 @@ export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
         void snapshot;
         void options;
         return Promise.reject(
-            new GraphFormatError("E_UNSUPPORTED", "a Cytoscape session is a zip file, not text; use exportGraphToBytes() or exportGraphToBlob()", { reason: "binary" }),
+            new GraphFormatError(
+                "E_UNSUPPORTED",
+                "a Cytoscape session is a zip file, not text; use exportGraphToBytes() or exportGraphToBlob()",
+                { reason: "binary" },
+            ),
         );
     },
 });

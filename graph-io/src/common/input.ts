@@ -1133,7 +1133,7 @@ function reportTextEncoding(report: ImportReportBuilder, encoding: string | null
         report.warning(
             "unsupported",
             OPTION_IGNORED_CODE,
-            `option encoding: ${JSON.stringify(encoding)} has no effect on text input, which is already decoded`,
+            "option encoding has no effect on text input, which is already decoded",
             { element: "encoding" },
         );
     }

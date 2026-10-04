@@ -39,6 +39,8 @@ const ACCEPTED: Readonly<Record<string, string>> = {
         "a repeated node id is a warning (W_DUPLICATE_NODE): the second merges into the first, as in every graph-io importer",
     "dot/invalid-keyword.gv": "Graphviz reads a bare identifier as a node and `a = b` as a graph attribute",
     "dot/missing-arrow.gv": "Graphviz reads `A B;` as two node statements",
+    "json/missing-edges.json": "a node-link document without its links is a graph without edges (W_MISSING_SECTION)",
+    "json/missing-nodes.json": "a node-link document without its nodes takes them from the links (W_MISSING_SECTION)",
     "graphml/invalid-edge-reference.graphml": "undeclared endpoints are created under addMissingNodes (the default)",
     "pajek/missing-edges-section.net": "a vertices-only network is legal (W_PAJEK_NO_LINES)",
     "pajek/wrong-vertex-count.net": "fewer vertex lines than *Vertices declares is legal (W_PAJEK_VERTEX_COUNT)",

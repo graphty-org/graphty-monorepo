@@ -653,14 +653,18 @@ class AttributeWriter {
 
     private readonly reservedNames = new Set<string>();
 
+    private readonly report: ImportReportBuilder;
+
     /**
      * Create a writer.
      * @param sink - the sink
      * @param domain - node or edge
+     * @param report - where a refused cell is recorded
      */
-    constructor(sink: GraphSink, domain: "node" | "edge") {
+    constructor(sink: GraphSink, domain: "node" | "edge", report: ImportReportBuilder) {
         this.sink = sink;
         this.domain = domain;
+        this.report = report;
     }
 
     /**
@@ -695,23 +699,33 @@ class AttributeWriter {
     }
 
     /**
-     * Write one attribute cell by its source key; null and undefined leave the row unset.
+     * Write one attribute cell by its source key; null and undefined leave the row unset. A cell the
+     * sink refuses is recorded and skipped, so the element's other keys are still written.
      * @param row - the node or edge index
      * @param key - the source key
      * @param value - the JSON value
      * @param suffix - the suffix applied when the key collides with a structural column
+     * @param element - the element name for an issue
      */
-    write(row: number, key: string, value: unknown, suffix: string): void {
+    write(row: number, key: string, value: unknown, suffix: string, element: string): void {
         if (value === undefined || value === null) {
             return;
         }
         const name = this.reservedNames.has(key) ? `${key}${suffix}` : key;
-        const cached = this.handles.get(name);
-        if (cached !== undefined) {
-            this.set(cached, row, value);
+        try {
+            const cached = this.handles.get(name);
+            if (cached !== undefined) {
+                this.set(cached, row, value);
+                return;
+            }
+            this.set(name, row, value);
+        } catch (err) {
+            if (!(err instanceof GraphFormatError)) {
+                throw err;
+            }
+            this.report.recordError(err, { element: `${element}.${key}` });
             return;
         }
-        this.set(name, row, value);
         const handle = this.lookup(name);
         if (handle !== INVALID_INDEX) {
             this.handles.set(name, handle);
@@ -791,8 +805,8 @@ export class ImportContext {
         this.json = json;
         this.ids = new IdCoercer(options.ids);
         this.direction = new DirectionResolver(sink, report, options.onMixedDirection);
-        this.nodes = new AttributeWriter(sink, "node");
-        this.edges = new AttributeWriter(sink, "edge");
+        this.nodes = new AttributeWriter(sink, "node", report);
+        this.edges = new AttributeWriter(sink, "edge", report);
         this.explicitDefaultDirected = explicitDefaultDirected;
     }
 
@@ -1095,6 +1109,7 @@ export class ImportContext {
      * @param dict - the nested attribute dict
      * @param structural - the element keys that are not attributes
      * @param weightFrom - the weight key to skip in the dict, or null
+     * @param element - the element name for issues
      */
     writeNested(
         writer: AttributeWriter,
@@ -1103,15 +1118,16 @@ export class ImportContext {
         dict: JsonRecord,
         structural: ReadonlySet<string>,
         weightFrom: string | null,
+        element: string,
     ): void {
         for (const key of Object.keys(dict)) {
             if (key !== weightFrom) {
-                writer.write(row, key, dict[key], SUFFIX.data);
+                writer.write(row, key, dict[key], SUFFIX.data, element);
             }
         }
         for (const key of Object.keys(record)) {
             if (!structural.has(key)) {
-                writer.write(row, `${key}${SUFFIX.element}`, record[key], SUFFIX.data);
+                writer.write(row, `${key}${SUFFIX.element}`, record[key], SUFFIX.data, element);
             }
         }
     }
@@ -1693,7 +1709,7 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
                 const index = ctx.pushNode(id, element);
                 if (index >= 0) {
                     pushed = id;
-                    writeFlat(ctx, ctx.nodes, index, record, id, (key) => key !== nodeIdKey);
+                    writeFlat(ctx.nodes, index, record, id, (key) => key !== nodeIdKey);
                 }
             }
         }
@@ -1760,7 +1776,7 @@ function importNodeLinkEdges(
             const { weightFrom } = ctx.options;
             for (const key of Object.keys(record)) {
                 if (key !== source.key && key !== target.key && key !== weightFrom) {
-                    ctx.edges.write(edge, key, record[key], SUFFIX.data);
+                    ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
                 }
             }
         } catch (err) {
@@ -1772,7 +1788,6 @@ function importNodeLinkEdges(
 
 /**
  * Write the flat attributes of a node record (every own key the filter keeps).
- * @param ctx - the context
  * @param writer - the node writer
  * @param index - the node index
  * @param record - the record
@@ -1780,21 +1795,16 @@ function importNodeLinkEdges(
  * @param keep - which keys are attributes
  */
 function writeFlat(
-    ctx: ImportContext,
     writer: AttributeWriter,
     index: number,
     record: JsonRecord,
     id: NodeId,
     keep: (key: string) => boolean,
 ): void {
-    try {
-        for (const key of Object.keys(record)) {
-            if (keep(key)) {
-                writer.write(index, key, record[key], SUFFIX.data);
-            }
+    for (const key of Object.keys(record)) {
+        if (keep(key)) {
+            writer.write(index, key, record[key], SUFFIX.data, String(id));
         }
-    } catch (err) {
-        ctx.report.recordError(err, { element: String(id) });
     }
 }
 
@@ -1905,7 +1915,7 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
         }
         const index = ctx.pushNode(id, element);
         if (index >= 0) {
-            writeFlat(ctx, ctx.nodes, index, record, id, (key) => key !== nodeIdKey);
+            writeFlat(ctx.nodes, index, record, id, (key) => key !== nodeIdKey);
         }
     }
     throwIfAborted(ctx.options.signal);
@@ -1941,7 +1951,7 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
             const { weightFrom } = ctx.options;
             for (const key of Object.keys(record)) {
                 if (key !== source.key && key !== target.key && key !== "id" && key !== weightFrom) {
-                    ctx.edges.write(edge, key, record[key], SUFFIX.data);
+                    ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
                 }
             }
         } catch (err) {
@@ -2017,7 +2027,7 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
                 const index = ctx.pushNode(id, element);
                 if (index >= 0) {
                     pushed = id;
-                    writeFlat(ctx, ctx.nodes, index, record, id, (key) => key !== idKey);
+                    writeFlat(ctx.nodes, index, record, id, (key) => key !== idKey);
                 }
             }
         }
@@ -2072,7 +2082,7 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
                 const edge = ctx.pushEdge(source, target, kind, ctx.weightOf(record), entry);
                 for (const key of Object.keys(record)) {
                     if (key !== idKey && key !== weightFrom) {
-                        ctx.edges.write(edge, key, record[key], SUFFIX.data);
+                        ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
                     }
                 }
             } catch (err) {
@@ -2149,7 +2159,7 @@ function importTree(ctx: ImportContext, root: JsonRecord): void {
         } else if (ctx.pushNode(id, element) < 0) {
             id = null;
         } else {
-            writeFlat(ctx, ctx.nodes, ctx.sink.indexOf(id), record, id, (key) => key !== idKey && key !== "children");
+            writeFlat(ctx.nodes, ctx.sink.indexOf(id), record, id, (key) => key !== idKey && key !== "children");
             if (parent !== null) {
                 try {
                     ctx.pushEdge(parent, id, kind, undefined, element);
@@ -2270,7 +2280,7 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
             const idValue = ctx.edgeIdValue(ids, record.key);
             const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(attributes), element);
             ctx.setEdgeId(ids, edge, idValue);
-            ctx.writeNested(ctx.edges, edge, record, attributes, GRAPHOLOGY_EDGE_KEYS, ctx.options.weightFrom);
+            ctx.writeNested(ctx.edges, edge, record, attributes, GRAPHOLOGY_EDGE_KEYS, ctx.options.weightFrom, element);
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
@@ -2311,7 +2321,7 @@ function pushNestedNode(
                 { element },
             );
         }
-        ctx.writeNested(ctx.nodes, index, record, isJsonObject(dict) ? dict : {}, structural, null);
+        ctx.writeNested(ctx.nodes, index, record, isJsonObject(dict) ? dict : {}, structural, null, element);
     } catch (err) {
         ctx.report.recordError(err, { element: String(id) });
     }
@@ -2436,7 +2446,7 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
                 element,
             });
         }
-        ctx.writeNested(ctx.edges, edge, record, dict, structural, ctx.options.weightFrom);
+        ctx.writeNested(ctx.edges, edge, record, dict, structural, ctx.options.weightFrom, element);
     };
 
     for (let i = 0; i < edges.length; i++) {
@@ -2630,7 +2640,7 @@ function pushJgfNode(
                 element,
             });
         }
-        ctx.writeNested(ctx.nodes, index, record, isJsonObject(metadata) ? metadata : {}, JGF_NODE_KEYS, null);
+        ctx.writeNested(ctx.nodes, index, record, isJsonObject(metadata) ? metadata : {}, JGF_NODE_KEYS, null, element);
     } catch (err) {
         ctx.report.recordError(err, { element: String(id) });
     }
@@ -2841,7 +2851,7 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
                     }
                     continue;
                 }
-                ctx.nodes.write(index, key, data[key], SUFFIX.data);
+                ctx.nodes.write(index, key, data[key], SUFFIX.data, element);
             }
             const { position } = record;
             if (position !== undefined && position !== null) {
@@ -2859,7 +2869,7 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
                 }
             }
             writeClasses(ctx, ctx.nodes, classesColumn, index, record.classes, element);
-            writeElementKeys(ctx.nodes, index, record);
+            writeElementKeys(ctx.nodes, index, record, element);
         } catch (err) {
             report.recordError(err, { element: String(id) });
         }
@@ -2918,11 +2928,11 @@ function importCytoscapeEdges(ctx: ImportContext, edges: readonly unknown[], edg
             const { weightFrom } = ctx.options;
             for (const key of Object.keys(data)) {
                 if (key !== "id" && key !== "source" && key !== "target" && key !== weightFrom) {
-                    ctx.edges.write(edge, key, data[key], SUFFIX.data);
+                    ctx.edges.write(edge, key, data[key], SUFFIX.data, element);
                 }
             }
             writeClasses(ctx, ctx.edges, edgeClassesColumn, edge, record.classes, element);
-            writeElementKeys(ctx.edges, edge, record);
+            writeElementKeys(ctx.edges, edge, record, element);
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
@@ -3021,14 +3031,15 @@ function writeClasses(
  * @param writer - the table writer
  * @param row - the row
  * @param record - the element
+ * @param element - the element name for issues
  */
-function writeElementKeys(writer: AttributeWriter, row: number, record: JsonRecord): void {
+function writeElementKeys(writer: AttributeWriter, row: number, record: JsonRecord, element: string): void {
     for (const key of Object.keys(record)) {
         if (CYTOSCAPE_STRUCTURAL_KEYS.has(key)) {
             continue;
         }
         const name = CYTOSCAPE_ELEMENT_KEYS.has(key) ? key : `${key}${SUFFIX.element}`;
-        writer.write(row, name, record[key], SUFFIX.data);
+        writer.write(row, name, record[key], SUFFIX.data, element);
     }
 }
 

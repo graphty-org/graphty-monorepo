@@ -57,6 +57,34 @@ function isEscaped(text: string, index: number): boolean {
 }
 
 /**
+ * Split a line at the form feeds outside quotes (the 1.4 grammar counts a form feed as a line end;
+ * one inside a quoted value is text).
+ * @param line - the raw line
+ * @returns the pieces, the line itself when it holds no such form feed
+ */
+export function splitFormFeeds(line: string): string[] {
+    if (!line.includes("\f")) {
+        return [line];
+    }
+    const pieces: string[] = [];
+    let quoted = false;
+    let start = 0;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === "\\") {
+            i++;
+        } else if (ch === '"') {
+            quoted = !quoted;
+        } else if (ch === "\f" && !quoted) {
+            pieces.push(line.slice(start, i));
+            start = i + 1;
+        }
+    }
+    pieces.push(line.slice(start));
+    return pieces;
+}
+
+/**
  * Whether a raw line ends with an unescaped backslash (the 1.0 / 1.2 line continuation).
  * @param line - the raw line, trailing whitespace included
  * @returns true when the line continues on the next one
@@ -134,37 +162,54 @@ interface QualifiedValue {
 /**
  * Split the trailing qualifier blocks off a value: a `{...}` is a block only when it closes the
  * value (after the comment was stripped); several blocks (`{a="1"}{b="2"}`, 1.2 examples) are
- * merged. A closing brace whose block does not parse is left in the value and reported.
+ * merged. A closing brace whose block does not parse is left in the value and reported. The value
+ * is scanned once, so a value of many blocks costs its length, not its length times its blocks.
  * @param value - the raw value without its comment
  * @returns the value and its qualifiers
  */
 export function splitQualifiers(value: string): QualifiedValue {
-    let rest = value;
-    let qualifiers: Qualifiers | null = null;
-    for (;;) {
-        if (!rest.endsWith("}") || isEscaped(rest, rest.length - 1)) {
-            return { value: rest, qualifiers, badBlock: null };
-        }
-        const open = openingBrace(rest);
-        const parsed = open < 0 ? null : parseQualifiers(rest.slice(open + 1, -1));
-        if (parsed === null) {
-            return { value: rest, qualifiers, badBlock: open < 0 ? rest : rest.slice(open) };
-        }
-        // a block read right to left: an earlier block's names come first
-        qualifiers = qualifiers === null ? parsed : mergeQualifiers(parsed, qualifiers);
-        rest = rest.slice(0, open).trimEnd();
+    if (!value.endsWith("}")) {
+        return { value, qualifiers: null, badBlock: null };
     }
+    const blocks = braceBlocks(value);
+    // the blocks read right to left, merged left to right below
+    const parsed: Qualifiers[] = [];
+    let end = value.length;
+    let badBlock: string | null = null;
+    while (end > 0 && value[end - 1] === "}" && !isEscaped(value, end - 1)) {
+        const open = blocks.get(end - 1) ?? -1;
+        const block = open < 0 ? null : parseQualifiers(value.slice(open + 1, end - 1));
+        if (block === null) {
+            badBlock = value.slice(open < 0 ? 0 : open, end);
+            break;
+        }
+        parsed.push(block);
+        end = open;
+        while (end > 0 && /\s/.test(value[end - 1])) {
+            end--;
+        }
+    }
+    let qualifiers: Qualifiers | null = null;
+    for (let i = parsed.length - 1; i >= 0; i--) {
+        qualifiers ??= Object.create(null) as Qualifiers;
+        for (const [name, v] of Object.entries(parsed[i])) {
+            addQualifier(qualifiers, name, v);
+        }
+    }
+    return { value: value.slice(0, end), qualifiers, badBlock };
 }
 
 /**
- * The index of the unescaped `{` outside quotes that opens the block closing the value.
- * @param value - a raw value ending with `}`
- * @returns the index, or -1 when there is none
+ * The qualifier blocks of a value in one scan: for every unescaped `}` outside quotes, the index of
+ * the unescaped `{` outside quotes that opens it (-1 when a `}` came after that `{`, or none did).
+ * @param value - a raw value
+ * @returns the opening index by closing index
  */
-function openingBrace(value: string): number {
+function braceBlocks(value: string): Map<number, number> {
+    const blocks = new Map<number, number>();
     let quoted = false;
     let open = -1;
-    for (let i = 0; i < value.length - 1; i++) {
+    for (let i = 0; i < value.length; i++) {
         const ch = value[i];
         if (ch === "\\") {
             i++;
@@ -175,39 +220,60 @@ function openingBrace(value: string): number {
         } else if (!quoted && ch === "{") {
             open = i;
         } else if (!quoted && ch === "}") {
+            blocks.set(i, open);
             open = -1;
         }
     }
-    return quoted ? -1 : open;
+    return blocks;
 }
 
 /**
- * Merge two qualifier records, a repeated name becoming a list.
- * @param first - the earlier record
- * @param second - the later record
- * @returns the merged record
+ * The index of an unescaped `{` outside quotes that no `}` closes: a qualifier block cut short (a
+ * file truncated inside it).
+ * @param value - a raw value, closing blocks already split off
+ * @returns the index, or -1 when every brace is closed
  */
-function mergeQualifiers(first: Qualifiers, second: Qualifiers): Qualifiers {
-    const out: Qualifiers = { ...first };
-    for (const [name, value] of Object.entries(second)) {
-        addQualifier(out, name, value);
+export function unclosedBlock(value: string): number {
+    let quoted = false;
+    let open = -1;
+    for (let i = 0; i < value.length; i++) {
+        const ch = value[i];
+        if (ch === "\\") {
+            i++;
+            continue;
+        }
+        if (ch === '"' && open < 0) {
+            quoted = !quoted;
+        } else if (!quoted && ch === "{") {
+            open = i;
+        } else if (!quoted && ch === "}") {
+            open = -1;
+        }
     }
-    return out;
+    return open;
 }
 
 /**
- * Add one qualifier, turning a repeated name into a list.
+ * Add one qualifier, turning a repeated name into a list (a list the record owns, appended to in
+ * place). The record must have a null prototype, so a name such as `__proto__` is an own key.
  * @param record - the record
  * @param name - the name
  * @param value - the value (or values)
  */
 function addQualifier(record: Qualifiers, name: string, value: string | string[]): void {
+    const values = Array.isArray(value) ? value : [value];
     if (!Object.prototype.hasOwnProperty.call(record, name)) {
-        record[name] = value;
+        record[name] = Array.isArray(value) ? [...value] : value;
         return;
     }
     const before = record[name];
-    record[name] = [...(Array.isArray(before) ? before : [before]), ...(Array.isArray(value) ? value : [value])];
+    if (Array.isArray(before)) {
+        for (const v of values) {
+            before.push(v);
+        }
+    } else {
+        record[name] = [before, ...values];
+    }
 }
 
 /**
@@ -260,7 +326,7 @@ export function parseQualifiers(inner: string): Qualifiers | null {
         addQualifier(out, name, value);
         any = true;
     }
-    return any ? { ...out } : null;
+    return any ? out : null;
 }
 
 /**
@@ -372,6 +438,8 @@ export interface Xref {
     readonly description: string | null;
     /** Per-xref qualifiers (OBO 1.2 inside a list), or null. */
     readonly qualifiers: Qualifiers | null;
+    /** Whether the description's quote was never closed (it runs to the end). */
+    readonly unterminated: boolean;
 }
 
 /**
@@ -396,11 +464,13 @@ export function parseXref(raw: string): Xref | null {
         return null;
     }
     let description: string | null = null;
+    let unterminated = false;
     if (quote >= 0) {
         const end = closingQuote(value, quote + 1);
+        unterminated = end < 0;
         description = unescapeObo(value.slice(quote + 1, end < 0 ? value.length : end));
     }
-    return { id, description, qualifiers };
+    return { id, description, qualifiers, unterminated };
 }
 
 /**

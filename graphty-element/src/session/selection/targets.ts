@@ -32,11 +32,14 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, Scope, ScopeInput, SelectionDirection } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { eachAdjacentArc } from "../adjacency";
 import type { NoteMembers } from "../notes/select";
 import type { NoteId } from "../notes/types";
+import { fieldOfResult } from "../results/ResultsApi";
 import type { RankingEntry, ResultsApi, RunRef, RunResult } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import type { ScopeResolver } from "../scope/ScopeApi";
+import type { ResultRef } from "../shared";
 
 /** How far a neighbourhood target reaches when it does not say. */
 const DEFAULT_NEIGHBOR_DEPTH = 1;
@@ -119,17 +122,22 @@ export type SelectionTarget =
      * the rest an expression, exactly as `{ where }` reads it, which selects edges as well.
      */
     | { readonly text: string; readonly mode?: SelectionTextMode; readonly scope?: ScopeInput }
-    /** A pasted list of ids, which may name nodes, edges, or nothing at all. */
-    | { readonly ids: readonly string[] }
+    /**
+     * A list of ids, which may name nodes, edges, or nothing at all: a pasted column of text, or
+     * the ids the element handed out (a neighbor, a table record, a found element), numbers
+     * included. An id that names nothing comes back on `unmatched`, as text.
+     */
+    | { readonly ids: readonly NodeId[] }
     /** Everything a scope covers. An inline `{ define }` may name edges by session edge id. */
     | { readonly scope: ScopeInput }
     /**
      * The highest-ranked elements of a finished run. A tie group is taken whole and only when it
      * fits inside `n`, so this can select fewer than `n` elements, or none. See `TopRanking` in the results types.
+     * With no `field`, the run's primary field is ranked.
      */
-    | { readonly top: { readonly run: RunRef; readonly field: string; readonly n: number } }
-    /** Every element of a finished run above a threshold. */
-    | { readonly above: { readonly run: RunRef; readonly field: string; readonly threshold: number } }
+    | { readonly top: ResultRef & { readonly n: number } }
+    /** Every element of a finished run above a threshold. With no `field`, the run's primary field is read. */
+    | { readonly above: ResultRef & { readonly threshold: number } }
     /** The edges whose endpoints are both selected. Names no nodes. */
     | { readonly edgesBetween: true }
     /** Everything that is not selected, in both halves. */
@@ -358,7 +366,7 @@ function admitted(resolver: ScopeResolver, scope: ScopeInput): Scope {
  * @param text - What was typed.
  * @returns The text to search for and how.
  */
-function searchOf(text: string): { text: string; mode: SelectionTextMode } {
+export function searchOf(text: string): { text: string; mode: SelectionTextMode } {
     const prefix = /^([A-Za-z_][\w.]*):/.exec(text);
 
     if (prefix === null) {
@@ -424,7 +432,19 @@ function isElementIds(target: SelectionTarget): target is ElementIdTarget {
  * @param edges - The edge mask to fill.
  * @returns True when the id named something.
  */
-function addPastedId(raw: string, nodes: ElementMask<NodeId>, edges: ElementMask<EdgeId>): boolean {
+function addPastedId(raw: NodeId, nodes: ElementMask<NodeId>, edges: ElementMask<EdgeId>): boolean {
+    if (typeof raw === "number") {
+        // An id the element handed out as a number: that node, else the same text as typed.
+        const index = nodes.indexOf(raw);
+        if (index !== INVALID_INDEX) {
+            nodes.add(index);
+
+            return true;
+        }
+
+        return addPastedId(String(raw), nodes, edges);
+    }
+
     const trimmed = raw.trim();
     const readings: NodeId[] = [raw];
 
@@ -481,9 +501,7 @@ function neighborDepth(depth: number | undefined): number {
  * Walk out from the seeds, adding everything reached within the depth.
  *
  * The mask is the visited set as well as the answer, so a node is expanded once however many
- * paths reach it. An undirected snapshot holds both orientations of every edge in its forward
- * adjacency, so it is walked forwards whichever direction was asked for -- walking its reverse
- * as well would visit every arc twice for the same answer.
+ * paths reach it. Each step is the same adjacency walk `session.data.neighbors` reads.
  * @param nodes - The mask to fill, which already holds the seeds.
  * @param graph - The snapshot to walk.
  * @param seeds - The seed indices, already in the mask.
@@ -497,30 +515,17 @@ function walkNeighborhood(
     depth: number,
     direction: SelectionDirection,
 ): void {
-    const forward = direction !== "in" || !graph.directed;
-    const backward = graph.directed && direction !== "out";
-    const reverse = backward ? graph.reverse() : null;
     let frontier = seeds;
 
     for (let step = 0; step < depth && frontier.length > 0; step++) {
         const next: number[] = [];
 
         for (const node of frontier) {
-            if (forward) {
-                for (let arc = graph.rowPtr[node]; arc < graph.rowPtr[node + 1]; arc++) {
-                    if (nodes.add(graph.colIdx[arc])) {
-                        next.push(graph.colIdx[arc]);
-                    }
+            eachAdjacentArc(graph, node, direction, (other) => {
+                if (nodes.add(other)) {
+                    next.push(other);
                 }
-            }
-
-            if (reverse !== null) {
-                for (let arc = reverse.rowPtr[node]; arc < reverse.rowPtr[node + 1]; arc++) {
-                    if (nodes.add(reverse.colIdx[arc])) {
-                        next.push(reverse.colIdx[arc]);
-                    }
-                }
-            }
+            });
         }
 
         frontier = next;
@@ -595,16 +600,16 @@ function elementFieldKind(result: RunResult, field: string, path: Path): "node" 
  * different elements in the top twenty.
  * @param context - What the resolution reads.
  * @param run - The run to read.
- * @param field - The field to rank on.
- * @param take - Picks the entries to select out of the run's ranking, best first.
+ * @param named - The field to rank on; the run's primary field when absent.
+ * @param take - Picks the entries to select out of the run's ranking for a field, best first.
  * @returns The two masks, and the path when this session cannot answer it.
  * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no results are attached.
  */
 function resolveRanked(
     context: TargetContext,
     run: RunRef,
-    field: string,
-    take: (result: RunResult) => readonly RankingEntry[],
+    named: string | undefined,
+    take: (result: RunResult, field: string) => readonly RankingEntry[],
 ): TargetMembers {
     const { results } = context;
 
@@ -614,17 +619,19 @@ function resolveRanked(
 
     const { nodes, edges } = emptyMasks(context);
     const result = results.get(run);
+    const field = fieldOfResult(results, { run, ...(named === undefined ? {} : { field: named }) });
 
-    if (result === undefined || !results.has(run, field)) {
+    if (result === undefined || field === undefined || !results.has(run, field)) {
         // Not a throw: a run that has not finished, and a run id read back out of a saved document
         // against a session that never started it, are both ordinary things for a consumer to
         // hold. The path travels back instead, so "0 selected" can say why it was zero.
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: Object.freeze([results.path(run, field)]) };
+        const path = field === undefined ? results.path(run) : results.path(run, field);
+        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: Object.freeze([path]) };
     }
 
     const kind = elementFieldKind(result, field, results.path(run, field));
 
-    for (const entry of take(result)) {
+    for (const entry of take(result, field)) {
         if (kind === "edge") {
             const index = edges.indexOf(String(entry.id));
 
@@ -768,9 +775,13 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
         const { nodes, edges } = emptyMasks(context);
         const unmatched: string[] = [];
 
-        for (const raw of target.ids) {
+        for (const raw of target.ids as readonly unknown[]) {
+            if (typeof raw !== "string" && !(typeof raw === "number" && Number.isFinite(raw))) {
+                throw badOption("ids entry", JSON.stringify(raw), "a string or a finite number");
+            }
+
             if (!addPastedId(raw, nodes, edges)) {
-                unmatched.push(raw);
+                unmatched.push(String(raw));
             }
         }
 
@@ -791,19 +802,19 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
     }
 
     if ("top" in target) {
-        const { run, field, n } = target.top;
+        const { run, n } = target.top;
 
-        return resolveRanked(context, run, field, (result) => result.top(field, n).entries);
+        return resolveRanked(context, run, target.top.field, (result, field) => result.top(field, n).entries);
     }
 
     if ("above" in target) {
-        const { run, field, threshold } = target.above;
+        const { run, threshold } = target.above;
 
         if (!Number.isFinite(threshold)) {
             throw badOption("threshold", threshold, "a finite number");
         }
 
-        return resolveRanked(context, run, field, (result) =>
+        return resolveRanked(context, run, target.above.field, (result, field) =>
             result.ranking(field).filter((entry) => entry.value > threshold),
         );
     }

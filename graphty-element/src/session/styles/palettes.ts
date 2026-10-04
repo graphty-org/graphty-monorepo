@@ -243,11 +243,39 @@ function defaultPaletteFor(registry: ScaleRegistry, scale: string, groups: numbe
     const tightestFit = [...palettesOfKind("categorical")]
         .filter((candidate) => paletteCapacity(candidate, groups).fits)
         .sort(
-            (left, right) =>
-                (left.capacity ?? Number.POSITIVE_INFINITY) - (right.capacity ?? Number.POSITIVE_INFINITY),
+            (left, right) => (left.capacity ?? Number.POSITIVE_INFINITY) - (right.capacity ?? Number.POSITIVE_INFINITY),
         );
 
     return tightestFit[0]?.id ?? DEFAULT_PALETTE;
+}
+
+/**
+ * The palette a column encoding writes into its layer when the caller names none.
+ *
+ * Groups get the smallest categorical palette that names them all, and the preferred one when
+ * none can (the binding's `overflow: "other"` folds the rest). Anything else gets the sequential
+ * default.
+ * @param registry - The session's scales.
+ * @param scale - The scale the binding reads through.
+ * @param groups - How many distinct values the column holds; 0 for a continuous scale.
+ * @returns The palette's id.
+ */
+export function columnPaletteFor(registry: ScaleRegistry, scale: string, groups: number): PaletteId {
+    const chosen = defaultPaletteFor(registry, scale, groups);
+    const categorical = registry.describe(scale)?.domainKind === "categorical";
+
+    return categorical && paletteDescriptor(chosen)?.kind !== "categorical" ? DEFAULT_CATEGORICAL_PALETTE : chosen;
+}
+
+/**
+ * Colors evenly spaced along the default sequential palette, lowest first.
+ * @param count - How many.
+ * @returns The colors, as the palette spells them.
+ */
+export function sequentialSamples(count: number): readonly string[] {
+    const colors = paletteDescriptor(DEFAULT_PALETTE)?.colors ?? [];
+
+    return Array.from({ length: count }, (_, index) => interpolatePalette(count > 1 ? index / (count - 1) : 0, colors));
 }
 
 /**

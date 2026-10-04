@@ -169,7 +169,13 @@ session.data.nodePage({ scope: "selection" });
 // The edges at one node:
 session.data.edgePage({ touching: "alice", limit: Infinity });
 
-// Read the page again when the graph changes (and, for a "selection" scope, the selection):
+// The nodes joined to one node, one row each, strongest first (see the Neighbors guide):
+session.data.neighbors("alice");
+
+// Read the page again when the graph changes (and, for a "selection" scope, the selection;
+// for result columns, the runs -- run:changed also fires on progress ticks, which the
+// revision check skips). The revision is the session's, so a { limit: 0 } read compares with
+// any page, and session.on() returns the function that removes the listener:
 const reread = () => {
     if (session.data.nodePage({ limit: 0 }).revision !== page.revision) {
         // read the page again and redraw
@@ -177,6 +183,7 @@ const reread = () => {
 };
 session.on("project:changed", reread);
 session.on("selection:changed", reread);
+session.on("run:changed", reread);
 ```
 
 Every option is optional: `offset` defaults to 0, `limit` to 100 (`Infinity` reads to the end),
@@ -196,6 +203,11 @@ const between = graph.getDataManager().getEdgesBetween("node1", "node2"); // rea
 In 1.x this was `getEdgeBetween`, singular, and an edge's id was its two endpoints joined with a
 colon. Neither could represent a graph that holds two edges between one pair -- see
 [Data Sources](./data-sources#two-edges-between-the-same-pair).
+
+### Result values as table columns
+
+A page can carry an algorithm run's values as a column and sort by them -- see
+[Result Columns](./result-columns).
 
 ### Selection
 
@@ -239,7 +251,7 @@ await graph.waitForStableFrame();
 const run = await graph.run("degree");
 
 // One element's value
-const degree = run.result.node("node1")?.value;
+const degree = run.node("node1")?.value;
 
 // Put the algorithm's own suggested picture back, after a reader cleared it
 graph.applySuggestedStyles("degree");
@@ -307,6 +319,9 @@ const statsManager = graph.getStatsManager();
 ### Selecting by search or by expression
 
 `element.session.selection.apply()` takes a target. Two of them search the graph:
+
+To list what text matches as the reader types, without selecting anything, use
+`session.find(text)`; see [Finding](./find). The text target below searches nodes only.
 
 ```typescript
 const { selection } = element.session;
@@ -477,7 +492,7 @@ session.canUndo; // whether undo() would do anything
 session.history.steps; // [{ label: "Added 3 nodes", ... }, ...]
 
 // Several changes as one step, through the tx the callback receives
-await session.transaction("Recolour", async (tx) => {
+await session.transaction("Recolor", async (tx) => {
     await tx.styles.add(spec);
     await tx.layout.set("circular");
 });
@@ -563,7 +578,7 @@ async function initGraph() {
 
     // Set up interaction
     graph.on("node-click", ({ node }) => {
-        console.log(`Clicked ${node.id} (degree: ${String(run.result.node(node.id)?.value)})`);
+        console.log(`Clicked ${node.id} (degree: ${String(run.node(node.id)?.value)})`);
         graph.selectNode(node.id);
     });
 }

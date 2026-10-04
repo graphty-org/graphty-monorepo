@@ -30,14 +30,13 @@ queue_rules:
           - check-success=All Checks Pass
           - check-success=Lint PR Title
 
-pull_request_rules:
-    - name: queue ready, non-breaking pull requests into master
-      conditions:
-          - base=master
-          - -draft
-          - -conflict
-          - label!=hold
-          - "-title~=^[a-z]+(\\([^)]*\\))?!:"
-      actions:
-          queue:
-              name: default
+# Merge Protections' auto-merge puts a pull request into the queue once it matches these conditions;
+# the queue's own queue_conditions still gate it. (pull_request_rules would need Mergify's Workflow
+# Automation product, which this repository does not use.)
+merge_protections_settings:
+    auto_merge_conditions:
+        - base=master
+        - -draft
+        - -conflict
+        - label!=hold
+        - "-title~=^[a-z]+(\\([^)]*\\))?!:"

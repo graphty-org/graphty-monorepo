@@ -254,35 +254,16 @@ export async function advanceProposals(state, ctx) {
  * @param {Context} ctx the context
  */
 async function step(state, p, ctx) {
-    const { gitHub, repo } = ctx;
-    const [type, n] = p.target.split(":");
-    const at = ctx.now.toISOString();
     if (state.vetoes?.[p.target]) {
         Object.assign(p, { status: "vetoed", reason: state.vetoes[p.target].reason });
         return;
     }
     if (p.status === "commenting" && (await ownComment(p, ctx))) return;
     if (p.status === "confirmed" || p.status === "commenting") {
-        if (!(await stillOpen(p, ctx, false))) return;
-        p.status = "commenting";
-        let res;
-        try {
-            res = await gitHub.write(
-                "POST",
-                `repos/${repo}/issues/${n}/comments`,
-                { body: proposalComment(p) },
-                { group: GROUP, check: "created", fields: { situation: `propose ${p.kind}`, target: p.target } },
-            );
-        } catch (err) {
-            // Surely not posted: back to confirmed. Maybe posted: the next step looks for it first.
-            if (notSent(err)) p.status = "confirmed";
-            throw err;
-        }
-        Object.assign(p, { status: "commented", commentedAt: at, commentId: res.body?.id ?? null, presentDays: 0 });
-        p.dryRun = !res.performed;
+        await comment(p, ctx);
         return;
     }
-    if (p.dryRun && gitHub.acting(GROUP)) {
+    if (p.dryRun && ctx.gitHub.acting(GROUP)) {
         // The owner never saw a would-do comment: post it for real and count grace from then.
         delete p.commentedAt;
         delete p.commentId;
@@ -291,6 +272,45 @@ async function step(state, p, ctx) {
         p.status = "confirmed";
         return;
     }
+    await closeAfterGrace(state, p, ctx);
+}
+
+/**
+ * Posts a proposal's comment from status `commenting`, which the write gate saves before it sends.
+ * @param {Proposal} p a confirmed proposal, or a `commenting` one whose comment is not there
+ * @param {Context} ctx the context
+ */
+async function comment(p, ctx) {
+    if (!(await stillOpen(p, ctx, false))) return;
+    const n = p.target.split(":")[1];
+    p.status = "commenting";
+    let res;
+    try {
+        res = await ctx.gitHub.write(
+            "POST",
+            `repos/${ctx.repo}/issues/${n}/comments`,
+            { body: proposalComment(p) },
+            { group: GROUP, check: "created", fields: { situation: `propose ${p.kind}`, target: p.target } },
+        );
+    } catch (err) {
+        // Surely not posted: back to confirmed. Maybe posted: the next step looks for it first.
+        if (notSent(err)) p.status = "confirmed";
+        throw err;
+    }
+    const at = ctx.now.toISOString();
+    Object.assign(p, { status: "commented", commentedAt: at, commentId: res.body?.id ?? null, presentDays: 0 });
+    p.dryRun = !res.performed;
+}
+
+/**
+ * Counts a commented proposal's present days, reads the owner's objection, and closes the target
+ * once its grace is over and it is still open.
+ * @param {any} state the daemon state
+ * @param {Proposal} p a commented proposal
+ * @param {Context} ctx the context
+ */
+async function closeAfterGrace(state, p, ctx) {
+    const [type, n] = p.target.split(":");
     p.presentDays = ctx.presentDays(dayAfter(/** @type {string} */ (p.commentedAt)));
     const due = p.presentDays >= GRACE_DAYS[/** @type {"issue" | "pr"} */ (type)];
     if (await objected(state, p, ctx, due)) return;
@@ -299,13 +319,15 @@ async function step(state, p, ctx) {
         type === "pr"
             ? { state: "closed" }
             : { state: "closed", state_reason: p.kind === "fixed" ? "completed" : "not_planned" };
-    const res = await gitHub.write("PATCH", `repos/${repo}/${type === "pr" ? "pulls" : "issues"}/${n}`, close, {
+    const repo = ctx.repo;
+    const res = await ctx.gitHub.write("PATCH", `repos/${repo}/${type === "pr" ? "pulls" : "issues"}/${n}`, close, {
         group: GROUP,
         check: { path: `repos/${repo}/issues/${n}`, expect: { state: "closed" } },
         retry: true,
         fields: { situation: `close ${p.kind}`, target: p.target },
     });
-    Object.assign(p, { status: "closed", closedAt: at, dryRun: Boolean(p.dryRun) || !res.performed });
+    const closedAt = ctx.now.toISOString();
+    Object.assign(p, { status: "closed", closedAt, dryRun: Boolean(p.dryRun) || !res.performed });
 }
 
 /**

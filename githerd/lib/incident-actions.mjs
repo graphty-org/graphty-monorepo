@@ -345,7 +345,10 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
         const existing = ((await github.get(list, { fresh: true })).body ?? []).find(
             (/** @type {any} */ x) => x.title === title,
         );
-        if (existing) return (reverts[pr] = existing.number);
+        if (existing) {
+            reverts[pr] = existing.number;
+            return existing.number;
+        }
         const body =
             `Reverts #${pr}. \`${inc.key}\` went red on master at ${inc.redSha}. Re-run on that commit it failed ` +
             `again; the same job of the last green commit ${inc.parentSha} passed when re-run today; and #${pr} is the ` +

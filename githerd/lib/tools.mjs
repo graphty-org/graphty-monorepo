@@ -457,7 +457,8 @@ function claimLines(claims, sessions) {
  */
 function closeEntry(p) {
     const of = p.of ? ` of #${p.of}` : "";
-    const what = `close ${p.target.replace(/^(issue|pr):/, "#")} (${p.kind}${of}${p.reason ? `: ${p.reason}` : ""})`;
+    const reason = p.reason ? `: ${p.reason}` : "";
+    const what = `close ${p.target.replace(/^(issue|pr):/, "#")} (${p.kind}${of}${reason})`;
     const grace = GRACE_DAYS[/** @type {"issue" | "pr"} */ (p.target.split(":")[0])];
     /** @type {Record<string, string>} */
     const when = {

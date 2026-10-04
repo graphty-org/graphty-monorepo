@@ -2484,6 +2484,9 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
     throwIfAborted(ctx.options.signal);
 
     const ids = ctx.declareEdgeIds(edges, (edge) => edge.key, "key", true);
+    // what the edges do against the declared options: graphology itself refuses such a document
+    const violations = { selfLoops: 0, parallels: 0, flags: 0 };
+    const pairs = multi === false ? new Set<string>() : null;
     for (let i = 0; i < edges.length; i++) {
         const element = `edges[${i}]`;
         const record = edges[i];
@@ -2507,17 +2510,70 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
                 kind = flagOf(record.undirected, `${element}.undirected`, false, report) ? "undirected" : "directed";
             } else {
                 kind = type;
+                if (typeof record.undirected === "boolean" && record.undirected !== (type === "undirected")) {
+                    violations.flags++;
+                }
             }
-            const attributes = isJsonObject(record.attributes) ? record.attributes : {};
+            const { attributes: rawAttributes } = record;
+            if (rawAttributes !== undefined && rawAttributes !== null && !isJsonObject(rawAttributes)) {
+                report.error(
+                    "validation-error",
+                    JSON_ISSUE.BAD_VALUE,
+                    `${element}: attributes must be an object, found ${describe(rawAttributes)}`,
+                    { element },
+                );
+            }
+            const attributes = isJsonObject(rawAttributes) ? rawAttributes : {};
             const idValue = ctx.edgeIdValue(ids, record.key);
             const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(attributes), element);
             ctx.setEdgeId(ids, edge, idValue);
             ctx.writeNested(ctx.edges, edge, record, attributes, GRAPHOLOGY_EDGE_KEYS, ctx.options.weightFrom, element);
+            if (allowSelfLoops === false && u === v) {
+                violations.selfLoops++;
+            }
+            if (pairs !== null) {
+                const pair = `${kind} ${pairKey(u, v, kind === "directed")}`;
+                violations.parallels += pairs.has(pair) ? 1 : 0;
+                pairs.add(pair);
+            }
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
     }
+    reportGraphologyViolations(ctx, violations, type);
     ctx.setMeta({ dialect: "graphology", allowSelfLoops }, { declaredMultigraph: multi, ...ctx.weightOriginPatch() });
+}
+
+/**
+ * Report the edges that contradict a graphology document's declared options (W_JSON_INCONSISTENT,
+ * one warning per kind); they are kept.
+ * @param ctx - the context
+ * @param violations - the counts
+ * @param violations.selfLoops - self-loops under allowSelfLoops false
+ * @param violations.parallels - parallel edges under multi false
+ * @param violations.flags - per-edge undirected flags against options.type
+ * @param type - options.type
+ */
+function reportGraphologyViolations(
+    ctx: ImportContext,
+    violations: { readonly selfLoops: number; readonly parallels: number; readonly flags: number },
+    type: string,
+): void {
+    const notes: string[] = [];
+    if (violations.selfLoops > 0) {
+        notes.push(`options.allowSelfLoops is false, but ${violations.selfLoops} self-loop(s) are listed`);
+    }
+    if (violations.parallels > 0) {
+        notes.push(`options.multi is false, but ${violations.parallels} parallel edge(s) are listed`);
+    }
+    if (violations.flags > 0) {
+        notes.push(`options.type is ${type}, but ${violations.flags} edge(s) carry the other undirected flag; read as ${type}`);
+    }
+    for (const note of notes) {
+        ctx.report.warning("validation-error", JSON_ISSUE.INCONSISTENT, `${note}; every edge is kept`, {
+            element: "options",
+        });
+    }
 }
 
 /**

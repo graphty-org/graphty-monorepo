@@ -8,7 +8,7 @@
 // no single component to live beside.
 
 /**
- * One stop of a gradient: a colour, and where along the ramp it sits.
+ * One stop of a gradient: a color, and where along the ramp it sits.
  *
  * Build these with `createColorStop` rather than writing the object by hand, so
  * that the identifier is unique. The identifier is what React keys the stop by
@@ -20,7 +20,7 @@ export interface ColorStop {
     id: string;
     /** Where the stop sits along the ramp, from 0 at the start to 1 at the end. */
     offset: number;
-    /** The stop's colour, as a hex string such as `#6366f1`. */
+    /** The stop's color, as a hex string such as `#6366f1`. */
     color: string;
 }
 
@@ -93,8 +93,6 @@ export type {
     FieldRowProps,
     HistogramBin,
     HistogramRowProps,
-    IconGroupOption,
-    IconGroupRowProps,
     MetricRowProps,
     PanelFieldProps,
     ProseBlockProps,
@@ -106,9 +104,81 @@ export type {
     TrailingSlotProps,
 } from "../components/rows";
 // Named from the modules themselves, because the rows barrel does not re-export
-// these three and a consumer cannot annotate a variable without them.
-export type { DataRowRole, DataRowSortDirection } from "../components/rows/DataRow";
+// these two and a consumer cannot annotate a variable without them.
+export type { DataRowSortDirection } from "../components/rows/DataRow";
 export type { PanelFieldKind } from "../components/rows/PanelField";
+
+// Inputs.
+export type {
+    ComboInputItem,
+    ComboInputOption,
+    ComboInputProps,
+    ComboInputSeparator,
+    SearchInputProps,
+    VariablePillProps,
+} from "../components/inputs";
+
+// Overlays.
+export type {
+    ContextMenuProps,
+    MenuCheckItemProps,
+    ModalFooterProps,
+    ToastAction,
+    ToastApi,
+    ToastOptions,
+    ToastProps,
+    ToastProviderProps,
+    TooltipShortcutProps,
+} from "../components/overlays";
+
+// Selection: the alignment matrix.
+export type { AlignmentMatrixProps, AlignmentMatrixValue } from "../components/selection/AlignmentMatrix";
+
+// Buttons, chrome, color, and the tree and lists.
+export type { SplitButtonProps, ToggleIconButtonProps } from "../components/buttons";
+export type { ResizeHandleBounds, ResizeHandleEdge, ResizeHandleProps } from "../components/chrome/ResizeHandle";
+export type {
+    ColorPickerFormat,
+    ColorPickerPaintType,
+    ColorPickerPanelLabels,
+    ColorPickerPanelProps,
+} from "../components/color/ColorPickerPanel";
+export type { GradientEditorLabels } from "../components/GradientEditor";
+export type {
+    FlatTreeRow,
+    InlineRenameProps,
+    PageListItem,
+    PageListProps,
+    PageRowProps,
+    ResultRowProps,
+    TreeItemProps,
+    TreeMove,
+    TreeNodeData,
+    TreeProps,
+    TreeRowTint,
+} from "../components/tree";
+
+// The editor shell.
+export type {
+    HelpButtonProps,
+    NavRailProps,
+    QuickAction,
+    QuickActionsProps,
+    RailButtonProps,
+    SecondaryToolbarButtonProps,
+    SecondaryToolbarProps,
+    ShortcutEntry,
+    ShortcutGroup,
+    ShortcutSheetProps,
+    ShortcutSheetTab,
+    ToolbarProps,
+    ToolButtonProps,
+    ToolGroupProps,
+    ToolItem,
+} from "../components/shell";
+
+// The theme's options.
+export type { CompactThemeOptions } from "../theme";
 
 // Providers, translation and text direction.
 export type { PanelLabelsProviderProps } from "../context/PanelLabelsContext";

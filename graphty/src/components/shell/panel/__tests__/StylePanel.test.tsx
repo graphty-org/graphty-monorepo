@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { makeLayer } from "../../../../test/layerFixture";
 import { fireEvent, render, screen, within } from "../../../../test/test-utils";
-import type { LayerItem } from "../../../layout/LeftSidebar";
 import { ShellProvider } from "../../ShellContext";
+import type { LayerItem } from "../StyleLayerList";
 import { StylePanel, type StylePanelProps } from "../StylePanel";
 
 const BUILT_INS = ["Default", "High contrast", "Print", "Colorblind safe", "Presentation"];
@@ -65,9 +65,7 @@ describe("StylePanel", () => {
             // Spec 6.9 / VOCAB RT-8: 32px, `0 8px 0 16px`, a 12px/500 name and a chevron in
             // the 16px lead slot. The sidebar's own header measured 55px with 16px on all
             // four sides and a rule beneath it, which is the defect this pins.
-            const header = sectionNamed("Layers").querySelector<HTMLElement>(
-                "[data-testid='control-section-header']",
-            );
+            const header = sectionNamed("Layers").querySelector<HTMLElement>("[data-testid='control-section-header']");
 
             expect(header?.style.height).toBe(`${PANEL_GRID.SECTION_HEADER}px`);
             expect(header?.style.paddingInlineStart).toBe(`${PANEL_GRID.PAD_LEFT}px`);

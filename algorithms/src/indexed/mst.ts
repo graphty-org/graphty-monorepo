@@ -1,4 +1,11 @@
-import { type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
+import {
+    type GraphSnapshot,
+    INVALID_INDEX,
+    type NodeRef,
+    type NumericVector,
+    resolveNode,
+    type U32,
+} from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
@@ -65,8 +72,8 @@ export function kruskalMST(s: GraphSnapshot, o: MstOptions = {}): MstResult {
 
 /** Options of the index-based Prim. @public */
 export interface PrimOptions extends MstOptions {
-    /** The node index the (first) tree grows from; default 0. */
-    readonly start?: number | undefined;
+    /** The node the (first) tree grows from: its index, or `{ id }`; default 0. */
+    readonly start?: NodeRef | undefined;
     /**
      * Grow a tree in every component, rooted at `start` and then at each component's lowest node
      * index, instead of throwing on a disconnected graph. Default false, as legacy `primMST`.
@@ -126,7 +133,7 @@ export function primMST(s: GraphSnapshot, o: PrimOptions = {}): PrimResult {
         }
     };
     if (n > 0) {
-        grow(o.start ?? 0);
+        grow(o.start === undefined ? 0 : resolveNode(s, o.start));
     }
     if (o.forest === true) {
         for (let root = 0; root < n; root++) {

@@ -216,6 +216,12 @@ const CLEAR_DATA = calls([], [CLEAR]);
 /** A small graph document the JSON data source reads, for the load doors. */
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
+/**
+ * The document's bytes: what a file or a fetched URL is handed to the reader as, for the importer
+ * to decode.
+ */
+const TINY_JSON_BYTES = new TextEncoder().encode(TINY_JSON);
+
 /** The same document as a URL. */
 const TINY_JSON_URL = `data:application/json,${encodeURIComponent(TINY_JSON)}`;
 
@@ -228,7 +234,7 @@ const ADD_FROM_SOURCE = calls(
 /** Loading from a URL: the text fetched, and the id path the element reads. */
 const LOAD_FROM_URL = calls(
     [TINY_JSON_URL],
-    [imports("merge", { type: "json", config: { data: TINY_JSON, nodeIdPath: "id" } })],
+    [imports("merge", { type: "json", config: { data: TINY_JSON_BYTES, nodeIdPath: "id" } })],
 );
 
 /**
@@ -240,15 +246,20 @@ const LOAD_FROM_URL_ELEMENT = calls(
     [
         imports("merge", {
             type: "json",
-            config: { data: TINY_JSON, nodeIdPath: "key", edgeSource: "src", edgeTarget: "dst" },
+            config: { data: TINY_JSON_BYTES, nodeIdPath: "key", edgeSource: "src", edgeTarget: "dst" },
         }),
     ],
 );
 
-/** Loading from a file: its text, its name and its size. */
+/** Loading from a file: its bytes, its name and its size. */
 const LOAD_FROM_FILE = calls(
     () => [new File([TINY_JSON], "door.json", { type: "application/json" })],
-    [imports("merge", { type: "json", config: { data: TINY_JSON, filename: "door.json", size: TINY_JSON.length } })],
+    [
+        imports("merge", {
+            type: "json",
+            config: { data: TINY_JSON_BYTES, filename: "door.json", size: TINY_JSON.length },
+        }),
+    ],
 );
 
 const CAMERA = exempt("The camera is view state, not saved in a project file.");
@@ -392,6 +403,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     canUndo: READ,
     canRedo: READ,
     history: READ,
+    project: READ,
     transaction: HISTORY,
     estimate: READ,
     plan: READ,
@@ -492,6 +504,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
     legend: READ,
+    proposeEncoding: READ,
     settled: READ,
     explain: READ,
     resolveToStatic: calls(
@@ -628,6 +641,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getCameraPresets: READ,
             exportCameraPresets: READ,
             exportGraph: READ,
+            downloadProject: exempt(
+                "Hands the saved project to the reader as a file; it changes nothing a project saves.",
+            ),
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -1351,6 +1367,27 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             lastImport: READ,
             source: READ,
             attributes: READ,
+            declare: {
+                kind: "dispatches",
+                op: "data.declare",
+                call: {
+                    kind: "call",
+                    args: [{ kind: "node", name: "doorLevel" }, { measurement: "categorical" }],
+                    // A measurement is declared on a column some record carries.
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-level", doorLevel: 1 }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "data.declare",
+                        column: { kind: "node", name: "doorLevel" },
+                        declaration: { measurement: "categorical" },
+                    },
+                ],
+            },
             statistics: READ,
             fingerprint: READ,
             addNodes: calls([[{ id: "door-a" }]], [addNodes({ id: "door-a" })]),
@@ -1380,6 +1417,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
             bindings: READ,
+            painting: READ,
             queue: READ,
         },
     },
@@ -1539,6 +1577,26 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        name: "ProjectApi",
+        file: "src/session/projectFile.ts",
+        half: "session",
+        doors: {
+            name: READ,
+            dirty: READ,
+            rename: {
+                kind: "dispatches",
+                op: "config.set",
+                call: { kind: "call", args: ["Fixture project"] },
+                expect: [{ op: "config.set", values: { name: "Fixture project" } }],
+            },
+            save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
+            open: exempt(
+                "Opens a file as one transaction: every write goes through the session's own doors, " +
+                    "which have rows of their own.",
+            ),
+        },
+    },
+    {
         name: "NotesApi",
         file: "src/session/notes/types.ts",
         half: "session",
@@ -1637,6 +1695,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             selectionStyle: READ,
             layoutBehavior: READ,
             author: READ,
+            name: READ,
             acceleration: READ,
             set: calls([{ runAlgorithmsOnLoad: true }], [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
         },

@@ -11,7 +11,11 @@ leave the fixture alone. The returned keys replace the ones in "expected"; every
 (hand-written warnings, codes, knownFailure markers) is kept. The manifest is rewritten in place.
 
 Oracles: networkx 3.1 (GML, GraphML, GEXF, Pajek, node-link JSON), Graphviz 2.43 gvpr (DOT),
-Python's json and csv modules (JSON layer, CSV).
+Python's json and csv modules (JSON layer, CSV), Cytoscape 3.10.5 through CyREST (XGMML, .cys;
+oracle_cytoscape.py, run by .github/workflows/conformance-cytoscape-oracle.yml).
+
+--include-spec also asks the oracle about the "spec" fixtures (the first run of an oracle that
+replaces hand-written expectations); a computed "_oracle" key becomes the fixture's "oracle".
 """
 import importlib
 import json
@@ -23,7 +27,7 @@ FIXTURES = os.path.join(os.path.dirname(HERE), "fixtures")
 sys.path.insert(0, HERE)
 
 
-def regenerate(fmt):
+def regenerate(fmt, include_spec=False):
     manifest_path = os.path.join(FIXTURES, fmt, "manifest.json")
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
@@ -34,12 +38,15 @@ def regenerate(fmt):
         return
     changed = 0
     for fixture in manifest["fixtures"]:
-        if fixture.get("oracle") in ("spec", "networkx-differential"):
-            continue  # hand-written, or owned by differential.py
+        if fixture.get("oracle") == "networkx-differential" or (fixture.get("oracle") == "spec" and not include_spec):
+            continue  # owned by differential.py, or hand-written
         path = os.path.join(FIXTURES, fmt, fixture["file"])
         computed = oracle.compute(path, fixture)
         if computed is None:
             continue
+        oracle_name = computed.pop("_oracle", None)
+        if oracle_name is not None:
+            fixture["oracle"] = oracle_name
         expected = dict(fixture.get("expected", {}))
         before = json.dumps(expected, sort_keys=True)
         expected.update(computed)
@@ -53,11 +60,14 @@ def regenerate(fmt):
 
 
 def main():
-    formats = sys.argv[1:] or sorted(
+    args = sys.argv[1:]
+    include_spec = "--include-spec" in args
+    args = [a for a in args if a != "--include-spec"]
+    formats = args or sorted(
         d for d in os.listdir(FIXTURES) if os.path.isdir(os.path.join(FIXTURES, d))
     )
     for fmt in formats:
-        regenerate(fmt)
+        regenerate(fmt, include_spec)
 
 
 if __name__ == "__main__":

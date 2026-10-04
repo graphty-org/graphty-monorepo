@@ -31,6 +31,7 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
     bins?: number;

@@ -577,7 +577,7 @@ export class DataManager implements Manager {
     };
     init(): Promise<void>;
     get isLoading(): boolean;
-    get lastImport(): ImportReport | null;
+    get lastImport(): LoadReport | null;
     // (undocumented)
     meshCache: MeshCache;
     // (undocumented)
@@ -1508,6 +1508,7 @@ export class Graph implements GraphContext {
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
     getApiKeyManager(): ApiKeyManager | null;
+    getAutoFrame(): boolean;
     getCameraController(): CameraController | null;
     getCameraPresets(): Record<string, CameraState | {
         builtin: true;
@@ -1618,6 +1619,7 @@ export class Graph implements GraphContext {
     } | null;
     select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     selectNode(nodeId: string | number): boolean;
+    setAutoFrame(on: boolean): void;
     setBackground(background: GraphBackgroundConfig): void;
     setCameraMode(mode: CameraKey, options?: QueueableOptions): Promise<void>;
     setCameraPan(pan: {
@@ -1863,6 +1865,8 @@ export class Graphty extends LitElement {
     } & CameraAnimationOptions): Promise<void>;
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     asyncFirstUpdated(): Promise<void>;
+    get autoFrame(): boolean;
+    set autoFrame(value: boolean);
     get background(): GraphBackgroundConfig | undefined;
     set background(value: GraphBackgroundConfig | undefined);
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
@@ -1883,7 +1887,7 @@ export class Graphty extends LitElement {
     set directed(value: boolean | "auto" | undefined);
     disableAiControl(): void;
     disconnectedCallback(): void;
-    downloadProject(options?: ProjectSaveOptions & {
+    downloadProject(options?: Omit<ProjectSaveOptions, "markSaved"> & {
         readonly fileName?: string;
     }): Promise<ProjectSaveReport>;
     get edgeData(): Record<string, unknown>[] | undefined;
@@ -1946,6 +1950,8 @@ export class Graphty extends LitElement {
     isRunning(): boolean;
     isVoiceActive(): boolean;
     isVRSupported(): Promise<boolean>;
+    get labelDeclutter(): boolean;
+    set labelDeclutter(value: boolean);
     get layout(): string | undefined;
     set layout(value: string | undefined);
     // @deprecated
@@ -3615,13 +3621,23 @@ export interface ProgressChange {
 }
 
 // @public
+export const PROJECT_FILE: Readonly<{
+    readonly extension: ".graphty.json";
+    readonly mediaType: "application/vnd.graphty+json";
+}>;
+
+// @public
 export interface ProjectApi {
     readonly dirty: boolean;
+    markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
     rename(name: string | null): Promise<void>;
     save(options?: ProjectSaveOptions): Promise<SavedProject>;
 }
+
+// @public
+export function projectFileName(name: string | null | undefined): string;
 
 // @public
 export interface ProjectOpenOptions {
@@ -3649,6 +3665,7 @@ export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
 export interface ProjectSaveOptions {
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
+    readonly markSaved?: boolean;
 }
 
 // @public
@@ -4219,7 +4236,7 @@ export class UpdateManager implements Manager {
     bindViewMasks(masks: ViewMasks | null): void;
     disableZoomToFit(): void;
     dispose(): void;
-    enableZoomToFit(): void;
+    enableZoomToFit(explicit?: boolean): void;
     get frameIsStable(): boolean;
     getRenderFrameCount(): number;
     init(): Promise<void>;
@@ -4230,6 +4247,7 @@ export class UpdateManager implements Manager {
     redrawArrangement(moved?: boolean): void;
     renderFrames(count: number): void;
     stepFrames(count: number): void;
+    stopAutoZoomToFit(): void;
     syncStyles(): void;
     syncViewMasks(): void;
     update(frameMs?: number): void;

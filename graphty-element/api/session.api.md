@@ -132,6 +132,7 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
     bins?: number;
@@ -211,6 +212,9 @@ export interface ColumnRef {
     readonly kind: "node" | "edge";
     readonly name: string;
 }
+
+// @public
+export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId";
 
 // @public
 export type CommandOutcome<C extends SessionCommand> = CommandOutcomeMap[C["op"]];
@@ -367,6 +371,33 @@ export type DefaultableLimits = Omit<Limits, "graphMemoryBudgetBytes">;
 export function defaultReading(result: RunResult, options: ReadingOptions): string;
 
 // @public
+export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
+    readonly suggested?: ColumnRole;
+}
+
+// @public
+export interface DraftRow {
+    readonly line: number;
+    readonly values: Readonly<Record<string, unknown>>;
+}
+
+// @public
+export interface DraftRowOptions {
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly only?: "unmatched" | "rejected";
+}
+
+// @public
+export interface DraftTable {
+    readonly columns: readonly DraftColumn[];
+    readonly fixed: boolean;
+    readonly id: string;
+    readonly name: string;
+    readonly rowCount: number;
+}
+
+// @public
 export type EdgeId = string;
 
 // @public
@@ -467,6 +498,11 @@ export interface EncodingSuggestion {
     readonly as: "encoding";
     readonly channels: readonly Channel[];
     readonly spec: EncodingSpec;
+}
+
+// @public
+export interface Endpoint {
+    readonly column: string;
 }
 
 // @public
@@ -678,6 +714,7 @@ export interface GraphStatistics {
     readonly nodeCount: number;
     readonly repeatedEdgeCount: number;
     readonly selfLoopCount: number;
+    readonly transitivity?: number;
     readonly weighted: boolean;
 }
 
@@ -1351,6 +1388,11 @@ export interface LegendBlock {
         readonly name: PaletteId;
         readonly reversed: boolean;
     };
+    readonly range?: {
+        readonly min: number;
+        readonly max: number;
+    };
+    readonly reading?: LegendReading;
     readonly runId?: RunId;
     readonly scale?: {
         readonly kind: string;
@@ -1360,11 +1402,23 @@ export interface LegendBlock {
 }
 
 // @public
+export interface LegendReading {
+    readonly code: "legend.higher";
+    readonly params: {
+        readonly channel: Channel;
+        readonly direction: "darker" | "lighter" | "larger" | "smaller";
+        readonly field: Path;
+    };
+}
+
+// @public
 export interface LegendSwatch {
     readonly color?: string;
     readonly count?: number;
+    readonly hidden?: true;
     readonly label: string;
     readonly paints?: unknown;
+    readonly rank?: number;
     readonly role?: "other" | (string & {});
     readonly size?: number;
     readonly value: unknown;
@@ -1378,6 +1432,44 @@ export interface Limits {
     largeGraphThreshold: number;
     renderCeiling: number;
     selectionCap: number;
+}
+
+// @public
+export interface LoadChoices extends ImportOptions {
+    readonly directed?: boolean | "auto";
+    readonly mapping?: LoadMapping;
+    readonly unmatched?: "add" | "leave-out";
+}
+
+// @public
+export interface LoadDraft {
+    dispose(): void;
+    load(choices?: LoadChoices): Promise<void>;
+    readonly mapping: LoadMappingRead;
+    report(choices?: LoadChoices): Promise<LoadReport>;
+    rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
+    readonly tables: readonly DraftTable[];
+    readonly type: string;
+}
+
+// @public
+export type LoadMapping = TableMapping | {
+    readonly tables: Readonly<Record<string, TableMapping>>;
+};
+
+// @public
+export interface LoadMappingRead {
+    // (undocumented)
+    readonly tables: Readonly<Record<string, TableMappingRead>>;
+}
+
+// @public
+export interface LoadReport extends ImportReport {
+    readonly tooLarge: TooLargeDetails | null;
+    readonly unmatched: {
+        readonly rows: number;
+        readonly values: number;
+    };
 }
 
 // @public
@@ -1636,6 +1728,7 @@ export interface PageColumn {
     readonly field: string;
     readonly path: Path;
     readonly pending: boolean;
+    readonly ranks?: readonly (number | undefined)[];
     readonly run: RunId;
     readonly type: "number" | "integer" | "boolean" | "string";
     readonly values: readonly ResultCell[];
@@ -1759,8 +1852,15 @@ export interface ProgressChange {
 }
 
 // @public
+export const PROJECT_FILE: Readonly<{
+    readonly extension: ".graphty.json";
+    readonly mediaType: "application/vnd.graphty+json";
+}>;
+
+// @public
 export interface ProjectApi {
     readonly dirty: boolean;
+    markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
     rename(name: string | null): Promise<void>;
@@ -1804,6 +1904,9 @@ export interface ProjectConfigPatch {
 }
 
 // @public
+export function projectFileName(name: string | null | undefined): string;
+
+// @public
 export interface ProjectOpenOptions {
     readonly discard?: boolean;
     readonly fileName?: string;
@@ -1829,6 +1932,7 @@ export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
 export interface ProjectSaveOptions {
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
+    readonly markSaved?: boolean;
 }
 
 // @public
@@ -2102,6 +2206,15 @@ export type ResultCell = number | string | boolean | undefined;
 
 // @public
 export type ResultColumn = RunRef | ResultRef;
+
+// @public
+export interface ResultColumnDescriptor {
+    readonly field: string;
+    readonly grouping: boolean;
+    readonly path: Path;
+    readonly run: RunId;
+    readonly type: PageColumn["type"];
+}
 
 // @public
 export type ResultId = RunId;
@@ -2378,6 +2491,7 @@ export interface RunResult {
     edge(id: EdgeId): Readonly<Record<string, unknown>> | undefined;
     readonly fields: readonly FieldDescriptor[];
     readonly graph: Readonly<Record<string, unknown>>;
+    groupSizes(options?: HistogramOptions): Histogram;
     histogram(field: string, options?: HistogramOptions): Histogram;
     readonly measured: {
         readonly nodes: number;
@@ -2704,8 +2818,8 @@ export interface SessionDataApi {
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(): readonly EdgeRecord[];
     fingerprint(): string;
-    import(source: DataSourceInput, options?: ImportOptions): Promise<void>;
-    lastImport(): ImportReport | null;
+    import(source: DataSourceInput, options?: LoadChoices): Promise<void>;
+    lastImport(): LoadReport | null;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;
     nodePage(options: RecordPageOptions & {
@@ -2716,8 +2830,12 @@ export interface SessionDataApi {
     // (undocumented)
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     nodes(): readonly NodeRecord[];
+    prepare(source: DataSourceInput, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<LoadDraft>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
+    resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
     statistics(): GraphStatistics;
@@ -2757,7 +2875,7 @@ export interface SessionEventMap {
 export interface SessionGraphStore {
     readonly directionSettledBy: DirectionProvenance;
     getSnapshot(): GraphSnapshot;
-    readonly lastImport?: ImportReport | null;
+    readonly lastImport?: LoadReport | null;
     readonly positions: ReadonlyElementPositions;
     readonly seededNodeCount: number;
     undirected(snapshot: GraphSnapshot): DerivedGraph;
@@ -3122,6 +3240,7 @@ export interface StylesApi {
         readonly reapply?: boolean;
     }): void;
     settled(): Promise<void>;
+    setValueHidden(id: LayerId, channel: Channel, value: string | number | boolean, hidden: boolean, options?: RunOptions): Run<Layer>;
     toDocument(): StyleDocument;
     update(id: LayerId, patch: Partial<LayerSpec>, options?: RunOptions): Run<Layer>;
     validate(spec: LayerSpec): ValidationResult;
@@ -3162,8 +3281,32 @@ export interface SummaryEntry {
 // @public
 export interface SummaryGroup {
     readonly group: string | number;
+    // @deprecated
     readonly name?: string;
+    readonly rank?: number;
     readonly size: number;
+}
+
+// @public
+export interface TableMapping {
+    readonly edgeId?: string | null;
+    readonly key?: string | null;
+    readonly label?: string | null;
+    readonly rowsAre?: "nodes" | "edges";
+    readonly source?: string | Endpoint;
+    readonly target?: string | Endpoint;
+    readonly time?: string | null;
+    readonly weight?: string | null;
+}
+
+// @public
+export interface TableMappingRead extends TableMapping {
+    // (undocumented)
+    readonly rowsAre: "nodes" | "edges";
+    // (undocumented)
+    readonly source?: Endpoint;
+    // (undocumented)
+    readonly target?: Endpoint;
 }
 
 // @public
@@ -3189,6 +3332,17 @@ export interface TimeWindow {
     readonly from: number | string;
     readonly step?: TimeStep;
     readonly to: number | string;
+}
+
+// @public
+export interface TooLargeDetails {
+    readonly count: number;
+    readonly graph: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly limit: number;
+    readonly of: "nodes" | "edges";
 }
 
 // @public

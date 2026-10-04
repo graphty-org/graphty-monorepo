@@ -86,6 +86,7 @@ describe("paging", () => {
         expect(nextPage(NEXT("abc"))).toBe("repositories/1122477634/issues?state=all&per_page=100&after=abc&page=2");
         expect(nextPage(undefined)).toBeNull();
         expect(nextPage('<https://api.github.com/x>; rel="prev"')).toBeNull();
+        expect(nextPage('<https://api.github.com/p>; rel="prev", <https://api.github.com/n>;rel="next"')).toBe("n");
     });
 
     it("reads every page and merges them", async () => {

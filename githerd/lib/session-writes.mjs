@@ -98,6 +98,17 @@ export function logSessionWrites(stateDir, input, job, now) {
 }
 
 /**
+ * The number at the end of a target such as `issue:123` or `#123`.
+ * @param {string} target the target
+ * @returns {number} the number, or NaN when the target does not end in one
+ */
+function targetNumber(target) {
+    let i = target.length;
+    while (i > 0 && target[i - 1] >= "0" && target[i - 1] <= "9") i--;
+    return i < target.length ? Number(target.slice(i)) : Number.NaN;
+}
+
+/**
  * Whether an owner-account event on GitHub was a session's write: a logged write naming its number
  * (or no number) from a minute after it to 10 minutes before it.
  * @param {string} stateDir the state directory
@@ -105,7 +116,7 @@ export function logSessionWrites(stateDir, input, job, now) {
  */
 export function sessionWriteCheck(stateDir) {
     return (target, at) => {
-        const n = Number(/(\d+)$/.exec(target)?.[1]); // NOSONAR(S5852): a target is a short id such as issue:123
+        const n = targetNumber(target);
         const t = Date.parse(at);
         return readLog(stateDir).some((w) => {
             const d = t - Date.parse(w.at);

@@ -830,6 +830,11 @@ function adoptSession(ctx, job, started, resume) {
 export async function tidyEndedJobs(ctx) {
     const { state, root, env } = ctx;
     const t = ctx.now().getTime();
+    // A removal never tried (an unknown date) is due; one that failed is tried again an hour later.
+    const due = (/** @type {string | undefined} */ at) => {
+        const tried = Date.parse(at ?? "");
+        return Number.isNaN(tried) || t - tried >= HOUR;
+    };
     const ended = Object.values(state.jobs ?? {}).filter(
         (j) =>
             j.worktree &&
@@ -838,7 +843,7 @@ export async function tidyEndedJobs(ctx) {
             // A session still being ended may run in it (design 7.8: end it first, then remove).
             !(state.retiring ?? []).some((/** @type {any} */ r) => r.job === j.id) &&
             // A removal that failed is tried again an hour later, not on every pass.
-            !(t - Date.parse(j.tidyAt ?? "") < HOUR) && // NOSONAR(S1940): a NaN age (never tried) must count as due
+            due(j.tidyAt) &&
             (j.state === "cancelled" || (j.state === "done" && !state.prs?.[String(j.pr ?? j.report?.pr)])),
     );
     if (!ended.length) return [];

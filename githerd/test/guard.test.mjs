@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { countBrowserTrees, launchesBrowser } from "../bin/githerd-guard.mjs";
+import { countBrowserTrees, launchesBrowser, withoutVersion } from "../bin/githerd-guard.mjs";
 import { splitCommands } from "../lib/shellwords.mjs";
 
 const GUARD = fileURLToPath(new URL("../bin/githerd-guard.mjs", import.meta.url));
@@ -803,5 +803,16 @@ describe("splitCommands", () => {
             expect(() => splitCommands(text), text).toThrow();
         }
         expect(() => splitCommands("eval ".repeat(12) + "ls")).toThrow(/nested/);
+    });
+});
+
+describe("withoutVersion", () => {
+    it("drops an @version suffix and keeps a scope or a leading @", () => {
+        expect(withoutVersion("servherd@1.2.0")).toBe("servherd");
+        expect(withoutVersion("gh")).toBe("gh");
+        expect(withoutVersion("@scope")).toBe("@scope");
+        expect(withoutVersion("a@b@c")).toBe("a");
+        expect(withoutVersion("x/@y")).toBe("x/");
+        expect(withoutVersion("a@b/c")).toBe("a@b/c");
     });
 });

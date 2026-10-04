@@ -46,6 +46,8 @@ describe("the session-write log", () => {
         const wrote = sessionWriteCheck(dir);
         expect(wrote("issue:12", "2026-10-04T12:00:05Z")).toBe(true);
         expect(wrote("issue:13", "2026-10-04T12:00:05Z")).toBe(false);
+        expect(wrote("#12", "2026-10-04T12:00:05Z")).toBe(true);
+        expect(wrote("pr:", "2026-10-04T12:00:05Z")).toBe(false);
         // An event long after the write, or well before it, is someone else's.
         expect(wrote("issue:12", "2026-10-04T12:30:00Z")).toBe(false);
         expect(wrote("issue:12", "2026-10-04T11:50:00Z")).toBe(false);

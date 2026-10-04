@@ -43,8 +43,14 @@ export function issuesPath(repo, since) {
  * @returns {string | null} the path, or null on the last page
  */
 export function nextPage(link) {
-    const m = /<([^>]+)>;\s*rel="next"/.exec(link ?? ""); // NOSONAR(S5852): one Link header from GitHub, a few hundred characters
-    return m ? m[1].replace(/^https:\/\/api\.github\.com\//, "") : null;
+    for (const part of (link ?? "").split(",")) {
+        const [target, ...params] = part.split(";");
+        const url = target.trim();
+        if (params.some((p) => p.trim() === 'rel="next"') && url.startsWith("<") && url.endsWith(">")) {
+            return url.slice(1, -1).replace(/^https:\/\/api\.github\.com\//, "");
+        }
+    }
+    return null;
 }
 
 /**

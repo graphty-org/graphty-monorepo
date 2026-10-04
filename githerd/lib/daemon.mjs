@@ -1722,7 +1722,8 @@ export async function startDaemon({
         const green = commits.find((c) => c.sha === m.greenSha);
         // Not among the recent commits: more merges than the commit list holds went on past it.
         const at = Date.parse(green?.commit?.committer?.date ?? "");
-        if (green && !(now().getTime() - at >= STARVATION_MS)) return null; // NOSONAR(S1940): a NaN age must not count as starved
+        // An unknown date must not count as starved.
+        if (green && (Number.isNaN(at) || now().getTime() - at < STARVATION_MS)) return null;
         const lanes = Object.entries(m.lanes).filter(([name]) => gatingLane(name));
         const stuck = lanes.some(([, l]) => l.notProgressing || (l.verdict === "red" && !codeRed(l)));
         if (stuck) return null;

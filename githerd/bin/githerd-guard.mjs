@@ -146,12 +146,23 @@ function moveTo(dir, word) {
 }
 
 /**
+ * A command word without its `@<version>` suffix (`servherd@1.2.0` is `servherd`): the first `@`
+ * after the first character with no `/` after it.
+ * @param {string} word the command word
+ * @returns {string} the word without the suffix
+ */
+export function withoutVersion(word) {
+    const at = word.indexOf("@", Math.max(1, word.lastIndexOf("/") + 1));
+    return at === -1 ? word : word.slice(0, at);
+}
+
+/**
  * Checks one simple command.
  * @param {SimpleCommand} cmd the command
  * @param {Context} ctx the context
  */
 function checkCommand(cmd, ctx) {
-    const name = baseName(cmd.argv[0]).replace(/(.)@[^/]*$/, "$1"); // NOSONAR(S5852): one command word, a few dozen characters
+    const name = withoutVersion(baseName(cmd.argv[0]));
     const args = cmd.argv.slice(1);
     if (launchesBrowser(name, args)) checkBrowserCap(ctx.config);
     if (name === "git") checkGit(cmd, args, ctx);

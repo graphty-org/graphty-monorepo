@@ -24,7 +24,7 @@
  */
 
 import { execFile, execFileSync, spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import {
     appendFileSync,
     closeSync,
@@ -1272,7 +1272,7 @@ export async function runLauncher({
     // the heartbeat only tells the daemon this session lives.
     const beat = setInterval(async () => {
         if (upgradeWaiting || daemonDown(ctx)) {
-            const jitter = Math.random() * jitterMs; // NOSONAR(S2245): spreads restarts; not a secret
+            const jitter = randomInt(Math.floor(jitterMs) + 1);
             setTimeout(() => void ensure().catch(() => {}), jitter).unref();
             return;
         }

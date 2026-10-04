@@ -2,17 +2,15 @@
  * The Data page's choices as edits over graphty-element's own reading of a draft, checked against
  * real drafts from a headless session: every count asserted is the element's report.
  */
-import { createGraphSession, type GraphSession, type LoadDraft } from "@graphty/graphty-element/session";
+import {
+    createGraphSession,
+    type GraphSession,
+    isGraphtyError,
+    type LoadDraft,
+} from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
 
-import {
-    INITIAL_CHOICES,
-    loadChoices,
-    roleOf,
-    setRole,
-    setRowsAre,
-    tableNotReady,
-} from "../choices";
+import { INITIAL_CHOICES, loadChoices, roleOf, setRole, setRowsAre } from "../choices";
 
 const PEOPLE = "id,name,team\na,Ann,red\nb,Bo,blue\nc,Cy,red\n";
 const TIES = "source,target,weight\na,b,2\nb,c,5\nc,z,1\n";
@@ -36,9 +34,26 @@ async function prepare(config: Record<string, unknown>): Promise<LoadDraft> {
     return session.data.prepare({ type: "csv", config });
 }
 
+/**
+ * The code a promise rejects with.
+ * @param promise - the promise.
+ * @returns the code, or null when it settles.
+ */
+async function refusal(promise: Promise<unknown>): Promise<string | null> {
+    try {
+        await promise;
+        return null;
+    } catch (error: unknown) {
+        return isGraphtyError(error) ? error.code : "not a GraphtyError";
+    }
+}
+
 describe("the Data page's choices", () => {
     it("sends no mapping until the reader changes a role", async () => {
-        const draft = await prepare({ nodeFile: new File([PEOPLE], "people.csv"), edgeFile: new File([TIES], "ties.csv") });
+        const draft = await prepare({
+            nodeFile: new File([PEOPLE], "people.csv"),
+            edgeFile: new File([TIES], "ties.csv"),
+        });
 
         const choices = loadChoices(draft, INITIAL_CHOICES, "replace");
         assert.deepEqual(choices, { mode: "replace", unmatched: "leave-out", directed: "auto" });
@@ -47,7 +62,10 @@ describe("the Data page's choices", () => {
     });
 
     it("moves a role to the chosen column and gives the old holder no role", async () => {
-        const draft = await prepare({ nodeFile: new File([PEOPLE], "people.csv"), edgeFile: new File([TIES], "ties.csv") });
+        const draft = await prepare({
+            nodeFile: new File([PEOPLE], "people.csv"),
+            edgeFile: new File([TIES], "ties.csv"),
+        });
         const [nodes] = draft.tables;
 
         const next = setRole(draft, nodes, "name", "key", INITIAL_CHOICES);
@@ -60,7 +78,10 @@ describe("the Data page's choices", () => {
     });
 
     it("writes null for a role the reader took from the element's column", async () => {
-        const draft = await prepare({ nodeFile: new File([PEOPLE], "people.csv"), edgeFile: new File([TIES], "ties.csv") });
+        const draft = await prepare({
+            nodeFile: new File([PEOPLE], "people.csv"),
+            edgeFile: new File([TIES], "ties.csv"),
+        });
         const edges = draft.tables[1];
 
         const next = setRole(draft, edges, "weight", "attribute", INITIAL_CHOICES);
@@ -76,11 +97,13 @@ describe("the Data page's choices", () => {
         const draft = await prepare({ data: TRIPS });
         const [rows] = draft.tables;
         assert.equal(draft.mapping.tables.rows.rowsAre, "edges");
-        assert.equal(tableNotReady(draft, rows, INITIAL_CHOICES), "csv: choose the From and To columns");
+        assert.equal(
+            await refusal(draft.report(loadChoices(draft, INITIAL_CHOICES, "replace"))),
+            "E_EDGE_ENDPOINTS_UNRESOLVED",
+        );
 
         let choices = setRole(draft, rows, "from_station", "source", INITIAL_CHOICES);
         choices = setRole(draft, rows, "to_station", "target", choices);
-        assert.isNull(tableNotReady(draft, rows, choices));
         const report = await draft.report(loadChoices(draft, choices, "replace"));
         assert.equal(report.counts.edges, 3);
         assert.equal(report.counts.nodes, 3);
@@ -92,19 +115,9 @@ describe("the Data page's choices", () => {
 
         const choices = setRowsAre(draft, rows, "nodes", INITIAL_CHOICES);
         assert.isUndefined(roleOf(draft, rows, "from_station", choices));
-        assert.isNull(tableNotReady(draft, rows, choices));
         assert.deepEqual(loadChoices(draft, choices, "replace").mapping, { tables: { rows: { rowsAre: "nodes" } } });
         const report = await draft.report(loadChoices(draft, choices, "replace"));
         assert.equal(report.counts.edges, 0);
         assert.deepEqual(setRowsAre(draft, rows, "edges", choices).tables.rows, { roles: {} });
-    });
-
-    it("says an edge table is not ready without both linking columns", async () => {
-        const draft = await prepare({ nodeFile: new File([PEOPLE], "people.csv"), edgeFile: new File([TIES], "ties.csv") });
-        const edges = draft.tables[1];
-
-        assert.isNull(tableNotReady(draft, edges, INITIAL_CHOICES));
-        const next = setRole(draft, edges, "target", "attribute", INITIAL_CHOICES);
-        assert.equal(tableNotReady(draft, edges, next), "ties.csv: choose the From and To columns");
     });
 });

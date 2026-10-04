@@ -98,7 +98,9 @@ export function setBeneath(session: GraphSession, ids: readonly LayerId[], chann
     const lowest = stack.findIndex((layer) => ids.includes(layer.id));
     return stack
         .slice(0, Math.max(0, lowest))
-        .some((layer) => layer.enabled && (layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined));
+        .some(
+            (layer) => layer.enabled && (layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined),
+        );
 }
 
 /**
@@ -108,7 +110,10 @@ export function setBeneath(session: GraphSession, ids: readonly LayerId[], chann
  * @param key - the key to drop.
  * @returns the rest, or undefined.
  */
-function without<T>(record: Partial<Record<Channel, T>> | undefined, key: Channel): Partial<Record<Channel, T>> | undefined {
+function without<T>(
+    record: Partial<Record<Channel, T>> | undefined,
+    key: Channel,
+): Partial<Record<Channel, T>> | undefined {
     const rest = Object.fromEntries(Object.entries(record ?? {}).filter(([channel]) => channel !== key));
     return Object.keys(rest).length === 0 ? undefined : (rest as Partial<Record<Channel, T>>);
 }

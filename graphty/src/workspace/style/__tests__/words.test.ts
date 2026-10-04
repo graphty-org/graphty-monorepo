@@ -56,14 +56,23 @@ describe("the Style tab's words and arrangement", () => {
     });
 
     it("words a refusal from its code and params", () => {
-        assert.equal(refusalWords({ code: "E_UNSUPPORTED", params: { measurement: "categorical" } }), "Holds groups, not amounts");
+        assert.equal(
+            refusalWords({ code: "E_UNSUPPORTED", params: { measurement: "categorical" } }),
+            "Holds groups, not amounts",
+        );
         assert.equal(refusalWords({ code: "E_UNSUPPORTED", params: { measurement: null } }), "Has no values");
-        assert.equal(refusalWords({ code: "E_CAP_EXCEEDED", params: { limit: 256 } }), "More than 256 different values");
+        assert.equal(
+            refusalWords({ code: "E_CAP_EXCEEDED", params: { limit: 256 } }),
+            "More than 256 different values",
+        );
         assert.equal(refusalWords({ code: "E_SOMETHING_NEW", params: {} }), "Cannot be drawn here");
     });
 
     it("states the label line's result from the counts, the hidden part only while the overlap rule is on", () => {
-        assert.equal(labelStatement({ labeled: 77, hiddenByOverlap: 64 }, true), "77 labels, 64 hidden to avoid overlap");
+        assert.equal(
+            labelStatement({ labeled: 77, hiddenByOverlap: 64 }, true),
+            "77 labels, 64 hidden to avoid overlap",
+        );
         assert.equal(labelStatement({ labeled: 77, hiddenByOverlap: 0 }, false), "77 labels");
         assert.equal(labelStatement({ labeled: 1, hiddenByOverlap: 0 }, false), "1 label");
     });

@@ -66,7 +66,9 @@ type Story = StoryObj<typeof meta>;
  * @param play - what the reader does once the ring is loaded.
  * @returns the story.
  */
-function styleStory(play?: (canvasElement: HTMLElement, element: GraphtyElement, store: WorkspaceStore) => Promise<void>): Story {
+function styleStory(
+    play?: (canvasElement: HTMLElement, element: GraphtyElement, store: WorkspaceStore) => Promise<void>,
+): Story {
     const store = createWorkspaceStore({ project: { name: "Ring", id: 1 } });
     return {
         args: { store },

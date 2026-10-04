@@ -178,13 +178,11 @@ export function BindingPopover({
                     }}
                 />
             ) : null}
-            {isNumber ? <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} /> : null}
-            {numeric ? (
-                <ValuesFrom binding={binding} extent={extent} patch={patch} />
+            {isNumber ? (
+                <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} />
             ) : null}
-            {isColor || isNumber ? (
-                <NoValue descriptor={descriptor} missing={missing} patch={patch} />
-            ) : null}
+            {numeric ? <ValuesFrom binding={binding} extent={extent} patch={patch} /> : null}
+            {isColor || isNumber ? <NoValue descriptor={descriptor} missing={missing} patch={patch} /> : null}
             <Button size="compact-xs" variant="default" onClick={onDetach}>
                 Detach
             </Button>
@@ -211,7 +209,9 @@ function Range({
     range: DataBinding["range"];
     patch: (change: Partial<DataBinding>) => void;
 }): React.JSX.Element {
-    const [draft, setDraft] = useState<readonly [number | undefined, number | undefined]>(range ?? [undefined, undefined]);
+    const [draft, setDraft] = useState<readonly [number | undefined, number | undefined]>(
+        range ?? [undefined, undefined],
+    );
     const set = (index: 0 | 1, value: string | number): void => {
         const next: [number | undefined, number | undefined] = [draft[0], draft[1]];
         next[index] = typeof value === "number" ? value : undefined;

@@ -236,7 +236,13 @@ function Section({
                 {plus}
             </Group>
             {set.map(({ descriptor, line }) => (
-                <SetLine key={descriptor.channel} descriptor={descriptor} line={line} row={row} documentColors={colors} />
+                <SetLine
+                    key={descriptor.channel}
+                    descriptor={descriptor}
+                    line={line}
+                    row={row}
+                    documentColors={colors}
+                />
             ))}
         </Stack>
     );

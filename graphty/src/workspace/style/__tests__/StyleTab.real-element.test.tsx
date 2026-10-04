@@ -102,7 +102,9 @@ describe("the Style tab on the real element", () => {
             const fill = within(tab).getByRole("group", { name: "Fill" });
             assert.isNotNull(within(fill).getByRole("button", { name: /^Color #6366F1 100%$/ }));
             // The app's own words: the shape line is Shape.
-            assert.isNotNull(within(within(tab).getByRole("group", { name: "Shape" })).getByRole("button", { name: /^Shape / }));
+            assert.isNotNull(
+                within(within(tab).getByRole("group", { name: "Shape" })).getByRole("button", { name: /^Shape / }),
+            );
             // Nothing of the reader's is set yet, so neither side carries the dot.
             assert.isNotNull(within(tab).getByRole("radio", { name: "Nodes" }));
             assert.isNotNull(within(tab).getByRole("radio", { name: "Edges" }));
@@ -212,7 +214,9 @@ describe("the Style tab on the real element", () => {
             await userEvent.click(await screen.findByRole("menuitem", { name: /^Size/ }));
             await userEvent.click(await within(styleTab()).findByRole("button", { name: "Size by attribute" }));
             const list = await screen.findByRole("dialog", { name: "From data" });
-            await userEvent.click(within(within(list).getByRole("group", { name: runLabel })).getByRole("option", { name: runLabel }));
+            await userEvent.click(
+                within(within(list).getByRole("group", { name: runLabel })).getByRole("option", { name: runLabel }),
+            );
             await waitFor(() => {
                 const size = session.styles.get(measure.id)?.encode?.["node.size"];
                 assert.equal(size !== undefined && "by" in size ? size.by : undefined, session.results.path(runId));
@@ -234,7 +238,9 @@ describe("the Style tab on the real element", () => {
             await waitFor(() => {
                 assert.equal((sizeOf() as { scale?: string } | undefined)?.scale, "sqrt");
             });
-            const range = within(screen.getByRole("group", { name: "Size binding" })).getByRole("group", { name: "Range" });
+            const range = within(screen.getByRole("group", { name: "Size binding" })).getByRole("group", {
+                name: "Range",
+            });
             await userEvent.type(within(range).getByRole("combobox", { name: "From" }), "1{Enter}");
             assert.isUndefined((sizeOf() as { range?: unknown } | undefined)?.range, "one end alone is not written");
             await userEvent.type(within(range).getByRole("combobox", { name: "To" }), "3{Enter}");
@@ -266,7 +272,9 @@ describe("the Style tab on the real element", () => {
             const { session, store } = await openWithGraph();
             const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
             await userEvent.click(within(tab).getByRole("button", { name: "Color by attribute" }));
-            await userEvent.click(within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "dept" }));
+            await userEvent.click(
+                within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "dept" }),
+            );
             const remove = await within(styleTab()).findByRole("button", { name: "Remove Color" });
             await userEvent.click(remove);
             await waitFor(() => {
@@ -311,7 +319,9 @@ describe("labels from an attribute (task T10) on the real element", () => {
                     assert.equal(labeled, NODES.length);
                     assert.isAbove(hiddenByOverlap, 0, "stacked labels overlap");
                     assert.isNotNull(
-                        within(styleTab()).getByText(`${String(labeled)} labels, ${String(hiddenByOverlap)} hidden to avoid overlap`),
+                        within(styleTab()).getByText(
+                            `${String(labeled)} labels, ${String(hiddenByOverlap)} hidden to avoid overlap`,
+                        ),
                     );
                 },
                 { timeout: TIMEOUT_MS },
@@ -397,7 +407,9 @@ describe("editing lines on the real element", () => {
     async function bindColor(name: string): Promise<HTMLElement> {
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(tab).getByRole("button", { name: "Color by attribute" }));
-        await userEvent.click(within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name }));
+        await userEvent.click(
+            within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name }),
+        );
         await userEvent.click(await within(styleTab()).findByRole("button", { name: new RegExp(`^${name},`) }));
         return screen.findByRole("group", { name: "Color binding" });
     }
@@ -434,7 +446,8 @@ describe("editing lines on the real element", () => {
         async () => {
             const { session } = await openWithGraph();
             const popover = await bindColor("code");
-            const binding = (): Record<string, unknown> => (mine(session, "node.color") ?? {}) as Record<string, unknown>;
+            const binding = (): Record<string, unknown> =>
+                (mine(session, "node.color") ?? {}) as Record<string, unknown>;
 
             await userEvent.click(within(popover).getByRole("combobox", { name: "Palette" }));
             await userEvent.click(await screen.findByRole("option", { name: "Shades of blue" }));
@@ -502,7 +515,12 @@ describe("editing lines on the real element", () => {
         async () => {
             const { session, store } = await openWithGraph();
             await session.styles.encode({ column: { kind: "node", name: "name" }, channel: "node.label" });
-            const top = await session.styles.add({ name: "Top", target: "node", selector: { match: "everything" }, set: { "node.opacity": 1 } });
+            const top = await session.styles.add({
+                name: "Top",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.opacity": 1 },
+            });
             store.set({ inspected: { kind: "layer", id: top.id } });
             // The tab remounts for the new row: read it afresh.
             await waitFor(
@@ -553,7 +571,9 @@ describe("editing lines on the real element", () => {
             // The tab remounts for the new row: read it afresh.
             await waitFor(
                 () => {
-                    assert.isNotNull(within(styleTab()).getByRole("button", { name: "data.department, reads nothing" }));
+                    assert.isNotNull(
+                        within(styleTab()).getByRole("button", { name: "data.department, reads nothing" }),
+                    );
                 },
                 { timeout: TIMEOUT_MS },
             );

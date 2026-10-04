@@ -186,10 +186,12 @@ export function resultWord(runLabel: string, field: string, primary: boolean): s
  * @returns the words.
  */
 export function enumWords(value: string): string {
-    const spaced = value.replace(/[-_]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+    const spaced = value
+        .replace(/[-_]/g, " ")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .toLowerCase();
     return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
-
 
 /**
  * Why an attribute cannot go on a property, in words, from the element's coded refusal.
@@ -303,8 +305,10 @@ export function matchesWordStart(name: string, query: string): boolean {
     if (q === "") {
         return true;
     }
-    return name
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .some((word) => word.startsWith(q)) || name.toLowerCase().startsWith(q);
+    return (
+        name
+            .toLowerCase()
+            .split(/[^a-z0-9]+/)
+            .some((word) => word.startsWith(q)) || name.toLowerCase().startsWith(q)
+    );
 }

@@ -155,7 +155,12 @@ export function SetLine({ descriptor, line, row, documentColors }: SetLineProps)
             <div style={{ display: "flex", alignItems: "center", gap: 4, width: "100%", minWidth: 0 }}>
                 <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                     {line.binding === undefined ? (
-                        <ValueEditor descriptor={descriptor} value={line.value} documentColors={documentColors} write={write} />
+                        <ValueEditor
+                            descriptor={descriptor}
+                            value={line.value}
+                            documentColors={documentColors}
+                            write={write}
+                        />
                     ) : (
                         <BoundValue
                             descriptor={descriptor}
@@ -386,7 +391,13 @@ function ColorValue({
         write({ value: hexa });
     }, 150);
     return (
-        <Popover position="left-start" trapFocus onClose={() => { setDraft(null); }}>
+        <Popover
+            position="left-start"
+            trapFocus
+            onClose={() => {
+                setDraft(null);
+            }}
+        >
             <Popover.Target>
                 <Button
                     size="compact-xs"

@@ -36,6 +36,7 @@ import type {
     EdgeId,
     LayoutId,
     MeasurementDeclaration,
+    Path,
     RunId,
     Scope,
     ScopeInput,
@@ -50,7 +51,7 @@ import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration 
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
-import type { ResultsApi } from "./results";
+import type { ResultsApi, RunRef } from "./results";
 import type {
     Caveats,
     EngineVersions,
@@ -66,7 +67,7 @@ import type {
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
-import type { ColumnRef, ProgressChange } from "./shared";
+import type { ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -103,16 +104,58 @@ export interface EdgeRecord {
 /** The attribute bag one record arrived with, as the session reads it. */
 export type SessionAttributes = Readonly<Record<string, unknown>>;
 
-/** What a page of records is sorted by. */
+/** What a page of records is sorted by: one of the keys its records carry. */
 export interface RecordSort {
     /**
      * The record key to sort by: a top-level attribute, or `id` (and `source` or `target` for an
-     * edge). Numbers (bigints among them) come before text, text sorts in natural order ("2" before "10"), and a record
-     * without the key comes last in either direction.
+     * edge), read literally. Numbers (bigints among them) come before text, text sorts in natural
+     * order ("2" before "10"), and a record without the key comes last in either direction.
      */
     readonly key: string;
     /** Largest first. Default false. */
     readonly descending?: boolean;
+}
+
+/**
+ * A run's result as a page column: the run itself (its primary field), or `{ run, field? }`.
+ *
+ * A bare string is a run id, never a path or an expression.
+ */
+export type ResultColumn = RunRef | ResultRef;
+
+/**
+ * A page sorted by a run's result: the run, optionally one of its fields, and the direction.
+ *
+ * Elements the run measured come first, in value order, and ties keep the graph's order; elements
+ * it has no value for come last in either direction. A grouping field (a partition's `group`, a
+ * hierarchy's `level`) sorts by group size instead of by the group's id, so `descending` puts the
+ * largest group first.
+ */
+export interface ResultSort extends ResultRef {
+    /** Largest first. Default false. */
+    readonly descending?: boolean;
+}
+
+/** One cell of a {@link PageColumn}: `undefined` when the run has no value for that record. */
+export type ResultCell = number | string | boolean | undefined;
+
+/** One result column of a page, in the order `columns` asked for it. */
+export interface PageColumn {
+    /** The run's id, whichever form (handle, result or id) `columns` named it in. */
+    readonly run: RunId;
+    /** The field, after the primary-field default was applied. */
+    readonly field: string;
+    /** The published path of the field, as a style selector or a filter reads it. */
+    readonly path: Path;
+    /** The field's declared type. */
+    readonly type: "number" | "integer" | "boolean" | "string";
+    /**
+     * The run has no result yet (queued, or running for the first time): every cell is undefined.
+     * A rerun keeps showing the previous values until the new ones publish.
+     */
+    readonly pending: boolean;
+    /** One cell per record, aligned with `records`. */
+    readonly values: readonly ResultCell[];
 }
 
 /** Which records a page holds, and from where in their order. */
@@ -128,7 +171,12 @@ export interface RecordPageOptions {
      * an edit never changes -- a removed record leaves a gap that closes, an added one goes last.
      * Records that sort equal keep that order too.
      */
-    readonly sort?: RecordSort;
+    readonly sort?: RecordSort | ResultSort;
+    /**
+     * Run results to read for the page's records, returned as {@link RecordPage.columns} in the
+     * same order. The records themselves are unchanged.
+     */
+    readonly columns?: readonly ResultColumn[];
 }
 
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */
@@ -149,9 +197,16 @@ export interface RecordPage<TRecord> {
      * Changes whenever anything a page could show may have changed: a record added, removed or
      * edited, an undo, a load, the selection or a set's members. A page held under one revision
      * is stale once {@link SessionDataApi.nodePage} answers another. Opaque: compare it, do not
-     * parse it.
+     * parse it. A run publishing or clearing its result, or being removed, moves it too. It is the
+     * session's, not the page's: every page read at the same moment carries the same revision,
+     * whatever its options, so `nodePage({ limit: 0 })` asks cheaply whether anything changed.
      */
     readonly revision: string;
+    /**
+     * The result columns, in the order asked for; present exactly when `columns` was given, and
+     * typed as present then, so a page read with `columns` needs no `?? []`.
+     */
+    readonly columns?: readonly PageColumn[];
 }
 
 /**
@@ -509,8 +564,13 @@ export interface SessionDataApi {
      * @param options - the window, the scope and the order; every field optional
      * @returns the page, with the total and the revision it was read at
      * @throws A `GraphtyError` with `E_OPTION_RANGE` when `offset` or `limit` is not a whole
-     *     number of zero or more.
+     *     number of zero or more; `E_UNKNOWN_RUN` for a column or sort naming a run this session
+     *     does not hold; `E_UNKNOWN_ATTRIBUTE` for a field the run does not publish; `E_BAD_COMMAND`
+     *     for a field that has no value per record of this kind.
      */
+    nodePage(
+        options: RecordPageOptions & { readonly columns: readonly ResultColumn[] },
+    ): RecordPage<NodeRecord> & { readonly columns: readonly PageColumn[] };
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     /**
      * One page of edge records, without reading the rest: {@link nodePage}, for edges, and
@@ -518,8 +578,13 @@ export interface SessionDataApi {
      * @param options - the window, the scope, the order and the node; every field optional
      * @returns the page, with the total and the revision it was read at
      * @throws A `GraphtyError` with `E_OPTION_RANGE` when `offset` or `limit` is not a whole
-     *     number of zero or more.
+     *     number of zero or more; `E_UNKNOWN_RUN` for a column or sort naming a run this session
+     *     does not hold; `E_UNKNOWN_ATTRIBUTE` for a field the run does not publish; `E_BAD_COMMAND`
+     *     for a field that has no value per record of this kind.
      */
+    edgePage(
+        options: EdgePageOptions & { readonly columns: readonly ResultColumn[] },
+    ): RecordPage<EdgeRecord> & { readonly columns: readonly PageColumn[] };
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     /**
      * Each distinct neighbor of a node once, with the combined weight of the edges between them.

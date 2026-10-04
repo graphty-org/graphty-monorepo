@@ -229,12 +229,26 @@ function blocker(ctx, version) {
         return { reason: `the self-test ran on Claude Code ${test.claudeVersion}, not ${version}`, canary: false };
     }
     if (stop?.kind === "usage") {
+        releaseCanary(ctx);
         const at = canaryAt(stop, stop.probes ?? 0);
         if (stop.canary || now() < at)
             return { reason: `usage stop; a canary starts at ${at.toISOString()}`, canary: false };
         return { reason: null, canary: true };
     }
     return { reason: null, canary: false };
+}
+
+/**
+ * Drops a usage stop's canary that can no longer complete a turn: its start task ended without a
+ * window (a faulted or held worktree, a failed signing probe or session start), or its session is
+ * gone. The probe count is kept, so the next canary waits for the next probe time (design 8.3).
+ * @param {StartContext} ctx the context
+ */
+function releaseCanary(ctx) {
+    const stop = ctx.state.apiStop;
+    if (stop?.canary && !ctx.tasks.has(stop.canary) && !ctx.state.jobs?.[stop.canary]?.holder?.pane) {
+        delete stop.canary;
+    }
 }
 
 /**
@@ -312,7 +326,10 @@ export async function fillSlots(ctx) {
         ...Object.values(state.jobs ?? {})
             .filter((j) => j.state === "working" && !j.holder && !ctx.tasks.has(j.id))
             .sort((a, b) => Number(isUrgent(b)) - Number(isUrgent(a)) || a.id.localeCompare(b.id)),
-        ...jobOrder(state.jobs ?? {}).items.map((i) => state.jobs[i.job]),
+        // A job whose start task still runs (its deadline requeued it meanwhile) is not admitted twice.
+        ...jobOrder(state.jobs ?? {})
+            .items.map((i) => state.jobs[i.job])
+            .filter((j) => !ctx.tasks.has(j.id)),
     ];
     if (!candidates.length) return { blocked: null, admitted: [] };
     if (ctx.mode !== "acting") return wouldStart(ctx, candidates);
@@ -339,7 +356,7 @@ export async function fillSlots(ctx) {
     for (const job of candidates) {
         const isU = isUrgent(job);
         // Over the machine limits no worker starts, but one urgent may when none runs (design 8.1).
-        if (busy && !(isU && urgent === 0)) break;
+        if (busy && !(isU && urgent === 0)) continue;
         // Routine work fills the working slots; urgent work may also take the overflow slot.
         if (isU ? routine + urgent >= slots + overflow : routine >= slots) continue;
         if (!isU && hours >= (config.workers?.hoursPerDay ?? 24)) continue;
@@ -416,7 +433,8 @@ function admit(ctx, job, { busy }) {
             });
         })
         .finally(() => {
-            ctx.tasks.delete(job.id);
+            if (ctx.tasks.get(job.id) === task) ctx.tasks.delete(job.id);
+            releaseCanary(ctx);
             void ctx.save();
         });
     ctx.tasks.set(job.id, task);
@@ -552,14 +570,17 @@ export function refreshGuards(state, config, stateDir) {
 async function openSession(ctx, job, { jobDir, path, signing }) {
     const { state, now } = ctx;
     if (!wanted(job)) return;
+    const resume = !job.fresh && (await ctx.platform.resumeVerified()) ? (job.sessions.at(-1) ?? null) : null;
+    if (!wanted(job)) return;
     const nonce = randomBytes(6).toString("hex");
     job.holder = { nonce, socket: "githerd", startedBy: "githerd", session: null };
+    // The registry clock starts just before the window opens; its deadline outlasts startWorker's
+    // own 30 s poll, which ends a session that never registered (board.mjs START_MS).
     if (job.state === "starting") {
         board.startPhase(job, "registry", now());
         job.phase = "registry";
     }
     await ctx.save();
-    const resume = !job.fresh && (await ctx.platform.resumeVerified()) ? (job.sessions.at(-1) ?? null) : null;
     const env = workerEnv({ env: ctx.env, path, signing, job: job.id, nonce });
     const argv = workerArgv({
         env,
@@ -570,7 +591,17 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
         resume,
     });
     const started = await ctx.platform.start({ job: job.id, cwd: job.worktree, argv });
-    if (job.holder?.nonce !== nonce) return;
+    if (job.holder?.nonce !== nonce) {
+        // The job left this start meanwhile (a deadline, a cancel): end the window that opened.
+        if (started.ok) {
+            const holder = { nonce, socket: "githerd", startedBy: "githerd", ...started.window, startTime: started.startTime };
+            state.retiring = [
+                ...(state.retiring ?? []),
+                { job: job.id, holder, reason: "the job left its start", at: now().toISOString() },
+            ];
+        }
+        return;
+    }
     if (started.ok) {
         const w = started.window;
         const session = job.holder.session ?? started.registry?.sessionId ?? null;
@@ -586,7 +617,6 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
         return;
     }
     job.holder = null;
-    if (state.apiStop?.canary === job.id) delete state.apiStop.canary;
     void ctx.ledger({ kind: "session-start-failed", job: job.id, capture: /** @type {any} */ (started).capture });
     if (WORKING.has(job.state)) board.move(job, "queued", now(), { reason: "session start failed" });
     state.startFailures = (state.startFailures ?? 0) + 1;
@@ -623,9 +653,11 @@ export async function tidyEndedJobs(ctx) {
             j.worktree &&
             !j.holder &&
             !ctx.tasks.has(j.id) &&
+            // A session still being ended may run in it (design 7.8: end it first, then remove).
+            !(state.retiring ?? []).some((/** @type {any} */ r) => r.job === j.id) &&
             // A removal that failed is tried again an hour later, not on every pass.
             !(t - Date.parse(j.tidyAt ?? "") < HOUR) &&
-            (j.state === "cancelled" || (j.state === "done" && !state.prs?.[String(j.pr)])),
+            (j.state === "cancelled" || (j.state === "done" && !state.prs?.[String(j.pr ?? j.report?.pr)])),
     );
     if (!ended.length) return [];
     for (const job of ended) job.tidyAt = new Date(t).toISOString();

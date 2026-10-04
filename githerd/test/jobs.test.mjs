@@ -150,10 +150,12 @@ describe("deadlines and what follows them", () => {
         expect(job).toMatchObject({ state: "faulted", faults: 1, reason: "worktree not ready within 20 minutes" });
     });
 
-    it("starting: no registry entry in 30 s, or no first call in 3 minutes, is a start failure", () => {
+    it("starting: no registry entry in 60 s, or no first call in 3 minutes, is a start failure", () => {
+        // 60 s outlasts startWorker's own 30 s poll, so the deadline never fires while it waits.
         const job = jobIn(["starting"]);
         startPhase(job, "registry", T0);
-        expect(tick(job, new Date(T0.getTime() + 30 * 1000))).toEqual({ action: "start-failure", job: job.id });
+        expect(tick(job, new Date(T0.getTime() + 59 * 1000))).toBeNull();
+        expect(tick(job, new Date(T0.getTime() + 60 * 1000))).toEqual({ action: "start-failure", job: job.id });
         expect(job).toMatchObject({ state: "queued", reason: "session start failed" });
 
         const late = jobIn(["starting"]);

@@ -224,7 +224,9 @@ const WORKING_MS = { incident: 2 * HOUR, other: 4 * HOUR };
 /** The longest a job waits on another job before it is re-judged. */
 const BLOCKED_MS = 4 * HOUR;
 /** The start deadlines: the worktree, the registry entry, the first githerd call. */
-const START_MS = { worktree: 20 * MINUTE, registry: 30 * 1000, "first-call": 3 * MINUTE };
+// The registry deadline outlasts tmux.mjs's own 30 s poll (REGISTRY_MS), so it fires only for a
+// start the daemon lost, never while startWorker is still waiting.
+const START_MS = { worktree: 20 * MINUTE, registry: 60 * 1000, "first-call": 3 * MINUTE };
 /** Default wait bounds when the caller has no measured one: checks not started, a quiet local task. */
 const WAIT_MS = { checks: 10 * MINUTE, local: 20 * MINUTE, other: 20 * MINUTE };
 /** A second session death within this time starts the next session fresh instead of resuming. */
@@ -721,7 +723,15 @@ export function claimJob(state, args, caller, snapshot, now) {
     if (args.overlap.decision === "join") {
         other.joined.push(job.target);
         addNews(other, `job ${job.id} joined yours: ${job.target} is now part of it (${args.overlap.reason})`, now);
+        const holder = job.holder;
         move(job, "cancelled", now, { cancelledBy: other.id, reason: `joined ${other.id}` });
+        // Design 8.2: the joining session ends; a window githerd opened is ended by the daemon.
+        if (holder?.pane) {
+            state.retiring = [
+                ...(state.retiring ?? []),
+                { job: job.id, holder, reason: `joined ${other.id}`, at: now.toISOString() },
+            ];
+        }
     } else if (args.overlap.decision === "wait") {
         move(job, "blocked", now, {
             waitingFor: { job: other.id, until: new Date(now.getTime() + BLOCKED_MS).toISOString() },

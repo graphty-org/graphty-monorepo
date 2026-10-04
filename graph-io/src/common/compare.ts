@@ -74,108 +74,41 @@ export function compareSnapshots(
     const diffs: SnapshotDiff[] = [];
     const limit = options.limit ?? 50;
     const tolerance = options.tolerance ?? 0;
-    const diff = (path: string, e: unknown, a: unknown, message?: string): boolean => {
-        diffs.push({
-            path,
-            expected: e,
-            actual: a,
-            message: message ?? `${path}: expected ${show(e)}, got ${show(a)}`,
-        });
-        return diffs.length >= limit;
+    const ctx: CompareContext = {
+        options,
+        diff: (path, e, a, message) => {
+            diffs.push({
+                path,
+                expected: e,
+                actual: a,
+                message: message ?? `${path}: expected ${show(e)}, got ${show(a)}`,
+            });
+            if (diffs.length >= limit) {
+                throw new LimitReached();
+            }
+        },
+        same: (e, a) => valuesEqual(e, a, tolerance),
     };
-    const same = (e: unknown, a: unknown): boolean => valuesEqual(e, a, tolerance);
-
-    if (expected.directed !== actual.directed && diff("directed", expected.directed, actual.directed)) {
-        return diffs;
-    }
-    if (expected.nodeCount !== actual.nodeCount && diff("nodeCount", expected.nodeCount, actual.nodeCount)) {
-        return diffs;
-    }
-    if (expected.edgeCount !== actual.edgeCount && diff("edgeCount", expected.edgeCount, actual.edgeCount)) {
-        return diffs;
-    }
-
-    // ids in index order
-    const expectedIds = expected.ids.toArray();
-    const actualIds = actual.ids.toArray();
-    const n = Math.min(expectedIds.length, actualIds.length);
-    for (let i = 0; i < n; i++) {
-        if (!Object.is(expectedIds[i], actualIds[i]) && diff(`ids[${i}]`, expectedIds[i], actualIds[i])) {
-            return diffs;
-        }
-    }
-    if (expected.nodeCount !== actual.nodeCount || expected.edgeCount !== actual.edgeCount) {
-        return diffs;
-    }
-
-    // topology: the CSR arrays are identical when node order and edge order survived
-    if (
-        !typedEqual(expected.rowPtr, actual.rowPtr) &&
-        diff("rowPtr", expected.rowPtr, actual.rowPtr, "rowPtr differs")
-    ) {
-        return diffs;
-    }
-    if (
-        !typedEqual(expected.colIdx, actual.colIdx) &&
-        diff("colIdx", expected.colIdx, actual.colIdx, "colIdx differs")
-    ) {
-        return diffs;
-    }
-
-    // orientation of every logical edge
-    const el = expected.edgeList();
-    const al = actual.edgeList();
-    for (let e = 0; e < expected.edgeCount; e++) {
-        if (el.src[e] !== al.src[e] || el.dst[e] !== al.dst[e]) {
-            if (diff(`edge[${e}]`, `${el.src[e]}->${el.dst[e]}`, `${al.src[e]}->${al.dst[e]}`)) {
-                return diffs;
-            }
-        }
-    }
-
-    // weights
-    if (compareWeights(expected, actual, options, diff, same)) {
-        return diffs;
-    }
-
-    // columns
-    for (const [label, e, a] of [
-        ["nodes", expected.nodes, actual.nodes],
-        ["edges", expected.edges, actual.edges],
-        ["graph", expected.graph, actual.graph],
-    ] as const) {
-        if (compareTables(label, e, a, options, diff, same)) {
-            return diffs;
-        }
-    }
-    if (options.extensions !== false) {
-        for (const [name, table] of expected.extensions) {
-            const other = actual.extensions.get(name);
-            if (other === undefined) {
-                if (diff(`extensions.${name}`, "present", "absent")) {
-                    return diffs;
-                }
-                continue;
-            }
-            if (table.rowCount !== other.rowCount) {
-                if (diff(`extensions.${name}.rowCount`, table.rowCount, other.rowCount)) {
-                    return diffs;
-                }
-                continue;
-            }
-            if (compareTables(`extensions.${name}`, table, other, options, diff, same)) {
-                return diffs;
-            }
-        }
-        if (options.allowExtraColumns === false) {
-            for (const name of actual.extensions.keys()) {
-                if (!expected.extensions.has(name) && diff(`extensions.${name}`, "absent", "present")) {
-                    return diffs;
-                }
-            }
+    try {
+        compareGraphs(expected, actual, ctx);
+    } catch (err) {
+        if (!(err instanceof LimitReached)) {
+            throw err;
         }
     }
     return diffs;
+}
+
+/** Thrown by the recorder once the limit of differences is reached, to end the walk. */
+class LimitReached extends Error {}
+
+/** What every comparison step shares: the options, the recorder and the value comparator. */
+interface CompareContext {
+    readonly options: CompareOptions;
+    /** Records a difference (with a default message); throws LimitReached at the limit. */
+    readonly diff: (path: string, e: unknown, a: unknown, message?: string) => void;
+    /** Value equality under the tolerance. */
+    readonly same: (e: unknown, a: unknown) => boolean;
 }
 
 /** A table shape both AttributeTable and extension tables satisfy. */
@@ -186,72 +119,159 @@ interface TableLike extends Iterable<Column> {
 }
 
 /**
+ * Compare two snapshots step by step: the counts, the ids, the topology, the weights, the tables.
+ * @param expected - the reference
+ * @param actual - the snapshot under test
+ * @param ctx - the comparison context
+ */
+function compareGraphs(expected: GraphSnapshot, actual: GraphSnapshot, ctx: CompareContext): void {
+    const { diff } = ctx;
+    if (expected.directed !== actual.directed) {
+        diff("directed", expected.directed, actual.directed);
+    }
+    if (expected.nodeCount !== actual.nodeCount) {
+        diff("nodeCount", expected.nodeCount, actual.nodeCount);
+    }
+    if (expected.edgeCount !== actual.edgeCount) {
+        diff("edgeCount", expected.edgeCount, actual.edgeCount);
+    }
+    compareIds(expected, actual, diff);
+    if (expected.nodeCount !== actual.nodeCount || expected.edgeCount !== actual.edgeCount) {
+        return;
+    }
+    compareTopology(expected, actual, diff);
+    compareWeights(expected, actual, ctx);
+    compareTables("nodes", expected.nodes, actual.nodes, ctx);
+    compareTables("edges", expected.edges, actual.edges, ctx);
+    compareTables("graph", expected.graph, actual.graph, ctx);
+    if (ctx.options.extensions !== false) {
+        compareExtensions(expected, actual, ctx);
+    }
+}
+
+/**
+ * Compare the node ids in index order.
+ * @param expected - the reference
+ * @param actual - the snapshot under test
+ * @param diff - the recorder
+ */
+function compareIds(expected: GraphSnapshot, actual: GraphSnapshot, diff: CompareContext["diff"]): void {
+    const expectedIds = expected.ids.toArray();
+    const actualIds = actual.ids.toArray();
+    const n = Math.min(expectedIds.length, actualIds.length);
+    for (let i = 0; i < n; i++) {
+        if (!Object.is(expectedIds[i], actualIds[i])) {
+            diff(`ids[${i}]`, expectedIds[i], actualIds[i]);
+        }
+    }
+}
+
+/**
+ * Compare the topology: the CSR arrays (identical when node order and edge order survived), then the
+ * orientation of every logical edge.
+ * @param expected - the reference
+ * @param actual - the snapshot under test, with as many nodes and edges
+ * @param diff - the recorder
+ */
+function compareTopology(expected: GraphSnapshot, actual: GraphSnapshot, diff: CompareContext["diff"]): void {
+    if (!typedEqual(expected.rowPtr, actual.rowPtr)) {
+        diff("rowPtr", expected.rowPtr, actual.rowPtr, "rowPtr differs");
+    }
+    if (!typedEqual(expected.colIdx, actual.colIdx)) {
+        diff("colIdx", expected.colIdx, actual.colIdx, "colIdx differs");
+    }
+    const el = expected.edgeList();
+    const al = actual.edgeList();
+    for (let e = 0; e < expected.edgeCount; e++) {
+        if (el.src[e] !== al.src[e] || el.dst[e] !== al.dst[e]) {
+            diff(`edge[${e}]`, `${el.src[e]}->${el.dst[e]}`, `${al.src[e]}->${al.dst[e]}`);
+        }
+    }
+}
+
+/**
  * Compare the weights of two snapshots: the exact weight column when both have one, the 32-bit
  * weights otherwise.
  * @param expected - the reference
  * @param actual - the snapshot under test
- * @param options - what to compare
- * @param diff - records a difference; true when the limit is reached
- * @param same - value equality under the tolerance
- * @returns true when the limit was reached
+ * @param ctx - the comparison context
  */
-function compareWeights(
-    expected: GraphSnapshot,
-    actual: GraphSnapshot,
-    options: CompareOptions,
-    diff: (path: string, e: unknown, a: unknown, message?: string) => boolean,
-    same: (e: unknown, a: unknown) => boolean,
-): boolean {
-    const el = expected.edgeList();
-    const al = actual.edgeList();
+function compareWeights(expected: GraphSnapshot, actual: GraphSnapshot, ctx: CompareContext): void {
     if (expected.flags.weighted !== actual.flags.weighted) {
-        if (diff("flags.weighted", expected.flags.weighted, actual.flags.weighted)) {
-            return true;
+        ctx.diff("flags.weighted", expected.flags.weighted, actual.flags.weighted);
+        return;
+    }
+    if (!expected.flags.weighted) {
+        return;
+    }
+    const eShadow = expected.edges.byRole("weight");
+    const aShadow = actual.edges.byRole("weight");
+    if (eShadow !== null && aShadow !== null) {
+        compareExactWeights(expected.edgeCount, eShadow, aShadow, ctx);
+        return;
+    }
+    if (ctx.options.weightExplicitness !== false && (eShadow === null) !== (aShadow === null)) {
+        ctx.diff(
+            "weightColumn",
+            eShadow !== null,
+            aShadow !== null,
+            "one snapshot has a role-weight column, the other does not",
+        );
+    }
+    const ew = expected.edgeList().weights;
+    const aw = actual.edgeList().weights;
+    for (let e = 0; e < expected.edgeCount; e++) {
+        const ev = ew === null ? 1 : ew[e];
+        const av = aw === null ? 1 : aw[e];
+        if (!ctx.same(ev, av)) {
+            ctx.diff(`weight[${e}]`, ev, av);
         }
-    } else if (expected.flags.weighted) {
-        const eShadow = expected.edges.byRole("weight");
-        const aShadow = actual.edges.byRole("weight");
-        if (eShadow !== null && aShadow !== null) {
-            for (let e = 0; e < expected.edgeCount; e++) {
-                const eSet = eShadow.isSet(e);
-                const aSet = aShadow.isSet(e);
-                if (options.weightExplicitness !== false && eSet !== aSet) {
-                    if (diff(`weightExplicit[${e}]`, eSet, aSet)) {
-                        return true;
-                    }
-                    continue;
-                }
-                if (eSet && aSet && !same(eShadow.value(e), aShadow.value(e))) {
-                    if (diff(`weight[${e}]`, eShadow.value(e), aShadow.value(e))) {
-                        return true;
-                    }
-                }
-            }
+    }
+}
+
+/**
+ * Compare the exact weight columns of two snapshots: which edges have an explicit weight, and its value.
+ * @param edgeCount - the number of edges
+ * @param expected - the reference's weight column
+ * @param actual - the weight column under test
+ * @param ctx - the comparison context
+ */
+function compareExactWeights(edgeCount: number, expected: Column, actual: Column, ctx: CompareContext): void {
+    for (let e = 0; e < edgeCount; e++) {
+        const eSet = expected.isSet(e);
+        const aSet = actual.isSet(e);
+        if (ctx.options.weightExplicitness !== false && eSet !== aSet) {
+            ctx.diff(`weightExplicit[${e}]`, eSet, aSet);
+        } else if (eSet && aSet && !ctx.same(expected.value(e), actual.value(e))) {
+            ctx.diff(`weight[${e}]`, expected.value(e), actual.value(e));
+        }
+    }
+}
+
+/**
+ * Compare the extension tables: which exist, their row counts and their columns.
+ * @param expected - the reference
+ * @param actual - the snapshot under test
+ * @param ctx - the comparison context
+ */
+function compareExtensions(expected: GraphSnapshot, actual: GraphSnapshot, ctx: CompareContext): void {
+    for (const [name, table] of expected.extensions) {
+        const other = actual.extensions.get(name);
+        if (other === undefined) {
+            ctx.diff(`extensions.${name}`, "present", "absent");
+        } else if (table.rowCount === other.rowCount) {
+            compareTables(`extensions.${name}`, table, other, ctx);
         } else {
-            if (options.weightExplicitness !== false && (eShadow === null) !== (aShadow === null)) {
-                if (
-                    diff(
-                        "weightColumn",
-                        eShadow !== null,
-                        aShadow !== null,
-                        "one snapshot has a role-weight column, the other does not",
-                    )
-                ) {
-                    return true;
-                }
-            }
-            const ew = el.weights;
-            const aw = al.weights;
-            for (let e = 0; e < expected.edgeCount; e++) {
-                const ev = ew === null ? 1 : ew[e];
-                const av = aw === null ? 1 : aw[e];
-                if (!same(ev, av) && diff(`weight[${e}]`, ev, av)) {
-                    return true;
-                }
+            ctx.diff(`extensions.${name}.rowCount`, table.rowCount, other.rowCount);
+        }
+    }
+    if (ctx.options.allowExtraColumns === false) {
+        for (const name of actual.extensions.keys()) {
+            if (!expected.extensions.has(name)) {
+                ctx.diff(`extensions.${name}`, "absent", "present");
             }
         }
     }
-    return false;
 }
 
 /**
@@ -259,112 +279,96 @@ function compareWeights(
  * @param label - the table name for paths
  * @param expected - the reference table
  * @param actual - the table under test
- * @param options - the compare options
- * @param diff - the recorder; returns true when the limit was hit
- * @param same - the value comparator
- * @returns true when the limit was hit
+ * @param ctx - the comparison context
  */
-function compareTables(
-    label: string,
-    expected: TableLike,
-    actual: TableLike,
-    options: CompareOptions,
-    diff: (path: string, e: unknown, a: unknown, message?: string) => boolean,
-    same: (e: unknown, a: unknown) => boolean,
-): boolean {
-    const ignoreNames = new Set(options.ignoreColumns ?? []);
-    const ignoreRoles = new Set(options.ignoreRoles ?? []);
+function compareTables(label: string, expected: TableLike, actual: TableLike, ctx: CompareContext): void {
+    const ignoreNames = new Set(ctx.options.ignoreColumns ?? []);
+    const ignoreRoles = new Set(ctx.options.ignoreRoles ?? []);
     // the role-weight shadow column is compared by the weights step, not as a declared column
-    const skip = (column: Column): boolean =>
-        ignoreNames.has(column.meta.name) ||
-        (column.meta.role !== null &&
-            (ignoreRoles.has(column.meta.role) || (label === "edges" && column.meta.role === "weight")));
+    const skip = (column: Column): boolean => {
+        const { name, role } = column.meta;
+        return (
+            ignoreNames.has(name) ||
+            (role !== null && (ignoreRoles.has(role) || (label === "edges" && role === "weight")))
+        );
+    };
     for (const column of expected) {
         if (skip(column)) {
             continue;
         }
-        const { name } = column.meta;
-        const other = actual.get(name);
-        const path = `${label}.${name}`;
+        const path = `${label}.${column.meta.name}`;
+        const other = actual.get(column.meta.name);
         if (other === null) {
-            if (diff(path, "present", "absent", `${path}: column missing after round trip`)) {
-                return true;
-            }
-            continue;
-        }
-        if (options.dtypes !== false) {
-            if (column.meta.dtype !== other.meta.dtype && diff(`${path}.dtype`, column.meta.dtype, other.meta.dtype)) {
-                return true;
-            }
-            if (
-                column.meta.itemDtype !== other.meta.itemDtype &&
-                diff(`${path}.itemDtype`, column.meta.itemDtype, other.meta.itemDtype)
-            ) {
-                return true;
-            }
-            if (
-                column.meta.components !== other.meta.components &&
-                diff(`${path}.components`, column.meta.components, other.meta.components)
-            ) {
-                return true;
-            }
-        }
-        if (
-            options.roles !== false &&
-            column.meta.role !== other.meta.role &&
-            diff(`${path}.role`, column.meta.role, other.meta.role)
-        ) {
-            return true;
-        }
-        if (options.originType === true) {
-            const eType = column.meta.origin?.type ?? null;
-            const aType = other.meta.origin?.type ?? null;
-            if (eType !== aType && diff(`${path}.origin.type`, eType, aType)) {
-                return true;
-            }
-        }
-        if (column.length !== other.length) {
-            if (diff(`${path}.length`, column.length, other.length)) {
-                return true;
-            }
-            continue;
-        }
-        for (let r = 0; r < column.length; r++) {
-            const eSet = column.isSet(r);
-            const aSet = other.isSet(r);
-            if (eSet !== aSet) {
-                if (diff(`${path}[${r}]`, eSet ? column.value(r) : undefined, aSet ? other.value(r) : undefined)) {
-                    return true;
-                }
-                continue;
-            }
-            if (!eSet) {
-                continue;
-            }
-            const ev = cellValue(column, r);
-            const av = cellValue(other, r);
-            if (!same(ev, av) && diff(`${path}[${r}]`, ev, av)) {
-                return true;
-            }
+            ctx.diff(path, "present", "absent", `${path}: column missing after round trip`);
+        } else {
+            compareColumn(path, column, other, ctx);
         }
     }
-    if (options.allowExtraColumns === false) {
+    if (ctx.options.allowExtraColumns === false) {
         for (const column of actual) {
             if (!skip(column) && expected.get(column.meta.name) === null) {
-                if (
-                    diff(
-                        `${label}.${column.meta.name}`,
-                        "absent",
-                        "present",
-                        `${label}.${column.meta.name}: extra column after round trip`,
-                    )
-                ) {
-                    return true;
-                }
+                const path = `${label}.${column.meta.name}`;
+                ctx.diff(path, "absent", "present", `${path}: extra column after round trip`);
             }
         }
     }
-    return false;
+}
+
+/**
+ * Compare one column: its declaration, then every cell.
+ * @param path - the column's path for messages
+ * @param column - the reference column
+ * @param other - the column under test
+ * @param ctx - the comparison context
+ */
+function compareColumn(path: string, column: Column, other: Column, ctx: CompareContext): void {
+    compareDeclaration(path, column, other, ctx);
+    if (column.length !== other.length) {
+        ctx.diff(`${path}.length`, column.length, other.length);
+        return;
+    }
+    for (let r = 0; r < column.length; r++) {
+        const eSet = column.isSet(r);
+        const aSet = other.isSet(r);
+        if (eSet !== aSet) {
+            ctx.diff(`${path}[${r}]`, eSet ? column.value(r) : undefined, aSet ? other.value(r) : undefined);
+        } else if (eSet) {
+            const ev = cellValue(column, r);
+            const av = cellValue(other, r);
+            if (!ctx.same(ev, av)) {
+                ctx.diff(`${path}[${r}]`, ev, av);
+            }
+        }
+    }
+}
+
+/**
+ * Compare what two columns declare: dtype, item dtype, components, role and origin type, as the
+ * options ask.
+ * @param path - the column's path for messages
+ * @param column - the reference column
+ * @param other - the column under test
+ * @param ctx - the comparison context
+ */
+function compareDeclaration(path: string, column: Column, other: Column, ctx: CompareContext): void {
+    const { options, diff } = ctx;
+    const e = column.meta;
+    const a = other.meta;
+    if (options.dtypes !== false) {
+        for (const key of ["dtype", "itemDtype", "components"] as const) {
+            if (e[key] !== a[key]) {
+                diff(`${path}.${key}`, e[key], a[key]);
+            }
+        }
+    }
+    if (options.roles !== false && e.role !== a.role) {
+        diff(`${path}.role`, e.role, a.role);
+    }
+    const eType = e.origin?.type ?? null;
+    const aType = a.origin?.type ?? null;
+    if (options.originType === true && eType !== aType) {
+        diff(`${path}.origin.type`, eType, aType);
+    }
 }
 
 /**

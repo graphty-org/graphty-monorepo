@@ -553,44 +553,82 @@ function planIds(
     }
     const originals = new Map<number, string>();
     let fatal: GraphFormatError | null = null;
-    if (bad.length > 0) {
-        if (mode === "error") {
-            note(
-                LOSS.ID_CHARSET,
-                `${bad.length} node id${plural(bad.length)} ${agree(bad.length, "is", "are")} not OBO ids (empty, or holding whitespace, a control character, "!", "{" or "}"); the save fails unless sanitizeIds is "mangle"`,
-                null,
-                bad.length,
-            );
-            fatal = new GraphFormatError(
-                "E_INVALID_ID",
-                `${bad.length} node id${plural(bad.length)} cannot be written as OBO ids (first: ${JSON.stringify(ids[bad[0]])}); pass sanitizeIds: "mangle" to rewrite them`,
-                { reason: "charset", count: bad.length, id: snapshot.ids.idOf(bad[0]), index: bad[0] },
-            );
-        } else {
-            const badSet = new Set(bad);
-            const used = new Set(ids.filter((_, i) => !badSet.has(i)));
-            for (const i of bad) {
-                const base = wordOf(ids[i]);
-                let candidate = base;
-                let k = 2;
-                while (used.has(candidate)) {
-                    candidate = `${base}_${k}`;
-                    k++;
-                }
-                used.add(candidate);
-                originals.set(i, ids[i]);
-                ids[i] = candidate;
-            }
-            note(
-                LOSS.ID_MANGLED,
-                `${bad.length} node id${plural(bad.length)} that ${agree(bad.length, "is", "are")} not OBO ids ${agree(bad.length, "is", "are")} rewritten with "_"; the originals are kept as ${ORIGINAL_ID} property values (JSON text; an import with restoreMangledIds: true reads them back as the ids)`,
-                null,
-                bad.length,
-            );
-        }
+    if (bad.length > 0 && mode === "error") {
+        fatal = refuseIds(snapshot, ids, bad, note);
+    } else if (bad.length > 0) {
+        mangleIds(ids, bad, originals, note);
     }
+    return { ids, originals, fatal: fatal ?? collidingIds(snapshot, ids, note) };
+}
+
+/**
+ * Note the ids that are not OBO words, for a save that refuses them.
+ * @param snapshot - the snapshot
+ * @param ids - the id texts
+ * @param bad - the indices of the ids that are not OBO words
+ * @param note - records a note
+ * @returns the error the save throws
+ */
+function refuseIds(
+    snapshot: GraphSnapshot,
+    ids: readonly string[],
+    bad: readonly number[],
+    note: NoteFn,
+): GraphFormatError {
+    note(
+        LOSS.ID_CHARSET,
+        `${bad.length} node id${plural(bad.length)} ${agree(bad.length, "is", "are")} not OBO ids (empty, or holding whitespace, a control character, "!", "{" or "}"); the save fails unless sanitizeIds is "mangle"`,
+        null,
+        bad.length,
+    );
+    return new GraphFormatError(
+        "E_INVALID_ID",
+        `${bad.length} node id${plural(bad.length)} cannot be written as OBO ids (first: ${JSON.stringify(ids[bad[0]])}); pass sanitizeIds: "mangle" to rewrite them`,
+        { reason: "charset", count: bad.length, id: snapshot.ids.idOf(bad[0]), index: bad[0] },
+    );
+}
+
+/**
+ * Rewrite the ids that are not OBO words with "_" (and `_2`, `_3`... on a collision), keeping the
+ * originals.
+ * @param ids - the id texts, rewritten in place
+ * @param bad - the indices of the ids that are not OBO words
+ * @param originals - receives each rewritten id's original text
+ * @param note - records a note
+ */
+function mangleIds(ids: string[], bad: readonly number[], originals: Map<number, string>, note: NoteFn): void {
+    const badSet = new Set(bad);
+    const used = new Set(ids.filter((_, i) => !badSet.has(i)));
+    for (const i of bad) {
+        const base = wordOf(ids[i]);
+        let candidate = base;
+        let k = 2;
+        while (used.has(candidate)) {
+            candidate = `${base}_${k}`;
+            k++;
+        }
+        used.add(candidate);
+        originals.set(i, ids[i]);
+        ids[i] = candidate;
+    }
+    note(
+        LOSS.ID_MANGLED,
+        `${bad.length} node id${plural(bad.length)} that ${agree(bad.length, "is", "are")} not OBO ids ${agree(bad.length, "is", "are")} rewritten with "_"; the originals are kept as ${ORIGINAL_ID} property values (JSON text; an import with restoreMangledIds: true reads them back as the ids)`,
+        null,
+        bad.length,
+    );
+}
+
+/**
+ * Note the first two node ids that have the same text, which OBO cannot tell apart.
+ * @param snapshot - the snapshot
+ * @param ids - the id texts
+ * @param note - records a note
+ * @returns the error the save throws, or null when every text is unique
+ */
+function collidingIds(snapshot: GraphSnapshot, ids: readonly string[], note: NoteFn): GraphFormatError | null {
     const seen = new Map<string, number>();
-    for (let i = 0; i < n && fatal === null; i++) {
+    for (let i = 0; i < ids.length; i++) {
         const before = seen.get(ids[i]);
         if (before !== undefined) {
             note(
@@ -599,13 +637,13 @@ function planIds(
                 null,
                 1,
             );
-            fatal = new GraphFormatError("E_INVALID_ID", "two node ids have the same text; OBO keeps ids as text", {
+            return new GraphFormatError("E_INVALID_ID", "two node ids have the same text; OBO keeps ids as text", {
                 reason: "collision",
             });
         }
         seen.set(ids[i], i);
     }
-    return { ids, originals, fatal };
+    return null;
 }
 
 /**
@@ -1060,7 +1098,16 @@ function plan(snapshot: GraphSnapshot, options: (OboExportOptions & CommonExport
         );
     }
     const header = planHeader(snapshot, kept.header, obo, rows, tags, note, stats);
-    const tail = planTail(kept, rows, kinds, ids, properties, relations, edgeOrder, tags.get("xref") ?? null);
+    const tail = planTail({
+        kept,
+        rows,
+        kinds,
+        ids,
+        properties,
+        relations,
+        edges: edgeOrder,
+        xref: tags.get("xref") ?? null,
+    });
     if (stats.lineEnds > 0) {
         note(
             OBO_LOSS.LINE_END,
@@ -1315,17 +1362,10 @@ function planEdgeColumns(
     weights: ExplicitWeights,
     note: NoteFn,
 ): { qualifiers: Column | null; edgeColumns: QualifierColumn[] } {
-    let qualifiers = snapshot.edges.get(QUALIFIERS_COLUMN);
-    if (
-        qualifiers !== null &&
-        (qualifiers.dtype !== "json" ||
-            qualifiers.meta.role !== null ||
-            !written.every((e) => !qualifiers?.isSet(e) || isQualifierRecord(cellOf(qualifiers, e), isQualifierName)))
-    ) {
-        qualifiers = null;
-    }
+    const qualifiers = qualifierRecords(snapshot, written);
     const edgeColumns: QualifierColumn[] = [];
     const count = (column: Column): number => written.filter((e) => column.isSet(e)).length;
+    const merged = qualifiers === null ? "" : " (merged with its values)";
     for (const column of snapshot.edges) {
         const { role, name } = column.meta;
         if (
@@ -1342,24 +1382,39 @@ function planEdgeColumns(
         if (n > 0) {
             note(
                 OBO_LOSS.EDGE_COLUMN_AS_QUALIFIER,
-                `edge column "${name}" is written as the qualifier ${written2} and reads back inside the qualifiers column${qualifiers === null ? "" : " (merged with its values)"}`,
+                `edge column "${name}" is written as the qualifier ${written2} and reads back inside the qualifiers column${merged}`,
                 name,
                 n,
             );
         }
     }
-    if (weights.weighted) {
-        const n = written.filter((e) => weights.isExplicit(e)).length;
-        if (n > 0) {
-            note(
-                OBO_LOSS.EDGE_COLUMN_AS_QUALIFIER,
-                `${n} explicit edge weight${plural(n)} ${agree(n, "is", "are")} written as the qualifier ${WEIGHT_QUALIFIER} and read back inside the qualifiers column, not as weights`,
-                snapshot.edges.byRole("weight")?.meta.name ?? null,
-                n,
-            );
-        }
+    const explicit = weights.weighted ? written.filter((e) => weights.isExplicit(e)).length : 0;
+    if (explicit > 0) {
+        note(
+            OBO_LOSS.EDGE_COLUMN_AS_QUALIFIER,
+            `${explicit} explicit edge weight${plural(explicit)} ${agree(explicit, "is", "are")} written as the qualifier ${WEIGHT_QUALIFIER} and read back inside the qualifiers column, not as weights`,
+            snapshot.edges.byRole("weight")?.meta.name ?? null,
+            explicit,
+        );
     }
     return { qualifiers, edgeColumns };
+}
+
+/**
+ * The vocabulary `qualifiers` edge column, when every written cell of it is a qualifier record.
+ * @param snapshot - the snapshot
+ * @param written - the written edges
+ * @returns the column, or null when there is none or it holds something else
+ */
+function qualifierRecords(snapshot: GraphSnapshot, written: readonly number[]): Column | null {
+    const qualifiers = snapshot.edges.get(QUALIFIERS_COLUMN);
+    if (qualifiers === null || qualifiers.dtype !== "json" || qualifiers.meta.role !== null) {
+        return null;
+    }
+    const records = written.every(
+        (e) => !qualifiers.isSet(e) || isQualifierRecord(cellOf(qualifiers, e), isQualifierName),
+    );
+    return records ? qualifiers : null;
 }
 
 /**
@@ -1399,25 +1454,12 @@ function planHeader(
         fill("date", oboDate(meta.created));
         fill("saved-by", meta.creator === null ? null : escapeOboValue(meta.creator));
     }
-    if (obo.ontology !== null) {
+    const ontology = ontologyField(obo.ontology, meta.name, values.has("ontology"), note);
+    if (ontology !== null) {
         if (!values.has("ontology")) {
             filled.add("ontology");
         }
-        values.set("ontology", [obo.ontology]);
-    } else if (meta.name !== null && meta.name.length > 0) {
-        if (/^[A-Za-z0-9_.\-/]+$/.test(meta.name)) {
-            fill("ontology", meta.name);
-        } else if (!values.has("ontology")) {
-            const slug = meta.name.replaceAll(/[^A-Za-z0-9_.-]/g, "_");
-            note(
-                OBO_LOSS.ONTOLOGY_NAME,
-                `the graph name ${JSON.stringify(meta.name)} is not an ontology id; written as ${slug}`,
-                null,
-                null,
-            );
-            values.set("ontology", [slug]);
-            filled.add("ontology");
-        }
+        values.set("ontology", [ontology]);
     }
     // a default namespace applies to every frame without one: keep it only when none lacks one
     const namespace = tags.get("namespace");
@@ -1446,6 +1488,35 @@ function planHeader(
         }
     }
     return lines;
+}
+
+/**
+ * The ontology header field to write: the ontology option, else the graph name when it is an
+ * ontology id, else the name rewritten with "_" when the kept header has none.
+ * @param option - the ontology option, or null
+ * @param name - the graph name, or null
+ * @param kept - whether the kept header has an ontology field
+ * @param note - records a note
+ * @returns the value to set, or null to leave the field as it is
+ */
+function ontologyField(option: string | null, name: string | null, kept: boolean, note: NoteFn): string | null {
+    if (option !== null) {
+        return option;
+    }
+    if (name === null || name.length === 0 || kept) {
+        return null;
+    }
+    if (/^[A-Za-z0-9_.\-/]+$/.test(name)) {
+        return name;
+    }
+    const slug = name.replaceAll(/[^A-Za-z0-9_.-]/g, "_");
+    note(
+        OBO_LOSS.ONTOLOGY_NAME,
+        `the graph name ${JSON.stringify(name)} is not an ontology id; written as ${slug}`,
+        null,
+        null,
+    );
+    return slug;
 }
 
 /**
@@ -1479,62 +1550,40 @@ function oboDate(iso: string | null): string | null {
     return `${m[3]}:${m[2]}:${m[1]} ${m[4] ?? "00"}:${m[5] ?? "00"}`;
 }
 
+/** What the frames after the nodes are planned from. */
+interface TailInput {
+    /** The kept Typedef frames and unknown frames. */
+    readonly kept: {
+        typedefs: Record<string, Record<string, string[]>>;
+        unknownFrames: { type: string; clauses: Record<string, string[]> }[];
+    };
+    /** The written nodes. */
+    readonly rows: readonly number[];
+    /** The frame type of each node. */
+    readonly kinds: readonly FrameKind[];
+    /** The written id of each node. */
+    readonly ids: readonly string[];
+    /** The property-value columns. */
+    readonly properties: readonly PropertyColumn[];
+    /** The relation of each edge. */
+    readonly relations: readonly string[];
+    /** The written edges. */
+    readonly edges: Iterable<number>;
+    /** The xref column written as tags (a Typedef node's xrefs declare relations), or null. */
+    readonly xref: Column | null;
+}
+
 /**
  * The frames after the nodes: the kept Typedefs (unless a node is that Typedef), a declaration of
  * every relation and property-value relation no Typedef declares, and the kept unknown frames.
- * @param kept - the kept records
- * @param kept.typedefs - the kept Typedef frames
- * @param kept.unknownFrames - the kept unknown frames
- * @param rows - the written nodes
- * @param kinds - the frame types
- * @param ids - the written ids
- * @param properties - the property-value columns
- * @param relations - the relation per edge
- * @param edges - the written edges
- * @param xref - the xref column written as tags (a Typedef node's xrefs declare relations), or null
+ * @param input - what the frames are planned from
  * @returns the lines
  */
-function planTail(
-    kept: {
-        typedefs: Record<string, Record<string, string[]>>;
-        unknownFrames: { type: string; clauses: Record<string, string[]> }[];
-    },
-    rows: readonly number[],
-    kinds: readonly FrameKind[],
-    ids: readonly string[],
-    properties: readonly PropertyColumn[],
-    relations: readonly string[],
-    edges: Iterable<number>,
-    xref: Column | null,
-): string[] {
+function planTail(input: TailInput): string[] {
+    const { kept, rows, properties, relations } = input;
     const lines: string[] = [];
-    const declared = new Set<string>(BUILTIN_RELATIONS);
-    for (const i of rows) {
-        if (kinds[i] === "Typedef") {
-            declared.add(ids[i]);
-            const xrefs = xref === null ? undefined : cellOf(xref, i);
-            for (const x of Array.isArray(xrefs) ? xrefs : []) {
-                declared.add(String(x));
-            }
-        }
-    }
-    for (const [id, clauses] of Object.entries(kept.typedefs)) {
-        if (declared.has(id) && !BUILTIN_RELATIONS.has(id)) {
-            continue;
-        }
-        declared.add(id);
-        lines.push("", "[Typedef]", `id: ${escapeOboWord(id)}`);
-        for (const [tag, values] of Object.entries(clauses)) {
-            if (tag !== "id") {
-                for (const value of values) {
-                    lines.push(`${escapeTag(tag)}: ${rawValue(value)}`);
-                }
-            }
-        }
-        for (const xref of clauses.xref ?? []) {
-            declared.add(xref.trim());
-        }
-    }
+    const declared = nodeTypedefs(input);
+    keptTypedefLines(kept.typedefs, declared, lines);
     const declare = (relation: string, metadata: boolean): void => {
         if (declared.has(relation)) {
             return;
@@ -1546,7 +1595,7 @@ function planTail(
         }
     };
     const used = new Set<string>();
-    for (const e of edges) {
+    for (const e of input.edges) {
         used.add(relations[e]);
     }
     for (const { column, relation } of properties) {
@@ -1559,13 +1608,66 @@ function planTail(
     }
     for (const frame of kept.unknownFrames) {
         lines.push("", `[${frame.type.replaceAll(/[\]\r\n]/g, "_")}]`);
-        for (const [tag, values] of Object.entries(frame.clauses)) {
-            for (const value of values) {
-                lines.push(`${escapeTag(tag)}: ${rawValue(value)}`);
-            }
-        }
+        lines.push(...clauseLines(frame.clauses));
     }
     return lines;
+}
+
+/**
+ * The relations the built-in ones, the Typedef nodes and their xrefs declare.
+ * @param input - what the frames are planned from
+ * @returns the declared relation ids
+ */
+function nodeTypedefs(input: TailInput): Set<string> {
+    const { rows, kinds, ids, xref } = input;
+    const declared = new Set<string>(BUILTIN_RELATIONS);
+    for (const i of rows) {
+        if (kinds[i] !== "Typedef") {
+            continue;
+        }
+        declared.add(ids[i]);
+        const xrefs = xref === null ? undefined : cellOf(xref, i);
+        for (const x of Array.isArray(xrefs) ? xrefs : []) {
+            declared.add(String(x));
+        }
+    }
+    return declared;
+}
+
+/**
+ * Write the kept Typedef frames no node already declares, and declare them and their xrefs.
+ * @param typedefs - the kept Typedef frames by id
+ * @param declared - the declared relations, added to
+ * @param lines - the lines, appended to
+ */
+function keptTypedefLines(
+    typedefs: Record<string, Record<string, string[]>>,
+    declared: Set<string>,
+    lines: string[],
+): void {
+    for (const [id, clauses] of Object.entries(typedefs)) {
+        if (declared.has(id) && !BUILTIN_RELATIONS.has(id)) {
+            continue;
+        }
+        declared.add(id);
+        lines.push("", "[Typedef]", `id: ${escapeOboWord(id)}`);
+        lines.push(...clauseLines(clauses, "id"));
+        for (const xref of clauses.xref ?? []) {
+            declared.add(xref.trim());
+        }
+    }
+}
+
+/**
+ * The clause lines of a kept frame, each value made safe for one line.
+ * @param clauses - the values by tag
+ * @param skip - a tag to leave out, or null
+ * @returns the lines
+ */
+function clauseLines(clauses: Record<string, string[]>, skip: string | null = null): string[] {
+    return Object.entries(clauses)
+        .filter(([tag]) => tag !== skip)
+        .flatMap(([tag, values]) => values.map((value) => `${escapeTag(tag)}: ${rawValue(value)}`));
 }
 
 // ============================================================ the frames
@@ -1736,20 +1838,7 @@ function edgeQualifiers(f: FrameState, e: number): string {
         }
     }
     for (const { column, name } of p.edgeColumns) {
-        const value = cellOf(column, e);
-        if (value === undefined) {
-            continue;
-        }
-        if (column.dtype === "list") {
-            for (const item of value as readonly unknown[]) {
-                pairs.push([name, textOf(item, column.child.dtype)]);
-            }
-        } else {
-            pairs.push([
-                name,
-                column.dtype === "json" ? (JSON.stringify(value) ?? "null") : textOf(value, column.dtype),
-            ]);
-        }
+        pairs.push(...qualifierTexts(column, e).map((text): [string, string] => [name, text]));
     }
     const weight = p.weights.text(e);
     if (weight !== null) {
@@ -1759,6 +1848,23 @@ function edgeQualifiers(f: FrameState, e: number): string {
         counted(f.stats, value);
     }
     return qualifierBlock(pairs);
+}
+
+/**
+ * The qualifier values an edge column gives one edge: one per item of a list, none when unset.
+ * @param column - the edge column
+ * @param e - the edge
+ * @returns the value texts
+ */
+function qualifierTexts(column: Column, e: number): string[] {
+    const value = cellOf(column, e);
+    if (value === undefined) {
+        return [];
+    }
+    if (column.dtype === "list") {
+        return (value as readonly unknown[]).map((item) => textOf(item, column.child.dtype));
+    }
+    return [column.dtype === "json" ? (JSON.stringify(value) ?? "null") : textOf(value, column.dtype)];
 }
 
 /**
@@ -1791,85 +1897,108 @@ function tagLines(f: FrameState, tag: string, column: Column, out: string[]): vo
         }
         return;
     }
-    switch (tag) {
-        case "def": {
-            const xrefs = f.p.tags.get("def.xrefs");
-            const ids = (xrefs === undefined ? [] : (cellOf(xrefs, f.row) ?? [])) as string[];
-            out.push(
-                `def: "${escapeOboQuoted(counted(stats, value as string))}" ${xrefList(f, ids, "def")}${cursor.block("def", value as string)}`,
-            );
-            return;
+    // def.xrefs, xref.descriptions and obo.qualifiers are written with the clauses they belong to
+    if (Object.hasOwn(STRUCTURED_TAGS, tag)) {
+        STRUCTURED_TAGS[tag](f, tag, value, out);
+    }
+}
+
+/** Writes the clauses of a structured tag column's cell. */
+type StructuredLines = (f: FrameState, tag: string, value: unknown, out: string[]) => void;
+
+/**
+ * The qualifier block of a structured value.
+ * @param qualifiers - the value's qualifiers, or undefined
+ * @returns the block with a leading space, or ""
+ */
+function blockOf(qualifiers: unknown): string {
+    return qualifiers === undefined ? "" : qualifierBlock(qualifierPairs(qualifiers));
+}
+
+/** The writers of the tags whose cells hold more than a text, an id list or a boolean. */
+const STRUCTURED_TAGS: Readonly<Record<string, StructuredLines>> = {
+    def(f, _tag, value, out) {
+        const xrefs = f.p.tags.get("def.xrefs");
+        const ids = (xrefs === undefined ? [] : (cellOf(xrefs, f.row) ?? [])) as string[];
+        const text = value as string;
+        out.push(
+            `def: "${escapeOboQuoted(counted(f.stats, text))}" ${xrefList(f, ids, "def")}${f.cursor.block("def", text)}`,
+        );
+    },
+    xref(f, _tag, value, out) {
+        for (const id of value as string[]) {
+            out.push(`xref: ${xrefText(f, id, null)}${f.cursor.block("xref", id)}`);
         }
-        case "xref":
-            for (const id of value as string[]) {
-                out.push(`xref: ${xrefText(f, id, null)}${cursor.block("xref", id)}`);
+    },
+    synonym(f, _tag, value, out) {
+        for (const s of value as {
+            text: string;
+            scope: string;
+            type: string | null;
+            xrefs: string[];
+            qualifiers?: unknown;
+        }[]) {
+            const type = s.type === null ? "" : ` ${escapeOboWord(s.type)}`;
+            out.push(
+                `synonym: "${escapeOboQuoted(counted(f.stats, s.text))}" ${s.scope}${type} ${xrefList(f, s.xrefs, "synonym")}${blockOf(s.qualifiers)}`,
+            );
+        }
+    },
+    intersection_of(_f, _tag, value, out) {
+        for (const x of value as { relation: string | null; target: string; qualifiers?: unknown }[]) {
+            const relation = x.relation === null ? "" : `${escapeOboWord(x.relation)} `;
+            out.push(`intersection_of: ${relation}${escapeOboWord(x.target)}${blockOf(x.qualifiers)}`);
+        }
+    },
+    property_value(f, _tag, value, out) {
+        for (const x of value as { relation: string; value: string; datatype: string | null; qualifiers?: unknown }[]) {
+            const datatype = x.datatype === null ? "" : ` ${escapeOboWord(x.datatype)}`;
+            const literal =
+                x.datatype === null && isOboWord(x.value)
+                    ? escapeOboWord(x.value)
+                    : `"${escapeOboQuoted(counted(f.stats, x.value))}"${datatype}`;
+            out.push(`property_value: ${escapeOboWord(x.relation)} ${literal}${blockOf(x.qualifiers)}`);
+        }
+    },
+    holds_over_chain: chainLines,
+    equivalent_to_chain: chainLines,
+    expand_assertion_to: expansionLines,
+    expand_expression_to: expansionLines,
+    [UNRECOGNIZED](f, _tag, value, out) {
+        for (const [unknown, values] of Object.entries(value as Record<string, string[]>)) {
+            for (const v of values) {
+                out.push(`${escapeTag(unknown)}: ${escapeOboValue(counted(f.stats, v))}`);
             }
-            return;
-        case "synonym":
-            for (const s of value as {
-                text: string;
-                scope: string;
-                type: string | null;
-                xrefs: string[];
-                qualifiers?: unknown;
-            }[]) {
-                const type = s.type === null ? "" : ` ${escapeOboWord(s.type)}`;
-                const block = s.qualifiers === undefined ? "" : qualifierBlock(qualifierPairs(s.qualifiers));
-                out.push(
-                    `synonym: "${escapeOboQuoted(counted(stats, s.text))}" ${s.scope}${type} ${xrefList(f, s.xrefs, "synonym")}${block}`,
-                );
-            }
-            return;
-        case "intersection_of":
-            for (const x of value as { relation: string | null; target: string; qualifiers?: unknown }[]) {
-                const relation = x.relation === null ? "" : `${escapeOboWord(x.relation)} `;
-                const block = x.qualifiers === undefined ? "" : qualifierBlock(qualifierPairs(x.qualifiers));
-                out.push(`intersection_of: ${relation}${escapeOboWord(x.target)}${block}`);
-            }
-            return;
-        case "property_value":
-            for (const x of value as {
-                relation: string;
-                value: string;
-                datatype: string | null;
-                qualifiers?: unknown;
-            }[]) {
-                const block = x.qualifiers === undefined ? "" : qualifierBlock(qualifierPairs(x.qualifiers));
-                const datatype = x.datatype === null ? "" : ` ${escapeOboWord(x.datatype)}`;
-                const literal =
-                    x.datatype === null && isOboWord(x.value)
-                        ? escapeOboWord(x.value)
-                        : `"${escapeOboQuoted(counted(stats, x.value))}"${datatype}`;
-                out.push(`property_value: ${escapeOboWord(x.relation)} ${literal}${block}`);
-            }
-            return;
-        case "holds_over_chain":
-        case "equivalent_to_chain":
-            for (const [a, b] of value as [string, string][]) {
-                const pair = `${a} ${b}`;
-                const block = cursor.block(tag, pair);
-                out.push(`${tag}: ${escapeOboWord(a)} ${escapeOboWord(b)}${block}`);
-            }
-            return;
-        case "expand_assertion_to":
-        case "expand_expression_to":
-            for (const x of value as { template: string; xrefs: string[]; qualifiers?: unknown }[]) {
-                const block = x.qualifiers === undefined ? "" : qualifierBlock(qualifierPairs(x.qualifiers));
-                out.push(
-                    `${tag}: "${escapeOboQuoted(counted(stats, x.template))}" ${xrefList(f, x.xrefs, tag)}${block}`,
-                );
-            }
-            return;
-        case UNRECOGNIZED:
-            for (const [unknown, values] of Object.entries(value as Record<string, string[]>)) {
-                for (const v of values) {
-                    out.push(`${escapeTag(unknown)}: ${escapeOboValue(counted(stats, v))}`);
-                }
-            }
-            return;
-        default:
-            // def.xrefs, xref.descriptions and obo.qualifiers are written with the clauses they belong to
-            return;
+        }
+    },
+};
+
+/**
+ * The clauses of a relation chain tag (`holds_over_chain`, `equivalent_to_chain`).
+ * @param f - the frame state
+ * @param tag - the tag
+ * @param value - the cell: pairs of relations
+ * @param out - the lines
+ */
+function chainLines(f: FrameState, tag: string, value: unknown, out: string[]): void {
+    for (const [a, b] of value as [string, string][]) {
+        const pair = `${a} ${b}`;
+        out.push(`${tag}: ${escapeOboWord(a)} ${escapeOboWord(b)}${f.cursor.block(tag, pair)}`);
+    }
+}
+
+/**
+ * The clauses of a macro expansion tag (`expand_assertion_to`, `expand_expression_to`).
+ * @param f - the frame state
+ * @param tag - the tag
+ * @param value - the cell: templates with their xrefs
+ * @param out - the lines
+ */
+function expansionLines(f: FrameState, tag: string, value: unknown, out: string[]): void {
+    for (const x of value as { template: string; xrefs: string[]; qualifiers?: unknown }[]) {
+        out.push(
+            `${tag}: "${escapeOboQuoted(counted(f.stats, x.template))}" ${xrefList(f, x.xrefs, tag)}${blockOf(x.qualifiers)}`,
+        );
     }
 }
 
@@ -1892,51 +2021,77 @@ function frameLines(p: Plan, row: number, stats: FrameStats): string[] {
     const out = [`[${p.kinds[row]}]`, `id: ${escapeOboWord(p.ids[row])}`];
     for (const tag of TAG_ORDER) {
         if (tag === "name") {
-            const name = p.label === null ? undefined : cellOf(p.label, row);
-            if (typeof name === "string") {
-                const text = name;
-                out.push(`name: ${escapeOboValue(counted(stats, text))}${f.cursor.block("name", text)}`);
-            }
-            continue;
-        }
-        if (tag === "property_value") {
-            const original = p.originals.get(row);
-            if (original !== undefined) {
-                // as JSON text, so a carriage return in the original survives
-                out.push(`property_value: ${ORIGINAL_ID} "${escapeOboQuoted(JSON.stringify(original))}" xsd:string`);
-            }
+            nameLine(f, out);
+        } else if (tag === "property_value") {
+            propertyValueLines(f, out);
+        } else if (tag === EDGES) {
+            edgeLines(f, out);
+        } else {
             const column = p.tags.get(tag);
             if (column !== undefined) {
                 tagLines(f, tag, column, out);
             }
-            for (const prop of p.properties) {
-                for (const line of propertyLines(prop, row, stats)) {
-                    out.push(`property_value: ${line}`);
-                }
-            }
-            continue;
-        }
-        if (tag === EDGES) {
-            for (let k = p.edgeStart[row]; k < p.edgeStart[row + 1]; k++) {
-                const e = p.edgeOrder[k];
-                const target = escapeOboWord(p.ids[p.dst[e]]);
-                const relation = p.relations[e];
-                const block = edgeQualifiers(f, e);
-                if (relation === "is_a" || (relation === "instance_of" && p.kinds[row] === "Instance")) {
-                    out.push(`${relation}: ${target}${block}`);
-                } else {
-                    out.push(`relationship: ${escapeOboWord(relation)} ${target}${block}`);
-                }
-            }
-            continue;
-        }
-        const column = p.tags.get(tag);
-        if (column !== undefined) {
-            tagLines(f, tag, column, out);
         }
     }
     stats.qualifiersPlaced &&= f.cursor.placed();
     return out;
+}
+
+/**
+ * The name clause of a frame, from the label column.
+ * @param f - the frame state
+ * @param out - the lines
+ */
+function nameLine(f: FrameState, out: string[]): void {
+    const name = f.p.label === null ? undefined : cellOf(f.p.label, f.row);
+    if (typeof name === "string") {
+        out.push(`name: ${escapeOboValue(counted(f.stats, name))}${f.cursor.block("name", name)}`);
+    }
+}
+
+/**
+ * The property_value clauses of a frame: the original id of a rewritten one, the property_value
+ * column, then the property-value columns.
+ * @param f - the frame state
+ * @param out - the lines
+ */
+function propertyValueLines(f: FrameState, out: string[]): void {
+    const { p, row } = f;
+    const original = p.originals.get(row);
+    if (original !== undefined) {
+        // as JSON text, so a carriage return in the original survives
+        out.push(`property_value: ${ORIGINAL_ID} "${escapeOboQuoted(JSON.stringify(original))}" xsd:string`);
+    }
+    const column = p.tags.get("property_value");
+    if (column !== undefined) {
+        tagLines(f, "property_value", column, out);
+    }
+    for (const prop of p.properties) {
+        for (const line of propertyLines(prop, row, f.stats)) {
+            out.push(`property_value: ${line}`);
+        }
+    }
+}
+
+/**
+ * The edge clauses of a frame: `is_a` (and `instance_of` on an Instance) as their own tags, any
+ * other relation as a `relationship` clause.
+ * @param f - the frame state
+ * @param out - the lines
+ */
+function edgeLines(f: FrameState, out: string[]): void {
+    const { p, row } = f;
+    for (let k = p.edgeStart[row]; k < p.edgeStart[row + 1]; k++) {
+        const e = p.edgeOrder[k];
+        const target = escapeOboWord(p.ids[p.dst[e]]);
+        const relation = p.relations[e];
+        const block = edgeQualifiers(f, e);
+        if (relation === "is_a" || (relation === "instance_of" && p.kinds[row] === "Instance")) {
+            out.push(`${relation}: ${target}${block}`);
+        } else {
+            out.push(`relationship: ${escapeOboWord(relation)} ${target}${block}`);
+        }
+    }
 }
 
 /**

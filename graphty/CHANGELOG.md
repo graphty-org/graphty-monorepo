@@ -1,3 +1,118 @@
+## 0.8.49 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.4
+- Updated graphty-element to 3.14.2
+
+## 0.8.48 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty:** the Export dialog's Image and Data outputs ([76e673049](https://github.com/graphty-org/graphty-monorepo/commit/76e673049))
+- **graphty:** open the Export dialog from the File list and Mod+E ([6e55c6f6d](https://github.com/graphty-org/graphty-monorepo/commit/6e55c6f6d))
+- **graphty:** the Export dialog's presets, capture options and file names ([5aeade29d](https://github.com/graphty-org/graphty-monorepo/commit/5aeade29d))
+
+### 🩹 Fixes
+
+- **graphty:** clear the SonarQube findings on the tier 1 export dialog ([30d2f4841](https://github.com/graphty-org/graphty-monorepo/commit/30d2f4841))
+- **graphty:** the Export dialog retries a timed-out copy as a copy and shows the whole preview ([5055be9bc](https://github.com/graphty-org/graphty-monorepo/commit/5055be9bc))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.32
+- Updated compact-mantine to 0.9.3
+- Updated graphty-element to 3.14.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.47 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty:** word a community's name from its rank, not the deprecated name ([75defd4a4](https://github.com/graphty-org/graphty-monorepo/commit/75defd4a4))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.31
+- Updated compact-mantine to 0.9.2
+- Updated graphty-element to 3.14.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.46 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty:** the tier 1 workspace frame at ?next ([f6dd286d2](https://github.com/graphty-org/graphty-monorepo/commit/f6dd286d2))
+- **graphty:** stamp each build with its commit and release tag ([dc6bc6802](https://github.com/graphty-org/graphty-monorepo/commit/dc6bc6802))
+
+### 🩹 Fixes
+
+- **graphty:** clear the SonarQube findings on the tier 1 frame ([5fcc46ed8](https://github.com/graphty-org/graphty-monorepo/commit/5fcc46ed8))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.13.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.45 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty:** re-scan test dependencies every run so a stale Vite cache cannot reload a test ([#885](https://github.com/graphty-org/graphty-monorepo/issues/885))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.12.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.44 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty-element:** pre-bundle the per-function lodash imports in the browser tests ([d11555da9](https://github.com/graphty-org/graphty-monorepo/commit/d11555da9))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.11.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.43 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty:** pick the network of a file that holds several before loading it ([6edb0d70d](https://github.com/graphty-org/graphty-monorepo/commit/6edb0d70d))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.30
+- Updated compact-mantine to 0.9.1
+- Updated graphty-element to 3.11.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.42 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.10.0
+
 ## 0.8.41 (2026-10-04)
 
 ### 🧱 Updated Dependencies

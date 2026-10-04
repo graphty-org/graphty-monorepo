@@ -25,6 +25,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
 
+import { datasetOf, edgeArraysOf, importSource } from "./graph-io-source.mjs";
+
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cacheFlag = process.argv.indexOf("--cache");
 const cacheDir =
@@ -61,7 +63,34 @@ const SOURCES = {
         sha256: "9eb0bd30312ddd04e2624f7c36c0983a2e99b116f0385be5a7fce6d6170f4cb3",
         file: "com-dblp.ungraph.txt.gz",
     },
+    goBasic: {
+        url: "https://release.geneontology.org/2026-08-05/ontology/go-basic.obo",
+        sha256: "b08d45b268b8c24ccb2513dbbbc7d4df9f6521c099b413f79eb31e06e0fa3bcc",
+        file: "go-basic-2026-08-05.obo",
+    },
+    doid: {
+        url: "https://raw.githubusercontent.com/DiseaseOntology/HumanDiseaseOntology/v2026-09-30/src/ontology/doid.obo",
+        sha256: "51e717b6b9f5d391f2793f9e16faf9c8629a661ab8f21c3a024458129f182ad2",
+        file: "doid-v2026-09-30.obo",
+    },
+    bioplex: {
+        // NDEx writes the CX2 on request; the checksum stops the build if it ever writes other bytes
+        url: "https://www.ndexbio.org/v3/networks/e96d063d-237a-11ea-bb65-0ac135e8bacf",
+        sha256: "242009380d6053b44fe3c7b1f0ff6d668d99425108f9b8fe744f3496759a7778",
+        file: "ndex-e96d063d-237a-11ea-bb65-0ac135e8bacf.cx2",
+    },
 };
+
+/**
+ * A dataset read by one of graph-io's importers (scripts/graph-io-source.mjs), as fromEdgeArrays input.
+ * @param {string} file - the source file
+ * @param {string} format - the graph-io format
+ * @param {object} spec - the id column and the node columns to keep
+ * @returns {Promise<object>} the fromEdgeArrays input
+ */
+async function readWithGraphIo(file, format, spec) {
+    return edgeArraysOf(datasetOf(await importSource(file, format), spec).data);
+}
 
 // ------------------------------------------------------------------ fetching
 
@@ -223,6 +252,103 @@ const DATASETS = [
     },
     {
         meta: {
+            name: "go-basic",
+            title: "Gene Ontology (go-basic)",
+            description:
+                "The Gene Ontology's basic edition: every GO term of the three namespaces (biological process, molecular function, cellular component) and the relations among them that never cross namespaces. An arc runs from a term to its parent (is_a, part_of, regulates, ...); a term related to one parent in two ways keeps one arc. Obsolete terms are kept, with no arcs, and marked. Read by graph-io's OBO importer from the release of 2026-07-26.",
+            citation:
+                "The Gene Ontology Consortium, The Gene Ontology knowledgebase in 2023, Genetics 224(1), iyad031 (2023). doi:10.1093/genetics/iyad031; GO release 2026-07-26 (release.geneontology.org/2026-08-05)",
+            source: SOURCES.goBasic.url,
+            license: "CC BY 4.0 (Gene Ontology Consortium; https://geneontology.org/docs/go-citation-policy/).",
+            attributes: {
+                label: "string: the term's name",
+                namespace: "dict: biological_process, molecular_function or cellular_component (ground truth)",
+                obsolete: "u8: 1 for an obsolete term (the OBO is_obsolete tag)",
+            },
+            groundTruth: "namespace",
+            showcases: [
+                "hierarchical layouts of a 48,000-term DAG",
+                "ancestors, descendants and topological order",
+                "coloring terms by namespace; hiding obsolete terms",
+            ],
+        },
+        sources: ["goBasic"],
+        build(files) {
+            return readWithGraphIo(files.goBasic, "obo", {
+                columns: {
+                    label: { from: "name", dtype: "string", role: "label" },
+                    namespace: { from: "namespace", dtype: "dict", missing: "none" },
+                    obsolete: { from: "is_obsolete", dtype: "u8" },
+                },
+            });
+        },
+    },
+    {
+        meta: {
+            name: "disease-ontology",
+            title: "Human Disease Ontology (DOID)",
+            description:
+                "The Human Disease Ontology: human diseases and the is_a hierarchy that classifies them, a second large ontology and a public-domain one. An arc runs from a disease to its parent. Obsolete terms are kept, with no arcs, and marked. Read by graph-io's OBO importer from release v2026-09-30.",
+            citation:
+                "L. M. Schriml et al., The Human Disease Ontology 2022 update, Nucleic Acids Research 50(D1), D1255-D1261 (2022). doi:10.1093/nar/gkab1063",
+            source: SOURCES.doid.url,
+            license: "CC0 1.0 (the ontology's own terms:license).",
+            attributes: {
+                label: "string: the disease's name",
+                obsolete: "u8: 1 for an obsolete term (the OBO is_obsolete tag)",
+            },
+            groundTruth: null,
+            showcases: [
+                "tree and hierarchical layouts of a 15,000-term ontology",
+                "depth and ancestor queries",
+                "search by label",
+            ],
+        },
+        sources: ["doid"],
+        build(files) {
+            return readWithGraphIo(files.doid, "obo", {
+                columns: {
+                    label: { from: "name", dtype: "string", role: "label" },
+                    obsolete: { from: "is_obsolete", dtype: "u8" },
+                },
+            });
+        },
+    },
+    {
+        meta: {
+            name: "bioplex3-hct116",
+            title: "BioPlex 3.0 protein interactions in HCT116 cells",
+            description:
+                "Human protein-protein interactions found by affinity purification and mass spectrometry in HCT116 cells (BioPlex 3.0), as published on NDEx in CX2 with a full saved layout. Each protein carries its gene symbol as the label and its saved position (x, y, y growing upward). Directed as CX2 stores every edge, though an interaction itself has no direction. Read by graph-io's CX2 importer.",
+            citation:
+                "E. L. Huttlin et al., Dual proteome-scale networks reveal cell-specific remodeling of the human interactome, Cell 184(11), 3022-3040 (2021). doi:10.1016/j.cell.2021.04.011; NDEx network e96d063d-237a-11ea-bb65-0ac135e8bacf",
+            source: SOURCES.bioplex.url,
+            license: "CC0 1.0 (the network's rights: Waiver-No rights reserved (CC0), holder Harvard Medical School).",
+            attributes: {
+                label: "string: the gene symbol",
+                x: "f64: the saved x",
+                y: "f64: the saved y, growing upward",
+            },
+            groundTruth: null,
+            showcases: [
+                "a 10,000-node network drawn from its saved layout",
+                "force layouts and community detection at scale",
+                "degree and betweenness of interaction hubs",
+            ],
+        },
+        sources: ["bioplex"],
+        build(files) {
+            return readWithGraphIo(files.bioplex, "cx2", {
+                columns: {
+                    label: { from: "name", dtype: "string", role: "label" },
+                    x: { position: 0, dtype: "f64" },
+                    y: { position: 1, dtype: "f64" },
+                },
+            });
+        },
+    },
+    {
+        meta: {
             name: "com-dblp",
             title: "DBLP co-authorship (SNAP com-DBLP)",
             description:
@@ -281,7 +407,7 @@ async function main() {
         for (const key of dataset.sources) {
             files[key] = await source(key);
         }
-        const snapshot = fromEdgeArrays(dataset.build(files));
+        const snapshot = fromEdgeArrays(await dataset.build(files));
         const gz = gzipSync(snapshot.toBytes(), { level: 9 });
         writeFileSync(path.join(outDir, `${dataset.meta.name}.gsnp.gz`), gz);
         const {

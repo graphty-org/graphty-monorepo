@@ -1,3 +1,40 @@
+## 0.9.4 (2026-10-04)
+
+### 🚀 Features
+
+- **compact-mantine:** add pinned columns and header glyphs, tooltips and menus to DataTable ([#924](https://github.com/graphty-org/graphty-monorepo/pull/924))
+- **compact-mantine:** add descriptions, a search threshold and middle cuts to QuickActions ([#934](https://github.com/graphty-org/graphty-monorepo/pull/934))
+- **compact-mantine:** give PageList rows a second line, a trailing value and a row menu ([#920](https://github.com/graphty-org/graphty-monorepo/pull/920))
+- **compact-mantine:** add swatch, count, progress, description and row keys to Tree rows ([#908](https://github.com/graphty-org/graphty-monorepo/pull/908))
+- **compact-mantine:** let a collapsed ControlSection show a one-line summary ([#916](https://github.com/graphty-org/graphty-monorepo/pull/916))
+
+### 🩹 Fixes
+
+- **compact-mantine:** clear the SonarQube findings on the quick actions and page list ([2c8016669](https://github.com/graphty-org/graphty-monorepo/commit/2c8016669))
+- **compact-mantine:** always show the quick actions search field and keep focus there ([4f9c1a0c9](https://github.com/graphty-org/graphty-monorepo/commit/4f9c1a0c9))
+- **compact-mantine:** leave Space on the QuickActions list alone ([#934](https://github.com/graphty-org/graphty-monorepo/pull/934))
+- **compact-mantine:** keep a Pill's remove button reachable when a caller passes attributes ([#925](https://github.com/graphty-org/graphty-monorepo/pull/925))
+- **compact-mantine:** keep header names clear of the menu caret; make columnMenu optional ([#924](https://github.com/graphty-org/graphty-monorepo/pull/924))
+- **compact-mantine:** keep a PageList row menu out of the Tab order ([#920](https://github.com/graphty-org/graphty-monorepo/pull/920))
+- **compact-mantine:** keep a DataTable header menu open when opened from the keyboard ([#924](https://github.com/graphty-org/graphty-monorepo/pull/924))
+- **compact-mantine:** make a removable Pill's remove button reachable and named ([#925](https://github.com/graphty-org/graphty-monorepo/pull/925))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.3 (2026-10-04)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.2 (2026-10-04)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.1 (2026-10-04)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
 ## 0.9.0 (2026-10-03)
 
 ### 🚀 Features

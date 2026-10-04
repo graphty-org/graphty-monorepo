@@ -944,4 +944,45 @@ describe("ControlSection", () => {
             expect(screen.queryByTestId("control-section-actions")).not.toBeInTheDocument();
         });
     });
+
+    describe("summary", () => {
+        it("shows the summary after the name while collapsed, and describes the toggle with it", () => {
+            renderSection(
+                <ControlSection label="Sources" defaultOpened={false} summary="les miserables . 77 nodes">
+                    <div>Source rows</div>
+                </ControlSection>,
+            );
+
+            const summary = screen.getByTestId("control-section-summary");
+            expect(summary).toHaveTextContent("les miserables . 77 nodes");
+            expect(summary).toHaveClass("cm-section-summary");
+            const toggle = screen.getByRole("button", { name: "Expand Sources" });
+            expect(toggle).toContainElement(summary);
+            expect(toggle).toHaveAccessibleDescription("les miserables . 77 nodes");
+        });
+
+        it("hides the summary once the section opens", async () => {
+            const user = userEvent.setup();
+            renderSection(
+                <ControlSection label="Attributes" defaultOpened={false} summary="12 attributes">
+                    <div>Attribute rows</div>
+                </ControlSection>,
+            );
+
+            await user.click(screen.getByRole("button", { name: "Expand Attributes" }));
+
+            expect(screen.queryByTestId("control-section-summary")).not.toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Collapse Attributes" })).not.toHaveAttribute("aria-describedby");
+        });
+
+        it("draws no summary on a section that cannot collapse", () => {
+            renderSection(
+                <ControlSection label="Attributes" collapsible={false} summary="12 attributes">
+                    <div>Attribute rows</div>
+                </ControlSection>,
+            );
+
+            expect(screen.queryByTestId("control-section-summary")).not.toBeInTheDocument();
+        });
+    });
 });

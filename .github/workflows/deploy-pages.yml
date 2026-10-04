@@ -136,9 +136,10 @@ jobs:
                   run-id: ${{ inputs.run-id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
-            # graph-samples' hosted datasets. scripts/build-hosted.mjs needs only Node and graph-format's
-            # build; it records every source's URL and SHA-256, so its hash keys the download cache
-            # and an older cache still serves the sources that did not change.
+            # graph-samples' hosted datasets. scripts/build-hosted.mjs needs only Node and the builds of
+            # graph-format and graph-io (the Cytoscape and ontology datasets are read by graph-io's own
+            # importers); it records every source's URL and SHA-256, so its hash keys the download
+            # cache and an older cache still serves the sources that did not change.
             - name: Download graph-format build
               uses: actions/download-artifact@v4
               with:
@@ -146,6 +147,19 @@ jobs:
                   path: ./graph-format/dist/
                   run-id: ${{ inputs.run-id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Download graph-io build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graph-io
+                  path: ./graph-io/dist/
+                  run-id: ${{ inputs.run-id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            # Nothing is installed here, so graph-io's import of @graphty/graph-format is pointed at
+            # the checkout's graph-format, the way the workspace links it
+            - name: Link graph-format for graph-io
+              run: mkdir -p graph-io/node_modules/@graphty && ln -s ../../../graph-format graph-io/node_modules/@graphty/graph-format
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -156,7 +170,7 @@ jobs:
               uses: actions/cache@v4
               with:
                   path: tmp/graph-samples-sources
-                  key: graph-samples-sources-${{ hashFiles('graph-samples/scripts/build-hosted.mjs') }}
+                  key: graph-samples-sources-${{ hashFiles('graph-samples/scripts/build-hosted.mjs', 'graph-samples/scripts/graph-io-source.mjs') }}
                   restore-keys: graph-samples-sources-
 
             # Fails the deploy rather than publishing a site without the data fetchDataset() loads

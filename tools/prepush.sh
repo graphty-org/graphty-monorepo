@@ -205,6 +205,9 @@ run_step "Formatting (changed files)" "pnpm run format:check:changed"
 # over the entry file and every chunk it statically imports. Needs the build above.
 if affected graphty-element; then
     run_step "Bundle size (graphty-element)" "pnpm run check:bundle-size"
+    # The built public API must match the committed report, graphty-element/api/*.api.md
+    # (CLAUDE.md, "Public API review"). Needs the build above.
+    run_step "Public API report (graphty-element)" "pnpm run check:api-report"
 fi
 # The same for each part of cytoscape-extensions as a browser application bundles it
 # (cytoscape-extensions/size-budgets.json). Needs the build above. About 5 seconds.
@@ -231,6 +234,10 @@ run_step "Migration count script" "pnpm run check:migration-counts"
 # bypass trailer, token leaks) against a throwaway repository, a fake server and a fake scanner.
 # Needs no server. A few seconds.
 run_step "SonarQube gate script tests" "pnpm run test:sonar-gate"
+
+# The CI shape: the test matrix's shard groups, and what ci.yml and pr-title.yml run on a draft,
+# a pull request and a merge-queue branch. Reads files only, under a second.
+run_step "CI workflow tests" "pnpm run test:ci-workflows"
 
 # No use of the legacy graph API that the graph-format migration replaced (a legacy algorithms or
 # layout name, the legacy Graph, a positional layout call, an element parser not on graph-io). Reads
@@ -367,9 +374,20 @@ echo ""
 #
 # Its own flag, per the rule at the top of this file: graphty must not be graded by the
 # fast-test block's failures, nor its failures reported against them.
+#
+# Bounded by GRAPHTY_TEST_TIMEOUT (default 15 minutes; a loaded box takes about 70 s). On
+# 2026-10-03 this step hung for 50 minutes on a Vite dependency reload (issue #885) while every
+# other push queued behind tmp/prepush.lock; a hang now fails the push instead. timeout signals
+# the whole process group, so vitest's Chromium goes with it.
 echo -e "${YELLOW}> graphty tests (full browser suite)${NC}"
 if affected graphty; then
-    (cd graphty && npm run test:run) || { FAILED=1; GRAPHTY_FAILED=1; }
+    GRAPHTY_TEST_TIMEOUT="${GRAPHTY_TEST_TIMEOUT:-15m}"
+    (cd graphty && timeout --kill-after=30s "$GRAPHTY_TEST_TIMEOUT" npm run test:run)
+    rc=$?
+    if [ $rc -eq 124 ] || [ $rc -eq 137 ]; then
+        echo -e "${RED}graphty tests did not finish within $GRAPHTY_TEST_TIMEOUT and were stopped${NC}"
+    fi
+    [ $rc -eq 0 ] || { FAILED=1; GRAPHTY_FAILED=1; }
 fi
 
 if [ $GRAPHTY_FAILED -eq 0 ]; then

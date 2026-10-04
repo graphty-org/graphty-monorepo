@@ -455,11 +455,35 @@ All packages: 80% lines/functions/statements, 75% branches
 
 ## CI/CD Pipeline
 
+The adopted plan for how pull requests are checked, merged and released is
+`design/ci/ci-cd-plan.md` (decision record `design/decisions/2026-10-04-ci-cd-plan-adopted.md`).
+The target flow:
+
+- A pull request runs the affected CI; drafts run none. The owner approves its screenshots there.
+- Mergify checks batches of up to 4 ready pull requests, 2 batches at once. Each batch gets the
+  full un-selected suite on the combined tree, and a failing batch is bisected. The visual gate
+  passes a batch whose images equal the owner-approved images of its pull requests.
+- A red master freezes the queue and opens a `priority:critical` revert automatically.
+- Releases go out once a day as a release pull request, plus an ad hoc release on demand.
+
+**Live today:** the pull request half of the target flow. A draft pull request runs no CI; a ready
+one runs the affected suite with the screenshots and the gate; `Cost Estimate Accuracy` runs on
+every pull request that affects graphty-element and gates it; the short test shards run as two
+grouped jobs. ci.yml also knows a Mergify merge-queue run (a draft on a `mergify/merge-queue/*`
+branch): it runs the full suite there and reports `Queue Checks Pass`, and `Lint PR Title` passes
+it. Mergify itself still checks one pull request at a time in place (`.mergify.yml`), the visual
+gate does not yet accept a batch, and the release still runs on every merge. The plan's section 15
+is the order of the migration. Update this paragraph as each step lands.
+
+**Open pull requests as drafts while you iterate** (`gh pr create --draft`); the local pre-push gate
+still runs on every push. Mark it ready (`gh pr ready <n>`) when the work is done: that starts its
+CI, and Mergify queues only ready pull requests.
+
 ### Workflows (`.github/workflows/`)
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push/PR | Build, lint, sharded tests (22 parallel jobs), dead links (the `Links` job) |
+| `ci.yml` | Push to master, ready (non-draft) PRs, Mergify queue drafts, dispatch | Build, lint, sharded tests (13 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | Called by `release.yml` after a release | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
@@ -495,6 +519,15 @@ package has no guide pages, so its documentation link is the generated API refer
 
 ### Release versioning
 
+Today `release.yml` publishes after every green merge. The adopted plan (`design/ci/ci-cd-plan.md`,
+sections 10 and 11; being implemented) replaces that with a daily release train. Once a day it
+opens a "chore: release" pull request from the newest commit green on every lane, Mergify merges
+it, and `release.yml` publishes it with npm trusted publishing. An ad hoc release cuts the same
+pull request at once, for the owner or an agent the owner asked:
+`gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never
+start one on your own initiative. Everything below about versions, holds and changelogs holds for
+both.
+
 `release.yml` runs `nx release`, which bumps each package from the conventional commits since its
 last `{projectName}@{version}` tag. A commit with `!` or a `BREAKING CHANGE:` footer always means a
 major bump for the package in its scope; nothing lowers it afterwards (not a revert, not a commit
@@ -526,7 +559,13 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 24 parallel test jobs on a push to master or a manual dispatch:
+The CI runs 22 test shards on a push to master, a manual dispatch or a merge-queue run. The
+short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
+full run is 13 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
+layout, algorithms-default) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
+graphty, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
+even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
+shard. The shards:
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
@@ -818,6 +857,10 @@ that starts the same server from the owner's own shell, which is how the owner s
 
 ### Merging
 
+The adopted plan (`design/ci/ci-cd-plan.md`, sections 4 to 6; being implemented) moves Mergify to
+batches of up to 4 pull requests, 2 batches checked at once, each with the full suite on the
+combined tree, and a gate that accepts a batch. Until that lands, the queue below is what runs.
+
 Mergify merges pull requests (`.mergify.yml`): it queues every pull request into master that is not
 a draft, has no conflict, has no `hold` label and has no breaking `!` in its title, brings it up to
 date with master and merges it once `All Checks Pass` (which includes the visual-review gate) and
@@ -846,6 +889,19 @@ breaking changes into as few majors as possible.
 - A pull request that will bump a published package's major says so in its description, lists
   the breaking changes it groups, and names any known breaking change it deliberately leaves for
   a later major, with the reason.
+
+### Public API review
+
+graphty-element's public API is committed as a report: `graphty-element/api/<entry>.api.md`, one
+per typed entry point in its package.json `"exports"` (`index` for `.`), written by
+@microsoft/api-extractor from the built `.d.ts` files. A pull request that changes the API shows the
+change as a diff of those files.
+
+**"Public API report (graphty-element)"** (ci.yml's Build job and `tools/prepush.sh`) fails when the
+built API differs from the committed report. Build, then run `npm run api:report` in graphty-element
+and commit the report with the change. An agent whose pull request changes the report says so in
+the pull request description: which entry points, what was added, changed or removed, and whether
+it is breaking.
 
 ### Module System
 
@@ -893,6 +949,44 @@ Several agents often work in this repository at once. They share one disk and on
 - A review or audit reads `git diff <base>...HEAD`, not the whole tree, unless the task is
   explicitly a whole-repository audit.
 - Report regressions and failures first, then everything else.
+
+### The GitHub API budget
+
+Every agent, watcher and session shares one GitHub account, and so one limit of 5,000 REST
+requests an hour. On 2026-10-04 it ran out twice in one hour: status sweeps that made a few REST
+calls per open pull request (35 pull requests, about 100 calls a sweep), run again and again by
+two sessions. Until the limit resets, every `gh` call fails with HTTP 403 and merging stalls.
+
+- **Ask about many pull requests in one GraphQL query, never in a loop of per-pull-request REST
+  calls** (`gh pr view`, `gh pr checks`, `gh pr diff` or `gh api .../pulls/<n>` once per pull
+  request). One query returns every open pull request's state, labels, merge status and checks:
+
+  ```bash
+  gh api graphql -f query='{ repository(owner: "graphty-org", name: "graphty-monorepo") {
+    pullRequests(states: OPEN, first: 100) { nodes {
+      number title baseRefName isDraft mergeable labels(first: 10) { nodes { name } }
+      commits(last: 1) { nodes { commit { statusCheckRollup { state
+        contexts(first: 100) { nodes { ... on CheckRun { name status conclusion } } } } } } }
+    } } } }'
+  ```
+
+- **Read pull request status from the local broker, not from GitHub.** `tools/pr-status-broker.mjs`
+  runs under servherd and writes every open pull request's labels, draft and merge state, rollup
+  and checks to `<main checkout>/tmp/pr-status/status.json` once a minute, in one GraphQL query.
+  Read that file (check `fetchedAt` and `error`). If `servherd_list` does not show
+  `pr-status-broker`, start it from the main checkout:
+
+  ```jsonc
+  servherd_start({ name: "pr-status-broker", cwd: "<repo>", command: "node tools/pr-status-broker.mjs" })
+  ```
+
+- **Poll every 5 minutes or slower.** A loop that waits for a pull request or a run to finish
+  sleeps at least 300 seconds between calls.
+- **On a 403 "rate limit exceeded", wait; do not retry quickly.** `gh api rate_limit` costs nothing
+  and shows the reset time. GitHub also has a secondary limit on bursts and concurrent requests,
+  which `rate_limit` does not show: when calls fail while it reports requests left, retry every
+  10 minutes.
+- A prompt that starts an agent which talks to GitHub carries these rules.
 
 ## Claude Session History
 

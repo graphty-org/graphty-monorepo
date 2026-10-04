@@ -1,3 +1,31 @@
+## 0.3.23 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.3
+
+## 0.3.22 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.2
+
+## 0.3.21 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graph-io:** find CX layout, group, weight and link entries under every ids option ([bccf4fefe](https://github.com/graphty-org/graphty-monorepo/commit/bccf4fefe))
+- **graph-io:** keep a CX subnetwork's members when the ids option coerces them ([985c7d91a](https://github.com/graphty-org/graphty-monorepo/commit/985c7d91a))
+- **graph-io:** store Cytoscape.js positions y-up and write them back flipped ([229ae98ad](https://github.com/graphty-org/graphty-monorepo/commit/229ae98ad))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.20 (2026-10-03)
 
 ### 🚀 Features

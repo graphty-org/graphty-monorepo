@@ -1,3 +1,19 @@
+## 0.8.47 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty:** word a community's name from its rank, not the deprecated name ([75defd4a4](https://github.com/graphty-org/graphty-monorepo/commit/75defd4a4))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.31
+- Updated compact-mantine to 0.9.2
+- Updated graphty-element to 3.14.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.46 (2026-10-04)
 
 ### 🚀 Features

@@ -236,5 +236,14 @@ export function queuedWords(position: number | null): string {
  * @returns the name.
  */
 export function groupName(group: SummaryGroup): string {
-    return group.rank === undefined ? String(group.group) : `Group ${String(group.rank)}`;
+    return group.rank === undefined ? String(group.group) : rankedName(group);
+}
+
+/**
+ * A partition group's name from its rank, or nothing for a category or no group at all.
+ * @param group - the group, if any.
+ * @returns "Group 3", or "".
+ */
+export function rankedName(group: SummaryGroup | undefined): string {
+    return group?.rank === undefined ? "" : `Group ${String(group.rank)}`;
 }

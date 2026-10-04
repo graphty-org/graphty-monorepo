@@ -14,7 +14,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
 import { type Draft, measuredNoun, rowKindOf, selectNode, settingsChanged, settingsOf } from "./reads";
-import { count, formatNumber, groupName, queuedWords, runDate, runFailureWords } from "./words";
+import { count, formatNumber, groupName, queuedWords, rankedName, runDate, runFailureWords } from "./words";
 
 /** How many top elements and group members a Values tab lists. */
 const TOP = 10;
@@ -308,8 +308,8 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
                         label: `${groupName(group)}: ${count(group.size, "node")}`,
                         count: group.size,
                     }))}
-                    minLabel={groups.at(0)?.rank === undefined ? "" : groupName(groups[0])}
-                    maxLabel={groups.at(-1)?.rank === undefined ? "" : groupName(groups[groups.length - 1])}
+                    minLabel={rankedName(groups.at(0))}
+                    maxLabel={rankedName(groups.at(-1))}
                 />
                 {groups.length > TOP && <DataRowHeader label={`Largest ${String(TOP)}`} />}
                 {groups.slice(0, TOP).map((group) => (

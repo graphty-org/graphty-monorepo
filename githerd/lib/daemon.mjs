@@ -85,7 +85,7 @@ import {
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
 import { doneIo, pollVerifying } from "./done.mjs";
-import { classify } from "./classify.mjs";
+import { classify, isNoLog } from "./classify.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { failureKey, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
@@ -173,6 +173,7 @@ const PICKUP_FLOOR_MS = 926_000;
 const PARKED_ITEMS = /** @type {Record<string, string>} */ ({
     "paid-capacity": "cannot get a rented runner",
     credential: "fails on a credential",
+    drift: "fails on its runner environment, not on the code",
 });
 /** Escalation kinds that are owner items, and what each blocks (design 11.3). */
 const ITEM_KINDS = /** @type {Record<string, "workers" | null>} */ ({
@@ -880,6 +881,21 @@ export async function startDaemon({
     }
 
     /**
+     * A job's log, or null when it has none or it cannot be read. Never cached: a log is large and
+     * read once.
+     * @param {number} id the job
+     * @returns {Promise<string | null>} the log text
+     */
+    async function jobLog(id) {
+        try {
+            const body = (await github().get(`repos/${config.repo}/actions/jobs/${id}/logs`, { cache: false })).body;
+            return typeof body === "string" && !isNoLog(body) ? body : null;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
      * Reads every page of a REST list, up to `maxPages`.
      * @param {string} path the path, with a query string
      * @param {number} maxPages the most pages to read
@@ -972,16 +988,18 @@ export async function startDaemon({
                 const annotations = (
                     (await github().get(`repos/${config.repo}/check-runs/${j.id}/annotations?per_page=100`)).body ?? []
                 ).map((/** @type {any} */ a) => String(a.message ?? ""));
-                const verdict = classify(
-                    {
-                        workflow,
-                        job: j.name,
-                        steps: steps.map((/** @type {any} */ x) => x.name),
-                        annotations,
-                        labels: j.labels,
-                    },
-                    { where: "master" },
-                );
+                const failure = {
+                    workflow,
+                    job: j.name,
+                    steps: steps.map((/** @type {any} */ x) => x.name),
+                    annotations,
+                    labels: j.labels,
+                };
+                let verdict = classify(failure, { where: "master" });
+                // Some causes are only in the log (a library missing from the job's container), so a
+                // job that reads as code is read once more with its log.
+                if (verdict.class === "code")
+                    verdict = classify({ ...failure, log: await jobLog(j.id) }, { where: "master" });
                 refs.push({
                     id: j.id,
                     runId: lane.runId,
@@ -1105,11 +1123,12 @@ export async function startDaemon({
 
     /**
      * The owner item of each gating lane parked for a class only the owner can clear (paid
-     * capacity, a credential), ended once the lane is no longer red for it; and the backoff re-run
-     * of a lane parked for paid capacity, never while one of its runs is in flight or no runner
-     * picks its jobs up.
-     * ponytail: outside and drift lanes are parked (no incident, no hold) and only ledgered; their
-     * re-run after 15 minutes and the drift incident come with the worker platform.
+     * capacity, a credential, the runner environment), ended once the lane is no longer red for
+     * it; and the backoff re-run of a lane parked for paid capacity, never while one of its runs is
+     * in flight or no runner picks its jobs up. None of them is a code incident: no revert, no
+     * intermittent issue, no merge hold.
+     * ponytail: outside lanes are parked (no incident, no hold) and only ledgered; their re-run
+     * after 15 minutes, and a worker job for an environment failure, come with the worker platform.
      * @param {ReturnType<typeof createIncidentActions>} actions the incident actions
      */
     async function parkedLanes(actions) {

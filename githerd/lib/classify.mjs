@@ -148,6 +148,20 @@ export const PATTERNS = /** @type {Pattern[]} */ ([
         name: "deprecated runner or action",
         test: line(/automatically failed because it uses a deprecated version/),
     },
+    // The job's machine or container lacks what the run needs: the runner image or the job's own
+    // setup, not the code under test.
+    {
+        class: "drift",
+        name: "missing system library",
+        test: line(/error while loading shared libraries|cannot open shared object file/),
+    },
+    { class: "drift", name: "C library too old", test: line(/version `GLIBC_[\d.]+' not found/) },
+    {
+        class: "drift",
+        name: "browser or its system dependencies not installed",
+        test: line(/Host system is missing dependencies|Executable doesn't exist at \S*ms-playwright/),
+    },
+    { class: "drift", name: "runner out of disk space", test: line(/No space left on device|\bENOSPC\b/) },
 ]);
 
 /**
@@ -180,8 +194,8 @@ export function classify(f, ctx = {}) {
     if (ctx.platformDegraded)
         return { class: "outside", key, reason: "Actions degraded or queued past the pickup bound" };
     if (ctx.drift?.length) return { class: "drift", key, reason: "Set up job changed since the last green run" };
-    const deprecated = PATTERNS.find((p) => p.class === "drift");
-    if (deprecated?.test(f, text)) return { class: "drift", key, reason: deprecated.name };
+    const environment = PATTERNS.find((p) => p.class === "drift" && p.test(f, text));
+    if (environment) return { class: "drift", key, reason: environment.name };
     // Classes 5 to 8 need a pull request; on master anything past class 4 is code (design 4.5).
     if (ctx.where === "master") return { class: "code", key, reason: "not credential, capacity, outside or drift" };
     if (new Set(ctx.masterRed ?? []).has(key))

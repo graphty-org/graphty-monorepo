@@ -118,9 +118,38 @@ const FIXTURES = {
             "This request has been automatically failed because it uses a deprecated version of `actions/upload-artifact: v3`.",
         ],
     }),
+    // GPU job 111465235370, 2026-10-04 15:51: the job container had no glib; the text only in the log.
+    "missing system library": job({
+        workflow: "GPU",
+        job: "Test (NVIDIA T4)",
+        steps: ["Browser smoke on NVIDIA"],
+        labels: RENTED,
+        annotations: ["Process completed with exit code 1."],
+        log: [
+            "2026-10-04T15:51:34.7702851Z [pid=15976][err] /github/home/.cache/ms-playwright/chromium_headless_shell-1200/chrome-headless-shell-linux64/chrome-headless-shell: error while loading shared libraries: libglib-2.0.so.0: cannot open shared object file: No such file or directory",
+            "2026-10-04T15:51:34.8792926Z ##[error]Process completed with exit code 1.",
+        ].join("\n"),
+    }),
+    // The dynamic loader's answer to a binary built for a newer C library.
+    "C library too old": job({
+        log: "node: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.38' not found (required by node)",
+    }),
+    // Playwright's answers to a browser, or its system packages, missing from the image.
+    "browser or its system dependencies not installed": job({
+        log: "browserType.launch: Executable doesn't exist at /home/runner/.cache/ms-playwright/chromium_headless_shell-1200/chrome-headless-shell-linux64/chrome-headless-shell",
+    }),
+    // The kernel's answer when the runner's disk is full.
+    "runner out of disk space": job({ log: "Error: ENOSPC: no space left on device, write" }),
 };
 
 describe("the pattern table", () => {
+    it("reads a missing system library on master as the environment, not code", () => {
+        const v = classify(FIXTURES["missing system library"], { where: "master" });
+        expect(v).toMatchObject({ class: "drift", reason: "missing system library" });
+        // Without its log the same job is code: the error is in no step name or annotation.
+        expect(classify({ ...FIXTURES["missing system library"], log: null }, { where: "master" }).class).toBe("code");
+    });
+
     it("has one fixture per pattern, and each fixture is matched by its own pattern", () => {
         const byName = (/** @type {string} */ a, /** @type {string} */ b) => a.localeCompare(b);
         expect(Object.keys(FIXTURES).sort(byName)).toEqual(PATTERNS.map((p) => p.name).sort(byName));

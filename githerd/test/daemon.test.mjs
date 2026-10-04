@@ -116,7 +116,7 @@ let clock;
 /**
  * @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null,
  *   events?: Record<string, any[]>, merged?: any[], release?: any[], annotations?: any[], gpu?: any[],
- *   jobs?: Record<string, any[]>}}
+ *   jobs?: Record<string, any[]>, logs?: Record<string, string>}}
  */
 let scene;
 /** @type {ReturnType<typeof createFakeGh>} */
@@ -198,6 +198,9 @@ function respond({ args, input }) {
     if (path.includes("/issues?")) return ok(scene.issues ?? []);
     if (/\/pulls\/\d+\/commits\?/.test(path)) return ok([{ commit: { message: "fix(x): a fix" } }]);
     if (/\/pulls\/\d+\/files\?/.test(path)) return ok([{ filename: "src/a.ts" }]);
+    const log = /\/actions\/jobs\/(\d+)\/logs$/.exec(path);
+    if (log)
+        return httpOutput({ status: 200, body: scene.logs?.[log[1]] ?? "<Error><Code>BlobNotFound</Code></Error>" });
     if (/\/actions\/jobs\/\d+$/.test(path)) {
         return ok({ steps: [{ name: "Check visual changes were accepted", conclusion: "failure" }] });
     }
@@ -1331,6 +1334,41 @@ describe("failure classes on master", () => {
         clock = new Date("2026-10-02T12:48:00Z");
         await poll(daemon);
         expect(daemon.state.ownerItems["paid-capacity:gpu"]).toMatchObject({ endedBy: "cleared" });
+    });
+
+    it("parks a lane whose job container lacks a system library: an owner item, no incident, no hold", async () => {
+        gpuConfig();
+        scene.gpu = [{ ...run(210, A, "failure"), name: "GPU" }];
+        scene.jobs = {
+            210: [
+                {
+                    id: 2100,
+                    run_attempt: 1,
+                    name: "Test (NVIDIA T4)",
+                    conclusion: "failure",
+                    labels: [RENTED],
+                    steps: [{ name: "Browser smoke on NVIDIA", conclusion: "failure" }],
+                },
+            ],
+        };
+        scene.annotations = [{ message: "Process completed with exit code 1." }];
+        scene.logs = {
+            2100: "chrome-headless-shell: error while loading shared libraries: libglib-2.0.so.0: cannot open shared object file: No such file or directory\n##[error]Process completed with exit code 1.",
+        };
+        const daemon = await start();
+        for (const at of ["12:00", "12:03"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        expect(daemon.state.master.lanes.gpu).toMatchObject({ verdict: "red", redClass: "drift" });
+        expect(daemon.state.master.lanes.gpu.redJobs[0].reason).toBe("missing system library");
+        expect(daemon.state.incidents).toEqual({});
+        expect(daemon.state.ownerItems["drift:gpu"]).toMatchObject({ blocks: "release" });
+        expect(daemon.state.ownerItems["drift:gpu"].question).toMatch(/^gpu fails on its runner environment/);
+        expect(gh.writes()).toEqual([]);
+        // The log is read once, when the job's steps and annotations alone read as code.
+        const logReads = gh.calls.filter((c) => c.args.at(-1)?.endsWith("/actions/jobs/2100/logs"));
+        expect(logReads).toHaveLength(1);
     });
 
     it("raises lane-not-progressing while a gating job waits for a runner past its bound, and ends it once picked up", async () => {

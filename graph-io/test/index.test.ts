@@ -10,6 +10,7 @@ const VALUE_EXPORTS = [
     "FormatRegistry",
     "GRAPH_FORMATS",
     "SNIFF_HEAD_BYTES",
+    "SNIFF_FAILED_CODE",
     "UNKNOWN_FORMAT_CODE",
     "ChildrenCsr",
     "checkExport",

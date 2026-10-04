@@ -49,6 +49,7 @@ export {
     listGraphs,
     registry,
     sniff,
+    SNIFF_FAILED_CODE,
     UNKNOWN_FORMAT_CODE,
 } from "./registry.js";
 export {

@@ -19,7 +19,7 @@ import {
 import { CellBudgetBuilder, maxEmptyCellsOption } from "./common/cell-budget.js";
 import { abortable, foreignKind, lockReader, normalizeInput, throwIfAborted } from "./common/input.js";
 import { resolveImportOptions } from "./common/options.js";
-import { ImportReportBuilder } from "./common/report.js";
+import { ImportReportBuilder, messageOf } from "./common/report.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
 import { cxImporter } from "./formats/cx/index.js";
 import { cx2Exporter, cx2Importer } from "./formats/cx2/index.js";
@@ -42,12 +42,19 @@ import {
     type GraphImporter,
     type GraphListing,
     type ImportInput,
+    type ImportIssue,
     type ImportReport,
     type LossNote,
 } from "./types.js";
 
 /** The issue code of an input whose format no registered importer recognises. */
 export const UNKNOWN_FORMAT_CODE = "E_UNKNOWN_FORMAT";
+
+/**
+ * The issue code of a registered importer whose sniff() threw while the format was being chosen;
+ * that importer was treated as not recognising the input (a defect in that importer).
+ */
+export const SNIFF_FAILED_CODE = "W_SNIFF_FAILED";
 
 /** The builder options importGraph() accepts beyond the ones the common import options seed. */
 export type BuilderSeed = Omit<
@@ -324,7 +331,7 @@ export class FormatRegistry {
         const input = normalizeInput(rawInput);
         const requested = options.format ?? "auto";
         if (requested !== "auto") {
-            return { importer: this.importer(requested), sniff: null, source: input, peeked: null };
+            return { importer: this.importer(requested), sniff: null, source: input, peeked: null, warnings: [] };
         }
         // the options are checked before the input is touched, so a bad option never leaves a
         // peeked stream locked; the importer resolves them again with its own defaults
@@ -337,8 +344,21 @@ export class FormatRegistry {
                 ? new TextDecoder(common.encoding).decode(peeked.head, { stream: true })
                 : peeked.head;
         let sniff: SniffResult | null;
+        const failures = new ImportReportBuilder("unknown", 0);
+        const warnings: ImportIssue[] = [];
         try {
-            sniff = this.sniff({ filename: options.filename, mimeType: options.mimeType, head });
+            const hints = { filename: options.filename, mimeType: options.mimeType, head };
+            const ranked = rankFormats(hints, this.importerMap.values(), (format, err) => {
+                warnings.push(
+                    failures.warning(
+                        "unsupported",
+                        SNIFF_FAILED_CODE,
+                        `the ${format} importer's sniff() threw (${messageOf(err)}); it was treated as not recognising the input`,
+                        { element: format },
+                    ),
+                );
+            });
+            sniff = ranked.length > 0 ? ranked[0] : null;
         } catch (err) {
             await peeked.close();
             throw err;
@@ -351,15 +371,14 @@ export class FormatRegistry {
         if (sniff === null || (foreign !== null && !claimed)) {
             await peeked.close();
             const what = foreign === null ? "" : `: it is ${foreign}`;
-            const report = new ImportReportBuilder("unknown", 0);
-            return report.fail(
+            return failures.fail(
                 UNKNOWN_FORMAT_CODE,
                 `no registered importer recognises the input${describeHints(options)}${what}; pass the format explicitly`,
                 undefined,
                 { formats: this.formats() },
             );
         }
-        return { importer: this.importer(sniff.format), sniff, source: peeked.input, peeked };
+        return { importer: this.importer(sniff.format), sniff, source: peeked.input, peeked, warnings };
     }
 
     /**
@@ -540,6 +559,8 @@ interface ChosenImporter {
     readonly source: ImportInput;
     /** The peeked head of a sniffed input, or null. */
     readonly peeked: PeekedInput | null;
+    /** W_SNIFF_FAILED warnings for the import report, one per importer whose sniff() threw. */
+    readonly warnings: readonly ImportIssue[];
 }
 
 /**
@@ -580,11 +601,19 @@ function result(
     options: ImportGraphOptions,
 ): ImportGraphResult {
     const frozen = builder.freezeWithReport(options.freeze);
+    const { warnings } = chosen;
     return Object.freeze({
         format: chosen.importer.format,
         sniff: chosen.sniff,
         snapshot: frozen.snapshot,
-        report,
+        report:
+            warnings.length === 0
+                ? report
+                : Object.freeze({
+                      ...report,
+                      issues: Object.freeze([...warnings, ...report.issues]),
+                      warningCount: report.warningCount + warnings.length,
+                  }),
         freeze: frozen.report,
     });
 }

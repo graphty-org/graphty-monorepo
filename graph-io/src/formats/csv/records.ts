@@ -16,7 +16,7 @@
 
 import { GraphFormatError } from "@graphty/graph-format";
 
-import { type ReadOptions, textChunks } from "../../common/input.js";
+import { MAX_TEXT_LENGTH, type ReadOptions, textChunks, tooLarge } from "../../common/input.js";
 import { type ImportReportBuilder } from "../../common/report.js";
 import { type ImportInput } from "../../types.js";
 
@@ -325,7 +325,7 @@ export class RecordReader implements AsyncIterable<number> {
 
     private readonly input: ImportInput;
 
-    private readonly report: ImportReportBuilder;
+    readonly report: ImportReportBuilder;
 
     private readonly readOptions: ReadOptions;
 
@@ -570,7 +570,7 @@ class RecordScanner {
             const c = chunk.charCodeAt(i);
             if (this.state === COMMENT) {
                 if (c === LF || c === CR) {
-                    this.comment += chunk.slice(this.segment, i);
+                    this.comment = this.grow(this.comment, chunk.slice(this.segment, i));
                     this.reader.leadingComments.push(this.comment);
                     this.comment = "";
                     this.state = START;
@@ -591,7 +591,7 @@ class RecordScanner {
                     i = n;
                     break;
                 }
-                this.field += chunk.slice(this.segment, q);
+                this.field = this.grow(this.field, chunk.slice(this.segment, q));
                 this.state = CLOSING;
                 this.lastWasCr = false;
                 i = q + 1;
@@ -599,7 +599,7 @@ class RecordScanner {
             }
             if (this.state === CLOSING) {
                 if (c === quoteCode) {
-                    this.field += this.quoteText;
+                    this.field = this.grow(this.field, this.quoteText);
                     this.segment = i + 1;
                     this.state = QUOTED;
                     this.lastWasCr = false;
@@ -622,7 +622,7 @@ class RecordScanner {
                     continue;
                 }
                 if (this.state === UNQUOTED) {
-                    this.field += chunk.slice(this.segment, i);
+                    this.field = this.grow(this.field, chunk.slice(this.segment, i));
                 }
                 if (c === delimiterCode) {
                     this.push();
@@ -680,9 +680,9 @@ class RecordScanner {
             return;
         }
         if (this.state === COMMENT) {
-            this.comment += chunk.slice(this.segment, n);
+            this.comment = this.grow(this.comment, chunk.slice(this.segment, n));
         } else if (this.state === QUOTED || this.state === UNQUOTED) {
-            this.field += chunk.slice(this.segment, n);
+            this.field = this.grow(this.field, chunk.slice(this.segment, n));
         }
         this.segment = n;
     }
@@ -733,6 +733,24 @@ class RecordScanner {
         }
         this.line = line;
         this.lastWasCr = lastWasCr;
+    }
+
+    /**
+     * Append to the field or comment in progress, failing with E_TOO_LARGE instead of a RangeError
+     * when the result would be longer than one JavaScript string can hold.
+     * @param text - the text so far
+     * @param piece - the text to append
+     * @returns the joined text
+     */
+    private grow(text: string, piece: string): string {
+        if (text.length + piece.length > MAX_TEXT_LENGTH) {
+            tooLarge(
+                this.reader.report,
+                `a cell is longer than ${MAX_TEXT_LENGTH} characters, the most one JavaScript string holds`,
+                this.startLine,
+            );
+        }
+        return text + piece;
     }
 
     /** Store the field in progress as the next cell. */

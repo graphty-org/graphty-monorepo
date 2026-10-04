@@ -231,6 +231,19 @@ class ByteDecoder {
     /** Bytes decoded so far, for error positions. */
     private offset = 0;
 
+    /** Whether the decoder switched to windows-1252 because undeclared input was not UTF-8. */
+    private fellBack = false;
+
+    /**
+     * The first control byte (other than TAB, LF, FF, CR and a final Ctrl-Z) of undeclared input
+     * that may still turn out not to be UTF-8: its offset and value, or null. Tracked from the
+     * start of the input, so the binary-data verdict never depends on how the input was chunked.
+     */
+    private control: { readonly at: number; readonly byte: number } | null = null;
+
+    /** The offset of a Ctrl-Z that ended the previous chunk: control data if more bytes follow. */
+    private subAt = -1;
+
     /**
      * Create the decoder of one import.
      * @param report - where warnings and the fatal decode error go
@@ -361,6 +374,12 @@ class ByteDecoder {
         const bytes =
             typeof SharedArrayBuffer === "function" && input.buffer instanceof SharedArrayBuffer ? input.slice() : input;
         const decoder = this.decoder as TextDecoder;
+        if (this.fellBack || (this.mayFallBack && this.asciiSoFar)) {
+            this.watch(bytes, !stream);
+            if (this.fellBack && this.control !== null) {
+                this.binary(this.control);
+            }
+        }
         let text: string;
         try {
             text = decoder.decode(bytes, { stream });
@@ -397,16 +416,10 @@ class ByteDecoder {
         const bad = this.encoding === "utf-8" ? invalidUtf8(all) : null;
         const at = base + (bad === null ? 0 : bad.index);
         if (this.mayFallBack && this.asciiSoFar) {
-            // windows-1252 text holds no control bytes but TAB, LF, FF and CR: these mark binary data
-            const control = controlByte(all, !stream);
-            if (control >= 0) {
-                const hex = all[control].toString(16).padStart(2, "0");
-                return this.report.fail(
-                    INVALID_UTF8_CODE,
-                    `the input is binary data, not text: control byte 0x${hex} at byte ${base + control}`,
-                    undefined,
-                    { byteOffset: base + control },
-                );
+            // windows-1252 text holds no control bytes but TAB, LF, FF and CR: one anywhere in
+            // undeclared input that is not UTF-8 marks binary data (watch() saw every byte so far)
+            if (this.control !== null) {
+                return this.binary(this.control);
             }
             if (!stream && bad?.truncated === true) {
                 return this.report.fail(
@@ -423,6 +436,7 @@ class ByteDecoder {
                     `the input is not valid UTF-8 (at byte ${at}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
                 );
                 this.use("windows-1252", false);
+                this.fellBack = true;
                 return (this.decoder as TextDecoder).decode(all, { stream });
             }
         }
@@ -440,6 +454,45 @@ class ByteDecoder {
                 : `the bytes near byte ${base} are not valid ${this.encoding}`,
             undefined,
             { byteOffset: base },
+        );
+    }
+
+    /**
+     * Note the first control byte of the next bytes (see `control`).
+     * @param bytes - the bytes, starting at `offset`
+     * @param final - whether they end the input
+     */
+    private watch(bytes: Uint8Array, final: boolean): void {
+        if (this.control !== null || bytes.byteLength === 0) {
+            return;
+        }
+        if (this.subAt >= 0) {
+            this.control = { at: this.subAt, byte: 0x1a };
+            return;
+        }
+        // a Ctrl-Z at the end of a chunk is held until it is known whether more bytes follow
+        const index = controlByte(bytes, true);
+        if (index >= 0) {
+            this.control = { at: this.offset + index, byte: bytes[index] };
+        } else if (!final && bytes[bytes.byteLength - 1] === 0x1a) {
+            this.subAt = this.offset + bytes.byteLength - 1;
+        }
+    }
+
+    /**
+     * Fail the import as binary data.
+     * @param control - the control byte that shows it
+     * @param control.at - its offset
+     * @param control.byte - its value
+     * @returns never
+     */
+    private binary(control: { readonly at: number; readonly byte: number }): never {
+        const hex = control.byte.toString(16).padStart(2, "0");
+        return this.report.fail(
+            INVALID_UTF8_CODE,
+            `the input is binary data, not text: control byte 0x${hex} at byte ${control.at}`,
+            undefined,
+            { byteOffset: control.at },
         );
     }
 
@@ -814,6 +867,8 @@ class TextFilter {
 
     private warned = false;
 
+    private strayBom = false;
+
     /**
      * Create the filter of one import.
      * @param report - where the warnings and the fatal errors go
@@ -839,6 +894,16 @@ class TextFilter {
             let start = 0;
             while (text.charCodeAt(start) === 0xfeff) {
                 start++;
+            }
+            if (start > 1 && !this.strayBom) {
+                // the first U+FEFF is the byte order mark; another one is a stray character
+                this.strayBom = true;
+                this.report.warning(
+                    "validation-error",
+                    CONTROL_CHARACTER_CODE,
+                    `the input starts with ${start} byte order marks (U+FEFF); the extra ones were ignored`,
+                    { element: "U+FEFF" },
+                );
             }
             text = text.slice(start);
             if (text.length === 0) {
@@ -1141,7 +1206,7 @@ export async function readBytes(rawInput: ImportInput, options: ReadOptions = {}
  * @param message - what is too long
  * @param line - the line, when known
  */
-function tooLarge(report: ImportReportBuilder, message: string, line?: number): never {
+export function tooLarge(report: ImportReportBuilder, message: string, line?: number): never {
     report.failWith("unsupported", TOO_LARGE_CODE, message, line === undefined ? undefined : { line });
 }
 

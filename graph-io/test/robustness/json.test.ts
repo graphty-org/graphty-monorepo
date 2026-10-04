@@ -20,7 +20,7 @@ describe("robustness: JSON input", () => {
 
     it("strips a doubled UTF-8 BOM instead of an invisible syntax error", async () => {
         const { snapshot, report } = await importGraph(bytesOf([0xef, 0xbb, 0xbf, 0xef, 0xbb, 0xbf], '{"nodes":[{"id":"a"}],"links":[]}'));
-        expect(report.issues).toEqual([]);
+        expect(report.issues.map((i) => i.code)).toEqual(["W_CONTROL_CHARACTER"]);
         expect(snapshot.ids.toArray()).toEqual(["a"]);
     });
 

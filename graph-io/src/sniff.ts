@@ -91,13 +91,16 @@ export interface SniffResult {
 }
 
 /**
- * The lower-cased extension of a file name, path or URL, with its dot; a URL's `?query` and
- * `#fragment` are not part of it.
+ * The lower-cased extension of a file name, path or URL, with its dot. A URL's `?query` and
+ * `#fragment` are not part of it; in a plain name, `?` and `#` are ordinary characters (`net#2.gexf`)
+ * unless no dot follows them (`g.graphml#v2`).
  * @param filename - the name, path or URL
  * @returns the extension (`.gexf`), or null when the name has none
  */
 export function extensionOf(filename: string): string | null {
-    const path = filename.replace(/[?#].*$/s, "");
+    // a scheme of two or more letters, so a Windows drive (`C:`) is not one
+    const url = /^[a-z][a-z\d+.-]+:/i.test(filename);
+    const path = filename.replace(url ? /[?#].*$/s : /[?#][^.]*$/s, "");
     const base = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
     const dot = base.lastIndexOf(".");
     if (dot <= 0 || dot === base.length - 1) {
@@ -140,9 +143,15 @@ export function headBytes(head: Uint8Array | string): Uint8Array {
  * ordered by confidence (ties in registration order).
  * @param hints - what is known about the input
  * @param importers - the registered importers, in registration order
+ * @param onSniffError - called with the format and the error when an importer's sniff() throws
+ * (that importer is then treated as not recognising the head)
  * @returns the candidates, best first; empty when nothing matches
  */
-export function rankFormats(hints: SniffHints, importers: Iterable<GraphImporter>): readonly SniffResult[] {
+export function rankFormats(
+    hints: SniffHints,
+    importers: Iterable<GraphImporter>,
+    onSniffError?: (format: string, error: unknown) => void,
+): readonly SniffResult[] {
     const extension = typeof hints.filename === "string" ? extensionOf(hints.filename) : null;
     const mime = typeof hints.mimeType === "string" ? normalizeMimeType(hints.mimeType) : null;
     const head = hints.head === undefined || hints.head === null ? null : headBytes(hints.head);
@@ -155,9 +164,10 @@ export function rankFormats(hints: SniffHints, importers: Iterable<GraphImporter
         if (head !== null && head.byteLength > 0 && typeof importer.sniff === "function") {
             try {
                 content = clamp(importer.sniff(head));
-            } catch {
+            } catch (err) {
                 // a plugin's sniffer that throws does not recognise the head: one buggy importer
-                // must not break the detection of every other format
+                // must not break the detection of every other format, but the error is handed on
+                onSniffError?.(importer.format, err);
                 content = 0;
             }
         }

@@ -88,10 +88,13 @@ describe("robustness: byte order marks and BOM-less UTF-16", () => {
         expect(ids(snapshot)).toEqual(["a", "b", "c"]);
     });
 
-    it("strips a doubled UTF-8 BOM (a tool that prepends one to a file that has one)", async () => {
+    it("strips a doubled UTF-8 BOM (a tool that prepends one to a file that has one) with W_CONTROL_CHARACTER", async () => {
         const { snapshot, report } = await csv(bytesOf([0xef, 0xbb, 0xbf, 0xef, 0xbb, 0xbf], EDGES));
-        expect(report.issues).toEqual([]);
+        expect(codes(report)).toEqual(["W_CONTROL_CHARACTER"]);
+        expect(report.issues[0].element).toBe("U+FEFF");
         expect(ids(snapshot)).toEqual(["a", "b", "c"]);
+        // one BOM is the byte order mark, not a stray character
+        expect(codes((await csv(bytesOf([0xef, 0xbb, 0xbf], EDGES))).report)).toEqual([]);
     });
 });
 
@@ -125,6 +128,57 @@ describe("robustness: invalid UTF-8, binary data and truncation", () => {
         expect(codes(err.report)).toEqual(["E_INVALID_UTF8"]);
         expect(err.message).toContain("control byte 0x00");
         expect(err.details.byteOffset).toBe(bytes.byteLength - 2);
+    });
+
+    it("decides binary data the same way however the input is chunked", async () => {
+        // a control byte early, the first non-UTF-8 byte far later: binary data in every shape
+        const bytes = bytesOf("x,y\n".repeat(76_800));
+        bytes[1000] = 0x0b;
+        bytes[290_000] = 0xe9;
+        const stream = (size: number): ReadableStream<Uint8Array> =>
+            new ReadableStream({
+                start(controller): void {
+                    for (let offset = 0; offset < bytes.byteLength; offset += size) {
+                        controller.enqueue(bytes.slice(offset, offset + size));
+                    }
+                    controller.close();
+                },
+            });
+        for (const input of [bytes, byteChunks(bytes, 4096), stream(4096), stream(1024 * 1024), byteChunks(bytes, 1)]) {
+            const err = await importFailure(csv(input));
+            expect(err.details.code).toBe("E_INVALID_UTF8");
+            expect(err.message).toContain("control byte 0x0b at byte 1000");
+        }
+        // a control byte after the windows-1252 switch, in a later chunk, is binary data too
+        const late = bytesOf("source,target\ncaf", [0xe9], ",b\n", "x,y\n".repeat(20_000), "c,d", [0x01], "\n");
+        for (const input of [late, byteChunks(late, 4096)]) {
+            const err = await importFailure(csv(input));
+            expect(err.details.byteOffset).toBe(late.byteLength - 2);
+        }
+        // a Ctrl-Z that ends a chunk is control data only when more bytes follow
+        const sub = bytesOf("source,target\ncaf", [0xe9], ",b", [0x1a]);
+        expect(codes((await csv(byteChunks(sub, sub.byteLength))).report)).toEqual([
+            "W_ENCODING_FALLBACK",
+            "W_CONTROL_CHARACTER",
+        ]);
+        const midSub = bytesOf("source,target\ncaf", [0xe9], ",b", [0x1a], "\n");
+        const err = await importFailure(csv(byteChunks(midSub, midSub.byteLength - 1)));
+        expect(err.details.byteOffset).toBe(midSub.byteLength - 2);
+    });
+
+    it("refuses a quoted cell longer than one JavaScript string with E_TOO_LARGE, not a RangeError", async () => {
+        const piece = "x".repeat(1024 * 1024);
+        async function* giant(): AsyncGenerator<string> {
+            yield 'source,target\n"';
+            for (let i = 0; i <= 512; i++) {
+                yield piece;
+                await Promise.resolve();
+            }
+            yield '",b\n';
+        }
+        const err = await importFailure(csv(giant()));
+        expect(codes(err.report)).toEqual(["E_TOO_LARGE"]);
+        expect(err.report.issues[0].line).toBe(2);
     });
 
     it("treats a UTF-8 sequence cut at the end of undeclared input as truncation, in every input shape", async () => {

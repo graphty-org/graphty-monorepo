@@ -173,9 +173,11 @@ describe("fuzz audit: a ReadableStream split anywhere imports the same snapshot 
 
             it(`${format}/${entry.path}: a UTF-8 BOM split across the first chunk boundary`, async () => {
                 const reference = await load(format, text, options);
-                const withBom = new Uint8Array(bytes.byteLength + 3);
+                // a fixture that already has a BOM keeps exactly one (a second is a stray U+FEFF)
+                const body = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? bytes.subarray(3) : bytes;
+                const withBom = new Uint8Array(body.byteLength + 3);
                 withBom.set([0xef, 0xbb, 0xbf]);
-                withBom.set(bytes, 3);
+                withBom.set(body, 3);
                 for (const cut of [1, 2, 3]) {
                     const actual = await load(format, splitStream(withBom, [cut]), options);
                     expectEquivalent(reference, actual, `${format}/${entry.path} BOM cut at ${cut}`);

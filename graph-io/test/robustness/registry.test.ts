@@ -114,6 +114,11 @@ describe("robustness: names, hints and plugins", () => {
     it("takes the extension of a URL without its query and fragment", () => {
         expect(extensionOf("https://host/g.gml?download=1")).toBe(".gml");
         expect(extensionOf("g.graphml#v2")).toBe(".graphml");
+        // in a plain file name, ? and # are ordinary characters
+        expect(extensionOf("net#2.gexf")).toBe(".gexf");
+        expect(extensionOf("run?.graphml")).toBe(".graphml");
+        expect(extensionOf("C:\\data\\net#2.gml")).toBe(".gml");
+        expect(extensionOf("file:///data/g.gexf#top")).toBe(".gexf");
         expect(sniff({ filename: "https://host/data/g.gml?download=1&x=y.csv" })?.format).toBe("gml");
     });
 
@@ -123,8 +128,15 @@ describe("robustness: names, hints and plugins", () => {
         } };
         const registry = createRegistry().registerImporter(broken);
         expect(registry.sniff({ head: "graph [ node [ id 1 ] ]" })?.format).toBe("gml");
-        const { format } = await registry.importGraph("graph [ node [ id 1 ] ]");
+        const { format, report } = await registry.importGraph("graph [ node [ id 1 ] ]");
         expect(format).toBe("gml");
+        // the plugin's defect is not hidden: the import report names it
+        expect(codes(report)).toEqual(["W_SNIFF_FAILED"]);
+        expect(report.warningCount).toBe(1);
+        expect(report.issues[0].element).toBe("broken");
+        expect(report.issues[0].message).toContain("plugin bug");
+        const err = await importFailure(registry.importGraph("\u0001\u0002"));
+        expect(codes(err.report)).toEqual(["W_SNIFF_FAILED", "E_UNKNOWN_FORMAT"]);
     });
 
     it("refuses whitespace-only input with no hints", async () => {

@@ -98,6 +98,20 @@ Store `text` wherever you keep files. Two options shape the file:
   reverse-domain name, at most 64 KB of JSON each. `open` hands it back as `report.extensions`.
   Keep your interface's state there, and nothing about the graph.
 
+`save()` clears `dirty` as soon as it returns the text. When you write the file yourself and the
+write can fail (the File System Access API, Node's `fs`, an upload), pass `markSaved: false` and
+mark the save once the write succeeded:
+
+```typescript
+const saved = await session.project.save({ markSaved: false });
+await writeTheFile(saved.text); // if this throws, the project stays dirty
+session.project.markSaved(saved);
+```
+
+A change made while the file was being written leaves the project dirty after `markSaved`, and
+undo back to the saved state clears it again. Marking a save older than one already marked, or
+older than the last `open`, does nothing.
+
 ## The name and unsaved changes
 
 ```typescript

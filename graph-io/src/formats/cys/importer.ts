@@ -539,83 +539,11 @@ async function fill3(
     nodes: ReadonlyMap<string, NodeRec>,
     edges: ReadonlyMap<string, EdgeRec>,
 ): Promise<void> {
-    const { report, inner, session } = prepared;
-    const { layout } = session;
+    const { report, inner } = prepared;
     const { doc, dialect } = parsed;
     const { graph } = choice;
     const members = membersOf(doc, graph);
-    // each network reads its tables into its own report, so a shared table's issues, and a
-    // table that fails the import, land in every network that reads it.
-    // ponytail: a table shared by several networks is inflated and parsed once per network (the
-    // byte budget is charged once); cache the parse and relay its issues if importAll gets slow
-    const tables = new Map<string, Promise<CyTable | null>>();
-    const tableOf = (path: string): Promise<CyTable | null> => {
-        let pending = tables.get(path);
-        if (pending === undefined) {
-            const entry = layout.tables.find((t) => t.tablePath === path);
-            pending =
-                entry === undefined
-                    ? Promise.resolve(null)
-                    : session.read(entry, report).then((bytes) => readCyTable(bytes, path, entry.name, report, inner));
-            tables.set(path, pending);
-        }
-        return pending;
-    };
-    const virtuals = layout.cytables === null ? [] : await readVirtuals(session, layout.cytables, report, inner);
-    // a row of an element the file declares outside this network (a collapsed group's member, a
-    // meta-edge) is Cytoscape's bookkeeping, not a stale row
-    const declared = new Set<string>([
-        ...doc.nodes.flatMap((n) => (n.id === null ? [] : [n.id])),
-        ...doc.edges.flatMap((e) => (e.id === null ? [] : [e.id])),
-    ]);
-    let unmatched = 0;
-    for (const entry of layout.tables.filter((t) => t.network === choice.graphId && t.element !== null)) {
-        throwIfAborted(inner.signal);
-        const table = await tableOf(entry.tablePath);
-        if (table === null) {
-            continue;
-        }
-        const local = entry.namespace === "LOCAL_ATTRS";
-        const shared = entry.namespace === "SHARED_ATTRS";
-        const namespace = local ? null : entry.namespace;
-        const hidden = !local && !shared;
-        const target = (key: string): AttRec[] | undefined => {
-            if (entry.element === "network") {
-                return key === choice.graphId ? graph.atts : undefined;
-            }
-            return (entry.element === "node" ? nodes : edges).get(key)?.atts;
-        };
-        for (const [key, cells] of table.rows) {
-            const atts = target(key);
-            if (atts === undefined) {
-                if (!declared.has(key)) {
-                    unmatched++;
-                }
-                continue;
-            }
-            const line = table.lines.get(key) ?? 0;
-            for (let i = 1; i < table.columns.length && i < cells.length; i++) {
-                const att = cellAtt(table.columns[i], cells[i], line, namespace, hidden);
-                if (att !== null) {
-                    atts.push(att);
-                }
-            }
-        }
-        for (const virtual of await virtualColumnsOf(table, virtuals, tableOf, report)) {
-            // a shared column named like a local one is renamed; the local one keeps the name
-            const owned = table.columns.some((c) => c.name === virtual.column.name);
-            let ns = namespace;
-            if (local) {
-                ns = owned ? "SHARED_ATTRS" : null;
-            }
-            for (const [key, text] of virtual.values) {
-                const att = cellAtt(virtual.column, text, table.lines.get(key) ?? 0, ns, hidden);
-                if (att !== null) {
-                    target(key)?.push(att);
-                }
-            }
-        }
-    }
+    const unmatched = await applyTables(prepared, choice, doc, nodes, edges);
     if (unmatched > 0) {
         report.warning(
             "parse-error",
@@ -640,32 +568,187 @@ async function fill3(
         metaExtra: { [META_KEY]: cyMeta },
         labelFromName: true,
         restoredIds,
-        groupNodes: new Set(
-            members.nodes
-                .filter((n) => n.atts.some((a) => a.name === "__isGroup" && isCyTrue(a.value)))
-                .flatMap((n) => (n.id === null ? [] : [n.id])),
-        ),
+        groupNodes: groupNodeIds(members.nodes),
         resolvePointer: pointerResolver(prepared, doc),
-        onMissingMember: (group, member): void => {
-            const record = groups.find((g) => g.group === group);
-            if (record === undefined) {
-                groups.push({ group, members: [member] });
-            } else if (!record.members.includes(member)) {
-                record.members.push(member);
-            }
-        },
+        onMissingMember: (group, member): void => { addMissingMember(groups, group, member); },
     };
     const settings: XgmmlSettings = { labelAliases: false, cytoscapeEscapes: false, zAs: prepared.zAs };
     new XgmmlEmitter(doc, dialect, sink, report, prepared.inner, settings, extras).emit(graph);
     if (groups.length > 0) {
+        const missing = groups.reduce((n, g) => n + g.members.length, 0);
         report.warning(
             "unsupported",
             CYS_ISSUE.COLLAPSED_GROUP,
-            `${groups.length} collapsed group${plural(groups.length)} ${agree(groups.length, "holds", "hold")} ${groups.reduce((n, g) => n + g.members.length, 0)} member${plural(groups.reduce((n, g) => n + g.members.length, 0))} that are not in the network; they are listed in meta.extra.cytoscape.groups`,
+            `${groups.length} collapsed group${plural(groups.length)} ${agree(groups.length, "holds", "hold")} ${missing} member${plural(missing)} that are not in the network; they are listed in meta.extra.cytoscape.groups`,
         );
     }
     reportRootOnly(parsed, report, choice.network.name);
     writeViewPositions(sink, extraViews, extraIds, report, prepared.inner, restoredIds);
+}
+
+/**
+ * The ids of the nodes Cytoscape marks as groups.
+ * @param nodes - the network's node records
+ * @returns their ids
+ */
+function groupNodeIds(nodes: readonly NodeRec[]): Set<string> {
+    return new Set(
+        nodes
+            .filter((n) => n.atts.some((a) => a.name === "__isGroup" && isCyTrue(a.value)))
+            .flatMap((n) => (n.id === null ? [] : [n.id])),
+    );
+}
+
+/**
+ * Record a collapsed group's member that is not in the network.
+ * @param groups - the groups with missing members, added to
+ * @param group - the group's id
+ * @param member - the member's id
+ */
+function addMissingMember(groups: { group: string; members: string[] }[], group: string, member: string): void {
+    const record = groups.find((g) => g.group === group);
+    if (record === undefined) {
+        groups.push({ group, members: [member] });
+    } else if (!record.members.includes(member)) {
+        record.members.push(member);
+    }
+}
+
+/** What reading one subnetwork's tables shares. */
+interface TableContext {
+    readonly choice: Choice3;
+    readonly graph: Choice3["graph"];
+    readonly nodes: ReadonlyMap<string, NodeRec>;
+    readonly edges: ReadonlyMap<string, EdgeRec>;
+    /** The ids of the elements the network file declares, inside this network or outside it. */
+    readonly declared: ReadonlySet<string>;
+    readonly virtuals: readonly VirtualColumn[];
+    readonly tableOf: (path: string) => Promise<CyTable | null>;
+    readonly report: ImportReportBuilder;
+}
+
+/**
+ * Add the cells of a subnetwork's tables to its node, edge and network records.
+ * @param prepared - the prepared import
+ * @param choice - the subnetwork
+ * @param doc - its network file
+ * @param nodes - its node records by id
+ * @param edges - its edge records by id
+ * @returns the number of rows that name no element of the network
+ */
+async function applyTables(
+    prepared: Prepared,
+    choice: Choice3,
+    doc: Parsed["doc"],
+    nodes: ReadonlyMap<string, NodeRec>,
+    edges: ReadonlyMap<string, EdgeRec>,
+): Promise<number> {
+    const { report, inner, session } = prepared;
+    const { layout } = session;
+    // each network reads its tables into its own report, so a shared table's issues, and a
+    // table that fails the import, land in every network that reads it.
+    // ponytail: a table shared by several networks is inflated and parsed once per network (the
+    // byte budget is charged once); cache the parse and relay its issues if importAll gets slow
+    const tables = new Map<string, Promise<CyTable | null>>();
+    const tableOf = (path: string): Promise<CyTable | null> => {
+        let pending = tables.get(path);
+        if (pending === undefined) {
+            const entry = layout.tables.find((t) => t.tablePath === path);
+            pending =
+                entry === undefined
+                    ? Promise.resolve(null)
+                    : session.read(entry, report).then((bytes) => readCyTable(bytes, path, entry.name, report, inner));
+            tables.set(path, pending);
+        }
+        return pending;
+    };
+    const ctx: TableContext = {
+        choice,
+        graph: choice.graph,
+        nodes,
+        edges,
+        // a row of an element the file declares outside this network (a collapsed group's member, a
+        // meta-edge) is Cytoscape's bookkeeping, not a stale row
+        declared: new Set<string>([
+            ...doc.nodes.flatMap((n) => (n.id === null ? [] : [n.id])),
+            ...doc.edges.flatMap((e) => (e.id === null ? [] : [e.id])),
+        ]),
+        virtuals: layout.cytables === null ? [] : await readVirtuals(session, layout.cytables, report, inner),
+        tableOf,
+        report,
+    };
+    let unmatched = 0;
+    for (const entry of layout.tables.filter((t) => t.network === choice.graphId && t.element !== null)) {
+        throwIfAborted(inner.signal);
+        const table = await tableOf(entry.tablePath);
+        if (table !== null) {
+            unmatched += await applyTable(ctx, entry, table);
+        }
+    }
+    return unmatched;
+}
+
+/**
+ * Add the cells of one table, and of the shared columns that extend it, to the records.
+ * @param ctx - the shared state
+ * @param entry - the table's entry
+ * @param table - the table
+ * @returns the number of rows that name no element of the network
+ */
+async function applyTable(ctx: TableContext, entry: TableEntry, table: CyTable): Promise<number> {
+    const local = entry.namespace === "LOCAL_ATTRS";
+    const namespace = local ? null : entry.namespace;
+    const hidden = !local && entry.namespace !== "SHARED_ATTRS";
+    const target = (key: string): AttRec[] | undefined => {
+        if (entry.element === "network") {
+            return key === ctx.choice.graphId ? ctx.graph.atts : undefined;
+        }
+        return (entry.element === "node" ? ctx.nodes : ctx.edges).get(key)?.atts;
+    };
+    let unmatched = 0;
+    for (const [key, cells] of table.rows) {
+        const atts = target(key);
+        if (atts !== undefined) {
+            const line = table.lines.get(key) ?? 0;
+            for (let i = 1; i < table.columns.length && i < cells.length; i++) {
+                pushAtt(atts, cellAtt(table.columns[i], cells[i], line, namespace, hidden));
+            }
+        } else if (!ctx.declared.has(key)) {
+            unmatched++;
+        }
+    }
+    for (const virtual of await virtualColumnsOf(table, ctx.virtuals, ctx.tableOf, ctx.report)) {
+        // a shared column named like a local one is renamed; the local one keeps the name
+        const owned = table.columns.some((c) => c.name === virtual.column.name);
+        const ns = local ? sharedNamespace(owned) : namespace;
+        for (const [key, text] of virtual.values) {
+            const atts = target(key);
+            if (atts !== undefined) {
+                pushAtt(atts, cellAtt(virtual.column, text, table.lines.get(key) ?? 0, ns, hidden));
+            }
+        }
+    }
+    return unmatched;
+}
+
+/**
+ * The namespace of a shared column in a local table: renamed when a local column has its name.
+ * @param owned - whether a local column has the shared column's name
+ * @returns "SHARED_ATTRS", or null for none
+ */
+function sharedNamespace(owned: boolean): string | null {
+    return owned ? "SHARED_ATTRS" : null;
+}
+
+/**
+ * Add an attribute to a record's list, unless there is none.
+ * @param atts - the record's attributes
+ * @param att - the attribute, or null
+ */
+function pushAtt(atts: AttRec[], att: AttRec | null): void {
+    if (att !== null) {
+        atts.push(att);
+    }
 }
 
 /**

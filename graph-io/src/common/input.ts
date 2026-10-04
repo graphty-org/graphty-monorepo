@@ -101,6 +101,9 @@ class ByteDecoder {
     /** Bytes decoded so far, for error positions. */
     private offset = 0;
 
+    /** The first bytes of the input (up to 4), to name a compressed or archived input. */
+    private magic: number[] = [];
+
     /**
      * Create the decoder of one import.
      * @param report - where warnings and the fatal decode error go
@@ -162,6 +165,9 @@ class ByteDecoder {
      * @returns the text
      */
     decode(bytes: Uint8Array, stream: boolean): string {
+        for (let i = 0; this.magic.length < 4 && i < bytes.byteLength; i++) {
+            this.magic.push(bytes[i]);
+        }
         const decoder = this.decoder as TextDecoder;
         let text: string;
         try {
@@ -195,8 +201,10 @@ class ByteDecoder {
     private recover(bytes: Uint8Array, stream: boolean): string {
         const where = { byteOffset: this.offset };
         const all = this.carry.byteLength === 0 ? bytes : concatBytes([this.carry, bytes]);
+        // the input ends inside a UTF-8 character: it was cut short, it is not windows-1252
+        const cutCharacter = !stream && endsInsideUtf8(all);
         // a NUL byte never occurs in windows-1252 text: it marks binary data (or BOM-less UTF-16)
-        if (this.mayFallBack && this.asciiSoFar && !all.includes(0) && !startsWithUtf8(all)) {
+        if (this.mayFallBack && this.asciiSoFar && !all.includes(0) && !startsWithUtf8(all) && !cutCharacter) {
             this.report.warning(
                 "coercion",
                 ENCODING_FALLBACK_CODE,
@@ -206,10 +214,9 @@ class ByteDecoder {
             return (this.decoder as TextDecoder).decode(all, { stream });
         }
         if (this.encoding === "utf-8") {
-            const after = this.mayFallBack ? " after valid non-ASCII UTF-8 text; pass the encoding option" : "";
             return this.report.fail(
                 INVALID_UTF8_CODE,
-                `invalid UTF-8 near byte ${this.offset}${after}`,
+                `invalid UTF-8 near byte ${this.offset}${this.utf8Detail(all, cutCharacter || (!stream && bytes.byteLength === 0))}`,
                 undefined,
                 where,
             );
@@ -220,6 +227,29 @@ class ByteDecoder {
             undefined,
             where,
         );
+    }
+
+    /**
+     * What a failed UTF-8 decode most likely means, for the E_INVALID_UTF8 message.
+     * @param all - the bytes that failed, with any held back before them
+     * @param cut - whether the input ended inside a UTF-8 character
+     * @returns a clause to append to the message
+     */
+    private utf8Detail(all: Uint8Array, cut: boolean): string {
+        const [a, b, c, d] = this.magic;
+        if (a === 0x1f && b === 0x8b) {
+            return ": the input is gzip-compressed (it starts with the bytes 1f 8b); decompress it first";
+        }
+        if (a === 0x50 && b === 0x4b && c === 0x03 && d === 0x04) {
+            return ": the input is a ZIP archive (it starts with PK), not text";
+        }
+        if (cut) {
+            return ": the input ends inside a UTF-8 character (it was cut short)";
+        }
+        if (this.mayFallBack && this.asciiSoFar && all.includes(0)) {
+            return ": the input holds NUL bytes, so it is binary data or UTF-16 without a byte order mark (pass the encoding option)";
+        }
+        return this.mayFallBack ? " after valid non-ASCII UTF-8 text; pass the encoding option" : "";
     }
 
     /**
@@ -256,6 +286,43 @@ function startsWithUtf8(bytes: Uint8Array): boolean {
     }
     try {
         new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(i, i + length));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Whether bytes end inside a UTF-8 character: a lead byte followed by at least one continuation
+ * byte but fewer than it needs, after bytes that are valid UTF-8. A lone trailing lead byte does
+ * not count: in windows-1252 text it is an ordinary letter (a final "e" with an accent).
+ * @param bytes - the bytes
+ * @returns true for a cut sequence
+ */
+function endsInsideUtf8(bytes: Uint8Array): boolean {
+    let i = bytes.byteLength - 1;
+    let continuation = 0;
+    while (i >= 0 && continuation < 3 && (bytes[i] & 0xc0) === 0x80) {
+        i--;
+        continuation++;
+    }
+    if (i < 0 || continuation === 0) {
+        return false;
+    }
+    const lead = bytes[i];
+    let length = 0;
+    if (lead >= 0xc2 && lead <= 0xdf) {
+        length = 2;
+    } else if (lead >= 0xe0 && lead <= 0xef) {
+        length = 3;
+    } else if (lead >= 0xf0 && lead <= 0xf4) {
+        length = 4;
+    }
+    if (length <= continuation + 1) {
+        return false;
+    }
+    try {
+        new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, i));
         return true;
     } catch {
         return false;

@@ -43,7 +43,7 @@ console.log(`rows with a missing cell: ${short.map((i) => i.line).join(", ")}`);
 
 ```text
 3 nodes and 2 edges read, 2 skipped
-error E_CSV_FIELD_COUNT line 3: 2 field(s), expected 3
+error E_CSV_FIELD_COUNT line 3: 2 fields, expected 3
 error E_INVALID_WEIGHT line 4: invalid edge weight "heavy"
 the snapshot holds 2 edges
 rows with a missing cell: 3
@@ -55,16 +55,26 @@ The two bad rows were skipped, and the snapshot holds the two edges that could b
 
 The report has these fields:
 
-| Field          | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format`       | The format the input was read as.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `counts`       | `nodes` and `edges` read from the file, `skippedNodes` and `skippedEdges` left out after an error, and `expandedMixed`: undirected edges stored as two directed edges in a [mixed graph](./saving.md#graphs-with-directed-and-undirected-edges). The counts are taken while reading, so the snapshot can hold fewer edges when `duplicateEdges` merges them or `selfLoops: "drop"` removes them; both are reported as warnings (`W_EDGES_MERGED`, `W_SELF_LOOPS_DROPPED`). |
-| `issues`       | Every problem, in the order it was found.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `errorCount`   | How many issues are errors.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `warningCount` | How many issues are warnings.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `truncated`    | `true` when the import stopped because of the error limit. You only see it on `err.report`.                                                                                                                                                                                                                                                                                                                                                                                |
-| `lossy`        | Parts of the file the snapshot does not hold at all, as `{ code, message, column, count }` notes: hyperedges that were skipped, yEd graphics kept as a JSON tree, and similar.                                                                                                                                                                                                                                                                                             |
-| `durationMs`   | How long reading took, in milliseconds.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+- `format`: the format the input was read as.
+- `counts`: `nodes` and `edges` read from the file, `skippedNodes` and `skippedEdges` left out
+  after an error, and `expandedMixed`, the undirected edges stored as two directed edges in a
+  [mixed graph](./saving.md#graphs-with-directed-and-undirected-edges).
+- `issues`: every problem, in the order it was found.
+- `errorCount` and `warningCount`: how many issues are errors and how many are warnings.
+- `truncated`: `true` when the import stopped because of the error limit. You only see it on
+  `err.report`.
+- `lossy`: parts of the file the snapshot does not hold at all, as `{ code, message, column, count }`
+  notes: hyperedges that were skipped, yEd graphics kept as a JSON tree, and similar.
+- `durationMs`: how long reading took, in milliseconds.
+
+The counts are taken while reading, so the snapshot can hold fewer edges than `counts.edges`. That
+happens when the `duplicateEdges` option keeps one edge of each parallel pair (any value but its
+default, `"keep"`: `"first"`, `"last"`, `"sum"`, `"min"` or `"max"`), reported as
+`W_EDGES_MERGED`, and when `selfLoops: "drop"` removes loops, reported as `W_SELF_LOOPS_DROPPED`.
+
+A file that holds several graphs, read with `importAllGraphs()`, gives each graph its own report.
+Warnings about the file as a whole, such as the skipped entries of a Cytoscape session, are in
+every one of them.
 
 ## Issues
 
@@ -145,7 +155,7 @@ console.log(await readPasted("source,target\na,b\nc\n"));
 ```text
 dot: 2 nodes
 the input is not in a graph format graph-io recognizes; if you know its format, pass it as the format option
-read as csv, but: 1 field(s), expected 2
+read as csv, but: 1 field, expected 2
 ```
 
 <!-- generated:end -->
@@ -160,11 +170,11 @@ when the input could not be loaded, and it carries the report:
 - `err.code` is always `"E_IMPORT"`.
 - `err.issue` is the issue that stopped the import. Switch on `err.issue?.code`: `"E_FETCH"` for a
   failed download, `"E_UNKNOWN_FORMAT"` for a file graph-io does not recognize, and otherwise the
-  code of the parse error or of the error that went over the limit. (`err.issue` is typed as
-  possibly `null` only for an `ImportError` you construct yourself; every one graph-io throws has
-  it.)
+  code of the parse error or of the error that went over the limit.
 - `err.report` is the report up to the point the import stopped.
-- `err.message` is a sentence you can show to people.
+- `err.message` is a sentence you can show to people. For a file refused by the `format` you
+  named, it starts with the file and the format (`"notes.txt" could not be read as graphml: ...`)
+  and then gives the parser's reason.
 
 <!-- generated:begin example:report/errors -->
 
@@ -212,7 +222,7 @@ try {
 <!-- generated:begin output:report/errors -->
 
 ```text
-E_IMPORT: error limit of 0 exceeded: line 3: 1 field(s), expected 2
+E_IMPORT: error limit of 0 exceeded: line 3: 1 field, expected 2
 stopped by E_CSV_FIELD_COUNT on line 3
 1 edges had been read
 not a graph file: the input is not in a graph format graph-io recognizes (filename "graph.graphml"): it is an HTML document (likely an error page saved in place of the file); if you know its format, pass it as the format option
@@ -229,7 +239,8 @@ A `GraphFormatError` that is not an `ImportError` comes from the call itself:
 | `E_DIRECTED`    | A save, when the graph has both edge directions and the format holds one (`E_MIXED_DIRECTION`).                                                                                                                       |
 | `E_COLUMN_TYPE` | A save, when an attribute value cannot be written in the format (the `E_` note names the attribute).                                                                                                                  |
 
-An aborted `signal` rejects with the signal's own reason, which is not a `GraphFormatError`.
+An aborted `signal` rejects with the signal's own reason, which is not a `GraphFormatError`;
+`isAbortError(err)` recognizes it.
 
 For a failed download, `err.details` also holds `url`, `status` (the HTTP status, or `null` when no
 response arrived) and `cause` (the error `fetch()` threw).

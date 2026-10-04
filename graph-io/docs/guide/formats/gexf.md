@@ -19,27 +19,6 @@ whose values change over time.
 | Several graphs per file | no                                                    |
 | Lists its graphs        | no                                                    |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | Value                             |
-| ----------------------------------------------- | --------------------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | yes                               |
-| [`multiEdges`](./index.md#multiedges)           | yes                               |
-| [`selfLoops`](./index.md#selfloops)             | yes                               |
-| [`edgeIds`](./index.md#edgeids)                 | optional                          |
-| [`idCharset`](./index.md#idcharset)             | any                               |
-| [`dtypes`](./index.md#dtypes)                   | f32, f64, i32, bool, dict, string |
-| [`components`](./index.md#components)           | no                                |
-| [`lists`](./index.md#lists)                     | yes                               |
-| [`json`](./index.md#json)                       | no                                |
-| [`defaults`](./index.md#defaults)               | yes                               |
-| [`options`](./index.md#options)                 | yes                               |
-| [`hierarchy`](./index.md#hierarchy)             | yes                               |
-| [`temporal`](./index.md#temporal)               | dynamic-values                    |
-| [`graphAttributes`](./index.md#graphattributes) | no                                |
-| [`positions`](./index.md#positions)             | yes                               |
-| [`viz`](./index.md#viz)                         | yes                               |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -116,6 +95,31 @@ does not survive:
   all; the export throws (`E_XML_ILLEGAL_CHAR`).
 - GEXF 1.2 has no parallel edges.
 
+<!-- generated:begin capabilities:gexf -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | Value                             |
+| ----------------------------------------------- | --------------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | yes                               |
+| [`multiEdges`](./index.md#multiedges)           | yes                               |
+| [`selfLoops`](./index.md#selfloops)             | yes                               |
+| [`edgeIds`](./index.md#edgeids)                 | optional                          |
+| [`idCharset`](./index.md#idcharset)             | any                               |
+| [`dtypes`](./index.md#dtypes)                   | f32, f64, i32, bool, dict, string |
+| [`components`](./index.md#components)           | no                                |
+| [`lists`](./index.md#lists)                     | yes                               |
+| [`json`](./index.md#json)                       | no                                |
+| [`defaults`](./index.md#defaults)               | yes                               |
+| [`options`](./index.md#options)                 | yes                               |
+| [`hierarchy`](./index.md#hierarchy)             | yes                               |
+| [`temporal`](./index.md#temporal)               | dynamic-values                    |
+| [`graphAttributes`](./index.md#graphattributes) | no                                |
+| [`positions`](./index.md#positions)             | yes                               |
+| [`viz`](./index.md#viz)                         | yes                               |
+
+<!-- generated:end -->
+
 <!-- generated:begin reference:gexf -->
 
 ## Import options
@@ -168,7 +172,7 @@ The codes this format's import report can hold. They are also exported as `GEXF_
 - `W_UNKNOWN_ATTR_TYPE` (warning): A declared type the format does not define (kept as string).
 - `W_BAD_DEFAULT` (warning): A default that does not parse as the declared type.
 - `W_BAD_OPTIONS` (warning): Options that do not parse as the declared type.
-- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.
+- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example two attributes declared with the same name.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.
 - `W_GEXF_UNKNOWN_ATTRIBUTE` (warning): An `<attvalue for>` naming an undeclared attribute.
 - `W_GEXF_ATTVALUE_SHAPE` (warning): An `<attvalue>` without a value.

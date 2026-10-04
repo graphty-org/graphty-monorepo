@@ -19,27 +19,6 @@ file bundles several networks with partitions and vectors.
 | Several graphs per file | yes (`importAllGraphs`)      |
 | Lists its graphs        | no                           |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | Value                  |
-| ----------------------------------------------- | ---------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | yes                    |
-| [`multiEdges`](./index.md#multiedges)           | yes                    |
-| [`selfLoops`](./index.md#selfloops)             | yes                    |
-| [`edgeIds`](./index.md#edgeids)                 | none                   |
-| [`idCharset`](./index.md#idcharset)             | dense-1-based          |
-| [`dtypes`](./index.md#dtypes)                   | f64, i32, bool, string |
-| [`components`](./index.md#components)           | no                     |
-| [`lists`](./index.md#lists)                     | no                     |
-| [`json`](./index.md#json)                       | no                     |
-| [`defaults`](./index.md#defaults)               | no                     |
-| [`options`](./index.md#options)                 | no                     |
-| [`hierarchy`](./index.md#hierarchy)             | no                     |
-| [`temporal`](./index.md#temporal)               | spells                 |
-| [`graphAttributes`](./index.md#graphattributes) | no                     |
-| [`positions`](./index.md#positions)             | yes                    |
-| [`viz`](./index.md#viz)                         | no                     |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -78,7 +57,7 @@ console.log(
 ```text
 W_PAJEK_KEY_DROPPED: edge column "Edge Label" cannot be a Pajek parameter key; it is not written
 W_EDGE_IDS_DROPPED: edge id column "id" cannot be written
-W_ID_RENUMBERED: 107 node id(s) are not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value
+W_ID_RENUMBERED: 107 node ids are not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value
 first id after the round trip: Aemon
 got.net: id 1, label Aemon
 ```
@@ -95,7 +74,8 @@ file back gives the original ids.
 
 - The file is streamed line by line.
 - `*Vertices N` declares vertices 1 to N. A file numbered from 0, as some scripts write, is
-  detected from its first vertex line (`firstVertex` sets this yourself). A vertex line's label,
+  detected from its first vertex line, with the warning `W_PAJEK_ZERO_BASED`. Pass `firstVertex: 0`
+  or `1` to say how the file is numbered; then nothing is guessed and nothing is reported. A vertex line's label,
   coordinates, shape and `key value` parameters become columns; the coordinates are the position.
 - `*Arcs` sections are directed and `*Edges` sections undirected, so a file with both is a mixed
   graph. `*Arcslist`, `*Edgeslist` and `*Matrix` sections are read too.
@@ -122,6 +102,36 @@ not survive:
 - When a vertex line needs a label to carry coordinates or parameters, the id is written there and
   reads back as a label (`W_PAJEK_LABEL_GAINED`).
 
+A `.paj` project file starts each network with a `*Network <name>` line. Pass `networkHeader: true`
+to write one, with the graph's name (see [Naming the graph](../reading.md#naming-the-graph)), or
+pass `name` to choose the name, which also writes the line. A graph without a name, such as one
+read from CSV, gets a bare `*Network` line.
+
+<!-- generated:begin capabilities:pajek -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | Value                  |
+| ----------------------------------------------- | ---------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | yes                    |
+| [`multiEdges`](./index.md#multiedges)           | yes                    |
+| [`selfLoops`](./index.md#selfloops)             | yes                    |
+| [`edgeIds`](./index.md#edgeids)                 | none                   |
+| [`idCharset`](./index.md#idcharset)             | dense-1-based          |
+| [`dtypes`](./index.md#dtypes)                   | f64, i32, bool, string |
+| [`components`](./index.md#components)           | no                     |
+| [`lists`](./index.md#lists)                     | no                     |
+| [`json`](./index.md#json)                       | no                     |
+| [`defaults`](./index.md#defaults)               | no                     |
+| [`options`](./index.md#options)                 | no                     |
+| [`hierarchy`](./index.md#hierarchy)             | no                     |
+| [`temporal`](./index.md#temporal)               | spells                 |
+| [`graphAttributes`](./index.md#graphattributes) | no                     |
+| [`positions`](./index.md#positions)             | yes                    |
+| [`viz`](./index.md#viz)                         | no                     |
+
+<!-- generated:end -->
+
 <!-- generated:begin reference:pajek -->
 
 ## Import options
@@ -137,11 +147,13 @@ A file can hold several graphs: pick one with the `graphIndex` or `graphName` op
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                                   | Type      | Default | Meaning                                                                                                               |
-| ---------------------------------------- | --------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
-| [`networkHeader`](#export-networkheader) | `boolean` | `false` | Write a `*Network <name>` line, as Pajek project files (.paj) have, when the graph has a name (`snapshot.meta.name`). |
+| Option                                   | Type      | Default                             | Meaning                                                                   |
+| ---------------------------------------- | --------- | ----------------------------------- | ------------------------------------------------------------------------- |
+| [`networkHeader`](#export-networkheader) | `boolean` | false, or true when `name` is given | Write a `*Network <name>` line first, as Pajek project files (.paj) have. |
+| [`name`](#export-name)                   | `string`  | the graph's name                    | The network name written on the `*Network` line.                          |
 
-- <a id="export-networkheader"></a>`networkHeader`: Write a `*Network <name>` line, as Pajek project files (.paj) have, when the graph has a name (`snapshot.meta.name`). Plain .net readers do not expect it.
+- <a id="export-networkheader"></a>`networkHeader`: Write a `*Network <name>` line first, as Pajek project files (.paj) have. The name is the `name` option, else the graph's name (`snapshot.meta.name`); a graph with neither gets a bare `*Network` line. Plain .net readers do not expect the line.
+- <a id="export-name"></a>`name`: The network name written on the `*Network` line. Giving one writes the line. The default is the graph's name (`snapshot.meta.name`), which a Pajek, DOT, GML or GEXF import keeps; a graph read from CSV has none.
 
 ## Import issue codes
 
@@ -170,7 +182,7 @@ The codes this format's import report can hold. They are also exported as `PAJEK
 - `W_PAJEK_UNSUPPORTED_SECTION` (warning): A project-file section (`*Events`, `*Permutation`, ...) the importer does not read; its lines are skipped.
 - `W_PAJEK_HEADER_EXTRA` (warning): A section header has extra words Pajek does not define; they are ignored.
 - `W_PAJEK_NO_LINES` (warning): The file declares vertices but no line section.
-- `W_PAJEK_ZERO_BASED` (warning): Vertex numbering starts at 0 rather than 1.
+- `W_PAJEK_ZERO_BASED` (warning): Vertex numbering starts at 0 rather than 1, found by `firstVertex: "auto"` (passing `firstVertex: 0` says so and gives no warning).
 - `W_PAJEK_COORD_DIMS` (warning): Vertex lines mix two and three coordinates.
 - `W_PAJEK_LABEL_MERGED` (warning): Two vertices share a label under nodeIdFrom "label" and became one node.
 - `W_ID_MERGED` (warning): Two different labels became the same number because `ids` is "number", so their vertices were merged.

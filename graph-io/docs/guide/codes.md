@@ -362,7 +362,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_PAJEK_TWO_MODE_LINE"></a>`W_PAJEK_TWO_MODE_LINE`: A line of a two-mode network whose endpoints are both in one mode. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_UNSUPPORTED_SECTION"></a>`W_PAJEK_UNSUPPORTED_SECTION`: A project-file section (`*Events`, `*Permutation`, ...) the importer does not read; its lines are skipped. Import: [pajek](./formats/pajek.md).
 - <a id="W_PAJEK_VERTEX_COUNT"></a>`W_PAJEK_VERTEX_COUNT`: Fewer vertex lines than `*Vertices` declares, which the Pajek manual allows (vertices without a line have no label). Import: [pajek](./formats/pajek.md).
-- <a id="W_PAJEK_ZERO_BASED"></a>`W_PAJEK_ZERO_BASED`: Vertex numbering starts at 0 rather than 1. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_ZERO_BASED"></a>`W_PAJEK_ZERO_BASED`: Vertex numbering starts at 0 rather than 1, found by `firstVertex: "auto"` (passing `firstVertex: 0` says so and gives no warning). Import: [pajek](./formats/pajek.md).
 - <a id="W_PARENTS_DROPPED"></a>`W_PARENTS_DROPPED`: A parents (multi-parent) column in a format with single containment only. Save: any format.
 - <a id="W_POSITIONAL_NODES"></a>`W_POSITIONAL_NODES`: The nodes have no id key at all; array positions became the ids. Import: [json](./formats/json.md).
 - <a id="W_POSITIONS_DROPPED"></a>`W_POSITIONS_DROPPED`: A position column in a format without positions. Save: any format.

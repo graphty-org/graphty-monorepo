@@ -19,27 +19,6 @@ Cytoscape Web.
 | Several graphs per file | no                      |
 | Lists its graphs        | no                      |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | Value                  |
-| ----------------------------------------------- | ---------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | no                     |
-| [`multiEdges`](./index.md#multiedges)           | yes                    |
-| [`selfLoops`](./index.md#selfloops)             | yes                    |
-| [`edgeIds`](./index.md#edgeids)                 | required               |
-| [`idCharset`](./index.md#idcharset)             | integer                |
-| [`dtypes`](./index.md#dtypes)                   | string, f64, i32, bool |
-| [`components`](./index.md#components)           | no                     |
-| [`lists`](./index.md#lists)                     | yes                    |
-| [`json`](./index.md#json)                       | no                     |
-| [`defaults`](./index.md#defaults)               | yes                    |
-| [`options`](./index.md#options)                 | no                     |
-| [`hierarchy`](./index.md#hierarchy)             | no                     |
-| [`temporal`](./index.md#temporal)               | none                   |
-| [`graphAttributes`](./index.md#graphattributes) | yes                    |
-| [`positions`](./index.md#positions)             | yes                    |
-| [`viz`](./index.md#viz)                         | no                     |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -87,6 +66,8 @@ does not apply them to the graph (`W_STYLES_NOT_IMPORTED`).
 - Every edge is directed: CX2 has no undirected edges.
 - Node ids are integers. An id beyond 2^53 keeps its digits as text (`W_PRECISION`), and `"5"` or
   `5.0` read as 5 (`W_ID_TEXT_TYPE`).
+- Edge ids go to the edge column `id`, which holds 64-bit floats like every CX2 number. A format
+  that writes floating-point numbers with a decimal point, such as CSV, writes them `0.0`, `1.0`, ...
 - Declared attributes (`attributeDeclarations`) become typed columns named by their full names, with
   their declared defaults. An undeclared attribute takes the type of its values
   (`W_CX2_UNDECLARED_ATTRIBUTE`). A value of the wrong type is an error, and that value is left
@@ -116,6 +97,31 @@ What does not survive:
   text (`W_CX2_JSON_AS_STRING`).
 - Edge ids are generated when the graph has none (`W_EDGE_IDS_GENERATED`).
 - Nesting and time columns.
+
+<!-- generated:begin capabilities:cx2 -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | Value                  |
+| ----------------------------------------------- | ---------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | no                     |
+| [`multiEdges`](./index.md#multiedges)           | yes                    |
+| [`selfLoops`](./index.md#selfloops)             | yes                    |
+| [`edgeIds`](./index.md#edgeids)                 | required               |
+| [`idCharset`](./index.md#idcharset)             | integer                |
+| [`dtypes`](./index.md#dtypes)                   | string, f64, i32, bool |
+| [`components`](./index.md#components)           | no                     |
+| [`lists`](./index.md#lists)                     | yes                    |
+| [`json`](./index.md#json)                       | no                     |
+| [`defaults`](./index.md#defaults)               | yes                    |
+| [`options`](./index.md#options)                 | no                     |
+| [`hierarchy`](./index.md#hierarchy)             | no                     |
+| [`temporal`](./index.md#temporal)               | none                   |
+| [`graphAttributes`](./index.md#graphattributes) | yes                    |
+| [`positions`](./index.md#positions)             | yes                    |
+| [`viz`](./index.md#viz)                         | no                     |
+
+<!-- generated:end -->
 
 <!-- generated:begin reference:cx2 -->
 
@@ -183,7 +189,7 @@ The codes this format's import report can hold. They are also exported as `CX2_I
 - `W_PRECISION` (warning): An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.
 - `W_ID_MERGED` (warning): Two id texts merged under `ids: "number"`.
 - `W_UNKNOWN_ELEMENT` (warning): An element key CX2 does not define.
-- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.
+- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example two attributes declared with the same name.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.
 - `W_DIRECTION_REFUSED` (warning): You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.
 - `W_DIRECTION_FORCED` (warning): Edges of the other direction were read with the direction `onMixedDirection` chose.

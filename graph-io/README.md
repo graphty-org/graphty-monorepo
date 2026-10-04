@@ -35,27 +35,30 @@ await writeFile("got-network.gexf", await exportGraphToBytes(snapshot, "gexf"));
 
 <!-- generated:end -->
 
-**Start with the [Quick start](https://graphty.app/docs/graph-io/guide/quick-start)**
-([docs/guide/quick-start.md](./docs/guide/quick-start.md) in the repository): load files from URLs
-and file pickers, use the graph data, check what a save would lose, and handle errors. The full
-documentation, including how to add a format of your own, is at
-[graphty.app/docs/graph-io](https://graphty.app/docs/graph-io/). The sample files the guide's
-examples read are in [docs/samples](./docs/samples/) in the repository.
+**Start with the
+[Quick start](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/quick-start.md)**:
+load files from URLs and file pickers, use the graph data, check what a save would lose, and
+handle errors. The rest of the guide, including how to add a format of your own, is in the same
+[docs/guide](https://github.com/graphty-org/graphty-monorepo/tree/master/graph-io/docs/guide)
+directory, and the sample files its examples read are in
+[docs/samples](https://github.com/graphty-org/graphty-monorepo/tree/master/graph-io/docs/samples).
+The guide and the API reference are also published at
+[graphty.app/docs/graph-io](https://graphty.app/docs/graph-io/).
 
-Formats: [JSON](https://graphty.app/docs/graph-io/guide/formats/json) (NetworkX, d3, JGF,
+Formats: [JSON](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/json.md) (NetworkX, d3, JGF,
 Cytoscape.js, graphology, vis.js, OBO Graphs),
-[GraphML](https://graphty.app/docs/graph-io/guide/formats/graphml),
-[GEXF](https://graphty.app/docs/graph-io/guide/formats/gexf),
-[CSV and TSV](https://graphty.app/docs/graph-io/guide/formats/csv),
-[GML](https://graphty.app/docs/graph-io/guide/formats/gml),
-[DOT](https://graphty.app/docs/graph-io/guide/formats/dot),
-[Pajek](https://graphty.app/docs/graph-io/guide/formats/pajek),
-[Neo4j CSV](https://graphty.app/docs/graph-io/guide/formats/neo4j),
-[XGMML](https://graphty.app/docs/graph-io/guide/formats/xgmml),
-[CX2](https://graphty.app/docs/graph-io/guide/formats/cx2),
-[CX](https://graphty.app/docs/graph-io/guide/formats/cx),
-[OBO](https://graphty.app/docs/graph-io/guide/formats/obo) and
-[Cytoscape sessions](https://graphty.app/docs/graph-io/guide/formats/cys). Each one is read and
+[GraphML](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/graphml.md),
+[GEXF](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/gexf.md),
+[CSV and TSV](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/csv.md),
+[GML](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/gml.md),
+[DOT](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/dot.md),
+[Pajek](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/pajek.md),
+[Neo4j CSV](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/neo4j.md),
+[XGMML](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/xgmml.md),
+[CX2](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/cx2.md),
+[CX](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/cx.md),
+[OBO](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/obo.md) and
+[Cytoscape sessions](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/cys.md). Each one is read and
 written.
 
 ## License

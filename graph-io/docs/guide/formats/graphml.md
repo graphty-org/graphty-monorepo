@@ -18,27 +18,6 @@ NetworkX, igraph, Gephi and many other tools.
 | Several graphs per file | no                                                       |
 | Lists its graphs        | no                                                       |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | Value                       |
-| ----------------------------------------------- | --------------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | yes                         |
-| [`multiEdges`](./index.md#multiedges)           | yes                         |
-| [`selfLoops`](./index.md#selfloops)             | yes                         |
-| [`edgeIds`](./index.md#edgeids)                 | optional                    |
-| [`idCharset`](./index.md#idcharset)             | nmtoken                     |
-| [`dtypes`](./index.md#dtypes)                   | bool, i32, f32, f64, string |
-| [`components`](./index.md#components)           | no                          |
-| [`lists`](./index.md#lists)                     | no                          |
-| [`json`](./index.md#json)                       | no                          |
-| [`defaults`](./index.md#defaults)               | yes                         |
-| [`options`](./index.md#options)                 | no                          |
-| [`hierarchy`](./index.md#hierarchy)             | yes                         |
-| [`temporal`](./index.md#temporal)               | none                        |
-| [`graphAttributes`](./index.md#graphattributes) | yes                         |
-| [`positions`](./index.md#positions)             | no                          |
-| [`viz`](./index.md#viz)                         | no                          |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -121,6 +100,31 @@ attributes and nesting. What does not survive:
 - A label column is written as the key titled `label`, so a label column with another name reads
   back as `label` (`W_COLUMN_NAME_CHANGED`).
 
+<!-- generated:begin capabilities:graphml -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | Value                       |
+| ----------------------------------------------- | --------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | yes                         |
+| [`multiEdges`](./index.md#multiedges)           | yes                         |
+| [`selfLoops`](./index.md#selfloops)             | yes                         |
+| [`edgeIds`](./index.md#edgeids)                 | optional                    |
+| [`idCharset`](./index.md#idcharset)             | nmtoken                     |
+| [`dtypes`](./index.md#dtypes)                   | bool, i32, f32, f64, string |
+| [`components`](./index.md#components)           | no                          |
+| [`lists`](./index.md#lists)                     | no                          |
+| [`json`](./index.md#json)                       | no                          |
+| [`defaults`](./index.md#defaults)               | yes                         |
+| [`options`](./index.md#options)                 | no                          |
+| [`hierarchy`](./index.md#hierarchy)             | yes                         |
+| [`temporal`](./index.md#temporal)               | none                        |
+| [`graphAttributes`](./index.md#graphattributes) | yes                         |
+| [`positions`](./index.md#positions)             | no                          |
+| [`viz`](./index.md#viz)                         | no                          |
+
+<!-- generated:end -->
+
 <!-- generated:begin reference:graphml -->
 
 ## Import options
@@ -201,7 +205,7 @@ The codes this format's import report can hold. They are also exported as `GRAPH
 - `W_ID_MERGED` (warning): Two distinct id texts merged into one number under `ids: "number"`.
 - `W_OPTION_IGNORED` (warning): You set an option this format does not use; it had no effect. The message names the option.
 - `W_GRAPHML_YFILES_SKIPPED` (warning): A yFiles key under `yfiles: "skip"`.
-- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.
+- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example two attributes declared with the same name.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.
 - `W_UNKNOWN_ATTR_TYPE` (warning): A declared type the format does not define (kept as string).
 - `W_BAD_DEFAULT` (warning): A default that does not parse as the declared type.

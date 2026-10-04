@@ -11,11 +11,5 @@ const { snapshot } = await io.loadFromUrl(
 
 // <button id="save">Save as CSV</button>
 document.querySelector("#save").addEventListener("click", async () => {
-    const blob = await io.exportGraphToBlob(snapshot, "csv");
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "edges.csv";
-    link.click();
-    // let the browser start the download before the URL goes away
-    setTimeout(() => URL.revokeObjectURL(link.href), 0);
+    await io.downloadGraph(snapshot, "csv", { filename: "edges.csv" });
 });

@@ -10,7 +10,7 @@ const { snapshot } = await importGraph(await readFile("got-edges.csv"), {
 
 // Without options: two ids ("Jon Arryn", "Robert Arryn") contain a space, which a GraphML id cannot
 for (const note of checkExport(snapshot, "graphml")) {
-    console.log(`${note.code}: ${note.message}`);
+    console.log(`${note.code} (${note.column ?? "graph"}): ${note.message}`);
 }
 
 // sanitizeIds: "mangle" rewrites those ids and keeps the originals in the file

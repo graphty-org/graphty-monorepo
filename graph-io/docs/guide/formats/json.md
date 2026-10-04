@@ -30,27 +30,6 @@ and reads and writes all of these:
 | Several graphs per file | yes (`importAllGraphs`)  |
 | Lists its graphs        | yes (`listGraphs`)       |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | `node-link`            | `d3`                   | `jgf`                  | `cytoscape`            | `graphology`           | `vis`                  | `obographs` |
-| ----------------------------------------------- | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ----------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | no                     | no                     | yes                    | no                     | yes                    | no                     | no          |
-| [`multiEdges`](./index.md#multiedges)           | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | yes         |
-| [`selfLoops`](./index.md#selfloops)             | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | yes         |
-| [`edgeIds`](./index.md#edgeids)                 | none                   | none                   | optional               | required               | optional               | optional               | none        |
-| [`idCharset`](./index.md#idcharset)             | any                    | any                    | any                    | any                    | any                    | any                    | any         |
-| [`dtypes`](./index.md#dtypes)                   | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | none        |
-| [`components`](./index.md#components)           | no                     | no                     | no                     | no                     | no                     | no                     | no          |
-| [`lists`](./index.md#lists)                     | no                     | no                     | no                     | no                     | no                     | no                     | no          |
-| [`json`](./index.md#json)                       | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | no          |
-| [`defaults`](./index.md#defaults)               | no                     | no                     | no                     | no                     | no                     | no                     | no          |
-| [`options`](./index.md#options)                 | no                     | no                     | no                     | no                     | no                     | no                     | no          |
-| [`hierarchy`](./index.md#hierarchy)             | no                     | no                     | no                     | yes                    | no                     | no                     | no          |
-| [`temporal`](./index.md#temporal)               | none                   | none                   | none                   | none                   | none                   | none                   | none        |
-| [`graphAttributes`](./index.md#graphattributes) | yes                    | no                     | yes                    | yes                    | yes                    | no                     | no          |
-| [`positions`](./index.md#positions)             | no                     | no                     | no                     | yes                    | no                     | no                     | no          |
-| [`viz`](./index.md#viz)                         | no                     | no                     | no                     | no                     | no                     | no                     | no          |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -93,8 +72,9 @@ first weight: 5
 
 <!-- generated:end -->
 
-The dialect is detected from the document, and `jsonShapeOf(snapshot).dialect` says which one was
-read, whether you passed `format: "json"` or not. Saving to JSON without a `dialect` writes the same
+The dialect is detected from the document. The result's `format` is `"json"` for every dialect;
+`jsonShapeOf(snapshot).dialect`, from `@graphty/graph-io` or `@graphty/graph-io/json`, says which
+dialect was read, whether you passed `format: "json"` or not. Saving to JSON without a `dialect` writes the same
 dialect back, with the same keys. Pass `dialect` to write another one. The adjacency and tree
 dialects are written as node-link.
 
@@ -175,9 +155,11 @@ axioms are kept in `snapshot.meta.extra.obographs` (`typedefs: "nodes"` makes th
 nodes), and an edge to a node the file does not list creates a placeholder node with a warning.
 Writing OBO Graphs turns the OBO columns back into `lbl`, `type` and `meta`, and prefixed ids back
 into IRIs (`GO:0008150` becomes `http://purl.obolibrary.org/obo/GO_0008150`). An id without a
-prefix is written as it is, because that is the form graph-io reads back as the same id. A graph
-read from OBO Graphs keeps its own graph id; the `ontologyIri` option is the graph id only for a
-graph that has none.
+prefix (`a`) is written under the graph's OBO address
+(`http://purl.obolibrary.org/obo/graph.owl#a`), which graph-io reads back as `a`; with an
+`ontologyIri` of your own it is written as it is. A graph read from OBO Graphs keeps its own graph
+id; the `ontologyIri` option is the graph id only for a graph that has none. The weight is always
+written as `weight` in each edge's `meta`, whatever `weightKey` says.
 
 ### adjacency and tree (read only)
 
@@ -201,6 +183,31 @@ dialect. In every dialect:
 - Columns that a dialect has no slot for are written as plain attributes under their names, and a
   column with a role the dialect cannot express (a position in node-link, say) loses the role
   (`W_ROLE_DROPPED`).
+
+<!-- generated:begin capabilities:json -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | `node-link`            | `d3`                   | `jgf`                  | `cytoscape`            | `graphology`           | `vis`                  | `obographs` |
+| ----------------------------------------------- | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ----------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | no                     | no                     | yes                    | no                     | yes                    | no                     | no          |
+| [`multiEdges`](./index.md#multiedges)           | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | yes         |
+| [`selfLoops`](./index.md#selfloops)             | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | yes         |
+| [`edgeIds`](./index.md#edgeids)                 | none                   | none                   | optional               | required               | optional               | optional               | none        |
+| [`idCharset`](./index.md#idcharset)             | any                    | any                    | any                    | any                    | any                    | any                    | any         |
+| [`dtypes`](./index.md#dtypes)                   | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | none        |
+| [`components`](./index.md#components)           | no                     | no                     | no                     | no                     | no                     | no                     | no          |
+| [`lists`](./index.md#lists)                     | no                     | no                     | no                     | no                     | no                     | no                     | no          |
+| [`json`](./index.md#json)                       | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | no          |
+| [`defaults`](./index.md#defaults)               | no                     | no                     | no                     | no                     | no                     | no                     | no          |
+| [`options`](./index.md#options)                 | no                     | no                     | no                     | no                     | no                     | no                     | no          |
+| [`hierarchy`](./index.md#hierarchy)             | no                     | no                     | no                     | yes                    | no                     | no                     | no          |
+| [`temporal`](./index.md#temporal)               | none                   | none                   | none                   | none                   | none                   | none                   | none        |
+| [`graphAttributes`](./index.md#graphattributes) | yes                    | no                     | yes                    | yes                    | yes                    | no                     | no          |
+| [`positions`](./index.md#positions)             | no                     | no                     | no                     | yes                    | no                     | no                     | no          |
+| [`viz`](./index.md#viz)                         | no                     | no                     | no                     | no                     | no                     | no                     | no          |
+
+<!-- generated:end -->
 
 <!-- generated:begin reference:json -->
 
@@ -234,17 +241,17 @@ A file can hold several graphs: pick one with the `graphIndex` or `graphName` op
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                               | Type                                                                                  | Default                    | Meaning                                                                          |
-| ------------------------------------ | ------------------------------------------------------------------------------------- | -------------------------- | -------------------------------------------------------------------------------- |
-| [`dialect`](#export-dialect)         | `"node-link" \| "d3" \| "jgf" \| "cytoscape" \| "graphology" \| "vis" \| "obographs"` | as read, else "node-link"  | The dialect to write.                                                            |
-| `indent`                             | `number`                                                                              | `0`                        | Spaces per indentation level; 0 writes compact JSON.                             |
-| [`edgesKey`](#export-edgeskey)       | `string`                                                                              | as read, else "edges"      | node-link and d3: the key of the edge array.                                     |
-| [`nodeIdKey`](#export-nodeidkey)     | `string`                                                                              | as read, else "id"         | node-link, d3 and vis: the node id key.                                          |
-| [`indexLinks`](#export-indexlinks)   | `boolean`                                                                             | as read, else false        | node-link and d3: write edge ends as positions in the node array instead of ids. |
-| [`sourceKey`](#export-sourcekey)     | `string`                                                                              | as read, else "source"     | node-link, d3 and vis: the source key.                                           |
-| [`targetKey`](#export-targetkey)     | `string`                                                                              | as read, else "target"     | node-link, d3 and vis: the target key.                                           |
-| [`weightKey`](#export-weightkey)     | `string`                                                                              | as read, else "weight"     | The key the weight is written under.                                             |
-| [`ontologyIri`](#export-ontologyiri) | `string`                                                                              | the ontology's OBO address | OBO Graphs: the graph id written when the graph has none.                        |
+| Option                               | Type                                                                                  | Default                    | Meaning                                                                                                                                                                                                |
+| ------------------------------------ | ------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`dialect`](#export-dialect)         | `"node-link" \| "d3" \| "jgf" \| "cytoscape" \| "graphology" \| "vis" \| "obographs"` | as read, else "node-link"  | The dialect to write.                                                                                                                                                                                  |
+| `indent`                             | `string \| number`                                                                    | `0`                        | The indentation of one level: a number of spaces, or the text itself (spaces or tabs, such as "\t"). 0 or "" writes compact JSON on one line.                                                          |
+| [`edgesKey`](#export-edgeskey)       | `string`                                                                              | as read, else "edges"      | node-link and d3: the key of the edge array.                                                                                                                                                           |
+| [`nodeIdKey`](#export-nodeidkey)     | `string`                                                                              | as read, else "id"         | node-link, d3 and vis: the node id key.                                                                                                                                                                |
+| [`indexLinks`](#export-indexlinks)   | `boolean`                                                                             | as read, else false        | node-link and d3: write edge ends as positions in the node array instead of ids.                                                                                                                       |
+| [`sourceKey`](#export-sourcekey)     | `string`                                                                              | as read, else "source"     | node-link, d3 and vis: the source key.                                                                                                                                                                 |
+| [`targetKey`](#export-targetkey)     | `string`                                                                              | as read, else "target"     | node-link, d3 and vis: the target key.                                                                                                                                                                 |
+| [`weightKey`](#export-weightkey)     | `string`                                                                              | as read, else "weight"     | The key the weight is written under, in every dialect but OBO Graphs, which always writes the weight as "weight" in each edge's `meta` (checkExport() then returns `W_OBOGRAPHS_EDGE_COLUMN_AS_META`). |
+| [`ontologyIri`](#export-ontologyiri) | `string`                                                                              | the ontology's OBO address | OBO Graphs: the graph id written when the graph has none.                                                                                                                                              |
 
 - <a id="export-dialect"></a>`dialect`: The dialect to write. The default is the dialect a JSON import read, else "node-link". Attributes are written under their own names; vis.js shows the `label` attribute, so rename the attribute you want shown to `label` first (`snapshot.nodes.rename("name", "label")`).
 - <a id="export-edgeskey"></a>`edgesKey`: node-link and d3: the key of the edge array. The default is the key a JSON import read, else "edges" ("links" for d3).
@@ -252,8 +259,8 @@ These come on top of the [options every exporter takes](../options.md#every-expo
 - <a id="export-indexlinks"></a>`indexLinks`: node-link and d3: write edge ends as positions in the node array instead of ids. The default is what a JSON import read, else false.
 - <a id="export-sourcekey"></a>`sourceKey`: node-link, d3 and vis: the source key. The default is the key a JSON import read, else "source" ("from" for vis). graph-io finds "source", "src" and "from" by itself; for another key, read the file back with the same `sourceKey` import option, or every edge is skipped.
 - <a id="export-targetkey"></a>`targetKey`: node-link, d3 and vis: the target key. The default is the key a JSON import read, else "target" ("to" for vis). graph-io finds "target", "dst" and "to" by itself; for another key, read the file back with the same `targetKey` import option.
-- <a id="export-weightkey"></a>`weightKey`: The key the weight is written under. The default is the key a JSON import read the weights from, else "weight". For another key, read the file back with `weightFrom` set to it, or the weights come back as a plain edge attribute.
-- <a id="export-ontologyiri"></a>`ontologyIri`: OBO Graphs: the graph id written when the graph has none. A graph read from an OBO Graphs document keeps its own graph id, which this option does not change. Node ids are written in the form graph-io reads back as the same id: an IRI as it is, a prefixed id such as `GO:0008150` as its OBO address, and an id without a prefix (`a`) as it is, not under this IRI. The default is `http://purl.obolibrary.org/obo/<ontology>.owl`.
+- <a id="export-weightkey"></a>`weightKey`: The key the weight is written under, in every dialect but OBO Graphs, which always writes the weight as "weight" in each edge's `meta` (checkExport() then returns `W_OBOGRAPHS_EDGE_COLUMN_AS_META`). The default is the key a JSON import read the weights from, else "weight". For another key, read the file back with `weightFrom` set to it, or the weights come back as a plain edge attribute.
+- <a id="export-ontologyiri"></a>`ontologyIri`: OBO Graphs: the graph id written when the graph has none. A graph read from an OBO Graphs document keeps its own graph id, which this option does not change. Node ids are written in the form graph-io reads back as the same id: an IRI as it is, a prefixed id such as `GO:0008150` as its OBO address, and an id without a prefix (`a`) under the default OBO address (`http://purl.obolibrary.org/obo/graph.owl#a`), or as it is when you pass another IRI here. The default is `http://purl.obolibrary.org/obo/<ontology>.owl`.
 
 ## Import issue codes
 
@@ -302,7 +309,7 @@ The codes this format's import report can hold. They are also exported as `JSON_
 - `W_EMPTY_COLUMN_DROPPED` (warning): An attribute key that is null on every element makes no column (NetworkX writes None as null).
 - `W_UNKNOWN_ELEMENT` (warning): OBO Graphs: a node type or synonym predicate outside the schema's set; kept as written, once per name.
 - `W_DUPLICATE_ATTRIBUTE` (warning): A key repeated in one JSON object (JSON.parse keeps the last value, the earlier is dropped), or, in OBO Graphs, a single-valued OBO tag given twice in basicPropertyValues (the first is kept).
-- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.
+- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example two attributes declared with the same name.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.
 
 Like every format, it can also record the codes for unreadable input and for elements the graph refuses: [`W_ENCODING_CONFLICT`](../codes.md#W_ENCODING_CONFLICT), [`W_CONTROL_CHARACTER`](../codes.md#W_CONTROL_CHARACTER), [`E_FOREIGN_FORMAT`](../codes.md#E_FOREIGN_FORMAT), [`W_ISSUES_SUPPRESSED`](../codes.md#W_ISSUES_SUPPRESSED), [`E_INVALID_ID`](../codes.md#E_INVALID_ID), [`E_UNKNOWN_NODE`](../codes.md#E_UNKNOWN_NODE), [`E_INVALID_WEIGHT`](../codes.md#E_INVALID_WEIGHT), [`E_DUPLICATE_EDGE`](../codes.md#E_DUPLICATE_EDGE), [`E_SELF_LOOP`](../codes.md#E_SELF_LOOP).

@@ -1,1 +1,2 @@
-3 nodes, 2 edges, 1 error
+4 nodes, 2 edges
+[ 'E_PAIRS_BAD_LINE (line 4): expected one or two node ids' ]

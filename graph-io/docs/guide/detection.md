@@ -97,14 +97,33 @@ cytoscape
 The result has:
 
 - `format`: the format name
-- `confidence`: from 0 to 1. A clear content match scores between 0.5 and 1; a name or MIME type
-  alone scores at most 0.4; a weak content guess that a name contradicts scores below 0.25.
+- `confidence`: from 0 to 1, combined from the other fields as described in
+  [How the score is computed](#how-the-score-is-computed).
 - `content`: how sure the format was about the content, from 0 to 1; 0 when no content was given
   or the format did not recognize it
 - `extension` and `mimeType`: whether the file name and the MIME type matched
 - `dialect`: for JSON, which kind of JSON document the head looks like (`"node-link"`, `"d3"`,
   `"jgf"`, `"cytoscape"`, `"graphology"`, `"vis"`, `"adjacency"`, `"tree"` or `"obographs"`); `null`
-  for every other format
+  for every other format, and for a JSON head that does not settle it
+
+## How the score is computed
+
+Each format's `sniff()` rates the first bytes from 0 to 1 (`content`). The confidence combines that
+rating with the name and the MIME type:
+
+- Content recognized (`content` 0.5 or more, or any `content` when the file name does not belong
+  to another format): `0.5 + 0.35 * content`, plus 0.1 when the extension matches and 0.05 when the
+  MIME type matches. This is always 0.5 or more.
+- A weak content guess (`content` below 0.5) when the extension belongs to another format:
+  `0.25 * content`, plus 0.05 for a matching MIME type, so the other format's extension wins.
+- Content not recognized: 0.3 for a matching extension plus 0.1 for a matching MIME type, at most
+  0.4.
+
+So a format that recognizes the content always beats one that only matches the name, and between
+two formats that both recognize it, the extension adds 0.1. Formats with equal scores rank in the
+order they were registered. `registry.sniffAll(hints)` shows every candidate's score.
+
+## Offering a choice
 
 To offer the user a choice, `registry.sniffAll(hints)` takes the same hints and returns every
 candidate, best first:
@@ -139,8 +158,10 @@ neo4j: 0.30
 All JSON graph documents share the format name `json`. After the file is parsed, the JSON importer
 decides which dialect it is from the document's shape: a `nodes` array with `links`, an `elements`
 object, a `graphs` array, and so on. The `dialect` that `sniff()` reports from the first 8 KiB is a
-guess; the importer's decision on the whole document is the one that counts, and
-`jsonShapeOf(snapshot).dialect` returns it whether you named the format or not. Pass the `dialect` option
+guess, and it is `null` when the first 8 KiB do not settle it: d3 and node-link documents differ
+only in keys that come after the node list, which can be longer than 8 KiB. The importer's decision
+on the whole document is the one that counts, and `jsonShapeOf(snapshot).dialect` returns it
+whether you named the format or not. Pass the `dialect` option
 to choose the dialect yourself. The [JSON page](./formats/json.md) describes each one.
 
 ## When to name the format

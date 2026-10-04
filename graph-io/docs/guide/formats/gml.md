@@ -19,27 +19,6 @@ igraph do.
 | Several graphs per file | yes (`importAllGraphs`)    |
 | Lists its graphs        | no                         |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | Value                        |
-| ----------------------------------------------- | ---------------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | no                           |
-| [`multiEdges`](./index.md#multiedges)           | yes                          |
-| [`selfLoops`](./index.md#selfloops)             | yes                          |
-| [`edgeIds`](./index.md#edgeids)                 | optional                     |
-| [`idCharset`](./index.md#idcharset)             | integer                      |
-| [`dtypes`](./index.md#dtypes)                   | i32, f64, string, dict, json |
-| [`components`](./index.md#components)           | no                           |
-| [`lists`](./index.md#lists)                     | yes                          |
-| [`json`](./index.md#json)                       | yes                          |
-| [`defaults`](./index.md#defaults)               | no                           |
-| [`options`](./index.md#options)                 | no                           |
-| [`hierarchy`](./index.md#hierarchy)             | no                           |
-| [`temporal`](./index.md#temporal)               | none                         |
-| [`graphAttributes`](./index.md#graphattributes) | yes                          |
-| [`positions`](./index.md#positions)             | yes                          |
-| [`viz`](./index.md#viz)                         | no                           |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -116,6 +95,31 @@ What does not survive:
   null (`W_GML_RECORD_NUMBER_TYPE` and related notes).
 - Edge ids are kept; time columns, visual columns other than the position, and nesting are not.
 
+<!-- generated:begin capabilities:gml -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | Value                        |
+| ----------------------------------------------- | ---------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | no                           |
+| [`multiEdges`](./index.md#multiedges)           | yes                          |
+| [`selfLoops`](./index.md#selfloops)             | yes                          |
+| [`edgeIds`](./index.md#edgeids)                 | optional                     |
+| [`idCharset`](./index.md#idcharset)             | integer                      |
+| [`dtypes`](./index.md#dtypes)                   | i32, f64, string, dict, json |
+| [`components`](./index.md#components)           | no                           |
+| [`lists`](./index.md#lists)                     | yes                          |
+| [`json`](./index.md#json)                       | yes                          |
+| [`defaults`](./index.md#defaults)               | no                           |
+| [`options`](./index.md#options)                 | no                           |
+| [`hierarchy`](./index.md#hierarchy)             | no                           |
+| [`temporal`](./index.md#temporal)               | none                         |
+| [`graphAttributes`](./index.md#graphattributes) | yes                          |
+| [`positions`](./index.md#positions)             | yes                          |
+| [`viz`](./index.md#viz)                         | no                           |
+
+<!-- generated:end -->
+
 <!-- generated:begin reference:gml -->
 
 ## Import options
@@ -168,7 +172,7 @@ The codes this format's import report can hold. They are also exported as `GML_I
 - `W_GML_NESTED_ELEMENT` (warning): A graph, node or edge record nested in a node or edge; kept as json, not read as structure.
 - `W_GML_GROUPS` (warning): YEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment.
 - `W_WIDENED` (warning): An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column, or two declared types for one attribute.
-- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.
+- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example two attributes declared with the same name.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.
 - `W_ID_MERGED` (warning): Two different id texts became the same number because `ids` is "number", so their nodes were merged.
 - `W_OPTION_IGNORED` (warning): You set an option this format does not use; it had no effect. The message names the option.

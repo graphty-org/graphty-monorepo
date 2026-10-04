@@ -3,9 +3,9 @@ import { readFile } from "node:fs/promises";
 import { GraphBuilder } from "@graphty/graph-format";
 import { csvImporter } from "@graphty/graph-io/csv";
 
-// `directed` is only a starting value: the first file read into the empty builder sets the direction.
+// A builder starts with a direction, but each importer replaces it with its file's direction.
 // weightDtype "f32" halves the memory the weights take.
-const builder = new GraphBuilder({ directed: true, weightDtype: "f32" });
+const builder = new GraphBuilder({ directed: false, weightDtype: "f32" });
 
 // Two files into one graph: the node table with the labels, then the edge table
 const nodes = await csvImporter.import(await readFile("got-nodes.csv"), builder, { table: "nodes" });

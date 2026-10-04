@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import { importGraph } from "@graphty/graph-io";
+import { importGraph, isAbortError } from "@graphty/graph-io";
 
 const bytes = await readFile("got.gexf");
 
@@ -22,5 +22,6 @@ controller.abort();
 try {
     await loading;
 } catch (err) {
-    console.log(`stopped: ${(err as Error).name}`);
+    // a cancelled load is not an error to show the user
+    console.log(isAbortError(err) ? "cancelled" : `failed: ${String(err)}`);
 }

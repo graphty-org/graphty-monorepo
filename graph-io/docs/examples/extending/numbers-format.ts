@@ -15,6 +15,7 @@ import {
     resolveExportOptions,
     resolveImportOptions,
     sanitizeIds,
+    throwIfAborted,
 } from "@graphty/graph-io";
 
 // The "numbers" format: node ids must be integers. With sanitizeIds: "mangle" the exporter numbers the other
@@ -83,31 +84,46 @@ export const numbersImporter: GraphImporter = {
         const report = new ImportReportBuilder("numbers", opts.errorLimit);
         reportUnusedOptions(options, report, new Set(["restoreMangledIds"]));
         const nodeOf = new Map<string, string | number>(); // the id written in the file -> the node's id
-        for await (const text of new LineReader(input, report, opts)) {
+        const lines = new LineReader(input, report, opts);
+        for await (const text of lines) {
+            const { line } = lines;
+            if (line % 64 === 0) {
+                throwIfAborted(opts.signal);
+            }
             const [kind, a, ...rest] = text.trim().split(" ");
-            if (kind === "directed" || kind === "undirected") {
-                sink.setDirected(kind === "directed");
-            } else if (kind === "node") {
-                const original = rest.length > 0 ? (JSON.parse(rest.join(" ")) as string | number) : null;
-                // restoreMangledIds (on by default) gives the node its original id back
-                const id = original !== null && opts.restoreMangledIds ? original : Number(a);
-                nodeOf.set(a, id);
-                const index = sink.addNode(id);
-                if (original !== null && !opts.restoreMangledIds) {
-                    // keep the original as a plain attribute instead, so nothing is lost
-                    sink.setNodeValue(
-                        sink.declareNodeColumn({ name: "originalId", dtype: "string" }),
-                        index,
-                        String(original),
-                    );
+            try {
+                if (kind === "directed" || kind === "undirected") {
+                    sink.setDirected(kind === "directed");
+                } else if (kind === "node" && /^-?\d+$/.test(a ?? "")) {
+                    const original = rest.length > 0 ? (JSON.parse(rest.join(" ")) as string | number) : null;
+                    // restoreMangledIds (on by default) gives the node its original id back
+                    const id = original !== null && opts.restoreMangledIds ? original : Number(a);
+                    nodeOf.set(a, id);
+                    const index = sink.addNode(id);
+                    if (original !== null && !opts.restoreMangledIds) {
+                        // keep the original where every format keeps it, so nothing is lost
+                        const column = sink.declareNodeColumn({
+                            name: "graphty.originalId",
+                            dtype: "string",
+                            role: "originalId",
+                        });
+                        sink.setNodeValue(column, index, String(original));
+                    }
+                    report.counts.nodes++;
+                } else if (kind === "edge" && rest.length === 1 && nodeOf.has(a) && nodeOf.has(rest[0])) {
+                    // an edge names nodes by their written ids: look up the id each node was given
+                    sink.addEdge(nodeOf.get(a) ?? a, nodeOf.get(rest[0]) ?? rest[0]);
+                    report.counts.edges++;
+                } else if (text.trim() !== "") {
+                    report.error("parse-error", "E_NUMBERS_BAD_LINE", "expected a node line or an edge between two nodes", {
+                        line,
+                    });
                 }
-                report.counts.nodes++;
-            } else if (kind === "edge") {
-                // an edge names nodes by their written ids: look up the id each node was given
-                sink.addEdge(nodeOf.get(a) ?? Number(a), nodeOf.get(rest[0]) ?? Number(rest[0]));
-                report.counts.edges++;
+            } catch (err) {
+                report.recordError(err, { line }); // rethrows anything that is not a problem with this line
             }
         }
+        throwIfAborted(opts.signal);
         return report.finish();
     },
 };

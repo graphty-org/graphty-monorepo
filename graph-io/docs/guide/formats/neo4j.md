@@ -19,27 +19,6 @@ command reads: node files with `:ID` and `:LABEL` columns, and relationship file
 | Several graphs per file | no                                      |
 | Lists its graphs        | no                                      |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | Value                       |
-| ----------------------------------------------- | --------------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | no                          |
-| [`multiEdges`](./index.md#multiedges)           | yes                         |
-| [`selfLoops`](./index.md#selfloops)             | yes                         |
-| [`edgeIds`](./index.md#edgeids)                 | none                        |
-| [`idCharset`](./index.md#idcharset)             | any                         |
-| [`dtypes`](./index.md#dtypes)                   | f32, f64, i32, bool, string |
-| [`components`](./index.md#components)           | no                          |
-| [`lists`](./index.md#lists)                     | yes                         |
-| [`json`](./index.md#json)                       | no                          |
-| [`defaults`](./index.md#defaults)               | no                          |
-| [`options`](./index.md#options)                 | no                          |
-| [`hierarchy`](./index.md#hierarchy)             | no                          |
-| [`temporal`](./index.md#temporal)               | none                        |
-| [`graphAttributes`](./index.md#graphattributes) | no                          |
-| [`positions`](./index.md#positions)             | no                          |
-| [`viz`](./index.md#viz)                         | no                          |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -76,7 +55,55 @@ node columns: labels, idSpace, originalId, movieId, title, released, personId, n
 
 Pass the node files as the input (or with the `nodes` option) and the relationship files with
 the `relationships` option; each option takes one input or an array. When saving, `part` writes the
-node sections, the relationship sections, or both into one file (the default).
+node sections, the relationship sections, or both into one file (the default). Each section
+starts with its own header row: graph-io reads such a file back, but `neo4j-admin` does not.
+
+## Files for neo4j-admin
+
+`neo4j-admin database import` reads one header row per file, and a file's header names one id
+space (`movieId:ID(Movie)`) or one pair of them (`:START_ID(Person)`, `:END_ID(Movie)`). A graph
+with several id spaces therefore needs several files. `exportNeo4jFiles(snapshot, options)` writes
+them: one node file per id space and one relationship file per pair of endpoint id spaces, each
+with a single header row, a `name` and a `kind` that says which `neo4j-admin` option takes it.
+
+<!-- generated:begin example:formats/neo4j-admin -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { exportNeo4jFiles, importGraph } from "@graphty/graph-io";
+
+const { snapshot } = await importGraph(await readFile("movies-nodes.csv"), {
+    format: "neo4j",
+    relationships: await readFile("movies-rels.csv"),
+});
+
+// One file per id space and per pair of endpoint id spaces, each with one header row
+const files = await exportNeo4jFiles(snapshot);
+for (const file of files) {
+    await writeFile(file.name, file.text);
+}
+
+// The neo4j-admin command that loads them
+const args = files.map((f) => `--${f.kind}=${f.name}`);
+console.log(`neo4j-admin database import full ${args.join(" ")} neo4j`);
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/neo4j-admin -->
+
+```text
+neo4j-admin database import full --nodes=nodes-Movie.csv --nodes=nodes-Person.csv --relationships=relationships-Person-Movie.csv --relationships=relationships-Person-Person.csv neo4j
+```
+
+<!-- generated:end -->
+
+It takes the same options as `exportGraph(snapshot, "neo4j")`, and
+`checkExport(snapshot, "neo4j", options)` returns what the files lose. With a `delimiter` or an
+`arrayDelimiter` other than the defaults, pass the same values to `neo4j-admin` as `--delimiter`
+and `--array-delimiter`. The two must differ, so a `;` delimiter needs another array delimiter,
+such as `|`.
 
 ## How graph-io reads it
 
@@ -92,7 +119,8 @@ node sections, the relationship sections, or both into one file (the default).
 - An id space (`movieId:ID(Movie)`) keeps the same id in two spaces apart: a node of a space is
   stored under the id `Movie:m1`, with its id text in the `originalId` column and its space in
   `idSpace`. `:START_ID(Movie)` and `:END_ID(Movie)` look ids up in their space.
-- A `weight` property is the edge weight.
+- A `weight` property is the edge weight; `weightFrom` names another. A graph read with
+  `weightFrom: "strength"` is saved with its weights under `strength` again.
 - Every relationship is directed, as in Neo4j. Pass `onMixedDirection: "undirected"` to read the
   file as an undirected graph.
 - An unquoted empty cell means "no value"; a quoted empty cell is an empty string.
@@ -114,37 +142,65 @@ What does not survive:
 The id spaces, labels, types and declared property types a Neo4j import read are written back,
 so a file read from Neo4j CSV saves as the same file.
 
+<!-- generated:begin capabilities:neo4j -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | Value                       |
+| ----------------------------------------------- | --------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | no                          |
+| [`multiEdges`](./index.md#multiedges)           | yes                         |
+| [`selfLoops`](./index.md#selfloops)             | yes                         |
+| [`edgeIds`](./index.md#edgeids)                 | none                        |
+| [`idCharset`](./index.md#idcharset)             | any                         |
+| [`dtypes`](./index.md#dtypes)                   | f32, f64, i32, bool, string |
+| [`components`](./index.md#components)           | no                          |
+| [`lists`](./index.md#lists)                     | yes                         |
+| [`json`](./index.md#json)                       | no                          |
+| [`defaults`](./index.md#defaults)               | no                          |
+| [`options`](./index.md#options)                 | no                          |
+| [`hierarchy`](./index.md#hierarchy)             | no                          |
+| [`temporal`](./index.md#temporal)               | none                        |
+| [`graphAttributes`](./index.md#graphattributes) | no                          |
+| [`positions`](./index.md#positions)             | no                          |
+| [`viz`](./index.md#viz)                         | no                          |
+
+<!-- generated:end -->
+
 <!-- generated:begin reference:neo4j -->
 
 ## Import options
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option                           | Type                                                                                                                                                                                                  | Default  | Meaning                                                                                                  |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
-| `nodes`                          | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| readonly (string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array>)[]` |          | More node files, each a string, bytes or a stream with its own header row; read after the main input.    |
-| `relationships`                  | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| readonly (string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array>)[]` |          | Relationship files, each a string, bytes or a stream with its own header row; read after the node files. |
-| [`delimiter`](#import-delimiter) | `string`                                                                                                                                                                                              | detected | The field delimiter, one character (neo4j-admin's `--delimiter`).                                        |
-| `arrayDelimiter`                 | `";" \| "," \| "\|"`                                                                                                                                                                                  | `";"`    | The delimiter inside list values and `:LABEL` cells (neo4j-admin's `--array-delimiter`).                 |
-| `quote`                          | `string`                                                                                                                                                                                              | `'"'`    | The quote character, one character (neo4j-admin's `--quote`).                                            |
+| Option                                     | Type                                                                                                                                                                                                  | Default  | Meaning                                                                                                  |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| `nodes`                                    | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| readonly (string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array>)[]` |          | More node files, each a string, bytes or a stream with its own header row; read after the main input.    |
+| `relationships`                            | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| readonly (string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array>)[]` |          | Relationship files, each a string, bytes or a stream with its own header row; read after the node files. |
+| [`delimiter`](#import-delimiter)           | `string`                                                                                                                                                                                              | detected | The field delimiter, one character (neo4j-admin's `--delimiter`).                                        |
+| [`arrayDelimiter`](#import-arraydelimiter) | `"," \| ";" \| "\|"`                                                                                                                                                                                  | `";"`    | The delimiter inside list values and `:LABEL` cells (neo4j-admin's `--array-delimiter`).                 |
+| `quote`                                    | `string`                                                                                                                                                                                              | `'"'`    | The quote character, one character (neo4j-admin's `--quote`).                                            |
 
-- <a id="import-delimiter"></a>`delimiter`: The field delimiter, one character (neo4j-admin's `--delimiter`). The default is to detect "," or a tab from the first rows, so a `.tsv` file needs no option.
+- <a id="import-delimiter"></a>`delimiter`: The field delimiter, one character (neo4j-admin's `--delimiter`). The default is to detect "," or a tab from the first rows, so a `.tsv` file needs no option. It must differ from `arrayDelimiter`: with `delimiter: ";"`, also pass `arrayDelimiter: ","` or `"|"`.
+- <a id="import-arraydelimiter"></a>`arrayDelimiter`: The delimiter inside list values and `:LABEL` cells (neo4j-admin's `--array-delimiter`). It must differ from `delimiter`.
 
 ## Export options
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                                 | Type                                  | Default    | Meaning                                                                                                                                                     |
-| -------------------------------------- | ------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `part`                                 | `"nodes" \| "all" \| "relationships"` | `"all"`    | Which tables to write: "all" (the node sections, then the relationship sections), "nodes" or "relationships".                                               |
-| `delimiter`                            | `string`                              | `","`      | The field delimiter, one character.                                                                                                                         |
-| `arrayDelimiter`                       | `";" \| "," \| "\|"`                  | `";"`      | The delimiter inside list values and `:LABEL` cells.                                                                                                        |
-| [`quote`](#export-quote)               | `string`                              | `'"'`      | The quote character, one character.                                                                                                                         |
-| [`weightColumn`](#export-weightcolumn) | `null \| string`                      | `"weight"` | The relationship property that holds the edge weights, written as `<name>:double`; null writes no weights (checkExport() then returns `W_WEIGHTS_DROPPED`). |
-| `idColumn`                             | `null \| string`                      | `null`     | The property name of the `:ID` column (`<name>:ID`) for nodes that have no id property of their own; null writes a bare `:ID`.                              |
+| Option                                     | Type                                  | Default                                                        | Meaning                                                                                                                                                     |
+| ------------------------------------------ | ------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `part`                                     | `"nodes" \| "all" \| "relationships"` | `"all"`                                                        | Which tables to write: "all" (the node sections, then the relationship sections), "nodes" or "relationships".                                               |
+| [`delimiter`](#export-delimiter)           | `string`                              | `","`                                                          | The field delimiter, one character.                                                                                                                         |
+| [`arrayDelimiter`](#export-arraydelimiter) | `"," \| ";" \| "\|"`                  | `";"`                                                          | The delimiter inside list values and `:LABEL` cells.                                                                                                        |
+| [`quote`](#export-quote)                   | `string`                              | `'"'`                                                          | The quote character, one character.                                                                                                                         |
+| [`weightColumn`](#export-weightcolumn)     | `null \| string`                      | "weight", or the property a Neo4j import read the weights from | The relationship property that holds the edge weights, written as `<name>:double`; null writes no weights (checkExport() then returns `W_WEIGHTS_DROPPED`). |
+| `idColumn`                                 | `null \| string`                      | `null`                                                         | The property name of the `:ID` column (`<name>:ID`) for nodes that have no id property of their own; null writes a bare `:ID`.                              |
 
+- <a id="export-delimiter"></a>`delimiter`: The field delimiter, one character. It must differ from `arrayDelimiter`: with `delimiter: ";"`, also pass `arrayDelimiter: ","` or `"|"`.
+- <a id="export-arraydelimiter"></a>`arrayDelimiter`: The delimiter inside list values and `:LABEL` cells. It must differ from `delimiter`.
 - <a id="export-quote"></a>`quote`: The quote character, one character. Cells that hold the delimiter, the quote character or a line break are quoted with it. Pass the same value as the `quote` import option to read the file back.
-- <a id="export-weightcolumn"></a>`weightColumn`: The relationship property that holds the edge weights, written as `<name>:double`; null writes no weights (checkExport() then returns `W_WEIGHTS_DROPPED`). graph-io reads the "weight" property back as the weight; for any other name, pass the same name as the `weightFrom` import option to read the weights back (`weightColumn: "strength"` with `weightFrom: "strength"`), or they come back as a plain edge attribute.
+- <a id="export-weightcolumn"></a>`weightColumn`: The relationship property that holds the edge weights, written as `<name>:double`; null writes no weights (checkExport() then returns `W_WEIGHTS_DROPPED`). graph-io reads the "weight" property back as the weight; for any other name, pass the same name as the `weightFrom` import option to read the weights back (`weightColumn: "strength"` with `weightFrom: "strength"`), or they come back as a plain edge attribute. A graph read from Neo4j CSV with `weightFrom` writes its weights back under the property they were read from.
 
 ## Import issue codes
 
@@ -185,7 +241,7 @@ The codes `checkExport(snapshot, "neo4j", options)` can return before a save, al
 - `W_NEO4J_UNDIRECTED_AS_DIRECTED` (warning): Neo4j relationships are always directed, so the edges of an undirected graph, and the undirected edges of a mixed graph, read back as directed.
 - `W_MUTUAL_EXPANDED` (warning): A mutual pair written as two directed relationships without its mark.
 - `W_ROLE_DROPPED` (warning): An attribute with a role the format has no place for is written as a plain attribute; the role is lost.
-- `W_WEIGHT_KEY_CLASH` (warning): An attribute named `weight` without the weight role reads back as the edge weight, because GEXF reads weights from `weight` by default.
+- `W_WEIGHT_KEY_CLASH` (warning): An edge attribute named `weight` that is not the graph's weight reads back as the edge weight, because the Neo4j importer reads weights from the `weight` property by default.
 - `W_ID_TEXT_TYPE` (warning): A node id that reads back as a different type, such as the text "7" as the number 7. Read the file with `ids: "string"` or `ids: "keep"` to keep the type.
 - `E_ID_TEXT_COLLISION` (error, the save throws): Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with `E_INVALID_ID`.
 - `E_NEO4J_WEIGHT_COLUMN_TAKEN` (error, the save throws): The `weightColumn` name is already an edge attribute; the save fails.

@@ -18,13 +18,20 @@ All of them write the same bytes for the same arguments. Text formats are writte
 A format can rarely hold everything a graph can. Pajek has no edge ids, CSV holds one table per
 file, GML node ids must be integers, and so on. `checkExport()` compares your graph with the format
 and returns one note per difference, before anything is written. An empty list means the saved
-file reads back as the same graph, as long as you read it back with the options you saved it with.
-A file does not record the format options that shaped it, such as a CSV `delimiter`, a JSON
-`sourceKey` or `weightKey`, or a Neo4j `weightColumn`. Read such a file with the matching import
-option: `delimiter`, `sourceKey`, or `weightFrom` for a weight saved under another name.
+file reads back as the same graph, as long as you read it back with matching options. A file does
+not record the options that shaped it:
+
+- Format options such as a CSV `delimiter`, a JSON `sourceKey` or a Neo4j `weightColumn`. Read the
+  file with the matching import option (`delimiter`, `sourceKey`, `weightFrom`).
+- Import options that named something the format does not mark. A d3 file read with
+  `weightFrom: "value"` is saved as node-link JSON with its weights under `value`, and
+  `checkExport()` returns no note. Read the saved file with `weightFrom: "value"` again, or the
+  weights come back as a plain edge attribute.
 
 Each note has a `code`, a `message`, the attribute `column` it is about (or `null`), and a `count`
-of the nodes, edges or values affected (or `null`).
+of the nodes, edges or values affected (or `null`). The same code can appear more than once, once
+per column: a Cytoscape session saved as GraphML gets one `W_JSON_UNSUPPORTED` for each column that
+holds nested values. Print `column` with the code to tell them apart, as the example does.
 
 - A code starting with `W_` is a warning: the file is written, and this part of it will not read
   back the same.
@@ -47,7 +54,7 @@ const { snapshot } = await importGraph(await readFile("got-edges.csv"), {
 
 // Without options: two ids ("Jon Arryn", "Robert Arryn") contain a space, which a GraphML id cannot
 for (const note of checkExport(snapshot, "graphml")) {
-    console.log(`${note.code}: ${note.message}`);
+    console.log(`${note.code} (${note.column ?? "graph"}): ${note.message}`);
 }
 
 // sanitizeIds: "mangle" rewrites those ids and keeps the originals in the file
@@ -65,8 +72,8 @@ await writeFile("got.graphml", await exportGraphToBytes(snapshot, "graphml", opt
 <!-- generated:begin output:saving/check -->
 
 ```text
-E_ID_CHARSET: 2 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces), so the save fails unless sanitizeIds is "mangle"
-W_COLUMN_NAME_CHANGED: node column "Label" (label) is written into the format's label slot and reads back as "label"
+E_ID_CHARSET (graph): 2 node ids are not XML name tokens (letters, digits and . - _ : only; no spaces), so the save fails unless sanitizeIds is "mangle"
+W_COLUMN_NAME_CHANGED (Label): node column "Label" (the labels) is written as the format's own label and reads back as "label"
 [ 'W_ID_MANGLED', 'W_COLUMN_NAME_CHANGED' ]
 ```
 
@@ -224,8 +231,8 @@ JSON. They go in the same options object as `sanitizeIds` and `onMixedDirection`
 [format page](./formats/index.md) lists its options.
 
 An option the chosen format does not have is ignored without a warning. That also means a
-misspelled option is ignored. In TypeScript, check the names with `satisfies` and the format's
-options type, which includes `sanitizeIds` and `onMixedDirection`:
+misspelled option is ignored. In TypeScript, give the options object the format's options type,
+which includes `sanitizeIds` and `onMixedDirection`:
 
 <!-- generated:begin example:saving/typed-options -->
 
@@ -237,8 +244,8 @@ import { type GmlExportOptions } from "@graphty/graph-io/gml";
 
 const { snapshot } = await importGraph(await readFile("got.gml"), { filename: "got.gml" });
 
-// `satisfies` checks the GML options and the ones every exporter takes
-const options = { sanitizeIds: "mangle", weightKey: "weight" } satisfies GmlExportOptions;
+// The type checks the GML options and the ones every exporter takes
+const options: GmlExportOptions = { sanitizeIds: "mangle", weightKey: "weight" };
 const gml = await exportGraphToString(snapshot, "gml", options);
 console.log(gml.split("\n").slice(0, 7).join("\n"));
 ```
@@ -259,18 +266,17 @@ graph [
 
 <!-- generated:end -->
 
-Use `satisfies` rather than a type annotation: a variable declared as `const options:
-GmlExportOptions` cannot be passed to the save functions, as
-[Loading graphs](./loading.md#options) explains. Spread it (`{ ...options }`) if you have one.
+One options object can serve several formats. The common options (`sanitizeIds`,
+`onMixedDirection`) mean the same everywhere, an option only one of the formats has is ignored by
+the others, and `indent` takes a number of spaces or the indentation text in both JSON and DOT.
+`dialect` is the exception: it picks a variant of the format, CSV and JSON each have their own
+list, and a value from the other list makes `checkExport()` and the save throw `E_UNSUPPORTED`
+with the option's name in `err.details.option`.
 
-Be careful when one options object serves several formats. The common options (`sanitizeIds`,
-`onMixedDirection`) mean the same everywhere, and an option only one of the formats has is
-harmless. But two formats can each have an option of the same name with a different meaning:
-JSON's `indent` is a number of spaces and DOT's is the indentation text, and CSV and JSON both have
-a `dialect`. A value of the wrong kind makes `checkExport()` and the save throw `E_UNSUPPORTED`
-with the option's name in `err.details.option`. Keep format options in a separate object per
-format, and spread the shared ones into each:
-`{ ...shared, indent: 2 }` for JSON, `{ ...shared, indent: "\t" }` for DOT.
+The same holds for import options shared across formats, with one trap: `weightFrom` names the
+attribute that holds the weights, and an attribute no edge has is not an error. GML and Pajek keep
+their weights in `value`, so a shared object with `weightFrom: "weight"` reads their files without
+weights. Leave `weightFrom` out of a shared object, so each format reads its own default.
 
 ## Large graphs: stream to a file
 
@@ -314,14 +320,17 @@ import { exportGraphToBytes, extensionOf, importGraph, listFormats } from "@grap
 
 const { snapshot } = await importGraph(await readFile("got.gml"), { filename: "got.gml" });
 
-for (const path of ["network.gexf", "network.dot", "network.xyz"]) {
+for (const path of ["network.gexf", "network.dot", "network.tsv", "network.xyz"]) {
     const extension = extensionOf(path) ?? "";
     const target = listFormats().find((f) => f.canExport && f.extensions.includes(extension));
     if (target === undefined) {
         console.error(`${path}: no format writes ${extension} files`);
         continue;
     }
-    await writeFile(path, await exportGraphToBytes(snapshot, target.format));
+    // .tsv is the csv format: the extension does not set the delimiter, so pass a tab
+    const options = extension === ".tsv" ? { delimiter: "\t" } : {};
+    await writeFile(path, await exportGraphToBytes(snapshot, target.format, options));
+    console.log(`${path}: ${target.format}`);
 }
 ```
 
@@ -330,13 +339,17 @@ for (const path of ["network.gexf", "network.dot", "network.xyz"]) {
 <!-- generated:begin output:saving/pick-format -->
 
 ```text
+network.gexf: gexf
+network.dot: dot
+network.tsv: csv
 network.xyz: no format writes .xyz files
 ```
 
 <!-- generated:end -->
 
-Some extensions belong to more than one format: `.csv` is CSV and Neo4j CSV, and `.xml` is GraphML
-and XGMML. `listFormats()` returns the formats in a fixed order (JSON, GraphML, GEXF, CSV, GML, DOT,
+An extension picks the format, not its options. `.tsv` is the `csv` format, which writes commas
+unless you pass `delimiter: "\t"`, as the example does. Some extensions belong to more than one
+format: `.csv` is CSV and Neo4j CSV, and `.xml` is GraphML and XGMML. `listFormats()` returns the formats in a fixed order (JSON, GraphML, GEXF, CSV, GML, DOT,
 Pajek, Neo4j, XGMML, CX2, CX, OBO, Cytoscape session), so `find()` picks the more common one.
 
 ## Uploads and downloads
@@ -369,8 +382,8 @@ the user then canceled the save. Outside a browser it throws `E_UNSUPPORTED` ins
 nothing. The [Quick start](./quick-start.md#download-it-from-the-browser) has an example.
 
 `downloadGraph()` uses the formats of the `@graphty/graph-io` entry point. If you made your own
-`FormatRegistry` to [keep your bundle small](./loading.md#keeping-your-bundle-small), build the file
-with the registry's `exportGraphToBlob()` and start the download yourself:
+`FormatRegistry` to [keep your bundle small](./loading.md#keeping-your-bundle-small), call the
+registry's `downloadGraph()` method instead:
 
 <!-- generated:begin example:saving/download-own -->
 
@@ -388,13 +401,7 @@ const { snapshot } = await io.loadFromUrl(
 
 // <button id="save">Save as CSV</button>
 document.querySelector("#save").addEventListener("click", async () => {
-    const blob = await io.exportGraphToBlob(snapshot, "csv");
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "edges.csv";
-    link.click();
-    // let the browser start the download before the URL goes away
-    setTimeout(() => URL.revokeObjectURL(link.href), 0);
+    await io.downloadGraph(snapshot, "csv", { filename: "edges.csv" });
 });
 ```
 

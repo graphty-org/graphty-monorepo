@@ -16,13 +16,10 @@ Each returns a promise of `{ snapshot, format, report, sniff, freeze }`:
 - `report`: the [import report](./report.md), which lists everything that was skipped or changed.
 - `sniff`: how the format was detected (its `confidence` and whether the content, the file name or
   the MIME type matched), or `null` when you named the format.
-- `freeze`: what the last step of the import changed. Its fields are `mergedEdges` and
-  `droppedSelfLoops` (both also reported as warnings), `droppedEdges`, `compacted`, `widened`
-  (attribute columns whose type grew while reading), `timings` (filled only with the `freeze`
-  option's `profile: true`), and `nodeRemap` and `edgeRemap`, which map old positions to new ones
-  when edges were merged or dropped. `edgeRemap` has one entry per edge read, so logging the whole
-  result of a large import prints thousands of numbers: log `snapshot` and `report` instead. Most
-  programs never read `freeze`.
+- `freeze`: most programs never read it. It records what the last step of the import changed,
+  such as edges merged by `duplicateEdges` (also reported as warnings), and it holds one entry per
+  edge read, so log `snapshot` and `report` rather than the whole result. The
+  [`ImportGraphResult` reference](../api/generated/@graphty/graph-io/interfaces/ImportGraphResult.md) lists its fields.
 
 ## What you can pass in
 
@@ -77,8 +74,7 @@ it as `new Uint8Array(buffer)`. For a `Blob` or a `File`, call `loadFromFile()`.
 
 A Blob from `fs.openAsBlob()` has no file name, so pass `filename` as the example does. Without it
 graph-io can only detect the format from the content, which a format without a content check (a
-plugin of your own, for example) cannot match. `fs.openAsBlob()` needs Node 20 or later; in Node 18,
-read the file with `readFile()` and pass the bytes to `importGraph()`.
+plugin of your own, for example) cannot match.
 
 Streams are read as they arrive, and most formats are parsed as they stream in. JSON, DOT and GML
 documents are decoded whole before they are parsed, so a file in one of those formats is held in
@@ -116,8 +112,9 @@ then gets a web page instead of a graph, and the error is `E_UNKNOWN_FORMAT`, wi
 says the input is an HTML document. If you see that during development, check the URL first.
 
 A relative URL works in a browser, where it is resolved against the page. In Node, pass an absolute
-`http:` or `https:` URL (`data:` URLs work too). Node's `fetch()` cannot read `file:` URLs, so for a
-local file use `loadFromFile(await openAsBlob(path), { filename: path })`.
+`http:` or `https:` URL (`data:` URLs work too); a relative URL fails with a message that says so.
+Node's `fetch()` cannot read `file:` URLs, so for a local file use
+`loadFromFile(await openAsBlob(path), { filename: path })`.
 
 ## Choosing the format
 
@@ -138,6 +135,10 @@ three words without a comma, is refused.
 
 For input you do not control, pass `format`, so a file in any other format is refused, and check
 `snapshot.nodeCount` and `report.issues` after the load.
+
+A CSV edge list without a direction column is read as a directed graph, so pasted text such as
+`from;to;weight` lines gives a directed graph unless you pass `defaultDirected: false`. The
+[`defaultDirected`](./options.md#every-importer) option lists the default of every format.
 
 <!-- generated:begin example:loading/options -->
 
@@ -200,9 +201,8 @@ when the file turns out to be in that format. A common option that the chosen fo
 for is reported in the import report as `W_OPTION_IGNORED`.
 
 A misspelled option name is not reported, because any name could be some format's option. In
-TypeScript, build the options with `satisfies` and the format's options type, which every format
-entry point exports and which includes the options every importer takes, so a typo does not
-compile:
+TypeScript, give the options object the format's options type, which every format entry point
+exports and which includes the options every importer takes, so a typo does not compile:
 
 <!-- generated:begin example:loading/typed-options -->
 
@@ -210,20 +210,18 @@ compile:
 import { importGraph } from "@graphty/graph-io";
 import { type CsvImportOptions } from "@graphty/graph-io/csv";
 
-// `satisfies` checks the names, the CSV options and the ones every importer takes:
+// The type checks the names, the CSV options and the ones every importer takes:
 // a typo such as `delimeter` does not compile
-const csv = { delimiter: ";", header: true, defaultDirected: false } satisfies CsvImportOptions;
+const csv: CsvImportOptions = { delimiter: ";", header: true, defaultDirected: false };
 
-const { snapshot } = await importGraph("from;to\nA;B\n", { format: "csv", ...csv });
+const { snapshot } = await importGraph("from;to\nA;B\n", csv);
 console.log(`${snapshot.nodeCount} nodes, ${snapshot.directed ? "directed" : "undirected"}`);
 ```
 
 <!-- generated:end -->
 
-Use `satisfies`, not a type annotation. A variable declared as `const csv: CsvImportOptions = ...`
-cannot be passed to `importGraph()` as its options, because TypeScript does not let a variable of
-an interface type stand for an object with any keys. Spread it instead (`{ ...csv }`), or keep
-`satisfies`.
+`satisfies CsvImportOptions` works as well. To add `format` or `filename`, spread the typed object
+into the call: `importGraph(text, { format: "csv", ...csv })`.
 
 ## Text encodings
 
@@ -348,9 +346,10 @@ two directed edges, one each way. `report.counts.expandedMixed` counts such edge
 
 ## Cancelling and progress
 
-Pass an `AbortSignal` as `signal` to stop a load. The import stops within 64 elements (nodes,
-edges or lines) and the promise rejects with the signal's reason: a `DOMException` named `"AbortError"`, or
-`"TimeoutError"` for `AbortSignal.timeout()`. Catch it separately from `GraphFormatError`.
+Pass an `AbortSignal` as `signal` to stop a load. The import stops promptly and the promise
+rejects with the signal's reason: a `DOMException` named `"AbortError"`, or `"TimeoutError"` for
+`AbortSignal.timeout()`. `isAbortError(err)` is true for both, so a `catch` block can stay quiet
+when the user cancelled.
 
 `onProgress(bytesDone, bytesTotal)` is called as the input is read. For a string or a
 `Uint8Array`, `bytesTotal` is known from the first call. For a stream, including `loadFromUrl()` and
@@ -362,7 +361,7 @@ edges or lines) and the promise rejects with the signal's reason: a `DOMExceptio
 ```ts
 import { readFile } from "node:fs/promises";
 
-import { importGraph } from "@graphty/graph-io";
+import { importGraph, isAbortError } from "@graphty/graph-io";
 
 const bytes = await readFile("got.gexf");
 
@@ -384,7 +383,8 @@ controller.abort();
 try {
     await loading;
 } catch (err) {
-    console.log(`stopped: ${(err as Error).name}`);
+    // a cancelled load is not an error to show the user
+    console.log(isAbortError(err) ? "cancelled" : `failed: ${String(err)}`);
 }
 ```
 
@@ -395,10 +395,61 @@ try {
 ```text
 read 27806 bytes
 107 nodes
-stopped: AbortError
+cancelled
 ```
 
 <!-- generated:end -->
+
+## Loading in a React component
+
+A snapshot never changes once it is made, so you can keep it in React state and pass it to child
+components. Start the load in an effect and cancel it in the effect's cleanup, so a component that
+unmounts or gets a new URL stops the old load instead of setting stale state. This function has
+the shape an effect needs: it starts the load and returns the function that cancels it.
+
+<!-- generated:begin example:loading/react -->
+
+```js
+import { isAbortError, loadFromUrl } from "@graphty/graph-io";
+
+const GOT =
+    "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml";
+
+// Load a graph and return the function that cancels the load: the shape a React effect's
+// cleanup takes, so a component that unmounts or changes its URL stops the old load.
+function watchGraph(url, onGraph, onError) {
+    const controller = new AbortController();
+    loadFromUrl(url, { signal: controller.signal }).then(
+        ({ snapshot }) => onGraph(snapshot),
+        (err) => {
+            if (!isAbortError(err)) {
+                onError(err);
+            }
+        },
+    );
+    return () => controller.abort();
+}
+
+// In a component: useEffect(() => watchGraph(url, setSnapshot, setError), [url]);
+const stop = watchGraph(GOT, () => console.log("never printed"), console.error);
+stop(); // the URL changed before the load finished: this load is cancelled quietly
+
+await new Promise((done) => {
+    watchGraph(GOT, (snapshot) => done(console.log(`loaded ${snapshot.nodeCount} nodes`)), console.error);
+});
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:loading/react -->
+
+```text
+loaded 107 nodes
+```
+
+<!-- generated:end -->
+
+In a component, call it as `useEffect(() => watchGraph(url, setSnapshot, setError), [url])`.
 
 ## Keeping your bundle small
 
@@ -453,9 +504,9 @@ graphml -> csv: Source,Target,Type,id,Weight,Edge Label
 
 <!-- generated:end -->
 
-Detection on such a registry only knows the formats you registered. `downloadGraph()` always uses
-the full set; with your own registry, build the file with `exportGraphToBlob()` and start the
-download yourself, as [Saving graphs](./saving.md#uploads-and-downloads) shows.
+Detection on such a registry only knows the formats you registered. To download from the browser,
+call the registry's own `downloadGraph()` method; the top-level `downloadGraph()` brings in every
+format.
 
 ## Loading into your own graph builder
 
@@ -476,9 +527,9 @@ import { readFile } from "node:fs/promises";
 import { GraphBuilder } from "@graphty/graph-format";
 import { csvImporter } from "@graphty/graph-io/csv";
 
-// `directed` is only a starting value: the first file read into the empty builder sets the direction.
+// A builder starts with a direction, but each importer replaces it with its file's direction.
 // weightDtype "f32" halves the memory the weights take.
-const builder = new GraphBuilder({ directed: true, weightDtype: "f32" });
+const builder = new GraphBuilder({ directed: false, weightDtype: "f32" });
 
 // Two files into one graph: the node table with the labels, then the edge table
 const nodes = await csvImporter.import(await readFile("got-nodes.csv"), builder, { table: "nodes" });

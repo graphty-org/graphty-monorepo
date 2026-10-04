@@ -135,7 +135,7 @@ Whether the file can hold node and edge color, size, shape and thickness. When f
   a whole session, and CX2 for NDEx. CX, CX2 and session node ids are integers, so pass
   `sanitizeIds: "mangle"` when you save a graph with text ids, including one you read from a
   session or a CX file, whose ids come back as the original names.
-- In Neo4j: Neo4j CSV, loaded with `neo4j-admin database import`.
+- In Neo4j: Neo4j CSV, written with `exportNeo4jFiles()` and loaded with `neo4j-admin database import`; see [Files for neo4j-admin](./neo4j.md#files-for-neo4j-admin).
 - Ontologies: OBO, or the `obographs` dialect of JSON.
 - For a picture: DOT, which Graphviz lays out and draws.
 - For Pajek, UCINET or igraph: Pajek `.net` or GML. Both number

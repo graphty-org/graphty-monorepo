@@ -32,6 +32,8 @@ name:
 - `byRole(role)` returns the column that has a role, or `null`. Importers mark the columns a file
   gives a meaning: `"label"` for the node or edge label, `"weight"`, `"position"`, `"color"`, `"id"`
   for edge ids, and so on. Its name is `column.meta.name`, its type `column.meta.dtype`.
+- A column read from the table reads its own values: `column.value(i)` is the same as
+  `value(column.meta.name, i)`.
 
 <!-- generated:begin example:reading/attributes -->
 
@@ -123,8 +125,9 @@ console.log(`${snapshot.nodeCount} nodes, ${people.length} of them not clusters`
 
 <!-- generated:end -->
 
-Groups in other formats can add nodes too: in a CX file, a `cyGroups` group whose id is not a node
-becomes one.
+Groups in other formats add nodes too: in a CX file, a `cyGroups` group whose id is not a node
+becomes one. So `snapshot.nodeCount` of a DOT file with clusters, or a CX file with groups, is
+larger than the number of nodes the file draws.
 
 ## Edges
 
@@ -179,6 +182,9 @@ has no weights. Which attribute becomes the weight depends on the format (`weigh
 JSON file usually keeps its link strengths in `value`: read it with `weightFrom: "value"`, or the
 graph has no weights and `value` is a plain edge attribute.
 
+An edge whose weight cell is empty, or that has no weight attribute in a weighted graph, gets
+the default weight 1. Its weight is recorded as missing, so a save writes no weight for it.
+
 These weights are 32-bit floats, which hold integers up to 16,777,216 and most decimals only
 approximately: `0.1` is stored as `0.10000000149011612`. When a file has a weight that 32-bit floats
 cannot hold exactly, the exact values are also kept in an edge attribute named `graphty.weight`,
@@ -197,7 +203,7 @@ console.log(snapshot.edgeList().weights?.[0]);
 
 // when a weight does not fit exactly, the exact values are also in the weight attribute
 const exact = snapshot.edges.byRole("weight");
-console.log(exact?.meta.name, exact ? snapshot.edges.value(exact.meta.name, 0) : null);
+console.log(exact?.meta.name, exact?.value(0));
 ```
 
 <!-- generated:end -->
@@ -210,6 +216,10 @@ graphty.weight 0.1
 ```
 
 <!-- generated:end -->
+
+Exact here means exact as a JavaScript number. An integer weight above 2^53, such as
+9007199254740993, is stored as the nearest number (9007199254740992), and the report says so with
+the warning `W_PRECISION`.
 
 `snapshot.weights` is a different array: one weight per adjacency entry, which an undirected graph
 has two of for each edge. Use `edgeList().weights` unless you walk the adjacency yourself.
@@ -262,6 +272,52 @@ Jaime: 24 edges
 like, `sourceFormat` (the format it was read from) and, under `extra`, details a format keeps so it
 can write the file back the same way. For a JSON file, `jsonShapeOf(snapshot)` from
 `@graphty/graph-io/json` reads that record with its type, including the dialect that was read.
+
+## Naming the graph
+
+DOT, GEXF, GML and Pajek files can name their graph, and an import keeps the name in
+`snapshot.meta.name`. A graph read from a format without one, such as CSV, has the name `null`.
+The snapshot cannot be changed, so to name it, copy it into a `GraphBuilder` (from
+`@graphty/graph-format`, which you add to your own dependencies for this), set the name and
+freeze a new snapshot:
+
+<!-- generated:begin example:reading/name -->
+
+```ts
+import { readFile } from "node:fs/promises";
+
+import { GraphBuilder } from "@graphty/graph-format";
+import { exportGraphToString, importGraph } from "@graphty/graph-io";
+
+// A CSV file has no graph name
+const { snapshot } = await importGraph(await readFile("got-edges.csv"), { filename: "got-edges.csv" });
+console.log(snapshot.meta.name);
+
+// A snapshot never changes: copy it into a builder, set the name, and freeze a new snapshot
+const builder = GraphBuilder.from(snapshot);
+builder.setMeta({ name: "got" });
+const named = builder.freeze();
+console.log(named.meta.name);
+
+// Formats that write a graph name now use it; Pajek writes it on its *Network line
+const pajek = await exportGraphToString(named, "pajek", { networkHeader: true });
+console.log(pajek.split("\n")[0]);
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:reading/name -->
+
+```text
+null
+got
+*Network got
+```
+
+<!-- generated:end -->
+
+To name only the saved file, pass the name to the save instead: `name` for DOT and Pajek, and
+`ontology` for OBO.
 
 ## Renaming an attribute before you save
 

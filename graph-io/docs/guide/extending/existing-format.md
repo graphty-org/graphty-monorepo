@@ -58,14 +58,7 @@ hides those lines from the CSV importer and hands it the table. Save this as `ne
 <!-- generated:begin example:extending/netscope -->
 
 ```ts
-import {
-    type GraphImporter,
-    ImportReportBuilder,
-    type ImportIssue,
-    readText,
-    registry,
-    resolveImportOptions,
-} from "@graphty/graph-io";
+import { type GraphImporter, ImportReportBuilder, readText, registry, resolveImportOptions } from "@graphty/graph-io";
 import { csvImporter, type CsvImportOptions } from "@graphty/graph-io/csv";
 
 // NetScope writes a CSV edge table after a few lines about the instrument:
@@ -85,43 +78,35 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
     sniff: (head) => (PREAMBLE.test(new TextDecoder().decode(head)) ? 0.9 : 0),
 
     async import(input, sink, options) {
-        // Decode the input the way every graph-io importer does, keeping what decoding reports
+        // Decode the input the way every graph-io importer does, into this importer's own report
         const opts = resolveImportOptions(options, { ids: "canonical", defaultDirected: true, weightFrom: "weight" });
-        const decoding = new ImportReportBuilder("netscope", opts.errorLimit);
-        const text = await readText(input, decoding, opts);
+        const report = new ImportReportBuilder("netscope", opts.errorLimit);
+        const text = await readText(input, report, opts);
 
         // Turn the preamble (the lines before the first blank line) into comment lines, which the CSV importer
         // skips; the lines keep their numbers. A file without a preamble is passed on as it is.
         let table = text;
-        const issues: ImportIssue[] = [];
         if (PREAMBLE.test(text)) {
             const blank = /\r?\n\s*\r?\n/.exec(text);
             const end = blank === null ? text.length : blank.index + blank[0].length;
             const instrument = /^Instrument: (.*)$/m.exec(text.slice(0, end))?.[1] ?? "unknown";
             const lines = text.slice(0, end).split("\n"); // the last entry is the empty rest after the blank line
             table = lines.map((line, i) => (i < lines.length - 1 ? "#" : line)).join("\n") + text.slice(end);
-            issues.push({
-                category: "unsupported",
-                severity: "warning",
-                code: "W_NETSCOPE_PREAMBLE",
-                message: `skipped the NetScope preamble (instrument ${instrument})`,
-                line: 1,
-                element: null,
-            });
+            report.warning(
+                "unsupported",
+                "W_NETSCOPE_PREAMBLE",
+                `skipped the NetScope preamble (instrument ${instrument})`,
+                {
+                    line: 1,
+                },
+            );
         }
 
-        // The text is already decoded and its progress reported: the CSV importer gets neither option again
-        const csv = await csvImporter.import(table, sink, { ...options, onProgress: undefined, encoding: undefined });
-
-        // One report: the decoding warnings, the preamble, then the table's issues
-        const decoded = decoding.finish();
-        return {
-            ...csv,
-            format: "netscope",
-            issues: [...decoded.issues, ...issues, ...csv.issues],
-            errorCount: csv.errorCount + decoded.errorCount,
-            warningCount: csv.warningCount + decoded.warningCount + issues.length,
-        };
+        // The CSV importer reads the table; its issues and counts join this report
+        report.include(
+            await csvImporter.import(table, sink, { ...options, onProgress: undefined, encoding: undefined }),
+        );
+        return report.finish();
     },
 };
 
@@ -161,7 +146,7 @@ console.log(report.issues.map((i) => `${i.code} (line ${i.line ?? "-"}): ${i.mes
 netscope: 3 nodes, 2 edges
 [
   'W_NETSCOPE_PREAMBLE (line 1): skipped the NetScope preamble (instrument bench-3)',
-  'E_CSV_FIELD_COUNT (line 7): 2 field(s), expected 3'
+  'E_CSV_FIELD_COUNT (line 7): 2 fields, expected 3'
 ]
 ```
 
@@ -173,20 +158,18 @@ the content with more confidence.
 
 `readText()` decodes the input with the same rules as every built-in format (byte order mark,
 `encoding` option, UTF-8, windows-1252 fallback), so the wrapper handles bytes and streams, not
-only strings. It records what it noticed, such as `W_ENCODING_FALLBACK`, in the report you pass
-it, and the wrapper adds those issues and their counts to the report it returns, so none is lost.
-`readText()` also reports the reading progress, so the wrapper passes the CSV importer neither
-`onProgress` nor `encoding`: the CSV importer reads a string the wrapper made, and a second round of
-progress calls would count the wrong bytes.
+only strings. It records what it noticed, such as `W_ENCODING_FALLBACK`, in the wrapper's report,
+and reports the reading progress. The CSV importer then reads a string that is already decoded, so
+the wrapper passes it neither `encoding` nor `onProgress`.
 
 The preamble lines are replaced by `#` lines rather than cut off. The CSV importer skips leading
 `#` lines as comments, and every row keeps its line number, so the bad row above is reported on
 line 7, where it is in the file. A `.nsc` file that does not start with the preamble is passed to
 the CSV importer unchanged, without the warning.
 
-The report the CSV importer returns is a plain object. The wrapper returns a copy with its own
-format name and its own warning, so the preamble is not dropped silently. Every CSV option still
-works, and so does every CSV issue code: a bad row in a NetScope file is reported as
+`report.include()` adds the CSV importer's report to the wrapper's: its issues after the preamble
+warning, and its counts. The wrapper returns one report under its own format name. Every CSV
+option still works, and so does every CSV issue code: a bad row in a NetScope file is reported as
 `CSV_ISSUE.FIELD_COUNT`, as it would be in a CSV file.
 
 ## Changing what an exporter writes

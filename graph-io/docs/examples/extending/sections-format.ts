@@ -10,6 +10,7 @@ import {
     MULTIPLE_GRAPHS_CODE,
     readText,
     resolveImportOptions,
+    throwIfAborted,
 } from "@graphty/graph-io";
 
 // The "sections" format: several graphs in one file, each an "== name" line and then its edges.
@@ -20,10 +21,10 @@ import {
 //   x y
 //   y z
 
-/** One graph of a file: its name and its edge lines. */
+/** One graph of a file: its name and its edge lines, each with its line number. */
 interface Section {
     readonly name: string;
-    readonly edges: readonly (readonly [string, string])[];
+    readonly edges: readonly { readonly ids: readonly string[]; readonly line: number }[];
 }
 
 // the format's defaults for the common options
@@ -43,16 +44,16 @@ async function readSections(
 ): Promise<Section[]> {
     const opts = resolveImportOptions(options, DEFAULTS);
     const text = await readText(input, report, opts);
-    const sections: { name: string; edges: [string, string][] }[] = [];
-    for (const line of text.split("\n")) {
-        const header = /^== (.+)$/.exec(line.trim());
+    const sections: { name: string; edges: { ids: string[]; line: number }[] }[] = [];
+    text.split("\n").forEach((raw, i) => {
+        const line = raw.trim();
+        const header = /^== (.+)$/.exec(line);
         if (header !== null) {
             sections.push({ name: header[1], edges: [] });
-        } else if (line.trim() !== "" && sections.length > 0) {
-            const [source, target] = line.trim().split(/\s+/);
-            sections[sections.length - 1].edges.push([source, target]);
+        } else if (line !== "" && sections.length > 0) {
+            sections[sections.length - 1].edges.push({ ids: line.split(/\s+/), line: i + 1 });
         }
-    }
+    });
     return sections;
 }
 
@@ -61,15 +62,30 @@ async function readSections(
  * @param section - the graph
  * @param sink - the sink to fill
  * @param report - the graph's report
+ * @param signal - the caller's cancellation signal
  * @returns the finished report
  */
-function fill(section: Section, sink: GraphSink, report: ImportReportBuilder): ImportReport {
-    sink.setDirected(false);
+function fill(section: Section, sink: GraphSink, report: ImportReportBuilder, signal: AbortSignal | null): ImportReport {
+    sink.setDirected(false); // the format is always undirected, so edges go to the sink directly
     sink.setMeta({ name: section.name }); // graphName matches this name
-    for (const [source, target] of section.edges) {
-        sink.addEdge(source, target);
-        report.counts.edges++;
-    }
+    section.edges.forEach(({ ids, line }, i) => {
+        if (i % 64 === 0) {
+            throwIfAborted(signal);
+        }
+        if (ids.length !== 2) {
+            report.error("parse-error", "E_SECTIONS_BAD_LINE", "expected two node ids", { line });
+            report.counts.skippedEdges++;
+            return;
+        }
+        try {
+            sink.addEdge(ids[0], ids[1]);
+            report.counts.edges++;
+        } catch (err) {
+            report.recordError(err, { line }); // rethrows anything that is not a problem with this edge
+            report.counts.skippedEdges++;
+        }
+    });
+    throwIfAborted(signal);
     return report.finish();
 }
 
@@ -87,7 +103,8 @@ export const sectionsImporter: GraphImporter<GraphChoiceOptions> = {
 
     // one graph: the one graphIndex or graphName chooses, else the first
     async import(input, sink, options) {
-        const report = new ImportReportBuilder("sections", resolveImportOptions(options, DEFAULTS).errorLimit);
+        const opts = resolveImportOptions(options, DEFAULTS);
+        const report = new ImportReportBuilder("sections", opts.errorLimit);
         const sections = await readSections(input, options, report);
         const index = chooseGraph(
             sections.map((s) => s.name),
@@ -101,14 +118,15 @@ export const sectionsImporter: GraphImporter<GraphChoiceOptions> = {
                 `the file holds ${sections.length} graphs; read "${sections[index].name}"`,
             );
         }
-        return fill(sections[index], sink, report);
+        return fill(sections[index], sink, report, opts.signal);
     },
 
     // every graph, each into its own sink with its own report; importAllGraphs() calls this
     async importAll(input, sinkFor, options) {
-        const decoding = new ImportReportBuilder("sections", resolveImportOptions(options, DEFAULTS).errorLimit);
+        const opts = resolveImportOptions(options, DEFAULTS);
+        const decoding = new ImportReportBuilder("sections", opts.errorLimit);
         const sections = await readSections(input, options, decoding);
         // fork() starts each graph's report with what decoding recorded
-        return sections.map((s, i) => fill(s, sinkFor(i), decoding.fork()));
+        return sections.map((s, i) => fill(s, sinkFor(i), decoding.fork(), opts.signal));
     },
 };

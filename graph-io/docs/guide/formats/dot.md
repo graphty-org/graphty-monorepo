@@ -18,27 +18,6 @@ graph structure and the attributes; it does not lay out or draw the graph.
 | Several graphs per file | yes (`importAllGraphs`) |
 | Lists its graphs        | no                      |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | Value                  |
-| ----------------------------------------------- | ---------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | no                     |
-| [`multiEdges`](./index.md#multiedges)           | yes                    |
-| [`selfLoops`](./index.md#selfloops)             | yes                    |
-| [`edgeIds`](./index.md#edgeids)                 | optional               |
-| [`idCharset`](./index.md#idcharset)             | any                    |
-| [`dtypes`](./index.md#dtypes)                   | bool, i32, f64, string |
-| [`components`](./index.md#components)           | no                     |
-| [`lists`](./index.md#lists)                     | no                     |
-| [`json`](./index.md#json)                       | no                     |
-| [`defaults`](./index.md#defaults)               | no                     |
-| [`options`](./index.md#options)                 | no                     |
-| [`hierarchy`](./index.md#hierarchy)             | yes                    |
-| [`temporal`](./index.md#temporal)               | none                   |
-| [`graphAttributes`](./index.md#graphattributes) | yes                    |
-| [`positions`](./index.md#positions)             | yes                    |
-| [`viz`](./index.md#viz)                         | no                     |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -80,7 +59,8 @@ digraph handoffs {
 <!-- generated:end -->
 
 The clusters of the file became nodes, and each member points at its cluster through
-the parent column. Saving writes the clusters back as `subgraph cluster_...` blocks.
+the parent column, so `snapshot.nodeCount` counts the clusters too. Saving writes the clusters
+back as `subgraph cluster_...` blocks.
 
 ## How graph-io reads it
 
@@ -108,8 +88,10 @@ the parent column. Saving writes the clusters back as `subgraph cluster_...` blo
 
 ## What a saved file keeps and loses
 
-DOT keeps any node id, parallel edges, graph attributes, clusters and positions. What does
-not survive:
+DOT keeps any node id, parallel edges, graph attributes, clusters and positions. The graph's
+name is written after `graph` or `digraph`: the `name` export option sets it, and by default it is
+the name the graph was read with (see [Naming the graph](../reading.md#naming-the-graph)). What
+does not survive:
 
 - One direction per file. A graph with both kinds of edges needs `onMixedDirection`.
 - DOT has no types. Booleans, integers, floating-point numbers and text are written so they read
@@ -118,6 +100,31 @@ not survive:
   are not written.
 - A text holding a backslash right before a quote or a line break, or at its end, cannot be spelled
   in DOT (`E_DOT_TRAILING_BACKSLASH`).
+
+<!-- generated:begin capabilities:dot -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | Value                  |
+| ----------------------------------------------- | ---------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | no                     |
+| [`multiEdges`](./index.md#multiedges)           | yes                    |
+| [`selfLoops`](./index.md#selfloops)             | yes                    |
+| [`edgeIds`](./index.md#edgeids)                 | optional               |
+| [`idCharset`](./index.md#idcharset)             | any                    |
+| [`dtypes`](./index.md#dtypes)                   | bool, i32, f64, string |
+| [`components`](./index.md#components)           | no                     |
+| [`lists`](./index.md#lists)                     | no                     |
+| [`json`](./index.md#json)                       | no                     |
+| [`defaults`](./index.md#defaults)               | no                     |
+| [`options`](./index.md#options)                 | no                     |
+| [`hierarchy`](./index.md#hierarchy)             | yes                    |
+| [`temporal`](./index.md#temporal)               | none                   |
+| [`graphAttributes`](./index.md#graphattributes) | yes                    |
+| [`positions`](./index.md#positions)             | yes                    |
+| [`viz`](./index.md#viz)                         | no                     |
+
+<!-- generated:end -->
 
 <!-- generated:begin reference:dot -->
 
@@ -135,11 +142,11 @@ A file can hold several graphs: pick one with the `graphIndex` or `graphName` op
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                     | Type             | Default          | Meaning                                                  |
-| -------------------------- | ---------------- | ---------------- | -------------------------------------------------------- |
-| `indent`                   | `string`         | four spaces      | The indentation of one nesting level.                    |
-| [`name`](#export-name)     | `null \| string` | the graph's name | The graph name to write, or null for an anonymous graph. |
-| [`strict`](#export-strict) | `boolean`        | as read          | Whether to write the `strict` keyword.                   |
+| Option                     | Type               | Default          | Meaning                                                                                                      |
+| -------------------------- | ------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| `indent`                   | `string \| number` | `4`              | The indentation of one nesting level: a number of spaces, or the text itself (spaces or tabs, such as "\t"). |
+| [`name`](#export-name)     | `null \| string`   | the graph's name | The graph name to write, or null for an anonymous graph.                                                     |
+| [`strict`](#export-strict) | `boolean`          | as read          | Whether to write the `strict` keyword.                                                                       |
 
 - <a id="export-name"></a>`name`: The graph name to write, or null for an anonymous graph. The default is the graph's name (`snapshot.meta.name`), which a DOT, GML or GEXF import keeps.
 - <a id="export-strict"></a>`strict`: Whether to write the `strict` keyword. The default is to write it when the graph was read from a strict DOT file.
@@ -172,7 +179,7 @@ The codes this format's import report can hold. They are also exported as `DOT_I
 - `W_DOT_STRICT_MERGED` (warning): A parallel edge merged into an earlier one under `strict`.
 - `W_DOT_KEY_MERGED` (warning): An edge merged into an earlier one with the same endpoints and `key`.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.
-- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.
+- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example two attributes declared with the same name.
 - `W_OPTION_IGNORED` (warning): You set an option this format does not use; it had no effect. The message names the option.
 - `W_ID_MERGED` (warning): Two different id texts became the same number because `ids` is "number", so their nodes were merged.
 - `W_SINK_OPTION` (warning): You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.

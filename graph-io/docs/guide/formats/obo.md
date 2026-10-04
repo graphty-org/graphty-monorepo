@@ -19,27 +19,6 @@ ontologies. Each term is a node, and its `is_a` and `relationship` lines are edg
 | Several graphs per file | no                            |
 | Lists its graphs        | no                            |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | Value |
-| ----------------------------------------------- | ----- |
-| [`mixedDirection`](./index.md#mixeddirection)   | no    |
-| [`multiEdges`](./index.md#multiedges)           | yes   |
-| [`selfLoops`](./index.md#selfloops)             | yes   |
-| [`edgeIds`](./index.md#edgeids)                 | none  |
-| [`idCharset`](./index.md#idcharset)             | any   |
-| [`dtypes`](./index.md#dtypes)                   | none  |
-| [`components`](./index.md#components)           | no    |
-| [`lists`](./index.md#lists)                     | no    |
-| [`json`](./index.md#json)                       | no    |
-| [`defaults`](./index.md#defaults)               | no    |
-| [`options`](./index.md#options)                 | no    |
-| [`hierarchy`](./index.md#hierarchy)             | no    |
-| [`temporal`](./index.md#temporal)               | none  |
-| [`graphAttributes`](./index.md#graphattributes) | no    |
-| [`positions`](./index.md#positions)             | no    |
-| [`viz`](./index.md#viz)                         | no    |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -111,8 +90,14 @@ typedefs and unknown frames it kept are written back. For a graph from another f
 
 - Every node becomes a `[Term]` frame (or `[Instance]` / `[Typedef]` from a `type` column), and
   every edge a line in its source's frame.
-- An edge without a relation is written as `is_a` (`W_RELATION_ASSUMED`); `relation` chooses
-  another. Ontology tools read `is_a` as "is a subclass of".
+- An edge's relation comes from its `relation` column. An edge without one is written as `is_a`
+  (`W_RELATION_ASSUMED`); the `relation` option chooses another value for all of them. Ontology
+  tools read `is_a` as "is a subclass of". A graph from Cytoscape (CX, CX2, XGMML, a session) keeps
+  the relation in an `interaction` column: rename it before saving with
+  `snapshot.edges.rename("interaction", "relation")`. Spaces in a relation are written as `_`
+  (`W_OBO_RELATION_RENAMED`).
+- The ontology name in the header is the `ontology` option, else the name the graph was read with
+  (see [Naming the graph](../reading.md#naming-the-graph)).
 - Node columns outside the OBO vocabulary become `property_value` lines
   (`W_COLUMN_AS_PROPERTY_VALUE`), and edge columns become qualifiers
   (`W_OBO_EDGE_COLUMN_AS_QUALIFIER`).
@@ -122,6 +107,31 @@ typedefs and unknown frames it kept are written back. For a graph from another f
 - An OBO id cannot be empty or hold whitespace, a control character, `!`, `{` or `}`;
   `sanitizeIds: "mangle"` rewrites such ids and graph-io restores them.
 - Edge ids, positions, visual columns and graph attributes are not written.
+
+<!-- generated:begin capabilities:obo -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | Value |
+| ----------------------------------------------- | ----- |
+| [`mixedDirection`](./index.md#mixeddirection)   | no    |
+| [`multiEdges`](./index.md#multiedges)           | yes   |
+| [`selfLoops`](./index.md#selfloops)             | yes   |
+| [`edgeIds`](./index.md#edgeids)                 | none  |
+| [`idCharset`](./index.md#idcharset)             | any   |
+| [`dtypes`](./index.md#dtypes)                   | none  |
+| [`components`](./index.md#components)           | no    |
+| [`lists`](./index.md#lists)                     | no    |
+| [`json`](./index.md#json)                       | no    |
+| [`defaults`](./index.md#defaults)               | no    |
+| [`options`](./index.md#options)                 | no    |
+| [`hierarchy`](./index.md#hierarchy)             | no    |
+| [`temporal`](./index.md#temporal)               | none  |
+| [`graphAttributes`](./index.md#graphattributes) | no    |
+| [`positions`](./index.md#positions)             | no    |
+| [`viz`](./index.md#viz)                         | no    |
+
+<!-- generated:end -->
 
 <!-- generated:begin reference:obo -->
 

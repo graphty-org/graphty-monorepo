@@ -19,27 +19,6 @@ files Cytoscape 2 and 3 export, and the network files inside Cytoscape 3 session
 | Several graphs per file | yes (`importAllGraphs`)                             |
 | Lists its graphs        | yes (`listGraphs`)                                  |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | Value                                            |
-| ----------------------------------------------- | ------------------------------------------------ |
-| [`mixedDirection`](./index.md#mixeddirection)   | yes                                              |
-| [`multiEdges`](./index.md#multiedges)           | yes                                              |
-| [`selfLoops`](./index.md#selfloops)             | yes                                              |
-| [`edgeIds`](./index.md#edgeids)                 | optional                                         |
-| [`idCharset`](./index.md#idcharset)             | any                                              |
-| [`dtypes`](./index.md#dtypes)                   | string, dict, f64, f32, i32, u32, u8, bool, list |
-| [`components`](./index.md#components)           | no                                               |
-| [`lists`](./index.md#lists)                     | yes                                              |
-| [`json`](./index.md#json)                       | no                                               |
-| [`defaults`](./index.md#defaults)               | no                                               |
-| [`options`](./index.md#options)                 | no                                               |
-| [`hierarchy`](./index.md#hierarchy)             | yes                                              |
-| [`temporal`](./index.md#temporal)               | none                                             |
-| [`graphAttributes`](./index.md#graphattributes) | yes                                              |
-| [`positions`](./index.md#positions)             | yes                                              |
-| [`viz`](./index.md#viz)                         | no                                               |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -110,6 +89,31 @@ positions. What does not survive:
 - Styles. The `graphics` values an XGMML import kept are written back, but graph-io's color, size
   and shape columns are not turned into graphics.
 - A number id reads back as text (`W_ID_TEXT_TYPE`), because XGMML ids are kept as written.
+
+<!-- generated:begin capabilities:xgmml -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | Value                                            |
+| ----------------------------------------------- | ------------------------------------------------ |
+| [`mixedDirection`](./index.md#mixeddirection)   | yes                                              |
+| [`multiEdges`](./index.md#multiedges)           | yes                                              |
+| [`selfLoops`](./index.md#selfloops)             | yes                                              |
+| [`edgeIds`](./index.md#edgeids)                 | optional                                         |
+| [`idCharset`](./index.md#idcharset)             | any                                              |
+| [`dtypes`](./index.md#dtypes)                   | string, dict, f64, f32, i32, u32, u8, bool, list |
+| [`components`](./index.md#components)           | no                                               |
+| [`lists`](./index.md#lists)                     | yes                                              |
+| [`json`](./index.md#json)                       | no                                               |
+| [`defaults`](./index.md#defaults)               | no                                               |
+| [`options`](./index.md#options)                 | no                                               |
+| [`hierarchy`](./index.md#hierarchy)             | yes                                              |
+| [`temporal`](./index.md#temporal)               | none                                             |
+| [`graphAttributes`](./index.md#graphattributes) | yes                                              |
+| [`positions`](./index.md#positions)             | yes                                              |
+| [`viz`](./index.md#viz)                         | no                                               |
+
+<!-- generated:end -->
 
 <!-- generated:begin reference:xgmml -->
 
@@ -184,7 +188,7 @@ The codes this format's import report can hold. They are also exported as `XGMML
 - `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph. `importAllGraphs()` reads every one.
 - `E_GRAPH_NOT_FOUND` (error): `graphIndex` or `graphName` matches no network in the session. The import stops.
 - `E_AMBIGUOUS_GRAPH_NAME` (error): `graphName` matches several networks in the session. The import stops.
-- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.
+- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example two attributes declared with the same name.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.
 - `W_ID_MERGED` (warning): Two different id texts became the same number because `ids` is "number", so their nodes were merged.
 - `W_OPTION_IGNORED` (warning): You set an option this format does not use; it had no effect. The message names the option.

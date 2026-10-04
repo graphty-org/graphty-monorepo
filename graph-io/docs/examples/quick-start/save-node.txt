@@ -1,1 +1,1 @@
-W_CSV_NODE_TABLE: 1 node column(s) are written by a table: "nodes" export only
+W_CSV_NODE_TABLE (graph): the edge table has no room for node attributes: 1 node column ("label") is written only by a second export with table: "nodes"

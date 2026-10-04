@@ -68,11 +68,8 @@ function separatorOf(options: PairsOptions | undefined): string | null {
     if (typeof separator !== "string" || separator.length !== 1 || /[\s#=]/.test(separator)) {
         throw new GraphFormatError(
             "E_UNSUPPORTED",
-            `option separator: ${JSON.stringify(separator)} is not one character`,
-            {
-                option: "separator",
-                found: separator,
-            },
+            `option separator: ${JSON.stringify(separator)} is not one character other than a space, "#" or "="`,
+            { option: "separator", found: separator },
         );
     }
     return separator;
@@ -129,12 +126,13 @@ export const pairsImporter: GraphImporter<PairsOptions> = {
                         sink.setNodeValue(label, index, node[2]);
                     }
                     report.counts.nodes++;
-                } else if (fields.length <= 3) {
+                } else if (fields.length === 2 || fields.length === 3) {
                     const weight = fields.length === 3 ? parseWeightText(fields[2]) : undefined;
                     edges.addEdge(ids.text(fields[0]), ids.text(fields[1]), kind, weight, { line });
                     report.counts.edges++;
                 } else {
-                    report.error("parse-error", PAIRS_ISSUE.BAD_LINE, `${fields.length} fields; expected 1 to 3`, {
+                    // also a line written with another separator than the one passed ("a b 2" under ",")
+                    report.error("parse-error", PAIRS_ISSUE.BAD_LINE, "expected a node id, or two ids and a weight", {
                         line,
                     });
                     report.counts.skippedEdges++;
@@ -189,7 +187,7 @@ function check(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOpt
     if (badIds > 0) {
         notes.push({
             code: PAIRS_LOSS.BAD_ID,
-            message: `${badIds} node id(s) are empty or hold a space, "#", "=" or the separator`,
+            message: `${badIds} of the node ids are empty or hold a space, "#", "=" or the separator`,
             column: null,
             count: badIds,
         });
@@ -197,7 +195,7 @@ function check(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOpt
     if (badLabels > 0) {
         notes.push({
             code: PAIRS_LOSS.BAD_LABEL,
-            message: `${badLabels} label(s) hold a line break`,
+            message: `${badLabels} of the labels hold a line break`,
             column: label?.meta.name ?? null,
             count: badLabels,
         });

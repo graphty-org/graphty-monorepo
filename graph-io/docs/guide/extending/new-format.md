@@ -20,7 +20,10 @@ weight). An optional first line, `# directed` or `# undirected`, gives the direc
 
 Everything this page uses is exported from `@graphty/graph-io`. The importer adds nodes and edges
 to a graph under construction, called the sink; the exporter reads a finished graph, the snapshot
-that [Reading the graph](../reading.md) explains.
+that [Reading the graph](../reading.md) explains. The sink and the snapshot are types of
+`@graphty/graph-format`, which graph-io installs. If your plugin imports from
+`@graphty/graph-format` itself (`GraphBuilder`, say), add it to your own dependencies: a strict
+package manager such as pnpm does not let you import a package you did not declare.
 
 To change how a built-in format reads or writes instead, see
 [Extending an existing format](./existing-format.md).
@@ -36,12 +39,12 @@ import report. graph-io creates the sink, a `GraphBuilder`, and turns it into a 
 
 ```ts
 import {
-    DEFAULT_ERROR_LIMIT,
     type GraphImporter,
     importGraph,
     ImportReportBuilder,
     LineReader,
     registry,
+    resolveImportOptions,
 } from "@graphty/graph-io";
 
 const pairsImporter: GraphImporter = {
@@ -49,25 +52,33 @@ const pairsImporter: GraphImporter = {
     extensions: [".pairs"],
     mimeTypes: [],
     async import(input, sink, options) {
-        const report = new ImportReportBuilder("pairs", options?.errorLimit ?? DEFAULT_ERROR_LIMIT);
-        sink.setDirected(false);
-        const lines = new LineReader(input, report, options);
+        // the common options with this format's defaults; errorLimit among them
+        const opts = resolveImportOptions(options, { ids: "canonical", defaultDirected: false, weightFrom: null });
+        const report = new ImportReportBuilder("pairs", opts.errorLimit);
+        sink.setDirected(false); // this first version reads every file as undirected
+        const lines = new LineReader(input, report, opts);
         for await (const text of lines) {
-            const [source, target] = text.trim().split(/\s+/);
-            if (target === undefined) {
-                report.error("parse-error", "E_PAIRS_BAD_LINE", "expected two node ids", { line: lines.line });
-                continue;
+            const ids = text.trim().split(/\s+/);
+            if (ids.length === 1 && ids[0] !== "") {
+                sink.addNode(ids[0]); // a node line
+                report.counts.nodes++;
+            } else if (ids.length === 2) {
+                sink.addEdge(ids[0], ids[1]); // an edge line
+                report.counts.edges++;
+            } else if (ids.length > 2) {
+                report.error("parse-error", "E_PAIRS_BAD_LINE", "expected one or two node ids", { line: lines.line });
             }
-            sink.addEdge(source, target);
-            report.counts.edges++;
         }
         return report.finish();
     },
 };
 registry.registerImporter(pairsImporter);
 
-const { snapshot, report } = await importGraph("alice bob\nbob carol\ndave\n", { filename: "friends.pairs" });
-console.log(`${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges, ${report.errorCount} error`);
+const { snapshot, report } = await importGraph("alice bob\nbob carol\ndave\nerin frank gus\n", {
+    filename: "friends.pairs",
+});
+console.log(`${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
+console.log(report.issues.map((i) => `${i.code} (line ${i.line ?? "-"}): ${i.message}`));
 ```
 
 <!-- generated:end -->
@@ -75,28 +86,141 @@ console.log(`${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges, ${report.
 <!-- generated:begin output:extending/pairs-minimal -->
 
 ```text
-3 nodes, 2 edges, 1 error
+4 nodes, 2 edges
+[ 'E_PAIRS_BAD_LINE (line 4): expected one or two node ids' ]
 ```
 
 <!-- generated:end -->
 
-Two helpers do most of the work:
+Three helpers do most of the work:
 
+- `resolveImportOptions(options, defaults)` fills in every common option the caller left out, with
+  your format's defaults for `ids`, `defaultDirected` and `weightFrom`.
 - `LineReader` reads any input graph-io accepts (a string, bytes, a stream) one line at a time. It
   decodes bytes the way every built-in format does, reports progress, checks the `signal` option
   between chunks of input, and refuses empty or binary input with the usual codes.
 - `ImportReportBuilder` collects issues. `report.error(category, code, message, location)` records
-  an error, and throws the `ImportError` for you once there are more errors than `errorLimit`
-  (`DEFAULT_ERROR_LIMIT`, 100, when the caller sets none). `report.warning()` records a warning.
-  The categories are the ones [the import report](../report.md#issues) lists. `report.counts` holds
-  the counts, and `report.finish()` returns the finished report.
+  an error, and throws the `ImportError` for you once there are more errors than `errorLimit`.
+  `report.warning()` records a warning. The categories are the ones
+  [the import report](../report.md#issues) lists. `report.counts` holds the counts, and
+  `report.finish()` returns the finished report.
 
-This importer works, but it ignores the common options (`ids`, `defaultDirected`,
-`onMixedDirection`), reads no attributes, and cannot be cancelled while it reads a string:
-`LineReader` checks the `signal` option only between chunks of input, and a string arrives as one
-chunk. The complete plugin below handles all of that. It also reads `errorLimit` through
-`resolveImportOptions()`, which fills in every common option; once you call it, use its
-`errorLimit` rather than `options?.errorLimit ?? DEFAULT_ERROR_LIMIT`.
+This importer works, but it reads every file as undirected, reads no labels or weights, and cannot
+be cancelled while it reads a string: `LineReader` checks the `signal` option only between chunks
+of input, and a string arrives as one chunk. The complete plugin below handles all of that.
+
+## The smallest exporter
+
+An exporter has a `format`, a `capabilities` table that says what the file can hold, and three
+methods: `check()` returns what a save would lose, and `export()` and `exportToString()` write the
+file. This one writes the pairs format without labels, weights or a direction line:
+
+<!-- generated:begin example:extending/pairs-minimal-export -->
+
+```ts
+import {
+    capabilities,
+    checkCapabilities,
+    checkExport,
+    type CommonExportOptions,
+    DIRECTION_DROPPED_CODE,
+    encodeChunks,
+    exportGraphToString,
+    type GraphExporter,
+    type GraphSnapshot,
+    importGraph,
+    joinText,
+    type LossNote,
+    pairFolding,
+    refusedSave,
+    registry,
+    resolveExportOptions,
+} from "@graphty/graph-io";
+
+// What the file can hold: no direction marker, no attributes, no weights, any id without a space
+const CAPABILITIES = capabilities({ multiEdges: true, selfLoops: true, edgeIds: "none", idCharset: "any" });
+
+function check(snapshot: GraphSnapshot, options?: CommonExportOptions): LossNote[] {
+    const notes = checkCapabilities(snapshot, CAPABILITIES, resolveExportOptions(options), {
+        attributes: false,
+        weights: false,
+    });
+    if (!snapshot.directed && snapshot.edgeCount > 0) {
+        // the format cannot say "undirected"; this is the note the built-in formats give
+        notes.push({
+            code: DIRECTION_DROPPED_CODE,
+            message: "the file has no direction marker; the edges read back as the reader's default direction",
+            column: null,
+            count: snapshot.edgeCount,
+        });
+    }
+    return notes;
+}
+
+function* lines(snapshot: GraphSnapshot, options?: CommonExportOptions): Generator<string> {
+    const refused = refusedSave(check(snapshot, options)); // throw for an E_ note, before writing anything
+    if (refused !== null) {
+        throw refused;
+    }
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        yield `${String(snapshot.ids.idOf(i))}\n`;
+    }
+    const folding = pairFolding(snapshot); // an undirected edge of a mixed graph is stored twice: write it once
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (!folding.folded(e)) {
+            yield `${String(snapshot.ids.idOf(snapshot.edgeSource(e)))} ${String(snapshot.ids.idOf(snapshot.edgeTarget(e)))}\n`;
+        }
+    }
+}
+
+const pairsExporter: GraphExporter = {
+    format: "pairs",
+    extensions: [".pairs"],
+    mimeTypes: [],
+    capabilities: CAPABILITIES,
+    check,
+    export: (snapshot, options) => encodeChunks(lines(snapshot, options)),
+    exportToString: (snapshot, options) => joinText(lines(snapshot, options)),
+};
+registry.registerExporter(pairsExporter);
+
+const { snapshot } = await importGraph("source,target,weight\na,b,2\nb,c,1\n", {
+    format: "csv",
+    defaultDirected: false,
+});
+console.log(checkExport(snapshot, "pairs").map((n) => n.code));
+console.log(await exportGraphToString(snapshot, "pairs"));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:extending/pairs-minimal-export -->
+
+```text
+[ 'W_WEIGHTS_DROPPED', 'W_DIRECTION_DROPPED' ]
+a
+b
+c
+a b
+b c
+```
+
+<!-- generated:end -->
+
+- `capabilities()` builds the table; anything you leave out is not supported.
+- `checkCapabilities()` compares a graph with the table and returns the notes graph-io knows how to
+  make: here `W_WEIGHTS_DROPPED`, because the graph has weights and `weights: false` says the file
+  has no place for them.
+- Your format's own notes come after them. This format has no direction marker, so an undirected
+  graph gets the `W_DIRECTION_DROPPED` note the built-in formats give: `column` is `null` because
+  the note is about the whole graph, and `count` is the number of edges it affects.
+- `refusedSave()` turns the `E_` notes, if any, into the error the save throws, so `export()` refuses
+  exactly what `check()` predicts.
+- `pairFolding()` writes each undirected edge of a mixed graph once.
+- `encodeChunks()` and `joinText()` turn the lines into the two outputs, so they never differ.
+
+The rest of this page explains each piece, and the [complete plugin](#the-complete-plugin) puts
+them together.
 
 ### The sink
 
@@ -109,7 +233,7 @@ are the methods an importer calls:
 <!-- generated:begin sink -->
 
 - `addNode(id: NodeId): number`: Adds a node, or finds the node with this id. Returns its index.
-- `addEdge(source: NodeId, target: NodeId, weight?: number | undefined): number`: Adds an edge between two node ids and returns its index. A node the graph does not have yet is created, unless `addMissingNodes` is false. In an importer, add edges through `DirectionResolver.addEdge()` instead, which calls this.
+- `addEdge(source: NodeId, target: NodeId, weight?: number | undefined): number`: Adds an edge between two node ids, in the direction set with `setDirected()`, and returns its index. A node the graph does not have yet is created, unless `addMissingNodes` is false. Call it directly when your format always has one direction; when a file's edges carry their own direction, or `defaultDirected` and `onMixedDirection` should apply, add edges through `DirectionResolver.addEdge()`, which calls this.
 - `setEdgeWeight(edge: number, weight: number): void`: Sets the weight of an edge already added.
 - `setDirected(directed: boolean, options?: SetDirectedOptions | undefined): void`: Sets whether the graph is directed. `DirectionResolver.setHeader()` calls it for you.
 - `declareNodeColumn(decl: ColumnDecl): ColumnHandle`: Declares a node attribute, `{ name, dtype, role }` (for example `{ name: "label", dtype: "string", role: "label" }`), and returns its handle. Declaring the same attribute again returns the same handle.
@@ -200,11 +324,8 @@ function separatorOf(options: PairsOptions | undefined): string | null {
     if (typeof separator !== "string" || separator.length !== 1 || /[\s#=]/.test(separator)) {
         throw new GraphFormatError(
             "E_UNSUPPORTED",
-            `option separator: ${JSON.stringify(separator)} is not one character`,
-            {
-                option: "separator",
-                found: separator,
-            },
+            `option separator: ${JSON.stringify(separator)} is not one character other than a space, "#" or "="`,
+            { option: "separator", found: separator },
         );
     }
     return separator;
@@ -261,12 +382,13 @@ export const pairsImporter: GraphImporter<PairsOptions> = {
                         sink.setNodeValue(label, index, node[2]);
                     }
                     report.counts.nodes++;
-                } else if (fields.length <= 3) {
+                } else if (fields.length === 2 || fields.length === 3) {
                     const weight = fields.length === 3 ? parseWeightText(fields[2]) : undefined;
                     edges.addEdge(ids.text(fields[0]), ids.text(fields[1]), kind, weight, { line });
                     report.counts.edges++;
                 } else {
-                    report.error("parse-error", PAIRS_ISSUE.BAD_LINE, `${fields.length} fields; expected 1 to 3`, {
+                    // also a line written with another separator than the one passed ("a b 2" under ",")
+                    report.error("parse-error", PAIRS_ISSUE.BAD_LINE, "expected a node id, or two ids and a weight", {
                         line,
                     });
                     report.counts.skippedEdges++;
@@ -321,7 +443,7 @@ function check(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOpt
     if (badIds > 0) {
         notes.push({
             code: PAIRS_LOSS.BAD_ID,
-            message: `${badIds} node id(s) are empty or hold a space, "#", "=" or the separator`,
+            message: `${badIds} of the node ids are empty or hold a space, "#", "=" or the separator`,
             column: null,
             count: badIds,
         });
@@ -329,7 +451,7 @@ function check(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOpt
     if (badLabels > 0) {
         notes.push({
             code: PAIRS_LOSS.BAD_LABEL,
-            message: `${badLabels} label(s) hold a line break`,
+            message: `${badLabels} of the labels hold a line break`,
             column: label?.meta.name ?? null,
             count: badLabels,
         });
@@ -403,15 +525,20 @@ Your format's own options arrive in the same object. Declare their type (`PairsO
 pass it as the type parameter, `GraphImporter<PairsOptions>` and `GraphExporter<PairsOptions>`.
 Check each value yourself and throw `GraphFormatError("E_UNSUPPORTED", ...)` with
 `details.option` for one you cannot use, as `separatorOf()` does; the built-in formats do the same.
-`reportUnusedOptions()` knows nothing about your options, and a misspelled name is not reported, so
-tell your users to check their options with `satisfies PairsOptions`, as the usage example below
-does.
+Throw it from `check()` too: `check()` returns notes about the graph, and throws for options it
+cannot use, as `checkExport()` does for the built-in formats. `reportUnusedOptions()` knows nothing
+about your options, and a misspelled name is not reported, so tell your users to check their
+options with `satisfies PairsOptions`, as the usage example below does. (A type annotation works
+too when your options type extends `CommonImportOptions` or `CommonExportOptions`, as the built-in
+formats' types do.)
 
 ### Ids, edges, direction and attributes
 
 - `IdCoercer` turns id text into a node id under the `ids` option, so `"42"` becomes the number 42
   by default, exactly as in the built-in formats.
-- `DirectionResolver` adds edges for you. Call `setHeader()` once, with the direction the file
+- `DirectionResolver` adds edges for you when direction is not fixed. (A format that always has
+  one direction, like the smallest importer above, calls `sink.setDirected()` and
+  `sink.addEdge()` itself.) Call `setHeader()` once, with the direction the file
   declares or the `defaultDirected` default, then `addEdge(source, target, kind, weight, location)`
   for each edge, where `kind` is the edge's own direction. Call `setHeader()` even when the file has
   no edges, so a graph of nodes alone still gets its direction. When edges disagree it applies
@@ -472,8 +599,8 @@ f64 [ 2, 2.5, undefined ]
 
 A format with no direction marker at all, such as a plain edge list, calls `setHeader()` with
 `defaultDirected` and nothing else. Its exporter cannot record an undirected graph, so its
-`check()` adds a `W_DIRECTION_DROPPED` note when the graph is undirected (the code is exported as
-`DIRECTION_DROPPED_CODE`).
+`check()` adds a `W_DIRECTION_DROPPED` note when the graph is undirected, as
+[the smallest exporter](#the-smallest-exporter) does.
 
 ### Errors
 
@@ -488,16 +615,18 @@ location)`. It records the issue and throws the `ImportError` at once.
 
 ### Cancelling
 
-Call `throwIfAborted(signal)` every 64 elements (the complete plugin counts lines) and once more
-before `report.finish()`. A large string input arrives as one chunk, so the reader alone cannot stop
-between its lines.
+Call `throwIfAborted(signal)` every few dozen elements (the complete plugin does it every 64 lines)
+and once more before `report.finish()`. A large string input arrives as one chunk, so the reader
+alone cannot stop between its lines.
 
 ### Detection
 
 `sniff(head)` receives up to the first 8 KiB of the input as bytes and returns a confidence from 0
 to 1 that they are your format. Return 0 when you cannot tell. A confidence of 0.5 or more beats any
 file extension, so only return that for content you are sure of; below 0.5 is a guess that loses
-to another format's extension.
+to another format's extension. graph-io then combines your value with the file name and MIME type
+into the final score (a `sniff()` of 0.7 on a file with your extension scores 0.745);
+[How the score is computed](../detection.md#how-the-score-is-computed) gives the formula.
 
 Content beats names: when a built-in format recognizes the content, it wins over your extension.
 Without `sniff()`, your format is chosen by its extension or MIME type only when no other format
@@ -542,6 +671,7 @@ import {
     MULTIPLE_GRAPHS_CODE,
     readText,
     resolveImportOptions,
+    throwIfAborted,
 } from "@graphty/graph-io";
 
 // The "sections" format: several graphs in one file, each an "== name" line and then its edges.
@@ -552,10 +682,10 @@ import {
 //   x y
 //   y z
 
-/** One graph of a file: its name and its edge lines. */
+/** One graph of a file: its name and its edge lines, each with its line number. */
 interface Section {
     readonly name: string;
-    readonly edges: readonly (readonly [string, string])[];
+    readonly edges: readonly { readonly ids: readonly string[]; readonly line: number }[];
 }
 
 // the format's defaults for the common options
@@ -575,16 +705,16 @@ async function readSections(
 ): Promise<Section[]> {
     const opts = resolveImportOptions(options, DEFAULTS);
     const text = await readText(input, report, opts);
-    const sections: { name: string; edges: [string, string][] }[] = [];
-    for (const line of text.split("\n")) {
-        const header = /^== (.+)$/.exec(line.trim());
+    const sections: { name: string; edges: { ids: string[]; line: number }[] }[] = [];
+    text.split("\n").forEach((raw, i) => {
+        const line = raw.trim();
+        const header = /^== (.+)$/.exec(line);
         if (header !== null) {
             sections.push({ name: header[1], edges: [] });
-        } else if (line.trim() !== "" && sections.length > 0) {
-            const [source, target] = line.trim().split(/\s+/);
-            sections[sections.length - 1].edges.push([source, target]);
+        } else if (line !== "" && sections.length > 0) {
+            sections[sections.length - 1].edges.push({ ids: line.split(/\s+/), line: i + 1 });
         }
-    }
+    });
     return sections;
 }
 
@@ -593,15 +723,35 @@ async function readSections(
  * @param section - the graph
  * @param sink - the sink to fill
  * @param report - the graph's report
+ * @param signal - the caller's cancellation signal
  * @returns the finished report
  */
-function fill(section: Section, sink: GraphSink, report: ImportReportBuilder): ImportReport {
-    sink.setDirected(false);
+function fill(
+    section: Section,
+    sink: GraphSink,
+    report: ImportReportBuilder,
+    signal: AbortSignal | null,
+): ImportReport {
+    sink.setDirected(false); // the format is always undirected, so edges go to the sink directly
     sink.setMeta({ name: section.name }); // graphName matches this name
-    for (const [source, target] of section.edges) {
-        sink.addEdge(source, target);
-        report.counts.edges++;
-    }
+    section.edges.forEach(({ ids, line }, i) => {
+        if (i % 64 === 0) {
+            throwIfAborted(signal);
+        }
+        if (ids.length !== 2) {
+            report.error("parse-error", "E_SECTIONS_BAD_LINE", "expected two node ids", { line });
+            report.counts.skippedEdges++;
+            return;
+        }
+        try {
+            sink.addEdge(ids[0], ids[1]);
+            report.counts.edges++;
+        } catch (err) {
+            report.recordError(err, { line }); // rethrows anything that is not a problem with this edge
+            report.counts.skippedEdges++;
+        }
+    });
+    throwIfAborted(signal);
     return report.finish();
 }
 
@@ -619,7 +769,8 @@ export const sectionsImporter: GraphImporter<GraphChoiceOptions> = {
 
     // one graph: the one graphIndex or graphName chooses, else the first
     async import(input, sink, options) {
-        const report = new ImportReportBuilder("sections", resolveImportOptions(options, DEFAULTS).errorLimit);
+        const opts = resolveImportOptions(options, DEFAULTS);
+        const report = new ImportReportBuilder("sections", opts.errorLimit);
         const sections = await readSections(input, options, report);
         const index = chooseGraph(
             sections.map((s) => s.name),
@@ -633,15 +784,16 @@ export const sectionsImporter: GraphImporter<GraphChoiceOptions> = {
                 `the file holds ${sections.length} graphs; read "${sections[index].name}"`,
             );
         }
-        return fill(sections[index], sink, report);
+        return fill(sections[index], sink, report, opts.signal);
     },
 
     // every graph, each into its own sink with its own report; importAllGraphs() calls this
     async importAll(input, sinkFor, options) {
-        const decoding = new ImportReportBuilder("sections", resolveImportOptions(options, DEFAULTS).errorLimit);
+        const opts = resolveImportOptions(options, DEFAULTS);
+        const decoding = new ImportReportBuilder("sections", opts.errorLimit);
         const sections = await readSections(input, options, decoding);
         // fork() starts each graph's report with what decoding recorded
-        return sections.map((s, i) => fill(s, sinkFor(i), decoding.fork()));
+        return sections.map((s, i) => fill(s, sinkFor(i), decoding.fork(), opts.signal));
     },
 };
 ```
@@ -751,7 +903,8 @@ cannot:
   one kind only, for a format that writes node attributes but not edge attributes, or the reverse.
 - `weights: false` for a format that writes no edge weights; a weighted graph gets a
   `W_WEIGHTS_DROPPED` note.
-- `roles`: the roles your format has a place for, such as `"label"`. With `attributes: false`
+- `roles`: the roles your format has a place for, such as `"label"`. They apply to node and edge
+  columns alike: `"label"` covers a node label and an edge label. With `attributes: false`
   those columns are still written, and their type is still checked against `dtypes`, so list the
   types of the role columns you write (pairs lists `"string"` for its labels). A column with any
   other role is written as a plain attribute and noted `W_ROLE_DROPPED`.
@@ -797,6 +950,7 @@ import {
     resolveExportOptions,
     resolveImportOptions,
     sanitizeIds,
+    throwIfAborted,
 } from "@graphty/graph-io";
 
 // The "numbers" format: node ids must be integers. With sanitizeIds: "mangle" the exporter numbers the other
@@ -865,31 +1019,51 @@ export const numbersImporter: GraphImporter = {
         const report = new ImportReportBuilder("numbers", opts.errorLimit);
         reportUnusedOptions(options, report, new Set(["restoreMangledIds"]));
         const nodeOf = new Map<string, string | number>(); // the id written in the file -> the node's id
-        for await (const text of new LineReader(input, report, opts)) {
+        const lines = new LineReader(input, report, opts);
+        for await (const text of lines) {
+            const { line } = lines;
+            if (line % 64 === 0) {
+                throwIfAborted(opts.signal);
+            }
             const [kind, a, ...rest] = text.trim().split(" ");
-            if (kind === "directed" || kind === "undirected") {
-                sink.setDirected(kind === "directed");
-            } else if (kind === "node") {
-                const original = rest.length > 0 ? (JSON.parse(rest.join(" ")) as string | number) : null;
-                // restoreMangledIds (on by default) gives the node its original id back
-                const id = original !== null && opts.restoreMangledIds ? original : Number(a);
-                nodeOf.set(a, id);
-                const index = sink.addNode(id);
-                if (original !== null && !opts.restoreMangledIds) {
-                    // keep the original as a plain attribute instead, so nothing is lost
-                    sink.setNodeValue(
-                        sink.declareNodeColumn({ name: "originalId", dtype: "string" }),
-                        index,
-                        String(original),
+            try {
+                if (kind === "directed" || kind === "undirected") {
+                    sink.setDirected(kind === "directed");
+                } else if (kind === "node" && /^-?\d+$/.test(a ?? "")) {
+                    const original = rest.length > 0 ? (JSON.parse(rest.join(" ")) as string | number) : null;
+                    // restoreMangledIds (on by default) gives the node its original id back
+                    const id = original !== null && opts.restoreMangledIds ? original : Number(a);
+                    nodeOf.set(a, id);
+                    const index = sink.addNode(id);
+                    if (original !== null && !opts.restoreMangledIds) {
+                        // keep the original where every format keeps it, so nothing is lost
+                        const column = sink.declareNodeColumn({
+                            name: "graphty.originalId",
+                            dtype: "string",
+                            role: "originalId",
+                        });
+                        sink.setNodeValue(column, index, String(original));
+                    }
+                    report.counts.nodes++;
+                } else if (kind === "edge" && rest.length === 1 && nodeOf.has(a) && nodeOf.has(rest[0])) {
+                    // an edge names nodes by their written ids: look up the id each node was given
+                    sink.addEdge(nodeOf.get(a) ?? a, nodeOf.get(rest[0]) ?? rest[0]);
+                    report.counts.edges++;
+                } else if (text.trim() !== "") {
+                    report.error(
+                        "parse-error",
+                        "E_NUMBERS_BAD_LINE",
+                        "expected a node line or an edge between two nodes",
+                        {
+                            line,
+                        },
                     );
                 }
-                report.counts.nodes++;
-            } else if (kind === "edge") {
-                // an edge names nodes by their written ids: look up the id each node was given
-                sink.addEdge(nodeOf.get(a) ?? Number(a), nodeOf.get(rest[0]) ?? Number(rest[0]));
-                report.counts.edges++;
+            } catch (err) {
+                report.recordError(err, { line }); // rethrows anything that is not a problem with this line
             }
         }
+        throwIfAborted(opts.signal);
         return report.finish();
     },
 };
@@ -1009,8 +1183,35 @@ To keep a format away from the rest of your application, make a registry of your
 `createRegistry()` returns a new registry with every built-in format, and `new FormatRegistry()` an
 empty one. A registry has the same methods as the top-level functions: `importGraph()`,
 `loadFromUrl()`, `loadFromFile()`, `exportGraphToBytes()`, `checkExport()`, `listFormats()` and the
-rest. `downloadGraph()` is not one of them; [Saving graphs](../saving.md#uploads-and-downloads)
-shows the few lines that replace it.
+rest, `downloadGraph()` included.
+
+## Helpers by task
+
+Every helper is exported from `@graphty/graph-io`; the
+[API reference](../../api/generated/) has each signature.
+
+| To do this                                                  | Use                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Read text line by line                                      | `LineReader`                                                                                                                                                                                                                               |
+| Read the whole input as one string                          | `readText(input, report, options)`. Its options (`ReadOptions`) also take `declaredEncoding` (read the encoding a file declares), `allowEmpty`, `xml` (an XML format), `nulIsBinary` and `bomlessUtf16` (UTF-16 without a byte order mark) |
+| Read an XML format                                          | `tokenizeXml(textChunks(input, report, options), handler)`, with an `XmlHandler` of `start`, `end` and `text` callbacks; it throws `XmlSyntaxError`, with the line, for malformed XML                                                      |
+| Turn a string `head` into the bytes `sniff()` sees          | `headBytes()`                                                                                                                                                                                                                              |
+| Fill in and check the common options                        | `resolveImportOptions()`, `reportSinkOptions()`, `reportUnusedOptions()`                                                                                                                                                                   |
+| Turn id text into ids under the `ids` option                | `IdCoercer` (reports merged ids); `coerceIdText()` and `coerceId()` for one value                                                                                                                                                          |
+| Add edges whose direction can vary                          | `DirectionResolver`                                                                                                                                                                                                                        |
+| Read a weight                                               | `parseWeightText()`                                                                                                                                                                                                                        |
+| Type untyped text cells                                     | `TextCellWriter` per column; `inferTextDtype()` and `parseTextCell()` for one cell                                                                                                                                                         |
+| Declare a typed attribute the file names                    | `declareResolved()` (renames a clash to `<name>#2` and reports it); `declareCompanion()` for the original text of a date column                                                                                                            |
+| Choose one graph of several                                 | `chooseGraph()`                                                                                                                                                                                                                            |
+| Hand part of the work to another importer                   | `report.include(otherReport)`; see [Extending an existing format](./existing-format.md)                                                                                                                                                    |
+| Stop a cancelled import                                     | `throwIfAborted()`; `isAbortError()` to let a cancellation through a `catch`                                                                                                                                                               |
+| Describe what a file can hold, and check a graph against it | `capabilities()`, `checkCapabilities()`, `refusedSave()`                                                                                                                                                                                   |
+| Write ids a format restricts                                | `sanitizeIds()`                                                                                                                                                                                                                            |
+| Write each edge once, with its direction                    | `pairFolding()` (`foldMutual: true` writes a GEXF mutual edge once, as undirected)                                                                                                                                                         |
+| Write nesting                                               | `childrenCsr(snapshot)` gives each node's children from the parent column                                                                                                                                                                  |
+| Write weights and numbers                                   | `explicitWeights()`, `formatF32()`, `formatF64()`, `formatDecimal()`                                                                                                                                                                       |
+| Produce the output                                          | `encodeChunks()`, `joinText()`, `collectBytes()` (the chunks as one `Uint8Array`), `toReadableStream()`                                                                                                                                    |
+| Compare a MIME type with your list                          | `normalizeMimeType()`                                                                                                                                                                                                                      |
 
 ## Choosing codes
 

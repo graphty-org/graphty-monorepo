@@ -19,27 +19,6 @@ format graph-io reads and writes, so always give it bytes, never text.
 | Several graphs per file | yes (`importAllGraphs`) |
 | Lists its graphs        | yes (`listGraphs`)      |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | Value                              |
-| ----------------------------------------------- | ---------------------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | yes                                |
-| [`multiEdges`](./index.md#multiedges)           | yes                                |
-| [`selfLoops`](./index.md#selfloops)             | yes                                |
-| [`edgeIds`](./index.md#edgeids)                 | required                           |
-| [`idCharset`](./index.md#idcharset)             | integer                            |
-| [`dtypes`](./index.md#dtypes)                   | string, dict, f64, i32, bool, list |
-| [`components`](./index.md#components)           | no                                 |
-| [`lists`](./index.md#lists)                     | yes                                |
-| [`json`](./index.md#json)                       | no                                 |
-| [`defaults`](./index.md#defaults)               | no                                 |
-| [`options`](./index.md#options)                 | no                                 |
-| [`hierarchy`](./index.md#hierarchy)             | no                                 |
-| [`temporal`](./index.md#temporal)               | none                               |
-| [`graphAttributes`](./index.md#graphattributes) | yes                                |
-| [`positions`](./index.md#positions)             | yes                                |
-| [`viz`](./index.md#viz)                         | no                                 |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -133,10 +112,41 @@ What does not survive:
   (`W_CYS_TEXT_AS_EQUATION`).
 - A column named like one of Cytoscape's own (`SUID`, a `name` that is not text, or a name that
   differs from one only in case) is renamed `<name>#2` (`W_COLUMN_NAME_CHANGED`).
+- The per-element visual values of a session that graph-io read (the `graphics` column) are not
+  written back as visual values. They are written as an ordinary table column of JSON text, and
+  read back as `graphics#2`, because the reader makes its own `graphics` column from the view
+  (`W_COLUMN_NAME_CHANGED`). The same goes for `cytoscape.nestedNetwork` and the other columns the
+  reader makes. So a session read and saved again by graph-io loses its
+  per-element colors, shapes and sizes, and Cytoscape draws it with the session's style.
 - Edge ids are generated when the graph has none (`W_EDGE_IDS_GENERATED`).
 - Groups, styles and time columns are not written.
 - The archive is stored without compression, so it is larger than the same session saved by
   Cytoscape.
+
+<!-- generated:begin capabilities:cys -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | Value                              |
+| ----------------------------------------------- | ---------------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | yes                                |
+| [`multiEdges`](./index.md#multiedges)           | yes                                |
+| [`selfLoops`](./index.md#selfloops)             | yes                                |
+| [`edgeIds`](./index.md#edgeids)                 | required                           |
+| [`idCharset`](./index.md#idcharset)             | integer                            |
+| [`dtypes`](./index.md#dtypes)                   | string, dict, f64, i32, bool, list |
+| [`components`](./index.md#components)           | no                                 |
+| [`lists`](./index.md#lists)                     | yes                                |
+| [`json`](./index.md#json)                       | no                                 |
+| [`defaults`](./index.md#defaults)               | no                                 |
+| [`options`](./index.md#options)                 | no                                 |
+| [`hierarchy`](./index.md#hierarchy)             | no                                 |
+| [`temporal`](./index.md#temporal)               | none                               |
+| [`graphAttributes`](./index.md#graphattributes) | yes                                |
+| [`positions`](./index.md#positions)             | yes                                |
+| [`viz`](./index.md#viz)                         | no                                 |
+
+<!-- generated:end -->
 
 <!-- generated:begin reference:cys -->
 

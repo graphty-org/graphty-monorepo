@@ -20,27 +20,6 @@ tools that only read version 1.
 | Several graphs per file | yes (`importAllGraphs`) |
 | Lists its graphs        | yes (`listGraphs`)      |
 
-What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
-
-| Capability                                      | Value                  |
-| ----------------------------------------------- | ---------------------- |
-| [`mixedDirection`](./index.md#mixeddirection)   | no                     |
-| [`multiEdges`](./index.md#multiedges)           | yes                    |
-| [`selfLoops`](./index.md#selfloops)             | yes                    |
-| [`edgeIds`](./index.md#edgeids)                 | required               |
-| [`idCharset`](./index.md#idcharset)             | integer                |
-| [`dtypes`](./index.md#dtypes)                   | string, f64, i32, bool |
-| [`components`](./index.md#components)           | no                     |
-| [`lists`](./index.md#lists)                     | yes                    |
-| [`json`](./index.md#json)                       | no                     |
-| [`defaults`](./index.md#defaults)               | no                     |
-| [`options`](./index.md#options)                 | no                     |
-| [`hierarchy`](./index.md#hierarchy)             | yes                    |
-| [`temporal`](./index.md#temporal)               | none                   |
-| [`graphAttributes`](./index.md#graphattributes) | yes                    |
-| [`positions`](./index.md#positions)             | yes                    |
-| [`viz`](./index.md#viz)                         | no                     |
-
 <!-- generated:end -->
 
 ## Loading and saving
@@ -105,7 +84,7 @@ both open: one network with at most one view.
 - Positions come from the subnetwork's view, with y negated so it points up; other views become
   `position@2`, `position@3`, ... columns.
 - `cyGroups` become a parent column. A group whose id is not a node gets a node
-  (`W_CX_GROUP_NODE_ADDED`).
+  (`W_CX_GROUP_NODE_ADDED`), which `snapshot.nodeCount` counts.
 - Per-element visual properties become one column per property. Style rules are kept in the
   snapshot's metadata and written back, but not applied (`W_STYLES_NOT_IMPORTED`).
 - Citations and supports become the tables `cx:citations` and `cx:supports` in
@@ -130,6 +109,31 @@ What does not survive:
 - Edge ids are generated when the graph has none (`W_EDGE_IDS_GENERATED`).
 
 A file read from CX gets its citations, supports, style rules and other aspects back.
+
+<!-- generated:begin capabilities:cx -->
+
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
+
+| Capability                                      | Value                  |
+| ----------------------------------------------- | ---------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | no                     |
+| [`multiEdges`](./index.md#multiedges)           | yes                    |
+| [`selfLoops`](./index.md#selfloops)             | yes                    |
+| [`edgeIds`](./index.md#edgeids)                 | required               |
+| [`idCharset`](./index.md#idcharset)             | integer                |
+| [`dtypes`](./index.md#dtypes)                   | string, f64, i32, bool |
+| [`components`](./index.md#components)           | no                     |
+| [`lists`](./index.md#lists)                     | yes                    |
+| [`json`](./index.md#json)                       | no                     |
+| [`defaults`](./index.md#defaults)               | no                     |
+| [`options`](./index.md#options)                 | no                     |
+| [`hierarchy`](./index.md#hierarchy)             | yes                    |
+| [`temporal`](./index.md#temporal)               | none                   |
+| [`graphAttributes`](./index.md#graphattributes) | yes                    |
+| [`positions`](./index.md#positions)             | yes                    |
+| [`viz`](./index.md#viz)                         | no                     |
+
+<!-- generated:end -->
 
 <!-- generated:begin reference:cx -->
 
@@ -195,7 +199,7 @@ The codes this format's import report can hold. They are also exported as `CX_IS
 - `E_GRAPH_NOT_FOUND` (error): `graphIndex` or `graphName` matches no subnetwork. The import stops.
 - `E_AMBIGUOUS_GRAPH_NAME` (error): `graphName` matches several subnetworks. The import stops.
 - `E_NO_GRAPH` (error): The input holds no graph. The import stops.
-- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.
+- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example two attributes declared with the same name.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.
 - `W_DIRECTION_REFUSED` (warning): You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.
 - `W_DIRECTION_FORCED` (warning): Edges of the other direction were read with the direction `onMixedDirection` chose.

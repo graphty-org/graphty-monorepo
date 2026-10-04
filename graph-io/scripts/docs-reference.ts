@@ -671,11 +671,10 @@ function matrixBlock(ctx: Context): string[] {
 
 /**
  * A format's "At a glance" block.
- * @param ctx - the context
  * @param f - the format
  * @returns the markdown lines
  */
-function glanceBlock(ctx: Context, f: FormatFacts): string[] {
+function glanceBlock(f: FormatFacts): string[] {
     const imp = f.importer;
     const out = table(
         ["", ""],
@@ -690,14 +689,23 @@ function glanceBlock(ctx: Context, f: FormatFacts): string[] {
             ["Lists its graphs", imp?.listGraphs === undefined ? "no" : "yes (`listGraphs`)"],
         ],
     );
+    return out;
+}
+
+/**
+ * A format's capabilities table: what a saved file can hold.
+ * @param ctx - the context
+ * @param f - the format
+ * @returns the markdown lines
+ */
+function capabilitiesBlock(ctx: Context, f: FormatFacts): string[] {
     if (f.exporter === undefined) {
-        return out;
+        return ["This format is read only."];
     }
-    out.push(
-        "",
+    const out = [
         "What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):",
         "",
-    );
+    ];
     const fields = [...ctx.capabilityDocs.keys()];
     if (f.name === "json" && ctx.jsonDialects.length > 0) {
         out.push(
@@ -1022,7 +1030,7 @@ const SINK_METHODS: readonly (readonly [string, string])[] = [
     ["addNode", "Adds a node, or finds the node with this id. Returns its index."],
     [
         "addEdge",
-        "Adds an edge between two node ids and returns its index. A node the graph does not have yet is created, unless `addMissingNodes` is false. In an importer, add edges through `DirectionResolver.addEdge()` instead, which calls this.",
+        "Adds an edge between two node ids, in the direction set with `setDirected()`, and returns its index. A node the graph does not have yet is created, unless `addMissingNodes` is false. Call it directly when your format always has one direction; when a file's edges carry their own direction, or `defaultDirected` and `onMixedDirection` should apply, add edges through `DirectionResolver.addEdge()`, which calls this.",
     ],
     ["setEdgeWeight", "Sets the weight of an edge already added."],
     ["setDirected", "Sets whether the graph is directed. `DirectionResolver.setHeader()` calls it for you."],
@@ -1160,9 +1168,9 @@ function plan(formats: readonly string[]): PagePlan {
         ["guide/formats/index.md", ["matrix"]],
     ]);
     for (const f of formats) {
-        pages.set(`guide/formats/${f}.md`, [`glance:${f}`, `reference:${f}`]);
+        pages.set(`guide/formats/${f}.md`, [`glance:${f}`, `capabilities:${f}`, `reference:${f}`]);
     }
-    pages.set("guide/formats/csv.md", ["glance:csv", "headers:csv", "reference:csv"]);
+    pages.set("guide/formats/csv.md", ["glance:csv", "capabilities:csv", "headers:csv", "reference:csv"]);
     pages.set("guide/extending/new-format.md", ["sink"]);
     return pages;
 }
@@ -1179,6 +1187,11 @@ function skeleton(name: string): string {
         "## At a glance",
         "",
         `<!-- generated:begin glance:${name} -->`,
+        END,
+        "",
+        "## What a saved file keeps and loses",
+        "",
+        `<!-- generated:begin capabilities:${name} -->`,
         END,
         "",
         `<!-- generated:begin reference:${name} -->`,
@@ -1261,7 +1274,12 @@ function render(ctx: Context, block: string): string {
             return matrixBlock(ctx).join("\n");
         case "glance":
             if (f !== undefined) {
-                return glanceBlock(ctx, f).join("\n");
+                return glanceBlock(f).join("\n");
+            }
+            break;
+        case "capabilities":
+            if (f !== undefined) {
+                return capabilitiesBlock(ctx, f).join("\n");
             }
             break;
         case "reference":

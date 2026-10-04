@@ -1,7 +1,7 @@
-import { ColorPickerPanel, ComboInput, QuickActions, VariablePill } from "@graphty/compact-mantine";
+import { ColorPickerPanel, ComboInput, FieldRow, QuickActions, VariablePill } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { ChannelValue, LayerId } from "@graphty/graphty-element/schema";
-import { ActionIcon, Button, Checkbox, ColorSwatch, Group, Popover, Select, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, ColorSwatch, Popover, Select, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDebouncedCallback } from "@mantine/hooks";
 import { Link2, Minus } from "lucide-react";
 import React, { useState } from "react";
@@ -9,8 +9,18 @@ import React, { useState } from "react";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { FromDataList } from "./FromDataList";
-import { type DataBinding, type DataChoice, type Line, propose, removeLine, sourceName, writeLine } from "./row";
-import { bindLabel, bindsAtRest, enumWords } from "./words";
+import {
+    type DataBinding,
+    type DataChoice,
+    type Line,
+    propose,
+    readsNothing,
+    removeLine,
+    sourceName,
+    startingValue,
+    writeLine,
+} from "./row";
+import { bindLabel, bindsAtRest, channelWord, enumWords, paletteWord } from "./words";
 
 /** Props for SetLine. */
 interface SetLineProps {
@@ -60,9 +70,10 @@ export function SetLine({ descriptor, line, row, documentColors }: SetLineProps)
     if (session === null) {
         return null;
     }
-    const { channel, shortName, target } = descriptor;
+    const { channel, target } = descriptor;
+    const name = channelWord(channel);
     const fail = (): void => {
-        store.set({ notice: { message: `${shortName} could not be changed` } });
+        store.set({ notice: { message: `${name} could not be changed` } });
     };
     const write = (next: { value: ChannelValue } | { binding: DataBinding }): void => {
         writeLine(session, row, target, channel, next).catch(fail);
@@ -77,7 +88,7 @@ export function SetLine({ descriptor, line, row, documentColors }: SetLineProps)
         removeLine(session, line.layer, channel).then(() => {
             store.set({
                 notice: {
-                    message: `Removed ${shortName}`,
+                    message: `Removed ${name}`,
                     action: {
                         label: "Undo",
                         run: () => {
@@ -89,63 +100,75 @@ export function SetLine({ descriptor, line, row, documentColors }: SetLineProps)
         }, fail);
     };
 
-    return (
-        <Group gap={4} h={24} wrap="nowrap" data-line={channel}>
-            <Text size="xs" w={88} truncate style={{ flexShrink: 0 }}>
-                {shortName}
-            </Text>
-            <div style={{ flex: 1, minWidth: 0 }}>
-                {line.binding === undefined ? (
-                    <ValueEditor descriptor={descriptor} value={line.value} documentColors={documentColors} write={write} />
-                ) : (
-                    <BoundValue
-                        descriptor={descriptor}
-                        binding={line.binding}
-                        write={write}
-                        bind={bind}
+    const bindIcon =
+        bindsAtRest(descriptor) && line.binding === undefined ? (
+            <Popover opened={binding} onChange={setBinding} position="left-start" trapFocus>
+                <Popover.Target>
+                    <Tooltip label={bindLabel(descriptor)}>
+                        <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label={bindLabel(descriptor)}
+                            aria-pressed={false}
+                            onClick={() => {
+                                setBinding(!binding);
+                            }}
+                        >
+                            <Link2 size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                </Popover.Target>
+                <Popover.Dropdown p={0}>
+                    <FromDataList
+                        target={target}
+                        channel={channel}
+                        onPick={(choice) => {
+                            setBinding(false);
+                            bind(choice);
+                        }}
+                        onClose={() => {
+                            setBinding(false);
+                        }}
                     />
-                )}
-            </div>
-            {bindsAtRest(descriptor) && line.binding === undefined ? (
-                <Popover opened={binding} onChange={setBinding} position="left-start" trapFocus>
-                    <Popover.Target>
-                        <Tooltip label={bindLabel(descriptor)}>
-                            <ActionIcon
-                                variant="subtle"
-                                size="sm"
-                                aria-label={bindLabel(descriptor)}
-                                aria-pressed={false}
-                                onClick={() => {
-                                    setBinding(!binding);
-                                }}
-                            >
-                                <Link2 size={14} aria-hidden />
-                            </ActionIcon>
-                        </Tooltip>
-                    </Popover.Target>
-                    <Popover.Dropdown p={0}>
-                        <FromDataList
-                            target={target}
-                            channel={channel}
-                            onPick={(choice) => {
-                                setBinding(false);
-                                bind(choice);
-                            }}
-                            onClose={() => {
-                                setBinding(false);
-                            }}
+                </Popover.Dropdown>
+            </Popover>
+        ) : null;
+
+    // compact-mantine's panel row: the name in the 88 px column, the value beside it, "-" in the
+    // trailing slot.
+    return (
+        <FieldRow
+            data-line={channel}
+            trailing={
+                line.layer.locked ? null : (
+                    <Tooltip label={`Remove ${name}`}>
+                        <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${name}`} onClick={remove}>
+                            <Minus size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                )
+            }
+        >
+            <Text size="xs" truncate>
+                {name}
+            </Text>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, width: "100%", minWidth: 0 }}>
+                <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                    {line.binding === undefined ? (
+                        <ValueEditor descriptor={descriptor} value={line.value} documentColors={documentColors} write={write} />
+                    ) : (
+                        <BoundValue
+                            descriptor={descriptor}
+                            layer={line.layer}
+                            binding={line.binding}
+                            write={write}
+                            bind={bind}
                         />
-                    </Popover.Dropdown>
-                </Popover>
-            ) : null}
-            {line.layer.locked ? null : (
-                <Tooltip label={`Remove ${shortName}`}>
-                    <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${shortName}`} onClick={remove}>
-                        <Minus size={14} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
-            )}
-        </Group>
+                    )}
+                </div>
+                {bindIcon}
+            </div>
+        </FieldRow>
     );
 }
 
@@ -154,6 +177,7 @@ export function SetLine({ descriptor, line, row, documentColors }: SetLineProps)
  * Binding popover and detaches.
  * @param props - Component props
  * @param props.descriptor - the property
+ * @param props.layer - the layer that holds the binding
  * @param props.binding - the binding
  * @param props.write - writes the line
  * @param props.bind - binds the line to another attribute or result
@@ -161,11 +185,13 @@ export function SetLine({ descriptor, line, row, documentColors }: SetLineProps)
  */
 function BoundValue({
     descriptor,
+    layer,
     binding,
     write,
     bind,
 }: {
     descriptor: ChannelDescriptor;
+    layer: Line["layer"];
     binding: DataBinding;
     write: (next: { value: ChannelValue } | { binding: DataBinding }) => void;
     bind: (choice: DataChoice) => void;
@@ -175,12 +201,15 @@ function BoundValue({
     if (session === null) {
         return null;
     }
-    const source = sourceName(session, binding);
+    const name = channelWord(descriptor.channel);
+    // Whether the path answers is graphty-element's call (its validate), not a search of the data.
+    const unresolved = readsNothing(session, descriptor.target, descriptor.channel, binding);
+    const source = sourceName(session, binding) ?? binding.by;
     const palette =
         binding.palette === undefined ? undefined : session.catalog.palettes().find((p) => p.id === binding.palette);
     // Never empty, so two lines reading one source never share an accessible name.
-    let detail = palette?.plainName ?? descriptor.shortName;
-    if (source === null) {
+    let detail = palette === undefined ? name : paletteWord(palette.id);
+    if (unresolved) {
         detail = "reads nothing";
     } else if (binding.range !== undefined) {
         detail = `${String(binding.range[0])} to ${String(binding.range[1])}`;
@@ -194,7 +223,7 @@ function BoundValue({
     }
     const detach = (): void => {
         setOpen(false);
-        write({ value: descriptor.default ?? (descriptor.accepts === "color" ? "#808080" : 1) });
+        write({ value: startingValue(descriptor) });
     };
 
     return (
@@ -202,11 +231,11 @@ function BoundValue({
             <Popover.Target>
                 <div>
                     <VariablePill
-                        name={source ?? binding.by}
+                        name={source}
                         value={detail}
                         swatch={swatch}
                         width="100%"
-                        detachLabel={`Detach ${descriptor.shortName}`}
+                        detachLabel={`Detach ${name}`}
                         onDetach={detach}
                         onClick={() => {
                             setOpen(true);
@@ -217,8 +246,9 @@ function BoundValue({
             <Popover.Dropdown>
                 <BindingPopover
                     descriptor={descriptor}
+                    layerId={layer.id}
                     binding={binding}
-                    source={source ?? binding.by}
+                    source={source}
                     onChange={(next) => {
                         write({ binding: next });
                     }}
@@ -254,17 +284,17 @@ function ValueEditor({
     documentColors: readonly string[];
     write: (next: { value: ChannelValue }) => void;
 }): React.JSX.Element {
-    const { shortName } = descriptor;
+    const label = channelWord(descriptor.channel);
     switch (descriptor.accepts) {
         case "color":
-            return <ColorValue name={shortName} value={value} documentColors={documentColors} write={write} />;
+            return <ColorValue name={label} value={value} documentColors={documentColors} write={write} />;
         case "enum":
             return descriptor.channel === "node.shape" ? (
                 <ShapeValue descriptor={descriptor} value={value} write={write} />
             ) : (
                 <Select
                     size="xs"
-                    aria-label={shortName}
+                    aria-label={label}
                     value={typeof value === "string" ? value : null}
                     data={(descriptor.values ?? []).map((v) => ({ value: v, label: enumWords(v) }))}
                     allowDeselect={false}
@@ -279,7 +309,8 @@ function ValueEditor({
         case "number":
             return (
                 <ComboInput
-                    label={shortName}
+                    label={label}
+                    width="100%"
                     numeric
                     options={[]}
                     value={typeof value === "number" ? value : undefined}
@@ -297,7 +328,7 @@ function ValueEditor({
             return (
                 <Checkbox
                     size="xs"
-                    aria-label={shortName}
+                    aria-label={label}
                     checked={value === true}
                     onChange={(event) => {
                         write({ value: event.currentTarget.checked });
@@ -307,8 +338,10 @@ function ValueEditor({
         default:
             return (
                 <TextInput
+                    // Keyed by the value, so Undo, Redo or another edit of the line shows the new text.
+                    key={typeof value === "string" ? value : ""}
                     size="xs"
-                    aria-label={shortName}
+                    aria-label={label}
                     defaultValue={typeof value === "string" ? value : ""}
                     onBlur={(event) => {
                         if (event.currentTarget.value !== value) {
@@ -360,6 +393,16 @@ function ColorValue({
                     variant="subtle"
                     color="dark"
                     aria-label={`${name} ${color.hex} ${String(color.percent)}%`}
+                    title={`${color.hex} ${String(color.percent)}%`}
+                    fullWidth
+                    justify="flex-start"
+                    // The value column is narrow beside the bind icon: the text ends in an ellipsis
+                    // and the whole value is the title.
+                    styles={{
+                        root: { maxWidth: "100%" },
+                        inner: { justifyContent: "flex-start", minWidth: 0 },
+                        label: { overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, display: "block" },
+                    }}
                     leftSection={<ColorSwatch color={color.hexa} size={12} />}
                 >
                     {color.hex} {color.percent}%
@@ -406,7 +449,7 @@ function ShapeValue({
                     size="compact-xs"
                     variant="subtle"
                     color="dark"
-                    aria-label={`${descriptor.shortName} ${enumWords(current)}`}
+                    aria-label={`${channelWord(descriptor.channel)} ${enumWords(current)}`}
                     onClick={() => {
                         setOpen(!open);
                     }}

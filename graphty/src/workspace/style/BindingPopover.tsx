@@ -1,12 +1,16 @@
-import { CompactColorInput, StyleNumberInput } from "@graphty/compact-mantine";
-import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import { ComboInput, CompactColorInput, StyleNumberInput } from "@graphty/compact-mantine";
+import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
+import type { LayerId } from "@graphty/graphty-element/schema";
 import { Button, Checkbox, CloseButton, Group, Select, Stack, Text } from "@mantine/core";
 import React, { useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FromDataList } from "./FromDataList";
-import type { DataBinding, DataChoice } from "./row";
-import { enumWords } from "./words";
+import { type DataBinding, type DataChoice, startingValue } from "./row";
+import { channelWord, enumWords, paletteWord } from "./words";
+
+/** What `toColorValue` reads. */
+type ColorInput = Parameters<typeof toColorValue>[0];
 
 /**
  * The lists stay inside the popover, so picking from one is not a click outside that closes the
@@ -31,6 +35,8 @@ const SCALE_WORDS: Readonly<Record<string, string>> = {
 interface BindingPopoverProps {
     /** The bound property. */
     descriptor: ChannelDescriptor;
+    /** The layer that holds the binding, whose legend says what extent the data had. */
+    layerId: LayerId;
     /** The binding as the layer holds it. */
     binding: DataBinding;
     /** What the binding reads, in words. */
@@ -51,6 +57,7 @@ interface BindingPopoverProps {
  * click outside all keep it.
  * @param props - Component props
  * @param props.descriptor - the bound property
+ * @param props.layerId - the layer that holds the binding
  * @param props.binding - the binding
  * @param props.source - what it reads, in words
  * @param props.onChange - writes a changed binding
@@ -61,6 +68,7 @@ interface BindingPopoverProps {
  */
 export function BindingPopover({
     descriptor,
+    layerId,
     binding,
     source,
     onChange,
@@ -87,15 +95,20 @@ export function BindingPopover({
     const palettes = session.catalog
         .palettes()
         .filter((p) => (categorical ? p.kind === "categorical" : p.kind !== "categorical"))
-        .map((p) => ({ value: p.id, label: p.plainName }));
+        .map((p) => ({ value: p.id, label: paletteWord(p.id) }));
     const numeric = !categorical && (isColor || isNumber);
     const missing = binding.missing ?? "skip";
+    const name = channelWord(descriptor.channel);
+    // The extent the element read the values against, from its legend for this layer and channel.
+    const extent = session.styles
+        .legend()
+        .find((block) => block.layerId === layerId && block.channel === descriptor.channel)?.domain;
 
     return (
-        <Stack gap={8} w={240} role="group" aria-label={`${descriptor.shortName} binding`}>
+        <Stack gap={8} w={240} role="group" aria-label={`${name} binding`}>
             <Group justify="space-between" wrap="nowrap">
                 <Text size="xs" fw={600}>
-                    {descriptor.shortName} from data
+                    {name} from data
                 </Text>
                 <CloseButton size="sm" aria-label="Close binding" onClick={onClose} />
             </Group>
@@ -145,7 +158,7 @@ export function BindingPopover({
                 <Select
                     size="xs"
                     label="Palette"
-                    placeholder="Chosen by the element"
+                    placeholder="Automatic"
                     value={binding.palette ?? null}
                     data={palettes}
                     allowDeselect={false}
@@ -165,32 +178,9 @@ export function BindingPopover({
                     }}
                 />
             ) : null}
-            {isNumber ? (
-                <Group grow gap={8} role="group" aria-label="Range">
-                    <StyleNumberInput
-                        label="From"
-                        value={binding.range?.[0]}
-                        defaultValue={binding.range?.[0] ?? 0}
-                        min={descriptor.min}
-                        max={descriptor.max}
-                        onChange={(low) => {
-                            patch({ range: [low ?? 0, binding.range?.[1] ?? 1] });
-                        }}
-                    />
-                    <StyleNumberInput
-                        label="To"
-                        value={binding.range?.[1]}
-                        defaultValue={binding.range?.[1] ?? 1}
-                        min={descriptor.min}
-                        max={descriptor.max}
-                        onChange={(high) => {
-                            patch({ range: [binding.range?.[0] ?? 0, high ?? 1] });
-                        }}
-                    />
-                </Group>
-            ) : null}
+            {isNumber ? <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} /> : null}
             {numeric ? (
-                <ValuesFrom binding={binding} patch={patch} />
+                <ValuesFrom binding={binding} extent={extent} patch={patch} />
             ) : null}
             {isColor || isNumber ? (
                 <NoValue descriptor={descriptor} missing={missing} patch={patch} />
@@ -203,17 +193,72 @@ export function BindingPopover({
 }
 
 /**
- * Values from: the data's own extent, or two numbers the reader types.
+ * The range a size reads into. Both ends are written together, once the reader has given both:
+ * with no range on the binding (a run's result, #915) one end alone would leave the other to be
+ * made up here.
+ * @param props - Component props
+ * @param props.descriptor - the bound property
+ * @param props.range - the binding's range, if it has one
+ * @param props.patch - writes a change
+ * @returns The two fields
+ */
+function Range({
+    descriptor,
+    range,
+    patch,
+}: {
+    descriptor: ChannelDescriptor;
+    range: DataBinding["range"];
+    patch: (change: Partial<DataBinding>) => void;
+}): React.JSX.Element {
+    const [draft, setDraft] = useState<readonly [number | undefined, number | undefined]>(range ?? [undefined, undefined]);
+    const set = (index: 0 | 1, value: string | number): void => {
+        const next: [number | undefined, number | undefined] = [draft[0], draft[1]];
+        next[index] = typeof value === "number" ? value : undefined;
+        setDraft(next);
+        const [low, high] = next;
+        if (low !== undefined && high !== undefined) {
+            patch({ range: [low, high] });
+        }
+    };
+    return (
+        <Group grow gap={8} role="group" aria-label="Range">
+            {(["From", "To"] as const).map((label, index) => (
+                <ComboInput
+                    key={label}
+                    label={label}
+                    numeric
+                    options={[]}
+                    placeholder="Not set"
+                    value={draft[index]}
+                    min={descriptor.min}
+                    max={descriptor.max}
+                    onChange={(value) => {
+                        set(index === 0 ? 0 : 1, value);
+                    }}
+                />
+            ))}
+        </Group>
+    );
+}
+
+/**
+ * Values from: the data's own extent, or two numbers the reader types. Typing starts from the
+ * extent the element read, so the ramp does not jump; with no extent reported there is nothing to
+ * start from and the choice stays with the data.
  * @param props - Component props
  * @param props.binding - the binding
+ * @param props.extent - the extent the element read the values against, if it reports one
  * @param props.patch - writes a change
  * @returns The control
  */
 function ValuesFrom({
     binding,
+    extent,
     patch,
 }: {
     binding: DataBinding;
+    extent: { readonly min: number; readonly max: number } | undefined;
     patch: (change: Partial<DataBinding>) => void;
 }): React.JSX.Element {
     const domain = Array.isArray(binding.domain) ? binding.domain : null;
@@ -223,8 +268,13 @@ function ValuesFrom({
                 size="xs"
                 label="Values from the data"
                 checked={domain === null}
+                disabled={domain === null && extent === undefined}
                 onChange={(event) => {
-                    patch({ domain: event.currentTarget.checked ? undefined : [0, 1] });
+                    if (event.currentTarget.checked) {
+                        patch({ domain: undefined });
+                    } else if (extent !== undefined) {
+                        patch({ domain: [extent.min, extent.max] });
+                    }
                 }}
             />
             {domain === null ? null : (
@@ -234,7 +284,7 @@ function ValuesFrom({
                         value={domain[0]}
                         defaultValue={domain[0]}
                         onChange={(low) => {
-                            patch({ domain: [low ?? 0, domain[1]] });
+                            patch({ domain: [low ?? domain[0], domain[1]] });
                         }}
                     />
                     <StyleNumberInput
@@ -242,7 +292,7 @@ function ValuesFrom({
                         value={domain[1]}
                         defaultValue={domain[1]}
                         onChange={(high) => {
-                            patch({ domain: [domain[0], high ?? 1] });
+                            patch({ domain: [domain[0], high ?? domain[1]] });
                         }}
                     />
                 </Group>
@@ -269,15 +319,19 @@ function NoValue({
     patch: (change: Partial<DataBinding>) => void;
 }): React.JSX.Element {
     const given = missing === "skip" ? null : missing.value;
+    // One value starts where a new line of this property would: the element's default for it.
+    const raw = startingValue(descriptor);
+    const start: string | number =
+        typeof raw === "number" || typeof raw === "string" ? raw : (toColorValue(raw as ColorInput)?.hex ?? "");
     let field: React.JSX.Element | null = null;
     if (given !== null && descriptor.accepts === "color") {
         field = (
             <CompactColorInput
                 label="Value"
                 color={typeof given === "string" ? given : undefined}
-                defaultColor="#808080"
+                defaultColor={String(start)}
                 onColorChange={(color) => {
-                    patch({ missing: { value: color ?? "#808080" } });
+                    patch({ missing: { value: color ?? start } });
                 }}
             />
         );
@@ -286,11 +340,11 @@ function NoValue({
             <StyleNumberInput
                 label="Value"
                 value={typeof given === "number" ? given : undefined}
-                defaultValue={0}
+                defaultValue={Number(start)}
                 min={descriptor.min}
                 max={descriptor.max}
                 onChange={(value) => {
-                    patch({ missing: { value: value ?? 0 } });
+                    patch({ missing: { value: value ?? start } });
                 }}
             />
         );
@@ -308,8 +362,7 @@ function NoValue({
                     { value: "value", label: "Use one value" },
                 ]}
                 onChange={(choice) => {
-                    const fallback = descriptor.accepts === "color" ? "#808080" : (descriptor.min ?? 0);
-                    patch({ missing: choice === "value" ? { value: fallback } : "skip" });
+                    patch({ missing: choice === "value" ? { value: start } : "skip" });
                 }}
             />
             {field}

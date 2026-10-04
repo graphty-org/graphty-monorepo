@@ -1,4 +1,4 @@
-import { AlignmentMatrix } from "@graphty/compact-mantine";
+import { AlignmentMatrix, FieldRow } from "@graphty/compact-mantine";
 import type { LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Checkbox, Group, Popover, Stack, Text, Tooltip } from "@mantine/core";
@@ -7,7 +7,17 @@ import React, { useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FromDataList } from "./FromDataList";
-import { type DataChoice, lineOf, propose, removeLine, setBeneath, sourceName, type Target, writeLine } from "./row";
+import {
+    type DataChoice,
+    lineOf,
+    propose,
+    readsNothing,
+    removeLine,
+    setBeneath,
+    sourceName,
+    type Target,
+    writeLine,
+} from "./row";
 import { cellOfLocation, labelStatement, locationOfCell, positionWord } from "./words";
 
 /** Props for LabelSection. */
@@ -77,7 +87,16 @@ export function LabelSection({ target, row, layers }: LabelSectionProps): React.
         }
     };
     const position = positionWord(labelStyle.location);
-    const source = line?.binding === undefined ? null : sourceName(session, line.binding);
+    // What the line draws: the bound attribute's name, graphty-element's own "nothing answers this
+    // path", or the literal text the row writes.
+    let reads: string | null = null;
+    if (line?.binding !== undefined) {
+        reads = readsNothing(session, target, channel, line.binding)
+            ? "reads nothing"
+            : (sourceName(session, line.binding) ?? line.binding.by);
+    } else if (line !== undefined) {
+        reads = JSON.stringify(line.value) ?? "";
+    }
     const declutter = element?.layoutBehavior?.labels?.declutter === true;
 
     return (
@@ -118,55 +137,79 @@ export function LabelSection({ target, row, layers }: LabelSectionProps): React.
                 </Tooltip>
             </Group>
             {line === undefined && !empty ? null : (
-                <Group gap={4} h={24} wrap="nowrap" data-line={channel}>
-                    <Popover opened={positionOpen} onChange={setPositionOpen} position="left-start" trapFocus>
-                        <Popover.Target>
-                            <Tooltip label="Label position">
-                                <ActionIcon
-                                    variant="default"
-                                    size="sm"
-                                    aria-label="Label position"
-                                    onClick={() => {
-                                        setPositionOpen(!positionOpen);
-                                    }}
-                                >
-                                    <Text size="xs" component="span">
-                                        Aa
-                                    </Text>
-                                </ActionIcon>
-                            </Tooltip>
-                        </Popover.Target>
-                        <Popover.Dropdown>
-                            <AlignmentMatrix
-                                label="Label position"
-                                value={cellOfLocation(labelStyle.location)}
-                                onChange={(cell) => {
-                                    writeStyle({ location: locationOfCell(cell) });
+                <FieldRow
+                    data-line={channel}
+                    trailing={
+                        <Tooltip label="Remove label line">
+                            <ActionIcon
+                                variant="subtle"
+                                size="sm"
+                                aria-label="Remove label line"
+                                onClick={() => {
+                                    if (line === undefined) {
+                                        setEmpty(false);
+                                        return;
+                                    }
+                                    if (!line.layer.locked) {
+                                        removeLine(session, line.layer, channel).catch(fail);
+                                    }
                                 }}
-                            />
-                        </Popover.Dropdown>
-                    </Popover>
-                    <Text size="xs" w={52} style={{ flexShrink: 0 }}>
-                        {position}
-                    </Text>
+                            >
+                                <Minus size={14} aria-hidden />
+                            </ActionIcon>
+                        </Tooltip>
+                    }
+                >
+                    <Group gap={4} wrap="nowrap">
+                        <Popover opened={positionOpen} onChange={setPositionOpen} position="left-start" trapFocus>
+                            <Popover.Target>
+                                <Tooltip label="Label position">
+                                    <ActionIcon
+                                        variant="default"
+                                        size="sm"
+                                        aria-label="Label position"
+                                        onClick={() => {
+                                            setPositionOpen(!positionOpen);
+                                        }}
+                                    >
+                                        <Text size="xs" component="span">
+                                            Aa
+                                        </Text>
+                                    </ActionIcon>
+                                </Tooltip>
+                            </Popover.Target>
+                            <Popover.Dropdown>
+                                <AlignmentMatrix
+                                    label="Label position"
+                                    value={cellOfLocation(labelStyle.location)}
+                                    onChange={(cell) => {
+                                        writeStyle({ location: locationOfCell(cell) });
+                                    }}
+                                />
+                            </Popover.Dropdown>
+                        </Popover>
+                        <Text size="xs" truncate>
+                            {position}
+                        </Text>
+                    </Group>
                     <Popover opened={listOpen} onChange={setListOpen} position="left-start" trapFocus>
                         <Popover.Target>
                             <Button
                                 size="compact-xs"
                                 variant="subtle"
                                 color={line === undefined ? "gray" : "dark"}
-                                style={{ flex: 1, minWidth: 0 }}
+                                fullWidth
                                 justify="flex-start"
                                 aria-label={
                                     line === undefined
                                         ? `Label, ${position}: no attribute, draws nothing`
-                                        : `Label, ${position}: ${source ?? "reads nothing"}`
+                                        : `Label, ${position}: ${reads ?? ""}`
                                 }
                                 onClick={() => {
                                     setListOpen(!listOpen);
                                 }}
                             >
-                                {line === undefined ? "Pick an attribute" : `Abc ${source ?? "reads nothing"}`}
+                                {line === undefined ? "Pick an attribute" : `Abc ${reads ?? ""}`}
                             </Button>
                         </Popover.Target>
                         <Popover.Dropdown p={0}>
@@ -181,25 +224,7 @@ export function LabelSection({ target, row, layers }: LabelSectionProps): React.
                             />
                         </Popover.Dropdown>
                     </Popover>
-                    <Tooltip label="Remove label line">
-                        <ActionIcon
-                            variant="subtle"
-                            size="sm"
-                            aria-label="Remove label line"
-                            onClick={() => {
-                                if (line === undefined) {
-                                    setEmpty(false);
-                                    return;
-                                }
-                                if (!line.layer.locked) {
-                                    removeLine(session, line.layer, channel).catch(fail);
-                                }
-                            }}
-                        >
-                            <Minus size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                </Group>
+                </FieldRow>
             )}
             {line !== undefined && target === "node" && element !== null ? (
                 <Text size="xs" c="dimmed" pl={4} aria-live="polite">

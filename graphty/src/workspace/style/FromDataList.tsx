@@ -5,7 +5,7 @@ import type React from "react";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";
-import { matchesWordStart, refusalWords } from "./words";
+import { matchesWordStart, refusalWords, resultWord } from "./words";
 
 /** Props for FromDataList. */
 interface FromDataListProps {
@@ -72,12 +72,14 @@ export function FromDataList({
         if (run.status !== "succeeded") {
             continue;
         }
+        const primary = session.results.path(run.id);
         for (const field of run.fields) {
             if (field.kind === target) {
+                const path = session.results.path(run.id, field.name);
                 entries.push({
                     key: `result:${run.id}:${field.name}`,
-                    name: field.name,
-                    path: session.results.path(run.id, field.name),
+                    name: resultWord(run.label, field.name, path === primary),
+                    path,
                     section: run.label,
                     choice: { kind: "result", runId: run.id, field: field.name },
                 });
@@ -85,6 +87,10 @@ export function FromDataList({
         }
     }
 
+    // In use first, then the rest in the element's order, then what the property cannot take,
+    // under its reason. ponytail: the reason is a section heading because QuickActions has no
+    // second line per item (#934); move it onto the item's second line when it does.
+    const inUseItems: QuickAction[] = [];
     const usable: QuickAction[] = [];
     const refused: QuickAction[] = [];
     for (const entry of entries) {
@@ -92,17 +98,14 @@ export function FromDataList({
         if (proposal !== null && !proposal.ok) {
             refused.push({
                 value: entry.key,
-                label: `${entry.name} (${refusalWords(proposal.refusal)})`,
-                section: "Cannot be used",
+                label: entry.name,
+                section: `Cannot be used: ${refusalWords(proposal.refusal)}`,
                 disabled: true,
             });
-            continue;
-        }
-        const action = { value: entry.key, label: entry.name, section: entry.section };
-        if (inUse.includes(entry.path)) {
-            usable.unshift({ ...action, section: "In use" });
+        } else if (inUse.includes(entry.path)) {
+            inUseItems.push({ value: entry.key, label: entry.name, section: "In use" });
         } else {
-            usable.push(action);
+            usable.push({ value: entry.key, label: entry.name, section: entry.section });
         }
     }
 
@@ -112,7 +115,7 @@ export function FromDataList({
             placeholder="Find an attribute"
             width={240}
             height={320}
-            actions={[...usable, ...refused]}
+            actions={[...inUseItems, ...usable, ...refused]}
             filter={(action, query) => matchesWordStart(action.label, query)}
             onRun={(key) => {
                 const entry = entries.find((e) => e.key === key);

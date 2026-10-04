@@ -13,6 +13,8 @@ import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
 
+import { resultWord } from "./words";
+
 /** Which side of the Style tab: nodes or edges. */
 export type Target = "node" | "edge";
 
@@ -213,11 +215,31 @@ export function propose(
 }
 
 /**
- * The name of what a binding reads, for its line: the column's name, or the run's name with the
- * field when it is not the run's primary value.
+ * Whether graphty-element answers the path a binding reads: its own check of the binding
+ * (`styles.validate`), which reports a path nothing in the session answers. The app does not
+ * search the data for it.
+ * @param session - the element's session.
+ * @param target - nodes or edges.
+ * @param channel - the bound channel.
+ * @param binding - the binding.
+ * @returns true when the element reports the path unresolved.
+ */
+export function readsNothing(session: GraphSession, target: Target, channel: Channel, binding: DataBinding): boolean {
+    const check = session.styles.validate({
+        name: "check",
+        target,
+        selector: { match: "everything" },
+        encode: { [channel]: binding },
+    });
+    return check.unresolvedPaths.includes(binding.by);
+}
+
+/**
+ * The name of what a binding reads, for its line: the column's name, or the run's result in the
+ * app's words.
  * @param session - the element's session.
  * @param binding - the binding.
- * @returns the name, or null when nothing in the session answers the binding's path.
+ * @returns the name, or null when no column or run result of this session has the binding's path.
  */
 export function sourceName(session: GraphSession, binding: DataBinding): string | null {
     const column = session.data.attributes().find((attribute) => attribute.path === binding.by);
@@ -225,13 +247,10 @@ export function sourceName(session: GraphSession, binding: DataBinding): string 
         return column.name;
     }
     for (const run of session.runs.list()) {
-        // The element answers which field is the run's primary one: that one is named by the run.
-        if (session.results.path(run.id) === binding.by) {
-            return run.label;
-        }
+        const primary = session.results.path(run.id);
         const field = run.fields.find((f) => session.results.path(run.id, f.name) === binding.by);
-        if (field !== undefined) {
-            return `${run.label} ${field.name}`;
+        if (field !== undefined || primary === binding.by) {
+            return resultWord(run.label, field?.name ?? "", primary === binding.by);
         }
     }
     return null;

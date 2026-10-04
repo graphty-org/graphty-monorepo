@@ -6,8 +6,8 @@
  */
 
 import type { AlignmentMatrixValue } from "@graphty/compact-mantine";
-import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
-import type { LabelStyle } from "@graphty/graphty-element/schema";
+import type { ChannelDescriptor, KNOWN_PALETTE_IDS } from "@graphty/graphty-element/catalog";
+import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
 import type { CodedFact } from "@graphty/graphty-element/session";
 
 /** Where a label sits, as the element names it. */
@@ -81,7 +81,103 @@ export function bindsAtRest(descriptor: ChannelDescriptor): boolean {
  * @returns "Color by attribute", "Size by attribute", ...
  */
 export function bindLabel(descriptor: ChannelDescriptor): string {
-    return `${descriptor.shortName} by attribute`;
+    return `${channelWord(descriptor.channel)} by attribute`;
+}
+
+/**
+ * What each property is called on its line, in its menus and in its notices. The element names
+ * its channels by id only as far as the app is concerned; the words are the app's. Typed over the
+ * element's whole `Channel` union, so a channel the element adds fails the typecheck until it has
+ * a word here.
+ */
+const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
+    "node.color": "Color",
+    "node.size": "Size",
+    "node.shape": "Shape",
+    "node.label": "Label",
+    "node.labelStyle": "Label style",
+    "node.tooltip": "Tooltip",
+    "node.tooltipStyle": "Tooltip style",
+    "node.opacity": "Opacity",
+    "node.outline": "Outline",
+    "node.glow": "Glow",
+    "node.glowStrength": "Glow strength",
+    "node.wireframe": "Wireframe",
+    "node.flat": "Flat shading",
+    "node.marker": "Marker",
+    "edge.color": "Color",
+    "edge.width": "Width",
+    "edge.opacity": "Opacity",
+    "edge.style": "Pattern",
+    "edge.patternCount": "Pattern count",
+    "edge.curvature": "Curved",
+    "edge.arrowHead": "Head",
+    "edge.arrowHeadSize": "Head size",
+    "edge.arrowHeadColor": "Head color",
+    "edge.arrowHeadOpacity": "Head opacity",
+    "edge.arrowHeadText": "Head text",
+    "edge.arrowHeadTextStyle": "Head text style",
+    "edge.arrowTail": "Tail",
+    "edge.arrowTailSize": "Tail size",
+    "edge.arrowTailColor": "Tail color",
+    "edge.arrowTailOpacity": "Tail opacity",
+    "edge.arrowTailText": "Tail text",
+    "edge.arrowTailTextStyle": "Tail text style",
+    "edge.animationSpeed": "Animation speed",
+    "edge.label": "Label",
+    "edge.labelStyle": "Label style",
+};
+
+/**
+ * A property's name on its line.
+ * @param channel - the element's channel id.
+ * @returns "Color", "Shape", ...
+ */
+export function channelWord(channel: Channel): string {
+    return CHANNEL_WORDS[channel];
+}
+
+/** A palette's name, by the id the element publishes. Typed over the element's known ids. */
+const PALETTE_WORDS: Readonly<Record<(typeof KNOWN_PALETTE_IDS)[number], string>> = {
+    viridis: "Purple to yellow",
+    ylorbr: "Orange to brown",
+    plasma: "Blue to yellow",
+    inferno: "Black to yellow",
+    blues: "Shades of blue",
+    greens: "Shades of green",
+    oranges: "Shades of orange",
+    "okabe-ito": "Eight distinct colors",
+    "tol-vibrant": "Seven bright colors",
+    "tol-muted": "Nine soft colors",
+    pastel: "Eight pale colors",
+    carbon: "Five strong colors",
+    "purple-green": "Purple to green",
+    "blue-orange": "Blue to orange",
+    "red-blue": "Red to blue",
+    "blue-highlight": "Blue highlight",
+    "green-highlight": "Green highlight",
+    "orange-highlight": "Orange highlight",
+};
+
+/**
+ * A palette's name. A palette a document brings that the app has no word for is named from its id.
+ * @param id - the palette's id.
+ * @returns the words.
+ */
+export function paletteWord(id: string): string {
+    return (PALETTE_WORDS as Readonly<Record<string, string>>)[id] ?? enumWords(id);
+}
+
+/**
+ * A run result's name in the From data list and on a bound line: the run's own name for the field
+ * the run is read by, else the field in words after it.
+ * @param runLabel - the run's name, as its row is called.
+ * @param field - the field's id.
+ * @param primary - whether it is the field the run is read by.
+ * @returns "PageRank", "Degree in degree", ...
+ */
+export function resultWord(runLabel: string, field: string, primary: boolean): string {
+    return primary ? runLabel : `${runLabel} ${enumWords(field).toLowerCase()}`;
 }
 
 /**

@@ -2,7 +2,7 @@ import { SegmentedControl } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Group, Indicator, Menu, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Group, Indicator, Menu, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
 import { Plus } from "lucide-react";
 import React, { useState } from "react";
 
@@ -11,7 +11,7 @@ import { LabelSection } from "./LabelSection";
 import { everythingRow, lineOf, rowLayers, startingValue, type Target, writeLine } from "./row";
 import { SetLine } from "./SetLine";
 import { useStyleVersion } from "./useStyleVersion";
-import { isLineChannel, SECTIONS, type StyleSection } from "./words";
+import { channelWord, isLineChannel, SECTIONS, type StyleSection } from "./words";
 
 /** Props for StyleTab. */
 interface StyleTabProps {
@@ -23,13 +23,18 @@ interface StyleTabProps {
 }
 
 /**
- * The row the Style tab edits when the caller names none.
+ * The row the Style tab edits when the caller names none: the Everything row while nothing with
+ * an id is inspected, the inspected layer, and nothing at all for anything else (a run, a group),
+ * so an edit never lands on a row the reader is not looking at.
  * @param session - the element's session.
  * @param inspected - the inspected id, if any.
- * @returns the row's layer ids.
+ * @returns the row's layer ids, or null when the inspected thing is not a layer.
  */
-function defaultRow(session: GraphSession, inspected: string | undefined): readonly LayerId[] {
-    return inspected !== undefined && session.styles.get(inspected) !== undefined ? [inspected] : everythingRow(session);
+function defaultRow(session: GraphSession, inspected: string | undefined): readonly LayerId[] | null {
+    if (inspected === undefined) {
+        return everythingRow(session);
+    }
+    return session.styles.get(inspected) === undefined ? null : [inspected];
 }
 
 /**
@@ -69,6 +74,9 @@ export function StyleTab({ layers }: StyleTabProps): React.JSX.Element | null {
         return null;
     }
     const row = layers ?? defaultRow(session, inspected);
+    if (row === null) {
+        return null;
+    }
     // Keyed by the row, so an empty label line and the side are dropped when the selection changes.
     return <RowStyle key={row.join(" ")} session={session} row={row} />;
 }
@@ -81,14 +89,18 @@ export function StyleTab({ layers }: StyleTabProps): React.JSX.Element | null {
  * @returns The tab
  */
 function RowStyle({ session, row }: { session: GraphSession; row: readonly LayerId[] }): React.JSX.Element {
-    const sets = (target: Target): boolean => rowLayers(session, row, target).some((l) => l.set !== undefined || l.encode !== undefined);
+    // The reader's own lines only: the element's locked base layers set something on both sides
+    // of the Everything row, which would make the dot say nothing.
+    const sets = (target: Target): boolean =>
+        rowLayers(session, row, target).some((l) => !l.locked && (l.set !== undefined || l.encode !== undefined));
     const [side, setSide] = useState<Target>(() => (!sets("node") && sets("edge") ? "edge" : "node"));
     const layers = rowLayers(session, row, side);
     const colors = documentColors(session);
     const sideLabel = (target: Target, words: string): React.JSX.Element =>
         sets(target) ? (
-            <Indicator size={5} offset={-4} position="middle-end" aria-label={`${words}, set`}>
-                {words}
+            <Indicator size={5} offset={-4} position="middle-end">
+                <span aria-hidden>{words}</span>
+                <VisuallyHidden>{words}, set</VisuallyHidden>
             </Indicator>
         ) : (
             <span>{words}</span>
@@ -163,18 +175,18 @@ function Section({
     const unset = channels.filter((d) => lineOf(layers, d.channel) === undefined);
     const add = (descriptor: ChannelDescriptor): void => {
         writeLine(session, row, target, descriptor.channel, { value: startingValue(descriptor) }).catch(() => {
-            store.set({ notice: { message: `${descriptor.shortName} could not be added` } });
+            store.set({ notice: { message: `${channelWord(descriptor.channel)} could not be added` } });
         });
     };
     const addLabel = `Add to ${section.title}`;
     let plus: React.JSX.Element | null = null;
     if (unset.length === 1 && unset[0].renderable) {
         plus = (
-            <Tooltip label={`Add ${unset[0].shortName}`}>
+            <Tooltip label={`Add ${channelWord(unset[0].channel)}`}>
                 <ActionIcon
                     variant="subtle"
                     size="sm"
-                    aria-label={`Add ${unset[0].shortName}`}
+                    aria-label={`Add ${channelWord(unset[0].channel)}`}
                     onClick={() => {
                         add(unset[0]);
                     }}
@@ -202,7 +214,7 @@ function Section({
                                 add(d);
                             }}
                         >
-                            <div>{d.shortName}</div>
+                            <div>{channelWord(d.channel)}</div>
                             {d.renderable ? null : (
                                 <Text size="xs" c="dimmed">
                                     Not drawn yet

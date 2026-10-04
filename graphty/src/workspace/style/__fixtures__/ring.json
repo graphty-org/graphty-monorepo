@@ -1,0 +1,134 @@
+{
+  "nodes": [
+    {
+      "id": "n0",
+      "name": "Valjean",
+      "dept": "police",
+      "age": 20,
+      "position": {
+        "x": 4.0,
+        "y": 0.0,
+        "z": 0
+      }
+    },
+    {
+      "id": "n1",
+      "name": "Javert",
+      "dept": "students",
+      "age": 25,
+      "position": {
+        "x": 2.828,
+        "y": 2.828,
+        "z": 0
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Fantine",
+      "dept": "family",
+      "age": 30,
+      "position": {
+        "x": 0.0,
+        "y": 4.0,
+        "z": 0
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Cosette",
+      "dept": "police",
+      "age": 35,
+      "position": {
+        "x": -2.828,
+        "y": 2.828,
+        "z": 0
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Marius",
+      "dept": "students",
+      "age": 40,
+      "position": {
+        "x": -4.0,
+        "y": 0.0,
+        "z": 0
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Eponine",
+      "dept": "family",
+      "age": 45,
+      "position": {
+        "x": -2.828,
+        "y": -2.828,
+        "z": 0
+      }
+    },
+    {
+      "id": "n6",
+      "name": "Enjolras",
+      "dept": "police",
+      "age": 50,
+      "position": {
+        "x": -0.0,
+        "y": -4.0,
+        "z": 0
+      }
+    },
+    {
+      "id": "n7",
+      "name": "Gavroche",
+      "dept": "students",
+      "age": 55,
+      "position": {
+        "x": 2.828,
+        "y": -2.828,
+        "z": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "n0",
+      "target": "n1"
+    },
+    {
+      "source": "n1",
+      "target": "n2"
+    },
+    {
+      "source": "n2",
+      "target": "n3"
+    },
+    {
+      "source": "n3",
+      "target": "n4"
+    },
+    {
+      "source": "n4",
+      "target": "n5"
+    },
+    {
+      "source": "n5",
+      "target": "n6"
+    },
+    {
+      "source": "n6",
+      "target": "n7"
+    },
+    {
+      "source": "n7",
+      "target": "n0"
+    },
+    {
+      "source": "n0",
+      "target": "n4"
+    },
+    {
+      "source": "n2",
+      "target": "n6"
+    }
+  ]
+}

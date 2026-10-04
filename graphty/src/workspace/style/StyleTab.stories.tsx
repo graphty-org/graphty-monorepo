@@ -6,22 +6,14 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
+import ring from "./__fixtures__/ring.json";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 
-/** Eight people on a ring with two chords, each with a name and a department. */
-const NAMES = ["Valjean", "Javert", "Fantine", "Cosette", "Marius", "Eponine", "Enjolras", "Gavroche"];
-const DEPARTMENTS = ["police", "students", "family"];
-const NODES = NAMES.map((name, i) => ({ id: `n${String(i)}`, name, dept: DEPARTMENTS[i % 3], age: 20 + i * 5 }));
-const EDGES = [
-    ...NODES.map((node, i) => ({ source: node.id, target: NODES[(i + 1) % NODES.length].id })),
-    { source: "n0", target: "n4" },
-    { source: "n2", target: "n6" },
-];
-
 /**
- * Loads the ring into the story's element, laid out on a flat circle (the same places every
- * time), and waits for a stable frame.
+ * Loads the ring fixture (eight people with a name, a department and an age, on a circle with two
+ * chords) into the story's element with the element's fixed layout, so every node sits at its
+ * checked-in position and no layout runs, and waits for a stable frame.
  * @param canvasElement - the story's root.
  * @returns the element.
  */
@@ -32,9 +24,9 @@ async function loadRing(canvasElement: HTMLElement): Promise<GraphtyElement> {
         throw new Error("the story rendered no <graphty-element>");
     }
     await element.session.layout.setDimension("2d");
-    await element.session.layout.set("circular", { options: { scale: 0.2 } });
-    await element.session.data.addNodes(NODES);
-    await element.session.data.addEdges(EDGES);
+    await element.session.layout.set("fixed");
+    await element.session.data.addNodes(ring.nodes);
+    await element.session.data.addEdges(ring.edges);
     await element.waitForStableFrame();
     return element;
 }
@@ -112,7 +104,7 @@ export const ColorPopover: Story = styleStory(async (canvasElement) => {
 
 /** The Shape popover: every shape by name, with a filter (`#/style-pickers/shape`). */
 export const ShapePopover: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("button", { name: /^Type / }));
+    await userEvent.click(tab(canvasElement).getByRole("button", { name: /^Shape / }));
 });
 
 /** The bind icon opens the From data list: attributes, a refused one last (`#/style-pickers/bind-prop`). */
@@ -129,6 +121,15 @@ export const BindingPopover: Story = styleStory(async (canvasElement) => {
     });
     await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^dept,/ }));
     await body().findByRole("group", { name: "Color binding" });
+});
+
+/** The Binding popover's palette list open, for the department colors (`#/style-pickers/palette`). */
+export const Palette: Story = styleStory(async (canvasElement) => {
+    await userEvent.click(tab(canvasElement).getByRole("button", { name: "Color by attribute" }));
+    await userEvent.click(await body().findByRole("option", { name: "dept" }));
+    await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^dept,/ }));
+    const popover = await body().findByRole("group", { name: "Color binding" });
+    await userEvent.click(within(popover).getByRole("combobox", { name: "Palette" }));
 });
 
 /** A binding whose attribute is not in the data: the line says it reads nothing (`#/style-pickers/binding-unknown-path`). */

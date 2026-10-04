@@ -1,17 +1,20 @@
-import { channelsFor } from "@graphty/graphty-element/catalog";
+import { channelsFor, PALETTE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
 import {
     bindLabel,
     bindsAtRest,
     cellOfLocation,
+    channelWord,
     enumWords,
     isLineChannel,
     labelStatement,
     locationOfCell,
     matchesWordStart,
+    paletteWord,
     positionWord,
     refusalWords,
+    resultWord,
     SECTIONS,
 } from "../words";
 
@@ -80,5 +83,22 @@ describe("the Style tab's words and arrangement", () => {
         assert.isFalse(matchesWordStart("shared chapters", "hap"));
         assert.isTrue(matchesWordStart("anything", ""));
         assert.equal(enumWords("tetrahedron-flat"), "Tetrahedron flat");
+    });
+
+    it("names every channel, palette and result in the app's words, American spelling", () => {
+        for (const target of ["node", "edge"] as const) {
+            for (const descriptor of channelsFor(target)) {
+                assert.isNotEmpty(channelWord(descriptor.channel), descriptor.channel);
+            }
+        }
+        const shape = channelsFor("node").find((d) => d.channel === "node.shape");
+        assert.equal(shape === undefined ? "" : channelWord(shape.channel), "Shape");
+        for (const palette of PALETTE_DESCRIPTORS) {
+            assert.notMatch(paletteWord(palette.id), /colour/i, palette.id);
+        }
+        assert.equal(paletteWord("okabe-ito"), "Eight distinct colors");
+        assert.equal(paletteWord("someone-elses"), "Someone elses");
+        assert.equal(resultWord("PageRank", "value", true), "PageRank");
+        assert.equal(resultWord("Degree", "inDegree", false), "Degree in degree");
     });
 });

@@ -66,6 +66,19 @@ const css = `
     transition: color var(--cm-duration-sm) var(--cm-ease-out);
 }
 .cm-section-technical { font-weight: 450; color: var(--cm-text-secondary); }
+/* A collapsed section's summary: after the name, in the secondary ink, and the first to give
+   way to an ellipsis when the header is narrow. */
+.cm-section-summary {
+    flex: 0 100 auto;
+    min-width: 0;
+    margin-inline-start: 8px;
+    ${cmFont("body")}
+    line-height: 32px;
+    color: var(--cm-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .cm-section-dot {
     flex: 0 0 auto;
     width: 6px;

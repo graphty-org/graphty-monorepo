@@ -67,16 +67,41 @@ function Palette(props: QuickActionsProps): React.JSX.Element {
  * {open && <QuickActions actions={actions} onRun={run} onClose={() => setOpen(false)} />}
  * ```
  *
- * An action is `{ value, label, icon?, shortcut?, section?, keywords?, disabled? }`. Sections
+ * An action is `{ value, label, icon?, shortcut?, section?, keywords?, disabled?, description? }`. Sections
  * appear in the order of their first action; a search lists its results flat. `filter` replaces
  * the default match (a case-insensitive substring of the name or a keyword); `query` and
  * `onQueryChange` control the search text. `header` takes a row under the search, such as scope
  * `Tabs`; `searchAction` takes an `ActionIcon` for the end of the field. The caller positions the
  * palette and decides when it is open (mount it to open it).
  *
+ * ## A short list: a field chooser
+ *
+ * The same palette serves a short pick-list, such as choosing a data field:
+ *
+ * - `description` puts a dimmed second line under an action -- the reason a disabled one cannot
+ *   be used -- and keeps it through a search, where section headings are dropped.
+ * - The search field shows however few actions there are, and holds focus: the first action is
+ *   highlighted on open, so Enter runs it at once.
+ * - `truncate="middle"` cuts a long name in the middle ("shared_ch...apters") and puts the full
+ *   name in its tooltip.
+ *
+ * ```tsx
+ * <QuickActions
+ *     aria-label="From data"
+ *     actions={[
+ *         { value: "degree", label: "degree" },
+ *         { value: "community", label: "community", disabled: true, description: "Holds groups, not amounts" },
+ *     ]}
+ *     truncate="middle"
+ *     onRun={bind}
+ * />
+ * ```
+ *
  * ## Keyboard and accessibility
  *
  * - Focus goes to the search field on open. Typing filters; the first match is highlighted.
+ *   Focus never leaves the field, so the panel and the list draw no focus ring.
+ * - An action's `description` is its option's accessible description; its name stays `label`.
  * - ArrowUp / ArrowDown move the highlight, skipping disabled rows, while focus stays in the
  *   field: the field is a `role="combobox"` whose `aria-activedescendant` names the highlighted
  *   `role="option"` of a `role="listbox"`.
@@ -168,5 +193,43 @@ export const Keyboard: Story = {
         await expect(highlighted).not.toHaveAttribute("aria-disabled");
         await userEvent.keyboard("{Enter}");
         await expect(args.onRun).toHaveBeenCalled();
+    },
+};
+
+/**
+ * A short field chooser: the search field holds focus with the first field highlighted, a
+ * disabled field stays listed with its reason on a second line, and a long name is cut in the
+ * middle.
+ */
+export const FieldChooser: Story = {
+    render: (args) => (
+        <QuickActions
+            {...args}
+            aria-label="From data"
+            width={240}
+            height={260}
+            truncate="middle"
+            actions={[
+                { value: "degree", label: "degree" },
+                { value: "betweenness", label: "betweenness" },
+                {
+                    value: "community",
+                    label: "community",
+                    disabled: true,
+                    description: "Holds groups, not amounts",
+                },
+                { value: "chapters", label: "shared_chapters_with_valjean" },
+                { value: "name", label: "name", disabled: true, description: "Holds text, not amounts" },
+            ]}
+        />
+    ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const input = canvas.getByRole("combobox");
+        await expect(input).toHaveFocus();
+        await expect(canvas.getByRole("listbox")).not.toHaveFocus();
+        await expect(canvas.getByRole("listbox")).not.toHaveAttribute("tabindex");
+        await expect(input).toHaveAttribute("aria-activedescendant", canvas.getByRole("option", { name: "degree" }).id);
+        await expect(canvas.getByRole("option", { name: "community" })).toHaveAttribute("aria-disabled", "true");
     },
 };

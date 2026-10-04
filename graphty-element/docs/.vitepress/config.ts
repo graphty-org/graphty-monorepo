@@ -72,6 +72,7 @@ export default defineConfig({
                         { text: "What a Run Painted", link: "/guide/run-painting" },
                         { text: "Sets", link: "/guide/sets" },
                         { text: "Notes", link: "/guide/notes" },
+                        { text: "Neighbors", link: "/guide/neighbors" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Events", link: "/guide/events" },
                         { text: "Columns, Runs & Progress", link: "/guide/vocabulary" },

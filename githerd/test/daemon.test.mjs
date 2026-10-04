@@ -403,7 +403,10 @@ describe("HTTP endpoints", () => {
                 jsonrpc: "2.0",
                 id: 1,
                 method: "tools/call",
-                params: { name: "githerd_comment", arguments: { target: "issue:12", body: "token sqp_0123456789abcdef" } },
+                params: {
+                    name: "githerd_comment",
+                    arguments: { target: "issue:12", body: "token sqp_0123456789abcdef" },
+                },
             },
             { run: "run-1" },
         );

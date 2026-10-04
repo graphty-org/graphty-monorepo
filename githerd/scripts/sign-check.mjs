@@ -52,7 +52,12 @@ try {
     result = { ok: signed && seconds < 10, seconds, signed };
 } catch (err) {
     const e = /** @type {any} */ (err);
-    result = { ok: false, error: String(e.stderr || e.message).trim().slice(0, 500) };
+    result = {
+        ok: false,
+        error: String(e.stderr || e.message)
+            .trim()
+            .slice(0, 500),
+    };
 }
 writeFileSync(join(stateDir, "sign-check.json"), `${JSON.stringify(result, null, 2)}\n`);
 console.log(JSON.stringify(result));

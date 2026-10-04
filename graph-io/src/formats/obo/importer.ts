@@ -149,7 +149,11 @@ const USED_OPTIONS: ReadonlySet<keyof CommonImportOptions> = new Set<keyof Commo
     "signal",
     "onProgress",
     "encoding",
+    "restoreMangledIds",
 ]);
+
+/** The property_value relation under which the exporter keeps an id it rewrote (`sanitizeIds: "mangle"`). */
+const ORIGINAL_ID = "graphty:originalId";
 
 const DEFAULTS: ImportFormatDefaults = { ids: "keep", defaultDirected: true, weightFrom: null };
 
@@ -171,7 +175,7 @@ const DEPRECATED_HEADER: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** The 1.0 / 1.2 frame tags read as their 1.4 meaning: tag to [1.4 tag, synonym scope]. */
-const DEPRECATED_TAGS: ReadonlyMap<string, readonly [string, string | null]> = new Map([
+export const DEPRECATED_TAGS: ReadonlyMap<string, readonly [string, string | null]> = new Map([
     ["exact_synonym", ["synonym", "EXACT"]],
     ["narrow_synonym", ["synonym", "NARROW"]],
     ["broad_synonym", ["synonym", "BROAD"]],
@@ -193,7 +197,7 @@ const BUILTIN_RELATIONS: ReadonlySet<string> = new Set([
 ]);
 
 /** Single-valued text tags (first value kept). */
-const TEXT_TAGS: ReadonlySet<string> = new Set([
+export const TEXT_TAGS: ReadonlySet<string> = new Set([
     "name",
     "namespace",
     "comment",
@@ -205,12 +209,12 @@ const TEXT_TAGS: ReadonlySet<string> = new Set([
 ]);
 
 /** Single-valued boolean tags. */
-const BOOL_TAGS: ReadonlySet<string> = new Set(
+export const BOOL_TAGS: ReadonlySet<string> = new Set(
     Object.keys(OBO_NODE_COLUMNS).filter((name) => OBO_NODE_COLUMNS[name].dtype === "bool"),
 );
 
 /** Tags whose value is one id, collected in a list column. */
-const ID_LIST_TAGS: ReadonlySet<string> = new Set([
+export const ID_LIST_TAGS: ReadonlySet<string> = new Set([
     "alt_id",
     "subset",
     "replaced_by",
@@ -223,7 +227,7 @@ const ID_LIST_TAGS: ReadonlySet<string> = new Set([
 ]);
 
 /** Tags that only a Typedef frame may carry (elsewhere they are unrecognized). */
-const TYPEDEF_TAGS: ReadonlySet<string> = new Set([
+export const TYPEDEF_TAGS: ReadonlySet<string> = new Set([
     "domain",
     "range",
     "inverse_of",
@@ -1406,6 +1410,9 @@ class Pusher {
 
     private readonly signal: AbortSignal | null;
 
+    /** The original ids restored under restoreMangledIds, by the id the file wrote. */
+    readonly restored = new Map<string, string>();
+
     private since = 0;
 
     /**
@@ -1427,7 +1434,7 @@ class Pusher {
      * @returns the node id
      */
     id(text: string): NodeId {
-        const id = this.coercer.text(text);
+        const id = this.coercer.text(this.restored.get(text) ?? text);
         const merge = this.coercer.lastMerge;
         if (merge !== null) {
             this.report.warning(
@@ -1490,6 +1497,9 @@ function writeGraph(
 ): void {
     const plan = planGraph(reader, report, options.addMissingNodes, obo);
     const push = new Pusher(sink, report, options);
+    if (options.restoreMangledIds) {
+        restoreIds(plan.nodes, push.restored);
+    }
     const namespace = reader.namespaceDefault();
     // columns, declared only when used, in the vocabulary's order
     const used = new Set<string>(["type"]);
@@ -1534,6 +1544,50 @@ function writeGraph(
         }
     }
     writeEdges(plan, push, options);
+}
+
+/**
+ * Take back the ids the exporter rewrote under `sanitizeIds: "mangle"`: a frame's
+ * `property_value: graphty:originalId "..."` names its original id, which replaces the written one
+ * wherever the file names it (the property value itself is dropped). An original that another
+ * frame already uses as its id is not restored.
+ * @param records - the node records
+ * @param restored - receives written id to original id
+ */
+function restoreIds(records: readonly NodeRecord[], restored: Map<string, string>): void {
+    const taken = new Set(records.map((r) => r.id));
+    for (const record of records) {
+        const values = record.lists.get("property_value") as { relation: string; value: string }[] | undefined;
+        const at = values?.findIndex((v) => v.relation === ORIGINAL_ID) ?? -1;
+        if (values === undefined || at < 0) {
+            continue;
+        }
+        const original = originalText(values[at].value);
+        if (taken.has(original)) {
+            continue;
+        }
+        taken.add(original);
+        restored.set(record.id, original);
+        values.splice(at, 1);
+        if (values.length === 0) {
+            record.lists.delete("property_value");
+        }
+    }
+}
+
+/**
+ * The original id of a `graphty:originalId` property value: the exporter writes it as JSON text (so
+ * every character survives); a value that is not a JSON string is the id as it stands.
+ * @param value - the property value
+ * @returns the original id
+ */
+function originalText(value: string): string {
+    try {
+        const parsed: unknown = JSON.parse(value);
+        return typeof parsed === "string" ? parsed : value;
+    } catch {
+        return value;
+    }
 }
 
 /**

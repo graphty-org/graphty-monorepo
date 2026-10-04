@@ -27,10 +27,10 @@ import { hasKey, isJsonObject } from "./dialect.js";
 import { chosenGraph, type ImportContext, JSON_ISSUE, type JsonRecord } from "./importer.js";
 
 /** The node keys the schema defines; any other key goes to `obo.unrecognized`. */
-const NODE_KEYS: ReadonlySet<string> = new Set(["id", "lbl", "type", "propertyType", "meta"]);
+export const NODE_KEYS: ReadonlySet<string> = new Set(["id", "lbl", "type", "propertyType", "meta"]);
 
 /** The `meta` keys mapped onto columns; any other key goes to `obo.unrecognized` as `meta.<key>`. */
-const META_KEYS: ReadonlySet<string> = new Set([
+export const META_KEYS: ReadonlySet<string> = new Set([
     "definition",
     "comments",
     "subsets",
@@ -41,14 +41,14 @@ const META_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /** The OBO frame type of an OBO Graphs node type. */
-const FRAME_TYPES: Readonly<Record<string, string>> = Object.freeze({
+export const FRAME_TYPES: Readonly<Record<string, string>> = Object.freeze({
     CLASS: "Term",
     INDIVIDUAL: "Instance",
     PROPERTY: "Typedef",
 });
 
 /** The OBO name of the predicates OBO Graphs writes without an IRI. */
-const BUILTIN_PREDICATES: Readonly<Record<string, string>> = Object.freeze({
+export const BUILTIN_PREDICATES: Readonly<Record<string, string>> = Object.freeze({
     is_a: "is_a",
     subPropertyOf: "is_a",
     type: "instance_of",
@@ -56,7 +56,7 @@ const BUILTIN_PREDICATES: Readonly<Record<string, string>> = Object.freeze({
 });
 
 /** Predicates that relate two properties (metadata under typedefs "metadata"). */
-const PROPERTY_PREDICATES: ReadonlySet<string> = new Set(["subPropertyOf", "inverseOf"]);
+export const PROPERTY_PREDICATES: ReadonlySet<string> = new Set(["subPropertyOf", "inverseOf"]);
 
 /** Writes the OBO vocabulary columns, declaring each on first use. */
 class ColumnWriter {

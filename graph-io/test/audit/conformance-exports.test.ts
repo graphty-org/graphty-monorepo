@@ -226,7 +226,7 @@ describe("design 12.4: the io contract types are exported with the listed shapes
 
 // ============================================================ 8.2 / 13.1 surfaces
 
-const FORMATS = ["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j", "xgmml", "cx2"] as const;
+const FORMATS = ["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j", "xgmml", "cx2", "obo"] as const;
 const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     gexf,
     graphml,
@@ -238,10 +238,11 @@ const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     neo4j,
     xgmml,
     cx2,
+    obo,
 };
 /** The formats graph-io reads but does not write: one importer, no exporter. */
-const READ_ONLY = ["cx", "obo", "cys"] as const;
-const READ_ONLY_SUBPATHS: Record<(typeof READ_ONLY)[number], Record<string, unknown>> = { cx, obo, cys };
+const READ_ONLY = ["cx", "cys"] as const;
+const READ_ONLY_SUBPATHS: Record<(typeof READ_ONLY)[number], Record<string, unknown>> = { cx, cys };
 
 describe("design 8.2 / 13.1: registry, sniff, children and the eight format surfaces", () => {
     it("exports the registry with importGraph / exportGraph / sniff and the children CSR helper", () => {
@@ -283,7 +284,7 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         const pkg = JSON.parse(readFileSync(join(here, "..", "..", "package.json"), "utf-8")) as {
             exports: Record<string, Record<string, string>>;
         };
-        expect(Object.keys(pkg.exports)).toEqual([".", ...[...FORMATS, ...READ_ONLY].map((f) => `./${f}`)]);
+        expect(Object.keys(pkg.exports).sort()).toEqual([".", ...[...FORMATS, ...READ_ONLY].map((f) => `./${f}`)].sort());
         for (const [key, entry] of Object.entries(pkg.exports)) {
             const name = key === "." ? "graph-io" : key.slice(2);
             expect(Object.keys(entry)[0], `${key}: types must come first`).toBe("types");

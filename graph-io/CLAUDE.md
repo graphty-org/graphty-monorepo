@@ -51,6 +51,7 @@ graph-io/
 |   |   +-- export.ts             # LOSS codes, capabilities(), checkCapabilities() + CheckExtras (roles, roleNames), sanitizeIds()
 |   |   +-- xml.ts                # the streaming XML tokenizer (GEXF, GraphML), entity decoding, xmlIllegalTextNotes()
 |   |   +-- escape.ts  format.ts  writer.ts   # quoting per format, formatDecimal / formatGmlReal, encodeChunks / joinText
+|   |   +-- ontology.ts  ontology-export.ts   # the OBO column vocabulary (OBO and OBO Graphs), what the two ontology exporters share
 |   +-- formats/<format>/         # gexf graphml gml dot pajek csv json neo4j
 |       +-- index.ts              # the subpath barrel: <fmt>Importer, <fmt>Exporter, option types, code tables
 |       +-- importer.ts           # GraphImporter<Opts>

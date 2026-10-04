@@ -7,9 +7,9 @@
 
 Importers and exporters for the [@graphty/graph-format](https://www.npmjs.com/package/@graphty/graph-format)
 snapshot: GEXF, GraphML, GML, DOT (Graphviz), Pajek NET, CSV / TSV, JSON (NetworkX node-link, d3,
-JSON Graph Format, Cytoscape, graphology, vis.js; NetworkX adjacency_data and tree_data and OBO
-Graphs are read only), Neo4j (`neo4j-admin import` CSV), CX2 (the NDEx / Cytoscape exchange format;
-its version 1, CX, is read only) and OBO, the ontology format of the Gene Ontology (read only).
+JSON Graph Format, Cytoscape, graphology, vis.js, OBO Graphs; NetworkX adjacency_data and tree_data
+are read only), Neo4j (`neo4j-admin import` CSV), CX2 (the NDEx / Cytoscape exchange format; its
+version 1, CX, is read only) and OBO, the ontology format of the Gene Ontology.
 
 Every importer streams its input into a `GraphSink` (a `GraphBuilder` or your own sink) one scalar at
 a time and reports what it could not represent instead of dropping it; every exporter says what it
@@ -154,10 +154,16 @@ reports every column or feature outside it):
 | CSV     | `@graphty/graph-io/csv`     | `.csv` `.tsv` `.edges` `.edgelist` | yes         | yes         | optional    | any           | bool i32 f64 string dict               | no    | no   | no       | no        | none           | no          | no        | no  |
 | JSON    | `@graphty/graph-io/json`    | `.json`                            | per dialect | yes         | per dialect | any           | f64 i32 bool string (no declarations)  | no    | yes  | no       | Cytoscape | none           | per dialect | Cytoscape | no  |
 | Neo4j   | `@graphty/graph-io/neo4j`   | `.csv` `.tsv`                      | no          | yes         | none        | any           | f32 f64 i32 bool string                | yes   | no   | no       | no        | none           | no          | no        | no  |
-| OBO     | `@graphty/graph-io/obo`     | `.obo`                             | read only   | -           | -           | -             | -                                      | -     | -    | -        | -         | -              | -           | -         | -   |
+| OBO     | `@graphty/graph-io/obo`     | `.obo`                             | no          | yes         | none        | any (*)       | OBO vocabulary only (*)                | no    | no   | no       | no        | none           | no (*)      | no        | no  |
 | CX2     | `@graphty/graph-io/cx2`     | `.cx2`                             | no          | yes         | required    | integer       | f64 i32 bool string                    | yes   | no   | yes      | no        | none           | yes         | yes       | no  |
 | XGMML   | `@graphty/graph-io/xgmml`   | `.xgmml` `.xml`                    | yes         | yes         | optional    | any           | f64 i32 bool string (long as Long)     | yes   | no   | no       | yes       | none           | yes         | yes       | no  |
 | Session | `@graphty/graph-io/cys`     | `.cys`                             | read only   | read only   | read only   | read only     | read only                              | -     | -    | -        | -         | -              | -           | -         | -   |
+
+(*) OBO and OBO Graphs (`dialect: "obographs"` of the JSON exporter, same table) keep the OBO
+vocabulary columns (`name`, `def`, `synonym`, `xref`, `namespace`, ...) exactly; every other node
+column is written as property values, every edge column as edge qualifiers (OBO) or edge `meta`
+(OBO Graphs), and graph columns as header metadata, each reported by `check()`. An OBO id cannot
+hold whitespace, `!`, `{` or `}` (`sanitizeIds: "mangle"` rewrites it and the importer restores it).
 
 Every importer reads the whole corpus of research note 07 with the manifest counts and every
 exporter round-trips it (import -> export -> import gives the same ids, topology, orientation,
@@ -274,14 +280,23 @@ losses and format rules, in addition to the table:
   graphology dialects; the object holding the nodes supplies the graph flags, and a path that names
   nothing is an `E_MISSING_SECTION` issue, not an abort. OBO Graphs (`dialect: "obographs"`, the
   JSON the Gene Ontology and the OBO Foundry publish: `graphs[]` of `sub` / `pred` / `obj` edges) is
-  read only, into the same columns as the OBO importer: IRIs become the ids the `.obo` file writes
+  read into the same columns as the OBO importer: IRIs become the ids the `.obo` file writes
   (`GO:0008150`; `oboIds: "iri"` keeps them), a relation is named by its shorthand (`part_of`),
   PROPERTY nodes and the axiom arrays go to `meta.extra.obographs` (`typedefs: "nodes"` makes the
   properties nodes), and an edge endpoint missing from `nodes` becomes a placeholder node
   (`W_DANGLING_REFERENCE`). For a JGF or OBO Graphs `graphs` array, `graphIndex` / `graphName` (a
   graph's `id`, else its label) choose the graph and `listGraphs()` lists them. A document longer
   than one JavaScript string (about 512 MB, such as ncbitaxon.json) fails with `E_TOO_LARGE`.
-- **OBO** (read only): OBO 1.0, 1.2 and 1.4 read as their union, streamed line by line. `[Term]`
+  Writing OBO Graphs (`exportGraph(snapshot, "json", { dialect: "obographs" })`, the default for a
+  snapshot read from OBO Graphs) turns the OBO columns back into node `lbl`, `type` and `meta`
+  (definition, comments, subsets, xrefs, synonyms, deprecated, basicPropertyValues) and ids back
+  into IRIs (`GO:0008150` as `http://purl.obolibrary.org/obo/GO_0008150`, a relation as the IRI of
+  the property whose shorthand it is, an id without a prefix as `<ontologyIri>#<id>`, the
+  `ontologyIri` option); an id is written as it is where its IRI would not read back as the same
+  id. The PROPERTY nodes, property edges, axioms and graph metadata a read kept are written back.
+  OBO Graphs has no datatype on a property value (`W_OBOGRAPHS_DATATYPE_DROPPED`); other edge
+  columns go into the edge's `meta` (`W_OBOGRAPHS_EDGE_COLUMN_AS_META`).
+- **OBO**: OBO 1.0, 1.2 and 1.4 read as their union, streamed line by line. `[Term]`
   and `[Instance]` frames are nodes; `is_a`, `relationship` and `instance_of` clauses are directed
   edges, child to parent, with the relation in a `relation` column (role `kind`) and a trailing
   `{...}` qualifier block in `qualifiers`. `[Typedef]` frames go to `meta.extra.obo.typedefs`
@@ -295,8 +310,18 @@ losses and format rules, in addition to the table:
   take the union, a single value keeps the first). A target no frame declares becomes a placeholder node (`graphty.placeholder`; `addMissingNodes: false` drops
   the edge instead). Obsolete terms are kept (`obsolete: "drop"` leaves them and their edges out).
   Imports and the treat-xrefs macros are kept but not applied (`W_OBO_HEADER_NOT_APPLIED`). The
-  `\W` escape is a space, as the OBO guides define it. There is no OBO exporter: write GraphML or
-  the graph-format container instead.
+  `\W` escape is a space, as the OBO guides define it. The exporter writes OBO 1.4: one frame per
+  node in node order (`[Term]`, or `[Instance]` / `[Typedef]` from the `type` column), each edge as
+  a clause on its source's frame (`is_a: T`, `relationship: R T`; an edge without a relation is
+  written with the `relation` option, default `is_a`, `W_RELATION_ASSUMED` -- an ontology tool reads
+  `is_a` as subclassing), the vocabulary columns as their tags, any other node column as typed
+  `property_value` lines with a `[Typedef]` declaring the column (`W_COLUMN_AS_PROPERTY_VALUE`) and
+  any other edge column as qualifiers (`W_OBO_EDGE_COLUMN_AS_QUALIFIER`). A placeholder node gets no
+  frame, so the re-import makes it again. The header, Typedefs and unknown frames a read kept are
+  written back, so a file read from OBO writes back as the same snapshot; the `ontology` option
+  sets the header `ontology`. Edges read back grouped by source (`W_OBO_EDGE_ORDER`), identical
+  clauses on one frame read back as one (`W_OBO_DUPLICATE_CLAUSE`), and a carriage return in a
+  text is written as a line feed (`W_OBO_LINE_END`). `\W` is never written.
 - **Neo4j**: `neo4j-admin import` headers (`:ID`, `:LABEL`, `:START_ID`, `:END_ID`, `:TYPE`, typed
   properties, id spaces, arrays); one file may hold several sections; a `weight` property becomes
   THE weight; a quoted empty `:ID` is the id `""`. A node of an id space (`:ID(Product)`) is stored

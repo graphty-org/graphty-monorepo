@@ -296,11 +296,54 @@ function canonOf(g: GenGraph): Canon {
 }
 
 /**
- * The canonical form of an imported snapshot, reading only the generator's column names.
+ * A typed value of an OBO `property_value` (xsd:integer, xsd:double with INF / -INF / NaN,
+ * xsd:boolean, xsd:string).
+ * @param value - the value text
+ * @param datatype - the xsd type
+ * @returns the value
+ */
+function xsdValue(value: string, datatype: unknown): GenValue {
+    switch (datatype) {
+        case "xsd:integer":
+            return Number(value);
+        case "xsd:double":
+            if (value === "INF" || value === "-INF") {
+                return value === "INF" ? Infinity : -Infinity;
+            }
+            return Number(value);
+        case "xsd:boolean":
+            return value === "true";
+        default:
+            return value;
+    }
+}
+
+/**
+ * A generator column's value read back from the text of an OBO qualifier.
+ * @param text - the qualifier value
+ * @param dtype - the generator dtype
+ * @returns the value
+ */
+function qualifierValue(text: string, dtype: GenDtype): GenValue {
+    switch (dtype) {
+        case "i32":
+        case "f64":
+            return Number(text);
+        case "bool":
+            return text === "true";
+        default:
+            return text;
+    }
+}
+
+/**
+ * The canonical form of an imported snapshot, reading only the generator's column names (inside
+ * the OBO `property_value` and `qualifiers` columns when the notes say they went there).
  * @param s - the snapshot
+ * @param relax - the relaxations
  * @returns the canonical form
  */
-function canonOfSnapshot(s: GraphSnapshot): Canon {
+function canonOfSnapshot(s: GraphSnapshot, relax: ReadonlySet<Relax>): Canon {
     const ids = s.ids.toArray();
     const cells = (
         table: GraphSnapshot["nodes"],
@@ -314,10 +357,41 @@ function canonOfSnapshot(s: GraphSnapshot): Canon {
                 out[name] = column.value(row) as GenValue;
             }
         }
+        if (relax.has("propertyValue") && table === s.nodes) {
+            const items = s.nodes.get("property_value");
+            for (const item of (items?.isSet(row) === true ? items.value(row) : []) as Record<string, unknown>[]) {
+                const c = names.find((n) => n.name === item.relation);
+                if (c !== undefined) {
+                    // OBO Graphs keeps no datatype: the text reads back as the column's dtype
+                    out[c.name] =
+                        item.datatype === null ? qualifierValue(String(item.value), c.dtype) : xsdValue(String(item.value), item.datatype);
+                }
+            }
+        }
+        if (relax.has("edgeMeta") && table === s.edges) {
+            const column = s.edges.get("meta");
+            const record = (column?.isSet(row) === true ? column.value(row) : {}) as Record<string, unknown>;
+            for (const c of names) {
+                const v = record[c.name];
+                if (v !== undefined && v !== null) {
+                    out[c.name] = v as GenValue;
+                }
+            }
+        }
+        if (relax.has("qualifierText") && table === s.edges) {
+            const column = s.edges.get("qualifiers");
+            const record = (column?.isSet(row) === true ? column.value(row) : {}) as Record<string, string>;
+            for (const c of names) {
+                if (typeof record[c.name] === "string") {
+                    out[c.name] = qualifierValue(record[c.name], c.dtype);
+                }
+            }
+        }
         return out;
     };
     const { src, dst, weights } = s.edgeList();
     const shadow = s.edges.byRole("weight");
+    const qualifiers = relax.has("qualifierText") ? s.edges.get("qualifiers") : null;
     return {
         directed: s.directed,
         nodes: ids.map((id, i) => ({ id, attrs: cells(s.nodes, NODE_COLUMNS, i) })),
@@ -327,6 +401,15 @@ function canonOfSnapshot(s: GraphSnapshot): Canon {
                 w = shadow.isSet(e) ? Number(shadow.value(e)) : undefined;
             } else if (weights !== null && s.flags.weighted) {
                 w = weights[e];
+            }
+            const record = qualifiers?.isSet(e) === true ? (qualifiers.value(e) as Record<string, unknown>) : null;
+            if (record !== null && typeof record.weight === "string") {
+                w = Number(record.weight);
+            }
+            const meta = relax.has("edgeMeta") ? s.edges.get("meta") : null;
+            const metaRecord = meta?.isSet(e) === true ? (meta.value(e) as Record<string, unknown>) : null;
+            if (metaRecord !== null && metaRecord.weight !== undefined) {
+                w = metaRecord.weight === null ? undefined : Number(metaRecord.weight);
             }
             return {
                 s: ids[u],
@@ -351,6 +434,12 @@ function canonOfSnapshot(s: GraphSnapshot): Canon {
  * - negativeZero: -0 reads back as 0
  * - textInferred: cells are untyped; text that looks like a number or a boolean reads back as one
  * - boolAsInt: a boolean is written as 1 / 0
+ * - propertyValue: node cells read back inside the OBO `property_value` column, typed by their xsd type
+ * - qualifierText: edge cells and weights read back as text inside the OBO `qualifiers` column
+ * - edgeMeta: edge cells and weights read back inside the OBO Graphs edge `meta` column
+ * - edgeOrder: the order of the edges is not kept
+ * - duplicateEdges: identical edges read back as one
+ * - lineEnds: a carriage return or form feed reads back as a line feed
  *
  * Every difference the property found in a correct export is announced by a check() note, so the
  * per-format "lossy" table IS this note table; a format-wide loss without a note would be a check()
@@ -365,7 +454,13 @@ export type Relax =
     | "nonFiniteText"
     | "negativeZero"
     | "textInferred"
-    | "boolAsInt";
+    | "boolAsInt"
+    | "propertyValue"
+    | "qualifierText"
+    | "edgeMeta"
+    | "edgeOrder"
+    | "duplicateEdges"
+    | "lineEnds";
 
 /**
  * The documented losses, one per check() note code (the codes are one per concept across the
@@ -392,6 +487,13 @@ export const NOTE_RELAX: Readonly<Record<string, readonly Relax[]>> = {
     W_DTYPE_UNSUPPORTED: ["boolAsInt"],
     // an i32 column cannot hold -0
     W_INTEGRAL_F64_AS_I32: ["negativeZero"],
+    W_OBO_UNDIRECTED_AS_DIRECTED: ["direction"],
+    W_COLUMN_AS_PROPERTY_VALUE: ["propertyValue"],
+    W_OBO_EDGE_COLUMN_AS_QUALIFIER: ["qualifierText"],
+    W_OBO_EDGE_ORDER: ["edgeOrder"],
+    W_OBO_DUPLICATE_CLAUSE: ["duplicateEdges"],
+    W_OBO_LINE_END: ["lineEnds"],
+    W_OBOGRAPHS_EDGE_COLUMN_AS_META: ["edgeMeta"],
 };
 
 /** One exporter configuration under test. */
@@ -418,6 +520,8 @@ export const TARGETS: readonly Target[] = [
     { name: "json graphology", format: "json", exportOptions: { dialect: "graphology" } },
     { name: "cx2", format: "cx2", exportOptions: { sanitizeIds: "mangle" } },
     { name: "xgmml", format: "xgmml", exportOptions: {} },
+    { name: "obo", format: "obo", exportOptions: { sanitizeIds: "mangle" } },
+    { name: "json obographs", format: "json", exportOptions: { dialect: "obographs" } },
 ];
 
 /**
@@ -460,6 +564,9 @@ function valueKey(raw: GenValue, relax: ReadonlySet<Relax>): string {
             .toLowerCase()
             .replace(/^\+/, "")
             .replace(/^(-?)inf$/, "$1infinity")}`;
+    }
+    if (typeof v === "string" && relax.has("lineEnds")) {
+        v = v.replace(/\r\n|\r|\f/g, "\n");
     }
     if (typeof v === "boolean" && relax.has("boolAsInt")) {
         v = v ? 1 : 0;
@@ -527,7 +634,11 @@ function lines(c: Canon, directed: boolean, relax: ReadonlySet<Relax>): { nodes:
     if (relax.has("nodeOrder")) {
         nodes.sort();
     }
-    return { nodes, edges };
+    const kept = relax.has("duplicateEdges") ? [...new Set(edges)] : edges;
+    if (relax.has("edgeOrder")) {
+        kept.sort();
+    }
+    return { nodes, edges: kept };
 }
 
 /**
@@ -619,7 +730,7 @@ export async function roundTrip(target: Target, g: GenGraph): Promise<TripOutcom
     try {
         const { snapshot: back } = await importGraph(new TextEncoder().encode(text), importOptions);
         const relax = relaxationsFor(notes);
-        const problems = diffCanon(canonOf(g), canonOfSnapshot(back), relax);
+        const problems = diffCanon(canonOf(g), canonOfSnapshot(back, relax), relax);
         if (problems.length > 0) {
             problems.push(`notes: ${notes.join(", ") || "none"}`);
             return { kind: "different", problems, text };

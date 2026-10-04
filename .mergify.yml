@@ -35,6 +35,13 @@ queue_rules:
       queue_conditions:
           - label!=hold
           - "-title~=^[a-z]+(\\([^)]*\\))?!:"
+          # The T4 GPU lane (gpu.yml, design/ci/ci-cd-plan.md section 4): "T4 GPU gate" passes once the T4
+          # passed for a pull request that affects webgpu-graph-algorithms, and at once for one that does not.
+          # A pull request whose every file sits outside the GPU package's dependencies (the directories below;
+          # tools/ci-workflows.test.mjs checks the list against the package graph) does not wait for the gate.
+          - or:
+                - check-success=T4 GPU gate
+                - "-files~=^(?!(graphty-element|graphty|graph-io|remote-logger|compact-mantine|visual-review|visual-baselines|visual-fonts|design|docs)/)"
       # No merge_conditions: Mergify checks a pull request in place only when the queue is
       # single-step (merge_conditions empty or equal to queue_conditions). With them it tested a
       # temporary draft pull request instead, whose title fails Lint PR Title and whose number the

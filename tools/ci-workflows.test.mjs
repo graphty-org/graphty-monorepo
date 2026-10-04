@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { decide, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 
 const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
@@ -112,6 +113,112 @@ describe("pr-title.yml", () => {
             workflow("pr-title.yml"),
             /- name: Lint PR title\n\s+if: \$\{\{ !startsWith\(github.head_ref, 'mergify\/merge-queue\/'\) \}\}/,
         );
+    });
+});
+
+describe("gpu.yml", () => {
+    const gpu = workflow("gpu.yml");
+
+    it("runs on ready pull requests, master and nightly, never on a label, and never cancels a paid run", () => {
+        assert.match(gpu, /pull_request: \{ types: \[opened, synchronize, reopened, ready_for_review\] \}/);
+        assert.match(gpu, /schedule: \[\{ cron: /);
+        assert.doesNotMatch(gpu, /labeled/);
+        assert.match(gpu, /cancel-in-progress: false/);
+        assert.match(job(gpu, "test-gpu"), /tenancy=spot/);
+    });
+
+    it("runs the T4 only when the decision says so, and only for this repository's pull requests", () => {
+        const t4 = job(gpu, "test-gpu");
+        assert.match(t4, /needs: decide/);
+        assert.match(t4, /needs.decide.outputs.run == 'true'/);
+        assert.match(t4, /head.repo.full_name == github.repository/);
+    });
+
+    it("always reports the gate, failing it on a draft, a missing decision or a failed T4", () => {
+        const gate = job(gpu, "gate");
+        assert.match(gate, /name: T4 GPU gate/);
+        assert.match(gate, /if: always\(\)/);
+        assert.match(gate, /"\$DRAFT" == "true" .* exit 1/);
+        assert.match(gate, /"\$DECIDE" != "success" .* exit 1/);
+        assert.match(gate, /"\$T4" != "success" .* exit 1/);
+    });
+});
+
+describe(".mergify.yml and the GPU gate", () => {
+    const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+
+    it("lets a pull request skip the gate only when none of its files can affect the GPU package", () => {
+        const exempt = /-files~=\^\(\?!\(([^)]+)\)\/\)/.exec(mergify)[1].split("|");
+        assert.match(mergify, /- check-success=T4 GPU gate/);
+        // Every workspace package the GPU package depends on, through package.json (what nx follows).
+        const pkg = (dir) => JSON.parse(readFileSync(new URL(`../${dir}/package.json`, import.meta.url), "utf8"));
+        const dirs = [
+            "algorithms",
+            "graph-format",
+            "graph-io",
+            "graph-samples",
+            "layout",
+            "graphty-element",
+            "graphty",
+        ];
+        dirs.push("remote-logger", "compact-mantine", "visual-review", "webgpu-graph-algorithms");
+        const byName = new Map(dirs.map((d) => [pkg(d).name, d]));
+        const deps = new Set(["webgpu-graph-algorithms"]);
+        for (const d of deps) {
+            const p = pkg(d);
+            for (const name of Object.keys({ ...p.dependencies, ...p.devDependencies, ...p.peerDependencies })) {
+                if (byName.has(name)) {
+                    deps.add(byName.get(name));
+                }
+            }
+        }
+        assert.ok(deps.has("graph-format") && deps.has("layout"), "the walk found the GPU package's dependencies");
+        for (const dir of exempt) {
+            assert.ok(!deps.has(dir), `${dir} is a dependency of webgpu-graph-algorithms, so it cannot skip the gate`);
+        }
+        const skip = new RegExp(`^(?!(${exempt.join("|")})/)`);
+        assert.ok(!skip.test("graphty-element/src/Graph.ts"));
+        assert.ok(skip.test("graph-format/src/index.ts"));
+        assert.ok(skip.test("pnpm-lock.yaml"));
+    });
+});
+
+describe("hosts.yml", () => {
+    it("runs nightly, and a pull request's Windows leg on the short scope", () => {
+        const hosts = workflow("hosts.yml");
+        assert.match(hosts, /schedule: \[\{ cron: /);
+        assert.match(hosts, /NARROW: .*github.event_name == 'pull_request'/);
+    });
+});
+
+describe("master-guard", () => {
+    const run = (name, conclusion, event = "push") => ({ name, conclusion, event });
+
+    it("freezes on a red master CI, lifts on a green one, and only reports a red hardware lane", () => {
+        assert.equal(decide(run("CI", "failure")), "red");
+        assert.equal(decide(run("CI", "timed_out")), "red");
+        assert.equal(decide(run("CI", "success")), "green");
+        assert.equal(decide(run("CI", "cancelled")), "none");
+        assert.equal(decide(run("CI", "failure", "workflow_dispatch")), "none");
+        assert.equal(decide(run("GPU", "failure")), "hardware-red");
+        assert.equal(decide(run("Hosts", "failure", "schedule")), "hardware-red");
+        assert.equal(decide(run("GPU", "success")), "none");
+        assert.equal(decide(run("GPU", "failure", "pull_request")), "none");
+    });
+
+    it("finds the commit in its own freezes and the pull request in a merge commit", () => {
+        const sha = "a".repeat(40);
+        assert.equal(frozenSha(`${FREEZE_PREFIX}${sha} (url)`), sha);
+        assert.equal(frozenSha("release freeze"), null);
+        assert.equal(mergedPr("Merge pull request #1011 from graphty-org/x\n\nbody"), 1011);
+        assert.equal(mergedPr("chore(release): publish"), null);
+    });
+
+    it("titles a revert so Lint PR Title passes it", () => {
+        const lint = (title) =>
+            spawnSync("pnpm", ["exec", "commitlint"], { input: `${title}\n`, encoding: "utf8" }).status;
+        assert.equal(lint(revertTitle("0123456789abcdef0123456789abcdef01234567", 1011)), 0);
+        assert.equal(lint(revertTitle("0123456789abcdef0123456789abcdef01234567", null)), 0);
     });
 });
 

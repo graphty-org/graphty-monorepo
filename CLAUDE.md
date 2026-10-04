@@ -463,7 +463,9 @@ every pull request that affects graphty-element and gates it; the short test sha
 grouped jobs. ci.yml also knows a Mergify merge-queue run (a draft on a `mergify/merge-queue/*`
 branch): it runs the full suite there and reports `Queue Checks Pass`, and `Lint PR Title` passes
 it. Mergify itself still checks one pull request at a time in place (`.mergify.yml`), the visual
-gate does not yet accept a batch, and the release still runs on every merge. The plan's section 15
+gate does not yet accept a batch, and the release still runs on every merge. A red master CI
+freezes the queue and opens a revert (`master-guard.yml`), and a pull request that affects
+webgpu-graph-algorithms is queued only after the T4 passed on it (`T4 GPU gate`). The plan's section 15
 is the order of the migration. Update this paragraph as each step lands.
 
 **Open pull requests as drafts while you iterate** (`gh pr create --draft`); the local pre-push gate
@@ -479,9 +481,10 @@ CI, and Mergify queues only ready pull requests.
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | Called by `release.yml` after a release | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
-| `gpu.yml` | Push to master, dispatch, labelled same-repo PRs (no nightly; the weekly full paired run is `gpu-weekly-paired.yml`) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green. A PR's paired benchmark runs only the groups its change can move (`scripts/bench-groups.js`) |
+| `gpu.yml` | Ready PRs, push to master, nightly (spot), dispatch | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4). Never a job of CI. Its `T4 GPU gate` check is required for queue entry: it passes at once when nx says the change does not affect webgpu-graph-algorithms (workflow files other than gpu.yml left out), and otherwise once the T4 passed on the PR, run once per PR and again only when a later push affects the package again (`tools/gpu-lane-needed.sh`). On master a commit that does not affect the package inherits the last T4 pass. `release.yml` requires it green. A PR's paired benchmark runs only the groups its change can move (`scripts/bench-groups.js`) |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
-| `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows); `release.yml` waits for it and requires it green when it ran |
+| `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, nightly, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); `release.yml` waits for it and requires it green when it ran |
+| `master-guard.yml` | After CI, GPU or Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; the next green master CI lifts the freeze. GPU or Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
 
 ### Dead Links
 

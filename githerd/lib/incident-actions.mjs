@@ -21,6 +21,7 @@
  * - the creates (the revert pull request, the `intermittent` issue) look on GitHub first for the
  *   one an earlier attempt made, so they are never made twice.
  */
+import { notSent } from "./github.mjs";
 import { incidentOutcome } from "./incident.mjs";
 import { expiredArtifacts } from "./release.mjs";
 
@@ -72,15 +73,6 @@ const REVERT = `mutation RevertPullRequest($id: ID!, $title: String!, $body: Str
  * }} PaidLane a lane parked for paid capacity: when its owner item opened, its newest red run,
  *   whether any of its runs is in progress, and whether a job sits queued past its pickup bound
  */
-
-/**
- * Whether an error says GitHub never took the write: githerd refused it, the rate budget held it
- * back, or GitHub answered with a 4xx. A timeout, a network error or a 5xx may have been taken.
- * @param {unknown} err what the write threw
- * @returns {boolean} true when the write surely did not happen
- */
-const notSent = (err) =>
-    ["refused", "rate", "secondary", "http", "credential"].includes(/** @type {{kind?: string}} */ (err)?.kind ?? "");
 
 /**
  * The backoff slot a paid lane's item is in: 0 for its first 30 minutes, 1 until 2 hours, then one

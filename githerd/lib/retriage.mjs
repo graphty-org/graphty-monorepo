@@ -157,8 +157,8 @@ export function acceptCandidates(raw, batch) {
  */
 function matches(proposal, candidate) {
     if (proposal.target !== `issue:${candidate.issue}`) return false;
-    if (proposal.closeAs === "duplicate")
-        return candidate.type === "duplicate" && proposal.duplicateOf === candidate.duplicateOf;
+    if (proposal.kind === "duplicate" || proposal.closeAs === "duplicate")
+        return candidate.type === "duplicate" && (proposal.of ?? proposal.duplicateOf) === candidate.duplicateOf;
     return candidate.type === "obsolete";
 }
 

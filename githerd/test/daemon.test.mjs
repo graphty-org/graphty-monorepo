@@ -18,6 +18,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { git as gitSync, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
 import { containerStart, identify } from "../lib/proc.mjs";
+import { hashToken } from "../lib/run-tools.mjs";
 import { readLedger, spoolEvent } from "../lib/store.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
@@ -883,6 +884,61 @@ describe("the poll loop", () => {
         expect(daemon.state.proposals["issue:4"]).toMatchObject({ status: "commented", dryRun: true });
         const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
         expect(wouldDo.map((e) => [e.group, e.situation])).toEqual([["proposals", "propose duplicate"]]);
+        expect(gh.writes()).toEqual([]);
+    });
+
+    it("two runs agree on a close: one would-do comment, then a would-do close after the grace", async () => {
+        const daemon = await start();
+        const tokens = { "run-a": "a".repeat(64), "run-b": "b".repeat(64) };
+        for (const [id, token] of Object.entries(tokens)) {
+            daemon.state.runs[id] = {
+                status: "running",
+                kind: "triage",
+                target: "issue:4",
+                tokenHash: hashToken(token),
+            };
+        }
+        const propose = async (/** @type {string} */ token) => {
+            const res = await fetch(`${daemon.url}/rpc`, {
+                method: "POST",
+                headers: { authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: 1,
+                    method: "tools/call",
+                    params: {
+                        name: "githerd_propose",
+                        arguments: {
+                            kind: "close-issue",
+                            target: "issue:4",
+                            closeAs: "duplicate",
+                            duplicateOf: 3,
+                            reason: "same crash as #3",
+                            evidence: [{ pr: 3 }],
+                        },
+                    },
+                }),
+            });
+            return (await res.json()).result.content[0].text;
+        };
+        expect(await propose(tokens["run-a"])).toBe("issue:4: unconfirmed");
+        await poll(daemon);
+        expect(daemon.state.proposals["issue:4"].status).toBe("unconfirmed");
+        expect(await propose(tokens["run-b"])).toBe("issue:4: confirmed");
+        await poll(daemon);
+        expect(daemon.state.proposals["issue:4"]).toMatchObject({ status: "commented", dryRun: true });
+
+        // Seven days on which the owner was present, after the day of the comment.
+        const days = ["03", "04", "05", "06", "07", "08", "09"].map((d) => `2026-10-${d}`);
+        daemon.state.presence = { lastAt: null, source: null, days };
+        clock = new Date("2026-10-09T12:00:00Z");
+        await poll(daemon);
+        expect(daemon.state.proposals["issue:4"]).toMatchObject({ status: "closed", dryRun: true });
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.group === "proposals");
+        expect(wouldDo.map((e) => [e.kind, e.situation])).toEqual([
+            ["would-do", "propose duplicate"],
+            ["would-do", "close duplicate"],
+        ]);
         expect(gh.writes()).toEqual([]);
     });
 

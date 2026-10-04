@@ -121,6 +121,18 @@ export class GitHubError extends Error {
 }
 
 /**
+ * Whether an error says GitHub never took a write: githerd refused it, the rate budget held it
+ * back, or GitHub answered with a 4xx. A timeout, a network error or a 5xx may have been taken.
+ * @param {unknown} err what the write threw
+ * @returns {boolean} true when the write surely did not happen
+ */
+export function notSent(err) {
+    return ["refused", "rate", "secondary", "http", "credential"].includes(
+        /** @type {{kind?: string}} */ (err)?.kind ?? "",
+    );
+}
+
+/**
  * Runs the real `gh` with a timeout and no prompts.
  * @param {string[]} args arguments after `gh`
  * @param {{input?: string, timeoutMs: number}} options stdin text and the kill timeout

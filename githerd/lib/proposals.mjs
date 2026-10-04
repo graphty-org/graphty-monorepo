@@ -21,8 +21,20 @@
  * The state lives in `state.proposals` (by target, `issue:<n>` or `pr:<n>`, one proposal each) and
  * `state.vetoes` (by target). In dry-run the gate records the comment and the close as `would-do`
  * lines and the proposal moves on as if they were sent, marked `dryRun`, so the grace timeline can
- * be compared with what happened.
+ * be compared with what happened. A proposal whose comment was only a would-do goes back to
+ * `confirmed` once the group acts, so the real comment is posted and its grace starts then: nothing
+ * is closed that the owner was never told about.
+ *
+ * The comment is posted from status `commenting`, which the write gate saves before it sends, and
+ * a `commenting` proposal first looks for its own marked comment, so a crash between the send and
+ * the save never posts it twice. A target githerd closed is watched for 30 days: the owner
+ * reopening it (an owner-account `reopened` event that no worker wrote) is a veto.
+ *
+ * Entries of `state.proposals` in the shape of the judgment runs' revert proposals (keyed
+ * `prop-...`, kind `revert`) are not this module's and are skipped.
  */
+
+import { notSent } from "./github.mjs";
 
 /** Grace in owner-present days, by target type. */
 export const GRACE_DAYS = { issue: 7, pr: 3 };
@@ -38,8 +50,10 @@ const KINDS = {
 };
 const MECHANICAL = new Set(["already-merged", "duplicate-pr"]);
 const NEEDS_OF = new Set(["duplicate", "already-merged", "duplicate-pr"]);
-const TERMINAL = new Set(["closed", "vetoed", "dropped", "ended"]);
+const TERMINAL = new Set(["closed", "vetoed", "dropped", "ended", "voided"]);
 const GROUP = "proposals";
+/** How long a target githerd closed is watched for the owner reopening it. */
+const WATCH_MS = 30 * 86_400_000;
 /** Characters of a worker's evidence the comment quotes. */
 const EVIDENCE_CHARS = 1000;
 /** Every comment githerd posts carries this; it is never read as the owner's objection. */
@@ -50,10 +64,11 @@ const OWN_MARK = "<!-- githerd";
  * @typedef {{verdict: Kind | "keep", number: number, of?: number, evidence?: string, session: string,
  *   at: string}} Verdict one verdict on an issue or pull request; `session` is who judged it
  * @typedef {{id: string, target: string, kind: Kind, of: number | null, evidence: string | null,
- *   status: "unconfirmed" | "confirmed" | "commented" | "closed" | "vetoed" | "dropped" | "ended",
+ *   status: "unconfirmed" | "confirmed" | "commenting" | "commented" | "closed" | "vetoed" | "dropped"
+ *     | "ended" | "voided",
  *   proposedBy: string, proposedAt: string, confirmedBy: string | null, commentedAt?: string,
  *   commentId?: number | null, presentDays?: number, closedAt?: string, dryRun?: boolean,
- *   reason?: string, lastError?: string}} Proposal
+ *   watched?: boolean, reason?: string, lastError?: string}} Proposal
  * @typedef {{gitHub: any, repo: string, login: string, now: Date,
  *   presentDays: (from: string) => number, isWorkerWrite?: (target: string, at: string) => boolean,
  *   ledger: (entry: object) => unknown}} Context `presentDays`: how many days on or after the day
@@ -207,6 +222,8 @@ export function proposalComment(p) {
 export async function advanceProposals(state, ctx) {
     const changed = [];
     for (const p of Object.values(state.proposals ?? {})) {
+        if (!(p.kind in KINDS)) continue;
+        if (p.status === "closed") await watchReopen(state, p, ctx);
         if (TERMINAL.has(p.status) || p.status === "unconfirmed") continue;
         const before = p.status;
         try {
@@ -244,16 +261,34 @@ async function step(state, p, ctx) {
         Object.assign(p, { status: "vetoed", reason: state.vetoes[p.target].reason });
         return;
     }
-    if (p.status === "confirmed") {
+    if (p.status === "commenting" && (await ownComment(p, ctx))) return;
+    if (p.status === "confirmed" || p.status === "commenting") {
         if (!(await stillOpen(p, ctx, false))) return;
-        const res = await gitHub.write(
-            "POST",
-            `repos/${repo}/issues/${n}/comments`,
-            { body: proposalComment(p) },
-            { group: GROUP, check: "created", fields: { situation: `propose ${p.kind}`, target: p.target } },
-        );
+        p.status = "commenting";
+        let res;
+        try {
+            res = await gitHub.write(
+                "POST",
+                `repos/${repo}/issues/${n}/comments`,
+                { body: proposalComment(p) },
+                { group: GROUP, check: "created", fields: { situation: `propose ${p.kind}`, target: p.target } },
+            );
+        } catch (err) {
+            // Surely not posted: back to confirmed. Maybe posted: the next step looks for it first.
+            if (notSent(err)) p.status = "confirmed";
+            throw err;
+        }
         Object.assign(p, { status: "commented", commentedAt: at, commentId: res.body?.id ?? null, presentDays: 0 });
         p.dryRun = !res.performed;
+        return;
+    }
+    if (p.dryRun && gitHub.acting(GROUP)) {
+        // The owner never saw a would-do comment: post it for real and count grace from then.
+        delete p.commentedAt;
+        delete p.commentId;
+        delete p.presentDays;
+        delete p.dryRun;
+        p.status = "confirmed";
         return;
     }
     p.presentDays = ctx.presentDays(dayAfter(/** @type {string} */ (p.commentedAt)));
@@ -271,6 +306,57 @@ async function step(state, p, ctx) {
         fields: { situation: `close ${p.kind}`, target: p.target },
     });
     Object.assign(p, { status: "closed", closedAt: at, dryRun: Boolean(p.dryRun) || !res.performed });
+}
+
+/**
+ * Finds the comment a `commenting` proposal posted before a crash, by its marker: when found, the
+ * proposal is `commented` as of that comment.
+ * @param {Proposal} p a `commenting` proposal
+ * @param {Context} ctx the context
+ * @returns {Promise<boolean>} true when the comment was there
+ */
+async function ownComment(p, ctx) {
+    const n = p.target.split(":")[1];
+    const { body } = await ctx.gitHub.get(`repos/${ctx.repo}/issues/${n}/comments?per_page=100`, { fresh: true });
+    const mark = `${OWN_MARK} proposal=${p.target} -->`;
+    const found = (Array.isArray(body) ? body : []).find(
+        (c) => c.user?.login === ctx.login && String(c.body ?? "").includes(mark),
+    );
+    if (!found) return false;
+    Object.assign(p, { status: "commented", commentedAt: found.created_at, commentId: found.id, presentDays: 0 });
+    p.dryRun = false;
+    return true;
+}
+
+/**
+ * Watches a target githerd closed for real, for 30 days: if it is open again and the owner's
+ * account reopened it in an event no worker wrote, the target is vetoed (design section 3: "Agent
+ * closed an issue the owner reopens"), so it is never proposed or closed again. A reopen by anyone
+ * else ends the watch without a veto.
+ * @param {any} state the daemon state
+ * @param {Proposal} p a closed proposal
+ * @param {Context} ctx the context
+ */
+async function watchReopen(state, p, ctx) {
+    if (p.dryRun || p.watched === false || !p.closedAt) return;
+    if (ctx.now.getTime() - Date.parse(p.closedAt) > WATCH_MS) {
+        p.watched = false;
+        return;
+    }
+    const n = p.target.split(":")[1];
+    try {
+        const { body } = await ctx.gitHub.get(`repos/${ctx.repo}/issues/${n}`);
+        if (body?.state !== "open") return;
+        const events = (await ctx.gitHub.get(`repos/${ctx.repo}/issues/${n}/events?per_page=100`)).body;
+        const reopen = (Array.isArray(events) ? events : []).findLast((e) => e.event === "reopened");
+        p.watched = false;
+        const isWorker = ctx.isWorkerWrite ?? (() => false);
+        if (!reopen || reopen.actor?.login !== ctx.login || isWorker(p.target, reopen.created_at)) return;
+        veto(state, p.target, { by: "owner", reason: "the owner reopened it", at: reopen.created_at });
+        await ctx.ledger({ kind: "veto", target: p.target, by: "owner", reason: "the owner reopened it" });
+    } catch (err) {
+        p.lastError = /** @type {Error} */ (err).message;
+    }
 }
 
 /**

@@ -12,15 +12,17 @@ const START = Date.parse("2026-10-05T15:00:00Z");
 /**
  * A fake repository behind the real client: issues and pull requests by number (both live under
  * `issues/<n>`), each with its comments.
- * @param {"acting" | "dry-run"} mode the proposals group's mode
+ * @param {"acting" | "dry-run" | (() => string)} mode the proposals group's mode, or a function
+ *   answering it now
+ * @param {() => unknown} [persist] the client's save hook
  * @returns {any} the client, the fake, the items, the ledger and the clock
  */
-function world(mode) {
+function world(mode, persist) {
     let t = START;
     let nextId = 1000;
-    /** @type {Record<string, {state: string, comments: any[]}>} */
+    /** @type {Record<string, {state: string, comments: any[], events: any[]}>} */
     const items = {};
-    const item = (n) => (items[n] ??= { state: "open", comments: [] });
+    const item = (n) => (items[n] ??= { state: "open", comments: [], events: [] });
     const gh = createFakeGh(({ args, input }) => {
         const x = args.indexOf("-X");
         const method = x === -1 ? "GET" : args[x + 1];
@@ -59,6 +61,8 @@ function world(mode) {
                 /^issues\/(\d+)\/comments\?since=([^&]+)/,
                 (m) => ({ status: 200, body: item(m[1]).comments.filter((c) => c.created_at >= m[2]) }),
             ],
+            ["GET", /^issues\/(\d+)\/comments\?per_page/, (m) => ({ status: 200, body: item(m[1]).comments })],
+            ["GET", /^issues\/(\d+)\/events\?/, (m) => ({ status: 200, body: item(m[1]).events })],
             ["GET", /^issues\/(\d+)$/, (m) => ({ status: 200, body: { state: item(m[1]).state } })],
         ];
         for (const [verb, pattern, answer] of routes) {
@@ -71,10 +75,14 @@ function world(mode) {
     const gitHub = createGitHub({
         repo: REPO,
         exec: gh.exec,
-        mode: (group) => (group === "proposals" ? mode : "dry-run"),
+        mode: (group) => {
+            if (group !== "proposals") return "dry-run";
+            return typeof mode === "function" ? mode() : mode;
+        },
         ledger: (e) => ledger.push(e),
         env: {},
         now: () => t,
+        persist,
     });
     return {
         gh,
@@ -359,5 +367,72 @@ describe("advanceProposals: vetoes and objections", () => {
         expect(state.proposals["issue:5"].status).toBe("confirmed");
         expect(state.proposals["issue:5"].lastError).toMatch(/ASCII|ascii/);
         expect(state.proposals["pr:9"].status).toBe("commented");
+    });
+});
+
+describe("advanceProposals: dry-run to acting, crashes and reopens", () => {
+    it("a would-do comment is posted for real once the group acts, and grace restarts from it", async () => {
+        let mode = "dry-run";
+        const w = world(() => mode);
+        const state = {};
+        recordVerdict(state, dup("s1"));
+        recordVerdict(state, dup("s2"));
+        await days(w, state, 3);
+        expect(state.proposals["issue:5"]).toMatchObject({ status: "commented", dryRun: true });
+        mode = "acting";
+        await days(w, state, 1);
+        expect(state.proposals["issue:5"].status).toBe("confirmed");
+        await days(w, state, 1);
+        expect(state.proposals["issue:5"]).toMatchObject({ status: "commented", dryRun: false, presentDays: 0 });
+        expect(w.items[5].comments).toHaveLength(1);
+        await days(w, state, GRACE_DAYS.issue - 1);
+        expect(w.items[5].state).toBe("open");
+        await days(w, state, 1);
+        expect(w.items[5].state).toBe("closed");
+    });
+
+    it("a crash after the comment was sent never posts it twice", async () => {
+        const state = {};
+        let disk = "{}";
+        const w = world("acting", () => (disk = JSON.stringify(state)));
+        recordVerdict(state, dup("s1"));
+        recordVerdict(state, dup("s2"));
+        await advanceProposals(state, w.ctx());
+        expect(JSON.parse(disk).proposals["issue:5"].status).toBe("commenting");
+        // The process dies before its own save: the restart reads what the gate saved.
+        const restarted = JSON.parse(disk);
+        await advanceProposals(restarted, w.ctx());
+        expect(restarted.proposals["issue:5"]).toMatchObject({ status: "commented", commentId: 1000 });
+        expect(w.items[5].comments).toHaveLength(1);
+    });
+
+    it("the owner reopening a target githerd closed vetoes it; a reopen by someone else does not", async () => {
+        const w = world("acting");
+        const state = {};
+        recordVerdict(state, dup("s1"));
+        recordVerdict(state, dup("s2"));
+        recordVerdict(state, { ...dup("s1"), number: 6 });
+        recordVerdict(state, { ...dup("s2"), number: 6 });
+        await advanceProposals(state, w.ctx());
+        await days(w, state, GRACE_DAYS.issue + 1);
+        expect(w.items[5].state).toBe("closed");
+        const reopened = (login) => ({
+            event: "reopened",
+            actor: { login },
+            created_at: new Date(START + 9 * DAY).toISOString(),
+        });
+        w.items[5].state = "open";
+        w.items[5].events.push(reopened(OWNER));
+        w.items[6].state = "open";
+        w.items[6].events.push(reopened("someone"));
+        await days(w, state, 1);
+        expect(state.vetoes).toEqual({
+            "issue:5": { by: "owner", reason: "the owner reopened it", at: reopened(OWNER).created_at },
+        });
+        expect(w.ledger.filter((e) => e.kind === "veto")).toEqual([
+            { kind: "veto", target: "issue:5", by: "owner", reason: "the owner reopened it" },
+        ]);
+        expect(recordVerdict(state, dup("s3")).refused).toBe("issue:5 is vetoed");
+        expect(state.proposals["issue:6"].watched).toBe(false);
     });
 });

@@ -17,6 +17,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
 import { byOwner } from "./board.mjs";
+import { recordVerdict } from "./proposals.mjs";
 import { assertAscii, checkOutgoing } from "./text.mjs";
 
 /** Kinds that edit code in a githerd worktree. */
@@ -623,7 +624,7 @@ export function runTools(ctx) {
         if (kind === "master-red") throw new Error("a master-red run proposes reverts only");
         const { type, number } = inBatch(args.target);
         if (type !== "issue") throw new Error("close-issue needs an issue: target");
-        if (state.issues?.byNumber?.[number]?.closeVetoed) {
+        if (state.vetoes?.[args.target] || state.issues?.byNumber?.[number]?.closeVetoed) {
             throw new Error(`${args.target} was vetoed before; it is never proposed for closing again`);
         }
         if (!args.evidence.some((/** @type {any} */ e) => e.pr || e.commit)) {
@@ -633,6 +634,42 @@ export function runTools(ctx) {
             throw new Error("closeAs duplicate and duplicateOf go together");
         }
     };
+
+    /**
+     * A close proposal is a verdict of this run's session (proposals.mjs): the first makes an
+     * unconfirmed proposal on the target, and one from a second run that agrees confirms it.
+     * `completed` is read as `fixed`, `not_planned` as `obsolete`.
+     * @param {any} args the tool arguments, already checked
+     * @returns {Promise<string>} the target and its proposal's status
+     */
+    async function proposeClose(args) {
+        const { number } = parseTarget(args.target);
+        const verdicts = { duplicate: "duplicate", not_planned: "obsolete", completed: "fixed" };
+        const evidence = args.evidence.map((/** @type {any} */ e) =>
+            [e.pr && `#${e.pr}`, e.commit, e.path].filter(Boolean).join(" "),
+        );
+        spend(1);
+        const r = recordVerdict(state, {
+            verdict: /** @type {any} */ (verdicts)[args.closeAs ?? "completed"],
+            number,
+            of: args.duplicateOf,
+            evidence: `${args.reason} (${evidence.join("; ")})`,
+            session: id,
+            at: now.toISOString(),
+        });
+        if (r.refused) throw new Error(r.refused);
+        const p = /** @type {import("./proposals.mjs").Proposal} */ (r.proposal);
+        await ctx.save();
+        await ctx.ledger({
+            kind: "proposal",
+            target: p.target,
+            verdict: p.kind,
+            to: p.status,
+            run: id,
+            untrusted: true,
+        });
+        return `${p.target}: ${p.status}`;
+    }
 
     if ((!codeEditing && kind !== "retriage-candidates") || kind === "master-red") {
         tools.push({
@@ -668,6 +705,7 @@ export function runTools(ctx) {
             handler: async (args) => {
                 checkProposal(args);
                 outgoing(args.reason, "reason");
+                if (args.kind === "close-issue") return proposeClose(args);
                 const open = Object.values(state.proposals ?? {}).find(
                     (/** @type {any} */ p) =>
                         p.target === args.target && (p.status === "pending" || p.status === "dry-run"),

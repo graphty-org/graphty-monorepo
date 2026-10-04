@@ -363,9 +363,32 @@ describe("githerd_status", () => {
             2: { state: "open", author: "x" },
             3: { state: "closed", author: "x" },
         };
+        state.proposals["issue:6"] = {
+            id: "issue:6",
+            kind: "duplicate",
+            target: "issue:6",
+            of: 3,
+            evidence: null,
+            proposedBy: "run-1x",
+            status: "unconfirmed",
+        };
+        state.proposals["issue:7"] = {
+            id: "issue:7",
+            kind: "obsolete",
+            target: "issue:7",
+            evidence: "gone in 1a2b",
+            proposedBy: "run-1x",
+            status: "commented",
+            presentDays: 2,
+            dryRun: true,
+        };
         let { text } = await call(ctxFor(state), "githerd_status", { section: "proposals" });
         expect(text).toContain(`revert #718 (${RUN_TEXT} broke Build) -- grace starts when the owner is shown it`);
         expect(text).toContain("close #5 (dup) -- dry-run, nothing will happen");
+        expect(text).toContain("close #6 (duplicate of #3) -- waits for a second session to agree");
+        expect(text).toContain(
+            `close #7 (obsolete: ${RUN_TEXT} gone in 1a2b) -- 2 of 7 owner-present days of grace, unless vetoed (dry-run)`,
+        );
         ({ text } = await call(ctxFor(state), "githerd_status", { section: "issues" }));
         expect(text).toContain("ISSUES: 2 open");
         expect(text).toContain(

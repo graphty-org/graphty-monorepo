@@ -492,19 +492,20 @@ describe("githerd_ci_log and githerd_rerun_failed", () => {
 });
 
 describe("githerd_propose and githerd_finish_branch", () => {
-    it("records a close proposal in dry-run and refuses a second or a vetoed one", async () => {
-        const { call, state } = setup({ kind: "refresh", batch: ["issue:13"] });
+    it("records a close as this run's verdict, needs a second run to confirm it, and refuses vetoed targets", async () => {
+        const { call, state } = setup({ kind: "refresh", batch: ["issue:13", "issue:14"] });
         const args = { kind: "close-issue", target: "issue:12", reason: "fixed by #688", evidence: [{ pr: 688 }] };
-        expect((await call("githerd_propose", args)).text).toBe(
-            "prop-20261002-1-zz: recorded (dry-run, nothing will happen)",
-        );
-        expect(state.proposals["prop-20261002-1-zz"]).toMatchObject({
-            status: "dry-run",
-            closeAs: "completed",
+        expect((await call("githerd_propose", args)).text).toBe("issue:12: unconfirmed");
+        expect(state.proposals["issue:12"]).toMatchObject({
+            kind: "fixed",
+            status: "unconfirmed",
             proposedBy: "run-1",
+            evidence: "fixed by #688 (#688)",
         });
-        expect((await call("githerd_propose", args)).text).toMatch(/already has proposal/);
+        expect((await call("githerd_propose", args)).text).toMatch(/needs a verdict from a fresh session/);
         expect((await call("githerd_propose", { ...args, target: "issue:13" })).text).toMatch(/vetoed before/);
+        state.vetoes = { "issue:14": { by: "owner", reason: "githerd veto", at: "x" } };
+        expect((await call("githerd_propose", { ...args, target: "issue:14" })).text).toMatch(/vetoed before/);
         expect((await call("githerd_propose", { ...args, evidence: [{ path: "a" }] })).isError).toBe(true);
         expect((await call("githerd_propose", { ...args, closeAs: "duplicate" })).isError).toBe(true);
         expect((await call("githerd_propose", { ...args, kind: "revert" })).text).toMatch(/only a master-red run/);

@@ -13,6 +13,7 @@
  */
 
 import * as board from "./board.mjs";
+import { GRACE_DAYS } from "./proposals.mjs";
 import { takenBy, workQueue } from "./queue.mjs";
 import { assertAscii } from "./text.mjs";
 
@@ -22,6 +23,8 @@ export const RUN_TEXT = "[run text]";
 /** Escalation kinds the owner must act on; others are listed as notes. */
 const OWNER_KINDS = new Set(["decision", "credential", "visual-review", "approval", "master-red"]);
 
+/** The proposal states status lists: the judgment runs' and the two-session kind's. */
+const OPEN_PROPOSALS = new Set(["pending", "dry-run", "unconfirmed", "confirmed", "commenting", "commented"]);
 const SECTIONS = ["all", "master", "prs", "queue", "claims", "owner", "proposals", "runs", "issues"];
 
 /**
@@ -260,14 +263,17 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
     }
     if (want("proposals")) {
         out.proposals = Object.values(state.proposals ?? {})
-            .filter((p) => p.status === "pending" || p.status === "dry-run")
+            .filter((p) => OPEN_PROPOSALS.has(p.status))
             .map((p) => ({
                 id: p.id,
                 kind: p.kind,
                 target: p.target,
                 closeAs: p.closeAs ?? null,
-                reason: marked(p.reason, p.proposedBy),
+                of: p.of ?? null,
+                reason: (p.reason ?? p.evidence) ? marked(p.reason ?? p.evidence, p.proposedBy) : "",
                 graceUntil: p.graceUntil ?? null,
+                presentDays: p.presentDays ?? null,
+                dryRun: p.dryRun === true,
                 status: p.status,
             }));
     }
@@ -445,11 +451,31 @@ function claimLines(claims, sessions) {
 }
 
 /**
+ * Renders one close proposal of the two-session kind (proposals.mjs).
+ * @param {any} p the proposal
+ * @returns {string} the entry
+ */
+function closeEntry(p) {
+    const of = p.of ? ` of #${p.of}` : "";
+    const what = `close ${p.target.replace(/^(issue|pr):/, "#")} (${p.kind}${of}${p.reason ? `: ${p.reason}` : ""})`;
+    const grace = GRACE_DAYS[/** @type {"issue" | "pr"} */ (p.target.split(":")[0])];
+    /** @type {Record<string, string>} */
+    const when = {
+        unconfirmed: "waits for a second session to agree",
+        confirmed: "the proposal comment is next",
+        commenting: "the proposal comment is going out",
+        commented: `${p.presentDays ?? 0} of ${grace} owner-present days of grace, unless vetoed`,
+    };
+    return `${what} -- ${when[p.status]}${p.dryRun ? " (dry-run)" : ""}`;
+}
+
+/**
  * Renders one proposal of status.
  * @param {any} p the proposal
  * @returns {string} the entry
  */
 function proposalEntry(p) {
+    if (p.kind !== "revert" && p.kind !== "close-issue") return closeEntry(p);
     const revert = p.kind === "revert";
     const what = `${revert ? "revert" : "close"} ${p.target.replace(/^(issue|pr):/, "#")}`;
     let whenText = "grace starts when the owner is shown it";

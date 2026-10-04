@@ -454,6 +454,62 @@ describe("PageList: keyboard and pointer", () => {
     });
 });
 
+describe("PageList: second line, value and row menu", () => {
+    const RECENT = [
+        {
+            id: "les",
+            name: "Les Miserables",
+            value: "77 nodes",
+            description: "Saved 2 minutes ago",
+            menu: <button type="button">More for Les Miserables</button>,
+        },
+        {
+            id: "gone",
+            name: "Karate club",
+            value: "34 nodes",
+            description: "This file can no longer be read",
+            descriptionTone: "danger" as const,
+        },
+        { id: "plain", name: "Plain" },
+    ];
+
+    it("names each row by its visible text and draws the second line under the name", async () => {
+        await renderThemed(<PageList label="Recent projects" items={RECENT} />);
+        const cell = screen.getByRole("gridcell", { name: "Les Miserables 77 nodes Saved 2 minutes ago" });
+        const name = within(cell).getByText("Les Miserables").getBoundingClientRect();
+        const value = within(cell).getByText("77 nodes").getBoundingClientRect();
+        const second = within(cell).getByText("Saved 2 minutes ago").getBoundingClientRect();
+        expect(value.left).toBeGreaterThan(name.right);
+        expect(value.top).toBeCloseTo(name.top, 0);
+        expect(second.top).toBeGreaterThanOrEqual(name.bottom);
+        expect(cell.getBoundingClientRect().height).toBeGreaterThan(32);
+        const danger = screen.getByText("This file can no longer be read");
+        expect(getComputedStyle(danger).color).not.toBe(
+            getComputedStyle(within(cell).getByText("Saved 2 minutes ago")).color,
+        );
+        expect(screen.getByRole("gridcell", { name: "Plain" }).getBoundingClientRect().height).toBeCloseTo(32, 0);
+    });
+
+    it("keeps the menu out of the row's name and out of switching, and reaches it with ArrowRight", async () => {
+        const onCurrentChange = vi.fn();
+        await renderThemed(<PageList label="Recent projects" items={RECENT} onCurrentChange={onCurrentChange} />);
+        const more = screen.getByRole("button", { name: "More for Les Miserables" });
+        await tabIn();
+        const cell = screen.getByRole("gridcell", { name: /^Les Miserables/ });
+        expect(document.activeElement).toBe(cell);
+        await userEvent.keyboard("{ArrowRight}");
+        expect(document.activeElement).toBe(more);
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(document.activeElement).toBe(cell);
+        // A row without a menu ignores ArrowRight.
+        await userEvent.keyboard("{ArrowDown}{ArrowRight}");
+        expect(document.activeElement).toBe(screen.getByRole("gridcell", { name: /^Karate club/ }));
+
+        await userEvent.click(more);
+        expect(onCurrentChange).not.toHaveBeenCalled();
+    });
+});
+
 describe("InlineRename", () => {
     it("commits on blur without taking focus back", async () => {
         const onCommit = vi.fn();

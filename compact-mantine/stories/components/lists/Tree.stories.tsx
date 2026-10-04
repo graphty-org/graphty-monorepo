@@ -240,7 +240,13 @@ export const RowParts: Story = {
                         icon: <UiGlyph name="frame" />,
                         swatch: (
                             <span
-                                style={{ display: "block", width: 8, height: 8, borderRadius: 4, background: "#e15759" }}
+                                style={{
+                                    display: "block",
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: 4,
+                                    background: "#e15759",
+                                }}
                             />
                         ),
                         count: "6",

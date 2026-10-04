@@ -272,6 +272,39 @@ const css = `
     font-weight: 600;
 }
 .cm-page-divider { flex: 1 1 auto; height: 1px; background: var(--cm-border); }
+/* A row with its own menu: the cell, then the menu in a cell of its own at the trailing edge. */
+.cm-page-row { display: flex; align-items: center; }
+.cm-page-row > .cm-page-cell { flex: 1 1 auto; min-width: 0; }
+.cm-page-menu { flex: none; display: flex; align-items: center; padding-inline-end: 8px; }
+/* The trailing value, and the two-line row: name and value on the first line, then a second
+   11/16 line in the secondary (or danger) ink. */
+.cm-page-value {
+    flex: none;
+    margin-inline-start: auto;
+    padding-inline-start: 8px;
+    color: var(--cm-text-secondary);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+}
+.cm-page-cell[data-two-line] { height: auto; }
+.cm-page-cell[data-two-line] .cm-page-button {
+    flex-direction: column;
+    align-items: stretch;
+    height: auto;
+    padding-block: 4px;
+    line-height: 16px;
+}
+.cm-page-line { display: flex; align-items: center; min-width: 0; }
+.cm-page-description {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cm-text-secondary);
+    font-weight: 400;
+    letter-spacing: normal;
+}
+.cm-page-description[data-tone="danger"] { color: var(--cm-text-danger); }
 .cm-page-cell .cm-rename { width: 100%; }
 
 /* ---- Inline rename (10.3) ---------------------------------------------------------------- */

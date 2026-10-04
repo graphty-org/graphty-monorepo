@@ -1018,7 +1018,8 @@ jobs:
                       artifact: build-storybook-app
         steps:
             # Baseline PNGs are Git LFS objects. The checkout leaves them as pointer files (no job fetches
-            # LFS objects by default); this job alone fetches them, and only its own project's. The objects
+            # LFS objects by default); this job alone fetches them, and only its own project's, plus the
+            # pinned fonts every capture draws with (visual-fonts/, the config's "fontconfig"). The objects
             # are cached in the Actions cache keyed by the pointer files' hash (which is the list of object
             # ids), so a run downloads from LFS only the images accepted since the cache was saved, and the
             # organisation's LFS bandwidth (250 GiB a month, a $0 budget that blocks rather than bills)
@@ -1032,11 +1033,11 @@ jobs:
               uses: actions/cache@v4
               with:
                   path: .git/lfs/objects
-                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project)) }}
+                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
                   restore-keys: lfs-${{ matrix.project }}-
 
-            - name: Fetch this project's baseline images from Git LFS
-              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**"
+            - name: Fetch this project's baseline images and the pinned fonts from Git LFS
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
 
             # A pull request runs the base branch's copy of the tool (capture and the trusted code it
             # imports), never its own: code that wrote "unchanged" for everything would otherwise pass

@@ -1225,8 +1225,14 @@ jobs:
                   mkdir -p "$gate"
                   git archive HEAD^1 visual-review/trusted | tar -x -C "$gate"
                   # The base branch's gate takes --pr once it checks passkeys; one from before that does not.
+                  # In a merge-queue run the pull request is Mergify's draft, whose number no record names:
+                  # the gate reads the batch's pull requests from the draft's event instead.
                   pr=()
-                  if grep -q -- "--pr <number>" "$gate/visual-review/trusted/gate.mjs"; then pr=(--pr "$PR"); fi
+                  if [[ "$MERGE_QUEUE" == "true" ]] && grep -q -- "--queue-event <file>" "$gate/visual-review/trusted/gate.mjs"; then
+                      pr=(--queue-event "$GITHUB_EVENT_PATH")
+                  elif grep -q -- "--pr <number>" "$gate/visual-review/trusted/gate.mjs"; then
+                      pr=(--pr "$PR")
+                  fi
                   node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" "${pr[@]}" --base HEAD^1 --head HEAD
 
     # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so

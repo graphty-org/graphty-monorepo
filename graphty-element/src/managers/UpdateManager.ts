@@ -1437,7 +1437,7 @@ export class UpdateManager implements Manager {
 
         this.lastCameraState = [view, projection];
 
-        return before === null || before[0] !== view || before[1] !== projection;
+        return before?.[0] !== view || before[1] !== projection;
     }
 
     /**

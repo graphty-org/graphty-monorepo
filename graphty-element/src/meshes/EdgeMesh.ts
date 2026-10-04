@@ -26,6 +26,8 @@ import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
+const PATTERNED_TYPES = new Set(["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
+
 interface EdgeMeshOptions {
     styleId: string;
     width: number;
@@ -254,7 +256,6 @@ void main() {
         dstPoint?: Vector3,
     ): AbstractMesh | PatternedLineMesh {
         const lineType = style.line?.type ?? "solid";
-        const PATTERNED_TYPES = ["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"];
 
         // PHASE 5: Bezier curves use CustomLineRenderer with multi-point paths (individual meshes, no caching)
         // Each bezier curve has unique geometry based on src/dst points, so can't be cached
@@ -294,7 +295,7 @@ void main() {
         // PHASE 5: Pattern lines use PatternedLineRenderer (individual meshes, no caching)
         // See: design/mesh-based-patterned-lines.md Phase 5
         // Note: Edge.transformArrowCap() provides start/end already adjusted for node surfaces and arrows
-        if (PATTERNED_TYPES.includes(lineType)) {
+        if (PATTERNED_TYPES.has(lineType)) {
             return PatternedLineRenderer.create(
                 lineType as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
                 new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)

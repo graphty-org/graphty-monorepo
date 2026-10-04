@@ -5,7 +5,7 @@
  */
 
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
-import { DATASETS, fetchDataset, type FetchDatasetOptions, type SampleGraph } from "@graphty/graph-samples";
+import { DATASET_NAMES, fetchDataset, type FetchDatasetOptions, type SampleGraph } from "@graphty/graph-samples";
 import * as g from "@graphty/graph-samples/generators";
 import type { ElementDefinition } from "cytoscape";
 
@@ -244,12 +244,8 @@ export async function datasetElements(name: string, options: FetchDatasetOptions
     options.signal?.throwIfAborted();
     const load = BUNDLED[name];
     // only graphty.app's own list is checked: a custom baseUrl may serve any name
-    if (load === undefined && options.baseUrl === undefined && !DATASETS.some((d) => d.name === name)) {
-        throw unknownName(
-            "dataset",
-            name,
-            DATASETS.map((d) => d.name),
-        );
+    if (load === undefined && options.baseUrl === undefined && !DATASET_NAMES.includes(name)) {
+        throw unknownName("dataset", name, DATASET_NAMES);
     }
     const graph = load === undefined ? await fetchDataset(name, options) : await load();
     options.signal?.throwIfAborted();

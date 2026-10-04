@@ -336,6 +336,34 @@ describe("attributes with a name Cytoscape reserves", () => {
     });
 });
 
+describe("edge ids Cytoscape cannot keep", () => {
+    it("are reported as W_EDGE_ID_DROPPED, and the edge is kept with a new id", async () => {
+        const gml =
+            "graph [ node [ id 1 ] node [ id 2 ] node [ id 3 ] edge [ id 10 source 1 target 2 ] edge [ id 10 source 2 target 3 ] edge [ id 1 source 1 target 3 ] ]";
+        const cy = core();
+        const { report } = await cy.graphtyImport(gml, "gml");
+        expect(cy.edges()).toHaveLength(3);
+        expect(cy.$id("10").source().id()).toBe("1");
+        const dropped = report.issues.filter((i) => i.code === "W_EDGE_ID_DROPPED");
+        expect(dropped.map((i) => [i.element, i.severity])).toEqual([
+            ["10", "warning"],
+            ["1", "warning"],
+        ]);
+        expect(dropped[1].message).toContain("a node");
+    });
+});
+
+describe("byte input", () => {
+    it("takes an ArrayBuffer, as fetch().arrayBuffer() and File.arrayBuffer() give one", async () => {
+        const cy = core();
+        const bytes = new TextEncoder().encode("graph [ node [ id 1 ] node [ id 2 ] edge [ source 1 target 2 ] ]");
+        const r = await cy.graphtyImport(bytes.buffer, "gml");
+        expect(r.format).toBe("gml");
+        expect(cy.nodes()).toHaveLength(2);
+        expect(cy.edges()).toHaveLength(1);
+    });
+});
+
 describe("positions on import", () => {
     const placed = (): cytoscape.ElementDefinition[] => [
         { data: { id: "a" }, position: { x: 10, y: 20 } },

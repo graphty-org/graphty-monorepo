@@ -17,7 +17,7 @@
         "dataset political-blogs": 77252,
         "dataset political-books": 4582,
         "file formats, all of them (on the first graphtyImport or graphtyExport)": 209173,
-        "generators (on the first graphtyGenerate or graphtyDataset)": 32365,
+        "generators (on the first graphtyGenerate or graphtyDataset)": 23967,
         "WebGPU code (on the first GPU-eligible call)": 115920,
         "everything (every chunk of the build)": 788244,
         "script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats and the datasets)": 257497

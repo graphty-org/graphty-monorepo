@@ -89,7 +89,8 @@ console.log(`${elements.nodes().length} nodes, ${elements.edges().length} edges,
 It prints `warning W_DUPLICATE_NODE on line 6: node "b" is declared twice; the declarations are
 merged`, then `3 nodes, 2 edges, directed: true`.
 
-The input is a string, a `Uint8Array` or a `ReadableStream` (`file.stream()`). `format`
+The input is a string, a `Uint8Array`, an `ArrayBuffer` (`await response.arrayBuffer()`) or a
+`ReadableStream` (`file.stream()`). `format`
 defaults to `"auto"`, which detects the format from the content; `filename` and `mimeType` only
 break near ties. Most text reads as CSV with no warning: `"hello world"` imports as an edge from
 `hello` to `world`. Pass the format when you know it, or check the returned `format`.
@@ -129,8 +130,11 @@ two.
 
 - Every attribute becomes a data field of the same name, except the reserved `id`, `source`,
   `target` and `parent`, which are renamed (such as `parent#2`) with a `W_COLUMN_RENAMED` warning.
-- The edge weight becomes `data.weight`. Ids are the file's ids as strings. An edge repeating an
-  earlier edge's id is skipped and reported as `E_DUPLICATE_EDGE_ID`.
+- The edge weight becomes `data.weight`. Ids are the file's ids as strings. In GraphML, GEXF,
+  XGMML, CX2, CSV and Cytoscape JSON, an edge repeating an earlier edge's id is skipped and
+  reported as `E_DUPLICATE_EDGE_ID`. In GML and DOT the edge is kept, Cytoscape gives it a new id,
+  and the report has a `W_EDGE_ID_DROPPED` warning. An edge id that is also a node id gets the same
+  warning and a new id in every format.
 - A compound parent (GraphML nested graph, DOT cluster) becomes `data.parent`.
 - Positions become node positions; nodes without one sit at the origin. CX, CX2 and XGMML put a
   z coordinate in `data.z`. GEXF, GML, DOT and Pajek are y-up, so y is negated on import and on

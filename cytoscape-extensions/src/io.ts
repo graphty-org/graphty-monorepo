@@ -96,11 +96,12 @@ const SCREEN_Y_FORMATS: ReadonlySet<string> = new Set(["json"]);
  * @throws ImportError (from graph-io) when the file cannot be read, or when it yields no node and reports an error
  */
 export async function importElements(
-    input: ImportInput,
+    input: ImportInput | ArrayBuffer,
     format: ImportFormat = "auto",
     options: ImportOptions = {},
 ): Promise<ImportedElements> {
-    const r = await importGraph(input, { ...options, format });
+    // fetch().arrayBuffer() and File.arrayBuffer() give an ArrayBuffer, which graph-io does not take
+    const r = await importGraph(input instanceof ArrayBuffer ? new Uint8Array(input) : input, { ...options, format });
     // most text sniffs as CSV, so a file that is not a graph at all reads as an empty one with errors
     if (r.snapshot.nodeCount === 0 && r.report.errorCount > 0) {
         const first = r.report.issues.find((i) => i.severity === "error");
@@ -110,16 +111,27 @@ export async function importElements(
             { format: r.format },
         );
     }
-    const renamed: ImportIssue[] = [];
-    const elements = snapshotToElements(r.snapshot, ({ domain, from, to }) =>
-        renamed.push({
-            category: "coercion",
-            severity: "warning",
-            code: "W_COLUMN_RENAMED",
-            message: `${domain} attribute "${from}" renamed to "${to}": Cytoscape reserves the data field "${from}"`,
-            line: null,
-            element: from,
-        }),
+    const warnings: ImportIssue[] = [];
+    const elements = snapshotToElements(
+        r.snapshot,
+        ({ domain, from, to }) =>
+            warnings.push({
+                category: "coercion",
+                severity: "warning",
+                code: "W_COLUMN_RENAMED",
+                message: `${domain} attribute "${from}" renamed to "${to}": Cytoscape reserves the data field "${from}"`,
+                line: null,
+                element: from,
+            }),
+        (id, takenBy) =>
+            warnings.push({
+                category: "coercion",
+                severity: "warning",
+                code: "W_EDGE_ID_DROPPED",
+                message: `edge id "${id}" is already the id of ${takenBy === "node" ? "a node" : "an earlier edge"}; Cytoscape gives this edge a new id`,
+                line: null,
+                element: id,
+            }),
     );
     // graph-io stores positions with y growing upward; Cytoscape's y grows downward
     if (!SCREEN_Y_FORMATS.has(r.format)) {
@@ -130,12 +142,12 @@ export async function importElements(
         }
     }
     const report =
-        renamed.length === 0
+        warnings.length === 0
             ? r.report
             : {
                   ...r.report,
-                  issues: [...r.report.issues, ...renamed],
-                  warningCount: r.report.warningCount + renamed.length,
+                  issues: [...r.report.issues, ...warnings],
+                  warningCount: r.report.warningCount + warnings.length,
               };
     return { elements, directed: r.snapshot.directed, format: r.format, report };
 }

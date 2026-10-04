@@ -51,7 +51,11 @@ export interface GraphtyGraphData {
      * node positions (y negated for the formats whose y grows upward: GEXF, GML, DOT, Pajek). Throws, adding
      * nothing, when the core already holds one of the graph's node ids.
      */
-    graphtyImport(input: ImportInput, format?: ImportFormat, options?: ImportOptions): Promise<ImportedGraph>;
+    graphtyImport(
+        input: ImportInput | ArrayBuffer,
+        format?: ImportFormat,
+        options?: ImportOptions,
+    ): Promise<ImportedGraph>;
     /**
      * Writes the graph as a file's text: every data field, each node's position and parent, and each edge's id, as
      * far as the format holds them (`options.onLoss` hears about the rest). Hidden elements are written too. On a
@@ -138,7 +142,7 @@ export function registerGraphData(cytoscape: Register): void {
     cytoscape(
         "core",
         "graphtyImport",
-        async function (this: Core, input: ImportInput, format?: ImportFormat, options?: ImportOptions) {
+        async function (this: Core, input: ImportInput | ArrayBuffer, format?: ImportFormat, options?: ImportOptions) {
             const { importElements } = await loadPart(import("./io.js"), "graphtyImport");
             const r = await importElements(input, format, options);
             return { elements: addTo(this, r.elements), directed: r.directed, format: r.format, report: r.report };

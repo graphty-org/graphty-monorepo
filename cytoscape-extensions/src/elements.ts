@@ -48,22 +48,24 @@ export interface RenamedColumn {
  * - a node column with the role "parent" (a compound parent, as Cytoscape JSON, GraphML nested graphs and DOT
  *   clusters carry it) becomes `data.parent`;
  * - an edge column with the role "id" becomes the edge's id when that id is not a node id and not used by an
- *   earlier edge; otherwise the edge gets no id and Cytoscape assigns one;
+ *   earlier edge; otherwise the edge gets no id, Cytoscape assigns one, and `onIdDropped` hears about it;
  * - the edge weights become `data.weight`: the weight column when the file had one, else the snapshot's weights
  *   when it is weighted.
  * @param snapshot - the snapshot
  * @param onRename - told about each column renamed because its name is reserved
+ * @param onIdDropped - told about each edge id dropped, and whether a node or an earlier edge has it
  * @returns the nodes, then the edges
  */
 export function snapshotToElements(
     snapshot: GraphSnapshot,
     onRename?: (renamed: RenamedColumn) => void,
+    onIdDropped?: (id: string, takenBy: "node" | "edge") => void,
 ): ElementDefinition[] {
     const ids: string[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
         ids.push(String(snapshot.ids.idOf(i)));
     }
-    return [...nodeElements(snapshot, ids, onRename), ...edgeElements(snapshot, ids, onRename)];
+    return [...nodeElements(snapshot, ids, onRename), ...edgeElements(snapshot, ids, onRename, onIdDropped)];
 }
 
 /**
@@ -166,12 +168,14 @@ function nodeElements(
  * @param snapshot - the snapshot
  * @param ids - the node ids as strings, by node index
  * @param onRename - told about each renamed column
+ * @param onIdDropped - told about each dropped edge id
  * @returns one element per edge
  */
 function edgeElements(
     snapshot: GraphSnapshot,
     ids: readonly string[],
     onRename: ((renamed: RenamedColumn) => void) | undefined,
+    onIdDropped: ((id: string, takenBy: "node" | "edge") => void) | undefined,
 ): ElementDefinition[] {
     const edgeCols = [...snapshot.edges].filter(kept);
     const named = edgeCols.some((c) => c.meta.name === "weight");
@@ -188,9 +192,13 @@ function edgeElements(
             data.weight = snapshot.weights[snapshot.edgeToArc[e]];
         }
         const id = edgeIds?.isSet(e) === true ? String(edgeIds.value(e)) : undefined;
-        if (id !== undefined && !nodeIds.has(id) && !usedEdgeIds.has(id)) {
-            usedEdgeIds.add(id);
-            data.id = id;
+        if (id !== undefined) {
+            if (nodeIds.has(id) || usedEdgeIds.has(id)) {
+                onIdDropped?.(id, nodeIds.has(id) ? "node" : "edge");
+            } else {
+                usedEdgeIds.add(id);
+                data.id = id;
+            }
         }
         data.source = ids[snapshot.edgeSource(e)];
         data.target = ids[snapshot.edgeTarget(e)];

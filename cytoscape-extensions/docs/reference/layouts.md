@@ -131,7 +131,7 @@ No options of its own.
 
 ### `graphty-planar` (static)
 
-Places one cycle of the graph on a circle and every other node at the average position of its already placed neighbors, plus a small random offset. It does not guarantee a drawing without crossings: on a 3 x 3 grid, edges cross and two nodes can land on the same point. Only the nodes off that cycle get the random offset: pass `seed` for the same positions on every run. When the cycle covers every node (a ring), there is nothing random and `seed` has no effect. On a graph that is not planar, `run()` throws `G is not planar.` and emits no events ([failures before the run](../guide/layouts#events)).
+Places one cycle of the graph on a circle and every other node at the average position of its already placed neighbors, plus a small random offset. It does not guarantee a drawing without crossings: on a 3 x 3 grid, edges cross and two nodes can land on the same point. Only the nodes off that cycle get the random offset: pass `seed` for the same positions on every run. When the cycle covers every node (a ring), there is nothing random and `seed` has no effect. For K5, K3,3 and a connected graph with more than 3n - 6 distinct edges (n nodes), `run()` throws `G is not planar.` and emits no events ([failures before the run](../guide/layouts#events)). Any other graph that is not planar is drawn with crossing edges.
 
 No options of its own.
 
@@ -220,7 +220,7 @@ The nodes `root` cannot reach go on one extra ring outside the others.
 
 ### `graphty-spring-electrical` (simulation)
 
-Runs only on the GPU. When the CPU is known before the run (`gpu: "off"`, `accelerator: null`, a browser with no `navigator.gpu`), `run()` throws and emits no events; otherwise, with no usable device, it emits `layouterror` and then `layoutstop`. `layout.backend` stays undefined either way. It has no iteration cap: it runs until it settles (see `settleThreshold` and `settleWindow`) or until you call `layout.stop()`.
+Runs only on the GPU. With no GPU for any reason (`gpu: "off"`, `accelerator: null`, a browser with no `navigator.gpu`, no usable device), `run()` returns normally and the layout then emits `layouterror`, with an error whose message starts `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because` and names the reason (for example `gpu: "off" was requested`), and then `layoutstop`. No node moves and `layout.backend` stays undefined. It has no iteration cap: it runs until it settles (see `settleThreshold` and `settleWindow`) or until you call `layout.stop()`.
 
 | Option              | Type     | Default | Meaning                                                                                                                                                                                          |
 | ------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

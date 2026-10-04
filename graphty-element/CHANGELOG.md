@@ -1,3 +1,14 @@
+## 3.11.1 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty-element:** price louvain by the graph's transitivity, not one flat rate ([72ec48a6a](https://github.com/graphty-org/graphty-monorepo/commit/72ec48a6a))
+- **graphty-element:** pre-bundle the per-function lodash imports in the browser tests ([d11555da9](https://github.com/graphty-org/graphty-monorepo/commit/d11555da9))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.11.0 (2026-10-04)
 
 ### 🚀 Features

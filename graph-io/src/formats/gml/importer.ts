@@ -616,7 +616,13 @@ class GmlImport {
      * @param v - the value token
      * @param seq - the element sequence number
      */
-    private observe(schema: Map<string, KeySchema>, domain: "node" | "edge" | "graph", key: string, v: number, seq: number): void {
+    private observe(
+        schema: Map<string, KeySchema>,
+        domain: "node" | "edge" | "graph",
+        key: string,
+        v: number,
+        seq: number,
+    ): void {
         const t = this.requireTokens();
         this.noteStructure(domain, key, v);
         let entry = schema.get(key);

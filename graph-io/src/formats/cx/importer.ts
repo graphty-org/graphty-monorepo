@@ -1261,24 +1261,11 @@ function readRelations(
         }
         views.set(sub, list);
     };
+
     for (const held of aspect(doc, "cyNetworkRelations")) {
         const relation = structuralId(held, "cyNetworkRelations", "c", report);
-        if (relation === null) {
-            continue;
-        }
-        const { value, id: child } = relation;
-        const parent = value.r === "view" ? refId(value.p) : null;
-        if (value.r === "view") {
-            if (parent !== null) {
-                addView(parent, child);
-            }
-            continue;
-        }
-        if (typeof value.name === "string") {
-            relationNames.set(child, value.name);
-        }
-        if (subs.has(child) && !order.includes(child)) {
-            order.push(child);
+        if (relation !== null) {
+            fileRelation(relation, subs, { relationNames, order, addView });
         }
     }
     for (const held of aspect(doc, "cyViews")) {
@@ -1290,6 +1277,38 @@ function readRelations(
     }
     order.push(...[...subs.keys()].filter((id) => !order.includes(id)));
     return { relationNames, order, views };
+}
+
+/**
+ * File one network relation: a view of a subnetwork, or a subnetwork's name and its place in the order.
+ * @param relation - the relation element and its child id
+ * @param relation.value - the element
+ * @param relation.id - the child: a view or a subnetwork
+ * @param subs - the subnetworks
+ * @param out - where the relation is filed
+ * @param out.relationNames - each subnetwork's name
+ * @param out.order - the subnetworks in relation order
+ * @param out.addView - records a view of a subnetwork
+ */
+function fileRelation(
+    relation: { readonly value: Record<string, unknown>; readonly id: NodeId },
+    subs: ReadonlyMap<NodeId, Subnetwork>,
+    out: { relationNames: Map<NodeId, string>; order: NodeId[]; addView: (sub: NodeId, view: NodeId) => void },
+): void {
+    const { value, id: child } = relation;
+    if (value.r === "view") {
+        const parent = refId(value.p);
+        if (parent !== null) {
+            out.addView(parent, child);
+        }
+        return;
+    }
+    if (typeof value.name === "string") {
+        out.relationNames.set(child, value.name);
+    }
+    if (subs.has(child) && !out.order.includes(child)) {
+        out.order.push(child);
+    }
 }
 
 /**

@@ -1408,7 +1408,7 @@ function planEdgeColumns(
  */
 function qualifierRecords(snapshot: GraphSnapshot, written: readonly number[]): Column | null {
     const qualifiers = snapshot.edges.get(QUALIFIERS_COLUMN);
-    if (qualifiers === null || qualifiers.dtype !== "json" || qualifiers.meta.role !== null) {
+    if (qualifiers?.dtype !== "json" || qualifiers.meta.role !== null) {
         return null;
     }
     const records = written.every(
@@ -1439,28 +1439,7 @@ function planHeader(
     note: NoteFn,
     stats: FrameStats,
 ): string[] {
-    const { meta } = snapshot;
-    const values = new Map<string, string[]>(Object.entries(kept).map(([tag, v]) => [tag, v.map(rawValue)]));
-    const filled = new Set<string>();
-    const fill = (tag: string, value: string | null): void => {
-        if (value !== null && !values.has(tag)) {
-            values.set(tag, [value]);
-            filled.add(tag);
-        }
-    };
-    // a file read from OBO keeps its own header; any other graph gets the fields its metadata has
-    if (meta.sourceFormat !== "obo") {
-        fill("format-version", "1.4");
-        fill("date", oboDate(meta.created));
-        fill("saved-by", meta.creator === null ? null : escapeOboValue(meta.creator));
-    }
-    const ontology = ontologyField(obo.ontology, meta.name, values.has("ontology"), note);
-    if (ontology !== null) {
-        if (!values.has("ontology")) {
-            filled.add("ontology");
-        }
-        values.set("ontology", [ontology]);
-    }
+    const { values, filled } = headerFields(snapshot, kept, obo.ontology, note);
     // a default namespace applies to every frame without one: keep it only when none lacks one
     const namespace = tags.get("namespace");
     if (values.has("default-namespace") && (namespace === undefined || rows.some((i) => !namespace.isSet(i)))) {
@@ -1488,6 +1467,45 @@ function planHeader(
         }
     }
     return lines;
+}
+
+/**
+ * The header fields: the kept ones, and for a graph not read from OBO the fields its metadata has.
+ * @param snapshot - the snapshot
+ * @param kept - the kept header
+ * @param ontologyOption - the ontology option, or null
+ * @param note - records a note
+ * @returns the values by tag, and the tags filled in (not kept)
+ */
+function headerFields(
+    snapshot: GraphSnapshot,
+    kept: Readonly<Record<string, readonly string[]>>,
+    ontologyOption: string | null,
+    note: NoteFn,
+): { values: Map<string, string[]>; filled: Set<string> } {
+    const { meta } = snapshot;
+    const values = new Map<string, string[]>(Object.entries(kept).map(([tag, v]) => [tag, v.map(rawValue)]));
+    const filled = new Set<string>();
+    const fill = (tag: string, value: string | null): void => {
+        if (value !== null && !values.has(tag)) {
+            values.set(tag, [value]);
+            filled.add(tag);
+        }
+    };
+    // a file read from OBO keeps its own header; any other graph gets the fields its metadata has
+    if (meta.sourceFormat !== "obo") {
+        fill("format-version", "1.4");
+        fill("date", oboDate(meta.created));
+        fill("saved-by", meta.creator === null ? null : escapeOboValue(meta.creator));
+    }
+    const ontology = ontologyField(ontologyOption, meta.name, values.has("ontology"), note);
+    if (ontology !== null) {
+        if (!values.has("ontology")) {
+            filled.add("ontology");
+        }
+        values.set("ontology", [ontology]);
+    }
+    return { values, filled };
 }
 
 /**
@@ -1607,8 +1625,7 @@ function planTail(input: TailInput): string[] {
         declare(relation, false);
     }
     for (const frame of kept.unknownFrames) {
-        lines.push("", `[${frame.type.replaceAll(/[\]\r\n]/g, "_")}]`);
-        lines.push(...clauseLines(frame.clauses));
+        lines.push("", `[${frame.type.replaceAll(/[\]\r\n]/g, "_")}]`, ...clauseLines(frame.clauses));
     }
     return lines;
 }
@@ -1650,8 +1667,7 @@ function keptTypedefLines(
             continue;
         }
         declared.add(id);
-        lines.push("", "[Typedef]", `id: ${escapeOboWord(id)}`);
-        lines.push(...clauseLines(clauses, "id"));
+        lines.push("", "[Typedef]", `id: ${escapeOboWord(id)}`, ...clauseLines(clauses, "id"));
         for (const xref of clauses.xref ?? []) {
             declared.add(xref.trim());
         }

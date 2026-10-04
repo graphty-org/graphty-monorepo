@@ -570,7 +570,9 @@ async function fill3(
         restoredIds,
         groupNodes: groupNodeIds(members.nodes),
         resolvePointer: pointerResolver(prepared, doc),
-        onMissingMember: (group, member): void => { addMissingMember(groups, group, member); },
+        onMissingMember: (group, member): void => {
+            addMissingMember(groups, group, member);
+        },
     };
     const settings: XgmmlSettings = { labelAliases: false, cytoscapeEscapes: false, zAs: prepared.zAs };
     new XgmmlEmitter(doc, dialect, sink, report, prepared.inner, settings, extras).emit(graph);
@@ -709,10 +711,7 @@ async function applyTable(ctx: TableContext, entry: TableEntry, table: CyTable):
     for (const [key, cells] of table.rows) {
         const atts = target(key);
         if (atts !== undefined) {
-            const line = table.lines.get(key) ?? 0;
-            for (let i = 1; i < table.columns.length && i < cells.length; i++) {
-                pushAtt(atts, cellAtt(table.columns[i], cells[i], line, namespace, hidden));
-            }
+            atts.push(...rowAtts(table, key, cells, namespace, hidden));
         } else if (!ctx.declared.has(key)) {
             unmatched++;
         }
@@ -729,6 +728,30 @@ async function applyTable(ctx: TableContext, entry: TableEntry, table: CyTable):
         }
     }
     return unmatched;
+}
+
+/**
+ * The attributes of one table row's cells (the first cell is the SUID key).
+ * @param table - the table
+ * @param key - the row's key
+ * @param cells - the row's cells
+ * @param namespace - the namespace the attributes are written in, or null
+ * @param hidden - whether the table is one of Cytoscape's hidden ones
+ * @returns the attributes of the cells that hold a value
+ */
+function rowAtts(
+    table: CyTable,
+    key: string,
+    cells: readonly string[],
+    namespace: string | null,
+    hidden: boolean,
+): AttRec[] {
+    const line = table.lines.get(key) ?? 0;
+    const out: AttRec[] = [];
+    for (let i = 1; i < table.columns.length && i < cells.length; i++) {
+        pushAtt(out, cellAtt(table.columns[i], cells[i], line, namespace, hidden));
+    }
+    return out;
 }
 
 /**

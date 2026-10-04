@@ -21,7 +21,8 @@ import { join } from "node:path";
 
 import * as board from "./board.mjs";
 import { LAUNCH_PROMPT } from "./hook.mjs";
-import { endItem, raiseItem } from "./notify.mjs";
+import { startFailed } from "./advance.mjs";
+import { endItem } from "./notify.mjs";
 import { jobOrder } from "./queue.mjs";
 import { resumeVerified } from "./selftest.mjs";
 import { startWorker } from "./tmux.mjs";
@@ -34,8 +35,6 @@ const MEMORY_SHARE = 0.15;
 /** Subagents per worker and Chromium trees machine-wide, enforced by the guard (design 8.1). */
 const SUBAGENTS = 2;
 const BROWSERS = 4;
-/** Real start failures after a passed self-test that stop every start until the owner looks. */
-const START_FAILURES = 2;
 /** With no reset time, a usage stop is probed this long after it began (design 8.3). */
 const PROBE_HOURS = [1, 3, 6];
 /** How long a `claude --version` answer and a signing probe are reused. */
@@ -505,7 +504,11 @@ async function startTask(ctx, job, busy) {
         job.base = prep.sha;
     }
     const jobDir = join(stateDir, "jobs", job.id);
-    writeJobFiles(jobDir, { stateDir, overlay: state.settings?.allow ?? [] });
+    writeJobFiles(jobDir, {
+        stateDir,
+        overlay: state.settings?.allow ?? [],
+        model: ctx.config.workers?.model ?? "claude-opus-5-5",
+    });
     writeGuard(state, ctx.config, job, jobDir);
     const vars = workerEnv({ env: ctx.env, path, signing, job: job.id, nonce: "probe" });
     const probe = await ctx.platform.signing(vars);
@@ -591,24 +594,24 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
         resume,
     });
     const started = await ctx.platform.start({ job: job.id, cwd: job.worktree, argv });
-    if (job.holder?.nonce !== nonce) {
-        // The job left this start meanwhile (a deadline, a cancel): end the window that opened.
-        if (started.ok) {
-            const holder = {
-                nonce,
-                socket: "githerd",
-                startedBy: "githerd",
-                ...started.window,
-                startTime: started.startTime,
-            };
-            state.retiring = [
-                ...(state.retiring ?? []),
-                { job: job.id, holder, reason: "the job left its start", at: now().toISOString() },
-            ];
-        }
-        return;
+    const left = job.holder?.nonce !== nonce;
+    // SessionStart reported a model outside the allowed ones before the window was known (hook.mjs).
+    const wrong = left ? null : job.holder.wrongModel;
+    if (started.ok && (left || wrong)) {
+        // The job left this start meanwhile (a deadline, a cancel), or the session runs a disallowed
+        // model: end the window that opened.
+        const holder = {
+            nonce,
+            socket: "githerd",
+            startedBy: "githerd",
+            ...started.window,
+            startTime: started.startTime,
+        };
+        const reason = wrong ? `the session ran ${wrong}` : "the job left its start";
+        state.retiring = [...(state.retiring ?? []), { job: job.id, holder, reason, at: now().toISOString() }];
     }
-    if (started.ok) {
+    if (left) return;
+    if (started.ok && !wrong) {
         const w = started.window;
         const session = job.holder.session ?? started.registry?.sessionId ?? null;
         Object.assign(job.holder, { ...w, startTime: started.startTime, session });
@@ -622,23 +625,9 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
         void ctx.ledger({ kind: "session-started", job: job.id, session, window: w.window, resume: Boolean(resume) });
         return;
     }
-    job.holder = null;
-    void ctx.ledger({ kind: "session-start-failed", job: job.id, capture: /** @type {any} */ (started).capture });
-    if (WORKING.has(job.state)) board.move(job, "queued", now(), { reason: "session start failed" });
-    state.startFailures = (state.startFailures ?? 0) + 1;
-    if (state.startFailures >= START_FAILURES) {
-        const reason = `${state.startFailures} worker starts failed in a row after a passed self-test`;
-        state.startsStopped = { at: now().toISOString(), reason };
-        raiseItem(
-            state,
-            {
-                id: "worker-start-failed",
-                kind: "system change",
-                question: `${reason}; githerd starts no worker until a self-test passes again (githerd selftest). The last screen is in the ledger (session-start-failed).`,
-            },
-            now(),
-        );
-    }
+    const capture = "capture" in started ? started.capture : null;
+    void ctx.ledger({ kind: "session-start-failed", job: job.id, capture, model: wrong ?? null });
+    startFailed(state, job, now(), wrong ? `the session ran ${wrong}, not an allowed model` : "session start failed");
 }
 
 /**

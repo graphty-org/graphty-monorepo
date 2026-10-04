@@ -10,6 +10,35 @@ import { endItem, raiseItem } from "./notify.mjs";
 
 /** A fault on every surface for this long is paged once (design 9.5). */
 const FAULT_PAGE_MS = 24 * 3_600_000;
+/** Real start failures after a passed self-test that stop every start until the owner looks. */
+const START_FAILURES = 2;
+
+/**
+ * A worker start that failed (no registry entry, a session on a disallowed model): the job goes
+ * back to the queue, and the second failure in a row stops every start until a self-test passes
+ * again, with one owner item (design 7.1). The caller ends the window, if one opened.
+ * @param {any} state the daemon state
+ * @param {any} job the job
+ * @param {Date} now the clock
+ * @param {string} why one line
+ */
+export function startFailed(state, job, now, why) {
+    job.holder = null;
+    if (["starting", "working"].includes(job.state)) board.move(job, "queued", now, { reason: why });
+    state.startFailures = (state.startFailures ?? 0) + 1;
+    if (state.startFailures < START_FAILURES) return;
+    const reason = `${state.startFailures} worker starts failed in a row after a passed self-test`;
+    state.startsStopped = { at: now.toISOString(), reason };
+    raiseItem(
+        state,
+        {
+            id: "worker-start-failed",
+            kind: "system change",
+            question: `${reason}; githerd starts no worker until a self-test passes again (githerd selftest). The last one: ${why}. The last screen is in the ledger (session-start-failed).`,
+        },
+        now,
+    );
+}
 
 /**
  * @typedef {{job: string, action: string, ring?: boolean, line: Record<string, unknown>}} Step one

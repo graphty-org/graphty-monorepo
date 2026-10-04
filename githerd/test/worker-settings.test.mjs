@@ -51,6 +51,20 @@ describe("generated files", () => {
         await expect(readFileSync(files.mcp, "utf8")).toMatchFileSnapshot("worker-settings/mcp.json");
     });
 
+    it("pins every subagent and background model to the worker's model", () => {
+        const s = /** @type {any} */ (workerSettings({ stateDir: STATE, jobDir: dir, model: "claude-fable-5" }));
+        expect(s.env).toEqual({
+            CLAUDE_CODE_SUBAGENT_MODEL: "claude-fable-5",
+            ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-fable-5",
+            ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-fable-5",
+            ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-fable-5",
+            ANTHROPIC_SMALL_FAST_MODEL: "claude-fable-5",
+        });
+        expect(() => workerSettings({ stateDir: STATE, jobDir: dir, model: "claude-haiku-4-5" })).toThrow(
+            "not claude-haiku-4-5",
+        );
+    });
+
     it("keeps the fixed allow rules first and drops overlay duplicates", () => {
         const s = /** @type {any} */ (
             workerSettings({ stateDir: STATE, jobDir: dir, overlay: ["mcp__githerd__*", "mcp__x__y", "mcp__x__y"] })

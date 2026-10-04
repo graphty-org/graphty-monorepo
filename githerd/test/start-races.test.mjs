@@ -166,6 +166,23 @@ describe("a start still in flight when its registry deadline fires", () => {
     });
 });
 
+describe("a session on a disallowed model", () => {
+    it("has its window ended once the start returns, and counts as a failed start", async () => {
+        const state = stateWith({ kind: "issue", target: "#7", id: "issue-7" });
+        const slow = slowStart();
+        const ctx = ctxOf(state, { platform: platform({ start: slow.start }) });
+        await fillSlots(ctx);
+        await until(() => calls.some((c) => c.start));
+        // SessionStart reported Haiku before startWorker returned (hook.mjs marks the holder).
+        state.jobs["issue-7"].holder.wrongModel = "claude-haiku-4-5";
+        slow.release();
+        await settle(ctx);
+        expect(state.jobs["issue-7"]).toMatchObject({ state: "queued", holder: null });
+        expect(state.retiring).toMatchObject([{ job: "issue-7", holder: { pane: "%1" } }]);
+        expect(state.startFailures).toBe(1);
+    });
+});
+
 describe("the usage-stop canary", () => {
     it("is released when its start never opens a session (a faulted worktree)", async () => {
         const state = stateWith({ kind: "issue", target: "#7", id: "issue-7" });

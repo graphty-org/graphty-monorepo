@@ -186,20 +186,47 @@ describe("answerHook: SessionStart", () => {
         expect(/** @type {any} */ (state).sessions[REC.startStartup.session_id].lastSeen).toBe(T0.toISOString());
     });
 
-    it("links a worker's session to its job and says when the model is not allowed", () => {
+    it("links a worker's session to its job, and accepts the allowed model with a suffix", () => {
         const state = workingState();
         const job = state.jobs["pr-7"];
         const ok = answerHook(state, worker(REC.startStartup, { model: "claude-opus-5-5" }), facts(), T0);
         expect(ok.answer.context).toBe(statusLine(STATUS));
         expect(job.holder.session).toBe(REC.startStartup.session_id);
         expect(job.sessions).toEqual([REC.startStartup.session_id]);
+        // The reported id can carry a suffix, as the self-test's check allows.
+        const suffixed = answerHook(state, worker(REC.startStartup, { model: "claude-opus-5-5[1m]" }), facts(), T0);
+        expect(suffixed.ledger.map((e) => e.kind)).toEqual(["hook-session"]);
+    });
+
+    it("ends a worker session on a disallowed model, and counts a failed start", () => {
+        const state = /** @type {any} */ (workingState());
+        const job = state.jobs["pr-7"];
+        job.holder = { session: "s-0", socket: "githerd", window: "@1", pane: "%1", pid: 42, startedBy: "githerd" };
         // The recorded probe ran Haiku, which no worker may.
         const wrong = answerHook(state, worker(REC.startStartup), facts(), T0);
-        expect(wrong.answer.message).toMatch(
-            /^githerd: this worker runs claude-haiku-4-5-20251001; workers run only claude-opus-5-5 or claude-fable-5; githerd: PHONE ALERTS BROKEN/,
+        expect(wrong.answer.message).toBe(
+            "githerd: this worker runs claude-haiku-4-5-20251001; workers run only claude-opus-5-5 or claude-fable-5; githerd ends it",
         );
         expect(wrong.ledger.map((e) => e.kind)).toEqual(["hook-session", "wrong-model"]);
-        expect(job.sessions).toHaveLength(1);
+        expect(wrong.end).toBe(true);
+        expect(state.retiring).toMatchObject([{ job: "pr-7", holder: { pane: "%1" } }]);
+        expect(job).toMatchObject({ state: "queued", holder: null });
+        expect(state.startFailures).toBe(1);
+        // A resumed session is checked too.
+        const again = /** @type {any} */ (workingState());
+        again.jobs["pr-7"].holder = { session: "s-0", pane: "%2" };
+        const resumed = answerHook(again, worker(REC.startResume, { model: "claude-sonnet-4-5" }), facts(), T0);
+        expect(resumed.end).toBe(true);
+    });
+
+    it("marks a disallowed model whose window is not known yet, for the start to end", () => {
+        const state = /** @type {any} */ (workingState());
+        const job = state.jobs["pr-7"];
+        job.holder = { nonce: "n", session: null, startedBy: "githerd" };
+        const r = answerHook(state, worker(REC.startStartup), facts(), T0);
+        expect(r.end).toBeUndefined();
+        expect(job.holder.wrongModel).toBe("claude-haiku-4-5-20251001");
+        expect(state.retiring).toBeUndefined();
     });
 
     it("gives the news at resume and the job record after compaction", () => {

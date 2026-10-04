@@ -98,13 +98,33 @@ function hookEntry(script, args, missing) {
 }
 
 /**
+ * The variables that choose every model a session uses besides its main one: subagents (the
+ * built-in Explore runs on Haiku by default) and the small, fast model of background tasks. A
+ * worker pins all of them to its own model, so nothing it starts runs on another (design 2).
+ * @param {string} model the worker's model
+ * @returns {Record<string, string>} the variables
+ */
+export function modelEnv(model) {
+    if (!WORKER_MODELS.has(model)) throw new Error(`a worker runs on ${[...WORKER_MODELS].join(" or ")}, not ${model}`);
+    const names = [
+        "CLAUDE_CODE_SUBAGENT_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_SMALL_FAST_MODEL",
+    ];
+    return Object.fromEntries(names.map((n) => [n, model]));
+}
+
+/**
  * A worker's `settings.json` (design section 7.2).
- * @param {{stateDir: string, jobDir: string, overlay?: string[]}} options githerd's state
- *   directory (absolute), whose `current/` holds the installed githerd, the job's directory, which
- *   the guard reads its `guard.json` from and writes its logs to, and the runtime allow overlay
+ * @param {{stateDir: string, jobDir: string, overlay?: string[], model?: string}} options githerd's
+ *   state directory (absolute), whose `current/` holds the installed githerd, the job's directory,
+ *   which the guard reads its `guard.json` from and writes its logs to, the runtime allow overlay,
+ *   and the worker's model, which every subagent and background model is pinned to
  * @returns {object} the settings
  */
-export function workerSettings({ stateDir, jobDir, overlay = [] }) {
+export function workerSettings({ stateDir, jobDir, overlay = [], model = "claude-opus-5-5" }) {
     const bin = join(stateDir, "current", "bin");
     const hook = (/** @type {string} */ event) => [hookEntry(join(bin, "githerd-hook.mjs"), [event], "open")];
     const guardArgs = [shellQuote(jobDir)];
@@ -114,6 +134,7 @@ export function workerSettings({ stateDir, jobDir, overlay = [] }) {
     const count = [hookEntry(join(bin, "githerd-guard.mjs"), guardArgs, "open")];
     return {
         permissions: { allow: [...new Set([...ALLOW, ...overlay.map(checkAllowRule)])], deny: DENY },
+        env: modelEnv(model),
         enabledPlugins: Object.fromEntries(INTERACTIVE_PLUGINS.map((p) => [p, false])),
         promptSuggestionEnabled: false,
         // The project's `.mcp.json` registers githerd for owner sessions; unapproved, it opens a
@@ -149,7 +170,7 @@ function workerMcp({ stateDir }) {
 /**
  * Writes a job's generated files, `settings.json` and `mcp.json`, into its directory.
  * @param {string} jobDir `jobs/<id>/` under the state directory
- * @param {{stateDir: string, overlay?: string[]}} options as for {@link workerSettings}
+ * @param {{stateDir: string, overlay?: string[], model?: string}} options as for {@link workerSettings}
  * @returns {{settings: string, mcp: string}} the files' paths
  */
 export function writeJobFiles(jobDir, options) {

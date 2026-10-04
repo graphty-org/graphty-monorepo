@@ -37,7 +37,7 @@ import {
     startWorker,
     typeLine,
 } from "./tmux.mjs";
-import { loginPath, readSigningEnv, workerArgv, workerEnv, writeJobFiles } from "./worker-settings.mjs";
+import { loginPath, modelEnv, readSigningEnv, workerArgv, workerEnv, writeJobFiles } from "./worker-settings.mjs";
 import { jobWorktreeDir, removeJobWorktree, run } from "./worktrees.mjs";
 
 /** The self-test's own tmux server, never githerd's. */
@@ -645,7 +645,7 @@ export async function runSelftest({
     let base = "";
     try {
         writeProbe(dir, server.url);
-        writeJobFiles(jobDir, { stateDir: dir });
+        writeJobFiles(jobDir, { stateDir: dir, model });
         writeFileSync(join(jobDir, "guard.json"), JSON.stringify({ root: wt, repo, ownerItems: [] }));
         if (existsSync(wt)) throw new Error(`${wt} exists: an earlier self-test left it; remove it first`);
         log(`worktree ${wt}`);
@@ -674,7 +674,8 @@ export async function runSelftest({
         }
     }
     writeFileSync(join(dir, "events.jsonl"), responder.events.map((e) => `${JSON.stringify(e)}\n`).join(""));
-    const allowedClaude = new Set([...CLAUDE_OWN, ...userClaudeNames(home)]);
+    // The worker settings pin the subagent model with CLAUDE_CODE_SUBAGENT_MODEL (worker-settings.mjs).
+    const allowedClaude = new Set([...CLAUDE_OWN, ...userClaudeNames(home), ...Object.keys(modelEnv(model))]);
     const checks = judge({ events: responder.events, observed, model, nonce, token, allowedClaude });
     /** @type {Result} */
     const result = {

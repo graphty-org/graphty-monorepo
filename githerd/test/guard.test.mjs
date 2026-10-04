@@ -515,6 +515,23 @@ describe("guard: the Agent cap", () => {
     const launch = (target, session = "s1") =>
         guard(target, { tool_name: "Agent", session_id: session, tool_input: { description: "d", prompt: "p" } });
 
+    it("refuses a subagent on a model outside the allowed ones", () => {
+        const agents = makeJob("agent-models");
+        const call = (/** @type {unknown} */ model) =>
+            guard(agents, {
+                tool_name: "Agent",
+                session_id: "s1",
+                tool_input: { description: "d", prompt: "p", model },
+            });
+        for (const bad of ["haiku", "sonnet", "claude-sonnet-4-5", 7]) {
+            const r = call(bad);
+            expect(r.status).toBe(2);
+            expect(r.stderr).toMatch(/runs only on claude-opus-5-5 or claude-fable-5.*omit model/);
+        }
+        for (const ok of [undefined, "inherit", "claude-opus-5-5", "claude-fable-5[1m]"])
+            expect(call(ok).status).toBe(0);
+    });
+
     it("refuses a third concurrent subagent, counted by id", () => {
         const agents = makeJob("agents");
         expect(launch(agents).status).toBe(0);

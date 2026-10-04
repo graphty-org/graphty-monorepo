@@ -37,6 +37,7 @@ import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { MODELS } from "../lib/config.mjs";
 import { baseName, splitCommands } from "../lib/shellwords.mjs";
 import { checkOutgoing } from "../lib/text.mjs";
 
@@ -963,12 +964,28 @@ function trackAgent(jobDir, input) {
 }
 
 /**
- * Agent: at most `subagents` running at once.
+ * Whether a model id is one a worker may run on; the id a session reports can carry a suffix such
+ * as `[1m]`, so the allowed id is a prefix (as the self-test and the SessionStart check compare).
+ * @param {string} model the model id
+ * @returns {boolean} allowed
+ */
+const allowedModel = (model) => MODELS.some((m) => model.startsWith(m));
+
+/**
+ * Agent: no model outside the allowed ones (an omitted model runs on the one the worker's settings
+ * pin), and at most `subagents` running at once.
  * @param {string} jobDir the job directory
  * @param {any} input the hook input
  * @param {GuardConfig} config the job's guard settings
  */
 function checkAgent(jobDir, input, config) {
+    const model = input.tool_input?.model;
+    if (model !== undefined && model !== "inherit" && !(typeof model === "string" && allowedModel(model))) {
+        refuse(
+            `Agent: a subagent runs only on ${MODELS.join(" or ")}, not ${JSON.stringify(model)}; ` +
+                "omit model and it runs on the worker's own",
+        );
+    }
     const running = readAgents(jobDir, String(input.session_id ?? "")).length;
     if (running >= config.subagents) {
         refuse(

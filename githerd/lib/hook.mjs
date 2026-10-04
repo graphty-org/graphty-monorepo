@@ -21,6 +21,7 @@ import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileS
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { startFailed } from "./advance.mjs";
 import { endAttempt, heartbeat, move } from "./board.mjs";
 import { repoRoot } from "./config.mjs";
 import { jobText } from "./job-text.mjs";
@@ -346,16 +347,19 @@ export function asksOwner(text) {
 }
 
 /**
- * SessionStart: registers the session; for a worker links it to its job and checks the model;
- * prints the status line at startup, the news at resume, and after compaction the job text (with
- * the owner's free-text policies, design 5.7) and the job record.
+ * SessionStart: registers the session; for a worker links it to its job and checks the model on
+ * every start, resume included: a session on a disallowed model is ended and counts as a failed
+ * start. Prints the status line at startup, the news at resume, and after compaction the job text
+ * (with the owner's free-text policies, design 5.7) and the job record.
  * @param {any} state the daemon state, for the owner's policies
  * @param {any} job the worker's job, or null
  * @param {HookRequest} req the request
  * @param {HookFacts} facts what the daemon knows
- * @returns {{answer: HookAnswer, ledger: any[]}} the answer and ledger lines
+ * @param {Date} now the current time
+ * @returns {{answer: HookAnswer, ledger: any[], end?: boolean}} the answer, the ledger lines, and
+ *   `end` when the daemon should end the session now
  */
-function sessionStart(state, job, req, facts) {
+function sessionStart(state, job, req, facts, now) {
     const { session_id: session, source, model } = req.input;
     const line = statusLine(facts.status ?? {});
     if (!job) return { answer: { message: line, context: line }, ledger: [] };
@@ -363,6 +367,23 @@ function sessionStart(state, job, req, facts) {
     if (job.holder) job.holder.session = session;
     /** @type {any[]} */
     const ledger = [{ kind: "hook-session", job: job.id, session, source }];
+    // The reported id can carry a suffix such as `[1m]`, so the allowed id is a prefix (as selftest).
+    if (model && facts.models?.length && !facts.models.some((m) => String(model).startsWith(m))) {
+        const wrong = `githerd: this worker runs ${model}; workers run only ${facts.models.join(" or ")}; githerd ends it`;
+        ledger.push({ kind: "wrong-model", job: job.id, session, model });
+        const holder = job.holder;
+        if (!holder?.pane) {
+            // The window is not known yet: openSession ends it once startWorker returns.
+            if (holder) holder.wrongModel = model;
+            return { answer: { message: wrong }, ledger };
+        }
+        state.retiring = [
+            ...(state.retiring ?? []),
+            { job: job.id, holder, reason: `the session ran ${model}`, at: now.toISOString() },
+        ];
+        startFailed(state, job, now, `the session ran ${model}, not an allowed model`);
+        return { answer: { message: wrong }, ledger, end: true };
+    }
     if (source === "compact" || source === "clear") {
         job.compactions = (job.compactions ?? 0) + 1;
         return { answer: { context: `${jobText(job, { policies: state.policies })}${jobRecordText(job)}` }, ledger };
@@ -373,11 +394,6 @@ function sessionStart(state, job, req, facts) {
             answer: news.length ? { context: `githerd news for job ${job.id}:\n- ${news.join("\n- ")}` } : {},
             ledger,
         };
-    }
-    if (model && facts.models?.length && !facts.models.includes(model)) {
-        const wrong = `githerd: this worker runs ${model}; workers run only ${facts.models.join(" or ")}`;
-        ledger.push({ kind: "wrong-model", job: job.id, session, model });
-        return { answer: { message: `${wrong}; ${line}`, context: `${wrong}; ${line}` }, ledger };
     }
     return { answer: { message: line, context: line }, ledger };
 }
@@ -540,7 +556,7 @@ export function answerHook(state, req, facts, now) {
     const request = { ...req, input };
     switch (req.event) {
         case "SessionStart":
-            return sessionStart(state, job, request, facts);
+            return sessionStart(state, job, request, facts, now);
         case "UserPromptSubmit":
             return job ? userPrompt(job, request, now) : { answer: {}, ledger: [] };
         case "Stop":

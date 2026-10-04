@@ -24,7 +24,7 @@ interface ElementHostProps {
  * @param props.onReady - Called with the element and its session, and with nulls on unmount
  * @returns The element, filling its region
  */
-export function ElementHost({ onReady }: ElementHostProps): React.JSX.Element {
+export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
 
     useEffect(() => {

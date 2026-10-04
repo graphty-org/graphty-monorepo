@@ -144,8 +144,22 @@ describe("QuickActions", () => {
             expect(screen.getByRole("listbox")).toHaveFocus();
             await userEvent.keyboard("s");
             expect(screen.getByRole("combobox")).toHaveFocus();
+            expect(screen.getByRole("combobox")).toHaveValue("s");
+            expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+                "shared_chapters_with_valjean",
+            ]);
             await userEvent.keyboard("{Enter}");
             expect(onRun).toHaveBeenCalledTimes(1);
+            expect(onRun).toHaveBeenCalledWith("chapters");
+        });
+
+        it("leaves Space on the list alone: focus and the search stay put", async () => {
+            const onRun = vi.fn();
+            renderShell(<QuickActions actions={FIELDS} onRun={onRun} initialFocus="first" />);
+            await userEvent.keyboard(" ");
+            expect(screen.getByRole("listbox")).toHaveFocus();
+            expect(screen.getByRole("combobox")).toHaveValue("");
+            expect(onRun).not.toHaveBeenCalled();
         });
 
         it("cuts a name in the middle when asked, with the full name as the tooltip", () => {

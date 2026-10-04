@@ -230,11 +230,13 @@ export function QuickActions({
         if (event.target !== event.currentTarget) {
             return;
         }
-        // On the list, a letter goes to the search field, where it is typed.
+        // On the list, a letter goes to the search field, where it is typed. Space is not a
+        // letter: it does nothing on the list.
         if (
             event.currentTarget === list.current &&
             searchShown &&
             event.key.length === 1 &&
+            event.key !== " " &&
             !event.ctrlKey &&
             !event.metaKey &&
             !event.altKey

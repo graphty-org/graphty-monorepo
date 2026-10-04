@@ -132,8 +132,8 @@ export function screenshotOptions(
 export function slug(name: string): string {
     const part = name
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
+        .replaceAll(/[^a-z0-9]+/g, "-")
+        .replaceAll(/(?:^-)|(?:-$)/g, "");
     return part === "" ? "untitled" : part;
 }
 

@@ -64,7 +64,7 @@ function download(text: string, name: string, type: string): void {
  * @param props.onDone - Closes the dialog with a notice
  * @returns The output's body and footer
  */
-export function DataOutput({ choices, onChange, onCancel, onDone }: DataOutputProps): React.JSX.Element {
+export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<DataOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
     const [preview, setPreview] = useState<{ lines: string; notes: readonly string[] } | null>(null);
@@ -184,7 +184,11 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: DataOutputPr
                         </ul>
                     </Alert>
                 ) : null}
-                <pre className="ws-export-text" tabIndex={0} aria-label="Preview of the exported data">
+                <pre
+                    className="ws-export-text"
+                    tabIndex={0} // NOSONAR(S6845): a scrolling region must take focus so a keyboard can scroll it
+                    aria-label="Preview of the exported data"
+                >
                     {preview?.lines ?? "Writing the preview..."}
                 </pre>
             </div>

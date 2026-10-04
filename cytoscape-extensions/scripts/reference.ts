@@ -49,7 +49,7 @@ const SET_BY_EXTENSION = new Set([
     "weighted",
 ]);
 // Options of every algorithm, documented once.
-const COMMON_ALGORITHM = ["directed", "weight", "field", "gpu"];
+const COMMON_ALGORITHM = new Set(["directed", "weight", "field", "gpu"]);
 // Layout options with a Cytoscape-facing meaning of their own, documented per layout from GraphtyLayoutOptions.
 const PER_LAYOUT_EXTENSION: Readonly<Record<string, readonly string[]>> = {
     shell: ["nlist"],
@@ -72,11 +72,30 @@ const SIMULATION_TYPES: Readonly<Record<string, string>> = {
  */
 function cell(s: string): string {
     return s
-        .replace(/\s*\((?:see )?design [^)]*\)/gi, "")
-        .replace(/\{@link\s+([^}\s|]+)[^}]*\}/g, "`$1`")
-        .replace(/\s+/g, " ")
-        .replace(/\|/g, "\\|")
+        .replaceAll(/\s+/g, " ")
+        .replaceAll(/ ?\((?:see )?design [^)]*\)/gi, "")
+        .replaceAll(/\{@link ([^}\s|]+)(?:[\s|][^}]*)?\}/g, "`$1`")
+        .replaceAll("|", String.raw`\|`)
         .trim();
+}
+
+/**
+ * The word a doc comment marks as the default ("0.85 (default)"), found without a regex that could backtrack.
+ * @param doc - the doc text
+ * @returns the first word directly followed by " (default)", or undefined when there is none
+ */
+function markedDefault(doc: string): string | undefined {
+    const MARK = " (default)";
+    for (let at = doc.indexOf(MARK); at !== -1; at = doc.indexOf(MARK, at + 1)) {
+        let start = at;
+        while (start > 0 && /\S/.test(doc[start - 1])) {
+            start--;
+        }
+        if (start < at) {
+            return doc.slice(start, at);
+        }
+    }
+    return undefined;
 }
 
 /**
@@ -85,9 +104,9 @@ function cell(s: string): string {
  * @returns the default as written
  */
 function statedDefault(doc: string): string {
-    const marked = /(\S+) \(default\)/.exec(doc);
-    if (marked !== null) {
-        return marked[1];
+    const marked = markedDefault(doc);
+    if (marked !== undefined) {
+        return marked;
     }
     const m = /\bdefaults?(?: is| to)?:?\s+/i.exec(doc);
     if (m === null) {
@@ -113,6 +132,17 @@ function statedDefault(doc: string): string {
 }
 
 /**
+ * Orders strings by UTF-16 code unit, as a plain sort() does (graphtyAStar before graphtyAdamicAdar); a locale order
+ * would interleave upper and lower case and reorder the README.
+ * @param a - one string
+ * @param b - the other
+ * @returns negative, zero or positive
+ */
+function byCodeUnit(a: string, b: string): number {
+    return Number(a > b) - Number(a < b);
+}
+
+/**
  * A default value as code.
  * @param v - the value
  * @returns `v` in backticks
@@ -127,7 +157,7 @@ function code(v: unknown): string {
  * @returns the cell text
  */
 function typeCell(t: string): string {
-    return `\`${t.replace(/\|/g, "\\|")}\``;
+    return `\`${t.replaceAll("|", String.raw`\|`)}\``;
 }
 
 /** The type checker over the package source. */
@@ -296,17 +326,18 @@ function algorithms(src: Source): string[] {
         "`...Async` twin that takes the same options and may run on the GPU (see [WebGPU](#webgpu)).",
         "",
     ];
-    for (const name of [...ALGORITHM_NAMES].sort()) {
+    for (const name of [...ALGORITHM_NAMES].sort(byCodeUnit)) {
         const sym = methods.getProperty(name);
         if (sym === undefined) {
             throw new Error(`GraphtyAlgorithms has no ${name}`);
         }
         const key = name.charAt("graphty".length).toLowerCase() + name.slice("graphty".length + 1);
         const param = src.param(src.checker.getTypeOfSymbol(sym), 0);
-        const own = param === undefined ? [] : src.options(param).filter((o) => !COMMON_ALGORITHM.includes(o.name));
+        const own = param === undefined ? [] : src.options(param).filter((o) => !COMMON_ALGORITHM.has(o.name));
         const gpu = ASYNC_ALGORITHM_NAMES.includes(`${name}Async`) ? " (**GPU**)" : "";
-        out.push(`#### \`${name}\`${gpu}`, "");
         out.push(
+            `#### \`${name}\`${gpu}`,
+            "",
             ...(own.length === 0 ? ["No options of its own.", ""] : [...table(own, ALGORITHM_DEFAULTS[key] ?? {}), ""]),
         );
     }
@@ -345,7 +376,7 @@ function layouts(src: Source): string[] {
             name in SIMULATION_TYPES
                 ? src.typeOf(lib.get(SIMULATION_TYPES[name]) as ts.Symbol)
                 : src.param(
-                      src.typeOf(lib.get(name.replace(/-(\w)/g, (_, c: string) => c.toUpperCase())) as ts.Symbol),
+                      src.typeOf(lib.get(name.replaceAll(/-(\w)/g, (_, c: string) => c.toUpperCase())) as ts.Symbol),
                       1,
                   );
         if (libType === undefined) {
@@ -362,8 +393,9 @@ function layouts(src: Source): string[] {
                         !(PER_LAYOUT_EXTENSION[name] ?? []).includes(o.name),
                 ),
         ].map((o) => ({ ...o, required: false }));
-        out.push(`#### \`graphty-${name}\` (${simulation === undefined ? "static" : "simulation"})`, "");
         out.push(
+            `#### \`graphty-${name}\` (${simulation === undefined ? "static" : "simulation"})`,
+            "",
             ...(own.length === 0
                 ? ["No options of its own.", ""]
                 : [...table(own, simulation === undefined ? {} : (SIMULATION_DEFAULTS[simulation] ?? {})), ""]),
@@ -378,7 +410,7 @@ function layouts(src: Source): string[] {
  * @returns the short form
  */
 function shortSummary(text: string): string {
-    const summary = text.replace(/\s+/g, " ");
+    const summary = text.replaceAll(/\s+/g, " ");
     let end = summary.length;
     const colon = summary.indexOf(":");
     if (colon > 0) {
@@ -406,7 +438,11 @@ function shortSummary(text: string): string {
             break;
         }
     }
-    return summary.slice(0, end).replace(/[\s.,;]+$/, "");
+    // trailing spaces and punctuation, trimmed without a regex that could backtrack (whitespace is single spaces here)
+    while (end > 0 && " .,;".includes(summary[end - 1])) {
+        end--;
+    }
+    return summary.slice(0, end);
 }
 
 /**
@@ -430,16 +466,15 @@ function samples(src: Source): string[] {
         const fn = gens.getProperty(name);
         const param = fn === undefined ? undefined : src.param(src.checker.getTypeOfSymbol(fn), 0);
         const opts = param === undefined ? [] : src.options(param);
-        const libName = `${name.replace(/-(\w)/g, (_, c: string) => c.toUpperCase())}Graph`;
+        const libName = `${name.replaceAll(/-(\w)/g, (_, c: string) => c.toUpperCase())}Graph`;
         const libSym =
             lib.get(libName) ?? lib.get(libName.replace(/Graph$/, "")) ?? lib.get(libName.replace(/Graph$/, "Network"));
         let what = libSym === undefined ? "" : shortSummary(src.summary(libSym));
         if (name === "named") {
             what = "A named graph from the literature, by `name`.";
         }
-        out.push(
-            `| \`${name}\` | ${opts.map((o) => `\`${o.name}${o.required ? "" : "?"}\``).join(", ")} | ${cell(what)} |`,
-        );
+        const optionList = opts.map((o) => `\`${o.name}${o.required ? "" : "?"}\``).join(", ");
+        out.push(`| \`${name}\` | ${optionList} | ${cell(what)} |`);
     }
     out.push(
         "",

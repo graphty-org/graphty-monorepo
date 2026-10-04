@@ -33,6 +33,8 @@ import { build } from "vite";
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 const budgetFile = join(pkg, "size-budgets.json");
 const FORMATS = ["graphml", "gexf", "gml", "dot", "pajek", "csv", "json", "neo4j"];
+// pages built so far, to give each page file a name of its own
+let pages = 0;
 
 /**
  * Minified and gzipped byte counts of some code.
@@ -53,7 +55,8 @@ function sizeOf(codes) {
  * @returns {Promise<import("vite").Rollup.OutputChunk[]>} the chunks
  */
 async function bundle(root, code) {
-    const entry = join(root, `page-${Math.random().toString(36).slice(2)}.js`);
+    pages++;
+    const entry = join(root, `page-${pages}.js`);
     writeFileSync(entry, code);
     try {
         const out = await build({

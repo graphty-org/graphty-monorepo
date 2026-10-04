@@ -16,14 +16,20 @@
  *
  * Each gate is a child process of its own, bounded by a timeout that kills its process group. The
  * verdicts live in `self-update.json` in the state directory: `gates` by tree hash (`passed`, and
- * for a refusal the gate and the reason), and `adopting`, the version `current` was just pointed at
- * with the one it replaced, until that version answers. A refused hash is never gated again; a new
- * master move brings a new hash.
+ * for a refusal the gate and the reason), `adopting`, the version `current` was just pointed at
+ * with the one it replaced, until that version answers, and `gating`, the gate running now: its
+ * hash, the running child's process group and its worktree. A refused hash is never gated again; a
+ * new master move brings a new hash.
+ *
+ * Gating holds `gate.lock` (launcher.mjs), so one process gates at a time. A gater that stops
+ * kills its gate (`stopGating`); one that died leaves `gating` behind, and the next holder of the
+ * lock, or the daemon at its start, removes what it left (`reapGating`) before it gates again.
  */
 
 import {
     existsSync,
     mkdtempSync,
+    readdirSync,
     readFileSync,
     readlinkSync,
     renameSync,
@@ -37,6 +43,8 @@ import { pathToFileURL } from "node:url";
 
 import { writeLastGood } from "./config-adopt.mjs";
 import { resolveConfig } from "./config.mjs";
+import { identify, sameProcess } from "./proc.mjs";
+import { reapSelftest } from "./selftest.mjs";
 import { run } from "./worktrees.mjs";
 
 const FILE = "self-update.json";
@@ -50,9 +58,15 @@ const DETAIL_LINES = 5;
 /**
  * A gate's verdict on one version.
  * @typedef {{passed: boolean, at: string, version?: string, gate?: string, detail?: string}} GateRecord
- * @typedef {{gates: Record<string, GateRecord>, adopting: {hash: string, previous: string, at: string} | null}} SelfUpdate
+ * @typedef {{hash: string, pgid: number | null, leader?: import("./proc.mjs").ProcessIdentity | null,
+ *   tree: string | null}} Gating the gate running now: its hash, its running child's process group
+ *   and that child's identity, and its worktree
+ * @typedef {{gates: Record<string, GateRecord>, adopting: {hash: string, previous: string, at: string} | null,
+ *   gating?: Gating | null}} SelfUpdate
  * @typedef {{ok: boolean, detail: string}} GateResult
- * @typedef {{name: string, run: (c: {dir: string, previous: string | null, commit: string}) => Promise<GateResult>}} Gate
+ * @typedef {{name: string, run: (c: {dir: string, previous: string | null, commit: string,
+ *   onSpawn?: (pgid: number) => void}) => Promise<GateResult>}} Gate a gate; `onSpawn` is told each
+ *   child's process group
  */
 
 /**
@@ -63,9 +77,9 @@ const DETAIL_LINES = 5;
 export function readSelfUpdate(stateDir) {
     try {
         const record = JSON.parse(readFileSync(join(stateDir, FILE), "utf8"));
-        return { gates: record.gates ?? {}, adopting: record.adopting ?? null };
+        return { gates: record.gates ?? {}, adopting: record.adopting ?? null, gating: record.gating ?? null };
     } catch {
-        return { gates: {}, adopting: null };
+        return { gates: {}, adopting: null, gating: null };
     }
 }
 
@@ -82,7 +96,8 @@ export function writeSelfUpdate(stateDir, record) {
     );
     const file = join(stateDir, FILE);
     const tmp = `${file}.${process.pid}.tmp`;
-    writeFileSync(tmp, `${JSON.stringify({ gates, adopting: record.adopting }, null, 2)}\n`);
+    const whole = { gates, adopting: record.adopting, gating: record.gating ?? null };
+    writeFileSync(tmp, `${JSON.stringify(whole, null, 2)}\n`);
     renameSync(tmp, file);
 }
 
@@ -179,15 +194,16 @@ async function dropTree(root, tree, link) {
 /**
  * The replay gate: the target commit's replay suite, in a detached worktree of that commit.
  * @param {{root: string, pkgDir: string, stateDir: string, env: Record<string, string | undefined>,
- *   commit: string}} options the main checkout, the package's path in it, the state directory,
- *   the environment and the target commit
+ *   commit: string, onSpawn?: (pgid: number) => void}} options the main checkout, the package's
+ *   path in it, the state directory, the environment, the target commit, and who is told each
+ *   child's process group
  * @returns {Promise<GateResult>} the result
  */
-export async function replayGate({ root, pkgDir, stateDir, env, commit }) {
+export async function replayGate({ root, pkgDir, stateDir, env, commit, onSpawn }) {
     const modules = join(root, pkgDir, "node_modules");
     const vitest = join(modules, "vitest", "vitest.mjs");
     if (!existsSync(vitest)) return { ok: false, detail: `no ${vitest}: run pnpm install in the main checkout` };
-    const tree = join(stateDir, "gate-trees", commit.slice(0, 12));
+    const tree = gateTree(stateDir, commit);
     const link = join(tree, pkgDir, "node_modules");
     const left = await dropTree(root, tree, link);
     if (left) return { ok: false, detail: `an earlier gate's worktree ${tree} is in the way: ${left}` };
@@ -195,6 +211,7 @@ export async function replayGate({ root, pkgDir, stateDir, env, commit }) {
         cwd: root,
         env: { ...env, GIT_LFS_SKIP_SMUDGE: "1" },
         timeoutMs: GATE_MS.worktree,
+        onSpawn,
     });
     if (add.code !== 0) return { ok: false, detail: `git worktree add: ${tail(add)}` };
     try {
@@ -203,6 +220,7 @@ export async function replayGate({ root, pkgDir, stateDir, env, commit }) {
             cwd: join(tree, pkgDir),
             env: { ...env, NO_COLOR: "1", FORCE_COLOR: "0", CI: "1" },
             timeoutMs: GATE_MS.replay,
+            onSpawn,
         });
         return verdict(r, GATE_MS.replay);
     } finally {
@@ -213,31 +231,34 @@ export async function replayGate({ root, pkgDir, stateDir, env, commit }) {
 /**
  * The protocol gate: the new copy's `bin/githerd-protocol-test.mjs` against the previous copy.
  * @param {{root: string, env: Record<string, string | undefined>, dir: string,
- *   previous: string | null}} options the main checkout, the environment, the new copy and the
- *   previous one
+ *   previous: string | null, onSpawn?: (pgid: number) => void}} options the main checkout, the
+ *   environment, the new copy, the previous one, and who is told the child's process group
  * @returns {Promise<GateResult>} the result; passes when there is no previous copy
  */
-export async function protocolGate({ root, env, dir, previous }) {
+export async function protocolGate({ root, env, dir, previous, onSpawn }) {
     if (!previous) return { ok: true, detail: "no previous version" };
     const r = await run(process.execPath, [join(dir, "bin", "githerd-protocol-test.mjs"), previous], {
         cwd: root,
         env,
         timeoutMs: GATE_MS.protocol,
+        onSpawn,
     });
     return verdict(r, GATE_MS.protocol);
 }
 
 /**
  * The self-test gate: `githerd selftest` from the new copy (design 11.4).
- * @param {{root: string, env: Record<string, string | undefined>, dir: string}} options the main
- *   checkout, the environment and the new copy
+ * @param {{root: string, env: Record<string, string | undefined>, dir: string,
+ *   onSpawn?: (pgid: number) => void}} options the main checkout, the environment, the new copy,
+ *   and who is told the child's process group
  * @returns {Promise<GateResult>} the result
  */
-export async function selftestGate({ root, env, dir }) {
+export async function selftestGate({ root, env, dir, onSpawn }) {
     const r = await run(process.execPath, [join(dir, "bin", "githerd.mjs"), "selftest"], {
         cwd: root,
         env,
         timeoutMs: GATE_MS.selftest,
+        onSpawn,
     });
     return verdict(r, GATE_MS.selftest);
 }
@@ -251,10 +272,91 @@ export async function selftestGate({ root, env, dir }) {
  */
 export function realGates({ root, pkgDir, stateDir, env }) {
     return [
-        { name: "replay", run: ({ commit }) => replayGate({ root, pkgDir, stateDir, env, commit }) },
-        { name: "protocol", run: ({ dir, previous }) => protocolGate({ root, env, dir, previous }) },
-        { name: "self-test", run: ({ dir }) => selftestGate({ root, env, dir }) },
+        {
+            name: "replay",
+            run: ({ commit, onSpawn }) => replayGate({ root, pkgDir, stateDir, env, commit, onSpawn }),
+        },
+        { name: "protocol", run: ({ dir, previous, onSpawn }) => protocolGate({ root, env, dir, previous, onSpawn }) },
+        { name: "self-test", run: ({ dir, onSpawn }) => selftestGate({ root, env, dir, onSpawn }) },
     ];
+}
+
+/**
+ * The worktree a gate of this commit runs in.
+ * @param {string} stateDir the state directory
+ * @param {string} commit the target commit
+ * @returns {string} `<stateDir>/gate-trees/<first 12 of the commit>`
+ */
+export function gateTree(stateDir, commit) {
+    return join(stateDir, "gate-trees", commit.slice(0, 12));
+}
+
+/**
+ * Records the gate running now in `self-update.json` (null when none), keeping the rest.
+ * @param {string} stateDir the state directory
+ * @param {Gating | null} gating the gate
+ */
+export function writeGating(stateDir, gating) {
+    writeSelfUpdate(stateDir, { ...readSelfUpdate(stateDir), gating });
+}
+
+/**
+ * Kills the recorded gate's process group, if it is still that group: its leader is the recorded
+ * process, or no process has its id (Linux gives no new process the id of a live group, so the
+ * group's other members, if any, are the gate's).
+ * @param {Gating | null | undefined} gating the record
+ */
+function killGroup(gating) {
+    const pgid = gating?.pgid;
+    if (!pgid) return;
+    if (!(gating.leader && sameProcess(gating.leader)) && identify(pgid) !== null) return;
+    try {
+        process.kill(-pgid, "SIGKILL");
+    } catch {
+        // gone already
+    }
+}
+
+/**
+ * Removes what a gate that did not finish left (design 9.8): its process group, every worktree
+ * under `gate-trees/` (a superseded commit's too), and the self-test's tmux server and worktree.
+ * Called holding `gate.lock`, so no gate of this state directory runs meanwhile.
+ * @param {{root: string, stateDir: string, pkgDir: string, env: Record<string, string | undefined>,
+ *   selftest?: (root: string, env: Record<string, string | undefined>) => Promise<string | null>}} options
+ *   the main checkout, the state directory, the package's path, the environment, and the
+ *   self-test's cleanup (for tests)
+ * @returns {Promise<string[]>} what could not be removed
+ */
+export async function reapGating({ root, stateDir, pkgDir, env, selftest = reapSelftest }) {
+    killGroup(readSelfUpdate(stateDir).gating);
+    const left = [];
+    const trees = join(stateDir, "gate-trees");
+    for (const name of existsSync(trees) ? readdirSync(trees) : []) {
+        const tree = join(trees, name);
+        const why = await dropTree(root, tree, join(tree, pkgDir, "node_modules"));
+        if (why) left.push(`${tree}: ${why}`);
+    }
+    await run("git", ["worktree", "prune"], { cwd: root, env });
+    const why = await selftest(root, env);
+    if (why) left.push(`self-test worktree: ${why}`);
+    writeGating(stateDir, null);
+    return left;
+}
+
+/**
+ * Stops the gate this process runs (a daemon's shutdown): the gating is aborted, so it records no
+ * verdict; its running child's group is killed; and once it returned, what it left is removed.
+ * @param {{root: string, stateDir: string, pkgDir: string, env: Record<string, string | undefined>,
+ *   abort: AbortController, running: Promise<unknown>,
+ *   selftest?: (root: string, env: Record<string, string | undefined>) => Promise<string | null>}} options
+ *   where it runs, its abort, and its promise
+ * @returns {Promise<string[]>} what could not be removed
+ */
+export async function stopGating({ abort, running, ...where }) {
+    abort.abort();
+    killGroup(readSelfUpdate(where.stateDir).gating);
+    await running.catch(() => {});
+    return reapGating(where);
 }
 
 /**

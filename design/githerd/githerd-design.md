@@ -1433,7 +1433,14 @@ suite, a protocol test (the previous client against the new daemon) and the plat
 records the verdict in `self-update.json`; a restarter (any session's MCP server, `githerd ensure`)
 then points `current` at it and restarts. A version that does not answer is rolled back by that
 restarter to the previous one, refused for good, logged and paged. A refused version is paged once
-and never gated again; the running version stays. The restarter, not the daemon, rolls back,
+and never gated again; the running version stays. One process gates at a time: gating holds
+`gate.lock` (apart from `restart.lock`, which a start holds only for seconds), and records the gate
+running now in `self-update.json` (its hash, its child's process group, its worktree under
+`gate-trees/`). A daemon in fatal mode cannot gate its successor, so a restarter starts the gates in
+the background and answers at once with the daemon's state. A daemon that stops mid-gate kills the
+gate and records no verdict; one that died leaves the record behind, and the next holder of the
+gate lock, or the daemon at its start, kills that process group, removes every gate worktree and
+the self-test's tmux server and worktree, and only then gates. The restarter, not the daemon, rolls back,
 because a daemon cannot watch its successor start: a version that never starts would leave nothing
 running to roll it back. Each session's MCP server and hooks run from the version that was current
 when the session started; the daemon serves the previous protocol version while any such session

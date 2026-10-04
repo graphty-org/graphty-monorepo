@@ -99,7 +99,7 @@ afterEach(() => {
 
 describe("the record", () => {
     it("reads empty when missing, keeps the newest twenty verdicts, and says where a hash stands", () => {
-        expect(readSelfUpdate(stateDir)).toEqual({ gates: {}, adopting: null });
+        expect(readSelfUpdate(stateDir)).toEqual({ gates: {}, adopting: null, gating: null });
         expect(updateGate(stateDir, "a".repeat(40))).toBe("pending");
         /** @type {Record<string, any>} */
         const gates = {};

@@ -81,16 +81,18 @@ function missingDist(dir) {
  * @param {string} file the program
  * @param {string[]} args its arguments
  * @param {{cwd: string, timeoutMs?: number, env?: Record<string, string | undefined>,
- *   input?: string}} options where to run it, the kill timeout, the environment (the daemon's by
- *   default) and what to write to its standard input
+ *   input?: string, onSpawn?: (pgid: number) => void}} options where to run it, the kill timeout,
+ *   the environment (the daemon's by default), what to write to its standard input, and who is
+ *   told the child's process group once it started (to kill it from outside)
  * @returns {Promise<RunResult>} exit code and output; `timedOut` when the timeout killed it
  */
-export function run(file, args, { cwd, timeoutMs = GIT_TIMEOUT_MS, env = process.env, input }) {
+export function run(file, args, { cwd, timeoutMs = GIT_TIMEOUT_MS, env = process.env, input, onSpawn }) {
     return new Promise((resolve) => {
         let timedOut = false;
         let stdout = "";
         let stderr = "";
         const child = spawn(file, args, { cwd, env, detached: true });
+        if (child.pid) onSpawn?.(child.pid);
         const timer = setTimeout(() => {
             timedOut = true;
             try {

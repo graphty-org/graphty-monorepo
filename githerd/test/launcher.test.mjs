@@ -23,6 +23,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import {
+    backgroundGating,
     daemonDown,
     ensureDaemon,
     installCommand,
@@ -37,7 +38,8 @@ import {
 } from "../lib/launcher.mjs";
 import { TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
 import { bootId, identify } from "../lib/proc.mjs";
-import { readSelfUpdate } from "../lib/self-update.mjs";
+import { gateTree, readSelfUpdate, stopGating, writeSelfUpdate } from "../lib/self-update.mjs";
+import { run } from "../lib/worktrees.mjs";
 import { PACKAGE_DIR } from "../lib/version.mjs";
 
 const FAKE_SERVHERD = fileURLToPath(new URL("helpers/fake-servherd.mjs", import.meta.url));
@@ -762,18 +764,148 @@ describe("restarts and upgrades", () => {
         pretendAlive();
         writeFileSync(join(stateDir(), "daemon.json"), JSON.stringify({ port, pid: process.pid }));
         const before = starts().length;
-        // The real gates: the test checkout has no install, so the replay gate fails at once.
+        // The gates run in the background, outside the restart lock: the answer comes at once, and
+        // a second restarter meanwhile gets it too instead of waiting on the lock.
         expect(await ensureDaemon(context())).toEqual({
             url: `http://127.0.0.1:${port}`,
             action: "down",
             fatal: "crash loop",
         });
+        expect(existsSync(join(stateDir(), "restart.lock"))).toBe(false);
+        expect((await ensureDaemon(context())).action).toBe("down");
+        // The real gates: the test checkout has no install, so the replay gate fails at once.
+        await backgroundGating();
+        expect(existsSync(join(stateDir(), "gate.lock"))).toBe(false);
         expect(readSelfUpdate(stateDir()).gates[hash]).toMatchObject({
             passed: false,
             gate: "replay",
             detail: expect.stringMatching(/run pnpm install in the main checkout/),
         });
         expect(starts()).toHaveLength(before);
+    });
+
+    describe("a gate that does not finish", () => {
+        /** @type {number[]} */
+        let groups = [];
+        afterEach(() => {
+            for (const g of groups) {
+                try {
+                    process.kill(-g, "SIGKILL");
+                } catch {
+                    // gone, as it should be
+                }
+            }
+            groups = [];
+        });
+
+        /**
+         * A stand-in replay gate that checks out its worktree and runs a long child in it, as the
+         * real one runs vitest there.
+         * @param {any} ctx the launcher context
+         * @param {(pgid: number) => void} started told the child's process group
+         * @returns {import("../lib/self-update.mjs").Gate} the gate
+         */
+        const sleeper = (ctx, started) => ({
+            name: "replay",
+            run: async ({ commit, onSpawn }) => {
+                const tree = gateTree(ctx.stateDir, commit);
+                git(root, "worktree", "add", "-q", "--detach", tree, commit);
+                const r = await run("sleep", ["300"], {
+                    cwd: tree,
+                    timeoutMs: 600_000,
+                    onSpawn: (pgid) => {
+                        groups.push(pgid);
+                        onSpawn?.(pgid);
+                        started(pgid);
+                    },
+                });
+                return { ok: r.code === 0, detail: "slept" };
+            },
+        });
+        const gateTrees = () =>
+            existsSync(join(stateDir(), "gate-trees")) ? readdirSync(join(stateDir(), "gate-trees")) : [];
+        const listed = () => git(root, "worktree", "list", "--porcelain").includes("gate-trees");
+
+        it("is stopped by its gater with no child process, gate worktree or verdict left", async () => {
+            await ensureDaemon(context());
+            pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));
+            const ctx = context();
+            const target = await targetCode(ctx);
+            const spawned = Promise.withResolvers();
+            const abort = new AbortController();
+            const running = prepareUpdate(ctx, target, [sleeper(ctx, spawned.resolve)], { signal: abort.signal });
+            const pgid = await spawned.promise;
+            expect(readSelfUpdate(stateDir()).gating).toMatchObject({ hash: target.hash, pgid });
+            // A second gater meanwhile gets no verdict and runs nothing.
+            expect(await prepareUpdate(context(), target, [])).toEqual({ action: "gating" });
+            const reaped = [];
+            const left = await stopGating({
+                root: ctx.root,
+                stateDir: ctx.stateDir,
+                pkgDir: ctx.pkgDir,
+                env: ctx.env,
+                abort,
+                running,
+                selftest: async () => {
+                    reaped.push("self-test");
+                    return null;
+                },
+            });
+            expect(left).toEqual([]);
+            expect(await running).toEqual({ action: "gating" });
+            expect(identify(pgid)).toBeNull();
+            expect([gateTrees(), listed(), reaped]).toEqual([[], false, ["self-test"]]);
+            expect(readSelfUpdate(stateDir())).toMatchObject({ gating: null, gates: {} });
+            expect(existsSync(join(stateDir(), "gate.lock"))).toBe(false);
+        });
+
+        it("left by a gater that died is removed before the next gating, superseded trees too", async () => {
+            await ensureDaemon(context());
+            pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));
+            const ctx = context();
+            const target = await targetCode(ctx);
+            // What a killed gater leaves: its child, its worktree and an older commit's, its record
+            // and its lock, whose owner is gone.
+            const orphan = spawn("sleep", ["300"], { detached: true, stdio: "ignore" });
+            const pgid = /** @type {number} */ (orphan.pid);
+            groups.push(pgid);
+            const old = git(root, "rev-parse", "origin/master~1");
+            for (const c of [old, git(root, "rev-parse", "origin/master")]) {
+                git(root, "worktree", "add", "-q", "--detach", gateTree(ctx.stateDir, c), c);
+            }
+            const saved = readSelfUpdate(stateDir());
+            writeSelfUpdate(stateDir(), {
+                ...saved,
+                gating: { hash: target.hash, pgid, leader: identify(pgid), tree: gateTree(ctx.stateDir, old) },
+            });
+            mkdirSync(join(stateDir(), "gate.lock"));
+            writeFileSync(
+                join(stateDir(), "gate.lock", "owner.json"),
+                JSON.stringify({ pid: 999_999_999, startTime: "1", bootId: bootId() }),
+            );
+            const tmux = process.env.TMUX_TMPDIR;
+            process.env.TMUX_TMPDIR = mkdtempSync(join(tmpdir(), "githerd-tmux-"));
+            try {
+                const ran = [];
+                const record = await prepareUpdate(ctx, target, [
+                    {
+                        name: "replay",
+                        run: async () => {
+                            ran.push({ trees: gateTrees(), orphan: identify(pgid) });
+                            return { ok: true, detail: "fine" };
+                        },
+                    },
+                ]);
+                expect(record).toMatchObject({ passed: true });
+                expect(ran).toEqual([{ trees: [], orphan: null }]);
+            } finally {
+                rmSync(/** @type {string} */ (process.env.TMUX_TMPDIR), { recursive: true, force: true });
+                if (tmux === undefined) delete process.env.TMUX_TMPDIR;
+                else process.env.TMUX_TMPDIR = tmux;
+            }
+            expect(listed()).toBe(false);
+            expect(readSelfUpdate(stateDir()).gating).toBeNull();
+        });
     });
 
     it("never prunes the running version, however many newer copies were archived", async () => {

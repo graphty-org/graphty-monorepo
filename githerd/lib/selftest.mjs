@@ -578,6 +578,22 @@ function realPlatform(env) {
 }
 
 /**
+ * Removes what a self-test killed mid-run leaves behind: its tmux server (and the worker in it) and
+ * its worktree, whose removal git refuses while it holds changes other than the probe's file.
+ * @param {string} root the main checkout
+ * @param {Record<string, string | undefined>} env the environment
+ * @returns {Promise<string | null>} why the worktree could not be removed, or null
+ */
+export async function reapSelftest(root, env) {
+    killServer(SOCKET);
+    const wt = jobWorktreeDir(root, JOB);
+    if (!existsSync(wt)) return null;
+    rmSync(join(wt, ENV_FILE), { force: true });
+    const r = await run("git", ["worktree", "remove", wt], { cwd: root, env });
+    return r.code === 0 ? null : (r.stderr || r.stdout).trim();
+}
+
+/**
  * Runs the platform self-test and writes `selftest.json`.
  * @param {{root: string, stateDir: string, repo: string, model: string,
  *   env?: Record<string, string | undefined>, platform?: Platform,

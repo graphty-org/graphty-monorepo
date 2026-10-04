@@ -28,6 +28,7 @@ import { randomBytes } from "node:crypto";
 import {
     appendFileSync,
     closeSync,
+    existsSync,
     mkdirSync,
     openSync,
     readSync,
@@ -48,7 +49,17 @@ import { DEFAULTS, defaultBranch, repoRoot, resolveConfig } from "./config.mjs";
 import { createMcpServer, forwardingTools, identifySession } from "./mcp.mjs";
 import { createNotifier, lastTypedAt } from "./notify.mjs";
 import { identify, sameProcess } from "./proc.mjs";
-import { currentDir, currentHash, readSelfUpdate, realGates, updateGate, writeSelfUpdate } from "./self-update.mjs";
+import {
+    currentDir,
+    currentHash,
+    gateTree,
+    reapGating,
+    readSelfUpdate,
+    realGates,
+    updateGate,
+    writeGating,
+    writeSelfUpdate,
+} from "./self-update.mjs";
 import { defaultStateDir, readLiveness } from "./store.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 
@@ -342,16 +353,23 @@ export async function probe(ctx) {
  */
 export const ours = (ctx, health) => health?.name === NAME && health.root === ctx.root && health.protocol === PROTOCOL;
 
+/** The lock a start or upgrade of the daemon holds. */
+const RESTART_LOCK = "restart.lock";
+/** The lock the gating of a new version holds (design 9.8), apart from the restart lock. */
+const GATE_LOCK = "gate.lock";
+
 /**
- * Takes the restart lock: `mkdir`, then owner.json with this process's identity. A stale lock (its
- * owner is gone, or it has no owner.json and is older than 60 s) is removed only by the holder of
- * `restart.lock.steal`, which judges it again first: renaming a lock judged stale a moment ago could
- * remove a fresh lock another launcher took in between, and then two launchers would start.
+ * Takes a lock of the state directory, the restart lock by default: `mkdir`, then owner.json with
+ * this process's identity. A stale lock (its owner is gone, or it has no owner.json and is older
+ * than 60 s) is removed only by the holder of `<lock>.steal`, which judges it again first: renaming
+ * a lock judged stale a moment ago could remove a fresh lock another launcher took in between, and
+ * then two launchers would start.
  * @param {LauncherContext} ctx the context
- * @returns {boolean} true when this launcher holds the lock
+ * @param {string} [name] the lock directory's name
+ * @returns {boolean} true when this process holds the lock
  */
-function takeLock(ctx) {
-    const lock = join(ctx.stateDir, "restart.lock");
+function takeLock(ctx, name = RESTART_LOCK) {
+    const lock = join(ctx.stateDir, name);
     mkdirSync(ctx.stateDir, { recursive: true });
     for (let attempt = 0; attempt < 2; attempt++) {
         if (makeLock(lock)) return true;
@@ -430,11 +448,42 @@ function lockStale(ctx, lock) {
 }
 
 /**
- * Releases the restart lock.
+ * Releases a lock of the state directory, the restart lock by default.
  * @param {LauncherContext} ctx the context
+ * @param {string} [name] the lock directory's name
  */
-function releaseLock(ctx) {
-    rmSync(join(ctx.stateDir, "restart.lock"), { recursive: true, force: true });
+function releaseLock(ctx, name = RESTART_LOCK) {
+    rmSync(join(ctx.stateDir, name), { recursive: true, force: true });
+}
+
+/**
+ * Whether a live process gates a new version now (it holds `gate.lock`).
+ * @param {LauncherContext} ctx the context
+ * @returns {boolean} true while the gate lock exists and is not stale
+ */
+export function gateLocked(ctx) {
+    const lock = join(ctx.stateDir, GATE_LOCK);
+    return existsSync(lock) && !lockStale(ctx, lock);
+}
+
+/**
+ * Removes what a gating process that died left (design 9.8), when no live process gates: takes
+ * the gate lock, reaps a leftover `gating` record, and releases it. The daemon calls this at its
+ * start.
+ * @param {LauncherContext} ctx the context
+ * @returns {Promise<string[] | null>} what could not be removed; null when nothing was left or
+ *   another process gates
+ */
+export async function reapStaleGate(ctx) {
+    if (!readSelfUpdate(ctx.stateDir).gating || !takeLock(ctx, GATE_LOCK)) return null;
+    try {
+        if (!readSelfUpdate(ctx.stateDir).gating) return null;
+        const left = await reapGating({ root: ctx.root, stateDir: ctx.stateDir, pkgDir: ctx.pkgDir, env: ctx.env });
+        logLine(ctx, left.length ? "error" : "info", `removed an unfinished gate's leftovers${left.length ? `; left: ${left.join("; ")}` : ""}`);
+        return left;
+    } finally {
+        releaseLock(ctx, GATE_LOCK);
+    }
 }
 
 /**
@@ -667,16 +716,45 @@ const label = (target) => `${target.version}-${target.hash.slice(0, 8)}`;
  * Gates a new version before it may run (design 9.8): archives it into `versions/`, then runs the
  * replay, protocol and self-test gates in order and records the verdict in `self-update.json`. A
  * refusal is logged and paged once (the verdict stops a second gating of the same hash); the
- * running version stays. The running daemon calls this after a master move under the package;
- * a restarter calls it only for a daemon in fatal mode, which cannot.
+ * running version stays. The running daemon calls this after a master move under the package; a
+ * restarter starts it in the background for a daemon in fatal mode, which cannot.
+ *
+ * Gating holds `gate.lock`, so one process gates at a time: a caller that cannot take it gets
+ * `{action: "gating"}` and no verdict. The gate running now is recorded as `gating` (its process
+ * group and worktree), so a gater that died is cleaned up by the next one before it gates. An
+ * aborted gating (the daemon stopping) records no verdict.
  * @param {LauncherContext} ctx the context
  * @param {{branch: string, hash: string, version: string}} target the new version
  * @param {import("./self-update.mjs").Gate[]} [gates] the gates; the real three by default
- * @returns {Promise<import("./self-update.mjs").GateRecord>} the verdict
+ * @param {{signal?: AbortSignal}} [options] aborts the gating
+ * @returns {Promise<import("./self-update.mjs").GateRecord | {action: "gating"}>} the verdict, or
+ *   `gating` when another process gates or this one was aborted
  */
-export async function prepareUpdate(ctx, target, gates) {
+export async function prepareUpdate(ctx, target, gates, { signal } = {}) {
     const known = readSelfUpdate(ctx.stateDir).gates[target.hash];
     if (known) return known;
+    if (!takeLock(ctx, GATE_LOCK)) return { action: "gating" };
+    try {
+        const saved = readSelfUpdate(ctx.stateDir);
+        if (saved.gates[target.hash]) return saved.gates[target.hash];
+        if (saved.gating) {
+            await reapGating({ root: ctx.root, stateDir: ctx.stateDir, pkgDir: ctx.pkgDir, env: ctx.env });
+        }
+        return await gate(ctx, target, gates, signal);
+    } finally {
+        releaseLock(ctx, GATE_LOCK);
+    }
+}
+
+/**
+ * Runs the gates of one version, holding the gate lock, and records the verdict.
+ * @param {LauncherContext} ctx the context
+ * @param {{branch: string, hash: string, version: string}} target the new version
+ * @param {import("./self-update.mjs").Gate[] | undefined} gates the gates; the real three by default
+ * @param {AbortSignal | undefined} signal aborts the gating
+ * @returns {Promise<import("./self-update.mjs").GateRecord | {action: "gating"}>} the verdict
+ */
+async function gate(ctx, target, gates, signal) {
     const opts = { cwd: ctx.root, env: ctx.env };
     const commit = (await run(["git", "rev-parse", `origin/${target.branch}`], opts)).trim();
     const tree = (await run(["git", "rev-parse", `${commit}:${ctx.pkgDir}`], opts)).trim();
@@ -684,23 +762,31 @@ export async function prepareUpdate(ctx, target, gates) {
     const previous = currentDir(ctx.stateDir);
     const dir = await materialize(ctx, target);
     const at = () => ctx.now().toISOString();
+    /** @type {import("./self-update.mjs").Gating} */
+    const gating = { hash: target.hash, pgid: null, leader: null, tree: gateTree(ctx.stateDir, commit) };
+    writeGating(ctx.stateDir, gating);
+    const onSpawn = (/** @type {number} */ pgid) => {
+        writeGating(ctx.stateDir, { ...gating, pgid, leader: identify(pgid) });
+    };
     /** @type {import("./self-update.mjs").GateRecord} */
     let record = { passed: true, at: at(), version: target.version };
-    for (const gate of gates ??
+    for (const g of gates ??
         realGates({ root: ctx.root, pkgDir: ctx.pkgDir, stateDir: ctx.stateDir, env: ctx.env })) {
-        const r = await gate.run({ dir, previous, commit });
+        const r = await g.run({ dir, previous, commit, onSpawn });
+        // A stop kills the gate's child: its failure says nothing about the version.
+        if (signal?.aborted) return { action: "gating" };
         logLine(
             ctx,
             r.ok ? "info" : "error",
-            `update to ${label(target)}: ${gate.name} ${r.ok ? "passed" : "FAILED"}: ${r.detail}`,
+            `update to ${label(target)}: ${g.name} ${r.ok ? "passed" : "FAILED"}: ${r.detail}`,
         );
         if (!r.ok) {
-            record = { passed: false, at: at(), version: target.version, gate: gate.name, detail: r.detail };
+            record = { passed: false, at: at(), version: target.version, gate: g.name, detail: r.detail };
             break;
         }
     }
     const saved = readSelfUpdate(ctx.stateDir);
-    writeSelfUpdate(ctx.stateDir, { ...saved, gates: { ...saved.gates, [target.hash]: record } });
+    writeSelfUpdate(ctx.stateDir, { ...saved, gates: { ...saved.gates, [target.hash]: record }, gating: null });
     if (!record.passed) {
         const running = previous ? basename(previous) : "nothing";
         await page(
@@ -709,6 +795,31 @@ export async function prepareUpdate(ctx, target, gates) {
         );
     }
     return record;
+}
+
+/** @type {Promise<unknown> | null} a gating this process started in the background */
+let background = null;
+
+/**
+ * Starts gating a version in the background, once per process at a time: a restarter does this
+ * for a daemon in fatal mode, and answers at once instead of waiting up to 47 minutes.
+ * @param {LauncherContext} ctx the context
+ * @param {{branch: string, hash: string, version: string}} target the new version
+ */
+function gateInBackground(ctx, target) {
+    background ??= prepareUpdate(ctx, target)
+        .catch((err) => logLine(ctx, "error", `update to ${label(target)}: ${err.message}`))
+        .finally(() => {
+            background = null;
+        });
+}
+
+/**
+ * The gating this process started in the background, while it runs.
+ * @returns {Promise<unknown> | null} it, or null
+ */
+export function backgroundGating() {
+    return background;
 }
 
 /**
@@ -758,6 +869,7 @@ async function rollBack(ctx, adopting, reason, before) {
     const saved = readSelfUpdate(ctx.stateDir);
     const at = ctx.now().toISOString();
     writeSelfUpdate(ctx.stateDir, {
+        ...saved,
         gates: { ...saved.gates, [adopting.hash]: { passed: false, at, gate: "start", detail: reason } },
         adopting: null,
     });
@@ -859,8 +971,9 @@ async function upAnswer(ctx, target, mayWait) {
  * What ensureDaemon answers about a daemon up on older code (design 9.8). The default branch's
  * version runs only once its gates passed: until then the daemon keeps its version (`gating`), and
  * for good once they failed (`refused`). A daemon in fatal mode cannot gate its successor, so the
- * restarter gates it, inside the restart lock. A version that passed waits for runs in flight
- * (only outside the restart lock).
+ * restarter starts its gates in the background, under the gate lock and never inside the restart
+ * lock, and answers `down` at once. A version that passed waits for runs in flight (only outside
+ * the restart lock).
  * @param {LauncherContext} ctx the context
  * @param {{branch: string, hash: string, version: string}} target the default branch's version
  * @param {any} health the daemon's /health answer
@@ -871,11 +984,11 @@ async function upAnswer(ctx, target, mayWait) {
 async function olderCode(ctx, target, health, mayWait) {
     const url = daemonUrl(health);
     const down = health.fatal ? { url, action: /** @type {const} */ ("down"), fatal: health.fatal } : null;
-    let gate = updateGate(ctx.stateDir, target.hash);
+    const gate = updateGate(ctx.stateDir, target.hash);
     if (gate === "pending" && !down) return { url, action: "gating" };
     if (gate === "pending") {
-        if (mayWait) return null;
-        gate = (await prepareUpdate(ctx, target)).passed ? "passed" : "refused";
+        gateInBackground(ctx, target);
+        return down;
     }
     if (gate === "refused") return down ?? { url, action: "refused" };
     return mayWait && health.runsInFlight > 0 ? { url, action: "waiting" } : null;
@@ -1097,17 +1210,22 @@ export async function runLauncher({
             id: msg.id,
             result: { content: [{ type: "text", text: `githerd daemon not reachable: ${reason}` }], isError: true },
         });
-        let target;
-        try {
+        // A known daemon answers at once, even while a restarter works: one in fatal mode still
+        // explains its state.
+        let target = daemonUrl;
+        if (!target) {
             /** @type {NodeJS.Timeout | undefined} */
             let timer;
-            const timeout = new Promise((_, reject) => {
-                timer = setTimeout(() => reject(new Error(`no daemon after ${callWaitMs / 1000} s`)), callWaitMs);
-            });
-            target = await Promise.race([inflight ?? (daemonUrl ? Promise.resolve(daemonUrl) : ensure()), timeout]);
-            clearTimeout(timer);
-        } catch (err) {
-            return notReachable(err.message);
+            try {
+                const timeout = new Promise((_, reject) => {
+                    timer = setTimeout(() => reject(new Error(`no daemon after ${callWaitMs / 1000} s`)), callWaitMs);
+                });
+                target = await Promise.race([inflight ?? ensure(), timeout]);
+            } catch (err) {
+                return notReachable(err.message);
+            } finally {
+                clearTimeout(timer);
+            }
         }
         try {
             const res = await fetch(`${target}/rpc`, {

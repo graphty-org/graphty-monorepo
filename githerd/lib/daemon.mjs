@@ -74,7 +74,14 @@ import { createGitHub, GitHubError } from "./github.mjs";
 import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
-import { launcherContext, prepareUpdate, servherd as servherdData, targetCode } from "./launcher.mjs";
+import {
+    gateLocked,
+    launcherContext,
+    prepareUpdate,
+    reapStaleGate,
+    servherd as servherdData,
+    targetCode,
+} from "./launcher.mjs";
 import { dispatch } from "./dispatch.mjs";
 import { doneIo, pollVerifying } from "./done.mjs";
 import { classify } from "./classify.mjs";
@@ -115,7 +122,7 @@ import {
 } from "./store.mjs";
 import { recoverDeath } from "./session-death.mjs";
 import { resumeVerified } from "./selftest.mjs";
-import { updateGate } from "./self-update.mjs";
+import { stopGating, updateGate } from "./self-update.mjs";
 import { secretValues } from "./text.mjs";
 import { sessionToolSet } from "./session-tools.mjs";
 import { alertBanner, sessionTools, statusData } from "./tools.mjs";
@@ -2006,25 +2013,41 @@ export async function startDaemon({
 
     /** @type {Promise<void> | null} the gating of a new version of githerd, while it runs */
     let updating = null;
+    /** @type {{abort: AbortController, ctx: import("./launcher.mjs").LauncherContext} | null} how to stop it */
+    let gatingNow = null;
+    /** Whether this daemon looked for an unfinished gate's leftovers yet. */
+    let reaped = false;
 
     /**
      * Gates the default branch's version of githerd when it differs from the running one and has no
      * verdict yet (design 9.8). The gates are child processes, so the reconcile goes on meanwhile; a
      * restarter adopts a version that passed. Never in the development daemon, in fatal mode (the
-     * restarter gates then), when fenced, or when the running code is not an archived copy (no code
-     * hash).
+     * restarter gates then), when fenced, while another process gates, or when the running code is
+     * not an archived copy (no code hash). The first call removes what an unfinished gate left.
      */
     async function selfUpdate() {
-        if (env.GITHERD_DEV || !codeHash || updating !== null || fatal || fenced || stopping) return;
+        if (env.GITHERD_DEV || !codeHash || updating !== null || fenced || stopping) return;
         const found = launcherContext({ cwd: root, env, stateDir });
         if (found.kind !== "ready") return;
+        if (!reaped) {
+            // A gate a crashed daemon or launcher left: its processes, worktrees and self-test.
+            reaped = true;
+            const left = await reapStaleGate(found.ctx);
+            if (left?.length) say("error", `self-update: left behind: ${left.join("; ")}`);
+        }
+        if (fatal) return;
+        // Another process (a restarter, while this daemon was fatal) gates already.
+        if (gateLocked(found.ctx)) return;
         const target = await targetCode(found.ctx);
         if (target.hash === codeHash || updateGate(stateDir, target.hash) !== "pending") return;
-        updating = prepareUpdate(found.ctx, target)
+        const abort = new AbortController();
+        gatingNow = { abort, ctx: found.ctx };
+        updating = prepareUpdate(found.ctx, target, undefined, { signal: abort.signal })
             .then(() => {})
             .catch((err) => say("error", `self-update: ${err.message}`))
             .finally(() => {
                 updating = null;
+                gatingNow = null;
             });
     }
 
@@ -2703,6 +2726,19 @@ export async function startDaemon({
         if (timer) clearTimeout(timer);
         timer = null;
         await runner?.shutdown();
+        // A gate in flight is killed, and what it left removed, so none outlives the daemon.
+        if (updating && gatingNow) {
+            const { abort, ctx } = gatingNow;
+            const left = await stopGating({
+                root: ctx.root,
+                stateDir: ctx.stateDir,
+                pkgDir: ctx.pkgDir,
+                env: ctx.env,
+                abort,
+                running: updating,
+            });
+            if (left.length) say("error", `self-update: left behind: ${left.join("; ")}`);
+        }
         // A push killed here reaches its job as a failed push; the next start finds nothing running.
         pushQueue?.stop();
         await pushQueue?.drain();

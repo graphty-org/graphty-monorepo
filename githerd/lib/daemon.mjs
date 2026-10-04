@@ -68,7 +68,8 @@ import { inspect } from "node:util";
 import { createPushQueue, pushRunBranch } from "./actor/push.mjs";
 import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
-import { effectiveMode, MODELS, resolveConfig } from "./config.mjs";
+import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
+import { effectiveMode, MODELS } from "./config.mjs";
 import { createGitHub, GitHubError } from "./github.mjs";
 import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
@@ -683,42 +684,43 @@ export async function startDaemon({
         });
     }
 
-    /**
-     * Reads the config (design section 3.4). A valid one replaces the running config and is saved
-     * as the last valid one; an invalid one keeps the last valid config and raises one escalation.
-     */
-    function readConfig() {
-        let problem;
-        try {
-            const r = resolveConfig(root, env);
-            if (r.configured) {
-                config = r.config;
-                configError = null;
-                state.config = r.config;
-                if (state.escalations?.["config-invalid"] && !state.escalations["config-invalid"].resolvedAt) {
-                    board.resolve(state, { key: "config-invalid" }, now());
-                }
-                return;
-            }
-            problem = /** @type {{reason: string}} */ (r).reason;
-        } catch (err) {
-            problem = /** @type {Error} */ (err).message;
-        }
-        if (state.config) {
-            config = state.config;
-            raise({
-                key: "config-invalid",
-                kind: "blocked",
-                summary: "githerd.config.json is invalid; githerd keeps running on the last valid config",
-                detail: problem,
-            });
-        } else {
-            configError = problem;
-        }
-        say("error", `config: ${problem}`);
-    }
+    const configGate = createConfigGate({
+        root,
+        stateDir,
+        env,
+        readLedger: () => readLedger(stateDir, { since: new Date(0) }),
+    });
 
-    readConfig();
+    /**
+     * Reads the config (design sections 3.4 and 9.7) through the adoption gate. An adopted config
+     * replaces the running one; a refused or invalid one keeps the last good config, with a
+     * `config-refused` escalation on the board, and a refused one gets its revert pull request once.
+     * @returns {Promise<string | null>} the fatal reason when no good config was ever loaded, else null
+     */
+    async function readConfig() {
+        const r = await configGate.check();
+        if (r.fatal) {
+            configError = r.fatal;
+            say("error", `config: ${r.fatal}`);
+            return r.fatal;
+        }
+        config = r.config;
+        state.config = r.config;
+        configError = null;
+        if (r.banner) {
+            raise({ key: "config-refused", kind: "blocked", summary: r.banner, detail: r.banner });
+            say("error", `config: ${r.banner}`);
+        } else if (state.escalations?.["config-refused"] && !state.escalations["config-refused"].resolvedAt) {
+            board.resolve(state, { key: "config-refused" }, now());
+        }
+        if (r.revert) {
+            const branch = state.master.branch ?? "master";
+            openConfigRevert({ github: github(), repo: config.repo, root, branch, reasons: r.revert }).catch((err) =>
+                say("error", `config revert: ${err.message}`),
+            );
+        }
+        return null;
+    }
 
     const notifier = createNotifier({
         notify: () => {
@@ -755,6 +757,9 @@ export async function startDaemon({
                 await save();
             },
         }));
+
+    /** @type {string | null} set when no good config was ever loaded; entered at the end of the start */
+    const configFatal = await readConfig();
 
     /**
      * What `githerd_done` and the verification poll read: git in the root, the GitHub client, npm.
@@ -1441,7 +1446,8 @@ export async function startDaemon({
                 m.configPending = false;
                 mergify = undefined;
             } else say("error", `git fetch origin ${branch}: ${fetched.stderr.trim() || "exit " + fetched.code}`);
-            readConfig();
+            const configFatal = await readConfig();
+            if (configFatal) enterFatal(configFatal);
         }
         if (mergify === undefined) mergify = await readMergify(branch);
     }
@@ -1856,7 +1862,8 @@ export async function startDaemon({
             // Never polls, but the loop still ticks: a launcher must see a daemon that is up and
             // DOWN, not a wedged one to restart, or fatal mode ends without its cause changing.
             loopTickAt = now().toISOString();
-            return { fatal: firstLine(fatal) };
+            if (fatal === configError) await retryConfig();
+            if (fatal) return { fatal: firstLine(fatal) };
         }
         if (busy || stopping || fenced) return { skipped: true };
         if (loaded.readOnly) {
@@ -1870,10 +1877,6 @@ export async function startDaemon({
         step("poll");
         try {
             if (!mayWrite()) return { fenced: true };
-            if (!config) {
-                readConfig();
-                return { ok: false };
-            }
             try {
                 const waited = await pollGitHub();
                 if (waited) {
@@ -1907,6 +1910,21 @@ export async function startDaemon({
             busy = false;
             if (!fenced) step("idle");
         }
+    }
+
+    /**
+     * Fatal mode for want of a good config ends when the default branch brings one (design 9.6):
+     * fetch it, gate it, and leave fatal mode once it is adopted.
+     */
+    async function retryConfig() {
+        const branch = state.master.branch ?? "master";
+        const fetched = await runGit(["fetch", "origin", branch]);
+        if (fetched.code !== 0) return;
+        if (await readConfig()) return;
+        fatal = null;
+        clearFatal(stateDir);
+        say("info", "config: a good config is in use; fatal mode ends");
+        void ledger({ kind: "fatal-cleared", reason: "a good config was adopted" });
     }
 
     let watching = false;
@@ -2571,7 +2589,8 @@ export async function startDaemon({
         }
     }
 
-    if (bootFatal) enterFatal(bootFatal);
+    const bootReason = bootFatal ?? configFatal;
+    if (bootReason) enterFatal(bootReason);
     else await drainHooks();
     ensurePushQueue();
     if (autoPoll) timer = setTimeout(tick, 0);

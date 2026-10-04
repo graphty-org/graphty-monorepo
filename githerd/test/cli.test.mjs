@@ -620,6 +620,12 @@ describe("runs and run", () => {
 
 describe("ensure and restart", () => {
     it("ensure starts the daemon once and then finds it warm; restart goes through servherd", async () => {
+        // The daemon reads the default branch's config (it is not handed GITHERD_CONFIG); with none
+        // ever good it would start in fatal mode.
+        cpSync(/** @type {string} */ (env.GITHERD_CONFIG), join(root, "githerd.config.json"));
+        git(root, "add", "-A");
+        git(root, "commit", "-q", "-m", "config");
+        git(root, "push", "-q", "origin", "master");
         const first = await cli(["ensure"]);
         expect(first.code).toBe(0);
         expect(first.out).toMatch(/^started http:\/\/127\.0\.0\.1:\d+$/);

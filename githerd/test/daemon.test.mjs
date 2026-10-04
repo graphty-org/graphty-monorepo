@@ -24,7 +24,7 @@ const META = { githerd: { protocol: TOOL_PROTOCOL } };
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
 import { containerStart, identify } from "../lib/proc.mjs";
 import { hashToken } from "../lib/run-tools.mjs";
-import { readLedger, spoolEvent } from "../lib/store.mjs";
+import { appendLedger, readLedger, spoolEvent } from "../lib/store.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
@@ -435,6 +435,9 @@ describe("HTTP endpoints", () => {
 
     it("sends a write of an acting group, reads it back, and confirms it on the next poll", async () => {
         writeConfig({ mode: "acting", actions: { runWrites: true } });
+        // The adoption gate takes a group to acting only after dry-run lines of it (design 9.7).
+        mkdirSync(join(dir, ".githerd"), { recursive: true });
+        await appendLedger(join(dir, ".githerd"), { kind: "would-do", group: "workers" });
         const daemon = await start();
         await poll(daemon);
         daemon.state.runs["run-1"] = { status: "running", kind: "triage", target: "issue:12" };
@@ -754,12 +757,12 @@ describe("the poll loop", () => {
         expect(phone().filter((p) => p.message.startsWith("master red"))).toHaveLength(1);
     });
 
-    it("keeps the last valid config when master's is invalid, and escalates once", async () => {
+    it("keeps the last good config when master's is invalid, and escalates once", async () => {
         const daemon = await start();
         await poll(daemon);
         const escalations = async () =>
             (await readLedger(join(dir, ".githerd"))).filter(
-                (e) => e.kind === "escalation" && e.key === "config-invalid",
+                (e) => e.kind === "escalation" && e.key === "config-refused",
             );
 
         writeFileSync(configFile, JSON.stringify({ repo: "not a repo", lanes: {} }));
@@ -773,8 +776,8 @@ describe("the poll loop", () => {
         }
         expect(daemon.state.config.repo).toBe("o/r");
         expect(saved().config.repo).toBe("o/r");
-        expect(daemon.state.escalations["config-invalid"]).toMatchObject({ kind: "blocked", resolvedAt: null });
-        expect(daemon.state.escalations["config-invalid"].detail).toContain("repo");
+        expect(daemon.state.escalations["config-refused"]).toMatchObject({ kind: "blocked", resolvedAt: null });
+        expect(daemon.state.escalations["config-refused"].detail).toContain("repo");
         expect(await escalations()).toHaveLength(1);
         // a list-only kind: the phone hears nothing
         expect(pages().filter((p) => p.message.includes("config"))).toEqual([]);
@@ -784,14 +787,17 @@ describe("the poll loop", () => {
         scene.head = D;
         await poll(daemon);
         expect(daemon.state.config.staleDays).toBe(30);
-        expect(daemon.state.escalations["config-invalid"].resolvedAt).not.toBeNull();
+        expect(daemon.state.escalations["config-refused"].resolvedAt).not.toBeNull();
     });
 
-    it("serves status only when it has never had a valid config", async () => {
+    it("enters fatal mode when it has never had a good config", async () => {
         writeFileSync(configFile, "{ not json");
         const daemon = await start();
-        expect(await daemon.poll()).toEqual({ ok: false });
+        expect(await daemon.poll()).toEqual({ fatal: expect.stringContaining("no good githerd.config.json") });
         expect(gh.calls).toEqual([]);
+        const health = await (await fetch(`${daemon.url}/health`)).json();
+        expect(health.fatal).toContain("not valid JSON");
+        expect(health.lastPollError).toContain("not valid JSON");
         const reply = await daemon.rpc({
             jsonrpc: "2.0",
             id: 1,
@@ -799,8 +805,20 @@ describe("the poll loop", () => {
             params: { _meta: META, name: "githerd_status", arguments: {} },
         });
         expect(reply.result.content[0].text).toContain("not running a valid config");
-        const health = await (await fetch(`${daemon.url}/health`)).json();
-        expect(health.lastPollError).toContain("not valid JSON");
+
+        // Master brings a good config: the next tick fetches it and fatal mode ends.
+        writeConfig();
+        expect(await daemon.poll()).toEqual({ ok: true });
+        expect(gitCalls).toContainEqual(["fetch", "origin", "master"]);
+        expect(daemon.fatal()).toBeNull();
+        expect(existsSync(join(dir, ".githerd", "FATAL"))).toBe(false);
+    });
+
+    it("stays in fatal mode while the default branch cannot be fetched", async () => {
+        writeFileSync(configFile, "{ not json");
+        const daemon = await start({ git: async () => ({ code: 1, stdout: "", stderr: "offline" }) });
+        writeConfig();
+        expect(await daemon.poll()).toEqual({ fatal: expect.stringContaining("no good githerd.config.json") });
     });
 
     it("skips a poll while one is running", async () => {

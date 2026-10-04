@@ -1411,9 +1411,16 @@ and CLI call says "githerd is DOWN: <reason>", page once. Leave fatal mode when 
 Config comes only from master. A new config is adopted only after: schema validation with a
 minimum and maximum for every number; a replay of the recorded month with it, refused if any
 verdict moves toward more merges, fewer incidents during red stretches, or a write group going to
-`acting` without ledger coverage. A refused config keeps the last good one, says so on the board,
-and the daemon opens a revert pull request of the config commit. A code change and a config change
-in one commit go through the self-update gate together (9.8).
+`acting` without ledger coverage. Coverage is at least one `would-do` or `action` line of that
+group in the ledger (`githerd mode` counts the same lines); whether those lines were right stays the
+owner's judgment when he merges the change. The gating lanes are the only config the merge verdict
+and the incident procedure read, so the replay runs only for a workflow that stops gating: one red
+stretch of it in the recorded month refuses the config. A refused config keeps the last good one
+(`config.last-good.json`), says so on the board, and the daemon opens a revert pull request of the
+pull request that brought the config commit, once per refused text, through the `incidents`
+group. With no good config ever loaded the daemon is in fatal mode (9.6); each tick it fetches the
+default branch and leaves fatal mode once a config there passes the gate. A code change and a
+config change in one commit go through the self-update gate together (9.8).
 
 ### 9.8 Self-update and version skew
 
@@ -1635,7 +1642,7 @@ It predates this design and is reworked by the plan. Most of its fact-finding an
 | `issues.mjs` | `issues?since=` with a high-water mark | 10-minute overlap and dedupe |
 | `store.mjs` | atomic `state.json`, `.bak`, append-only ledger | move to `~/.githerd/`; ledger replay; spool |
 | `proc.mjs` | process identity by pid and start time | container restart by PID 1 start time instead of boot id [R21] |
-| `config.mjs` | strict validation from the default branch, widening keys rejected | bounds; last-good file; replay gate |
+| `config.mjs` | strict validation from the default branch, widening keys rejected | bounds; the last-good file and the replay gate live in `config-adopt.mjs` |
 | `version.mjs` | running master's code, never a worktree's | `versions/<sha>/`, protocol versions |
 | `mcp.mjs`, `schema.mjs` | JSON-RPC core and schema validator | the eleven tools of section 6 |
 | `launcher.mjs` | find or start the one daemon, forward calls | fixed cwd; `alive` check; restart lock; drop the pm2 re-creation workaround once servherd passes `autorestart` |

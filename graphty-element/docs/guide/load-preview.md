@@ -71,6 +71,18 @@ column), whichever of `nodeFile` and `edgeFile` it came as; the table ids stay p
 `draft.mapping.tables[id].rowsAre` says what each holds. Only when the columns say nothing either
 way does the order handed over decide.
 
+Each half of a pair can be a file, a URL or pasted text, and the two need not match: `nodeFile`,
+`nodeURL` or `nodeData` for one table, `edgeFile`, `edgeURL` or `edgeData` for the other. So a
+table read from a URL, or pasted, can join one read from a file:
+
+```ts
+const draft = await session.data.prepare({ config: { nodeFile: file, edgeURL: "https://example.org/ties.csv" } });
+```
+
+A half the element recognizes as a graph file rather than a table -- `ring.gml` dropped beside
+`accounts.csv` -- is refused with `E_BAD_COMMAND`, whose `details` say why
+(`reason: "not-a-table"`), which half (`table`), what it is (`format`) and its `name`.
+
 A CSV table also carries `delimiter: { value, detected }`: the column separator it was split on
 (`","`, `";"`, `"\t"` or `"|"`) and whether the element detected it rather than being given it as
 the source's `delimiter` option.

@@ -143,15 +143,6 @@ function fileName(value: unknown): string | undefined {
 }
 
 /**
- * Whether a source hands over a CSV node file and edge file as a pair.
- * @param config - The source's options.
- * @returns True for a pair.
- */
-export function isPair(config: Readonly<Record<string, unknown>>): boolean {
-    return ["nodeFile", "edgeFile", "nodeURL", "edgeURL"].some((key) => config[key] !== undefined);
-}
-
-/**
  * A held table, its columns described.
  * @param id - Its id.
  * @param name - Its name.

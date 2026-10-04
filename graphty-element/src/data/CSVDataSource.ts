@@ -8,7 +8,9 @@ import {
     parseTextCell,
 } from "@graphty/graph-io";
 
+import { detectFormats } from "../catalog/detect";
 import type { AdHocData } from "../config";
+import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import type { DataLoadingError } from "./ErrorAggregator.js";
 import {
@@ -19,6 +21,7 @@ import {
     type ImportedRecords,
     importRecords,
 } from "./graph-io-import.js";
+import { urlTail } from "./source-bytes.js";
 
 /** The CSV shapes the reader can be told to read, or recognises when it is not told. */
 export type CSVVariant = "neo4j" | "gephi" | "cytoscape" | "adjacency-list" | "edge-list" | "node-list" | "generic";
@@ -257,11 +260,29 @@ interface CSVDataSourceConfig extends BaseDataSourceConfig {
     /** The column holding the node an edge ends at. See {@link CSVDataSourceConfig.edgeSource}. */
     edgeTarget?: string;
     idColumn?: string;
-    // For paired files
+    /**
+     * A node table and an edge table read as one load. Each half is a file, a URL or inline text
+     * (`nodeData`, `edgeData`), and the two halves need not be the same kind. A half the element
+     * recognizes as another format (a GML or GraphML file) is refused with `E_BAD_COMMAND`.
+     */
     nodeFile?: File;
     edgeFile?: File;
     nodeURL?: string;
     edgeURL?: string;
+    nodeData?: string | Uint8Array;
+    edgeData?: string | Uint8Array;
+}
+
+/** The options that make a CSV source a pair of tables. */
+const PAIR_KEYS = ["nodeFile", "edgeFile", "nodeURL", "edgeURL", "nodeData", "edgeData"] as const;
+
+/**
+ * Whether a source's options hand over a node table and an edge table as a pair.
+ * @param config - The source's options.
+ * @returns True for a pair.
+ */
+export function isPairConfig(config: Readonly<Record<string, unknown>>): boolean {
+    return PAIR_KEYS.some((key) => config[key] !== undefined);
 }
 
 /**
@@ -298,7 +319,7 @@ export class CSVDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        if (this.config.nodeFile || this.config.edgeFile || this.config.nodeURL || this.config.edgeURL) {
+        if (isPairConfig(this.config as Readonly<Record<string, unknown>>)) {
             yield* this.parsePairedFiles();
             return;
         }
@@ -499,13 +520,10 @@ export class CSVDataSource extends DataSource {
      * @returns the tables, keyed `"rows"`, or `"nodes"` and `"edges"`
      */
     async readRows(): Promise<Readonly<Record<string, CsvRows>> | null> {
-        const { nodeFile, edgeFile, nodeURL, edgeURL } = this.config;
-        if (nodeFile !== undefined || edgeFile !== undefined || nodeURL !== undefined || edgeURL !== undefined) {
-            const text = async (file: File | undefined, url: string | undefined): Promise<string> =>
-                file === undefined ? (await this.fetchWithRetry(url ?? "")).text() : file.text();
+        if (isPairConfig(this.config as Readonly<Record<string, unknown>>)) {
             return {
-                nodes: await this.rowsOf(await text(nodeFile, nodeURL)),
-                edges: await this.rowsOf(await text(edgeFile, edgeURL)),
+                nodes: await this.rowsOf(await this.pairText("nodes")),
+                edges: await this.rowsOf(await this.pairText("edges")),
             };
         }
 
@@ -552,24 +570,65 @@ export class CSVDataSource extends DataSource {
         };
     }
 
-    private async *parsePairedFiles(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        // Validate that both URLs or both files are provided
-        const hasNodeSource = !!(this.config.nodeURL ?? this.config.nodeFile);
-        const hasEdgeSource = !!(this.config.edgeURL ?? this.config.edgeFile);
-
-        if (!hasNodeSource || !hasEdgeSource) {
+    /**
+     * The text of one half of a pair: its file's, its URL's or its inline text, refused when the
+     * element recognizes it as a format that is not a table.
+     * @param half - Which half.
+     * @returns The text.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`
+     *     (`details.reason` `"not-a-table"`) when it is another format.
+     */
+    private async pairText(half: "nodes" | "edges"): Promise<string> {
+        const { config } = this;
+        const given = (prefix: string): boolean =>
+            ["File", "URL", "Data"].some(
+                (kind) => (config as Record<string, unknown>)[`${prefix}${kind}`] !== undefined,
+            );
+        if (!given("node") || !given("edge")) {
             throw new Error(
-                "parsePairedFiles requires both node and edge sources. " +
-                    "Provide either (nodeURL + edgeURL) or (nodeFile + edgeFile).",
+                "parsePairedFiles requires both node and edge sources. Provide a file, a URL or text for each: " +
+                    "nodeFile, nodeURL or nodeData, and edgeFile, edgeURL or edgeData.",
             );
         }
 
-        const nodeContent = this.config.nodeFile
-            ? await this.config.nodeFile.text()
-            : await (await this.fetchWithRetry(this.config.nodeURL ?? "")).text();
-        const edgeContent = this.config.edgeFile
-            ? await this.config.edgeFile.text()
-            : await (await this.fetchWithRetry(this.config.edgeURL ?? "")).text();
+        const prefix = half === "nodes" ? "node" : "edge";
+        const file = this.config[`${prefix}File`];
+        const url = this.config[`${prefix}URL`];
+        const data = this.config[`${prefix}Data`];
+        let text: string;
+        if (data !== undefined) {
+            text = typeof data === "string" ? data : new TextDecoder().decode(data);
+        } else if (file !== undefined) {
+            text = await file.text();
+        } else {
+            text = await (await this.fetchWithRetry(url ?? "")).text();
+        }
+
+        const name = file?.name ?? (url === undefined ? undefined : urlTail(url));
+        const formats = detectFormats({
+            ...(name === undefined ? {} : { filename: name }),
+            sample: text.slice(0, 4096),
+        });
+        if (formats.length > 0 && !formats.includes("csv")) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                source: "data",
+                message: `${name ?? `The ${half} table`} reads as ${formats[0]}, not as a table, so it cannot be one half of a pair of CSV tables.`,
+                details: {
+                    reason: "not-a-table",
+                    table: half,
+                    format: formats[0],
+                    ...(name === undefined ? {} : { name }),
+                },
+            });
+        }
+
+        return text;
+    }
+
+    private async *parsePairedFiles(): AsyncGenerator<DataSourceChunk, void, unknown> {
+        const nodeContent = await this.pairText("nodes");
+        const edgeContent = await this.pairText("edges");
 
         // The node file is read first, so its ids come first and its columns become the nodes'
         // attributes; each file's delimiter is worked out on its own.

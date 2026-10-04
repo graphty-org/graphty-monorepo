@@ -5,7 +5,7 @@
  * same path in one call.
  */
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, LOAD_ROLES } from "../../src/session";
 import type { GraphSession, LoadDraft } from "../../src/session/types";
@@ -64,6 +64,10 @@ async function pair(session: GraphSession): Promise<LoadDraft> {
 }
 
 describe("session.data.prepare", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it("reads a CSV pair into two tables without loading anything", async () => {
         const session = createGraphSession();
         const draft = await pair(session);
@@ -469,6 +473,48 @@ describe("session.data.prepare", () => {
         assert.strictEqual(draft.tables[0].columns.find((column) => column.name === "label")?.suggested, "label");
         await draft.load();
         assert.strictEqual(session.config.data.knownFields.nodeLabelPath, "label");
+        session.dispose();
+    });
+
+    it("pairs a file with a URL, and pasted text with a file (#930)", async () => {
+        vi.stubGlobal("fetch", (url: string) =>
+            Promise.resolve(new Response(url.endsWith("ties.csv") ? TIES : PEOPLE, { status: 200 })),
+        );
+        const session = createGraphSession();
+
+        const fileAndUrl = await session.data.prepare({
+            config: { nodeFile: new File([PEOPLE], "people.csv"), edgeURL: "https://example.org/data/ties.csv" },
+        });
+        assert.deepEqual(
+            fileAndUrl.tables.map(({ id, name, rowCount }) => ({ id, name, rowCount })),
+            [
+                { id: "nodes", name: "people.csv", rowCount: 3 },
+                { id: "edges", name: "ties.csv", rowCount: 3 },
+            ],
+        );
+        assert.strictEqual((await fileAndUrl.report()).counts.edges, 3);
+
+        const textAndFile = await session.data.prepare({
+            config: { nodeData: PEOPLE, edgeFile: new File([TIES], "ties.csv") },
+        });
+        assert.strictEqual(textAndFile.type, "csv");
+        await textAndFile.load();
+        assert.strictEqual(session.data.statistics().edgeCount, 3);
+        session.dispose();
+    });
+
+    it("refuses a graph file handed over as one table of a pair (#930)", async () => {
+        const session = createGraphSession();
+        const gml = "graph [ node [ id 1 ] node [ id 2 ] edge [ source 1 target 2 ] ]";
+        const source = {
+            config: { nodeFile: new File([PEOPLE], "accounts.csv"), edgeFile: new File([gml], "ring.gml") },
+        };
+
+        const refused = await refusal(session.data.prepare(source));
+        assert.strictEqual(refused?.code, "E_BAD_COMMAND");
+        assert.deepEqual(refused?.details, { reason: "not-a-table", table: "edges", format: "gml", name: "ring.gml" });
+        assert.strictEqual((await refusal(session.data.import(source)))?.code, "E_BAD_COMMAND");
+        assertUntouched(session);
         session.dispose();
     });
 

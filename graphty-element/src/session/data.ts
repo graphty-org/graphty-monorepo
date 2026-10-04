@@ -15,6 +15,7 @@ import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type N
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
 import type { AttributeDescriptor, EdgeId, MeasurementDeclaration, RunId, ScopeInput } from "../catalog/types";
+import { isPairConfig } from "../data/CSVDataSource";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
@@ -33,7 +34,7 @@ import {
     type ImportSource,
     SOURCE_VALUE,
 } from "./commands/data";
-import { Draft, isPair, readSource } from "./draft";
+import { Draft, readSource } from "./draft";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { failedEnd, Ingest, progressSource } from "./project/ingest";
@@ -1497,7 +1498,7 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     // A node file and an edge file handed over as a pair are only ever CSV.
-    if (isPair(config)) {
+    if (isPairConfig(config)) {
         return { type: "csv", config, ...described };
     }
 

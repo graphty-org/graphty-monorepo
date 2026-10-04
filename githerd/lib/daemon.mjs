@@ -1438,7 +1438,14 @@ export async function startDaemon({
             const rec = job.pr && job.kind !== "pr" && job.kind !== "review" ? state.prs?.[String(job.pr)] : null;
             if (rec && rec.patchFor !== rec.headSha) await readPatchId(job, rec, branch);
         }
-        // An issue edited since its worker last read it: the worker reads it again (line 8).
+        issueRevisionNews(t);
+    }
+
+    /**
+     * An issue edited since its worker last read it: the worker reads it again (line 8).
+     * @param {Date} t the poll's time
+     */
+    function issueRevisionNews(t) {
         for (const job of Object.values(state.jobs ?? {})) {
             if (job.kind !== "issue" || board.TERMINAL.includes(job.state) || job.state === "queued") continue;
             const at = state.issues?.byNumber?.[String(job.target).slice(1)]?.updatedAt;

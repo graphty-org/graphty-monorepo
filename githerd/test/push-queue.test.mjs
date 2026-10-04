@@ -433,7 +433,9 @@ describe("gate failures", () => {
 
     it("kills a push that runs past twice the gate's duration, gate included", async () => {
         gate("hang");
-        queue = makeQueue({ defaultGateMs: 50 });
+        // The bound (twice the gate) runs from git's start, so it must outlast git reaching the hook
+        // on a loaded machine; at 100 ms git was sometimes killed before the hook wrote its pid.
+        queue = makeQueue({ defaultGateMs: 1000 });
         state.pushQueue.gateRuns = [10];
         const a = workingJob("a");
         await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");

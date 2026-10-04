@@ -428,20 +428,30 @@ export function controlCommand(state, cmd, now) {
     }
     if (cmd.op === "workers") return workersCommand(state, settings, cmd, now, entry);
     if (cmd.op === "keep") return keepCommand(state, cmd, now, entry);
-    if (cmd.op === "release") {
-        const job = state.jobs?.[String(cmd.job ?? "")];
-        if (!job) return { status: 404, text: `no job ${cmd.job}` };
-        const stopped = job.state === "parked" && String(job.waitingFor?.owner ?? "").startsWith("stopped-by-owner:");
-        if (!stopped && !job.kept)
-            return { status: 409, text: `${job.id} is ${job.state}: neither stopped by you nor kept` };
-        if (stopped) move(job, "working", now, { reason: "released by the owner" });
-        if (job.kept) job.holder = null;
-        job.kept = false;
-        job.steeredAt = null;
-        job.fresh = true;
-        return { status: 200, text: `released ${job.id}; githerd continues it`, entry: entry({ job: job.id }) };
-    }
+    if (cmd.op === "release") return releaseCommand(state, cmd, now, entry);
     return { status: 400, text: `op must be one of ${[...CONTROL_OPS].join(", ")}` };
+}
+
+/**
+ * `release <job>`.
+ * @param {any} state the daemon state, mutated
+ * @param {any} cmd the command
+ * @param {Date} now the current time
+ * @param {(fields: Record<string, unknown>) => LedgerEntry} entry makes the ledger entry
+ * @returns {{status: number, text: string, entry?: LedgerEntry}} the answer
+ */
+function releaseCommand(state, cmd, now, entry) {
+    const job = state.jobs?.[String(cmd.job ?? "")];
+    if (!job) return { status: 404, text: `no job ${cmd.job}` };
+    const stopped = job.state === "parked" && String(job.waitingFor?.owner ?? "").startsWith("stopped-by-owner:");
+    if (!stopped && !job.kept)
+        return { status: 409, text: `${job.id} is ${job.state}: neither stopped by you nor kept` };
+    if (stopped) move(job, "working", now, { reason: "released by the owner" });
+    if (job.kept) job.holder = null;
+    job.kept = false;
+    job.steeredAt = null;
+    job.fresh = true;
+    return { status: 200, text: `released ${job.id}; githerd continues it`, entry: entry({ job: job.id }) };
 }
 
 /**

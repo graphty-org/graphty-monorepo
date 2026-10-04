@@ -2,6 +2,7 @@ import "./canvas.css";
 
 import type { GraphSession, LegendBlock, ProgressChange } from "@graphty/graphty-element/session";
 import { Button, Tooltip } from "@mantine/core";
+import { CircleDashed, LoaderCircle } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -16,14 +17,15 @@ const REDRAW_EVENTS = ["style:changed", "run:changed", "project:changed"] as con
 interface CanvasReading {
     readonly blocks: readonly LegendBlock[];
     readonly nodeCount: number;
+    readonly edgeCount: number;
     /** The load in flight, from the element's progress event, or null. */
     readonly load: ProgressChange | null;
 }
 
-const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, load: null };
+const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, load: null };
 
 /**
- * Reads the legend, the node count and the load in flight from the session, again after every
+ * Reads the legend, the node and edge counts and the load in flight from the session, again after every
  * event that can change them; and, when a run finishes, posts the notice its painting calls for.
  * @param session - the element's session, or null.
  * @returns what the canvas draws from.
@@ -38,8 +40,11 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
             return undefined;
         }
         let load: ProgressChange | null = null;
+        // A run that ends after the session changed must not post a notice for the old session.
+        let live = true;
         const read = (): void => {
-            setReading({ blocks: session.styles.legend(), nodeCount: session.data.statistics().nodeCount, load });
+            const { nodeCount, edgeCount } = session.data.statistics();
+            setReading({ blocks: session.styles.legend(), nodeCount, edgeCount, load });
         };
         read();
         const offs = [
@@ -56,6 +61,9 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                 }
                 // The painting is decided once the element has finished painting for the run.
                 void session.styles.settled().then(() => {
+                    if (!live) {
+                        return;
+                    }
                     const notice = runNotice(session, change.run.id);
                     if (notice !== null) {
                         store.set({ notice });
@@ -64,6 +72,7 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
             }),
         ];
         return () => {
+            live = false;
             offs.forEach((off) => {
                 off();
             });
@@ -78,9 +87,10 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
  * top left, and one state card at its center -- loading while the element reports a load, empty
  * while it holds no node. The canvas has no other buttons.
  *
- * Not drawn yet, because graphty-element cannot report them: the loading card's Cancel (#296),
- * the too-large card (#902: a watcher cannot tell that a load was refused, or when one starts, so
- * "No nodes to draw" can show while a file is fetched) and the GPU-lost card.
+ * Not drawn yet, because graphty-element cannot report them: the loading card's Cancel (#296);
+ * the file name on the loading card and the too-large card (#902: a load event names no source,
+ * a watcher cannot tell that a load was refused, or when one starts, so "No nodes to draw" can
+ * show while a file is fetched); and the GPU-lost card.
  * @returns The overlays
  */
 export function CanvasOverlays(): React.JSX.Element | null {
@@ -88,7 +98,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const legendShown = useWorkspaceState((state) => state.legendShown);
     const addData = useCommand("file.open");
-    const { blocks, nodeCount, load } = useCanvasReading(session);
+    const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session);
 
     if (session === null) {
         return null;
@@ -98,14 +108,16 @@ export function CanvasOverlays(): React.JSX.Element | null {
     if (load !== null) {
         card = (
             <StateCard
+                icon={<LoaderCircle size={20} />}
                 title={`Reading ${projectName}`}
-                sentence={load.completed > 0 ? `${load.completed.toLocaleString()} records read` : undefined}
+                sentence={`${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges...`}
                 progress={load.fraction}
             />
         );
     } else if (nodeCount === 0) {
         card = (
             <StateCard
+                icon={<CircleDashed size={20} />}
                 title="No nodes to draw"
                 actions={
                     addData === null ? undefined : (

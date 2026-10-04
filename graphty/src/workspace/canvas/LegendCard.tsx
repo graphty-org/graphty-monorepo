@@ -3,7 +3,7 @@ import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session
 import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
 import React from "react";
 
-import { isSizeBlock, overflowLine, readingSentence, sectionTitle, sizeRange, swatchName } from "./legendWords";
+import { isSizeBlock, overflowLine, paintWords, sectionTitle, swatchName } from "./legendWords";
 
 /** Props for LegendCard. */
 interface LegendCardProps {
@@ -50,7 +50,9 @@ function Ramp({ block, title }: { block: LegendBlock; title: string }): React.JS
 }
 
 /**
- * One block as a list: a row per value with what it paints, the Other row last.
+ * One block as a list: a row per value with what it paints -- a color chip, or a shape, line
+ * pattern or size in words -- the Other row last. A color row's value is how many elements carry
+ * it, when the element can say.
  * @param props - Component props
  * @param props.block - the block
  * @returns the rows
@@ -62,7 +64,7 @@ function List({ block }: { block: LegendBlock }): React.JSX.Element {
                 <DataRow
                     key={`${String(index)}-${swatch.label}`}
                     name={swatchName(swatch)}
-                    value={swatch.count}
+                    value={paintWords(swatch) ?? swatch.count}
                     icon={swatch.color === undefined ? undefined : <ColorSwatch color={swatch.color} size={12} />}
                 />
             ))}
@@ -77,8 +79,11 @@ function List({ block }: { block: LegendBlock }): React.JSX.Element {
 
 /**
  * The legend card (tier1-design.md section 2.4): read-only, one section per channel a row paints
- * from the data, the row that wins on top. Each section is titled "<Property>: <row>", with the
- * sentence saying what a higher value means and, for size, the drawn range.
+ * from the data, the row that wins on top. Each section is titled "<Property>: <row>".
+ *
+ * Not drawn yet: the sentence saying what a higher value means and the bound size range, which
+ * the element does not publish (#912); and the element's departures, which it publishes only as
+ * English sentences (#867), while the app writes every word a reader sees.
  * @param props - Component props
  * @param props.blocks - the element's legend blocks
  * @param props.session - the session
@@ -92,8 +97,6 @@ export function LegendCard({ blocks, session }: LegendCardProps): React.JSX.Elem
             <Stack gap="xs">
                 {ordered.map((block) => {
                     const title = sectionTitle(block, rowName(session, block));
-                    const reading = readingSentence(block);
-                    const range = sizeRange(block);
                     const continuous = block.kind === "sequential" || block.kind === "diverging";
                     return (
                         <div key={`${block.layerId}-${block.channel}`} aria-label={title} role="group">
@@ -101,13 +104,6 @@ export function LegendCard({ blocks, session }: LegendCardProps): React.JSX.Elem
                                 {title}
                             </Text>
                             {continuous ? <Ramp block={block} title={title} /> : <List block={block} />}
-                            {reading === null ? null : <Text size="xs">{reading}</Text>}
-                            {range === null ? null : <Text size="xs" c="dimmed">{`Sizes ${range}`}</Text>}
-                            {block.departures.map((line) => (
-                                <Text key={line} size="xs" c="dimmed">
-                                    {line}
-                                </Text>
-                            ))}
                         </div>
                     );
                 })}

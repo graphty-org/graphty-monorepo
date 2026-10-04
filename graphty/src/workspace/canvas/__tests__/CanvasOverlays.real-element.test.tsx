@@ -1,9 +1,10 @@
 /**
  * The canvas on the REAL graphty-element: the empty card, the legend card read from
  * `styles.legend()`, and the parts of tier 1 tasks T7 and T8 the canvas delivers -- PageRank's
- * `runs.painting()` reports its color added and the legend names it; and, under a reader's layer
- * that colors everything, Louvain is reported suppressed by that layer, the notice says so, and
- * Show anyway puts Louvain's colors on top. Every check reads what the element reports, never
+ * `runs.painting()` reports its color added, its row is on top and the legend names it; after
+ * Betweenness, Louvain paints and wins color; and, under a reader's layer that colors everything,
+ * Louvain is reported suppressed by that layer, the notice says so, and Show anyway puts Louvain's
+ * colors on top. Every check reads what the element reports, never
  * canvas pixels.
  */
 
@@ -62,13 +63,13 @@ describe("the canvas on the real element", () => {
         "shows No nodes to draw until the graph has a node, then the legend of a run that paints (T7)",
         async () => {
             const session = await newProject();
-            await screen.findByRole("status", { name: "No nodes to draw" }, { timeout: TIMEOUT_MS });
+            await screen.findByRole("region", { name: "No nodes to draw" }, { timeout: TIMEOUT_MS });
             assert.isNull(screen.queryByRole("region", { name: "Legend" }));
 
             await session.data.addNodes(NODES);
             await session.data.addEdges(EDGES);
             await waitFor(() => {
-                assert.isNull(screen.queryByRole("status", { name: "No nodes to draw" }));
+                assert.isNull(screen.queryByRole("region", { name: "No nodes to draw" }));
             });
 
             const run = session.runs.start("pagerank");
@@ -80,10 +81,39 @@ describe("the canvas on the real element", () => {
                 painting?.suggestions.some((each) => each.outcome === "added"),
                 "PageRank's color went on the stack",
             );
+            assert.include(session.runs.bindings(run.id), session.styles.list().at(-1)?.id, "PageRank's row is on top");
 
             const legend = await screen.findByRole("region", { name: "Legend" });
-            const section = await within(legend).findByRole("group", { name: `Color: ${run.label}` });
-            assert.isNotNull(within(section).getByText(/means higher/), "the reading sentence");
+            await within(legend).findByRole("group", { name: `Color: ${run.label}` });
+            assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "paints Louvain over Betweenness, and names it the color winner (T8)",
+        async () => {
+            const session = await newProject();
+            await session.data.addNodes(NODES);
+            await session.data.addEdges(EDGES);
+
+            await session.runs.start("betweenness");
+            const run = session.runs.start("louvain");
+            await run;
+            await session.styles.settled();
+            const painting = session.runs.painting(run.id);
+            assert.equal(painting?.state, "decided");
+            assert.isTrue(
+                painting?.suggestions.some((each) => each.outcome === "added"),
+                "Louvain's color went on the stack",
+            );
+            const winner = session.styles
+                .explain({ node: "n0" })
+                .channels.find((each) => each.channel === "node.color")?.layerId;
+            assert.include(session.runs.bindings(run.id), winner, "Louvain wins color");
+
+            const legend = await screen.findByRole("region", { name: "Legend" });
+            await within(legend).findByRole("group", { name: `Color: ${run.label}` }, { timeout: TIMEOUT_MS });
             assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
         },
         TIMEOUT_MS * 2,

@@ -21,3 +21,8 @@
     width: min(360px, calc(100% - 32px));
     pointer-events: auto;
 }
+
+.ws-state-card-icon {
+    display: flex;
+    color: var(--mantine-color-dimmed);
+}

@@ -440,33 +440,7 @@ export class UpdateManager implements Manager {
         }
 
         if (edgesMoved) {
-            let revealed = false;
-
-            for (const edge of this.dataManager.edges.values()) {
-                const { index } = edge;
-                // `!placed` now means only "this edge is mid-teardown", which is a state lasting
-                // less than one statement. It used to mean "this edge outlived the node it was
-                // attached to", and forcing those visible is what made a removed node's edges
-                // permanently on screen with no filter able to reach them -- removing a node now
-                // removes them instead.
-                const placed = index !== INVALID_INDEX;
-
-                const visible = edgeVisibility === null || !placed || edgeVisibility.has(index);
-
-                if (edge.setRenderVisible(visible) && visible) {
-                    revealed = true;
-                }
-
-                edge.setSelected(edgeSelection !== null && placed && edgeSelection.has(index));
-            }
-
-            // A REVEALED EDGE IS PLACED BY ITS NEXT UPDATE, not by being shown: hiding collapsed
-            // its line slot and its caps, and showing only invalidates its endpoint cache. Nothing
-            // moved, so without this the walk is skipped and the edge stays collapsed -- a filter
-            // undone drew its edges as gone.
-            if (revealed) {
-                this.forceEdgeWalk();
-            }
+            this.applyEdgeMasks(edgeVisibility, edgeSelection);
         }
 
         this.appliedNodeSelection = nodeSelectionVersion;
@@ -475,6 +449,45 @@ export class UpdateManager implements Manager {
         this.appliedEdgeVisibility = edgeVisibilityVersion;
         this.appliedShowContext = showContext;
         this.appliedAnything = true;
+    }
+
+    /**
+     * Show, hide, select and deselect every edge to match the masks, and force the next edge walk
+     * when any edge was revealed.
+     * @param edgeVisibility - The visible edges, or null when nothing hides.
+     * @param edgeSelection - The selected edges, or null when nothing is selected.
+     */
+    private applyEdgeMasks(
+        edgeVisibility: ElementMask<EdgeId> | null,
+        edgeSelection: ElementMask<EdgeId> | null,
+    ): void {
+        let revealed = false;
+
+        for (const edge of this.dataManager.edges.values()) {
+            const { index } = edge;
+            // `!placed` now means only "this edge is mid-teardown", which is a state lasting
+            // less than one statement. It used to mean "this edge outlived the node it was
+            // attached to", and forcing those visible is what made a removed node's edges
+            // permanently on screen with no filter able to reach them -- removing a node now
+            // removes them instead.
+            const placed = index !== INVALID_INDEX;
+
+            const visible = edgeVisibility === null || !placed || edgeVisibility.has(index);
+
+            if (edge.setRenderVisible(visible) && visible) {
+                revealed = true;
+            }
+
+            edge.setSelected(edgeSelection !== null && placed && edgeSelection.has(index));
+        }
+
+        // A REVEALED EDGE IS PLACED BY ITS NEXT UPDATE, not by being shown: hiding collapsed
+        // its line slot and its caps, and showing only invalidates its endpoint cache. Nothing
+        // moved, so without this the walk is skipped and the edge stays collapsed -- a filter
+        // undone drew its edges as gone.
+        if (revealed) {
+            this.forceEdgeWalk();
+        }
     }
 
     /**

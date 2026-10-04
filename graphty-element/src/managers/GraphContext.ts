@@ -175,14 +175,14 @@ export class DefaultGraphContext implements GraphContext {
      *     is bound
      */
     constructor(
-        private styles: () => Styles,
+        private readonly styles: () => Styles,
         private dataManager: DataManager,
         private layoutManager: LayoutManager,
         private meshCache: MeshCache,
         private scene: Scene,
         private statsManager: StatsManager,
         private config: GraphContextConfig,
-        private stylePainter?: StylePainter,
+        private readonly stylePainter?: StylePainter,
     ) {}
 
     /**

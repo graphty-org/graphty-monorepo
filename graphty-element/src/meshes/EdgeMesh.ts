@@ -246,7 +246,7 @@ void main() {
             new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
             options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
             options.color,
-            style.line?.opacity ?? 1.0,
+            style.line?.opacity ?? 1,
             scene,
             this.is2DMode(scene), // Pass 2D mode detection flag
             style.line?.patternCount, // undefined means follow the spacing rule
@@ -301,7 +301,7 @@ void main() {
                     Simple2DLineRenderer.createBatchMesh(
                         options.width / 40, // Convert back from scaled width to match 3D line thickness
                         options.color,
-                        style.line?.opacity ?? 1.0,
+                        style.line?.opacity ?? 1,
                         scene,
                     ),
                 scene,

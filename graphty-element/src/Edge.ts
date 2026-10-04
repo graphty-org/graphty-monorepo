@@ -414,13 +414,14 @@ export class Edge {
      */
     get drawnCurve(): Vector3[] | null {
         const batch = this.lineBatch;
+        const last = this.lineSlots.at(-1);
 
-        if (batch === null || !this.lineIsCurve) {
+        if (batch === null || !this.lineIsCurve || last === undefined) {
             return null;
         }
 
         const points = this.lineSlots.map((slot) => batch.endsOf(slot)[0]);
-        points.push(batch.endsOf(this.lineSlots[this.lineSlots.length - 1])[1]);
+        points.push(batch.endsOf(last)[1]);
 
         return points;
     }
@@ -901,9 +902,8 @@ export class Edge {
             return;
         }
 
-        if (this.mesh instanceof PatternedLineMesh) {
-            this.mesh.dispose(); // PatternedLineMesh has its own dispose logic
-        } else if (!this.mesh.isDisposed()) {
+        // PatternedLineMesh has its own dispose logic, so it is called whatever the state.
+        if (this.mesh instanceof PatternedLineMesh || !this.mesh.isDisposed()) {
             this.mesh.dispose();
         }
     }
@@ -1232,73 +1232,14 @@ export class Edge {
 
             // If we can't find intercept points, fall back to approximate positions
             if (!srcPoint || !dstPoint || !newEndPoint) {
-                const fallbackSrc = this.srcNode.mesh.position;
-                const fallbackDst = this.dstNode.mesh.position;
-
-                // Hide arrow if nodes are too close or at same position
-                if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
-                    this.arrowMesh.setDrawn(false);
-                    return {
-                        srcPoint: fallbackSrc,
-                        dstPoint: fallbackDst,
-                    };
-                }
-
-                // Pure geometric positioning (same as main path, but using node centers/radii)
-                const direction = fallbackDst.subtract(fallbackSrc).normalize();
-
-                // Get arrow length (including size multiplier)
-                this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
-                const style = this.currentStyle;
-                const arrowSize = style.arrowHead?.size ?? 1.0;
-                const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
-
-                // Use actual bounding sphere radii
-                const dstNodeRadius = this.dstNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
-                const srcNodeRadius = this.srcNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
-                this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
-
-                // Calculate surface intersection points
-                this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.vectorMath");
-                const srcSurfacePoint = fallbackSrc.add(direction.scale(srcNodeRadius));
-                const dstSurfacePoint = fallbackDst.subtract(direction.scale(dstNodeRadius));
-
-                // Use common arrow geometry functions for positioning
-                const arrowType = style.arrowHead?.type;
-                const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
-
-                // PHASE 4: Override scaleFactor for 2D arrows
-                // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
-                // so their scaleFactor should be 1.0, not 0.25
-                if (this.arrowMesh.is2D && geometry.scaleFactor !== undefined) {
-                    geometry.scaleFactor = 1.0;
-                }
-
-                // Calculate arrow position using common function
-                const arrowPosition = EdgeMesh.calculateArrowPosition(
-                    dstSurfacePoint,
-                    direction,
-                    arrowLength,
-                    geometry,
-                );
-
-                // Calculate line endpoint using common function
-                const lineEndPoint = EdgeMesh.calculateLineEndpoint(dstSurfacePoint, direction, arrowLength, geometry);
-                this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
-
-                this.arrowMesh.place(arrowPosition, direction);
-
-                return {
-                    srcPoint: srcSurfacePoint,
-                    dstPoint: lineEndPoint,
-                };
+                return this.placeArrowFromCentres(this.arrowMesh);
             }
 
             // Use common arrow geometry functions for positioning
             this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
             const arrowStyle = this.currentStyle;
             const arrowType = arrowStyle.arrowHead?.type;
-            const arrowSize = arrowStyle.arrowHead?.size ?? 1.0;
+            const arrowSize = arrowStyle.arrowHead?.size ?? 1;
             const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
             const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
 
@@ -1306,7 +1247,7 @@ export class Edge {
             // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
             // so their scaleFactor should be 1.0, not 0.25
             if (this.arrowMesh.is2D && geometry.scaleFactor !== undefined) {
-                geometry.scaleFactor = 1.0;
+                geometry.scaleFactor = 1;
             }
 
             const direction = dstPoint.subtract(srcPoint).normalize();
@@ -1317,49 +1258,7 @@ export class Edge {
 
             this.arrowMesh.place(arrowPosition, direction);
 
-            // Handle arrow tail if configured
-            let adjustedSrcPoint = srcPoint;
-            if (this.arrowTailMesh) {
-                const tailStyle = this.currentStyle;
-                const tailType = tailStyle.arrowTail?.type;
-
-                if (tailType && tailType !== "none") {
-                    // Reverse direction for tail (points away from source toward destination)
-                    const tailDirection = dstPoint.subtract(srcPoint).normalize();
-
-                    // Get tail arrow dimensions and geometry
-                    const tailSize = tailStyle.arrowTail?.size ?? 1.0;
-                    const tailLength = EdgeMesh.calculateArrowLength() * tailSize;
-                    const tailGeometry = EdgeMesh.getArrowGeometry(tailType);
-
-                    // PHASE 4: Override scaleFactor for 2D tail arrows
-                    if (this.arrowTailMesh.is2D && tailGeometry.scaleFactor !== undefined) {
-                        tailGeometry.scaleFactor = 1.0;
-                    }
-
-                    // Calculate tail position using common function
-                    // For tail, we negate the direction since it points away from source
-                    const tailPosition = EdgeMesh.calculateArrowPosition(
-                        srcPoint,
-                        tailDirection.scale(-1), // Reverse direction for tail
-                        tailLength,
-                        tailGeometry,
-                    );
-
-                    // Tail points in opposite direction (away from source)
-                    const reversedDirection = direction.scale(-1);
-
-                    this.arrowTailMesh.place(tailPosition, reversedDirection);
-
-                    // Adjust line start point to create gap for tail arrow
-                    adjustedSrcPoint = EdgeMesh.calculateLineEndpoint(
-                        srcPoint,
-                        tailDirection.scale(-1), // Reverse direction for tail
-                        tailLength,
-                        tailGeometry,
-                    );
-                }
-            }
+            const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction);
 
             return {
                 srcPoint: adjustedSrcPoint,
@@ -1371,6 +1270,127 @@ export class Edge {
             srcPoint: null,
             dstPoint: null,
         };
+    }
+
+    /**
+     * Place the arrow head from the node centres and bounding radii, for when the line's ends on
+     * the node surfaces could not be found, and say where the line runs.
+     * @param arrowMesh - This edge's arrow head.
+     * @returns The line's ends, stopping short of the arrow head.
+     */
+    private placeArrowFromCentres(arrowMesh: ArrowCap): EdgeLine {
+        const fallbackSrc = this.srcNode.mesh.position;
+        const fallbackDst = this.dstNode.mesh.position;
+
+        // Hide arrow if nodes are too close or at same position
+        if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
+            arrowMesh.setDrawn(false);
+            return {
+                srcPoint: fallbackSrc,
+                dstPoint: fallbackDst,
+            };
+        }
+
+        // Pure geometric positioning (same as main path, but using node centers/radii)
+        const direction = fallbackDst.subtract(fallbackSrc).normalize();
+
+        // Get arrow length (including size multiplier)
+        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
+        const style = this.currentStyle;
+        const arrowSize = style.arrowHead?.size ?? 1;
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+
+        // Use actual bounding sphere radii
+        const dstNodeRadius = this.dstNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+        const srcNodeRadius = this.srcNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
+
+        // Calculate surface intersection points
+        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.vectorMath");
+        const srcSurfacePoint = fallbackSrc.add(direction.scale(srcNodeRadius));
+        const dstSurfacePoint = fallbackDst.subtract(direction.scale(dstNodeRadius));
+
+        // Use common arrow geometry functions for positioning
+        const arrowType = style.arrowHead?.type;
+        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
+
+        // PHASE 4: Override scaleFactor for 2D arrows
+        // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
+        // so their scaleFactor should be 1.0, not 0.25
+        if (arrowMesh.is2D && geometry.scaleFactor !== undefined) {
+            geometry.scaleFactor = 1;
+        }
+
+        // Calculate arrow position using common function
+        const arrowPosition = EdgeMesh.calculateArrowPosition(dstSurfacePoint, direction, arrowLength, geometry);
+
+        // Calculate line endpoint using common function
+        const lineEndPoint = EdgeMesh.calculateLineEndpoint(dstSurfacePoint, direction, arrowLength, geometry);
+        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
+
+        arrowMesh.place(arrowPosition, direction);
+
+        return {
+            srcPoint: srcSurfacePoint,
+            dstPoint: lineEndPoint,
+        };
+    }
+
+    /**
+     * Place the arrow tail, when this edge draws one, and say where the line has to start so it
+     * leaves the tail room.
+     * @param srcPoint - Where the line leaves the source node's surface.
+     * @param dstPoint - Where the line meets the destination node's surface.
+     * @param direction - The unit direction from source to destination.
+     * @returns Where the line starts: past the tail, or the source surface with no tail.
+     */
+    private placeArrowTail(srcPoint: Vector3, dstPoint: Vector3, direction: Vector3): Vector3 {
+        const { arrowTailMesh } = this;
+        if (!arrowTailMesh) {
+            return srcPoint;
+        }
+
+        const tailStyle = this.currentStyle;
+        const tailType = tailStyle.arrowTail?.type;
+
+        if (!tailType || tailType === "none") {
+            return srcPoint;
+        }
+
+        // Reverse direction for tail (points away from source toward destination)
+        const tailDirection = dstPoint.subtract(srcPoint).normalize();
+
+        // Get tail arrow dimensions and geometry
+        const tailSize = tailStyle.arrowTail?.size ?? 1;
+        const tailLength = EdgeMesh.calculateArrowLength() * tailSize;
+        const tailGeometry = EdgeMesh.getArrowGeometry(tailType);
+
+        // PHASE 4: Override scaleFactor for 2D tail arrows
+        if (arrowTailMesh.is2D && tailGeometry.scaleFactor !== undefined) {
+            tailGeometry.scaleFactor = 1;
+        }
+
+        // Calculate tail position using common function
+        // For tail, we negate the direction since it points away from source
+        const tailPosition = EdgeMesh.calculateArrowPosition(
+            srcPoint,
+            tailDirection.scale(-1), // Reverse direction for tail
+            tailLength,
+            tailGeometry,
+        );
+
+        // Tail points in opposite direction (away from source)
+        const reversedDirection = direction.scale(-1);
+
+        arrowTailMesh.place(tailPosition, reversedDirection);
+
+        // Adjust line start point to create gap for tail arrow
+        return EdgeMesh.calculateLineEndpoint(
+            srcPoint,
+            tailDirection.scale(-1), // Reverse direction for tail
+            tailLength,
+            tailGeometry,
+        );
     }
 
     /**
@@ -1448,29 +1468,7 @@ export class Edge {
         }
 
         if (srcPoint !== null && dstPoint !== null) {
-            const style = this.currentStyle;
-            const hasArrowHead = style.arrowHead?.type && style.arrowHead.type !== "none";
-
-            // Only adjust endpoint if we have an arrow head
-            if (hasArrowHead) {
-                const arrowSize = style.arrowHead?.size ?? 1.0;
-                const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
-                const arrowType = style.arrowHead?.type ?? "normal";
-                const geometry = EdgeMesh.getArrowGeometry(arrowType);
-
-                // PHASE 4: Override scaleFactor for 2D arrows in line endpoint calculation
-                if (this.arrowMesh?.is2D && geometry.scaleFactor !== undefined) {
-                    geometry.scaleFactor = 1.0;
-                }
-
-                // Use common function to calculate line endpoint
-                // Direction points FROM source TO destination (forward direction)
-                const direction = dstPoint.subtract(srcPoint).normalize();
-                newEndPoint = EdgeMesh.calculateLineEndpoint(dstPoint, direction, arrowLength, geometry);
-            } else {
-                // No arrow head, edge goes all the way to the node surface
-                newEndPoint = dstPoint;
-            }
+            newEndPoint = this.lineEndBefore(srcPoint, dstPoint);
         }
 
         return {
@@ -1478,6 +1476,38 @@ export class Edge {
             dstPoint,
             newEndPoint,
         };
+    }
+
+    /**
+     * Where the line stops short of the destination node's surface to leave room for the arrow
+     * head, or the surface itself when there is no arrow head.
+     * @param srcPoint - Where the line leaves the source node's surface.
+     * @param dstPoint - Where the line meets the destination node's surface.
+     * @returns The line's end.
+     */
+    private lineEndBefore(srcPoint: Vector3, dstPoint: Vector3): Vector3 {
+        const style = this.currentStyle;
+        const hasArrowHead = style.arrowHead?.type && style.arrowHead.type !== "none";
+
+        if (!hasArrowHead) {
+            // No arrow head, edge goes all the way to the node surface
+            return dstPoint;
+        }
+
+        const arrowSize = style.arrowHead?.size ?? 1;
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+        const arrowType = style.arrowHead?.type ?? "normal";
+        const geometry = EdgeMesh.getArrowGeometry(arrowType);
+
+        // PHASE 4: Override scaleFactor for 2D arrows in line endpoint calculation
+        if (this.arrowMesh?.is2D && geometry.scaleFactor !== undefined) {
+            geometry.scaleFactor = 1;
+        }
+
+        // Use common function to calculate line endpoint
+        // Direction points FROM source TO destination (forward direction)
+        const direction = dstPoint.subtract(srcPoint).normalize();
+        return EdgeMesh.calculateLineEndpoint(dstPoint, direction, arrowLength, geometry);
     }
 
     /**

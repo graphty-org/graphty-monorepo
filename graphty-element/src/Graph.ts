@@ -184,7 +184,7 @@ function isAbort(error: unknown): boolean {
 }
 
 /** The three layout-behaviour settings a project file saves. The others are the view's. */
-const PROJECT_LAYOUT_KEYS: readonly string[] = ["preSteps", "stepMultiplier", "minDelta"];
+const PROJECT_LAYOUT_KEYS: ReadonlySet<string> = new Set(["preSteps", "stepMultiplier", "minDelta"]);
 
 /**
  * The settings of this view that a project file does not save (design/undo/undo-design.md section
@@ -1609,7 +1609,7 @@ export class Graph implements GraphContext {
      */
     setLayoutBehavior(behavior: GraphBehaviorConfig): void {
         const layout: Readonly<Record<string, unknown>> = behavior.layout ?? {};
-        const project = Object.fromEntries(Object.entries(layout).filter(([key]) => PROJECT_LAYOUT_KEYS.includes(key)));
+        const project = Object.fromEntries(Object.entries(layout).filter(([key]) => PROJECT_LAYOUT_KEYS.has(key)));
         // `layout.type` names the layout, whose one home is the `layout` slice.
         const { type } = layout;
         const current = this.viewSettings.behavior;
@@ -1619,7 +1619,7 @@ export class Graph implements GraphContext {
             layout: {
                 ...current.layout,
                 ...Object.fromEntries(
-                    Object.entries(layout).filter(([key]) => !PROJECT_LAYOUT_KEYS.includes(key) && key !== "type"),
+                    Object.entries(layout).filter(([key]) => !PROJECT_LAYOUT_KEYS.has(key) && key !== "type"),
                 ),
             },
             node: { ...current.node, ...behavior.node },

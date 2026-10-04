@@ -286,6 +286,14 @@ function mergeSorted(one: readonly number[], other: readonly number[]): number[]
     return [...one, ...other].sort((a, b) => a - b);
 }
 
+/** The removals {@link GraphStore.removeRows} has run since the last freeze, and what they read. */
+interface RemovalRun {
+    readonly revision: number;
+    readonly snapshot: GraphSnapshot;
+    readonly nodes: readonly number[];
+    readonly edges: readonly number[];
+}
+
 /**
  * Follow one remap with another.
  * @param first - old index -> middle index.
@@ -379,12 +387,7 @@ export class GraphStore {
      * frozen, each list ascending, while nothing else has written the graph or frozen it: the
      * revision the last of those removals left, and the snapshot they were all read against.
      */
-    private removedSinceFreeze: {
-        readonly revision: number;
-        readonly snapshot: GraphSnapshot;
-        readonly nodes: readonly number[];
-        readonly edges: readonly number[];
-    } | null = null;
+    private removedSinceFreeze: RemovalRun | null = null;
     /**
      * Where the rows each removal and each kept graph took out were in the lane, read again at
      * every redo: the lane half of a removed row, so undoing the removal puts the node back where
@@ -894,23 +897,12 @@ export class GraphStore {
     }
 
     /**
-     * Take rows out of the graph, recording everything that putting them back needs: their rows,
-     * every registered column's value, and an edge's resolved endpoints and weight. Pins are the
-     * session's `pins` slice, which the removal's own draft records.
-     * Removing a node removes every edge attached to it.
-     * @param nodeIds - The nodes to remove; one the graph does not hold is skipped.
-     * @param edgeIds - The element-assigned ids of edges to remove; likewise.
-     * @returns What was removed.
+     * The run of removals {@link GraphStore.removeRows} can carry on from, or null after freezing
+     * the graph when anything other than those removals has written it or frozen it since.
+     * @returns The run so far, or null when a new one starts from a fresh snapshot.
      */
-    removeRows(nodeIds: readonly NodeId[], edgeIds: readonly number[]): RemovedRows {
-        // Settled and compacted, so a builder row is a snapshot row and every column is readable --
-        // UNLESS the only writes since the last freeze were earlier removals. Those leave every
-        // other builder row, every column value and the lane where the freeze put them, so this
-        // reads them unfrozen and only renumbers what it records (`compacted` below). A run of
-        // removals then costs one freeze at the next read rather than one each: a freeze compacts
-        // every row of the graph, which at the render ceiling is most of what a one-node removal
-        // costs. Anything else written, or any freeze, ends the run.
-        let chain = this.removedSinceFreeze;
+    private continuedRemovalRun(): RemovalRun | null {
+        const chain = this.removedSinceFreeze;
         if (
             chain?.revision !== this.revision ||
             chain.snapshot !== this.cache ||
@@ -920,11 +912,18 @@ export class GraphStore {
             this.pendingPositions !== null
         ) {
             this.getSnapshot();
-            chain = null;
+            return null;
         }
 
-        const earlierNodes = chain?.nodes ?? [];
-        const earlierEdges = chain?.edges ?? [];
+        return chain;
+    }
+
+    /**
+     * The builder rows of the nodes the graph holds, of those asked for.
+     * @param nodeIds - The node ids; one the graph does not hold is skipped.
+     * @returns Their rows.
+     */
+    private nodeRowsOf(nodeIds: readonly NodeId[]): Set<number> {
         const builder = this.current;
         const nodeRows = new Set<number>();
         for (const id of nodeIds) {
@@ -934,6 +933,17 @@ export class GraphStore {
             }
         }
 
+        return nodeRows;
+    }
+
+    /**
+     * The builder rows of the edges asked for, and of every edge attached to the given nodes.
+     * @param edgeIds - The element-assigned edge ids; one the graph does not hold is skipped.
+     * @param nodeRows - The rows of nodes being removed.
+     * @returns The edge rows.
+     */
+    private edgeRowsOf(edgeIds: readonly number[], nodeRows: ReadonlySet<number>): Set<number> {
+        const builder = this.current;
         const edgeRows = new Set<number>();
         for (const edgeId of edgeIds) {
             const row = this.edgeIndexOf(edgeId);
@@ -953,6 +963,33 @@ export class GraphStore {
                 }
             }
         }
+
+        return edgeRows;
+    }
+
+    /**
+     * Take rows out of the graph, recording everything that putting them back needs: their rows,
+     * every registered column's value, and an edge's resolved endpoints and weight. Pins are the
+     * session's `pins` slice, which the removal's own draft records.
+     * Removing a node removes every edge attached to it.
+     * @param nodeIds - The nodes to remove; one the graph does not hold is skipped.
+     * @param edgeIds - The element-assigned ids of edges to remove; likewise.
+     * @returns What was removed.
+     */
+    removeRows(nodeIds: readonly NodeId[], edgeIds: readonly number[]): RemovedRows {
+        // Settled and compacted, so a builder row is a snapshot row and every column is readable --
+        // UNLESS the only writes since the last freeze were earlier removals. Those leave every
+        // other builder row, every column value and the lane where the freeze put them, so this
+        // reads them unfrozen and only renumbers what it records (`compacted` below). A run of
+        // removals then costs one freeze at the next read rather than one each: a freeze compacts
+        // every row of the graph, which at the render ceiling is most of what a one-node removal
+        // costs. Anything else written, or any freeze, ends the run.
+        const chain = this.continuedRemovalRun();
+        const earlierNodes = chain?.nodes ?? [];
+        const earlierEdges = chain?.edges ?? [];
+        const builder = this.current;
+        const nodeRows = this.nodeRowsOf(nodeIds);
+        const edgeRows = this.edgeRowsOf(edgeIds, nodeRows);
 
         const edges = [...edgeRows]
             .sort((a, b) => a - b)

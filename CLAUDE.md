@@ -458,12 +458,14 @@ The target flow:
 - A red master freezes the queue and opens a `priority:critical` revert automatically.
 - Releases go out once a day as a release pull request, plus an ad hoc release on demand.
 
-**Live today:** the pull request half of the target flow. A draft pull request runs no CI; a ready
-one runs the affected suite with the screenshots and the gate; `Cost Estimate Accuracy` runs on
+**Live today:** the pull request half of the target flow. A draft pull request runs no tests: ci.yml
+skips its build and test jobs and reports `All Checks Pass` and `Queue Checks Pass` as FAILED
+("draft: CI not run"), so a draft can never look green; `hosts.yml` and the `gpu`-labelled GPU lane
+skip drafts too. `Lint PR Title` still checks a draft's title (seconds). A ready one runs the affected suite with the screenshots and the gate; `Cost Estimate Accuracy` runs on
 every pull request that affects graphty-element and gates it; the short test shards run as two
 grouped jobs. ci.yml also knows a Mergify merge-queue run (a draft on a `mergify/merge-queue/*`
-branch): it runs the full suite there and reports `Queue Checks Pass`, and `Lint PR Title` passes
-it. Mergify itself still checks one pull request at a time in place (`.mergify.yml`), the visual
+branch, opened by Mergify in this repository): it runs the full suite there and reports
+`Queue Checks Pass`, and `Lint PR Title` passes it. Mergify itself still checks one pull request at a time in place (`.mergify.yml`), the visual
 gate does not yet accept a batch, and the release still runs on every merge. The plan's section 15
 is the order of the migration. Update this paragraph as each step lands.
 
@@ -975,7 +977,10 @@ two sessions. Until the limit resets, every `gh` call fails with HTTP 403 and me
 
 - **Read pull request status from the local broker, not from GitHub.** `tools/pr-status-broker.mjs`
   runs under servherd and writes every open pull request's labels, draft and merge state, rollup
-  and checks to `<main checkout>/tmp/pr-status/status.json` once a minute, in one GraphQL query.
+  and checks to `<main checkout>/tmp/pr-status/status.json` once a minute, in one GraphQL query
+  (about 3 points a query, 180 an hour; the file's `rateLimit.cost` has the real figure). Where a
+  check ran more than once on the head commit, the file keeps the newest; `truncated` or
+  `checksTruncated` means the list is incomplete.
   Read that file (check `fetchedAt` and `error`). If `servherd_list` does not show
   `pr-status-broker`, start it from the main checkout:
 

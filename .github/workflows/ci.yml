@@ -6,7 +6,7 @@ on:
     pull_request:
         # No "labeled": no job reads labels any more (Chromatic's label is switched off), and Mergify adds
         # and removes labels (queued, dequeued) on every queued pull request, each of which re-ran all of CI.
-        # A draft runs nothing (see the build job), so marking it ready ("ready_for_review") starts its run.
+        # A draft runs no tests (see the build job), so marking it ready ("ready_for_review") starts its run.
         types: [opened, synchronize, reopened, ready_for_review]
     # Manual trigger. GitHub twice declined to queue a run for a push to master
     # (4ca5f8a and 756117b both reached the remote with zero runs created for
@@ -37,18 +37,25 @@ concurrency:
 # again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
 # that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
 # Three kinds of run (design/ci/ci-cd-plan.md, sections 3, 5 and 8):
-# - a pull request: the affected suite, the screenshots and the visual gate. A draft runs nothing:
-#   agents iterate on drafts behind the local pre-push gate and mark them ready when done.
+# - a pull request: the affected suite, the screenshots and the visual gate. A draft runs no tests, and
+#   its two summary checks fail ("draft: CI not run"): agents iterate on drafts behind the local
+#   pre-push gate and mark them ready when done.
 # - a Mergify merge-queue run: a draft pull request on a mergify/merge-queue/* branch, holding master
 #   plus the pull requests being merged. It runs the FULL suite, every shard of every package, and is
 #   held to master's rule that every job succeeds. "Queue Checks Pass" is its verdict.
 # - a push to master or a manual dispatch: the full suite, which release.yml and deploy-pages.yml use.
+# A Mergify merge-queue run: a draft on a mergify/merge-queue/* branch of this repository, opened by
+# Mergify's app. The branch name alone is not enough: anyone can push a branch with that prefix. A job's
+# `if` cannot read env, so the build job repeats this test.
+env:
+    MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
+
 jobs:
     # Build job - runs once, shares artifacts with test shards. Skipping it on a draft skips every job
-    # that needs it; the two summary jobs check the same condition.
+    # that needs it; the two summary jobs still run, and fail, on a draft.
     build:
         name: Build
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft || startsWith(github.head_ref, 'mergify/merge-queue/')
+        if: github.event_name != 'pull_request' || !github.event.pull_request.draft || (startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]')
         runs-on: ubuntu-24.04
         # What the rest of the run tests, decided once here: the test job's matrix and the Chromatic jobs'
         # conditions read these instead of each asking nx again. See the "Plan" step below.
@@ -94,11 +101,10 @@ jobs:
               id: plan
               env:
                   EVENT: ${{ github.event_name }}
-                  HEAD_REF: ${{ github.head_ref }}
                   BASE_REF: ${{ github.base_ref }}
               run: |
                   all=$(pnpm exec nx show projects --json)
-                  if [[ "$EVENT" == "pull_request" && "$HEAD_REF" != mergify/merge-queue/* ]]; then
+                  if [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]]; then
                       echo "full=false" >> "$GITHUB_OUTPUT"
                       affected=$(pnpm exec nx show projects --affected --base="origin/$BASE_REF" --head=HEAD --json)
                   else
@@ -1127,7 +1133,10 @@ jobs:
     # here and must succeed, because when it fails every other job is skipped too, and without it that
     # would read as a pass. On master, dispatch and the merge queue (the build job's full=true) every job
     # must succeed: nothing is meant to be skipped there, so a skip means the plan went wrong and must
-    # not pass silently. A draft skips this job with the rest of the run.
+    # not pass silently. On a draft the rest of the run is skipped but this job still runs, and FAILS:
+    # GitHub and Mergify count a skipped required check as passing, and the draft run's check stays on
+    # the head SHA after "gh pr ready" until the new run reports, so a skip here could let a pull
+    # request merge with no CI at all.
     all-checks:
         name: All Checks Pass
         needs:
@@ -1143,14 +1152,19 @@ jobs:
                 chromatic-layout,
                 visual,
             ]
-        if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft || startsWith(github.head_ref, 'mergify/merge-queue/'))
+        if: always()
         runs-on: ubuntu-24.04
         steps:
             - name: Check all jobs passed
               env:
                   NEEDS: ${{ toJSON(needs) }}
+                  BUILD: ${{ needs.build.result }}
                   FULL: ${{ needs.build.outputs.full }}
               run: |
+                  if [[ "$BUILD" == "skipped" ]]; then
+                      echo "::error::draft: CI not run. Mark the pull request ready (gh pr ready) to run it."
+                      exit 1
+                  fi
                   ok='["success"]'
                   [[ "$FULL" == "false" ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
@@ -1216,27 +1230,26 @@ jobs:
                   node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" "${pr[@]}" --base HEAD^1 --head HEAD
 
     # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
-    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded, and on a
-    # mergify/merge-queue/* branch only when the run was the full suite: a pass on a pull request's own
-    # affected run can never stand in for the queue's run.
+    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded (never on
+    # a draft), and on a merge-queue run (MERGE_QUEUE above) only when the run was the full suite: a
+    # pass on a pull request's own affected run can never stand in for the queue's run.
     queue-checks:
         name: Queue Checks Pass
         needs: [build, all-checks]
-        if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft || startsWith(github.head_ref, 'mergify/merge-queue/'))
+        if: always()
         runs-on: ubuntu-24.04
         steps:
             - name: Check the run passed, and was the full suite in the queue
               env:
                   ALL_CHECKS: ${{ needs.all-checks.result }}
                   FULL: ${{ needs.build.outputs.full }}
-                  HEAD_REF: ${{ github.head_ref }}
               run: |
-                  echo "All Checks Pass: $ALL_CHECKS, full suite: $FULL, branch: ${HEAD_REF:-none}"
+                  echo "All Checks Pass: $ALL_CHECKS, full suite: $FULL, merge queue: $MERGE_QUEUE"
                   if [[ "$ALL_CHECKS" != "success" ]]; then
                       echo "::error::All Checks Pass did not succeed"
                       exit 1
                   fi
-                  if [[ "$HEAD_REF" == mergify/merge-queue/* && "$FULL" != "true" ]]; then
+                  if [[ "$MERGE_QUEUE" == "true" && "$FULL" != "true" ]]; then
                       echo "::error::a merge-queue run must run the full suite"
                       exit 1
                   fi

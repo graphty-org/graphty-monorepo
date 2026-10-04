@@ -38,9 +38,10 @@ jobs:
             # attacker-controlled on a fork's pull request, and `${{ }}` inside `run:` is pasted into the
             # shell before it runs. A Mergify merge-queue draft (branch mergify/merge-queue/*) carries
             # Mergify's own title, not a commit message; the pull requests it holds were each checked
-            # here on their own, so the step is skipped and the job passes.
+            # here on their own, so the step is skipped and the job passes. Only Mergify's own draft: the
+            # branch prefix alone is open to anyone, a fork included, so the repository and author must match.
             - name: Lint PR title
-              if: ${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
+              if: ${{ !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') }}
               env:
                   PR_TITLE: ${{ github.event.pull_request.title }}
               run: printf '%s\n' "$PR_TITLE" | pnpm exec commitlint

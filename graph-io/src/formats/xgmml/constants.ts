@@ -143,6 +143,8 @@ export const XGMML_ISSUE = Object.freeze({
     MISSING_ID: MISSING_ID_CODE,
     /** A node without an id; its label is used as the id. */
     ID_FROM_LABEL: "W_XGMML_ID_FROM_LABEL",
+    /** A node or edge with both an id and an `xlink:href`; it is read as the reference. */
+    ID_AND_HREF: "W_XGMML_ID_AND_HREF",
     /** An edge without a source or a target that no label alias resolves. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
     /** An edge endpoint that names no node (addMissingNodes false); the edge is skipped. */

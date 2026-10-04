@@ -91,12 +91,6 @@ const USED_OPTIONS: ReadonlySet<keyof CommonImportOptions> = new Set<keyof Commo
     "encoding",
 ]);
 
-/** Bytes inspected by sniff(). */
-const SNIFF_BYTES = 4096;
-
-/** The head of the document kept for the DOCTYPE check. */
-const HEAD_CHARS = 2048;
-
 /** An XGMML DOCTYPE (Cytoscape's file filter tests the same). */
 const XGMML_DOCTYPE = /<!DOCTYPE\s+graph\s[^<>]*xgmml\.dtd/i;
 
@@ -178,7 +172,7 @@ export async function parseXgmml(
             : undefined,
     };
     const parser = new XgmmlParser(report);
-    const seen = { head: "", content: false };
+    const seen = { content: false };
     try {
         await tokenizeXml(
             watch(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding }), seen),
@@ -195,7 +189,7 @@ export async function parseXgmml(
         throw err;
     }
     const doc = parser.document();
-    if (!doc.xgmmlNamespace && !XGMML_DOCTYPE.test(seen.head)) {
+    if (!doc.xgmmlNamespace && !XGMML_DOCTYPE.test(doc.doctype ?? "")) {
         report.warning(
             "validation-error",
             XGMML_ISSUE.NO_NAMESPACE,
@@ -207,22 +201,18 @@ export async function parseXgmml(
 }
 
 /**
- * Pass text chunks through while keeping the head and noting non-whitespace content.
+ * Pass text chunks through while noting non-whitespace content.
  * @param chunks - the chunks
- * @param seen - where the head and the content flag are kept
- * @param seen.head - the first characters of the document
+ * @param seen - where the content flag is kept
  * @param seen.content - whether non-whitespace text was seen
  * @yields the chunks unchanged
  * @returns nothing
  */
 async function* watch(
     chunks: AsyncIterable<string>,
-    seen: { head: string; content: boolean },
+    seen: { content: boolean },
 ): AsyncGenerator<string, void, undefined> {
     for await (const chunk of chunks) {
-        if (seen.head.length < HEAD_CHARS) {
-            seen.head += chunk.slice(0, HEAD_CHARS - seen.head.length);
-        }
         seen.content ||= !isWhitespace(chunk);
         yield chunk;
     }
@@ -359,12 +349,13 @@ async function importAllXgmml(
     sinkFor: (index: number) => GraphSink,
     options?: XgmmlImportOptions & CommonImportOptions,
 ): Promise<ImportReport[]> {
-    const bytes = await reread(input);
-    const first = await prepare(bytes, null, options);
+    const first = await prepare(input, null, options);
+    // the document is read once; every graph's report starts from what reading it recorded
+    const parsed = first.report.finish();
     const reports: ImportReport[] = [];
     for (let i = 0; i < first.graphs.length; i++) {
         const sink = sinkFor(i);
-        const prepared = i === 0 ? first : await prepare(bytes, null, options);
+        const prepared = i === 0 ? first : { ...first, report: replay(parsed, first.common.errorLimit) };
         reportSinkOptions(sink, options, prepared.report, true);
         reportUnusedOptions(options, prepared.report, USED_OPTIONS);
         reports.push(emitOne(prepared, prepared.graphs[i], sink));
@@ -405,54 +396,23 @@ function graphName(graph: GraphRec, doc: XgmmlDocument): string | null {
 }
 
 /**
- * The input in a form that can be read more than once (a stream is read into bytes).
- * @param input - the input
- * @returns the same input when it is a string or bytes, else the collected bytes
+ * A report builder that starts from the issues and counts of another report.
+ * @param from - the report to start from
+ * @param errorLimit - the error limit
+ * @returns the builder
  */
-async function reread(input: ImportInput): Promise<string | Uint8Array> {
-    if (typeof input === "string" || input instanceof Uint8Array) {
-        return input;
-    }
-    const parts: (string | Uint8Array)[] = [];
-    const iterable: AsyncIterable<string | Uint8Array> =
-        typeof (input as { getReader?: unknown }).getReader === "function"
-            ? streamIterable(input as ReadableStream<Uint8Array>)
-            : (input as AsyncIterable<string | Uint8Array>);
-    for await (const chunk of iterable) {
-        parts.push(chunk);
-    }
-    if (parts.every((p) => typeof p === "string")) {
-        return parts.join("");
-    }
-    const bytes = parts.map((p) => (typeof p === "string" ? new TextEncoder().encode(p) : p));
-    const out = new Uint8Array(bytes.reduce((n, b) => n + b.byteLength, 0));
-    let at = 0;
-    for (const b of bytes) {
-        out.set(b, at);
-        at += b.byteLength;
-    }
-    return out;
-}
-
-/**
- * A ReadableStream as an async iterable.
- * @param stream - the stream
- * @yields its chunks
- * @returns nothing
- */
-async function* streamIterable(stream: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array, void, undefined> {
-    const reader = stream.getReader();
-    try {
-        for (;;) {
-            const { done, value } = await reader.read();
-            if (done) {
-                return;
-            }
-            yield value;
+export function replay(from: ImportReport, errorLimit: number): ImportReportBuilder {
+    const report = new ImportReportBuilder(from.format, errorLimit);
+    for (const issue of from.issues) {
+        const where = { line: issue.line, element: issue.element };
+        if (issue.severity === "error") {
+            report.error(issue.category, issue.code, issue.message, where);
+        } else {
+            report.warning(issue.category, issue.code, issue.message, where);
         }
-    } finally {
-        reader.releaseLock();
     }
+    Object.assign(report.counts, from.counts);
+    return report;
 }
 
 /**
@@ -463,14 +423,20 @@ async function* streamIterable(stream: ReadableStream<Uint8Array>): AsyncGenerat
  * @returns the confidence
  */
 function sniffXgmml(head: Uint8Array): number {
-    const text = new TextDecoder("utf-8", { fatal: false }).decode(head.subarray(0, SNIFF_BYTES));
+    let encoding = "utf-8";
+    if ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0x3c && head[1] === 0 && head[2] === 0x3f)) {
+        encoding = "utf-16le";
+    } else if ((head[0] === 0xfe && head[1] === 0xff) || (head[0] === 0 && head[1] === 0x3c && head[2] === 0)) {
+        encoding = "utf-16be";
+    }
+    const text = new TextDecoder(encoding, { fatal: false }).decode(head);
     if (!/^\uFEFF?\s*</.test(text)) {
         return 0;
     }
     if (XGMML_DOCTYPE.test(text)) {
         return 0.95;
     }
-    const root = /<(?!\?|!)([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(text.replace(/<!--[\s\S]*?-->/g, ""));
+    const root = /<(?!\?|!)([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(text.replace(/<!--[\s\S]*?(-->|$)/g, ""));
     if (root === null || root[2] !== "graph") {
         return 0;
     }

@@ -77,7 +77,14 @@ export type SetId = string;
 /** The identity of a saved scope: a kept set, so the same type as {@link SetId}. */
 export type ScopeId = SetId;
 
-/** A JMESPath expression over the published result root. */
+/**
+ * A column key: `data.<name>` for a data column, `results.<run>.<field>` for a run's result.
+ *
+ * The part after the root is the column's name LITERALLY, never an expression: a column named
+ * `shared chapters` or `a.b` has the path `data.shared chapters` or `data.a.b`. Wherever a path is
+ * taken as a path (a selector's `path`, a filter) it reads that column. To put one INSIDE an
+ * expression, pass it through `quotePath` first, which quotes every segment that needs it.
+ */
 export type Path = string;
 
 /** A JMESPath predicate. The same dialect everywhere an expression is accepted. */
@@ -239,6 +246,33 @@ export const ATTRIBUTE_TYPES = ["string", "number", "integer", "boolean", "time"
 export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
 
 /**
+ * What a column's values measure, which decides how a binding that names no scale draws it.
+ *
+ * - `"categorical"` -- names of groups with no order: one color per value.
+ * - `"ordinal"` -- groups with an order, such as Low, Medium, High: colors and sizes follow it.
+ * - `"quantitative"` -- amounts: a ramp, or a size range.
+ * - `"time"` -- points in time.
+ *
+ * OPEN UNION: values may be added in a minor release; treat one you do not know as no measurement.
+ */
+export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+
+/**
+ * Who said what a column measures, highest precedence first: a `data.declare` call, the algorithm
+ * catalogue, the file format, or the element's inference from the values. A data column reports
+ * `"declared"` or `"inferred"` today; `"catalog"` and `"file"` are reserved for results and for
+ * formats that write a column's measurement down.
+ *
+ * OPEN UNION: values may be added in a minor release.
+ */
+export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+
+/** What `session.data.declare` says a column measures. An ordinal column lists its values in order. */
+export type MeasurementDeclaration =
+    | { readonly measurement: "categorical" | "quantitative" | "time" }
+    | { readonly measurement: "ordinal"; readonly order: readonly (string | number)[] };
+
+/**
  * How expensive a computation is, in the one vocabulary every estimate uses. "instant" is
  * cheap enough to run without asking; "unbounded" cannot be estimated in advance at all.
  */
@@ -315,6 +349,12 @@ export interface FieldDescriptor {
     normalization?: string;
     /** How to read the value, for a quality score whose number alone means little. */
     interpretation?: FieldInterpretation;
+    /**
+     * What the field's values measure, declared by the algorithm. A partition's group field is
+     * `"categorical"` by construction. Absent, the element reads strings and booleans as
+     * categorical and numbers as quantitative.
+     */
+    measurement?: Measurement;
     path: Path;
 }
 
@@ -497,8 +537,8 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  * colours. N is the palette's capacity: 8 for the default, Okabe-Ito.
  *
  * - `"other"`: the N largest groups keep the palette's colours in palette order, largest group
- *   first, and every remaining group is painted one dark grey (#505050). The legend names the
- *   grey "other: K groups".
+ *   first, and every remaining group is painted one dark grey (#505050). The legend lists the
+ *   grey as its last row, marked `role: "other"` with the elements it paints in `count`.
  * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
  *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
  *   first N groups keep the element's default shape. Groups past N x 6 fold into the grey. On an
@@ -812,6 +852,7 @@ export interface FunctionDescriptor {
 
 /** One attribute available on this session, whether it was imported, joined or computed. */
 export interface AttributeDescriptor {
+    /** The column's key, `data.<name>`, with the name unquoted; see {@link Path}. Quote it with `quotePath` before using it inside an expression. */
     path: Path;
     /** The bracketed form a formula uses, such as "[betweenness_centrality]". */
     token: string;
@@ -820,6 +861,14 @@ export interface AttributeDescriptor {
     technicalName: string;
     kind: "node" | "edge";
     type: AttributeType;
+    /**
+     * What the values measure. Inferred as `"categorical"` for strings and booleans and
+     * `"quantitative"` for numbers; `"ordinal"` and `"time"` are never inferred. A column of
+     * number codes needs a `data.declare` to be read as groups. Absent for a column with no values.
+     */
+    measurement?: Measurement;
+    /** Who said so. Present exactly when `measurement` is. */
+    measurementSource?: MeasurementSource;
     origin: "imported" | "joined" | "computed" | "result";
     /** The fraction of elements that carry a value, from 0 to 1. */
     completeness: number;

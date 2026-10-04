@@ -202,6 +202,10 @@ export class RenderManager implements Manager {
     private updateCallback?: (frameMs: number) => void;
     /** How many callers currently hold the frames back; see {@link holdFrames}. */
     private frameHolds = 0;
+    /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
+    private lastFrameFence: WebGLSync | null = null;
+    /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
+    private skippedMs = 0;
     private resizeHandler: () => void;
     /** The one skybox dome, and the image it shows; null while the background is a colour. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
@@ -340,10 +344,21 @@ export class RenderManager implements Manager {
                 return;
             }
 
+            // A tick skipped for the GPU still passed: the next frame's update is handed the
+            // time of every tick since the last frame drawn, not only its own, or a layout that
+            // keeps to wall-clock pace would run slower by exactly the ticks skipped.
+            if (this.gpuBehind()) {
+                this.skippedMs += this.engine.getDeltaTime();
+                return;
+            }
+
+            const frameMs = this.engine.getDeltaTime() + this.skippedMs;
+            this.skippedMs = 0;
+
             try {
                 // Call update callback
                 if (this.updateCallback) {
-                    this.updateCallback(this.engine.getDeltaTime());
+                    this.updateCallback(frameMs);
                 }
 
                 // Update camera - NOTE: This might be redundant with UpdateManager.update()
@@ -353,6 +368,7 @@ export class RenderManager implements Manager {
 
                 // Render scene
                 this.scene.render();
+                this.fenceFrame();
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
                 this.eventManager.emitGraphError(null, err, "other", {
@@ -365,6 +381,46 @@ export class RenderManager implements Manager {
                 reportCaught(error);
             }
         });
+    }
+
+    /**
+     * Whether the GPU is still drawing the last frame, so drawing another now would only queue it.
+     *
+     * Nothing else stops the loop from issuing frames faster than the GPU finishes them, and the
+     * browser lets about twenty pile up. On a software GPU (SwiftShader, as every CI runner has)
+     * a frame of 331 nodes and 362 edges costs 40 ms, so a still graph kept the GPU some 850 ms
+     * behind, and everything that waits for the GPU -- a screenshot, a readback, the page's own
+     * compositor -- waited behind those frames too. Under load that was more than 30 seconds.
+     * Skipping a tick while the last frame is unfinished keeps the queue at one frame.
+     * @returns True while the last frame's fence is unsignalled.
+     */
+    private gpuBehind(): boolean {
+        if (this.lastFrameFence === null || !(this.engine instanceof Engine)) {
+            return false;
+        }
+
+        const gl = this.engine._gl;
+        // A lost context answers null rather than a status; drop the fence and draw.
+        if (gl.getSyncParameter(this.lastFrameFence, gl.SYNC_STATUS) === gl.UNSIGNALED) {
+            return true;
+        }
+
+        gl.deleteSync(this.lastFrameFence);
+        this.lastFrameFence = null;
+        return false;
+    }
+
+    /**
+     * Marks the end of the frame just drawn, for {@link gpuBehind}. Only a WebGL 2 context has
+     * fences; WebGPU and Babylon's NullEngine draw unpaced, as before.
+     */
+    private fenceFrame(): void {
+        const gl = this.engine instanceof Engine ? (this.engine._gl as WebGL2RenderingContext | undefined) : undefined;
+        if (typeof gl?.fenceSync !== "function") {
+            return;
+        }
+
+        this.lastFrameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     }
 
     /**

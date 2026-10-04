@@ -20,9 +20,15 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * <Pill withRemoveButton onRemove={() => remove(tag)}>{tag}</Pill>
  * ```
  *
- * Mantine keeps the remove button out of the Tab order and hides it from assistive technology,
- * so give the reader another way to remove a value: inside `MultiSelect` and `TagsInput`,
- * Backspace removes the last pill.
+ * The compact theme puts the remove button in the Tab order and names it "Remove" (Mantine's own
+ * default hides it from the keyboard and from assistive technology). Name it after the value so a
+ * row of pills is not a row of identical "Remove" buttons:
+ *
+ * ```tsx
+ * <Pill withRemoveButton onRemove={() => remove(tag)} removeButtonProps={{ "aria-label": `Remove ${tag}` }}>
+ *     {tag}
+ * </Pill>
+ * ```
  *
  * ## Measurements
  *

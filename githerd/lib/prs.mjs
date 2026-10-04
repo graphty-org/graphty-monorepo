@@ -43,9 +43,23 @@ import { execFileSync } from "node:child_process";
 const FAILED = new Set(["FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "ERROR"]);
 const PASSED = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
 const BREAKING_SUBJECT = /^[a-z]+(\([^)]*\))?!:/;
-// A footer, as the conventional-commits parser nx release uses reads one: the keyword at the start of a
-// line. The words inside a sentence of the body ("... or a BREAKING CHANGE footer") are not a footer.
-const BREAKING_FOOTER = /^[\s|*]*BREAKING[ -]CHANGE[:\s]/m;
+/**
+ * Whether a commit message has a breaking-change footer, read the way the conventional-commits
+ * parser nx release uses reads one: the keyword at the start of a line (after spaces, `|` or `*`),
+ * then a colon or a space. The words inside a sentence of the body are not a footer.
+ * @param {string} message the full message
+ * @returns {boolean} true when a line opens with the keyword
+ */
+function hasBreakingFooter(message) {
+    return message.split("\n").some((line) => {
+        let i = 0;
+        while (i < line.length && " \t|*".includes(line[i])) i++;
+        const rest = line.slice(i);
+        if (!rest.startsWith("BREAKING CHANGE") && !rest.startsWith("BREAKING-CHANGE")) return false;
+        const next = rest[15];
+        return next === ":" || next === " " || next === "\t";
+    });
+}
 
 /**
  * Whether a PR is breaking, from its title and the full commit list of its head.
@@ -66,7 +80,7 @@ export function decideBreaking(title, commits, truncated) {
  * @returns {boolean} true when breaking
  */
 function isBreakingCommit(message) {
-    return BREAKING_SUBJECT.test(message.split("\n", 1)[0]) || BREAKING_FOOTER.test(message);
+    return BREAKING_SUBJECT.test(message.split("\n", 1)[0]) || hasBreakingFooter(message);
 }
 
 /**

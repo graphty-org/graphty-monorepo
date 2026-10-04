@@ -983,7 +983,8 @@ export async function ensureDaemon(ctx) {
  * @returns {Promise<{url: string, action: "warm" | "down", fatal?: string}>} the answer
  */
 async function devDaemon(url) {
-    const base = url.replace(/\/+$/, "");
+    let base = url;
+    while (base.endsWith("/")) base = base.slice(0, -1);
     let health;
     try {
         const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(5000) });

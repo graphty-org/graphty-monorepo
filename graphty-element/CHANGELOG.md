@@ -1,3 +1,27 @@
+## 3.13.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** export the project file's name, extension and media type ([#919](https://github.com/graphty-org/graphty-monorepo/pull/919))
+- **graphty-element:** mark a project saved only after the caller's write ([#918](https://github.com/graphty-org/graphty-monorepo/pull/918))
+- **graphty-element:** read a load once as a draft and load it with the reader's column roles ([209b2141e](https://github.com/graphty-org/graphty-monorepo/commit/209b2141e))
+- **graphty-element:** preview a load and load it with the reader's column roles ([5ca313b0b](https://github.com/graphty-org/graphty-monorepo/commit/5ca313b0b))
+- **graphty-element:** name the limit in every E_TOO_LARGE refusal ([1b8b07488](https://github.com/graphty-org/graphty-monorepo/commit/1b8b07488))
+
+### 🩹 Fixes
+
+- **graphty-element:** count a node row once when an earlier edge already created it ([2ef8c6b23](https://github.com/graphty-org/graphty-monorepo/commit/2ef8c6b23))
+- **graphty-element:** address review of the project save and direction changes ([c9811f5a4](https://github.com/graphty-org/graphty-monorepo/commit/c9811f5a4))
+- **graphty-element:** a saved project reopens with the graph's direction ([#909](https://github.com/graphty-org/graphty-monorepo/pull/909))
+- **graphty-element:** count the nodes an edge creates against the render ceiling ([32aeae330](https://github.com/graphty-org/graphty-monorepo/commit/32aeae330))
+- **graphty-element:** load the edges a CSV source's edgeSource and edgeTarget options name ([2f62994fa](https://github.com/graphty-org/graphty-monorepo/commit/2f62994fa))
+- **graphty-element:** satisfy lint and SonarQube in the load preview ([f134725ea](https://github.com/graphty-org/graphty-monorepo/commit/f134725ea))
+- **graphty-element:** keep edgeSource and edgeTarget as expressions when a load has no mapping ([3d74440f6](https://github.com/graphty-org/graphty-monorepo/commit/3d74440f6))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.12.0 (2026-10-04)
 
 ### 🚀 Features

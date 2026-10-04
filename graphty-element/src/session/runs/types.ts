@@ -241,7 +241,8 @@ export interface Caveats {
     readonly method: string;
     /**
      * Why a run stopped before it finished, when it did. Present exactly when the run resolved
-     * with `partial` set -- a time box is the usual reason.
+     * with `partial` set, whatever stopped it: a time box, a cancellation, or the algorithm's own
+     * iteration cap.
      */
     readonly partialReason?: string;
     /** Anything else a reader should know, in sentences. */
@@ -498,7 +499,7 @@ export interface RunRecord {
     readonly startedAt: string | null;
     /** How long it took, in milliseconds, or null until it finishes. */
     readonly durationMs: number | null;
-    /** Whether it stopped early and published what it had. */
+    /** Whether it stopped early and published what it had: true exactly when `caveats.partialReason` is set. */
     readonly partial: boolean;
     /** Why its numbers no longer describe what is on screen, when they do not. */
     readonly stale: StaleNote | null;
@@ -568,7 +569,10 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly startedAt: string | null;
     /** How long it took, in milliseconds, or null until it finishes. */
     readonly durationMs: number | null;
-    /** Whether it stopped early and published what it had. Not a failure. */
+    /**
+     * Whether it stopped early and published what it had. Not a failure. True exactly when
+     * `caveats.partialReason` is set, whatever stopped it -- a time box or an iteration cap.
+     */
     readonly partial: boolean;
     /** Why its numbers no longer describe what is on screen, when they do not. */
     readonly stale: StaleNote | null;

@@ -14,6 +14,7 @@ import {
     CubicEase,
     EasingFunction,
     Engine,
+    Observable,
     PointerEventTypes,
     Quaternion,
     Scene,
@@ -106,6 +107,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { LabelDeclutter, NO_NODE_LABELS, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
@@ -376,6 +378,8 @@ export class Graph implements GraphContext {
     // Managers
     /** Event manager for adding/removing event listeners */
     readonly eventManager: EventManager;
+    /** Told the node label counts once the view is still and they changed. */
+    readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
     private lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
@@ -1666,6 +1670,16 @@ export class Graph implements GraphContext {
         } else if (Object.keys(project).length > 0) {
             this.setProjectConfig({ layoutBehavior: project });
         }
+    }
+
+    /**
+     * How many node labels this graph is drawing, and why the rest are not, as of the last frame
+     * that decided it. All zeros before a label is drawn. Reading it never forces a frame.
+     * @returns The counts.
+     */
+    get nodeLabelCounts(): NodeLabelCounts {
+        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        return declutter instanceof LabelDeclutter ? declutter.counts : NO_NODE_LABELS;
     }
 
     /**

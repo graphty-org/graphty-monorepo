@@ -252,7 +252,7 @@ for (const channel of channelsFor("edge")) {
 
 ### Labels that would overlap
 
-By default every label a style asks for is drawn, so labelled nodes that sit close together on
+By default every label a style asks for is drawn, so labeled nodes that sit close together on
 screen draw their words over each other. Turn on `labelDeclutter` to thin them out:
 
 ```javascript
@@ -278,7 +278,8 @@ the camera or the layout moves. Nothing in the style changes when this happens, 
 The element works this out again only when something that decides it changes -- the camera, the
 size of the viewport, a label, a node's position or visibility, the selection or the edges -- so a
 still graph pays almost nothing for it. On a camera that is moving it costs roughly 1 to 1.5 ms a
-frame per thousand labels. A saved configuration carries the setting as `behavior.labels.declutter`.
+frame per thousand labels. It is a preference of the view, so a saved project does not keep it.
+`element.nodeLabelCounts` says how many labels it hid: see [Labels](./labels).
 
 ### A tooltip on a node
 

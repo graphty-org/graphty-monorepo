@@ -147,6 +147,9 @@ switching it records no undo step and is not saved in a project file.
 element.labelDeclutter = true;
 ```
 
+Assigning `layoutBehavior` is merged over what is already set, section by section, so this line
+leaves `layout`, `node` and the two fetch functions as they were.
+
 ## Basic Usage
 
 ### Minimal Example

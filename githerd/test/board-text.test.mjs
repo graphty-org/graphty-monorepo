@@ -137,8 +137,14 @@ describe("groupModes and modeText", () => {
             "owner-items": "dry-run",
             proposals: "dry-run",
             workers: "dry-run",
+            "worker-writes": "dry-run",
         });
-        expect(Object.values(groupModes(config, "paused"))).toEqual(Array(6).fill("paused"));
+        expect(Object.values(groupModes(config, "paused"))).toEqual(Array(7).fill("paused"));
+        // Workers can act while their pushes, re-runs and gh writes stay dry-run.
+        expect(groupModes({ mode: "acting", actions: { workers: true } }, null)).toMatchObject({
+            workers: "acting",
+            "worker-writes": "dry-run",
+        });
     });
 
     it("counts each group's would-do and action lines and the situations they name", () => {
@@ -149,8 +155,8 @@ describe("groupModes and modeText", () => {
             { ts: "2026-10-02T13:00:00.000Z", kind: "decision", group: "statuses" },
         ];
         expect(modeText({ statuses: "dry-run", upkeep: "dry-run" }, ledger).split("\n")).toEqual([
-            "statuses     dry-run  3 lines, 2 situations, last 10-02 12:00",
-            "upkeep       dry-run  no ledger lines yet",
+            "statuses       dry-run  3 lines, 2 situations, last 10-02 12:00",
+            "upkeep         dry-run  no ledger lines yet",
         ]);
     });
 });

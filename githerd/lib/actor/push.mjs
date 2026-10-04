@@ -380,8 +380,8 @@ export function createPushQueue({
             return `push refused: ${reasons.join("; ")}`;
         }
         const op = `push ${e.head} to ${remote} ${e.branch}`;
-        if (mode("workers") !== "acting") {
-            await ledger({ kind: "would-do", op, job: job.id, target: job.target });
+        if (mode("worker-writes") !== "acting") {
+            await ledger({ kind: "would-do", group: "worker-writes", op, job: job.id, target: job.target });
             return `would push ${e.head} to ${e.branch} (dry-run): nothing was pushed`;
         }
         const started = performance.now();
@@ -391,7 +391,7 @@ export function createPushQueue({
             job.pushedHead = e.head;
             state.pushedByGitherd ??= {};
             state.pushedByGitherd[e.head] = job.target;
-            await ledger({ kind: "action", op, job: job.id, target: job.target });
+            await ledger({ kind: "action", group: "worker-writes", op, job: job.id, target: job.target });
             await relate(job, e.head);
             return `pushed ${e.head} to ${e.branch}`;
         }

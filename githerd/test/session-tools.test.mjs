@@ -27,13 +27,15 @@ function heldJob(id, state = "working") {
  * A context over a state, with a fake GitHub, push queue and commit log.
  * @param {any} state the daemon state
  * @param {object} [over] fields to change
- * @returns {{ctx: any, commits: any[], writes: any[]}} the context and what it recorded
+ * @returns {{ctx: any, commits: any[], writes: any[], groups: any[]}} the context and what it recorded
  */
 function setup(state, over = {}) {
     /** @type {any[]} */
     const commits = [];
     /** @type {any[]} */
     const writes = [];
+    /** @type {any[]} the write group of each write */
+    const groups = [];
     /** @type {Record<string, any>} */
     const answers = {};
     const ctx = {
@@ -51,8 +53,14 @@ function setup(state, over = {}) {
                 if (!key) throw new Error(`unexpected GET ${path}`);
                 return { body: answers[key] };
             },
-            write: async (/** @type {string} */ method, /** @type {string} */ path) => {
+            write: async (
+                /** @type {string} */ method,
+                /** @type {string} */ path,
+                /** @type {any} */ _body,
+                /** @type {any} */ opts,
+            ) => {
                 writes.push(`${method} ${path}`);
+                groups.push(opts?.group);
                 return { performed: Boolean(/** @type {any} */ (ctx).acting) };
             },
         },
@@ -61,7 +69,7 @@ function setup(state, over = {}) {
         uid: 1000,
         ...over,
     };
-    return { ctx, commits, writes };
+    return { ctx, commits, writes, groups };
 }
 
 /**
@@ -223,12 +231,13 @@ describe("sessionToolSet", () => {
 
     it("grants one re-run of a failed job per head, through the write gate", async () => {
         const state = { jobs: { "pr-7": heldJob("pr-7") }, prs: { 7: { headSha: HEAD } } };
-        const { ctx, writes } = setup(state);
+        const { ctx, writes, groups } = setup(state);
         ctx.github.answers[`repos/${REPO}/actions/runs/11`] = { head_sha: HEAD, run_attempt: 1 };
         ctx.github.answers[`repos/${REPO}/actions/jobs/22`] = { run_id: 11, conclusion: "failure", name: "Build" };
         const args = { job: "pr-7", run: 11, jobId: 22, reason: "runner lost" };
         expect((await call(ctx, "githerd_rerun", args)).text).toBe("would re-run Build (dry-run)");
         expect(writes).toEqual([`POST repos/${REPO}/actions/jobs/22/rerun`]);
+        expect(groups).toEqual(["worker-writes"]);
         expect((await call(ctx, "githerd_rerun", args)).text).toBe("Build was already re-run once on this head");
         state.reruns = {};
         ctx.acting = true;

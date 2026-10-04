@@ -17,7 +17,7 @@ const MODES = ["paused", "dry-run", "acting"];
 /** Paths every repository protects; a repository's own lists are added to these. */
 const DEFAULT_PROTECTED = ["githerd.config.json", ".mcp.json", ".claude/", ".github/", "CLAUDE.md"];
 
-const ACTION_GROUPS = ["statuses", "prUpkeep", "workers", "proposals", "incidents", "ownerItems"];
+const ACTION_GROUPS = ["statuses", "prUpkeep", "workers", "workerWrites", "proposals", "incidents", "ownerItems"];
 
 /** The generic defaults. A repository's file overrides any of these except the protected lists. */
 export const DEFAULTS = Object.freeze({

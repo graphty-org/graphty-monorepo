@@ -719,7 +719,8 @@ Workers never run `git push` (the guard refuses it). They call `githerd_push`. T
    user, language, SSH agent, terminal, PATH and the signing variables), never the daemon's own,
    which holds the notify command's keys (9.4). Pushing the commit rather than `HEAD` means a commit made while the gate runs is never
    pushed untested, and an explicit refspec from a detached worktree means no branch is ever
-   checked out twice. In dry-run (write group `workers`) nothing runs and the push is a `would-do`;
+   checked out twice. While the write group `worker-writes` does not act, nothing runs and the push
+   is a `would-do`;
 4. records the gate's output; a failure is classified (4.4) with a local failure key;
 5. sets the job's wait to `push` while queued and running, so the worker is idle, not working;
 6. rings the worker with the result.
@@ -1498,8 +1499,13 @@ enforces:
 - The guard logs every allowed `gh` write a worker makes (verb, item) to `jobs/<id>/writes.jsonl`,
   which the daemon reads, and every refusal to `refusals.jsonl`. It reads its settings from
   `jobs/<id>/guard.json` (the worktree, the repository, the open owner items, the subagent and
-  browser caps), which the daemon writes before the start and on every owner-item change; a
-  missing or malformed file refuses every call. An owner-account event on GitHub that matches a worker write within 2 minutes is the
+  browser caps, and whether the `worker-writes` group acts), which the daemon writes before the
+  start, on every owner-item change and when that group's mode changes; a missing or malformed file
+  refuses every call.
+- **While `worker-writes` does not act**, the guard also refuses every `gh` write a worker makes
+  itself (`gh pr create`, `gh pr comment`, `gh issue comment`, `gh issue create`, every other `gh`
+  write verb and every non-GET `gh api` call), so a worker can run for real while nothing it does
+  reaches GitHub. A `guard.json` that does not say the group acts counts as not acting. An owner-account event on GitHub that matches a worker write within 2 minutes is the
   worker's, not owner input: it never answers an owner item, vetoes a close or moves the queue.
 
 Server-side, whatever the guard misses: the ruleset (pull requests only, required checks, no force
@@ -1521,6 +1527,24 @@ statuses, auto-merge disarming, updates and retargets, title case fixes, revert 
 re-runs and re-dispatches, issues it files, owner-item comments and labels, proposal comments,
 closes after grace, and pushes from the push queue. It never approves visual changes, never edits
 rulesets, and never acts on input from an account other than the `gh` login.
+
+Every one of those writes names a write group, and each group has its own switch under `actions`
+in the config. A group acts only when the config's `mode` is `acting` and its switch is on;
+otherwise each write is a `would-do` ledger line. `githerd mode` lists the seven groups:
+
+| Group | Config switch | What it covers |
+|---|---|---|
+| `statuses` | `statuses` | `githerd/merge` statuses |
+| `upkeep` | `prUpkeep` | pull request updates, stack updates and retargets |
+| `incidents` | `incidents` | re-runs and re-tests for master, revert pull requests, `intermittent` issues |
+| `owner-items` | `ownerItems` | owner-item comments and labels, and phone pages |
+| `proposals` | `proposals` | proposal comments and closes after grace |
+| `workers` | `workers` | starting and running worker sessions; nothing on GitHub |
+| `worker-writes` | `workerWrites` | `githerd_push`, `githerd_rerun`, and the worker's own `gh` writes (10.1) |
+
+Starting workers and their writes are separate groups so that one real worker can run, edit and
+commit in its worktree while its push, its re-runs and its own `gh` writes stay dry-run: the trial
+of a worker writes nothing to GitHub.
 
 ### 10.3 Residual risks
 

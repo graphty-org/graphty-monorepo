@@ -11,9 +11,10 @@
  *
  * Files in the job directory (`~/.githerd/<repo>/jobs/<id>/`):
  *
- * - `guard.json`, written by the daemon: `{root, repo, ownerItems, subagents?, browsers?, incident?}`. `root`
- *   is the job's worktree, `repo` is `owner/name`, `ownerItems` the issue and pull request numbers
- *   with an open owner item. Missing or malformed, every PreToolUse call is refused (the checks
+ * - `guard.json`, written by the daemon: `{root, repo, ownerItems, subagents?, browsers?, incident?,
+ *   githubWrites?}`. `root` is the job's worktree, `repo` is `owner/name`, `ownerItems` the issue and
+ *   pull request numbers with an open owner item, `githubWrites` true only while the daemon's
+ *   `worker-writes` group acts; without it every `gh` write is refused. Missing or malformed, every PreToolUse call is refused (the checks
  *   that need the daemon's facts fail closed).
  * - `writes.jsonl`: one line per allowed `gh` write, `{at, verb, item, repo}`, which the daemon
  *   reads to tell a worker's writes from the owner's.
@@ -51,6 +52,7 @@ import { checkOutgoing } from "../lib/text.mjs";
  * @property {number} subagents concurrent subagents allowed
  * @property {number} browsers Chromium trees allowed machine-wide
  * @property {boolean} incident the job is an incident, whose worker marks its fix `priority:critical`
+ * @property {boolean} githubWrites the `worker-writes` group acts; otherwise every `gh` write is refused
  */
 
 /**
@@ -657,6 +659,10 @@ const GH_WRITES = {
     cache: "delete",
 };
 
+/** Why every gh write is refused while githerd's pushes are dry-run. */
+const DRY_RUN =
+    "githerd is in dry-run, so nothing a worker does reaches GitHub; commit locally, call githerd_push (it records what it would push) and say in githerd_done what you would have posted";
+
 /** gh commands refused outright, with what to do instead. */
 const GH_REFUSED = {
     "pr merge": "Mergify merges once githerd/merge is green; there is nothing to do",
@@ -720,6 +726,7 @@ function checkGh(args, ctx) {
     const command = `${group} ${verb}`;
     if (GH_REFUSED[command]) refuse(`gh ${command}: ${GH_REFUSED[command]}`);
     if (!(GH_WRITES[group] ?? "").split(" ").includes(verb)) return;
+    if (!ctx.config.githubWrites) refuse(`gh ${command}: ${DRY_RUN}`);
     const repo = optValues(opts, "-R", "--repo")[0] ?? (group === "repo" ? (pos[0] ?? "") : ctx.config.repo);
     checkGhOwners(command, [repo, ...pos.filter((w) => /github\.com\//.test(w))], ctx);
     if (command === "pr edit" && optValues(opts, "-B", "--base").length > 0) {
@@ -832,6 +839,7 @@ function checkGhApi(endpoint, opts, ctx) {
         }
         return;
     }
+    if (!ctx.config.githubWrites) refuse(`gh api ${method} ${path}: ${DRY_RUN}`);
     const owner = /^\/repos\/([^/]+)\//.exec(path)?.[1];
     const org = ctx.config.repo.split("/")[0];
     if (owner && owner !== "{owner}" && owner.toLowerCase() !== org.toLowerCase()) {
@@ -1032,6 +1040,7 @@ function readConfig(jobDir) {
         subagents: Number.isInteger(raw.subagents) ? raw.subagents : SUBAGENTS,
         browsers: Number.isInteger(raw.browsers) ? raw.browsers : BROWSERS,
         incident: raw.incident === true,
+        githubWrites: raw.githubWrites === true,
     };
 }
 

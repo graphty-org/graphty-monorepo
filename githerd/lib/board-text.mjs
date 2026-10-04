@@ -30,6 +30,9 @@ const GROUPS = {
     "owner-items": "ownerItems",
     proposals: "proposals",
     workers: "workers",
+    // Pushes and re-runs for a worker, and the worker's own gh writes (the guard refuses them):
+    // separate from starting workers, so one worker can run while nothing it does reaches GitHub.
+    "worker-writes": "workerWrites",
 };
 
 const MINUTE = 60_000;
@@ -355,7 +358,7 @@ export function modeText(modes, ledger) {
             const covered = lines.length
                 ? `${lines.length} lines, ${situations.size} situations, last ${when(last)}`
                 : "no ledger lines yet";
-            return `${group.padEnd(12)} ${mode.padEnd(8)} ${covered}`;
+            return `${group.padEnd(14)} ${mode.padEnd(8)} ${covered}`;
         })
         .join("\n");
 }

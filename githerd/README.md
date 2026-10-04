@@ -54,7 +54,11 @@ Workers start while a slot is free: 3 working sessions, one more for urgent work
 sessions waiting on checks, under the machine's load and memory limits and the configured worker
 hours a day (`workers` in the config; `githerd workers <n>` changes the slots at runtime). A worker
 starts only while the `workers` write group acts, the platform self-test passed on the installed
-Claude Code, and the signing probe passes. Its worktree (`.worktrees/githerd-<job>`) is installed
+Claude Code, and the signing probe passes. What a worker sends to GitHub is a separate group,
+`worker-writes` (`actions.workerWrites`): its `githerd_push`, its `githerd_rerun` and its own `gh`
+writes. While that group does not act, pushes and re-runs are `would-do` lines and the guard refuses
+the worker's `gh pr create`, comments, issue creation and every other `gh` write, so a worker can
+run for real and write nothing to GitHub. Its worktree (`.worktrees/githerd-<job>`) is installed
 and built in the background first; sessions open one at a time, urgent ones first.
 
 Every session gets the eleven tools of design section 6 from the MCP server in `.mcp.json`:

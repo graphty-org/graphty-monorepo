@@ -39,7 +39,7 @@ let state;
 let entries;
 /** @type {{job: string, text: string}[]} */
 let rings;
-/** @type {string} */
+/** @type {string | Record<string, string>} one mode for every group, or a mode by group */
 let mode;
 /** @type {string | null} */
 let blocked;
@@ -75,7 +75,7 @@ function makeQueue(over = {}) {
         root: repo.root,
         state,
         ledger: (e) => entries.push(e),
-        mode: () => mode,
+        mode: (/** @type {string} */ group) => (typeof mode === "string" ? mode : mode[group]),
         ring: async (job, text) => rings.push({ job: job.id, text }),
         credentialBlocked: () => blocked,
         env: testEnv(),
@@ -291,14 +291,18 @@ describe("a push", () => {
         expect(state.pushQueue.gateRuns).toHaveLength(1);
     });
 
-    it("pushes nothing in dry-run and says so", async () => {
-        mode = "dry-run";
+    it("pushes nothing while worker writes are dry-run, even with workers acting, and says so", async () => {
+        mode = { workers: "acting", "worker-writes": "dry-run" };
         const { job, head } = workingJob("a");
         await queue.request({ job: "a", branch: "githerd/a", expectHead: head }, "s-a");
         await queue.drain();
         expect(remoteHead("githerd/a")).toBeNull();
         expect(existsSync(join(repo.tmp, "gate-log"))).toBe(false);
-        expect(entries.at(-1)).toMatchObject({ kind: "would-do", op: `push ${head} to origin githerd/a` });
+        expect(entries.at(-1)).toMatchObject({
+            kind: "would-do",
+            group: "worker-writes",
+            op: `push ${head} to origin githerd/a`,
+        });
         expect(job.news.at(-1).text).toMatch(/dry-run\): nothing was pushed/);
         expect(job.state).toBe("working");
     });

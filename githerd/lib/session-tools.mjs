@@ -270,7 +270,7 @@ export function sessionToolSet(ctx) {
 
 /**
  * `githerd_rerun`: one re-run of a failed CI job on the job's pull request head, granted once per
- * head and job name, through the write gate of group `workers` (a `would-do` line until it acts).
+ * head and job name, through the write gate of group `worker-writes` (a `would-do` line until it acts).
  * @param {SessionToolContext} ctx the context
  * @param {any} job the caller's job
  * @param {{run: number, jobId: number, reason: string}} args the request
@@ -296,7 +296,7 @@ async function rerun(ctx, job, args) {
         `repos/${repo}/actions/jobs/${args.jobId}/rerun`,
         {},
         {
-            group: "workers",
+            group: "worker-writes",
             check: {
                 path: `repos/${repo}/actions/runs/${args.run}`,
                 expect: { run_attempt: (run.run_attempt ?? 1) + 1 },

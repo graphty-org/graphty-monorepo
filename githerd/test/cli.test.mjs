@@ -563,9 +563,10 @@ describe("mode", () => {
         await appendLedger(stateDir(), { kind: "would-do", group: "statuses", situation: "new head" });
         const r = await cli(["mode"]);
         expect(r.code).toBe(0);
-        expect(r.out.split("\n")).toHaveLength(6);
+        expect(r.out.split("\n")).toHaveLength(7);
         expect(r.out).toMatch(/^statuses +dry-run +1 lines, 1 situations, last /);
-        expect(r.out).toContain("workers      dry-run  no ledger lines yet");
+        expect(r.out).toContain("workers        dry-run  no ledger lines yet");
+        expect(r.out).toContain("worker-writes  dry-run  no ledger lines yet");
         writeFileSync(join(stateDir(), "override.json"), JSON.stringify({ mode: "paused" }));
         expect((await cli(["mode"])).out).toMatch(/^statuses +paused/);
         writeFileSync(/** @type {string} */ (env.GITHERD_CONFIG), "{");

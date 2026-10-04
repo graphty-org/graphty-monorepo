@@ -31,6 +31,7 @@ describe("normalizeConfig", () => {
             statuses: false,
             prUpkeep: false,
             workers: false,
+            workerWrites: false,
             proposals: false,
             incidents: false,
             ownerItems: false,

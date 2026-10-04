@@ -2008,7 +2008,7 @@ export async function startDaemon({
     // The development daemon never starts a worker, so the windows on githerd's server are not its.
     const strays = workersOn && !env.GITHERD_DEV ? retireStrayWindows(state, platform.windows(), now()) : [];
     for (const id of strays) void ledger({ kind: "stray-window", job: id });
-    /** @type {string} the open owner items' targets as last written to the guards */
+    /** @type {string} the worker-writes mode and the open owner items' targets as last written to the guards */
     let guardItems = "";
 
     /**
@@ -2026,6 +2026,7 @@ export async function startDaemon({
         ledger,
         save,
         mode: writeMode("workers"),
+        githubWrites: writeMode("worker-writes") === "acting",
         platform,
         tasks,
     });
@@ -2055,13 +2056,15 @@ export async function startDaemon({
             const ended = endIdleSessions(ctx);
             for (const id of ended) void ledger({ kind: "session-parked", job: id });
             if (state.retiring?.length) setImmediate(() => void retire());
-            const items = JSON.stringify(
-                Object.values(state.ownerItems ?? {})
+            const githubWrites = writeMode("worker-writes") === "acting";
+            const items = JSON.stringify([
+                githubWrites,
+                ...Object.values(state.ownerItems ?? {})
                     .filter((i) => !i.endedAt)
                     .map((i) => i.target),
-            );
+            ]);
             if (items !== guardItems) {
-                refreshGuards(state, config, stateDir);
+                refreshGuards(state, config, stateDir, githubWrites);
                 guardItems = items;
             }
             const filled = workersOn && !state.github.downSince ? await fill(ctx) : [];

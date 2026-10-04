@@ -646,7 +646,11 @@ export async function runSelftest({
     try {
         writeProbe(dir, server.url);
         writeJobFiles(jobDir, { stateDir: dir, model });
-        writeFileSync(join(jobDir, "guard.json"), JSON.stringify({ root: wt, repo, ownerItems: [] }));
+        writeFileSync(
+            join(jobDir, "guard.json"),
+            // gh writes allowed: the probe's gh pr create names a repository that does not exist.
+            JSON.stringify({ root: wt, repo, ownerItems: [], githubWrites: true }),
+        );
         if (existsSync(wt)) throw new Error(`${wt} exists: an earlier self-test left it; remove it first`);
         log(`worktree ${wt}`);
         base = await platform.addWorktree(root, wt);

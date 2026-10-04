@@ -37,7 +37,9 @@ Build order and per-task done-criteria: `design/githerd/githerd-plan.md`.
 - **Interactive workers only.** githerd hands work to interactive Claude Code sessions in tmux
   (`lib/start.mjs`, design section 7.1), never to headless `claude -p` runs, and never merges:
   Mergify does. A worker starts only while the `workers` write group acts; in dry-run each start is
-  a `would-do` line.
+  a `would-do` line. Its pushes, re-runs and own `gh` writes are the separate `worker-writes` group:
+  while that group does not act they are `would-do` lines, and the guard refuses the worker's `gh`
+  writes.
 - Supervision is servherd's `--autorestart` (pm2) plus the restarters of design section 9.4: every
   session's MCP server looks at `alive` once a minute, and `githerd ensure` is a command the owner
   runs by hand (the container has no cron and no systemd). A restarter starts the daemon only when

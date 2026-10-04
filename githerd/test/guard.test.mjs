@@ -29,7 +29,7 @@ function makeJob(name, overrides = {}) {
     const root = join(base, name, "work");
     mkdirSync(jobDir, { recursive: true });
     mkdirSync(join(root, ".git"), { recursive: true });
-    const config = { root, repo: REPO, ownerItems: [OWNER_ITEM], browsers: 100000, ...overrides };
+    const config = { root, repo: REPO, ownerItems: [OWNER_ITEM], browsers: 100000, githubWrites: true, ...overrides };
     writeFileSync(join(jobDir, "guard.json"), JSON.stringify(config));
     return { jobDir, root };
 }
@@ -427,6 +427,28 @@ describe("guard: priority:critical", () => {
         }
         const incident = makeJob("incident", { incident: true });
         for (const command of commands) expect(bash(incident, command).status, command).toBe(0);
+    });
+});
+
+describe("guard: dry-run", () => {
+    it("refuses every gh write while worker writes are dry-run, and still allows reads", () => {
+        const dry = makeJob("dry-run", { githubWrites: undefined });
+        for (const command of [
+            "gh pr create --title 'fix: x' --body y",
+            "gh pr comment 12 -b x",
+            "gh issue comment 12 --body x",
+            "gh issue create -t x -b y",
+            "gh pr edit 12 --title 'fix: y'",
+            `gh api -X POST ${API}/issues/12/labels -f 'labels[]=bug'`,
+        ]) {
+            const r = bash(dry, command);
+            expect(r.status, command).toBe(2);
+            expect(r.stderr, command).toMatch(/dry-run/);
+        }
+        for (const command of ["gh pr view 12", "gh pr checks 12", `gh api ${API}/pulls/12`]) {
+            expect(bash(dry, command).status, command).toBe(0);
+        }
+        expect(lines(dry, "writes.jsonl")).toEqual([]);
     });
 });
 

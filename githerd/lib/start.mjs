@@ -72,6 +72,8 @@ const FAULT_RETRY_MS = 30 * 60_000;
  * @property {(entry: {kind: string} & Record<string, unknown>) => Promise<void>} ledger the ledger
  * @property {() => Promise<void>} save persists the state
  * @property {string} mode the `workers` write group's mode
+ * @property {boolean} [githubWrites] the `worker-writes` group acts: the guard lets a worker's own
+ *   `gh` writes through
  * @property {Platform} platform the outside world
  * @property {Map<string, Promise<void>>} tasks start tasks in flight, by job; kept by the caller
  */
@@ -626,7 +628,7 @@ async function startTask(ctx, job, busy) {
         overlay: state.settings?.allow ?? [],
         model: ctx.config.workers?.model ?? "claude-opus-5-5",
     });
-    writeGuard(state, ctx.config, job, jobDir);
+    writeGuard(state, ctx.config, job, jobDir, ctx.githubWrites === true);
     const vars = workerEnv({ env: ctx.env, path, signing, job: job.id, nonce: "probe" });
     const probe = await ctx.platform.signing(vars);
     if (!probe.ok) {
@@ -676,13 +678,14 @@ async function prepareWorktree(ctx, job, busy, code) {
 /**
  * Writes the guard's `guard.json` for a job (design 10.1): its worktree, the repository, the
  * issues and pull requests with an open owner item, the subagent and browser limits, and whether it
- * is an incident's.
+ * is an incident's, and whether its own `gh` writes may reach GitHub.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @param {any} job the job, with its worktree
  * @param {string} jobDir its directory under the state directory
+ * @param {boolean} githubWrites the `worker-writes` group acts
  */
-function writeGuard(state, config, job, jobDir) {
+function writeGuard(state, config, job, jobDir, githubWrites) {
     const ownerItems = Object.values(state.ownerItems ?? {})
         .filter((i) => !i.endedAt)
         .map((i) => Number(/^(?:pr:|issue:|#)(\d+)$/.exec(i.target ?? "")?.[1]))
@@ -695,21 +698,25 @@ function writeGuard(state, config, job, jobDir) {
         browsers: BROWSERS,
         // An incident's worker marks its fix priority:critical (design 4.6); no other worker may.
         incident: job.kind === "incident",
+        // While pushes are dry-run, the guard refuses every gh write too (design 10.1).
+        githubWrites,
     };
     writeFileSync(join(jobDir, "guard.json"), `${JSON.stringify(guard)}\n`);
 }
 
 /**
- * Rewrites every live worker's `guard.json`, so a new or ended owner item reaches its guard.
+ * Rewrites every live worker's `guard.json`, so a new or ended owner item, or a change of the
+ * `worker-writes` group's mode, reaches its guard.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @param {string} stateDir the state directory
+ * @param {boolean} githubWrites the `worker-writes` group acts
  */
-export function refreshGuards(state, config, stateDir) {
+export function refreshGuards(state, config, stateDir, githubWrites) {
     for (const job of Object.values(state.jobs ?? {})) {
         const jobDir = join(stateDir, "jobs", job.id);
         if (job.holder?.pane && job.worktree && existsSync(join(jobDir, "guard.json")))
-            writeGuard(state, config, job, jobDir);
+            writeGuard(state, config, job, jobDir, githubWrites);
     }
 }
 

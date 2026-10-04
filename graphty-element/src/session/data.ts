@@ -503,6 +503,17 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * What a node is called: the name {@link SessionData.neighbors} gives it.
+     * @param id - the node id, compared without coercion
+     * @returns the name, or undefined when the graph has no such node
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    name(id: NodeId): string | undefined {
+        const index = this.current().ids.indexOf(id);
+        return index === INVALID_INDEX ? undefined : this.nameOf(index, id);
+    }
+
+    /**
      * The node record at one row.
      * @param index - the row
      * @param id - the node's id
@@ -792,7 +803,8 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * A node's name: the value at `data.knownFields.nodeLabelPath`, as text, else its id.
+     * A node's name: the value at `data.knownFields.nodeLabelPath`, as text, else its id. An empty
+     * label names nothing, so it falls back to the id too.
      * @param index - the node's row
      * @param id - the node's id
      * @returns the name
@@ -802,7 +814,7 @@ export class SessionData implements SessionDataApi {
         const value = key === null ? undefined : this.records?.nodeAttributes(index, id)?.[key];
         switch (typeof value) {
             case "string":
-                return value;
+                return value === "" ? String(id) : value;
             case "number":
             case "bigint":
             case "boolean":

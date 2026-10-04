@@ -1360,6 +1360,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             undirected: READ,
             // Deep-frozen.
             node: READ,
+            name: READ,
             edge: READ,
             nodes: READ,
             edges: READ,

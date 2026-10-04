@@ -645,6 +645,19 @@ export interface SessionDataApi {
      */
     node(id: NodeId): NodeRecord | undefined;
     /**
+     * What a node is called: the value of its label column (`data.knownFields.nodeLabelPath`) as
+     * text, else its id as text. The same name {@link neighbors} gives each neighbor and a result
+     * summary gives each element, so a header and a list never disagree. Untrusted text from the
+     * data: render it as text, never as markup.
+     *
+     * ```ts
+     * const title = session.data.name(nodeId) ?? String(nodeId); // "Javert"
+     * ```
+     * @param id - the node id, compared without coercion
+     * @returns the name, or undefined when the graph has no such node
+     */
+    name(id: NodeId): string | undefined;
+    /**
      * One edge, by the element-assigned edge id.
      * @param id - the edge id
      * @returns the record, or undefined when the graph has no such edge

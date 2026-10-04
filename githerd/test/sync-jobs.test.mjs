@@ -143,7 +143,7 @@ describe("syncJobs: pull requests", () => {
             branch: "fix/4",
             reason: "required check failing: All Checks Pass",
         });
-        expect(state.jobs["pr-10"].reason).toBe("conflicting");
+        expect(state.jobs["pr-10"].reason).toBe("conflicting with its base (GitHub: CONFLICTING)");
     });
 
     it("cancels a queued pr job whose pull request closed or stopped needing work, and makes it again later", () => {
@@ -160,6 +160,25 @@ describe("syncJobs: pull requests", () => {
         state.prs[5].required = { "All Checks Pass": "FAILURE" };
         expect(sync(state).created).toEqual(["pr-5"]);
         expect(state.jobs["pr-5"].state).toBe("queued");
+    });
+
+    it("keeps a queued pr job's reason on GitHub's current answer and drops it once the conflict clears (#942)", () => {
+        const state = base();
+        failingPr(state, 942, { baseRef: "master" });
+        sync(state);
+        expect(state.jobs["pr-942"].reason).toBe("required check failing: All Checks Pass");
+        // Its checks pass, and GitHub reports a conflict with master, seen twice.
+        Object.assign(state.prs[942], {
+            required: { "All Checks Pass": "SUCCESS" },
+            mergeable: "CONFLICTING",
+            mergeState: "DIRTY",
+            conflictSightings: 2,
+        });
+        expect(sync(state)).toEqual({ created: [], cancelled: [] });
+        expect(state.jobs["pr-942"].reason).toBe("conflicting with master (GitHub: DIRTY)");
+        // Master merged in: GitHub says MERGEABLE, the sightings reset, the job goes.
+        Object.assign(state.prs[942], { mergeable: "MERGEABLE", mergeState: "BLOCKED", conflictSightings: 0 });
+        expect(sync(state).cancelled).toEqual([{ job: "pr-942", reason: "#942 no longer needs a worker" }]);
     });
 
     it("leaves a pr job in flight alone", () => {

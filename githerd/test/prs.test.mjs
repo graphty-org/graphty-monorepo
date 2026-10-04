@@ -108,6 +108,14 @@ describe("mergeability", () => {
         );
     });
 
+    it("forgets an older head's answer and keeps GitHub's merge state with its answer", () => {
+        const c = node({ mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" });
+        expect(polls([c])["704"]).toMatchObject({ mergeable: "CONFLICTING", mergeState: "DIRTY" });
+        // A push: GitHub is still computing, and the old head's conflict is not this one's.
+        const pushed = polls([c], [c], [node({ mergeable: "UNKNOWN", mergeStateStatus: "UNKNOWN", headRefOid: "h2" })]);
+        expect(pushed["704"]).toMatchObject({ mergeable: null, mergeState: null, conflictSightings: 0 });
+    });
+
     it("the #519 shape (auto-merge on, checks green) is conflicting", () => {
         const n519 = node({
             number: 519,

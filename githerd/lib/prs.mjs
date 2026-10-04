@@ -33,7 +33,7 @@ import { execFileSync } from "node:child_process";
  *   title: string, createdAt: string | null, references: number[], labels: string[], headChangedAt: string, headCommittedAt: string | null,
  *   breaking: boolean, breakingCheckedFor: string | null,
  *   touchesProtected: boolean,
- *   autoMerge: boolean, mergeable: string | null, conflictSightings: number,
+ *   autoMerge: boolean, mergeable: string | null, mergeState?: string | null, conflictSightings: number,
  *   required: Record<string, CheckState>, failingChecks: string[], failingStartedAt: string | null,
  *   ownerGate: boolean, ownerRejected: boolean, stackedOn: number | null,
  *   lastActivityAt: string, mergeStatus?: MergeStatus | null, [key: string]: unknown,
@@ -203,7 +203,9 @@ function foldPr(node, prev, config, now) {
         breakingCheckedFor: kept.breakingCheckedFor,
         touchesProtected: kept.touchesProtected,
         autoMerge: node.autoMergeRequest != null,
-        mergeable: prev?.mergeable ?? null,
+        // What GitHub said about an older head says nothing about this one.
+        mergeable: sameHead ? (prev?.mergeable ?? null) : null,
+        mergeState: sameHead ? (prev?.mergeState ?? null) : null,
         conflictSightings: kept.conflictSightings,
         required: checks.required,
         failingChecks: checks.failing,
@@ -217,6 +219,7 @@ function foldPr(node, prev, config, now) {
     // UNKNOWN is GitHub still computing: no data, so nothing about mergeability changes.
     if (node.mergeable !== "UNKNOWN") {
         rec.mergeable = node.mergeable;
+        rec.mergeState = node.mergeStateStatus ?? null;
         rec.conflictSightings = node.mergeable === "CONFLICTING" ? rec.conflictSightings + 1 : 0;
     }
     if (detail.commits) {

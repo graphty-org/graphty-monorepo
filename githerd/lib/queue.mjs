@@ -124,7 +124,9 @@ export function prWork(number, rec, state) {
     const failing = failingRequired(rec);
     if (rec.ownerRejected) return "owner rejected images";
     if (failing.length && !rec.ownerGate) return `required check failing: ${failing.join(", ")}`;
-    if ((rec.conflictSightings ?? 0) >= 2) return "conflicting";
+    // GitHub's answer of this poll, read again every poll: it clears as soon as GitHub says so.
+    const github = rec.mergeState ?? rec.mergeable ?? "CONFLICTING";
+    if ((rec.conflictSightings ?? 0) >= 2) return `conflicting with ${rec.baseRef ?? "its base"} (GitHub: ${github})`;
     return null;
 }
 

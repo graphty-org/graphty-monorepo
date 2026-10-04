@@ -175,7 +175,7 @@ function prJobs(state, add, cancel) {
             );
             continue;
         }
-        add(
+        const job = add(
             {
                 id: `pr-${n}`,
                 kind: "pr",
@@ -190,6 +190,8 @@ function prJobs(state, add, cancel) {
             },
             { pr: Number(n), branch: rec.headRef ?? null },
         );
+        // A queued job says what the pull request needs now, not what it needed when it was made.
+        if (job.state === "queued") job.reason = need;
     }
     for (const job of Object.values(state.jobs)) {
         if (job.kind !== "pr" && job.kind !== "title") continue;

@@ -155,6 +155,13 @@ export interface PreparedBinding {
     readonly lumped: readonly string[];
     /** How many distinct values the encoding paints, or 0 when it is a continuous ramp. */
     readonly groups: number;
+    /**
+     * The two ends of the range the binding maps values onto, in the channel's own units and
+     * clamped to what the channel draws, in the binding's order (low value's end first, so a
+     * reversed binding reads high to low). Present only for a channel that carries a number, such
+     * as a node's size or an edge's width, through a scale that maps onto a range.
+     */
+    readonly range?: readonly [number, number];
     /** What the column held. */
     readonly counts: BindingCounts;
     /**
@@ -1032,6 +1039,8 @@ interface Painter {
     readonly palette: PaletteDescriptor | null;
     /** How many distinct values it paints, or 0 when it is a continuous ramp. */
     readonly groups: number;
+    /** The ends of the range it maps onto, for a channel that carries a number. */
+    readonly range?: readonly [number, number];
     /**
      * The channel value for one element: what the element carries in, the value to paint out, and
      * undefined when the element is not painted at all.
@@ -1252,10 +1261,15 @@ function valuePainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
     const absent = missingValue(descriptor, binding);
     const overrides = valueOverrides(binding, parts.categories.lumped, descriptor);
     const { map } = parts;
+    // Passthrough reads neither the domain nor the range, so it maps onto no range at all.
+    const ends = descriptor.accepts === "number" && parts.scale !== "passthrough" ? (context.range ?? [0, 1]) : null;
+    const low = ends === null ? undefined : convert(ends[0]);
+    const high = ends === null ? undefined : convert(ends[1]);
 
     return {
         palette: null,
         groups,
+        ...(typeof low === "number" && typeof high === "number" ? { range: [low, high] as const } : {}),
         paint: (value): EncodedValue | undefined => {
             if (overrides !== null) {
                 const name = readCategory(value);
@@ -1385,6 +1399,7 @@ function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: As
         categories: parts.categories.categories,
         lumped: parts.categories.lumped,
         groups: painter.groups,
+        ...(painter.range === undefined ? {} : { range: painter.range }),
         counts,
         departures: Object.freeze([...parts.settled.departures, ...countDepartures(counts)]),
         paint: painter.paint,

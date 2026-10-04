@@ -431,6 +431,88 @@ describe("the swatches are read out of the encoding, whatever shape it has", () 
     });
 });
 
+describe("a block states what a higher value means, and the range a number is bound to", () => {
+    it("says a higher value is lighter on a ramp that runs from dark to light", () => {
+        const block = onlyBlock([betweennessColor()]);
+
+        assert.deepEqual(block.reading, {
+            code: "legend.higher",
+            params: { channel: "node.color", direction: "lighter", field: "results.betweenness.value" },
+        });
+        assert.isUndefined(block.range, "a colour has no numeric range");
+    });
+
+    it("says darker when the ramp is reversed", () => {
+        const block = onlyBlock([
+            betweennessColor({
+                encode: { "node.color": { by: "results.betweenness.value", palette: "viridis", reverse: true } },
+            }),
+        ]);
+
+        assert.strictEqual(block.reading?.params.direction, "darker");
+    });
+
+    it("states a size binding's range and says a higher value is larger", () => {
+        const block = onlyBlock([
+            betweennessColor({ encode: { "node.size": { by: "results.betweenness.value", range: [1, 3] } } }),
+        ]);
+
+        assert.deepEqual(block.range, { min: 1, max: 3 });
+        assert.strictEqual(block.reading?.params.direction, "larger");
+        assert.strictEqual(block.reading?.params.channel, "node.size");
+    });
+
+    it("reads a reversed range low to high, and says a higher value is smaller", () => {
+        const block = onlyBlock([
+            betweennessColor({
+                encode: { "node.size": { by: "results.betweenness.value", range: [1, 3], reverse: true } },
+            }),
+        ]);
+
+        assert.deepEqual(block.range, { min: 1, max: 3 });
+        assert.strictEqual(block.reading?.params.direction, "smaller");
+    });
+
+    it("states the range of a binding that steps through it in groups", () => {
+        const block = onlyBlock([
+            betweennessColor({
+                encode: { "edge.width": { by: "results.betweenness.value", range: [0.5, 4], scale: "quantile" } },
+            }),
+        ]);
+
+        assert.deepEqual(block.range, { min: 0.5, max: 4 });
+        assert.strictEqual(block.reading?.params.direction, "larger");
+    });
+
+    it("states no reading for categories, a diverging palette, a fixed value or a domain of one value", () => {
+        const categorical = onlyBlock([
+            {
+                name: "Communities",
+                kind: "encoding",
+                selector: { match: "has", path: "results.louvain.group" },
+                encode: { "node.color": { by: "results.louvain.group", scale: "ordinal", palette: "okabe-ito" } },
+            },
+        ]);
+        const diverging = onlyBlock([
+            betweennessColor({
+                encode: { "node.color": { by: "results.betweenness.value", palette: "blue-orange", midpoint: 50 } },
+            }),
+        ]);
+        const fixed = onlyBlock([
+            { name: "Red", kind: "encoding", selector: { match: "everything" }, set: { "node.color": "#ff0000" } },
+        ]);
+        const flat = onlyBlock(
+            [betweennessColor()],
+            [{ "results.betweenness.value": 7 }, { "results.betweenness.value": 7 }],
+        );
+
+        for (const block of [categorical, diverging, fixed, flat]) {
+            assert.isUndefined(block.reading);
+            assert.isUndefined(block.range);
+        }
+    });
+});
+
 describe("what a legend leaves out, and why", () => {
     it("leaves out the base layers, which are what the picture looks like before anything is said", () => {
         const blocks = buildLegend(

@@ -518,12 +518,11 @@ export function createPushQueue({
         return new Promise((resolve) => {
             let out = "";
             let timedOut = false;
-            const child = spawn("git", ["push", remote, `${e.head}:refs/heads/${e.branch}`], {
-                cwd: e.worktree,
-                env,
-                detached: true,
-                stdio: ["ignore", "pipe", "pipe"],
-            });
+            const child = spawn(
+                "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
+                ["push", remote, `${e.head}:refs/heads/${e.branch}`],
+                { cwd: e.worktree, env, detached: true, stdio: ["ignore", "pipe", "pipe"] },
+            );
             e.pid = child.pid ?? null;
             const timer = setTimeout(() => {
                 timedOut = true;

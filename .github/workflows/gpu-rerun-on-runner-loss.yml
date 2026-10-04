@@ -1,0 +1,36 @@
+# .github/workflows/gpu-rerun-on-runner-loss.yml -- re-runs a GPU lane run ONCE when its machine.dev spot runner was
+# taken away mid-job. gpu.yml runs on spot T4s by default (owner decision, 2026-10-04); a reclaimed runner ends the
+# job as a failure whose annotation says the runner was lost or shut down. That is not a test result, so the run is
+# re-run on a fresh runner. Only the first attempt is re-run: a second loss stays red for a person or githerd to read,
+# and a real test failure (no lost-runner message) is never re-run.
+name: GPU rerun on runner loss
+on:
+    workflow_run:
+        workflows: ["GPU"]
+        types: [completed]
+permissions: { actions: write, checks: read }
+jobs:
+    rerun:
+        if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt == 1
+        runs-on: ubuntu-24.04
+        steps:
+            - name: Re-run when the runner was lost
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN: ${{ github.event.workflow_run.id }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  set -euo pipefail
+                  lost=0
+                  for job in $(gh api "repos/$REPO/actions/runs/$RUN/jobs?per_page=100" --jq '.jobs[] | select(.conclusion == "failure") | .id'); do
+                      if gh api "repos/$REPO/check-runs/$job/annotations" --jq '.[].message' |
+                          grep -qiE 'runner has received a shutdown signal|lost communication with the server|runner .*(was|has been) (lost|terminated|preempted|reclaimed)|spot (instance )?(interruption|reclaim)'; then
+                          lost=1
+                      fi
+                  done
+                  if [ "$lost" = 1 ]; then
+                      echo "run $RUN lost its runner; re-running its failed jobs once"
+                      gh run rerun "$RUN" --failed --repo "$REPO"
+                  else
+                      echo "run $RUN failed on its own; not re-run"
+                  fi

@@ -1429,7 +1429,8 @@ The daemon runs master's copy of `githerd/`, never a worktree's. On a master mov
 protocol test (the previous client against the new daemon) and the platform self-test, then points
 `current` at it and restarts. Failure: back to the previous version, loudly. Each session's MCP
 server and hooks run from the version that was current when the session started; the daemon serves
-the previous protocol version while any such session lives, and a validation error caused by a
+the previous protocol version while any such session lives (a session counts as old until it has
+made a call in the current protocol), and a validation error caused by a
 version mismatch is never an attempt.
 
 ---

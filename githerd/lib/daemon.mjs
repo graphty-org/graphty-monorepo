@@ -80,7 +80,7 @@ import { doneIo, pollVerifying } from "./done.mjs";
 import { classify } from "./classify.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { failureKey, notePickups, queueAges } from "./lanes.mjs";
-import { createMcpServer, TOOL_PROTOCOL } from "./mcp.mjs";
+import { createMcpServer, servedProtocols } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
@@ -1996,12 +1996,13 @@ export async function startDaemon({
     ];
 
     /**
-     * The eleven tools of design section 6, for every session that is not a judgment run. A call
-     * in a tool protocol this daemon does not serve is refused before anything runs (design 9.8).
+     * The eleven tools of design section 6, for every session that is not a judgment run. It serves
+     * the current tool protocol, and the previous one while a live session may still speak it; a
+     * call in any other protocol is refused before anything runs (design 9.8).
      */
     const sessionMcp = createMcpServer({
         serverInfo: { name: "githerd", version },
-        protocols: [TOOL_PROTOCOL],
+        protocols: () => servedProtocols(state.sessions),
         banner: () => alertBanner(state) ?? "",
         tools: () => {
             if (!config) return unconfigured();

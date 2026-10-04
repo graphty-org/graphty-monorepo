@@ -67,9 +67,11 @@ export const INTERNAL_ERROR = -32603;
  * @param {string} [options.instructions] shown to the client at initialize
  * @param {(context: any) => Tool[]} options.tools the tools visible to this caller; the context
  *   is whatever the transport passes to `handle` (a session id, a run token)
- * @param {number[]} [options.protocols] the tool protocol versions served; when given, a call
- *   whose `params._meta.githerd.protocol` is not one of them is refused before its arguments are
- *   read, and the refusal says it is a version mismatch, never an attempt (design 9.8)
+ * @param {number[] | ((context: any) => number[])} [options.protocols] the tool protocol versions
+ *   served, or a function giving them per call; when given, a call whose
+ *   `params._meta.githerd.protocol` is not one of them is refused before its arguments are read,
+ *   and so is an older served protocol's call whose arguments the current schemas reject; both
+ *   refusals say they are a version mismatch, never an attempt (design 9.8)
  * @param {(context: any) => string} [options.banner] the active banners and faults; a non-empty
  *   one starts every `tools/call` result, refusals included
  * @returns {{handle: (message: unknown, context?: any) => Promise<Response | null>}} `handle`
@@ -104,14 +106,11 @@ export function createMcpServer({ serverInfo, instructions, tools, protocols, ba
         if (tool === undefined) return { error: { code: INVALID_PARAMS, message: `unknown tool: ${String(name)}` } };
         /** @type {ClientMeta} */
         const client = params._meta?.githerd ?? {};
-        if (protocols !== undefined && !protocols.includes(/** @type {number} */ (client.protocol))) {
-            return toolError(
-                `protocol mismatch: this client speaks ${client.protocol ?? "no version"}, the daemon serves ` +
-                    `${protocols.join(", ")}; nothing was done and this call is not an attempt`,
-            );
-        }
+        const served = typeof protocols === "function" ? protocols(context) : protocols;
+        const refused = protocolRefusal(client, served);
+        if (refused) return toolError(refused);
         const checkedArgs = validate(vetted(tool).inputSchema, params.arguments ?? {});
-        if ("errors" in checkedArgs) return toolError(`invalid arguments: ${checkedArgs.errors.join("; ")}`);
+        if ("errors" in checkedArgs) return toolError(invalidArguments(checkedArgs.errors, client, served));
         let result;
         try {
             result = await tool.handler(checkedArgs.value, context, client);
@@ -210,6 +209,39 @@ export function createMcpServer({ serverInfo, instructions, tools, protocols, ba
 }
 
 /**
+ * Why a call in the client's protocol is refused, or null when it is served.
+ * @param {ClientMeta} client the caller's `params._meta.githerd`
+ * @param {number[] | undefined} served the protocols served, or undefined when any is
+ * @returns {string | null} the refusal
+ */
+function protocolRefusal(client, served) {
+    if (served === undefined || served.includes(/** @type {number} */ (client.protocol))) return null;
+    return (
+        `protocol mismatch: this client speaks ${client.protocol ?? "no version"}, the daemon serves ` +
+        `${served.join(", ")}; ${NOT_AN_ATTEMPT}`
+    );
+}
+
+/**
+ * The refusal for arguments the tool's schema rejects. From a client on an older served protocol
+ * it is a version mismatch, never an attempt (design 9.8): the arguments may be valid in the
+ * schemas that client was built with.
+ * @param {string[]} errors the validation errors
+ * @param {ClientMeta} client the caller's `params._meta.githerd`
+ * @param {number[] | undefined} served the protocols served, or undefined when any is
+ * @returns {string} the refusal
+ */
+function invalidArguments(errors, client, served) {
+    const invalid = `invalid arguments: ${errors.join("; ")}`;
+    const current = served === undefined ? client.protocol : Math.max(...served);
+    if (client.protocol === current) return invalid;
+    return (
+        `protocol mismatch: ${invalid}, and this client speaks ${client.protocol}, older than the ` +
+        `daemon's ${current}; ${NOT_AN_ATTEMPT}`
+    );
+}
+
+/**
  * Builds a tool result that reports a failure.
  * @param {string} text the message
  * @returns {{content: {type: "text", text: string}[], isError: true}} the result
@@ -230,6 +262,25 @@ function reply(id, body) {
 
 /** The version of the eleven tools' names and schemas; a changed schema is a new version. */
 export const TOOL_PROTOCOL = 1;
+
+/** How a refusal for a version mismatch ends: the caller is not charged for it (design 9.8). */
+const NOT_AN_ATTEMPT = "nothing was done and this call is not an attempt";
+
+/**
+ * The tool protocols the daemon serves (design 9.8): the current one, and the one before it while
+ * any live session has not been seen speaking the current one. A session's MCP server and hooks
+ * stay on the version that was current when it started, so a session that started before a
+ * self-update keeps calling in the previous protocol until it ends; a session that has made no
+ * call yet may be such a session. A protocol older than the previous one is never served.
+ * @param {Record<string, {protocol?: number}> | undefined} sessions the live sessions, each with
+ *   the protocol of its last accepted call
+ * @param {number} [current] the daemon's tool protocol
+ * @returns {number[]} the protocols served, newest first
+ */
+export function servedProtocols(sessions, current = TOOL_PROTOCOL) {
+    const older = current > 1 && Object.values(sessions ?? {}).some((s) => s.protocol !== current);
+    return older ? [current, current - 1] : [current];
+}
 
 /**
  * A job id, as the job record names it (design 5.2): `pr-412`, `incident-ci-build-security-audit`.

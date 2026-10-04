@@ -226,7 +226,9 @@ export function sessionToolSet(ctx) {
         ...tool,
         handler: async (/** @type {any} */ args, /** @type {any} */ caller, /** @type {any} */ client) => {
             const session = sessionOf(caller, client ?? {});
-            if (session) board.heartbeat(state, { session }, now);
+            // The protocol of an accepted call: the daemon serves the previous one while a live
+            // session still speaks it (design 9.8).
+            if (session) board.heartbeat(state, { session }, now).protocol = client?.protocol;
             return handlers[tool.name](args, caller, client ?? {});
         },
     }));

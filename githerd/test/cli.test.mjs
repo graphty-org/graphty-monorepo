@@ -741,6 +741,19 @@ describe("dev", () => {
         expect(status.code).toBe(0);
     });
 
+    it("--stop stops githerd-dev and removes it from servherd, without a prompt", async () => {
+        writeConfig({ mode: "dry-run" });
+        expect((await cli(["dev"])).code).toBe(0);
+        const devState = join(root, ".githerd-dev");
+        const pid = JSON.parse(readFileSync(join(devState, "daemon.json"), "utf8")).pid;
+        const r = await cli(["dev", "--stop"]);
+        expect(r).toMatchObject({ code: 0, err: "" });
+        expect(r.out).toBe(`githerd-dev stopped and removed from servherd; its state stays in ${devState}`);
+        expect(servherdCalls().at(-1)?.argv).toEqual(["--json", "remove", "-f", "githerd-dev"]);
+        expect(JSON.parse(readFileSync(join(fake, "registry.json"), "utf8"))).toEqual({});
+        expect(() => process.kill(pid, 0)).toThrow();
+    });
+
     it("refuses without GITHERD_CONFIG", async () => {
         const r = await cli(["dev"], { extraEnv: { GITHERD_CONFIG: undefined } });
         expect(r.code).toBe(2);

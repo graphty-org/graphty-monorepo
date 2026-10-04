@@ -85,6 +85,7 @@ githerd install                  # prepare the daemon and print the servherd com
 githerd ensure                   # find or start the daemon, e.g. after a container restart
 githerd restart                  # servherd restart githerd
 githerd dev                      # this working tree as the githerd-dev daemon, dry-run only
+githerd dev --stop               # stop githerd-dev and remove it from servherd (no prompt)
 githerd doctor [--send-test]     # gh, servherd, daemon code, pm2 autorestart, notify, signing
 githerd selftest                 # one worker on its own tmux server through every platform check
 ```

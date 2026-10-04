@@ -66,7 +66,8 @@ const USAGE = `usage: githerd <command>
                                            the servherd command that starts it
   ensure                                   find or start the daemon, then exit
   restart                                  servherd restart githerd
-  dev                                      run this working tree as the githerd-dev daemon
+  dev [--stop]                             run this working tree as the githerd-dev daemon; --stop
+                                           stops it and removes it from servherd
   doctor [--send-test]                     check everything githerd depends on
   selftest                                 run the platform self-test: one worker on its own tmux
                                            server, through every behavior githerd relies on
@@ -747,7 +748,12 @@ const SERVICE = {
         await servherd(ctx, ["restart", ctx.name]);
         c.out(`restarted ${ctx.name}`);
     },
-    dev: startDev,
+    dev: async (ctx, c, devState) => {
+        if (!c.flags.stop) return startDev(ctx, c, devState);
+        // `remove` stops it first; `-f` skips the confirmation that hangs without a terminal.
+        await servherd(ctx, ["remove", "-f", DEV_NAME], devState);
+        c.out(`${DEV_NAME} stopped and removed from servherd; its state stays in ${devState}`);
+    },
 };
 
 /** Every command that works on a repository, and its handler. */

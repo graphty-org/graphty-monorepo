@@ -4,7 +4,9 @@
  * `pids.jsonl` (every process it spawned, so a test can kill them all).
  *
  * Usage, like the real one: `node fake-servherd.mjs --json start -n <name> [--autorestart] -e K=V ... -- <command>`,
- * `node fake-servherd.mjs --json restart <name>`, `node fake-servherd.mjs --json list`. With `pm2`
+ * `node fake-servherd.mjs --json restart <name>`, `node fake-servherd.mjs --json remove -f <name>`
+ * (stops it first; without `-f` it fails, as the real one's prompt does without a terminal),
+ * `node fake-servherd.mjs --json list`. With `pm2`
  * first it acts as pm2's `jlist`: `node fake-servherd.mjs pm2 jlist`.
  *
  * Like the real servherd, a server is its working directory plus its name: the same name started
@@ -173,6 +175,19 @@ if (argv[0] === "start") {
     launch(entry);
     save();
     reply("restarted", entry);
+} else if (argv[0] === "remove") {
+    const name = argv.filter((a) => !a.startsWith("-")).at(1);
+    const key =
+        Object.keys(registry).find((k) => registry[k].name === name && registry[k].cwd === process.cwd()) ?? name;
+    const entry = registry[/** @type {string} */ (key)];
+    if (!argv.includes("-f")) {
+        console.log(JSON.stringify({ success: false, data: null, error: { message: "ExitPromptError" } }));
+        process.exit(1);
+    }
+    if (entry) await stop(entry);
+    delete registry[/** @type {string} */ (key)];
+    save();
+    reply("removed", entry ?? null);
 } else if (argv[0] === "list") {
     const servers = Object.values(registry).map((e) => ({ server: e, status: alive(e.pid) ? "online" : "stopped" }));
     console.log(JSON.stringify({ success: true, data: { servers } }, null, 2));

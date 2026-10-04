@@ -1371,6 +1371,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             lastImport: READ,
             source: READ,
             attributes: READ,
+            histogram: READ,
             declare: {
                 kind: "dispatches",
                 op: "data.declare",

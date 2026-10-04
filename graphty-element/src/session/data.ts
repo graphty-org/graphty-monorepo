@@ -38,12 +38,15 @@ import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
 import { type ResolvedResult, resolveResult, resultCell, resultSortValue } from "./results/pageColumns";
+import { buildHistogram, resolveBinCount } from "./results/statistics";
+import type { HistogramOptions } from "./results/types";
 import { RevisionCache } from "./revision";
 import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { ColumnRef } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type {
+    ColumnHistogram,
     DataSourceDescriptor,
     DataSourceInput,
     EdgePageOptions,
@@ -1102,6 +1105,56 @@ export class SessionData implements SessionDataApi {
         this.requireLive("declare");
         const { kind, name } = resolveColumn(this.attributes(), column);
         await this.writes.declare({ kind, name }, declaration);
+    }
+
+    /**
+     * How one data column's values are distributed.
+     * @param column - the column
+     * @param options - the bin count and, for a numeric column, the scale
+     * @returns the distribution
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
+     *     `E_OPTION_RANGE` for a bad bin count.
+     */
+    histogram(column: ColumnRef, options: HistogramOptions = {}): ColumnHistogram {
+        const snapshot = this.current();
+        const descriptor = resolveColumn(this.attributes(), column);
+        const { name } = descriptor;
+        const count = descriptor.kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        const valueAt =
+            descriptor.kind === "node"
+                ? (index: number): unknown => this.records?.nodeAttributes(index, snapshot.ids.idOf(index))?.[name]
+                : (index: number): unknown => this.records?.edgeAttributes(index)?.[name];
+
+        if (descriptor.measurement === "quantitative") {
+            const column = {
+                length: count,
+                get: (index: number): number => {
+                    const value = valueAt(index);
+                    return typeof value === "number" ? value : Number.NaN;
+                },
+            };
+            const histogram = buildHistogram(column, { ...options, integerValued: descriptor.type === "integer" });
+            return Object.freeze({ kind: "numeric", ...histogram });
+        }
+
+        const limit = resolveBinCount(options.bins);
+        // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
+        const counts = new Map<string | number | boolean, number>();
+        let present = 0;
+        for (let index = 0; index < count; index++) {
+            const value = valueAt(index);
+            if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+                present++;
+                counts.set(value, (counts.get(value) ?? 0) + 1);
+            }
+        }
+
+        const values = [...counts]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, limit)
+            .map(([value, n]) => Object.freeze({ value, count: n }));
+        const listed = values.reduce((sum, each) => sum + each.count, 0);
+        return Object.freeze({ kind: "categorical", values: Object.freeze(values), otherCount: present - listed });
     }
 
     /**

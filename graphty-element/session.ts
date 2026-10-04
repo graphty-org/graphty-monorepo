@@ -63,6 +63,7 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import type { SelectionOp } from "./src/session/selection";
 
 export type {
+    ColumnHistogram,
     CommandOutcome,
     CommandOutcomeMap,
     ComponentStatistics,

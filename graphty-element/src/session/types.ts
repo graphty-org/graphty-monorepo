@@ -52,7 +52,7 @@ import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
 import type { ResultsApi, RunRef } from "./results";
-import type { Histogram } from "./results/types";
+import type { Histogram, HistogramOptions } from "./results/types";
 import type {
     Caveats,
     EngineVersions,
@@ -512,6 +512,28 @@ export interface GraphStatistics {
 }
 
 /**
+ * How one data column's values are distributed: what `session.data.histogram(column)` returns.
+ *
+ * A column that measures amounts (`measurement: "quantitative"`) is binned like a run's field,
+ * with `kind: "numeric"` beside the {@link Histogram} fields. Any other column is counted by
+ * value, with `kind: "categorical"`.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type ColumnHistogram =
+    | (Histogram & { readonly kind: "numeric" })
+    | {
+          readonly kind: "categorical";
+          /**
+           * The commonest values, most elements first; a tie keeps the order the values were first
+           * seen in. At most `bins` of them (20 unless asked).
+           */
+          readonly values: readonly { readonly value: string | number | boolean; readonly count: number }[];
+          /** How many elements carry a value not in `values`; 0 when every value made the list. */
+          readonly otherCount: number;
+      };
+
+/**
  * The graph statistics a function that reads the graph's shape takes: {@link GraphStatistics}
  * without the fields derived for display, so a caller who builds the numbers by hand need not
  * build a histogram too. `session.data.statistics()` can be passed as it is.
@@ -781,6 +803,25 @@ export interface SessionDataApi {
      *     no record carries, and `E_BAD_COMMAND` for a declaration that is not one.
      */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
+    /**
+     * How a data column's values are distributed, for a chart of one attribute. A quantitative
+     * column comes back binned (`kind: "numeric"`, the {@link Histogram} shape a run's field has),
+     * any other column counted by value, commonest first (`kind: "categorical"`). Elements with no
+     * value in the column are not counted. Walks the column on every call.
+     *
+     * ```ts
+     * const age = session.data.histogram({ kind: "node", name: "age" });
+     * if (age.kind === "numeric") drawBars(age.bins);
+     * else drawBars(age.values, age.otherCount);
+     * ```
+     * @param column - the column; an attribute descriptor can be passed as it is
+     * @param options - `bins`: how many bars, or how many values a categorical column lists (20
+     *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it
+     * @returns the distribution
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
+     *     no record carries, and `E_OPTION_RANGE` for a bin count outside 1 to 100.
+     */
+    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     /**
      * The graph's shape. Walked once per snapshot and cached.
      * @returns the statistics

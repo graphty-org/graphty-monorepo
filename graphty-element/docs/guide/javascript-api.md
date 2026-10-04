@@ -223,6 +223,24 @@ for (const bin of stats.degreeHistogram.bins) {
 few distinct degrees (`binning: "per-value"`), whole-number bands otherwise (`"banded"`). The bars
 add up to `stats.nodeCount`.
 
+One attribute's distribution comes from `session.data.histogram(column)`. A column of amounts is
+binned the same way; any other column is counted by value, commonest first:
+
+```typescript
+const age = session.data.histogram({ kind: "node", name: "age" });
+if (age.kind === "numeric") {
+    age.bins; // [{ from, to, count }, ...]
+} else {
+    age.values; // [{ value: "red", count: 40 }, ...], at most 20 unless you pass { bins }
+    age.otherCount; // elements whose value did not make the list
+}
+```
+
+Which way a column is read follows what it measures (`attributes()`'s `measurement`): declare a
+column of number codes categorical with `session.data.declare` and it is counted by value.
+Elements with no value in the column are not counted. An unknown column throws
+`E_UNKNOWN_ATTRIBUTE`.
+
 ### Result values as table columns
 
 A page can carry an algorithm run's values as a column and sort by them -- see

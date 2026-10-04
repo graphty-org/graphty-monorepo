@@ -581,7 +581,7 @@ export function hasLineEnd(text: string): boolean {
  * @category Plugin helpers
  */
 export function escapeOboQuoted(text: string): string {
-    return text.replace(LINE_ENDS, "\n").replace(/[\\"\n\t]/g, (ch) => {
+    return text.replaceAll(LINE_ENDS, "\n").replaceAll(/[\\"\n\t]/g, (ch) => {
         switch (ch) {
             case "\n":
                 return "\\n";
@@ -603,7 +603,7 @@ export function escapeOboQuoted(text: string): string {
  * @category Plugin helpers
  */
 export function escapeOboValue(text: string): string {
-    return escapeOboQuoted(text).replace(/[!{}[\],]/g, (ch) => `\\${ch}`);
+    return escapeOboQuoted(text).replaceAll(/[!{}[\],]/g, (ch) => `\\${ch}`);
 }
 
 /**
@@ -633,7 +633,7 @@ export const NOT_IN_WORD = /[\s!{}\p{Cc}]/u;
  * @category Plugin helpers
  */
 export function escapeOboWord(word: string): string {
-    const out = word.replace(/[\\"]/g, (ch) => `\\${ch}`);
+    const out = word.replaceAll(/[\\"]/g, (ch) => `\\${ch}`);
     return out.startsWith("[") ? `\\${out}` : out;
 }
 

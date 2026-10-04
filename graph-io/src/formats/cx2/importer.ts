@@ -708,7 +708,7 @@ function readDescriptor(value: unknown, line: number, doc: Cx2Document, report: 
     const raw = value.CXVersion;
     const text = typeof raw === "string" || typeof raw === "number" ? String(raw) : "";
     // the major version: "2.0", "2.1", "2.0.1", "2.1-beta", " 2.0" are all CX2
-    const match = /^\s*([0-9]+)(?=$|[.\s-])/.exec(text);
+    const match = /^\s*(\d+)(?=$|[.\s-])/.exec(text);
     const major = match === null ? NaN : Number(match[1]);
     if (major === 1) {
         report.fail(
@@ -926,7 +926,7 @@ const DECLARATION_KEYS: ReadonlyMap<string, "node" | "edge" | "network"> = new M
  * @returns true for an own property
  */
 function hasOwn(record: Record<string, unknown>, key: string): boolean {
-    return Object.prototype.hasOwnProperty.call(record, key);
+    return Object.hasOwn(record, key);
 }
 
 // ============================================================ the build

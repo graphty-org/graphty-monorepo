@@ -250,7 +250,7 @@ const ABORT_CHECK_INTERVAL = 64;
 const FIRST_VERTEX_VALUES: ReadonlySet<unknown> = new Set([0, 1, "auto"]);
 
 /** A numeral that is not a finite number (`1e999`, `NaN`, `Infinity`): never a parameter key. */
-const NON_FINITE_NUMERAL = /^[+-]?(?:(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|nan|inf|infinity)$/i;
+const NON_FINITE_NUMERAL = /^[+-]?(?:(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?|nan|inf|infinity)$/i;
 
 const LABEL_DECL: ColumnDecl = {
     name: LABEL_COLUMN,
@@ -1876,7 +1876,7 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
  * @returns the line without a leading U+FEFF
  */
 function withoutStrayBom(text: string): string {
-    return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+    return text.codePointAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
 /**

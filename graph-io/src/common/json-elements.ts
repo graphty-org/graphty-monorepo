@@ -55,14 +55,14 @@ export const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])[0-9]{16}/;
  * @category Plugin helpers
  */
 export const MAYBE_INEXACT_EXPONENT =
-    /[0-9][eE]\+?0*(1[5-9]|[2-9][0-9]|[1-9][0-9]{2,})|[0-9][eE]-0*([3-9][0-9]{2}|[1-9][0-9]{3,})|(?<![0-9.])(?=(?:[0-9]\.?){16})[0-9]+\.[0-9]+[eE]/;
+    /\d[eE]\+?0*(1[5-9]|[2-9]\d|[1-9]\d{2,})|\d[eE]-0*([3-9]\d{2}|[1-9]\d{3,})|(?<![\d.])(?=(?:\d\.?){16})\d+\.\d+[eE]/;
 
 /**
  * The prefix of the string a non-standard token or an exact integer is rewritten to (a NUL
  * character first, which no sensible attribute value starts with). A document that already holds
  * the text gets a numbered variant, so a genuine string is never revived as a number.
  */
-const SENTINEL = `${String.fromCharCode(0)}graph-io`;
+const SENTINEL = `${String.fromCodePoint(0)}graph-io`;
 
 /** The non-standard tokens Python's json module writes, longest first so -Infinity wins over a bare minus. */
 const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
@@ -75,7 +75,7 @@ const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
 const INTEGER_LITERAL = /^-?(0|[1-9][0-9]*)$/;
 
 /** A JSON number literal, split into sign, integer digits, fraction digits and exponent. */
-const NUMBER_PARTS = /^(-?)([0-9]+)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/;
+const NUMBER_PARTS = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/;
 
 /** What rewriteNumbers() found. */
 interface RewrittenNumbers {
@@ -301,7 +301,7 @@ export function findDuplicateKeys(text: string): DuplicateKey[] {
     let depth = 0;
     const n = text.length;
     for (let at = 0; at < n; at++) {
-        const c = text.charCodeAt(at);
+        const c = text.codePointAt(at);
         if (c === 123 || c === 91) {
             // { or [
             if (spans.length === depth) {
@@ -380,7 +380,7 @@ function isRepeated(
  */
 function sameText(text: string, a: number, b: number, length: number): boolean {
     for (let i = 0; i < length; i++) {
-        if (text.charCodeAt(a + i) !== text.charCodeAt(b + i)) {
+        if (text.codePointAt(a + i) !== text.codePointAt(b + i)) {
             return false;
         }
     }
@@ -396,7 +396,7 @@ function sameText(text: string, a: number, b: number, length: number): boolean {
 function closingQuote(text: string, from: number): number {
     for (let q = text.indexOf('"', from); q >= 0; q = text.indexOf('"', q + 1)) {
         let backslashes = 0;
-        while (text.charCodeAt(q - 1 - backslashes) === 92) {
+        while (text.codePointAt(q - 1 - backslashes) === 92) {
             backslashes++;
         }
         if (backslashes % 2 === 0) {
@@ -414,10 +414,10 @@ function closingQuote(text: string, from: number): number {
  */
 function isKey(text: string, from: number): boolean {
     let i = from;
-    while (i < text.length && isSpace(text.charCodeAt(i))) {
+    while (i < text.length && isSpace(text.codePointAt(i))) {
         i++;
     }
-    return text.charCodeAt(i) === 58;
+    return text.codePointAt(i) === 58;
 }
 
 /**
@@ -544,7 +544,7 @@ const MAYBE_SURROGATE = /\\u[dD][89a-fA-F]|[\ud800-\udfff]/;
  */
 function repairSurrogates(value: unknown, fixed: { count: number; collisions: string[] }): unknown {
     if (typeof value === "string") {
-        const repaired = value.replace(LONE_SURROGATE, "\ufffd");
+        const repaired = value.replaceAll(LONE_SURROGATE, "\ufffd");
         if (repaired !== value) {
             fixed.count++;
         }
@@ -558,14 +558,14 @@ function repairSurrogates(value: unknown, fixed: { count: number; collisions: st
     }
     if (isRecord(value)) {
         const keys = Object.keys(value);
-        const repairedKeys = keys.map((key) => key.replace(LONE_SURROGATE, "\ufffd"));
+        const repairedKeys = keys.map((key) => key.replaceAll(LONE_SURROGATE, "\ufffd"));
         const renamed = repairedKeys.some((key, i) => key !== keys[i]);
         const out: Record<string, unknown> = renamed ? {} : value;
         keys.forEach((key, i) => {
             if (repairedKeys[i] !== key) {
                 fixed.count++;
             }
-            if (renamed && Object.prototype.hasOwnProperty.call(out, repairedKeys[i])) {
+            if (renamed && Object.hasOwn(out, repairedKeys[i])) {
                 fixed.collisions.push(repairedKeys[i]);
             }
             setOwn(out, repairedKeys[i], repairSurrogates(value[key], fixed));
@@ -612,7 +612,7 @@ function duplicateKey(text: string): string | null {
                     i++;
                 }
             }
-            const keys = stack.length > 0 ? stack[stack.length - 1] : null;
+            const keys = stack.at(-1) ?? null;
             if (keys !== null && text[skipSpace(text, i + 1)] === ":") {
                 const key = JSON.parse(text.slice(start, i + 1)) as string;
                 if (keys.has(key)) {
@@ -633,7 +633,7 @@ function duplicateKey(text: string): string | null {
  */
 function skipSpace(text: string, from: number): number {
     let i = from;
-    while (i < text.length && isSpace(text.charCodeAt(i))) {
+    while (i < text.length && isSpace(text.codePointAt(i))) {
         i++;
     }
     return i;
@@ -788,7 +788,7 @@ export type AspectEvent =
  * @param c - the character code
  * @returns true for space, line feed, carriage return and tab
  */
-const isSpace = (c: number): boolean => c === 32 || c === 10 || c === 13 || c === 9;
+const isSpace = (c: number | undefined): boolean => c === 32 || c === 10 || c === 13 || c === 9;
 
 /**
  * Whether a character code ends a bare scalar (number, true, false, null).
@@ -1123,7 +1123,7 @@ export async function* scanAspects(
         throw new JsonScanError("the input is empty", 1, true);
     }
     const hint = notJsonHint(cur.ahead(16));
-    if (hint === "" && cur.ahead(8).includes(String.fromCharCode(0))) {
+    if (hint === "" && cur.ahead(8).includes(String.fromCodePoint(0))) {
         throw new JsonScanError(
             'the input holds NUL characters: UTF-16 without a byte order mark (pass the encoding option, such as "utf-16le"), or binary data; not JSON',
             cur.line(),
@@ -1472,7 +1472,7 @@ function invalidCxId(raw: unknown, reason: string): GraphFormatError {
 }
 
 /** A number literal at lastIndex (sticky). */
-const NUMBER_LITERAL = /-?[0-9][0-9.eE+-]*/y;
+const NUMBER_LITERAL = /-?\d[\d.eE+-]*/y;
 
 /**
  * Whether the element text writes a top-level key's number as a non-integer literal (`"id": 5.0`,

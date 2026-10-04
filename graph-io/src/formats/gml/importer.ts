@@ -684,7 +684,7 @@ class GmlImport {
             default: {
                 entry.kinds |= KIND_REAL;
                 const text = t.textOf(v);
-                if (/[0-9]/.test(text) && !Number.isFinite(Number(text))) {
+                if (/\d/.test(text) && !Number.isFinite(Number(text))) {
                     this.report.warnOnce(
                         "precision",
                         PRECISION_CODE,

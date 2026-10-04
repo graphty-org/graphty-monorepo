@@ -229,7 +229,7 @@ function ontologyIriOf(snapshot: GraphSnapshot, kept: Kept, option: string | nul
     const ontology =
         Array.isArray(header.ontology) && typeof header.ontology[0] === "string" ? header.ontology[0].trim() : null;
     const name = ontology ?? snapshot.meta.name;
-    const id = name === null || name.length === 0 ? "graph" : name.replace(/[^A-Za-z0-9_.\-/]/g, "_");
+    const id = name === null || name.length === 0 ? "graph" : name.replaceAll(/[^A-Za-z0-9_.\-/]/g, "_");
     return `${OBO_PURL}${id}.owl`;
 }
 
@@ -1086,7 +1086,7 @@ function carries(
     const valid = (v: unknown): boolean => {
         switch (name) {
             case "type":
-                return typeof v === "string" && !Object.prototype.hasOwnProperty.call(FRAME_TYPES, v);
+                return typeof v === "string" && !Object.hasOwn(FRAME_TYPES, v);
             case "propertyType":
             case "def":
             case "comment":

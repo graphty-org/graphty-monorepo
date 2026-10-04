@@ -415,7 +415,7 @@ export function decodeEntities(raw: string, line: number, repairs?: XmlRepairs):
             const hex = name.startsWith("#x") || name.startsWith("#X");
             const digits = name.slice(hex ? 2 : 1);
             // XML 1.0 puts no limit on leading zeros (&#x0000000041; is "A")
-            const ok = hex ? /^0*[0-9a-fA-F]{1,6}$/.test(digits) : /^0*[0-9]{1,7}$/.test(digits);
+            const ok = hex ? /^0*[\da-fA-F]{1,6}$/.test(digits) : /^0*\d{1,7}$/.test(digits);
             const cp = ok ? Number.parseInt(digits, hex ? 16 : 10) : -1;
             const low = cp >= 0xd800 && cp <= 0xdbff ? lowSurrogateAfter(raw, semi + 1, repairs) : null;
             if (low !== null) {
@@ -708,7 +708,7 @@ export class XmlTokenizer {
             text = this.pendingHigh + text;
             this.pendingHigh = "";
         }
-        const last = text.charCodeAt(text.length - 1);
+        const last = text.charCodeAt(text.length - 1); // NOSONAR(S7758): reads UTF-16 code units on purpose
         if (last >= 0xd800 && last <= 0xdbff) {
             // a text chunk may end between the two halves of an astral character
             this.pendingHigh = text.slice(-1);
@@ -1224,7 +1224,7 @@ export class XmlTokenizer {
         if (version === undefined) {
             throw new XmlSyntaxError("the XML declaration has no version", this.line);
         }
-        if (!/^1\.[0-9]+$/.test(version)) {
+        if (!/^1\.\d+$/.test(version)) {
             throw new XmlSyntaxError(`XML version ${version} is not supported (only 1.x)`, this.line);
         }
         this.version = version;
@@ -1547,7 +1547,7 @@ export class XmlTokenizer {
             throw new XmlSyntaxError(`end tag </${name}> does not match <${open}>`, this.line);
         }
         this.stack.pop();
-        while (this.bindings.length > 0 && this.bindings[this.bindings.length - 1].depth >= this.stack.length) {
+        while ((this.bindings.at(-1)?.depth ?? -1) >= this.stack.length) {
             this.bindings.pop();
         }
         if (this.stack.length === 0) {

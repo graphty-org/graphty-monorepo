@@ -844,8 +844,8 @@ async function readSections(
         const header = /^== (.+)$/.exec(line);
         if (header !== null) {
             sections.push({ name: header[1], edges: [] });
-        } else if (line !== "" && sections.length > 0) {
-            sections[sections.length - 1].edges.push({ ids: line.split(/\s+/), line: i + 1 });
+        } else if (line !== "") {
+            sections.at(-1)?.edges.push({ ids: line.split(/\s+/), line: i + 1 });
         }
     });
     return sections;

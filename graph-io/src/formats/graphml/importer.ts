@@ -1638,7 +1638,7 @@ class GraphmlReader implements XmlHandler {
     private checkDuplicateData(keyId: string, domain: Domain, line: number): void {
         let holder: { keys: Set<string> | null } | null = null;
         if (domain === "node") {
-            holder = this.nodes[this.nodes.length - 1];
+            holder = this.nodes.at(-1) ?? null;
         } else if (domain === "edge") {
             holder = this.edge;
         } else {

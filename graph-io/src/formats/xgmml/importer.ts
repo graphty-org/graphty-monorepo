@@ -436,7 +436,7 @@ function sniffXgmml(head: Uint8Array): number {
     if (XGMML_DOCTYPE.test(text)) {
         return 0.95;
     }
-    const root = /<(?!\?|!)([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(text.replace(/<!--[\s\S]*?(-->|$)/g, ""));
+    const root = /<(?!\?|!)([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(text.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""));
     if (root === null || root[2] !== "graph") {
         return 0;
     }

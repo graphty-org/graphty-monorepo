@@ -469,7 +469,7 @@ export class XgmmlParser implements XmlHandler {
      * @param attrs - the element's attributes as written
      */
     private enterScope(attrs: ReadonlyMap<string, string>): void {
-        const parent = this.scopes.length === 0 ? NO_SCOPE : this.scopes[this.scopes.length - 1];
+        const parent = this.scopes.at(-1) ?? NO_SCOPE;
         let scope = parent;
         for (const [key, value] of attrs) {
             if (key === "xmlns" || key.startsWith("xmlns:")) {
@@ -487,7 +487,7 @@ export class XgmmlParser implements XmlHandler {
      * @returns prefix to URI
      */
     private get scope(): ReadonlyMap<string, string> {
-        return this.scopes.length === 0 ? NO_SCOPE : this.scopes[this.scopes.length - 1];
+        return this.scopes.at(-1) ?? NO_SCOPE;
     }
 
     /**

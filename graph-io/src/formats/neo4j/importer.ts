@@ -1533,7 +1533,7 @@ const INTEGER_RANGES: Readonly<Record<string, readonly [number, number]>> = {
  * signed or fractional) or the date-time form `P2012-02-02T14:37:21.545`.
  */
 const DURATION_TEXT =
-    /^[+-]?P(?:(?=[-+]?[0-9.]|T[-+]?[0-9.])(?:[-+]?[0-9]+(?:\.[0-9]+)?Y)?(?:[-+]?[0-9]+(?:\.[0-9]+)?M)?(?:[-+]?[0-9]+(?:\.[0-9]+)?W)?(?:[-+]?[0-9]+(?:\.[0-9]+)?D)?(?:T(?=[-+]?[0-9.])(?:[-+]?[0-9]+(?:\.[0-9]+)?H)?(?:[-+]?[0-9]+(?:\.[0-9]+)?M)?(?:[-+]?[0-9]+(?:\.[0-9]+)?S)?)?|[0-9]{4}-?[0-9]{2}-?[0-9]{2}T[0-9]{2}:?[0-9]{2}:?[0-9]{2}(?:\.[0-9]+)?)$/i;
+    /^[+-]?P(?:(?=[-+]?[\d.]|T[-+]?[\d.])(?:[-+]?\d+(?:\.\d+)?Y)?(?:[-+]?\d+(?:\.\d+)?M)?(?:[-+]?\d+(?:\.\d+)?W)?(?:[-+]?\d+(?:\.\d+)?D)?(?:T(?=[-+]?[\d.])(?:[-+]?\d+(?:\.\d+)?H)?(?:[-+]?\d+(?:\.\d+)?M)?(?:[-+]?\d+(?:\.\d+)?S)?)?|\d{4}-?\d{2}-?\d{2}T\d{2}:?\d{2}:?\d{2}(?:\.\d+)?)$/i;
 
 /**
  * Check the neo4j-admin types the shared parser maps to a wider dtype: byte and short values within
@@ -1610,13 +1610,13 @@ function withZoneOffset(text: string, spec: DeclaredTypeSpec): string {
     } catch {
         throw new GraphFormatError("E_COLUMN_TYPE", `"${text}" names an unknown time zone ${zone}`, { value: text });
     }
-    if (/(Z|z|[+-][0-9]{2}(:?[0-9]{2})?)$/.test(local)) {
+    if (/(Z|z|[+-]\d{2}(:?\d{2})?)$/.test(local)) {
         return local;
     }
     const wall = parseTemporal(local, "localDateTime").value;
     const offsetAt = (ms: number): number => {
         const name = format.formatToParts(new Date(ms)).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
-        const o = /GMT([+-])([0-9]{2}):([0-9]{2})/.exec(name);
+        const o = /GMT([+-])(\d{2}):(\d{2})/.exec(name);
         return o === null ? 0 : (o[1] === "-" ? -1 : 1) * (Number(o[2]) * 60 + Number(o[3]));
     };
     // the offset at the instant the wall time names (twice, so a wall time near a transition settles)

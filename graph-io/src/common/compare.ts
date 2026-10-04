@@ -416,7 +416,7 @@ export function valuesEqual(e: unknown, a: unknown, tolerance: number): boolean 
         if (keys.length !== Object.keys(ao).length) {
             return false;
         }
-        return keys.every((k) => Object.prototype.hasOwnProperty.call(ao, k) && valuesEqual(eo[k], ao[k], tolerance));
+        return keys.every((k) => Object.hasOwn(ao, k) && valuesEqual(eo[k], ao[k], tolerance));
     }
     return Object.is(e, a);
 }

@@ -411,7 +411,7 @@ function readProperty(
     iri: string,
     element: string,
 ): void {
-    if (Object.prototype.hasOwnProperty.call(vocabulary.properties, iri)) {
+    if (Object.hasOwn(vocabulary.properties, iri)) {
         ctx.report.warning(
             "merged",
             JSON_ISSUE.DUPLICATE_NODE,

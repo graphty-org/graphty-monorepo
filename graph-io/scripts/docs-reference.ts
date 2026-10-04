@@ -87,18 +87,18 @@ function cell(s: string): string {
 function prose(s: string): string {
     return (
         s
-            .replace(/\s+/g, " ")
-            .replace(/ ?\((?:see |per )?(?:design|research note)\b[^)]*\)/gi, "")
-            .replace(/\{@link ([^}\s|]+)(?:[\s|][^}]*)?\}/g, "`$1`")
+            .replaceAll(/\s+/g, " ")
+            .replaceAll(/ ?\((?:see |per )?(?:design|research note)\b[^)]*\)/gi, "")
+            .replaceAll(/\{@link ([^}\s|]+)(?:[\s|][^}]*)?\}/g, "`$1`")
             // outside code spans, `<name>` would be read as an HTML tag by the docs site
             .split("`")
             // a bare code becomes inline code, so its underscores are never read as emphasis
             .map((part, i) =>
                 i % 2 === 0
                     ? part
-                          .replace(/</g, "&lt;")
-                          .replace(/>/g, "&gt;")
-                          .replace(/\b([EW]_[A-Z0-9_]*[A-Z0-9])\b/g, "`$1`")
+                          .replaceAll(/</g, "&lt;")
+                          .replaceAll(/>/g, "&gt;")
+                          .replaceAll(/\b([EW]_[A-Z0-9_]*[A-Z0-9])\b/g, "`$1`")
                     : part,
             )
             .join("`")
@@ -240,7 +240,7 @@ class Source {
                     defaultValue:
                         tagged === undefined
                             ? statedDefault(doc)
-                            : ts.displayPartsToString(tagged.text).replace(/^`|`$/g, "").trim(),
+                            : ts.displayPartsToString(tagged.text).replaceAll(/^`|`$/g, "").trim(),
                     doc,
                 };
             });
@@ -270,8 +270,8 @@ class Source {
         // `<ArrayBufferLike>` is noise to a reader
         for (let i = 0; i < parts.length; i++) {
             parts[i] = parts[i]
-                .replace(/<ArrayBufferLike>/g, "")
-                .replace(
+                .replaceAll(/<ArrayBufferLike>/g, "")
+                .replaceAll(
                     /\bImportInput\b/g,
                     "(string | Uint8Array | ReadableStream<Uint8Array> | AsyncIterable<string | Uint8Array>)",
                 );

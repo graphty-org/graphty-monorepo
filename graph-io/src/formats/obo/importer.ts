@@ -319,9 +319,8 @@ const MAX_TALLIES_PER_CODE = 100;
  * @returns true when it does
  */
 function hasControl(text: string): boolean {
-    for (let i = 0; i < text.length; i++) {
-        const c = text.charCodeAt(i);
-        if ((c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0c && c !== 0x0d) || c === 0x7f) {
+    for (const ch of text) {
+        if ((ch < " " && ch !== "\t" && ch !== "\n" && ch !== "\f" && ch !== "\r") || ch === "\x7f") {
             return true;
         }
     }
@@ -354,7 +353,7 @@ function ownRecord<T>(): Record<string, T> {
  * @param value - the value
  */
 function append<T>(map: Record<string, T[]>, key: string, value: T): void {
-    if (Object.prototype.hasOwnProperty.call(map, key)) {
+    if (Object.hasOwn(map, key)) {
         map[key].push(value);
     } else {
         map[key] = [value];
@@ -764,7 +763,7 @@ class OboReader {
             }
             this.applyClause(target, clause);
         }
-        if (target.kind === "Typedef" && !Object.prototype.hasOwnProperty.call(target.raw, "id")) {
+        if (target.kind === "Typedef" && !Object.hasOwn(target.raw, "id")) {
             target.raw.id = [id];
         }
     }
@@ -1398,7 +1397,7 @@ class OboReader {
                     map = ownRecord<string>();
                     target.values.set("xref.descriptions", map);
                 }
-                if (!Object.prototype.hasOwnProperty.call(map, xref.id)) {
+                if (!Object.hasOwn(map, xref.id)) {
                     map[xref.id] = xref.description;
                 }
             }

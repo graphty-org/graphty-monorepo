@@ -516,7 +516,7 @@ function pathOption(name: string, value: unknown): readonly string[] | null {
 function valueAt(root: unknown, segments: readonly string[]): unknown {
     let value = root;
     for (const segment of segments) {
-        if (Array.isArray(value) && /^(0|[1-9][0-9]*)$/.test(segment) && Number(segment) < value.length) {
+        if (Array.isArray(value) && /^(0|[1-9]\d*)$/.test(segment) && Number(segment) < value.length) {
             value = value[Number(segment)];
         } else if (isJsonObject(value) && hasKey(value, segment)) {
             value = value[segment];
@@ -1588,11 +1588,11 @@ const SYNTAX_SEARCH_LIMIT = 64 * 1024 * 1024;
  * @returns the line
  */
 function syntaxLine(text: string, message: string): number {
-    const line = /\(line ([0-9]+)/.exec(message);
+    const line = /\(line (\d+)/.exec(message);
     if (line !== null) {
         return Number(line[1]);
     }
-    const position = /position ([0-9]+)/.exec(message);
+    const position = /position (\d+)/.exec(message);
     if (position !== null) {
         return countLines(text, 0, Number(position[1])) + 1;
     }

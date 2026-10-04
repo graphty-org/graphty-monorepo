@@ -279,11 +279,11 @@ const ELEMENT_ATTRIBUTES: Readonly<Record<string, ReadonlySet<string>>> = {
 };
 
 /** A `count` hint as written: decimal digits only (as GraphML's parse.nodes). */
-const COUNT_TEXT = /^[0-9]+$/;
+const COUNT_TEXT = /^\d+$/;
 
 /** An xs:date / xs:dateTime text (`lastmodifieddate`). */
 const DATE_TEXT =
-    /^-?[0-9]{4,}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]+)?)?)?(Z|[+-][0-9]{2}:[0-9]{2})?$/;
+    /^-?\d{4,}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?(Z|[+-]\d{2}:\d{2})?$/;
 
 const EDGE_TYPES: ReadonlySet<string> = new Set(["directed", "undirected", "mutual"]);
 
@@ -1171,7 +1171,7 @@ class GexfReader implements XmlHandler {
             return null;
         }
         // decimal digits only: Number() would read "" as 0, "0x10" as 16 and "1e3" as 1000
-        const count = COUNT_TEXT.test(text) ? Number(text) : NaN;
+        const count = COUNT_TEXT.test(text) ? Number(text) : Number.NaN;
         if (!Number.isSafeInteger(count) || count > MAX_COUNT) {
             this.report.warning(
                 "validation-error",
@@ -1459,7 +1459,7 @@ class GexfReader implements XmlHandler {
             this.ctx.push(Ctx.Node);
             return;
         }
-        if (this.meta.idType === "integer" && !/^\s*[+-]?[0-9]+\s*$/.test(idText)) {
+        if (this.meta.idType === "integer" && !/^\s*[+-]?\d+\s*$/.test(idText)) {
             report.warnOnce(
                 "validation-error",
                 HEADER_VALUE_CODE,

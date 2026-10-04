@@ -215,7 +215,7 @@ export class DotTokenizer {
         }
         this.pos = end;
         const numeral = text.slice(start, end);
-        const after = text.charCodeAt(end);
+        const after = text.charCodeAt(end); // NOSONAR(S7758): reads UTF-16 code units on purpose
         // a letter (`1e3`) or a second dot (`1.2.3`) right after the numeral: Graphviz splits there
         if (end < text.length && (isIdentifierStart(after) || after === 0x2e) && this.onAmbiguity !== null) {
             // Graphviz: "syntax ambiguity - badly delimited number '1e' ... splits into two tokens"

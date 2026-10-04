@@ -504,7 +504,7 @@ export class RecordReader implements AsyncIterable<number> {
         let lastWasCr = false;
         let sniffed = false;
         // the leading comment lines are left out of the sniff, so they do not count toward its rows
-        const commentCodes = (this.syntax.comments ?? []).map((c) => c.charCodeAt(0));
+        const commentCodes = (this.syntax.comments ?? []).map((c) => c.codePointAt(0));
         let leading = commentCodes.length > 0;
         let lineStart = true;
         let inComment = false;

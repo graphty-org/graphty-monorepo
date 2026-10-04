@@ -453,13 +453,13 @@ function hasKeys(value: unknown, keys: readonly string[]): value is Record<strin
     }
     const own = Object.keys(value);
     const record = value as Record<string, unknown>;
-    if (Object.prototype.hasOwnProperty.call(record, "qualifiers")) {
+    if (Object.hasOwn(record, "qualifiers")) {
         if (!isQualifierRecord(record.qualifiers, isQualifierName)) {
             return false;
         }
-        return own.length === keys.length + 1 && keys.every((k) => Object.prototype.hasOwnProperty.call(record, k));
+        return own.length === keys.length + 1 && keys.every((k) => Object.hasOwn(record, k));
     }
-    return own.length === keys.length && keys.every((k) => Object.prototype.hasOwnProperty.call(record, k));
+    return own.length === keys.length && keys.every((k) => Object.hasOwn(record, k));
 }
 
 /**
@@ -468,7 +468,7 @@ function hasKeys(value: unknown, keys: readonly string[]): value is Record<strin
  * @returns a word
  */
 function wordOf(text: string): string {
-    const out = text.replace(new RegExp(NOT_IN_WORD.source, "gu"), "_");
+    const out = text.replaceAll(new RegExp(NOT_IN_WORD.source, "gu"), "_");
     return out.length === 0 ? "_" : out;
 }
 
@@ -811,7 +811,7 @@ function tagCarries(
                             entries,
                             (entry) =>
                                 hasKeys(entry, ["value"]) &&
-                                Object.prototype.hasOwnProperty.call(entry, "qualifiers") &&
+                                Object.hasOwn(entry, "qualifiers") &&
                                 typeof entry.value === "string" &&
                                 isQualifierRecord(entry.qualifiers, isQualifierName),
                         ),
@@ -1236,7 +1236,7 @@ function planProperties(
             // read back from the frameless nodes alone
             continue;
         }
-        const relation = isOboWord(name) && name !== ORIGINAL_ID ? name : wordOf(name.replace(/:/g, "_"));
+        const relation = isOboWord(name) && name !== ORIGINAL_ID ? name : wordOf(name.replaceAll(/:/g, "_"));
         out.push({ column, relation });
         notePropertyColumn(note, column, rows, `property_value lines (relation ${relation})`);
     }
@@ -1333,7 +1333,7 @@ function planEdgeColumns(
         ) {
             continue;
         }
-        const written2 = isQualifierName(name) ? name : wordOf(name.replace(/[=",[\]\\]/g, "_"));
+        const written2 = isQualifierName(name) ? name : wordOf(name.replaceAll(/[=",[\]\\]/g, "_"));
         edgeColumns.push({ column, name: written2 });
         const n = count(column);
         if (n > 0) {
@@ -1405,7 +1405,7 @@ function planHeader(
         if (/^[A-Za-z0-9_.\-/]+$/.test(meta.name)) {
             fill("ontology", meta.name);
         } else if (!values.has("ontology")) {
-            const slug = meta.name.replace(/[^A-Za-z0-9_.-]/g, "_");
+            const slug = meta.name.replaceAll(/[^A-Za-z0-9_.-]/g, "_");
             note(
                 OBO_LOSS.ONTOLOGY_NAME,
                 `the graph name ${JSON.stringify(meta.name)} is not an ontology id; written as ${slug}`,
@@ -1451,7 +1451,7 @@ function planHeader(
  * @returns the value to write
  */
 function rawValue(raw: string): string {
-    return raw.replace(/\r\n|\r|\n|\f/g, "\\n");
+    return raw.replaceAll(/\r\n|\r|\n|\f/g, "\\n");
 }
 
 /**
@@ -1460,7 +1460,7 @@ function rawValue(raw: string): string {
  * @returns the escaped tag
  */
 function escapeTag(tag: string): string {
-    return escapeOboValue(tag).replace(/:/g, "\\:");
+    return escapeOboValue(tag).replaceAll(/:/g, "\\:");
 }
 
 /**
@@ -1555,7 +1555,7 @@ function planTail(
         declare(relation, false);
     }
     for (const frame of kept.unknownFrames) {
-        lines.push("", `[${frame.type.replace(/[\]\r\n]/g, "_")}]`);
+        lines.push("", `[${frame.type.replaceAll(/[\]\r\n]/g, "_")}]`);
         for (const [tag, values] of Object.entries(frame.clauses)) {
             for (const value of values) {
                 lines.push(`${escapeTag(tag)}: ${rawValue(value)}`);
@@ -1588,7 +1588,7 @@ class QualifierCursor {
      * @returns the block with a leading space, or ""
      */
     block(tag: string, value: string): string {
-        const list = Object.prototype.hasOwnProperty.call(this.entries, tag) ? this.entries[tag] : undefined;
+        const list = Object.hasOwn(this.entries, tag) ? this.entries[tag] : undefined;
         const k = this.next.get(tag) ?? 0;
         if (list === undefined || k >= list.length || list[k].value !== value) {
             return "";
@@ -1642,7 +1642,7 @@ function xrefText(f: FrameState, id: string, listTag: string | null): string {
     const descriptions = f.p.tags.get("xref.descriptions");
     const map =
         descriptions === undefined ? undefined : (cellOf(descriptions, f.row) as Record<string, string> | undefined);
-    if (map !== undefined && Object.prototype.hasOwnProperty.call(map, id) && !f.described.has(id)) {
+    if (map !== undefined && Object.hasOwn(map, id) && !f.described.has(id)) {
         f.described.add(id);
         out += ` "${escapeOboQuoted(counted(f.stats, map[id]))}"`;
     }

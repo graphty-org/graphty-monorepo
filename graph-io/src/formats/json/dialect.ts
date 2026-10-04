@@ -468,7 +468,7 @@ export const PARENT_COLUMN = "parent";
  * @category Plugin helpers
  */
 export function exponentIfUnsafe(text: string): string {
-    const match = /^(-?)([0-9]{16,})$/.exec(text);
+    const match = /^(-?)(\d{16,})$/.exec(text);
     if (match === null || Number.isSafeInteger(Number(text))) {
         return text;
     }

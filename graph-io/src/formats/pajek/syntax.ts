@@ -177,7 +177,7 @@ export function tokenize(line: string, notes?: TokenNotes): string[] | null {
         const c = line.charCodeAt(i);
         if (c === 34) {
             // a quote that opens inside a token, or closes with more of the token after it
-            const next = line.charCodeAt(i + 1);
+            const next = line.codePointAt(i + 1);
             const joined = quoted ? i + 1 < line.length && !isBlank(next) : started;
             if (joined && notes !== undefined) {
                 notes.oddQuote = true;
@@ -220,7 +220,7 @@ export function tokenize(line: string, notes?: TokenNotes): string[] | null {
  * @param c - the char code
  * @returns true for space, tab, CR, form feed or vertical tab
  */
-function isBlank(c: number): boolean {
+function isBlank(c: number | undefined): boolean {
     return c === 32 || c === 9 || c === 13 || c === 12 || c === 11;
 }
 
@@ -416,7 +416,7 @@ export function parseIntervals(token: string): [number, number][] {
 }
 
 // any length, so a reference beyond U+10FFFF is seen (and kept as written with a warning)
-const CHARACTER_REFERENCE = /&#(?:[xX]([0-9a-fA-F]+)|([0-9]+));/g;
+const CHARACTER_REFERENCE = /&#(?:[xX]([\da-fA-F]+)|(\d+));/g;
 
 /**
  * Decode the `&#dddd;` and `&#xhhhh;` character references of a label, as Pajek does; a reference
@@ -495,5 +495,5 @@ export function isParameterKey(text: string): boolean {
         return false;
     }
     // a number, or a non-finite spelling, at that place reads as a coordinate or the line value
-    return !/^[+-]?(\.[0-9]|[0-9])/.test(text) && !/^[+-]?(?:nan|inf|infinity)$/i.test(text);
+    return !/^[+-]?(\.\d|\d)/.test(text) && !/^[+-]?(?:nan|inf|infinity)$/i.test(text);
 }

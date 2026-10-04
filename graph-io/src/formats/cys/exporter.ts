@@ -294,7 +294,7 @@ interface Plan {
 // ============================================================ ids
 
 /** Positive integer text a Long holds exactly. */
-const SUID_TEXT = /^[1-9][0-9]*$/;
+const SUID_TEXT = /^[1-9]\d*$/;
 
 /**
  * The SUID a node id can keep, or null: a positive safe integer, or its canonical digits.
@@ -567,7 +567,7 @@ function javaSplit(text: string): string[] {
         return [text];
     }
     const items = text.split("\n");
-    while (items.length > 0 && items[items.length - 1].length === 0) {
+    while (items.at(-1) === "") {
         items.pop();
     }
     return items;
@@ -1066,11 +1066,11 @@ function positionNotes(position: Column, z: Column | null, note: NoteFn): void {
  * @category Plugin helpers
  */
 export function sessionEscape(text: string): string {
-    const wellFormed = text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "�");
+    const wellFormed = text.replaceAll(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "�");
     return encodeURIComponent(wellFormed)
-        .replace(/[!~'()]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
-        .replace(/%20/g, "+")
-        .replace(/-/g, "%2D");
+        .replaceAll(/[!~'()]/g, (c) => `%${(c.codePointAt(0) ?? 0).toString(16).toUpperCase()}`)
+        .replaceAll(/%20/g, "+")
+        .replaceAll(/-/g, "%2D");
 }
 
 /**

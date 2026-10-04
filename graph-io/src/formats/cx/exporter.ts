@@ -449,7 +449,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     const zColumn = [...snapshot.nodes].find(isZ) ?? null;
     const z = zColumn !== null && zFitsLayout(zColumn, position) ? zColumn : null;
     let nonfinite = position === null ? 0 : nonFiniteCells(position, (v) => [v[0], v[1]]);
-    const depth = position === null ? 0 : nonFiniteCells(position, (v) => (v[2] === 0 ? [] : [NaN]));
+    const depth = position === null ? 0 : nonFiniteCells(position, (v) => (v[2] === 0 ? [] : [Number.NaN]));
     const positionZ = position !== null && zColumn === null && (position.meta.extra.sourceDims === 3 || depth > 0);
     if (position !== null && positionZ) {
         nonfinite += nonFiniteCells(position, (v) => (Number.isFinite(v[0]) && Number.isFinite(v[1]) ? [v[2]] : []));

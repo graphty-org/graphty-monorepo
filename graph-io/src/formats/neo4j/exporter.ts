@@ -1459,7 +1459,7 @@ export interface Neo4jFile {
  */
 function fileName(kind: string, first: string | null, second: string | null): string {
     const parts = [kind, first ?? "", second ?? ""].filter((p) => p !== "");
-    return parts.join("-").replace(/[^\w.-]/g, "_");
+    return parts.join("-").replaceAll(/[^\w.-]/g, "_");
 }
 
 /**

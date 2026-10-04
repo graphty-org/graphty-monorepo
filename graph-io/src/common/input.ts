@@ -197,8 +197,8 @@ export function foreignKind(head: Uint8Array | string): string | null {
             return "a PNG image";
         }
     }
-    const text = typeof head === "string" ? head.slice(0, 64) : String.fromCharCode(...head.subarray(0, 64));
-    const utf8Bom = String.fromCharCode(0xef, 0xbb, 0xbf);
+    const text = typeof head === "string" ? head.slice(0, 64) : String.fromCodePoint(...head.subarray(0, 64));
+    const utf8Bom = String.fromCodePoint(0xef, 0xbb, 0xbf);
     let body = text.startsWith(utf8Bom) ? text.slice(3) : text;
     body = body.startsWith(BOM) ? body.slice(1) : body;
     if (body.startsWith("%PDF-")) {
@@ -766,7 +766,7 @@ export function decodeEntryName(bytes: Uint8Array, cp437 = false): string {
         }
         let out = "";
         for (const byte of bytes) {
-            out += String.fromCharCode(byte < 0x80 ? byte : CP437_HIGH[byte - 0x80]);
+            out += String.fromCodePoint(byte < 0x80 ? byte : CP437_HIGH[byte - 0x80]);
         }
         return out;
     }
@@ -801,7 +801,7 @@ const DECODE_SLICE = 256 * 1024;
 const BOM = String.fromCharCode(0xfeff);
 
 /** The DOS end-of-file marker, Ctrl-Z. */
-const SUB = String.fromCharCode(0x1a);
+const SUB = String.fromCodePoint(0x1a);
 
 /**
  * The longest string V8 makes (2^29 - 24 UTF-16 code units); longer text cannot be one string.
@@ -814,7 +814,7 @@ export const MAX_TEXT_LENGTH = 2 ** 29 - 24;
  * (also what windows-1252 bytes it leaves undefined decode to), and U+FEFF inside the text.
  */
 const CONTROL_CHARACTER = new RegExp(
-    `[${String.fromCharCode(0x00)}-${String.fromCharCode(0x08, 0x0b, 0x0e)}-${String.fromCharCode(0x1f, 0x7f)}-${String.fromCharCode(0x9f)}${BOM}]`,
+    `[${String.fromCodePoint(0x00)}-${String.fromCodePoint(0x08, 0x0b, 0x0e)}-${String.fromCodePoint(0x1f, 0x7f)}-${String.fromCodePoint(0x9f)}${BOM}]`,
 );
 
 /**
@@ -920,12 +920,12 @@ export function inputLength(input: ImportInput): number | null {
 function utf8Length(text: string): number {
     let bytes = 0;
     for (let i = 0; i < text.length; i++) {
-        const c = text.charCodeAt(i);
+        const c = text.charCodeAt(i); // NOSONAR(S7758): reads UTF-16 code units on purpose
         if (c < 0x80) {
             bytes++;
         } else if (c < 0x800) {
             bytes += 2;
-        } else if (c >= 0xd800 && c <= 0xdbff && (text.charCodeAt(i + 1) & 0xfc00) === 0xdc00) {
+        } else if (c >= 0xd800 && c <= 0xdbff && (text.charCodeAt(i + 1) & 0xfc00) === 0xdc00) { // NOSONAR(S7758): reads UTF-16 code units on purpose
             bytes += 4;
             i++;
         } else {
@@ -1061,7 +1061,7 @@ class TextFilter {
         }
         if (this.first) {
             let start = 0;
-            while (text.charCodeAt(start) === 0xfeff) {
+            while (text.codePointAt(start) === 0xfeff) {
                 start++;
             }
             if (start > 1 && !this.strayBom) {
@@ -1094,7 +1094,7 @@ class TextFilter {
             const match = CONTROL_CHARACTER.exec(text);
             if (match !== null) {
                 this.warned = true;
-                const code = match[0].charCodeAt(0).toString(16).toUpperCase().padStart(4, "0");
+                const code = (match[0].codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0");
                 const around = JSON.stringify(text.slice(Math.max(0, match.index - 20), match.index + 20));
                 this.report.warning(
                     "validation-error",
@@ -1171,7 +1171,7 @@ export async function* textChunks(
         while (start < input.length) {
             throwIfAborted(signal);
             let end = Math.min(start + DECODE_SLICE, input.length);
-            if (end < input.length && (input.charCodeAt(end - 1) & 0xfc00) === 0xd800) {
+            if (end < input.length && (input.charCodeAt(end - 1) & 0xfc00) === 0xd800) { // NOSONAR(S7758): reads UTF-16 code units on purpose
                 end++; // never split a surrogate pair
             }
             const piece = start === 0 && end === input.length ? input : input.slice(start, end);

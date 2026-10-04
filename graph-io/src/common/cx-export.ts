@@ -24,13 +24,13 @@ export type CxNoteFn = (code: string, message: string, column?: string | null, c
  * The prefix of a string that stands for a raw number literal in the output: -0 (which
  * JSON.stringify writes as 0) and an integer id beyond 2^53 (kept as its digits).
  */
-const RAW = `${String.fromCharCode(0)}cx:`;
+const RAW = `${String.fromCodePoint(0)}cx:`;
 
 /** A raw literal as JSON.stringify writes it, to be unquoted. */
-const RAW_JSON = /"\\u0000cx:(-?[0-9]+)"/g;
+const RAW_JSON = /"\\u0000cx:(-?\d+)"/g;
 
 /** An integer literal beyond 2^53 as text: a CX id graph-io keeps as its digits. */
-const BIG_INTEGER_TEXT = /^-?[1-9][0-9]{15,}$/;
+const BIG_INTEGER_TEXT = /^-?[1-9]\d{15,}$/;
 
 /**
  * The node ids as written: the original, a renumbered one, or a raw big integer.
@@ -286,7 +286,7 @@ export function planEdgeIds(snapshot: GraphSnapshot, note: CxNoteFn): number[] {
     if (column !== null) {
         for (let e = 0; e < snapshot.edgeCount; e++) {
             const value = column.isSet(e) ? column.value(e) : undefined;
-            let n = NaN;
+            let n = Number.NaN;
             if (typeof value === "number") {
                 n = value;
             } else if (typeof value === "string") {
@@ -403,7 +403,7 @@ export function noteList(): { notes: LossNote[]; note: CxNoteFn } {
  */
 export function stringify(value: unknown): string {
     const text = JSON.stringify(value, (_key, v: unknown) => (Object.is(v, -0) ? `${RAW}-0` : v));
-    return text.includes("\\u0000cx:") ? text.replace(RAW_JSON, "$1") : text;
+    return text.includes("\\u0000cx:") ? text.replaceAll(RAW_JSON, "$1") : text;
 }
 
 /**

@@ -59,7 +59,7 @@ export function summarize(data) {
         for (const c of rollup?.contexts.nodes ?? []) {
             // A run not yet started (no startedAt) is a queued one, so it counts as the newest.
             const at = c.startedAt ?? "9999";
-            if (c.name && !(started[c.name] > at)) {
+            if (c.name && (started[c.name] === undefined || started[c.name] <= at)) {
                 checks[c.name] = c.conclusion ?? c.status;
                 started[c.name] = at;
             }

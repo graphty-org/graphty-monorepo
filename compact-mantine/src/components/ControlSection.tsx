@@ -86,6 +86,16 @@ export interface ControlSectionProps extends DisclosureProps {
      * never as a replacement for them.
      */
     actions?: React.ReactNode;
+    /**
+     * What the section holds, in one short line, shown only while the section is collapsed:
+     * `"les miserables . 77 nodes"`, `"12 attributes"`.
+     *
+     * It is drawn after the name in the secondary ink, cut with an ellipsis before the name is,
+     * and it becomes the expand button's accessible description, so a reader moving through
+     * closed sections hears what each holds without opening it. An open section shows its rows
+     * instead, so the summary is hidden there. Keep it to text.
+     */
+    summary?: React.ReactNode;
     /** The rows the section holds: the controls commonly adjusted for its subject. */
     children?: React.ReactNode;
     /**
@@ -144,6 +154,7 @@ export interface ControlSectionProps extends DisclosureProps {
  * @param props.onAdd - Sets the section up, from the "+" an empty section carries
  * @param props.info - An explanation, put behind a circled "i" and used as the section's accessible description
  * @param props.actions - The section's own buttons, drawn at the end of the header
+ * @param props.summary - One line saying what the section holds, shown after the name while it is collapsed
  * @param props.children - The rows the section holds
  * @param props.collapsible - Whether the section folds away behind a chevron, defaulting to true
  * @returns The section, its header and its rows
@@ -159,6 +170,13 @@ export interface ControlSectionProps extends DisclosureProps {
  *         <PanelField label="Smallest node size" glyph="sizeSmallest" value="1.0" />
  *         <PanelField label="Largest node size" glyph="sizeLargest" value="4.0" />
  *     </FieldRow>
+ * </ControlSection>
+ * ```
+ * @example
+ * A section that says what it holds while it is closed.
+ * ```tsx
+ * <ControlSection label="Sources" defaultOpened={false} summary={`${name} . ${nodeCount} nodes`}>
+ *     <SourceRows />
  * </ControlSection>
  * ```
  * @example
@@ -180,6 +198,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
         onAdd,
         info,
         actions,
+        summary,
         children,
         collapsible = true,
     } = props;
@@ -189,6 +208,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     const nameId = useId();
     const contentId = useId();
     const infoId = useId();
+    const summaryId = useId();
 
     // Controlled and uncontrolled, the way every state-holding component in
     // this package works. The uncontrolled default is open.
@@ -206,6 +226,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     const hasInfo = info !== undefined && info !== null;
     const toggles = hasContent && collapsible;
     const shown = hasContent && (!collapsible || isOpen);
+    const summaryShown = toggles && !isOpen && summary !== undefined && summary !== null && summary !== "";
 
     // The defect this revision exists to remove: a chevron that reveals
     // nothing. A section with no rows is either empty -- and says so by dimming
@@ -289,6 +310,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
                         aria-label={toggleName}
                         aria-expanded={isOpen}
                         aria-controls={contentId}
+                        aria-describedby={summaryShown ? summaryId : undefined}
                         onClick={handleToggle}
                     >
                         {/* The 16px slot in the gutter at x 0..16. A closed
@@ -297,6 +319,16 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
                             <Caret open={isOpen} rtl={isRtl(direction)} />
                         </Box>
                         {name}
+                        {summaryShown && (
+                            <Box
+                                component="span"
+                                id={summaryId}
+                                data-testid="control-section-summary"
+                                className="cm-section-summary"
+                            >
+                                {summary}
+                            </Box>
+                        )}
                     </UnstyledButton>
                 ) : (
                     // An empty section's title adds, as Figma's does. The

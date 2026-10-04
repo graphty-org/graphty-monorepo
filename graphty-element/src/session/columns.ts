@@ -9,13 +9,16 @@ import type { ColumnRef } from "./shared";
 
 /**
  * The attribute a column reference names, matched on its kind and its literal name.
- * @param attributes - What `session.data.attributes()` lists now.
+ * @param attributes - What `session.data.attributes()` lists now, or any columns with a kind and a name.
  * @param ref - The column.
  * @returns The attribute's descriptor.
  * @throws A `GraphtyError` coded `E_UNKNOWN_ATTRIBUTE`, with `details.kind`, `details.name` and
  *     the nearest names of that kind in `details.candidates`, when no such column exists.
  */
-export function resolveColumn(attributes: readonly AttributeDescriptor[], ref: ColumnRef): AttributeDescriptor {
+export function resolveColumn<T extends Pick<AttributeDescriptor, "kind" | "name"> = AttributeDescriptor>(
+    attributes: readonly T[],
+    ref: ColumnRef,
+): T {
     const found = attributes.find((attribute) => attribute.kind === ref.kind && attribute.name === ref.name);
     if (found !== undefined) {
         return found;

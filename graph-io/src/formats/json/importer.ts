@@ -66,7 +66,7 @@ import {
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { readText, textChunks, throwIfAborted } from "../../common/input.js";
-import { MAYBE_UNSAFE_INTEGER, reviveNonstandard, rewriteNumbers } from "../../common/json-elements.js";
+import { flipY, MAYBE_UNSAFE_INTEGER, reviveNonstandard, rewriteNumbers } from "../../common/json-elements.js";
 import {
     chooseGraph,
     type ImportFormatDefaults,
@@ -2669,7 +2669,8 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
             if (position !== undefined && position !== null) {
                 if (isJsonObject(position) && typeof position.x === "number" && typeof position.y === "number") {
                     point[0] = position.x;
-                    point[1] = position.y;
+                    // Cytoscape's y grows downward; positions are stored y-up (the exporter flips back)
+                    point[1] = flipY(position.y);
                     ctx.nodes.set(positionColumn, index, point);
                 } else {
                     report.error(

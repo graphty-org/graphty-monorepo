@@ -288,14 +288,15 @@ export class FormatRegistry {
             }
         } catch (err) {
             await chosen.peeked?.close();
-            const index = builders.length - 1;
-            if (err instanceof ImportError && index > 0) {
-                // the report is the failing graph's own: say which graph it is
-                throw new ImportError(`graph ${index}: ${err.message}`, err.report, { ...err.details, graphIndex: index });
-            }
-            throw err;
+            throw inGraph(err, builders.length - 1);
         }
-        return reports.map((report, i) => result(chosen, builders[i], report, options));
+        return reports.map((report, i) => {
+            try {
+                return result(chosen, builders[i], report, options);
+            } catch (err) {
+                throw inGraph(err, i);
+            }
+        });
     }
 
     /**
@@ -544,6 +545,21 @@ function seededBuilder(options: ImportGraphOptions, format: string): GraphBuilde
         format,
         maxEmptyCells,
     );
+}
+
+/**
+ * Name the graph an importAllGraphs() failure belongs to: the report is that graph's own, so the
+ * message is prefixed with its index and `details.graphIndex` set, for every graph including the
+ * first. Anything other than an ImportError raised while a graph was being read passes unchanged.
+ * @param err - the error thrown while reading or freezing a graph
+ * @param index - the index of that graph, -1 before the first graph began
+ * @returns the error to throw
+ */
+function inGraph(err: unknown, index: number): unknown {
+    if (!(err instanceof ImportError) || index < 0) {
+        return err;
+    }
+    return new ImportError(`graph ${index}: ${err.message}`, err.report, { ...err.details, graphIndex: index });
 }
 
 /**

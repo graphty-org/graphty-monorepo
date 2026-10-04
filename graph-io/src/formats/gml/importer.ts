@@ -44,6 +44,7 @@ import {
     NO_GRAPH_CODE as SHARED_NO_GRAPH_CODE,
     PRECISION_CODE as SHARED_PRECISION_CODE,
     ROLE_TAKEN_CODE as SHARED_ROLE_TAKEN_CODE,
+    STRAY_BOM_CODE,
     WIDENED_CODE as SHARED_WIDENED_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver } from "../../common/direction.js";
@@ -1865,7 +1866,16 @@ export const gmlImporter: GraphImporter<GmlImportOptions> = Object.freeze({
  */
 function tokenize(text: string, report: ImportReportBuilder): GmlTokens {
     try {
-        return tokenizeGml(text);
+        const tokens = tokenizeGml(text);
+        if (tokens.strayBomLine > 0) {
+            report.warnOnce(
+                "coercion",
+                STRAY_BOM_CODE,
+                "a byte order mark (U+FEFF) inside the text, as concatenated files leave, is read as whitespace",
+                { line: tokens.strayBomLine },
+            );
+        }
+        return tokens;
     } catch (err) {
         if (err instanceof GmlSyntaxError) {
             report.fail(err.code, err.message, { line: err.line });

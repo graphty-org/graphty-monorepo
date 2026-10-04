@@ -62,12 +62,14 @@ function isIdentifierStart(c: number): boolean {
 const BOM_CODE = 0xfeff;
 
 /**
- * Whether a UTF-16 code unit may continue a bare DOT identifier.
+ * Whether a UTF-16 code unit may continue a bare DOT identifier. A U+FEFF inside an identifier
+ * run stays part of it, as Graphviz keeps its bytes (in its `\200-\377` range); only a U+FEFF
+ * between tokens is skipped as a stray BOM.
  * @param c - the code unit
  * @returns true for an identifier character
  */
 function isIdentifierPart(c: number): boolean {
-    return isIdentifierStart(c) || isDigit(c);
+    return isIdentifierStart(c) || isDigit(c) || c === BOM_CODE;
 }
 
 /**

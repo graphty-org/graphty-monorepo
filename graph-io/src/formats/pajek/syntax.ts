@@ -116,8 +116,6 @@ const TIME_POINT =
 
 /** What tokenize() noticed in a line beyond its tokens, for the importer to report. */
 export interface TokenNotes {
-    /** A bare token started with `%`: the rest of the line was a comment and is not in the tokens. */
-    comment: boolean;
     /** A double quote in the middle of a token (`ab"c d"e`, a CSV-style doubled `""`): removed, the parts joined. */
     oddQuote: boolean;
 }
@@ -127,8 +125,8 @@ export interface TokenNotes {
  * into one token and removed from it (the shlex rule NetworkX applies; Pajek has no escapes, so a
  * quote never appears inside a token). An empty quoted string `""` is one empty token. A token
  * that starts with `[` runs to the next `]` whatever whitespace it holds (when no other `[` comes
- * first), so a time set written `[ 1, 3 ]` is one token. A bare token starting with `%` ends the
- * line: a comment after the data.
+ * first), so a time set written `[ 1, 3 ]` is one token. A `%` mid-line is data (`2 %b` is a
+ * label): Pajek's comments are whole lines, which the caller skips before tokenizing.
  * @param line - the line without its terminator
  * @param notes - when given, set to what the line held beyond its tokens
  * @returns the tokens, or null when a quote is not closed before the end of the line
@@ -150,12 +148,6 @@ export function tokenize(line: string, notes?: TokenNotes): string[] | null {
             quoted = !quoted;
             started = true;
             continue;
-        }
-        if (!quoted && !started && c === 37) {
-            if (notes !== undefined) {
-                notes.comment = true;
-            }
-            break;
         }
         if (!quoted && !started && c === 91) {
             const close = line.indexOf("]", i);

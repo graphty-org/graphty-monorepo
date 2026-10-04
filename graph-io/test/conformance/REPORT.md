@@ -17,7 +17,7 @@ the expectation today; the reference points into
 | cys | 53 | 53 | 0 | 0 | 0 |
 | dot | 196 | 189 | 7 | 171 | 2 |
 | gexf | 110 | 104 | 6 | 101 | 1 |
-| gml | 109 | 99 | 10 | 89 | 4 |
+| gml | 109 | 100 | 9 | 90 | 4 |
 | graphml | 148 | 143 | 5 | 129 | 5 |
 | json | 427 | 397 | 30 | 79 | 0 |
 | neo4j | 45 | 25 | 20 | 24 | 0 |
@@ -289,10 +289,6 @@ No known failures.
 - `netzschleuder/karate-77.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
 - `netzschleuder/lesmis.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
 - `authored/underscore-keys.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
-
-### multi-line strings are a fatal syntax error (sources.md 4.4) (1)
-
-- `authored/multiline-string.gml`: failed: E_SYNTAX: unclosed string at line 2
 
 ### no nesting depth guard (sources.md 4.4) (1)
 

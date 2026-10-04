@@ -1187,8 +1187,7 @@
           "first line\nsecond line",
           "crlf\ninside"
         ]
-      },
-      "knownFailure": "multi-line strings are a fatal syntax error (sources.md 4.4)"
+      }
     },
     {
       "file": "authored/html-named-entities.gml",

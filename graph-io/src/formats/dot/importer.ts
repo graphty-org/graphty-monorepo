@@ -473,11 +473,13 @@ function countGraphs(lexer: DotTokenizer, first: DotToken): number {
 }
 
 /**
- * A `charset` attribute assignment (Graphviz's declaration of the input encoding), or a comment or
- * a quoted string, which are consumed whole so the word inside them is never taken for one.
+ * A `charset` graph attribute assignment (Graphviz's declaration of the input encoding, read only
+ * as a graph attribute), or something consumed whole so a `charset` inside it is never taken for
+ * one: a comment, a quoted string, or an attribute list other than `graph [...]` (a node, edge or
+ * default list; the `graph [` opener alone is consumed, so the list's own assignments are read).
  */
 const DOT_CHARSET =
-    /\/\/[^\r\n]*|\/\*[\s\S]*?(?:\*\/|$)|(?:^|[\r\n])[ \t]*#[^\r\n]*|"(?:[^"\\]|\\[\s\S])*(?:"|$)|\bcharset\s*=\s*"?([A-Za-z][A-Za-z0-9._-]*)/gi;
+    /\/\/[^\r\n]*|\/\*[\s\S]*?(?:\*\/|$)|(?:^|[\r\n])[ \t]*#[^\r\n]*|"(?:[^"\\]|\\[\s\S])*(?:"|$)|\bgraph\s*\[|\[(?:[^\]"]|"(?:[^"\\]|\\[\s\S])*(?:"|$))*(?:\]|$)|\bcharset\s*=\s*"?([A-Za-z][A-Za-z0-9._-]*)/gi;
 
 /**
  * The encoding a DOT file declares with the graph attribute `charset` (Graphviz reads UTF-8,

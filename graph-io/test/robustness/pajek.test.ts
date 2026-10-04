@@ -4,8 +4,10 @@
  * code). Cases already pinned elsewhere (test/formats/pajek, test/audit) are not repeated.
  */
 
+import { GraphBuilder, GraphFormatError, type NodeId } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { pajekImporter } from "../../src/formats/pajek/index.js";
 import { importAllGraphs, importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/index.js";
 import {
     codes,
@@ -69,11 +71,20 @@ describe("Pajek robustness: truncation", () => {
 });
 
 describe("Pajek robustness: counts", () => {
-    it("refuses a vertex count above what the builder's id map can hold with E_PAJEK_VERTICES_COUNT (no RangeError)", async () => {
-        const err = await rejects(pajek("*Vertices 20000000\n"));
+    it("turns a sink that cannot hold the declared vertices (E_TOO_LARGE) into E_PAJEK_VERTICES_COUNT at the header", async () => {
+        // a sink with room for two nodes, as the builder refuses ids past its id map limit
+        class SmallSink extends GraphBuilder {
+            override addNode(id: NodeId): number {
+                if (this.nodeCount === 2) {
+                    throw new GraphFormatError("E_TOO_LARGE", "no room", {});
+                }
+                return super.addNode(id);
+            }
+        }
+        const err = await rejects(pajekImporter.import("*Vertices 3\n*Edges\n", new SmallSink({ directed: true })));
         expect(fatalCode(err)).toBe("E_PAJEK_VERTICES_COUNT");
-        expect(err.message).toBe("*Vertices 20000000: more vertices than the builder can hold (16777215)");
-        expect(err.report.counts.nodes).toBe(0);
+        expect(err.message).toBe("*Vertices 3: the sink cannot hold that many (no room)");
+        expect(issue(err.report, "E_PAJEK_VERTICES_COUNT").line).toBe(1);
     });
 
     it("reports vertices without a line even when other lines were out of range", async () => {
@@ -111,12 +122,25 @@ describe("Pajek robustness: lines", () => {
         }
     });
 
-    it("warns about a % comment after the data and reads the line without it", async () => {
+    it("reads a % in the middle of a line as data (Pajek comments are whole lines), so a %-label is kept", async () => {
+        const { snapshot, report } = await pajek("*Vertices 2\n1 a\n2 %b\n*Edges\n1 2\n");
+        expect(codes(report)).toEqual([]);
+        expect(column(snapshot, "nodes", "label")).toEqual(["a", "%b"]);
+    });
+
+    it("refuses a trailing % note that does not fit the line's columns, naming the token", async () => {
         const { snapshot, report } = await pajek("*Vertices 2\n*Edges\n1 2 % trailing note\n");
-        expect(codes(report)).toEqual(["W_PAJEK_INLINE_COMMENT"]);
-        expect(issue(report, "W_PAJEK_INLINE_COMMENT").line).toBe(3);
+        expect(codes(report)).toEqual(["E_PAJEK_LINE"]);
+        expect(issue(report, "E_PAJEK_LINE").message).toBe('parameter "note" has no value');
+        expect(snapshot.edgeCount).toBe(0);
+    });
+
+    it("removes a byte order mark that starts a later line (concatenated files) with W_STRAY_BOM", async () => {
+        const { snapshot, report } = await pajek(`*Vertices 2\n1 a\n${String.fromCharCode(0xfeff)}2 b\n*Edges\n1 2\n`);
+        expect(codes(report)).toEqual(["W_STRAY_BOM"]);
+        expect(issue(report, "W_STRAY_BOM").line).toBe(3);
+        expect(column(snapshot, "nodes", "label")).toEqual(["a", "b"]);
         expect(edgePairs(snapshot)).toEqual(["1-2"]);
-        expect(snapshot.edges.names()).toEqual([]);
     });
 
     it("warns about a CSV-style doubled quote and a quote inside a bare token", async () => {

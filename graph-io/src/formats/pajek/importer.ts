@@ -37,6 +37,7 @@ import {
     MULTIPLE_GRAPHS_CODE,
     OPTION_IGNORED_CODE,
     PRECISION_CODE,
+    STRAY_BOM_CODE,
     SYNTAX_CODE,
     UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
@@ -160,8 +161,8 @@ export const PAJEK_ISSUE = Object.freeze({
     OPTION_IGNORED: OPTION_IGNORED_CODE,
     /** A builder-policy option the caller passed that the caller's sink does not use (the shared W_SINK_OPTION). */
     SINK_OPTION: SINK_OPTION_CODE,
-    /** A `%` comment after the data of a line; the comment is not read. */
-    INLINE_COMMENT: "W_PAJEK_INLINE_COMMENT",
+    /** A U+FEFF at the start of a later line (concatenated files); removed. */
+    STRAY_BOM: STRAY_BOM_CODE,
     /** A double quote inside a token (a CSV-style doubled quote, a quote mid-word): removed and the parts joined. */
     QUOTE_IN_TOKEN: "W_PAJEK_QUOTE_IN_TOKEN",
     /** The same parameter twice on one line; the later value stands. */
@@ -203,13 +204,6 @@ const DEFAULTS: ImportFormatDefaults = { ids: "canonical", defaultDirected: true
 const ABORT_CHECK_INTERVAL = 64;
 
 const FIRST_VERTEX_VALUES: ReadonlySet<unknown> = new Set([0, 1, "auto"]);
-
-/**
- * The most vertices a `*Vertices N` may declare: the builder keeps its ids in one Map, which V8
- * caps at 2^24 entries (a RangeError, not an issue, beyond it).
- */
-// ponytail: the cap is graph-format's Map limit; lift it when the builder's id map shards
-const MAX_VERTICES = 2 ** 24 - 1;
 
 /** A numeral that is not a finite number (`1e999`, `NaN`, `Infinity`): never a parameter key. */
 const NON_FINITE_NUMERAL = /^[+-]?(?:(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|nan|inf|infinity)$/i;
@@ -360,6 +354,8 @@ class PajekParser {
 
     /** `*Vertices N`; -1 before the header. */
     private vertexCount = -1;
+    /** The line of the `*Vertices` header. */
+    private verticesLine = 0;
 
     /** The first-mode count of a two-mode network, or null. */
     private firstMode: number | null = null;
@@ -729,14 +725,8 @@ class PajekParser {
                 },
             );
         }
-        if (h.count > MAX_VERTICES) {
-            this.report.fail(
-                PAJEK_ISSUE.VERTICES_COUNT,
-                `*Vertices ${h.count}: more vertices than the builder can hold (${MAX_VERTICES})`,
-                { line },
-            );
-        }
         this.vertexCount = h.count;
+        this.verticesLine = line;
         if (h.secondCount !== null) {
             this.firstMode = h.secondCount;
         }
@@ -839,11 +829,32 @@ class PajekParser {
         }
         this.nodesCreated = true;
         const n = this.vertexCount;
-        const { sink } = this;
         for (let pos = 0; pos < n; pos++) {
-            this.indexOfPos[pos] = sink.addNode(this.idOfNumber(pos + this.base));
+            this.indexOfPos[pos] = this.addNode(this.idOfNumber(pos + this.base));
         }
         this.report.counts.nodes += n;
+    }
+
+    /**
+     * Add a vertex to the sink. A sink that cannot hold the declared vertex set (the builder's
+     * E_TOO_LARGE id map limit) makes the file unreadable, so its refusal is fatal; any other
+     * error passes to the caller.
+     * @param id - the vertex id
+     * @returns the node index
+     */
+    private addNode(id: NodeId): number {
+        try {
+            return this.sink.addNode(id);
+        } catch (err) {
+            if (!(err instanceof GraphFormatError) || err.code !== "E_TOO_LARGE") {
+                throw err;
+            }
+            return this.report.fail(
+                PAJEK_ISSUE.VERTICES_COUNT,
+                `*Vertices ${this.vertexCount}: the sink cannot hold that many (${err.message})`,
+                { line: this.verticesLine },
+            );
+        }
     }
 
     /**
@@ -1162,7 +1173,7 @@ class PajekParser {
     private numberedNode(ids: NodeId[], pos: number): void {
         const id = this.idOfNumber(pos + this.base);
         ids[pos] = id;
-        this.indexOfPos[pos] = this.sink.addNode(id);
+        this.indexOfPos[pos] = this.addNode(id);
         this.report.counts.nodes++;
     }
 
@@ -1208,7 +1219,7 @@ class PajekParser {
     ): number {
         const id = text === null ? this.idOfNumber(k) : this.coercer.text(text);
         const before = this.sink.indexOf(id);
-        const index = this.sink.addNode(id);
+        const index = this.addNode(id);
         ids[pos] = id;
         this.indexOfPos[pos] = index;
         this.report.counts.nodes++;
@@ -1504,16 +1515,8 @@ class PajekParser {
      * @returns the tokens (at least one: blank lines never reach here)
      */
     private tokens(text: string, domain: "node" | "edge", line: number): string[] {
-        const notes: TokenNotes = { comment: false, oddQuote: false };
+        const notes: TokenNotes = { oddQuote: false };
         const tokens = tokenize(text, notes);
-        if (notes.comment) {
-            this.report.warnOnce(
-                "unsupported",
-                PAJEK_ISSUE.INLINE_COMMENT,
-                "a % comment after the data of a line is not read (Pajek comments are whole lines)",
-                { line },
-            );
-        }
         if (notes.oddQuote) {
             this.report.warnOnce(
                 "coercion",
@@ -1544,6 +1547,7 @@ class PajekParser {
      */
     private extras(tokens: readonly string[], start: number, domain: "node" | "edge", line: number): RowExtras {
         const extras: RowExtras = { keys: [], values: [], spells: null };
+        const seen = new Set<string>();
         for (let i = start; i < tokens.length;) {
             const token = tokens[i];
             if (token.startsWith("[") && !isIntervalToken(token)) {
@@ -1574,7 +1578,7 @@ class PajekParser {
                     `parameter "${token}" has no value`,
                 );
             }
-            if (extras.keys.includes(token)) {
+            if (seen.has(token)) {
                 this.report.warning(
                     "merged",
                     PAJEK_ISSUE.DUPLICATE_ATTRIBUTE,
@@ -1582,6 +1586,7 @@ class PajekParser {
                     { line, element: token },
                 );
             }
+            seen.add(token);
             extras.keys.push(token);
             extras.values.push(tokens[i + 1]);
             i += 2;
@@ -1723,7 +1728,8 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         let rest: NetworkCounter | null = null;
         let restLine = 0;
         let sinceCheck = 0;
-        for await (const text of reader) {
+        for await (const raw of reader) {
+            const text = withoutStrayBom(raw, reader.line, report);
             if (rest !== null) {
                 rest.line(text);
             } else if (parser.line(text, reader.line)) {
@@ -1777,7 +1783,8 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         // decoding issues belong to the file, so they go to the first network's report
         const reader = new LineReader(input, reports[0], resolved);
         let sinceCheck = 0;
-        for await (const text of reader) {
+        for await (const raw of reader) {
+            const text = withoutStrayBom(raw, reader.line, reports[0]);
             if (parser.line(text, reader.line)) {
                 parser.finish();
                 reports.push(new ImportReportBuilder("pajek", resolved.errorLimit));
@@ -1794,6 +1801,27 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         return reports.map((r) => r.finish());
     },
 });
+
+/**
+ * A line without the U+FEFF that starts it: a BOM left at the start of a later line by
+ * concatenated files (the decoder removes only the first), recorded once as W_STRAY_BOM.
+ * @param text - the line
+ * @param line - the line number
+ * @param report - where the warning goes (the file's first report)
+ * @returns the line without a leading U+FEFF
+ */
+function withoutStrayBom(text: string, line: number, report: ImportReportBuilder): string {
+    if (text.charCodeAt(0) !== 0xfeff) {
+        return text;
+    }
+    report.warnOnce(
+        "coercion",
+        PAJEK_ISSUE.STRAY_BOM,
+        "a byte order mark (U+FEFF) at the start of a line, as concatenated files leave, is removed",
+        { line },
+    );
+    return text.slice(1);
+}
 
 /**
  * Counts the networks of the rest of a project file by their headers alone, with the parser's

@@ -276,7 +276,11 @@ describe("gmlImporter: malformed corpus", () => {
         const unclosedString = await importError(
             new TextDecoder().decode(readMalformedBytes("gml", "unclosed-string.gml")),
         );
-        expect(unclosedString.report.issues[0].line).toBe(4);
+        // the quote missing at line 4 pairs the strings up wrongly until line 8, which the message names
+        expect(unclosedString.report.issues[0].line).toBe(8);
+        expect(unclosedString.message).toBe(
+            "unclosed string opened at line 8; the string opened at line 4 spans lines, so a quote may be missing there",
+        );
         const unclosedBracket = await importError(
             new TextDecoder().decode(readMalformedBytes("gml", "unclosed-bracket.gml")),
         );

@@ -14,6 +14,7 @@ import {
     MIXED_DIRECTION_CODE,
     OPTION_IGNORED_CODE,
     SINK_OPTION_CODE,
+    STRAY_BOM_CODE,
     SYNTAX_CODE,
     UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
@@ -72,6 +73,8 @@ export const GML_ISSUE = Object.freeze({
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
+    /** A U+FEFF between tokens (concatenated files), read as whitespace. */
+    STRAY_BOM: STRAY_BOM_CODE,
     /** No `graph [` block (fatal). */
     NO_GRAPH: NO_GRAPH_CODE,
     /** More than one `graph` block (fatal). */

@@ -91,7 +91,7 @@ describe("GML robustness: truncation", () => {
     it("refuses input cut inside a character reference as an unclosed string, never decoding the partial reference", async () => {
         const err = await rejects(gml('graph [ node [ id 1 label "a&#23'));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe("unclosed string at line 1");
+        expect(err.message).toBe("unclosed string opened at line 1");
         expect(err.report.counts.nodes).toBe(0);
     });
 
@@ -167,10 +167,25 @@ describe("GML robustness: encodings", () => {
 });
 
 describe("GML robustness: lexical errors", () => {
+    it("reads a byte order mark between tokens (concatenated files) as whitespace with W_STRAY_BOM", async () => {
+        const { snapshot, report } = await gml(`graph [ node [ id 1 ]\n${String.fromCharCode(0xfeff)}node [ id 2 ] ]`);
+        expect(codes(report)).toEqual(["W_STRAY_BOM"]);
+        expect(issue(report, "W_STRAY_BOM").line).toBe(2);
+        expect(ids(snapshot)).toEqual([1, 2]);
+    });
+
+    it("names the line a missing quote most likely is at when a string never closes", async () => {
+        const err = await rejects(gml('graph [\nnode [ id 1 label "a ]\nnode [ id 2 label "b" ]\n]'));
+        expect(fatalCode(err)).toBe("E_SYNTAX");
+        expect(err.message).toBe(
+            "unclosed string opened at line 3; the string opened at line 2 spans lines, so a quote may be missing there",
+        );
+    });
+
     it("refuses a C-style escaped quote at the line it is on", async () => {
         const err = await rejects(gml('graph [\nnode [ id 1 label "a\\"b" ]\nnode [ id 2 ]\n]'));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe("unclosed string at line 2");
+        expect(err.message).toBe("unclosed string opened at line 2");
         expect(issue(err.report, "E_SYNTAX").line).toBe(2);
     });
 

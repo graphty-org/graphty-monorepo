@@ -171,6 +171,21 @@ describe("DOT robustness: encodings", () => {
         expect(column(label.snapshot, "nodes", "label")).toEqual(["charset=big5", undefined]);
     });
 
+    it("reads charset only as a graph attribute, never from a node or edge attribute list", async () => {
+        const accented = `caf${E_ACUTE}`;
+        for (const text of [
+            `digraph { node [charset=latin1]; a [label="${accented}"] }`,
+            `digraph { a -> b [charset=latin1]; a [label="${accented}"] }`,
+        ]) {
+            const { snapshot, report } = await dot(utf8(text));
+            expect(codes(report)).toEqual([]);
+            expect(column(snapshot, "nodes", "label")[0]).toBe(accented);
+        }
+        const graph = await dot(latin1(`digraph { graph [rankdir=LR, charset=latin1]; "${accented}" }`));
+        expect(codes(graph.report)).toEqual([]);
+        expect(ids(graph.snapshot)).toEqual([accented]);
+    });
+
     it("warns about a charset this platform cannot decode and reads UTF-8", async () => {
         const { snapshot, report } = await dot(utf8('digraph { charset="klingon"; a }'));
         expect(codes(report)).toEqual(["W_UNKNOWN_ENCODING"]);
@@ -209,14 +224,21 @@ describe("DOT robustness: encodings", () => {
         expect(err.message).toContain('pass the encoding option "utf-16le"');
     });
 
-    it("reads a byte order mark inside the text as whitespace with W_STRAY_BOM, never as part of an id", async () => {
+    it("reads a byte order mark between tokens as whitespace with W_STRAY_BOM", async () => {
         const stream = await dot(chunks("digraph { a -> b ", `${BOM}c -> d }`));
         expect(codes(stream.report)).toEqual(["W_STRAY_BOM"]);
         expect(ids(stream.snapshot)).toEqual(["a", "b", "c", "d"]);
-        const inline = await dot(`digraph { a${BOM} -> b; a }`);
+        const inline = await dot(`digraph { a ${BOM}-> b; a }`);
         expect(codes(inline.report)).toEqual(["W_STRAY_BOM"]);
         expect(ids(inline.snapshot)).toEqual(["a", "b"]);
         expect(edgePairs(inline.snapshot)).toEqual(["a-b"]);
+    });
+
+    it("keeps a byte order mark inside a bare id as part of it, as Graphviz does, never splitting the node", async () => {
+        const { snapshot, report } = await dot(`digraph { a${BOM}b -> c }`);
+        expect(codes(report)).toEqual([]);
+        expect(ids(snapshot)).toEqual([`a${BOM}b`, "c"]);
+        expect(edgePairs(snapshot)).toEqual([`a${BOM}b-c`]);
     });
 });
 
@@ -301,6 +323,18 @@ describe("DOT robustness: policies and several graphs", () => {
         expect(err.message).toMatch(/^graph 1: error limit of 100 exceeded/);
         expect(err.details.graphIndex).toBe(1);
         expect(err.details.code).toBe("E_INVALID_WEIGHT");
+    });
+
+    it("says which graph a freeze-time policy error belongs to in importAllGraphs, the first graph included", async () => {
+        const later = await rejects(
+            importAllGraphs("digraph { a -> b } digraph { c -> c }", { format: "dot", selfLoops: "error" }),
+        );
+        expect(later.message).toBe("graph 1: edge 0 is a self-loop at node 0");
+        expect(later.details.graphIndex).toBe(1);
+        expect(fatalCode(later)).toBe("E_SELF_LOOP");
+        const first = await rejects(importAllGraphs("digraph { c -> c }", { format: "dot", selfLoops: "error" }));
+        expect(first.message).toBe("graph 0: edge 0 is a self-loop at node 0");
+        expect(first.details.graphIndex).toBe(0);
     });
 
     it("says which graph has the syntax error in importAllGraphs", async () => {

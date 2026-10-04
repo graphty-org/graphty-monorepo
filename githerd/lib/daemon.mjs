@@ -2417,7 +2417,7 @@ export async function startDaemon({
     if (containerRestarted) {
         ledger({ kind: "event", event: "container-restart", from: previous.alive.pid1Start, to: pid1Start });
     }
-    for (const job of voided) ledger({ kind: "holder-voided", job, reason: "container restarted" });
+    voided.forEach((job) => ledger({ kind: "holder-voided", job, reason: "container restarted" }));
     const aliveTimer = setInterval(() => {
         if (!fenced) beat();
     }, aliveMs);
@@ -2590,7 +2590,7 @@ export async function startDaemon({
         watch,
         drainHooks,
         shutdown,
-        rpc: (message, context = { session: "local" }) => serverFor(context).handle(message, context),
+        rpc: (message, context) => serverFor(context).handle(message, context ?? { session: "local" }),
         flushNotifications: () => notifier.flush(),
         runner,
     };

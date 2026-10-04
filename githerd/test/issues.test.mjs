@@ -18,7 +18,7 @@ const NEXT = (cursor) =>
 describe("applyIssues", () => {
     it("records issues and drops pull requests", () => {
         const r = applyIssues(empty(), [
-            issue(643, "2026-10-01T04:09:29Z"),
+            issue(643, "2026-10-01T04:09:29Z", { title: "Crash in layout", body: "x".repeat(3000) }),
             issue(627, "2026-10-01T05:00:00Z", { pull_request: {} }),
         ]);
         expect(Object.keys(r.byNumber)).toEqual(["643"]);
@@ -33,6 +33,8 @@ describe("applyIssues", () => {
             lastRefreshedAt: null,
             proposal: null,
             closeVetoed: false,
+            // the title and the body's first 2000 characters, for ranking a refresh pass
+            text: `Crash in layout\n${"x".repeat(2000)}`,
         });
         // a pull request still advances the mark
         expect(r.since).toBe("2026-10-01T05:00:00Z");

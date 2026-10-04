@@ -3,7 +3,7 @@
  *
  * When the default branch's head moves, one GraphQL search lists the pull requests merged since
  * the last scan with their merge commit, the issues they close and their first 100 changed paths.
- * The paths accumulate in `state.merged.pendingPaths` until the daily refresh ranks open issues by
+ * The paths accumulate in `state.merged.pendingPaths` until a refresh pass ranks open issues by
  * how many of those paths, or their leading directories, the issue text mentions. Issues a merged
  * pull request closes are left out: GitHub closes them.
  */
@@ -63,17 +63,21 @@ export async function searchMerged(gitHub, repo, since) {
 /**
  * Adds merged pull requests to `state.merged`. A pull request already recorded for a path is not
  * added twice, so a rescan of the same window changes nothing. `lastScanAt` only moves forward.
- * @param {{lastScanAt?: string | null, pendingPaths?: Record<string, number[]>, closed?: number[]}} saved
- *   `state.merged`
+ * @param {{lastScanAt?: string | null, pendingPaths?: Record<string, number[]>, closed?: number[],
+ *   count?: number}} saved `state.merged`
  * @param {MergedPr[]} prs from `parseMerged`
- * @returns {{lastScanAt: string | null, pendingPaths: Record<string, number[]>, closed: number[]}}
- *   the new record; `closed` holds the issues the merged pull requests close
+ * @returns {{lastScanAt: string | null, pendingPaths: Record<string, number[]>, closed: number[],
+ *   count: number}} the new record; `closed` holds the issues the merged pull requests close, and
+ *   `count` every merge seen, which the triage passes count (jobs.mjs)
  */
 export function accumulateMerged(saved, prs) {
     const pendingPaths = { ...saved.pendingPaths };
     const closed = new Set(saved.closed ?? []);
     let lastScanAt = saved.lastScanAt ?? null;
+    let count = saved.count ?? 0;
     for (const pr of prs) {
+        // A rescan of the same window sees a merge at the scan time again; only a later one counts.
+        if (!saved.lastScanAt || pr.mergedAt > saved.lastScanAt) count += 1;
         if (!lastScanAt || pr.mergedAt > lastScanAt) lastScanAt = pr.mergedAt;
         for (const n of pr.closes) closed.add(n);
         for (const path of pr.paths) {
@@ -81,7 +85,7 @@ export function accumulateMerged(saved, prs) {
             if (!list.includes(pr.number)) pendingPaths[path] = [...list, pr.number];
         }
     }
-    return { lastScanAt, pendingPaths, closed: [...closed].sort((a, b) => a - b) };
+    return { lastScanAt, pendingPaths, closed: [...closed].sort((a, b) => a - b), count };
 }
 
 /**

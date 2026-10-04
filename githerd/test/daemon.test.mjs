@@ -1163,6 +1163,25 @@ describe("the poll loop", () => {
     });
 });
 
+describe("jobs from the facts", () => {
+    it("makes a pr job for the owner's failing pull request, none for another author's, none while the login is unresolved", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass"] });
+        const stranger = { ...gatedPr(), number: 8, headRefName: "fix/y", headRefOid: C, author: { login: "x" } };
+        scene.prs = [gatedPr(), stranger];
+        scene.login = null;
+        const daemon = await start();
+        await poll(daemon);
+        expect(daemon.state.jobs ?? {}).toEqual({});
+        scene.login = "owner";
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect(Object.keys(daemon.state.jobs)).toEqual(["pr-7"]);
+        expect(daemon.state.jobs["pr-7"]).toMatchObject({ state: "queued", pr: 7, branch: "fix/x" });
+        const created = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "job-created");
+        expect(created.map((e) => e.job)).toEqual(["pr-7"]);
+    });
+});
+
 describe("failure classes on master", () => {
     const RENTED = "machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand";
     const BALANCE = "Machine: Insufficient balance to run job. Current balance: $-2.0800. Minimum required: $0.05.";

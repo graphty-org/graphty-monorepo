@@ -71,6 +71,7 @@ import { effectiveMode, MODELS } from "./config.mjs";
 import { createGitHub, GitHubError } from "./github.mjs";
 import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
+import { syncJobs } from "./jobs.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, targetCode } from "./launcher.mjs";
 import { doneIo, pollVerifying } from "./done.mjs";
@@ -84,7 +85,7 @@ import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, rai
 import { activePolicies, ownerCommand, resumeAnswered } from "./owner.mjs";
 import { containerStart, identify } from "./proc.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
-import { updatePrs, whyStuck } from "./prs.mjs";
+import { patchId, updatePrs, whyStuck } from "./prs.mjs";
 import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
 import { NEXT, SKIP } from "./queue.mjs";
 import {
@@ -1016,6 +1017,7 @@ export async function startDaemon({
                 const key = failureKey(workflow, job.name, job.step);
                 const rec = (keys[key] ??= { seen: 0 });
                 rec.seen++;
+                rec.lane = name;
                 if (settled(rec)) continue;
                 const out = await actions.codeRed({
                     key,
@@ -1339,7 +1341,46 @@ export async function startDaemon({
         for (const key of board.resolveDerived(state, (esc) => holding.has(esc.key), t)) {
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
         }
+        // No owner, no jobs: every job acts only on the owner's issues and pull requests.
+        if (state.trust.login) await jobsFromFacts(branch, t);
         return null;
+    }
+
+    /**
+     * Turns this poll's facts into job records (jobs.mjs): first links each job to the pull request
+     * on the branch it pushed, and reads the patch id of each new head of a pull request a job made,
+     * which a review job is keyed on.
+     * @param {string} branch the default branch
+     * @param {Date} t the poll's time
+     */
+    async function jobsFromFacts(branch, t) {
+        for (const job of Object.values(state.jobs ?? {})) {
+            if (job.pr || !job.branch) continue;
+            const hit = Object.entries(state.prs ?? {}).find(([, p]) => p.headRef === job.branch);
+            if (hit) job.pr = Number(hit[0]);
+        }
+        for (const job of Object.values(state.jobs ?? {})) {
+            const rec = job.pr && job.kind !== "pr" && job.kind !== "review" ? state.prs?.[String(job.pr)] : null;
+            if (!rec || rec.patchFor === rec.headSha) continue;
+            const fetched = await runGit(["fetch", "-q", "--no-tags", "origin", `refs/pull/${job.pr}/head`]);
+            try {
+                if (fetched.code !== 0) throw new Error(fetched.stderr.trim() || `git fetch exited ${fetched.code}`);
+                rec.patchId = patchId(root, `origin/${branch}`, rec.headSha);
+                rec.patchFor = rec.headSha;
+            } catch (err) {
+                void ledger({
+                    kind: "error",
+                    where: "patch-id",
+                    pr: job.pr,
+                    error: /** @type {Error} */ (err).message,
+                });
+            }
+        }
+        const synced = syncJobs(state, { config, now: t });
+        for (const id of synced.created) {
+            void ledger({ kind: "job-created", job: id, reason: state.jobs[id].reason, target: state.jobs[id].target });
+        }
+        for (const c of synced.cancelled) void ledger({ kind: "job-cancelled", ...c });
     }
 
     /**

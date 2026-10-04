@@ -545,6 +545,8 @@ async function startTask(ctx, job, busy) {
             prepared: job.worktree ?? null,
             ledger: ctx.ledger,
         });
+        // Recorded even when the job left meanwhile, so tidyEndedJobs or its next preparation owns it.
+        if (prep.verdict === "ready") Object.assign(job, { worktree: prep.dir, base: prep.sha });
         if (!wanted(job)) return;
         if (prep.verdict === "held") {
             const names = prep.holders.map((h) => h.dir).join(", ");
@@ -556,8 +558,6 @@ async function startTask(ctx, job, busy) {
             void ctx.ledger({ kind: "job-faulted", ...result, reason: prep.reason });
             return;
         }
-        job.worktree = prep.dir;
-        job.base = prep.sha;
     }
     const jobDir = join(stateDir, "jobs", job.id);
     writeJobFiles(jobDir, {

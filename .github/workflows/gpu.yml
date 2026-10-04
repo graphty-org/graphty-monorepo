@@ -28,7 +28,8 @@
 name: GPU
 on:
     push: { branches: [master] }
-    pull_request: { types: [labeled, synchronize] }
+    # A draft runs nothing (the job's condition): agents push drafts often and each run is a paid T4.
+    pull_request: { types: [labeled, synchronize, ready_for_review] }
     workflow_dispatch:
         inputs:
             # which machine serves the T4 job. The default is a machine.dev on-demand T4 (the Machine Provisioner app
@@ -62,6 +63,7 @@ jobs:
         if: >-
             (github.event_name != 'pull_request' ||
              (github.event.pull_request.head.repo.full_name == github.repository &&
+              !github.event.pull_request.draft &&
               contains(github.event.pull_request.labels.*.name, 'gpu')))
         runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand' }} # a dispatch may pick the hosted gpu-linux-t4 (see the input); every other event: machine.dev on-demand
         # The whole job runs in a container because the HOST cannot be moved off Ubuntu 22.04 and `webgpu` 0.6.x

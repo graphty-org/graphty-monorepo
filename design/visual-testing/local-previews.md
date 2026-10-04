@@ -86,14 +86,14 @@ The font files are committed to **this repository**, not shipped in the publishe
 `@graphty/visual-review` npm package. The package stays generic; each repository brings its own
 fonts and points the tool at them through its config:
 
-- A root directory `visual-fonts/` holds the font files, their license texts, and `fonts.conf`.
-  The font files are Git LFS objects, like the baselines (`.gitattributes`:
-  `visual-fonts/**/*.ttf filter=lfs diff=lfs merge=lfs -text`, and the same for `.otf`).
-- `fonts.conf` lists the directory with `<dir prefix="relative">.</dir>`, so it works from any
-  checkout path; a `<cachedir prefix="xdg">` entry, with capture setting `XDG_CACHE_HOME` to a
-  temporary directory, keeps the host's font cache out. Alias rules decide which committed font
-  answers each family (`sans-serif`, `serif`, `monospace`, `emoji`, `system-ui`, `Roboto`,
-  `Helvetica`, `Arial`, `Verdana` and every other family the stories name).
+- A root directory `visual-fonts/` holds `fonts/` (the font files), `conf.d/` (fontconfig's rule
+  files), `licenses/` (each Debian package's copyright file) and `fonts.conf`. Everything under
+  `visual-fonts/fonts/` is a Git LFS object, like the baselines.
+- `fonts.conf` lists `<dir prefix="relative">fonts</dir>` and
+  `<include prefix="relative">conf.d</include>`, so it works from any checkout path, and a
+  `<cachedir prefix="xdg">` that capture points at a temporary `XDG_CACHE_HOME` given to the
+  browsers only (Playwright itself finds Chromium under `XDG_CACHE_HOME`, so it cannot be set for
+  the whole process). The family aliases are the runner's own rule files, not hand-written ones.
 - `visual-review.config.json` gains one setting, `"fontconfig": "visual-fonts/fonts.conf"`.
   Without it capture behaves as today (host fonts), so other repositories using the package are
   unaffected.
@@ -102,17 +102,30 @@ fonts and points the tool at them through its config:
 - Capture records the SHA-256 of the font directory in `environment.fonts` (`design.md` section 6
   item 10), and `hasEmojiFont` asks the pinned configuration.
 
-**Which fonts.** To avoid a re-baseline, the committed set is a snapshot of exactly the files CI
-resolves today, with alias rules reproducing CI's current family resolution (measured in step 1 of
-section 10). Then CI's bytes do not change and the existing baselines stay valid. If that set
-cannot be reproduced exactly, the fallback is the set `design.md` names (Inter, DejaVu Sans and
-Mono, Noto Color Emoji) and one planned re-baseline.
+**Which fonts.** To avoid a re-baseline, the committed set is a snapshot of every font file the
+runner's fontconfig lists and of its `/etc/fonts/conf.d` (minus `50-user.conf` and
+`51-local.conf`, which read the user's and the host's own settings), taken by a throwaway workflow
+on 2026-10-04 (runner image `ubuntu24` 20260927.320.1, fontconfig 2.15.0). That is 88 files,
+117 MB, from the Debian packages fonts-dejavu (core, extra, mono), fonts-liberation,
+fonts-noto-color-emoji, fonts-freefont-ttf, fonts-ipafont-gothic, fonts-lato,
+fonts-tlwg-loma-otf, fonts-unifont, fonts-wqy-zenhei and xfonts-scalable; most arrive with
+`playwright install --with-deps`. The runner resolves `sans-serif`, `system-ui`, `Roboto`,
+`Segoe UI`, `Verdana` and `Inter` to DejaVu Sans, `Arial` and `Helvetica` to Liberation Sans,
+`monospace` to DejaVu Sans Mono, `emoji` to Noto Color Emoji, CJK to WenQuanYi Zen Hei and Thai to
+Loma; the pinned set resolves every family the same way. Several of these fonts are GPL with the
+font exception (FreeFont, WenQuanYi, Unifont, Loma), the rest OFL or similar; all allow
+redistribution with their license texts. Trimming the set (the CJK and Unifont files are 49 MB of
+it) is a later two-way door: re-run the experiment below on the smaller set first.
+
+Chromium bundles its own fontconfig (it is not in `ldd`'s list) and reads `FONTCONFIG_FILE`, so
+the host's fontconfig version does not matter either.
 
 **CI change.** The visual job fetches only its own project's baselines from LFS today
 (`git lfs pull --include "visual-baselines/<project>/**"` in `.github/workflows/ci.yml`). That
 include gains `visual-fonts/**`; so do the merge queue's capture and the `visual-seed.yml`
 workflow, and the package's `templates/visual-review.yml` fetches whatever directory the config's
-`fontconfig` setting is in. The fonts are a few MB, cached with the LFS objects.
+`fontconfig` setting is in. The fonts are 117 MB, cached with the LFS objects: the cache key
+hashes the font pointers too, so a run with the fonts already cached downloads nothing.
 
 ## 4. The verification experiment
 
@@ -150,6 +163,40 @@ section 6.
 **Watch item.** `graphty-element/src/session/cost/calibrate.ts` and `AiControl.stories.ts` read
 `navigator.hardwareConcurrency` (32 locally, 4 on CI). If a story differs because of it, capture's
 init script pins it to 4, next to the `navigator.gpu` deletion.
+
+### Results (2026-10-04)
+
+Commit M is master at 22f878576 (CI run 37224508194, whose captures all equal their baselines).
+Local captures on the i9-14900KF, compared by `capture` hash with M's CI captures:
+
+| Arm                                               | compact-mantine | graphty-element | graphty | algorithms | layout |
+| ------------------------------------------------- | --------------- | --------------- | ------- | ---------- | ------ |
+| A0: host fonts, CI's Storybook                    | 1012/1012       | 0/198           | 178/178 | 27/27      | 17/17  |
+| A3: pinned, CI's Storybook                        | 1012/1012       | 198/198         | 178/178 | 27/27      | 17/17  |
+| A3: pinned, CI's Storybook, `taskset -c 0-3`, 4 w | 1012/1012       | 198/198         | 178/178 | 27/27      | 17/17  |
+| A3: pinned, Storybook built locally at M          | 1012/1012       | 198/198         | 178/178 | 27/27      | 17/17  |
+
+With host fonts every graphty-element capture differs: 179 visibly, 168 of them only in the
+23 x 29 box at the top right where the toolbar's clipboard emoji is drawn (an empty box locally),
+the rest in stories that draw emoji or non-Latin labels, other fonts in panels, or the same emoji
+box shifted; 19 more below the threshold. With the pinned fonts all 1,432 items are byte-identical, unpinned and on four
+cores, with CI's Storybook build and with one built locally (also with the Nx cache skipped for
+graphty-element and compact-mantine). Arms A1 and A2 were not needed: nothing differs to isolate.
+`navigator.hardwareConcurrency` (32 here, 4 on CI) changed no capture, so it is not pinned.
+
+A3c: a throwaway draft pull request (#1008, closed) captured in CI with `FONTCONFIG_FILE` set to
+the pinned set, on an AMD EPYC 7763 runner. Its merge tree's base was master at ed7820208, and
+master's own CI run of ed7820208 (37232345467; host fonts; EPYC 7763, Xeon 6973P-C and Xeon
+Platinum 8573C runners) captured the same tree. All 1,462 items are byte-identical between the
+two, so pinning changes no CI byte and no baseline needs re-approving. In both runs the same 20
+items (10 graphty dark-mode stories, 7 graphty-element layout and label stories, 3 layout
+stories) differ from their baselines below the threshold (`unchanged`, 0 changed pixels): they
+come from master's code changes between M and ed7820208, not from fonts.
+
+Local capture times with pinned fonts (config workers): compact-mantine 96 to 100 s,
+graphty-element 109 to 115 s, graphty 41 to 45 s, algorithms 29 s, layout 10 s; about 4.8 minutes
+for all five. Building graphty-element's and compact-mantine's Storybooks without the Nx cache
+took 44 s.
 
 A short re-check list (about 20 captures, run with `--stories` after a Playwright bump or a font
 change): graphty-element `data--cytoscape-session`, `styles-label--emoji-labels`,
@@ -460,8 +507,8 @@ font updates. No new CI jobs; the only CI edit is the LFS include in section 3.
 
 **One-way doors**
 
-- Font binaries in this repository's Git LFS history (a few MB: whatever step 1 finds, likely
-  DejaVu, Liberation and Noto Color Emoji, with their licenses). Decided by the owner on
+- Font binaries in this repository's Git LFS history (117 MB: the runner's 88 font
+  files, section 3, with their licenses). Decided by the owner on
   2026-10-04: in this repository, not in the published package.
 - The changed README rule (section 6). Decided by the owner on 2026-10-04.
 

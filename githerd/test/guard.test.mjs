@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -347,6 +347,26 @@ const ALLOWED = [
     "find . -name '*.ts' -exec grep -l push {} +",
     "timeout 30 git commit -S -m 'fix: y'",
 ];
+
+describe("guard: started through the installed copy", () => {
+    it("still refuses when its directory is reached through a symlink, as current/ is", () => {
+        const link = join(base, "current");
+        symlinkSync(dirname(dirname(GUARD)), link);
+        const r = spawnSync(process.execPath, [join(link, "bin", "githerd-guard.mjs"), job.jobDir], {
+            input: JSON.stringify({
+                cwd: job.root,
+                hook_event_name: "PreToolUse",
+                tool_name: "Bash",
+                tool_input: { command: "gh pr merge 5" },
+            }),
+            env: { PATH: process.env.PATH, HOME: process.env.HOME },
+            encoding: "utf8",
+            timeout: 20000,
+        });
+        expect(r.status, r.stderr).toBe(2);
+        expect(r.stderr).toMatch(/Mergify merges/);
+    });
+});
 
 describe("guard: Bash refusals of design 10.1", () => {
     it.each(REFUSED)("refuses %j and names what to do", (command, says) => {

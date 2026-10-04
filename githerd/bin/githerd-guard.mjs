@@ -23,7 +23,7 @@
  * It makes no network call and never needs the daemon to answer.
  */
 
-import { appendFileSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -976,4 +976,7 @@ function main() {
     }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) process.exit(main());
+// Compared by real path: the hook runs it as `<state>/current/bin/githerd-guard.mjs`, and `current`
+// is a symlink, so `argv[1]` names the link while `import.meta.url` names the file. Compared as
+// given, the guard never ran and every call was allowed.
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main());

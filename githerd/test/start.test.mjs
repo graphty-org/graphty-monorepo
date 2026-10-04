@@ -171,7 +171,10 @@ describe("fillSlots", () => {
             change();
             return (await fillSlots(ctx)).blocked;
         };
+        // The daemon already ran the self-test on this version (and it failed): it is not run again.
+        state.selftestRun = { version: "2.1.290", passed: false };
         expect(await blocked({ selftest: () => null })).toMatch(/self-test has not passed/);
+        state.selftestRun = { version: "2.1.291", passed: false };
         expect(await blocked({ claudeVersion: async () => "2.1.291" })).toBe(
             "the self-test ran on Claude Code 2.1.290, not 2.1.291",
         );
@@ -182,6 +185,52 @@ describe("fillSlots", () => {
         state.ownerItems = { x: { id: "x", blocks: "workers" } };
         expect(await blocked({})).toBe("owner item x blocks every worker start");
         expect(state.jobs["issue-7"].state).toBe("queued");
+    });
+
+    it("runs the self-test itself before the first start and after a version change, once per version", async () => {
+        const state = stateWith({ kind: "issue", target: "#7", id: "issue-7" });
+        /** @type {any} the record selftest.json holds */
+        let record = null;
+        /** @type {any[]} */
+        const runs = [];
+        let version = "2.1.290";
+        let pass = true;
+        const ctx = ctxOf(state, {
+            platform: platform(state, {
+                claudeVersion: async () => version,
+                selftest: () => record,
+                runSelftest: async (/** @type {any} */ o) => {
+                    runs.push(o);
+                    record = { passed: pass, claudeVersion: version, at: clock.toISOString(), checks: [] };
+                    return record;
+                },
+            }),
+        });
+        // A fresh install: no selftest.json. The daemon runs it, and starts nothing meanwhile.
+        expect((await fillSlots(ctx)).blocked).toBe("the platform self-test is running on Claude Code 2.1.290");
+        expect(runs).toHaveLength(1);
+        expect(runs[0]).toMatchObject({ root: dir, repo: "o/r", model: "claude-opus-5-5" });
+        expect(runs[0].env.PATH).toBe("/usr/bin:/bin");
+        await new Promise((r) => setImmediate(r));
+        expect((await fillSlots(ctx)).admitted).toEqual(["issue-7"]);
+        await settle(ctx);
+        // Claude Code updates itself, and the new version fails the self-test: one run, one page.
+        version = "2.1.291";
+        pass = false;
+        state.jobs["issue-8"] = newJob({ kind: "issue", target: "#8", id: "issue-8" }, T0);
+        await fillSlots(ctx);
+        await new Promise((r) => setImmediate(r));
+        expect((await fillSlots(ctx)).blocked).toMatch(/self-test has not passed/);
+        expect((await fillSlots(ctx)).blocked).toMatch(/self-test has not passed/);
+        expect(runs).toHaveLength(2);
+        expect(state.selftestRun).toMatchObject({ version: "2.1.291", passed: false });
+        expect(state.ownerItems["selftest-failed"]).toMatchObject({ kind: "system change", blocks: null });
+        expect(lines.filter((l) => l.kind === "selftest").map((l) => l.passed)).toEqual([true, false]);
+        // The owner's own run passes: the item ends and starts resume.
+        record = { passed: true, claudeVersion: "2.1.291", at: clock.toISOString() };
+        expect((await fillSlots(ctx)).admitted).toEqual(["issue-8"]);
+        expect(state.ownerItems["selftest-failed"].endedBy).toBe("cleared");
+        await settle(ctx);
     });
 
     it("keeps 3 routine slots and 1 urgent, and over the machine limits starts only one urgent", async () => {

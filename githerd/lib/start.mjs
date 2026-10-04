@@ -22,9 +22,9 @@ import { join } from "node:path";
 import * as board from "./board.mjs";
 import { LAUNCH_PROMPT } from "./hook.mjs";
 import { startFailed } from "./advance.mjs";
-import { endItem } from "./notify.mjs";
+import { endItem, raiseItem } from "./notify.mjs";
 import { jobOrder } from "./queue.mjs";
-import { resumeVerified } from "./selftest.mjs";
+import { resumeVerified, runSelftest } from "./selftest.mjs";
 import { startWorker } from "./tmux.mjs";
 import { codeEnv, loginPath, readSigningEnv, workerArgv, workerEnv, writeJobFiles } from "./worker-settings.mjs";
 import { prepareJobWorktree, run, signingProbe } from "./worktrees.mjs";
@@ -47,6 +47,8 @@ const FAULT_RETRY_MS = 30 * 60_000;
  * @typedef {object} Platform what a start touches outside the state; tests replace it
  * @property {() => Promise<string>} claudeVersion the installed Claude Code version
  * @property {() => any} selftest the last self-test record (`selftest.json`), or null
+ * @property {(o: Parameters<typeof runSelftest>[0]) => Promise<{passed: boolean}>} runSelftest runs
+ *   the platform self-test, which writes `selftest.json`
  * @property {() => Promise<boolean>} resumeVerified the self-test verified resume on this version
  * @property {() => {load: number, cores: number, memory: number}} machine load, cores and the share
  *   of memory available
@@ -102,6 +104,7 @@ export function realPlatform({ env, stateDir }) {
             return value;
         },
         selftest: () => readJson(join(stateDir, "selftest.json")),
+        runSelftest: (o) => runSelftest(o),
         resumeVerified: () => resumeVerified(stateDir),
         machine: () => ({ load: loadavg()[0], cores: availableParallelism(), memory: memoryShare() }),
         loginPath: login,
@@ -221,7 +224,13 @@ function blocker(ctx, version) {
         state.startsStopped = null;
         endItem(state, "worker-start-failed", "cleared", now());
     }
+    if (test?.passed) endItem(state, "selftest-failed", "cleared", now());
     if (state.startsStopped) return { reason: state.startsStopped.reason, canary: false };
+    // Before the first start and after a Claude Code version change the daemon runs the self-test
+    // itself, once per version (design 11.4): the owner is paged only when it fails.
+    if (version && test?.claudeVersion !== version) selftestOnce(ctx, version);
+    if (selftests.has(state))
+        return { reason: `the platform self-test is running on Claude Code ${version}`, canary: false };
     if (!test?.passed) return { reason: "the platform self-test has not passed (githerd selftest)", canary: false };
     if (!version) return { reason: "claude --version did not answer", canary: false };
     if (test.claudeVersion !== version) {
@@ -235,6 +244,53 @@ function blocker(ctx, version) {
         return { reason: null, canary: true };
     }
     return { reason: null, canary: false };
+}
+
+/** The self-test the daemon runs, by state: at most one at a time. */
+const selftests = new WeakMap();
+
+/**
+ * Runs the platform self-test in the background, unless one runs or one already ran on this Claude
+ * Code version. A failure stops starts (no pass on this version) and pages once.
+ * @param {StartContext} ctx the context
+ * @param {string} version the installed Claude Code version
+ */
+function selftestOnce(ctx, version) {
+    const { state, config, now } = ctx;
+    if (selftests.has(state) || state.selftestRun?.version === version) return;
+    void ctx.ledger({ kind: "selftest-started", version });
+    const run = ctx.platform
+        .runSelftest({
+            root: ctx.root,
+            stateDir: ctx.stateDir,
+            repo: config.repo,
+            model: config.workers?.model ?? "claude-opus-5-5",
+            env: { ...ctx.env, PATH: ctx.platform.loginPath() },
+        })
+        .catch((err) => ({ passed: false, error: /** @type {Error} */ (err).message }))
+        .then((/** @type {any} */ r) => {
+            state.selftestRun = { version, at: now().toISOString(), passed: Boolean(r.passed) };
+            const failed = (r.checks ?? [])
+                .filter((/** @type {any} */ c) => !c.ok && c.required)
+                .map((/** @type {any} */ c) => c.name);
+            const why = r.error ?? ([...failed, ...(r.leftovers ?? [])].join("; ") || "see selftest.json");
+            void ctx.ledger({ kind: "selftest", version, passed: Boolean(r.passed), ...(r.passed ? {} : { why }) });
+            if (r.passed) return;
+            raiseItem(
+                state,
+                {
+                    id: "selftest-failed",
+                    kind: "system change",
+                    question: `The platform self-test failed on Claude Code ${version}: ${why}. githerd starts no worker until a self-test passes (githerd selftest); a new Claude Code version runs it again by itself.`,
+                },
+                now(),
+            );
+        })
+        .finally(() => {
+            selftests.delete(state);
+            void ctx.save();
+        });
+    selftests.set(state, run);
 }
 
 /**

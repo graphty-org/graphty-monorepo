@@ -241,7 +241,7 @@ describe("importGraph (design 8.4)", () => {
         expect(merged.snapshot.edgeList().weights?.[0]).toBe(3);
         expect(merged.freeze.mergedEdges).toBe(1);
         expect(merged.freeze.droppedSelfLoops).toBe(1);
-        expect(merged.report.issues).toEqual([]);
+        expect(merged.report.issues.map((i) => i.code)).toEqual(["W_EDGES_MERGED"]);
         const strict = await importGraph("source,target\na,ghost\n", {
             format: "csv",
             addMissingNodes: false,

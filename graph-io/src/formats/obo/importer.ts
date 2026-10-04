@@ -111,8 +111,6 @@ export const OBO_ISSUE = Object.freeze({
     NOT_OBO: "E_OBO_NOT_OBO",
     /** The header has no format-version (required by 1.2 and 1.4), or one that is not 1.0, 1.2 or 1.4; the file is read as the union. */
     FORMAT_VERSION: "W_OBO_FORMAT_VERSION",
-    /** Edges of different relations between one pair of terms were merged by the duplicateEdges policy; one relation is lost. */
-    RELATION_MERGED: "W_OBO_RELATION_MERGED",
     /** The frame's `id` is not its first clause; it is used anyway. */
     ID_NOT_FIRST: "W_OBO_ID_NOT_FIRST",
     /** A synonym without a scope in a file that does not say 1.2, or with a scope that is not one of the four. */
@@ -537,7 +535,13 @@ class OboReader {
                     : "text after a frame header was ignored";
             this.tally("parse-error", OBO_ISSUE.SYNTAX, what, `[${name}]`, line);
         }
-        this.startFrame(name, line);
+        // a known frame name, or a clean header with a name: anything else (`[`, `[{"id": 1}]`, a JSON
+        // array) is read as a damaged header but is no proof the input is OBO
+        const proof = FRAME_KINDS.has(name) || (clean && /^[A-Za-z]/.test(name) && isTagName(name));
+        if (!proof) {
+            this.firstBadLine ??= line;
+        }
+        this.startFrame(name, line, proof);
         return true;
     }
 
@@ -545,10 +549,11 @@ class OboReader {
      * Start a frame, finishing the one before.
      * @param name - the frame type
      * @param line - the header's line
+     * @param proof - whether the header shows the input is OBO
      */
-    private startFrame(name: string, line: number): void {
+    private startFrame(name: string, line: number, proof: boolean): void {
         this.finishFrame();
-        this.frameSeen = true;
+        this.frameSeen ||= proof;
         const kind = FRAME_KINDS.has(name) ? (name as FrameKind) : null;
         if (kind === null) {
             this.tally(
@@ -1892,25 +1897,8 @@ function writeEdges(plan: GraphPlan, push: Pusher, options: ReturnType<typeof re
     const qualifiers = plan.edges.some((e) => e.edge.qualifiers !== null)
         ? declareResolved(sink, "edge", oboColumnDecl("edge", "qualifiers"), report).handle
         : null;
-    // a merging duplicateEdges policy folds is_a and part_of between one pair into one edge
-    const policy = sink.options.duplicateEdges;
-    const relationOf = policy === "keep" || policy === "error" ? null : new Map<string, string>();
     for (const { source, edge } of plan.edges) {
         push.tick();
-        if (relationOf !== null) {
-            const pair = `${source}\u0000${edge.target}`;
-            const first = relationOf.get(pair);
-            if (first === undefined) {
-                relationOf.set(pair, edge.relation);
-            } else if (first !== edge.relation) {
-                report.warning(
-                    "merged",
-                    OBO_ISSUE.RELATION_MERGED,
-                    `${source} -> ${edge.target}: edges of relations ${first} and ${edge.relation} are merged into one by duplicateEdges ${JSON.stringify(policy)}, which keeps one relation`,
-                    { line: edge.line, element: source },
-                );
-            }
-        }
         const before = sink.edgeCount;
         try {
             const e = direction.addEdge(push.id(source), push.id(edge.target), "directed", undefined, {

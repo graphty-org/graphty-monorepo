@@ -718,7 +718,6 @@ function readEdges(
     const { report, sink } = ctx;
     const propertyEdges: unknown[] = [];
     const dangling: string[] = [];
-    const seen = new Set<string>();
     let dropped = 0;
     const endpoint = (raw: string, element: string): NodeId | null => {
         const id = ctx.coerceId(vocabulary.id(raw), element);
@@ -748,12 +747,6 @@ function readEdges(
             ctx.missingEndpoint(element, typeof sub === "string" && sub.length > 0 ? "obj" : "sub");
             continue;
         }
-        // an identical assertion counts once, as the .obo importer counts an identical clause (spec 4.1.1)
-        const key = JSON.stringify([sub, pred, obj, record.meta ?? null]);
-        if (seen.has(key)) {
-            continue;
-        }
-        seen.add(key);
         // only an edge between two properties is property metadata; one that touches a class stays
         const between =
             (vocabulary.isProperty(sub) && vocabulary.isProperty(obj)) ||

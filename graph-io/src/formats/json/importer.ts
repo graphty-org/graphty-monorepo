@@ -41,10 +41,11 @@ import {
     type NodeId,
 } from "@graphty/graph-format";
 
-import { RENAMED_CODE, ROLE_TAKEN_CODE, uniqueColumnName } from "../../common/attributes.js";
+import { uniqueColumnName } from "../../common/attributes.js";
 import {
     AMBIGUOUS_GRAPH_NAME_CODE,
     BAD_VALUE_CODE,
+    COLUMN_RENAMED_CODE,
     DANGLING_REFERENCE_CODE,
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
@@ -59,6 +60,7 @@ import {
     MISSING_ID_CODE,
     MULTIPLE_GRAPHS_CODE,
     OPTION_IGNORED_CODE,
+    ROLE_TAKEN_CODE,
     SYNTAX_CODE,
     TOO_LARGE_CODE,
     UNKNOWN_ELEMENT_CODE,
@@ -245,7 +247,7 @@ export const JSON_ISSUE = Object.freeze({
     /** OBO Graphs: a single-valued OBO tag given twice in basicPropertyValues; the first is kept, as the .obo importer keeps it. */
     DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
     /** OBO Graphs: a vocabulary column renamed `<name>#<name>` because the sink already holds the name. */
-    COLUMN_RENAMED: RENAMED_CODE,
+    COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /** OBO Graphs: a vocabulary column declared without its role because the sink already holds it. */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
 });

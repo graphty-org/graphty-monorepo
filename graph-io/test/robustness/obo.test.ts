@@ -10,6 +10,7 @@ import { gzipSync } from "node:zlib";
 import { GraphBuilder, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { DUPLICATE_EDGE_CODE, EDGES_MERGED_CODE, SELF_LOOP_CODE } from "../../src/common/codes.js";
 import { OBO_ISSUE, oboImporter, type OboImportOptions } from "../../src/formats/obo/importer.js";
 import { importGraph } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../src/types.js";
@@ -186,6 +187,16 @@ describe("robustness: input that is not OBO", () => {
         const err = await fails(
             "<!DOCTYPE html>\n<html><head><title>404 Not Found</title></head>\n<body>Not Found</body></html>\n",
         );
+        expect(codes(err.report)).toEqual([OBO_ISSUE.NOT_OBO]);
+        expect(err.report.issues[0].line).toBe(1);
+    });
+
+    it.each([
+        ["a JSON array", '[\n {"id": 1, "label": "a"},\n {"id": 2}\n]'],
+        ["a lone bracket", "["],
+        ["a one-line JSON array", '[{"id": 1}]'],
+    ])("rejects %s: a damaged header with no frame name is no proof of OBO (wrong-format-json-array)", async (_name, text) => {
+        const err = await fails(text);
         expect(codes(err.report)).toEqual([OBO_ISSUE.NOT_OBO]);
         expect(err.report.issues[0].line).toBe(1);
     });
@@ -514,16 +525,20 @@ describe("robustness: the graph the frames make", () => {
         expect(report.issues[0].message).toContain("a Typedef");
     });
 
-    it.each(["first", "last", "sum"] as const)(
-        "warns when duplicateEdges %s merges edges of different relations (duplicate-edges-policy-merges-relations)",
-        async (policy) => {
+    it.each([
+        ["the builder", (policy: "first" | "last" | "sum") => ({ duplicateEdges: policy })],
+        ["a per-freeze override", (policy: "first" | "last" | "sum") => ({ freeze: { duplicateEdges: policy } })],
+    ])(
+        "warns when a duplicateEdges policy on %s merges edges of different relations (duplicate-edges-policy-merges-relations)",
+        async (_where, given) => {
             const text = `${HEAD}[Term]\nid: X:1\nis_a: X:2\nrelationship: part_of X:2\n\n[Term]\nid: X:2\n\n[Typedef]\nid: part_of\n`;
-            const { snapshot, report } = await importGraph(text, { format: "obo", duplicateEdges: policy });
-            expect(snapshot.edgeCount).toBe(1);
-            expect(codes(report)).toEqual([OBO_ISSUE.RELATION_MERGED]);
-            expect(report.issues[0].message).toContain("is_a");
-            expect(report.issues[0].message).toContain("part_of");
-            expect(report.issues[0].line).toBe(7);
+            for (const policy of ["first", "last", "sum"] as const) {
+                const { snapshot, report, freeze } = await importGraph(text, { format: "obo", ...given(policy) });
+                expect(snapshot.edgeCount).toBe(1);
+                expect(freeze.mergedEdges).toBe(1);
+                expect(codes(report)).toEqual([EDGES_MERGED_CODE]);
+                expect(report.issues[0].message).toMatch(/^1 parallel edge/);
+            }
         },
     );
 
@@ -537,7 +552,7 @@ describe("robustness: the graph the frames make", () => {
             (err: unknown) => err,
         )) as ImportError;
         expect(dupErr).toBeInstanceOf(ImportError);
-        expect(codes(dupErr.report)).toEqual(["E_DUPLICATE_EDGE"]);
+        expect(codes(dupErr.report)).toEqual([DUPLICATE_EDGE_CODE]);
 
         const loop = importGraph(`${HEAD}[Term]\nid: X:1\nis_a: X:1\n`, { format: "obo", selfLoops: "error" });
         const loopErr = (await loop.then(
@@ -545,7 +560,7 @@ describe("robustness: the graph the frames make", () => {
             (err: unknown) => err,
         )) as ImportError;
         expect(loopErr).toBeInstanceOf(ImportError);
-        expect(codes(loopErr.report)).toEqual(["E_SELF_LOOP"]);
+        expect(codes(loopErr.report)).toEqual([SELF_LOOP_CODE]);
     });
 });
 
@@ -658,29 +673,49 @@ describe("robustness: encodings", () => {
     });
 });
 
+/** Linear work grows 4x from n to 4n and quadratic 16x; the limit sits between, far from both. */
+const GROWTH_LIMIT = 9;
+
+/**
+ * How much slower a run at 4n is than one at n, each the best of three, so a ratio (not a
+ * wall-clock limit) pins the complexity and the machine's load cancels out.
+ * @param run - the work at a size
+ * @param n - the smaller size
+ * @returns time(4n) / time(n)
+ */
+async function growth(run: (n: number) => Promise<unknown>, n: number): Promise<number> {
+    const best = async (k: number): Promise<number> => {
+        let min = Infinity;
+        for (let i = 0; i < 3; i++) {
+            const started = performance.now();
+            await run(k);
+            min = Math.min(min, performance.now() - started);
+        }
+        return min;
+    };
+    await run(n);
+    return (await best(4 * n)) / (await best(n));
+}
+
 describe("robustness: size and time", () => {
     it("joins a value continued over 200k lines in linear time (continuation-quadratic)", async () => {
+        const doc = (n: number): string => `${HEAD}[Term]\nid: X:1\nname: ${"ab \\\n".repeat(n)}end\n`;
         const n = 200_000;
-        const text = `${HEAD}[Term]\nid: X:1\nname: ${"ab \\\n".repeat(n)}end\n`;
-        const started = performance.now();
-        const { snapshot, report } = await load(text);
-        const elapsed = performance.now() - started;
+        const { snapshot, report } = await load(doc(n));
         expect(cell(snapshot, "name", "X:1")).toBe(`${"ab ".repeat(n)}end`);
         expect(codes(report)).toEqual([OBO_ISSUE.DEPRECATED_SYNTAX]);
-        expect(elapsed).toBeLessThan(3000);
+        expect(await growth((k) => load(doc(k)), n / 4)).toBeLessThan(GROWTH_LIMIT);
     });
 
     it("splits 100k trailing qualifier blocks in linear time (many-qualifier-blocks-quadratic)", async () => {
+        const doc = (n: number): string => `${HEAD}[Term]\nid: X:1\nname: n ${'{a="b"}'.repeat(n)}\n`;
         const n = 100_000;
-        const text = `${HEAD}[Term]\nid: X:1\nname: n ${'{a="b"}'.repeat(n)}\n`;
-        const started = performance.now();
-        const { snapshot, report } = await load(text);
-        const elapsed = performance.now() - started;
+        const { snapshot, report } = await load(doc(n));
         expect(report.issues).toEqual([]);
         expect(cell(snapshot, "name", "X:1")).toBe("n");
         const q = cell(snapshot, "obo.qualifiers", "X:1") as { name: { qualifiers: { a: string[] } }[] };
         expect(q.name[0].qualifiers.a).toHaveLength(n);
-        expect(elapsed).toBeLessThan(3000);
+        expect(await growth((k) => load(doc(k)), n / 4)).toBeLessThan(GROWTH_LIMIT);
     });
 
     it("reads a million-backslash run once per line (long-backslash-run)", async () => {

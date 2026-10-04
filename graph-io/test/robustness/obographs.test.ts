@@ -9,8 +9,10 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { DUPLICATE_EDGE_CODE } from "../../src/common/codes.js";
 import { sniffJsonDialect } from "../../src/formats/json/dialect.js";
 import { JSON_ISSUE, jsonImporter, type JsonImportOptions } from "../../src/formats/json/index.js";
+import { importGraph } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../src/types.js";
 
 type Options = JsonImportOptions & CommonImportOptions;
@@ -351,19 +353,21 @@ describe("robustness: OBO Graphs edges", () => {
         expect(report.issues[0].message).toMatch(/ignored/);
     });
 
-    it("counts an identical edge once, as the .obo importer counts an identical clause (og-duplicate-edges)", async () => {
+    it("leaves an identical repeated edge to the duplicateEdges policy (og-duplicate-edges)", async () => {
         const doc = graph(
             [{ id: "a" }, { id: "b" }],
             [
                 { sub: "a", pred: "is_a", obj: "b" },
                 { sub: "a", pred: "is_a", obj: "b" },
-                { sub: "a", pred: "part_of", obj: "b" },
             ],
         );
-        const { s, report } = await load(doc);
-        expect(edges(s)).toEqual(["a is_a b", "a part_of b"]);
-        expect(report.issues).toEqual([]);
-        expect(report.counts.edges).toBe(2);
+        const kept = await load(doc);
+        expect(edges(kept.s)).toEqual(["a is_a b", "a is_a b"]);
+        expect(kept.report.counts.edges).toBe(2);
+        const refused = importGraph(JSON.stringify(doc), { format: "json", duplicateEdges: "error" });
+        await expect(refused).rejects.toBeInstanceOf(ImportError);
+        const err = (await refused.catch((e: unknown) => e)) as ImportError;
+        expect(err.report.issues.map((i) => i.code)).toEqual([DUPLICATE_EDGE_CODE]);
     });
 
     it("moves only property-to-property edges to the metadata (og-class-edge-moved-to-metadata)", async () => {

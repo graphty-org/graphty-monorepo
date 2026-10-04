@@ -10,6 +10,8 @@
  * format prefix.
  */
 
+import type { GraphFormatErrorCode } from "@graphty/graph-format";
+
 // ============================================================ importer issues
 
 /** The element (node, attribute, key, ...) has no id where the format requires one. */
@@ -165,6 +167,25 @@ export const GRAPH_NOT_FOUND_CODE = "E_GRAPH_NOT_FOUND";
 
 /** `graphName` names more than one graph of the input; the message lists their indexes (fatal). */
 export const AMBIGUOUS_GRAPH_NAME_CODE = "E_AMBIGUOUS_GRAPH_NAME";
+
+/**
+ * The freeze refused a parallel edge under `duplicateEdges: "error"` (fatal): graph-format's
+ * E_DUPLICATE_EDGE, recorded on the import report by importGraph().
+ */
+export const DUPLICATE_EDGE_CODE = "E_DUPLICATE_EDGE" satisfies GraphFormatErrorCode;
+
+/**
+ * The freeze refused a self-loop under `selfLoops: "error"` (fatal): graph-format's E_SELF_LOOP,
+ * recorded on the import report by importGraph().
+ */
+export const SELF_LOOP_CODE = "E_SELF_LOOP" satisfies GraphFormatErrorCode;
+
+/**
+ * The freeze merged parallel edges under a merging `duplicateEdges` policy: each group keeps one
+ * edge, so the attributes (an OBO relation, a label) of the others are lost. Recorded once by
+ * importGraph() with the count from the freeze report.
+ */
+export const EDGES_MERGED_CODE = "W_EDGES_MERGED";
 
 // ============================================================ exporter loss notes
 

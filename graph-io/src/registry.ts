@@ -17,6 +17,7 @@ import {
 } from "@graphty/graph-format";
 
 import { CellBudgetBuilder, maxEmptyCellsOption } from "./common/cell-budget.js";
+import { EDGES_MERGED_CODE } from "./common/codes.js";
 import { throwIfAborted } from "./common/input.js";
 import { ImportReportBuilder } from "./common/report.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
@@ -565,8 +566,35 @@ function result(
         format: chosen.importer.format,
         sniff: chosen.sniff,
         snapshot: frozen.snapshot,
-        report,
+        report: withMergedEdges(report, frozen.report.mergedEdges),
         freeze: frozen.report,
+    });
+}
+
+/**
+ * The import report with one W_EDGES_MERGED warning when the freeze merged parallel edges: a
+ * merging duplicateEdges policy (on the builder or as a per-freeze override) keeps one edge per
+ * group, and whatever told the others apart (a relation, a label) is gone.
+ * @param report - the import's report
+ * @param merged - the freeze report's mergedEdges
+ * @returns the report, with the warning when merged is not 0
+ */
+function withMergedEdges(report: ImportReport, merged: number): ImportReport {
+    if (merged === 0) {
+        return report;
+    }
+    const issue = Object.freeze({
+        category: "merged" as const,
+        severity: "warning" as const,
+        code: EDGES_MERGED_CODE,
+        message: `${merged} parallel edge(s) were merged into one edge per pair by the duplicateEdges policy; whatever told them apart (a relation, a label) is lost`,
+        line: null,
+        element: null,
+    });
+    return Object.freeze({
+        ...report,
+        issues: Object.freeze([...report.issues, issue]),
+        warningCount: report.warningCount + 1,
     });
 }
 

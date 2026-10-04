@@ -134,6 +134,7 @@ describe("answers", () => {
             {
                 session: "owner-1",
                 now: at(5 * MIN),
+                typed: typedAt(4 * MIN, "keep the name, or not yet"),
             },
         );
         expect(r.resumed).toEqual([{ job: "issue-737", session: "s1" }]);
@@ -154,6 +155,7 @@ describe("answers", () => {
             {
                 session: "owner-1",
                 now: at(5 * MIN),
+                typed: typedAt(4 * MIN, "keep the name, or not yet"),
             },
         );
         expect(r.resumed).toEqual([]);
@@ -185,7 +187,7 @@ describe("answers", () => {
 
     it("refuses an answer with no item or to an item that is not open", () => {
         const state = parked();
-        const caller = { session: "o", now: at(0) };
+        const caller = { session: "o", now: at(0), typed: typedAt(0) };
         expect(() => recordOwner(state, { kind: "answer", text: "yes" }, caller)).toThrow(/names its item/);
         expect(() => recordOwner(state, { kind: "answer", item: "nope", text: "yes" }, caller)).toThrow(/no open/);
     });
@@ -215,7 +217,36 @@ describe("answers", () => {
     });
 });
 
+/**
+ * The newest prompt the owner typed into the calling session.
+ * @param {number} ms when, after T0
+ * @param {string} [text] what he typed
+ * @returns {{at: string, text: string}} the prompt
+ */
+function typedAt(ms, text = "record this for me") {
+    return { at: at(ms).toISOString(), text };
+}
+
 describe("who may record", () => {
+    it("refuses a session with no prompt the owner typed in the last 30 minutes, and keeps his words", () => {
+        const state = working();
+        const policy = { kind: /** @type {const} */ ("policy"), text: "no new dependencies" };
+        const now = at(60 * MIN);
+        // An agent session the owner never typed into (a workflow, a background agent) records nothing.
+        expect(() => recordOwner(state, policy, { session: "agent", now })).toThrow(
+            /typed into in the last 30 minutes/,
+        );
+        expect(() => recordOwner(state, policy, { session: "o", now, typed: typedAt(29 * MIN) })).toThrow(
+            /last 30 minutes/,
+        );
+        expect(state.policies).toBeUndefined();
+        const r = recordOwner(state, policy, { session: "o", now, typed: typedAt(50 * MIN, "no new deps this week") });
+        expect(r.entry.said).toBe("no new deps this week");
+        expect(state.policies[0]).toMatchObject({ text: "no new dependencies", said: "no new deps this week" });
+        // The CLI, which the daemon accepts only from the owner's terminal, needs no transcript.
+        expect(recordOwner(state, policy, { session: null, now, via: "cli" }).text).toMatch(/recorded policy-2/);
+    });
+
     it("refuses a worker unless the owner steered it in the last 30 minutes", () => {
         const state = working();
         const policy = { kind: /** @type {const} */ ("policy"), text: "no new dependencies" };
@@ -225,12 +256,16 @@ describe("who may record", () => {
         expect(() => recordOwner(state, policy, caller)).toThrow(/within 30 minutes/);
         expect(state.policies).toBeUndefined();
         state.jobs["issue-737"].steeredAt = at(40 * MIN).toISOString();
-        expect(recordOwner(state, policy, caller).text).toBe("recorded policy-1: no new dependencies");
+        state.jobs["issue-737"].steeredText = "add a policy: no new dependencies";
+        const r = recordOwner(state, policy, caller);
+        expect(r.text).toBe("recorded policy-1: no new dependencies");
+        // The steering prompt is the owner's words behind the record.
+        expect(r.entry.said).toBe("add a policy: no new dependencies");
     });
 
     it("refuses an unknown kind and an item outside an answer", () => {
         const state = working();
-        const caller = { session: "o", now: at(0) };
+        const caller = { session: "o", now: at(0), typed: typedAt(0) };
         expect(() => recordOwner(state, /** @type {any} */ ({ kind: "wish", text: "x" }), caller)).toThrow(/not wish/);
         expect(() => recordOwner(state, { kind: "policy", text: "x", item: "a" }, caller)).toThrow(
             /belongs to an answer/,
@@ -241,7 +276,7 @@ describe("who may record", () => {
 describe("orders", () => {
     it("fixes the issue list when recorded and orders issue jobs after every earlier order", () => {
         const state = working();
-        const caller = { session: "o", now: at(0) };
+        const caller = { session: "o", now: at(0), typed: typedAt(0) };
         const first = recordOwner(state, { kind: "order", text: "the bugs first", issues: [5, 6] }, caller);
         expect(first.text).toBe("recorded order-1: #5 #6");
         const issues = [737, 5];
@@ -262,7 +297,7 @@ describe("orders", () => {
 
     it("refuses an order with no issues or with a switch", () => {
         const state = working();
-        const caller = { session: "o", now: at(0) };
+        const caller = { session: "o", now: at(0), typed: typedAt(0) };
         expect(() => recordOwner(state, { kind: "order", text: "x" }, caller)).toThrow(/lists its issues/);
         expect(() =>
             recordOwner(state, { kind: "order", text: "x", issues: [1], switch: "freeze-merges" }, caller),
@@ -273,7 +308,7 @@ describe("orders", () => {
 describe("policies", () => {
     it("records free text and switches, lists the active ones, and ends one", () => {
         const state = working();
-        const caller = { session: "o", now: at(0) };
+        const caller = { session: "o", now: at(0), typed: typedAt(0) };
         recordOwner(state, { kind: "policy", text: "no new dependencies" }, caller);
         const gate = recordOwner(
             state,
@@ -293,7 +328,7 @@ describe("policies", () => {
 
     it("refuses a switch with the wrong value", () => {
         const state = working();
-        const caller = { session: "o", now: at(0) };
+        const caller = { session: "o", now: at(0), typed: typedAt(0) };
         const bad = (/** @type {any} */ extra) => () =>
             recordOwner(state, { kind: "policy", text: "x", ...extra }, caller);
         expect(bad({ switch: "melt" })).toThrow(/no policy switch melt/);

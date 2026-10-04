@@ -436,6 +436,16 @@ export function presentDays(state, since) {
  * @returns {string | null} the newest typed record's timestamp
  */
 export function lastTypedAt(transcript) {
+    return lastTyped(transcript)?.at ?? null;
+}
+
+/**
+ * The newest prompt the owner typed into a session, from its transcript (as {@link lastTypedAt}).
+ * @param {string} transcript the transcript's text
+ * @returns {{at: string, text: string} | null} its timestamp and its text
+ */
+export function lastTyped(transcript) {
+    /** @type {{at: string, text: string} | null} */
     let last = null;
     for (const line of transcript.split("\n")) {
         if (!line.includes('"user"')) continue;
@@ -450,9 +460,23 @@ export function lastTypedAt(transcript) {
         const typed = r.origin
             ? r.origin.kind === "human"
             : !r.isMeta && !r.toolUseResult && typeof content === "string" && !content.trimStart().startsWith("<");
-        if (typed && (!last || r.timestamp > last)) last = r.timestamp;
+        if (typed && (!last || r.timestamp > last.at)) last = { at: r.timestamp, text: promptText(content) };
     }
     return last;
+}
+
+/**
+ * The text of a user record's content: the string, or its text blocks joined.
+ * @param {unknown} content the record's `message.content`
+ * @returns {string} the text
+ */
+function promptText(content) {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+    return content
+        .filter((/** @type {any} */ b) => b?.type === "text")
+        .map((/** @type {any} */ b) => String(b.text))
+        .join("\n");
 }
 
 /**
@@ -643,12 +667,15 @@ async function unlabel(item, others, remove) {
  * not one of githerd's own (its text kept as the item's `answer`), or the `needs-decision` label
  * gone. A comment that says "not yet" keeps the item open with no new page (`deferItem`). Only items whose post was
  * performed are read; each read is a conditional GET, free when nothing changed. Every answer also
- * counts as presence.
- * @param {{api: any, repo: string, state: any, login: string, now: Date}} options the GitHub
- *   client, `owner/name`, the daemon state (mutated), the trusted login
+ * counts as presence. A comment or a label removal a Claude session made with the owner's account
+ * (`isSessionWrite`, session-writes.mjs) is not his answer: the comment is skipped, and the label
+ * is put back.
+ * @param {{api: any, repo: string, state: any, login: string, now: Date,
+ *   isSessionWrite?: (target: string, at: string) => boolean}} options the GitHub client,
+ *   `owner/name`, the daemon state (mutated), the trusted login, and the session-write check
  * @returns {Promise<string[]>} the ids of the items that ended
  */
-export async function readAnswers({ api, repo, state, login, now }) {
+export async function readAnswers({ api, repo, state, login, now, isSessionWrite = () => false }) {
     const ended = [];
     for (const item of /** @type {OwnerItem[]} */ (Object.values(state.ownerItems ?? {}))) {
         const n = targetNumber(item.target);
@@ -659,7 +686,10 @@ export async function readAnswers({ api, repo, state, login, now }) {
             const comments = (await api.get(`${base}/comments?since=${since}&per_page=100`)).body ?? [];
             const answer = comments.find(
                 (/** @type {any} */ c) =>
-                    c.user?.login === login && c.created_at > since && !String(c.body).includes("<!-- githerd"),
+                    c.user?.login === login &&
+                    c.created_at > since &&
+                    !String(c.body).includes("<!-- githerd") &&
+                    !isSessionWrite(/** @type {string} */ (item.target), c.created_at),
             );
             if (answer) {
                 notePresence(state, "github", answer.created_at);
@@ -674,6 +704,21 @@ export async function readAnswers({ api, repo, state, login, now }) {
             }
             const labels = (await api.get(`${base}/labels`)).body ?? [];
             if (!labels.some((/** @type {any} */ l) => l.name === LABEL)) {
+                const target = /** @type {string} */ (item.target);
+                // Only when a session wrote there lately is the removal's own time read (one call).
+                let sessions = isSessionWrite(target, now.toISOString());
+                if (sessions) {
+                    const events = (await api.get(`${base}/events?per_page=100`)).body ?? [];
+                    const off = events.findLast(
+                        (/** @type {any} */ e) => e.event === "unlabeled" && e.label?.name === LABEL,
+                    );
+                    sessions = isSessionWrite(target, off?.created_at ?? now.toISOString());
+                }
+                if (sessions) {
+                    // A session took the label off, not the owner: postItems puts it back.
+                    item.github.labeled = false;
+                    continue;
+                }
                 endItem(state, item.id, "label-removed", now);
                 ended.push(item.id);
             }
@@ -689,15 +734,27 @@ export async function readAnswers({ api, repo, state, login, now }) {
  * poll's pages to the notifier. Without a client or a trusted login only the pages are planned.
  * @param {{api?: any, repo?: string, state: any, notifier: {send: (page: Page) => boolean},
  *   acting: boolean, login?: string | null, now: Date, digestHourUtc?: number,
- *   ledger?: (entry: {kind: string} & Record<string, unknown>) => unknown}} options the GitHub
- *   client and `owner/name`, the daemon state (mutated), the notifier, whether the `owner-items`
- *   group acts, the trusted login, the time, the digest hour and the ledger
+ *   ledger?: (entry: {kind: string} & Record<string, unknown>) => unknown,
+ *   isSessionWrite?: (target: string, at: string) => boolean}} options the GitHub client and
+ *   `owner/name`, the daemon state (mutated), the notifier, whether the `owner-items` group acts,
+ *   the trusted login, the time, the digest hour, the ledger and the session-write check
  * @returns {Promise<{ended: string[], pages: Page[]}>} the items that ended and the pages sent
  */
-export async function ownerItemsPoll({ api, repo, state, notifier, acting, login, now, digestHourUtc, ledger }) {
+export async function ownerItemsPoll({
+    api,
+    repo,
+    state,
+    notifier,
+    acting,
+    login,
+    now,
+    digestHourUtc,
+    ledger,
+    isSessionWrite,
+}) {
     let ended = [];
     if (api && repo && login) {
-        ended = await readAnswers({ api, repo, state, login, now });
+        ended = await readAnswers({ api, repo, state, login, now, isSessionWrite });
         for (const id of ended)
             await ledger?.({ kind: "owner-item", item: id, event: "ended", by: state.ownerItems[id].endedBy });
         await postItems({ api, repo, state, acting, now, ledger });

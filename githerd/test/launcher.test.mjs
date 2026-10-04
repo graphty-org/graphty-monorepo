@@ -34,6 +34,7 @@ import {
     runLauncher,
     targetCode,
     sessionTypedAt,
+    transcriptTyped,
     writeDaemonEnv,
 } from "../lib/launcher.mjs";
 import { TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
@@ -1025,7 +1026,14 @@ describe("the session proxy", () => {
         call(2, "githerd_expect", { job: "issue-1", minutes: 999, reason: "x" });
         expect((await reply(2)).result).toMatchObject({ isError: true });
         expect((await reply(2)).result.content[0].text).toMatch(/^invalid arguments/);
-        // A call the daemon refuses comes back as a tool error, not a transport failure.
+        // A call the daemon refuses comes back as a tool error, not a transport failure. The owner
+        // typed into this session a moment ago, so the record gets as far as its arguments.
+        const projects = join(env.HOME, ".claude", "projects", root.replaceAll(/[^A-Za-z0-9]/g, "-"));
+        mkdirSync(projects, { recursive: true });
+        writeFileSync(
+            join(projects, "sess-e2e.jsonl"),
+            `${JSON.stringify({ type: "user", timestamp: new Date().toISOString(), message: { content: "order x" } })}\n`,
+        );
         call(3, "githerd_record", { kind: "order", text: "x" });
         expect((await reply(3)).result).toMatchObject({ isError: true });
         expect((await reply(3)).result.content[0].text).toBe("an order lists its issues");
@@ -1102,6 +1110,44 @@ describe("pm2Command", () => {
         expect(pm2Command(["npx", "-y", "servherd"], {})).toEqual(["npx", "-y", "-p", "servherd", "pm2"]);
         expect(pm2Command(["x"], { GITHERD_PM2: '["a","b"]' })).toEqual(["a", "b"]);
         expect(pm2Command(["/nowhere/servherd.js"], {})).toEqual(["pm2"]);
+    });
+});
+
+describe("transcriptTyped", () => {
+    it("reads the newest prompt the owner typed from that session's own transcript", () => {
+        const home = mkdtempSync(join(tmpdir(), "githerd-home-"));
+        try {
+            const cwd = "/work/my.repo";
+            expect(transcriptTyped(cwd, home, "s1")).toBeNull();
+            const projects = join(home, ".claude", "projects", "-work-my-repo");
+            mkdirSync(projects, { recursive: true });
+            const line = (/** @type {object} */ r) => JSON.stringify(r);
+            writeFileSync(
+                join(projects, "s1.jsonl"),
+                [
+                    line({ type: "user", timestamp: "2026-10-03T10:00:00Z", message: { content: "order 5 then 6" } }),
+                    line({
+                        type: "user",
+                        timestamp: "2026-10-03T10:01:00Z",
+                        origin: { kind: "human" },
+                        message: { content: [{ type: "text", text: "and hold layout" }] },
+                    }),
+                    line({
+                        type: "user",
+                        timestamp: "2026-10-03T10:02:00Z",
+                        message: { content: "<task-notification>" },
+                    }),
+                ].join("\n"),
+            );
+            writeFileSync(
+                join(projects, "s2.jsonl"),
+                line({ type: "user", timestamp: "2026-10-03T11:00:00Z", message: { content: "another session" } }),
+            );
+            expect(transcriptTyped(cwd, home, "s1")).toEqual({ at: "2026-10-03T10:01:00Z", text: "and hold layout" });
+            expect(transcriptTyped(cwd, home, "../s2")).toBeNull();
+        } finally {
+            rmSync(home, { recursive: true, force: true });
+        }
     });
 });
 

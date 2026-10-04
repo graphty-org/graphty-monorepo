@@ -219,7 +219,12 @@ export function sessionToolSet(ctx) {
             return JSON.stringify(result);
         },
         githerd_record: async (args, caller, client) => {
-            const r = recordOwner(state, args, { session: sessionOf(caller, client), worker: client.job ?? null, now });
+            const r = recordOwner(state, args, {
+                session: sessionOf(caller, client),
+                worker: client.job ?? null,
+                now,
+                typed: client.typed ?? null,
+            });
             await ctx.commit(r.entry);
             for (const back of r.resumed) await ctx.ring(state.jobs[back.job]);
             return r.text;

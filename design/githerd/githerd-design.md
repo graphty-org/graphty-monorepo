@@ -1022,7 +1022,10 @@ githerd_ask_owner: { job: string,
 // 11. Record what the owner said in this session.
 githerd_record: { kind: "order"|"policy"|"answer", text: string, issues?: integer[],
                   switch?: "freeze-merges"|"park-gate"|"hold-package", value?: string, item?: string }
-// Refused from a worker unless the owner steered it in the last 30 minutes.
+// Counted as the owner's words only where his typing is evident: from a session, within 30
+// minutes of a prompt he typed there (its MCP server reads the session's own transcript and the
+// prompt is kept with the record as `said`); from a worker, within 30 minutes of his steering it
+// (the steering prompt is kept). Refused otherwise, so a workflow or background agent records nothing.
 ```
 
 There is no tool to merge, close, revert, retarget, post a status, or touch githerd's labels.
@@ -1504,6 +1507,11 @@ the owner's commands to a worker on its own too: the CLI names a worker's job in
 (`x-githerd-job`, from `GITHERD_JOB`), and for such a request `ack`, `veto` and `policy end` are
 refused, and `answer`, `order` and `policy` are held to `githerd_record`'s rule (within 30
 minutes of the owner steering the worker); `githerd mode` refuses to change the mode in a worker.
+Outside a worker, `answer`, `order`, `policy`, `policy end`, `ack` and `veto` are accepted only
+from the owner's own terminal (no `CLAUDE*` variable and a TTY on standard input), never from an
+agent's Bash tool. On GitHub, the project's PreToolUse hook logs every `gh` write any session makes
+(`session-writes.jsonl`), and an owner-account comment, reopen or label removal that matches one
+is not the owner's input: it answers no item, vetoes nothing and is not presence.
 
 ### 10.2 What only the daemon writes
 

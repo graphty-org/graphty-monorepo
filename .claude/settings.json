@@ -29,6 +29,18 @@
                     }
                 ]
             }
+        ],
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "f=\"$HOME/.githerd/graphty-monorepo/current/bin/githerd-hook.mjs\"; [ -f \"$f\" ] || exit 0; i=$(cat); case \"$i\" in *gh\\ *) printf '%s' \"$i\" | node \"$f\" PreToolUse ;; esac; exit 0",
+                        "timeout": 5
+                    }
+                ]
+            }
         ]
     }
 }

@@ -6,7 +6,10 @@
  * - `askOwner` (`githerd_ask_owner`): raises one owner item for the job and parks the job on it.
  *   Asking again while the job is parked on an open item returns that item: no new item, no page.
  * - `recordOwner` (`githerd_record`, and the owner's CLI through `ownerCommand`): an order, a
- *   policy, or an answer to an open item. A worker may record only while the owner steers it.
+ *   policy, or an answer to an open item, counted as the owner's words only where his typing is
+ *   evident: from a session, within 30 minutes of a prompt he typed there, whose words are kept
+ *   with the record (`said`); from a worker, within 30 minutes of his steering it, with the
+ *   steering prompt; from the CLI, only on his own terminal (the daemon's `/owner` checks that).
  * - An answer ends the item and moves every job parked on it back to `working` with the answer in
  *   its news; "not yet" keeps the item open and the job parked on it, and pages nobody.
  *   `resumeAnswered` does the same for items that ended any other way (a comment, the label taken
@@ -16,8 +19,13 @@
 import { move } from "./board.mjs";
 import { deferItem, endItem, isNotYet, itemText, notePresence, raiseItem } from "./notify.mjs";
 
-/** How long after the owner steered a worker it may record what he said (design 6, tool 11). */
+/**
+ * How long after the owner steered a worker, or typed into a session, it may record what he said
+ * (design 6, tool 11).
+ */
 export const STEERED_RECORD_MS = 30 * 60 * 1000;
+/** How much of the prompt the owner typed is kept with a record. */
+const SAID_CHARS = 500;
 
 /** The policy switches the daemon enforces, and whether each names a lane, service or package. */
 const SWITCHES = /** @type {Record<string, boolean>} */ ({
@@ -108,18 +116,39 @@ export function resumeAnswered(state, now) {
 }
 
 /**
- * Whether the caller may record what the owner said: an owner session always, a worker only within
- * 30 minutes of the owner steering it.
+ * Whether the caller may record what the owner said, and the owner's own words it records them
+ * from: a worker within 30 minutes of the owner steering it (the steering prompt); a session
+ * within 30 minutes of a prompt the owner typed there (that prompt, which its MCP server read from
+ * the session's transcript); the CLI, which the daemon accepts only from the owner's terminal.
+ * An agent with no owner prompt behind it records nothing.
  * @param {any} state the daemon state
- * @param {string | null | undefined} worker the job the calling worker was started for, if any
+ * @param {object} caller who calls
+ * @param {string | null} [caller.worker] the calling worker's job
+ * @param {"session" | "cli"} [caller.via] how the call came
+ * @param {{at?: string, text?: string} | null} [caller.typed] the session's last typed prompt
  * @param {Date} now the current time
+ * @returns {string | null} the owner's words behind the record, null from the CLI
  */
-function checkRecorder(state, worker, now) {
-    if (!worker) return;
-    const steered = state.jobs?.[worker]?.steeredAt;
-    if (!steered || now.getTime() - Date.parse(steered) > STEERED_RECORD_MS) {
-        throw new Error("a worker records what the owner said only within 30 minutes of the owner steering it");
+function checkRecorder(state, { worker, via = "session", typed }, now) {
+    const recent = (/** @type {string | null | undefined} */ at) => {
+        const t = Date.parse(at ?? "");
+        return t <= now.getTime() + 60_000 && now.getTime() - t <= STEERED_RECORD_MS;
+    };
+    if (worker) {
+        const job = state.jobs?.[worker];
+        if (!recent(job?.steeredAt)) {
+            throw new Error("a worker records what the owner said only within 30 minutes of the owner steering it");
+        }
+        return String(job.steeredText ?? "").slice(0, SAID_CHARS) || null;
     }
+    if (via === "cli") return null;
+    if (!recent(typed?.at) || !typed?.text) {
+        throw new Error(
+            "githerd_record takes the owner's words only from a session he typed into in the last 30 minutes; " +
+                "none is in this session's transcript. Ask him, or let him run githerd answer, order or policy in his terminal",
+        );
+    }
+    return String(typed.text).slice(0, SAID_CHARS);
 }
 
 /**
@@ -248,16 +277,19 @@ function recordAnswer(state, args, now, by) {
 
 /**
  * `githerd_record`: what the owner said, as an order, a policy or an answer (design 5.6, 5.7).
- * Counts as the owner's presence.
+ * Counts as the owner's presence. The owner's words behind it are kept with the record and in its
+ * ledger entry as `said`.
  * @param {any} state the daemon state, mutated
  * @param {RecordArgs} args what to record
- * @param {{session: string | null, worker?: string | null, now: Date}} caller the calling session,
- *   the job a calling worker was started for, and the time
+ * @param {{session: string | null, worker?: string | null, now: Date, via?: "session" | "cli",
+ *   typed?: {at?: string, text?: string} | null}} caller the calling session, the job a calling
+ *   worker was started for, the time, how the call came (default a session), and the session's
+ *   last prompt the owner typed
  * @returns {{text: string, entry: LedgerEntry, resumed: Resumed[]}} what happened, the ledger
  *   entry, and the jobs an answer sent back to work
  */
-export function recordOwner(state, args, { session, worker, now }) {
-    checkRecorder(state, worker, now);
+export function recordOwner(state, args, { session, worker, now, via = "session", typed = null }) {
+    const said = checkRecorder(state, { worker, via, typed }, now);
     const at = now.toISOString();
     const by = session ?? "owner";
     if (args.kind !== "answer" && args.item) throw new Error(`"item" belongs to an answer`);
@@ -266,7 +298,17 @@ export function recordOwner(state, args, { session, worker, now }) {
     else if (args.kind === "policy") out = { ...recordPolicy(state, args, at, by), resumed: [] };
     else if (args.kind === "answer") out = recordAnswer(state, args, now, by);
     else throw new Error(`kind is order, policy or answer, not ${args.kind}`);
-    notePresence(state, worker || session ? "session" : "cli", at);
+    if (said) {
+        out.entry.said = said;
+        const kept =
+            args.kind === "order"
+                ? state.orders.at(-1)
+                : args.kind === "policy"
+                  ? state.policies.at(-1)
+                  : state.ownerItems[/** @type {string} */ (args.item)];
+        kept.said = said;
+    }
+    notePresence(state, via === "cli" ? "cli" : "session", at);
     return out;
 }
 
@@ -324,7 +366,10 @@ export function ownerCommand(state, cmd, now, worker = null) {
             item: cmd.item,
         };
         if (!args.text) return { status: 400, text: `${kind} needs words` };
-        return { status: 200, ...recordOwner(state, args, { session: null, worker, now }) };
+        return {
+            status: 200,
+            ...recordOwner(state, args, { session: null, worker, now, via: worker ? "session" : "cli" }),
+        };
     } catch (err) {
         return { status: 409, text: /** @type {Error} */ (err).message };
     }

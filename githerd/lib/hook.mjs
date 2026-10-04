@@ -27,6 +27,7 @@ import { repoRoot } from "./config.mjs";
 import { jobText } from "./job-text.mjs";
 import { daemonDown, launcherContext } from "./launcher.mjs";
 import { raiseItem } from "./notify.mjs";
+import { logSessionWrites } from "./session-writes.mjs";
 import { defaultStateDir, spoolEvent } from "./store.mjs";
 
 /** How long the hook waits for the daemon's answer. */
@@ -275,6 +276,11 @@ export async function runHook(event, input, { cwd, env, fetch: fetcher = fetch, 
     const stateDir = env.GITHERD_STATE_DIR ?? defaultStateDir(root, env.HOME);
     const job = env.GITHERD_JOB || null;
     if (event === "PostToolUse") return job ? newsOutput(join(stateDir, "jobs", job), job) : null;
+    // A gh write any session makes is logged, so its owner-account event is not read as the owner's.
+    if (event === "PreToolUse") {
+        logSessionWrites(stateDir, hookInput, job, new Date());
+        return null;
+    }
     const source = /** @type {any} */ (hookInput).source;
     // A new or resumed process runs no subagent yet; the guard's count starts again from none.
     if (event === "SessionStart" && job && (source === "startup" || source === "resume")) {
@@ -417,6 +423,8 @@ function userPrompt(job, req, now) {
     if (prompt.trim() === LAUNCH_PROMPT || prompt.trimStart().startsWith("<task-notification>")) {
         return { answer: {}, ledger: [] };
     }
+    // The owner's words: what githerd_record may record for him while he steers (owner.mjs).
+    job.steeredText = prompt.slice(0, 500);
     if (job.steeredAt) return { answer: {}, ledger: [] };
     job.steeredAt = now.toISOString();
     return { answer: {}, ledger: [{ kind: "steered", job: job.id, session }] };

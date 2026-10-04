@@ -82,6 +82,7 @@ import { createIncidentActions, laneNotProgressing } from "./incident-actions.mj
 import { failureKey, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
+import { sessionWriteCheck } from "./session-writes.mjs";
 import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
 import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
@@ -138,6 +139,8 @@ const GITHUB_DOWN_MS = 30 * 60_000;
 /** Largest request body accepted. */
 /** How many handled hook event ids are remembered, to skip a spooled copy of one. */
 const HOOK_IDS = 500;
+/** `POST /owner` ops that put the owner's words or decisions on record: only from his terminal. */
+const OWNER_WORDS = new Set(["answer", "order", "policy", "policy-end", "veto", "ack"]);
 /** How the news of a refused `githerd_done` starts (board.verifyResult). */
 const NOT_DONE = "not done yet: ";
 const MAX_BODY = 1024 * 1024;
@@ -1361,6 +1364,7 @@ export async function startDaemon({
             now: t,
             digestHourUtc: config.digest.hourUtc,
             ledger,
+            isSessionWrite: sessionWriteCheck(stateDir),
         });
         for (const r of resumeAnswered(state, t)) {
             void ledger({ kind: "owner-answered", job: r.job });
@@ -1378,6 +1382,7 @@ export async function startDaemon({
                 login: state.trust.login,
                 now: t,
                 presentDays: (/** @type {string} */ from) => presentDays(state, from),
+                isWorkerWrite: sessionWriteCheck(stateDir),
                 ledger,
             });
         }
@@ -2403,7 +2408,16 @@ export async function startDaemon({
     async function ownerRoute(req) {
         ownerPresent(req);
         const job = req.headers["x-githerd-job"];
-        const answer = owner(JSON.parse(await body(req)), job ? String(job) : null);
+        const cmd = JSON.parse(await body(req));
+        // The owner's words count only from his own terminal: an agent's Bash tool has none.
+        const terminal = req.headers["x-githerd-caller"] === "owner" && req.headers["x-githerd-tty"] === "1";
+        if (!job && !terminal && OWNER_WORDS.has(cmd?.op)) {
+            const text =
+                `githerd ${cmd.op} counts as the owner's words only from his own terminal; ` +
+                "a Claude session records what he typed there with githerd_record";
+            return [403, { ok: false, text }];
+        }
+        const answer = owner(cmd, job ? String(job) : null);
         if (answer.entry) {
             await save();
             await ledger(answer.entry);

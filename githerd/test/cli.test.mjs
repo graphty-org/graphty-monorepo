@@ -100,9 +100,10 @@ function writeConfig(overrides = {}) {
  * @param {Record<string, string | undefined>} [options.extraEnv] environment changes
  * @param {() => Date} [options.now] the clock
  * @param {number} [options.signTimeoutMs] the signing timeout
+ * @param {boolean} [options.tty] a terminal is attached (the owner's own shell)
  * @returns {Promise<{code: number, out: string, err: string}>} the exit code and the output
  */
-async function cli(argv, { extraEnv = {}, now, signTimeoutMs } = {}) {
+async function cli(argv, { extraEnv = {}, now, signTimeoutMs, tty = true } = {}) {
     const out = [];
     const err = [];
     const code = await runCli(argv, {
@@ -111,6 +112,7 @@ async function cli(argv, { extraEnv = {}, now, signTimeoutMs } = {}) {
         out: (l) => out.push(l),
         err: (l) => err.push(l),
         healthWaitMs: 15_000,
+        tty,
         ...(now ? { now } : {}),
         ...(signTimeoutMs ? { signTimeoutMs } : {}),
     });

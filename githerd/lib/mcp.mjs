@@ -53,6 +53,8 @@ export const INTERNAL_ERROR = -32603;
  * @property {"hook" | "registry" | null} [sessionSource] where the session id came from
  * @property {string | null} [job] a worker's job (`GITHERD_JOB`)
  * @property {string | null} [nonce] a worker's start nonce (`GITHERD_NONCE`)
+ * @property {{at: string, text: string} | null} [typed] on `githerd_record` only: the newest prompt
+ *   the owner typed into the session, from its transcript, so the daemon records his words
  */
 
 /**
@@ -536,22 +538,27 @@ let forwardedId = 0;
 /**
  * The eleven tools for a session's MCP server: each validates its arguments here, so a refused call
  * never reaches the daemon, then forwards the call with the client's metadata and passes the
- * daemon's answer through.
+ * daemon's answer through. `githerd_record` also carries the newest prompt the owner typed into the
+ * session.
  * @param {(request: object) => Promise<any>} send posts one JSON-RPC request to the daemon and
  *   resolves to its JSON-RPC reply
  * @param {() => ClientMeta} client this session's metadata, read at each call
+ * @param {(meta: ClientMeta) => {at: string, text: string} | null} [typedOf] the session's newest
+ *   typed prompt, read only for `githerd_record`
  * @returns {Tool[]} the tools
  */
-export function forwardingTools(send, client) {
+export function forwardingTools(send, client, typedOf = () => null) {
     return TOOLS.map((tool) => ({
         ...tool,
         handler: async (args) => {
             forwardedId += 1;
+            const meta = client();
+            const githerd = tool.name === "githerd_record" ? { ...meta, typed: typedOf(meta) } : meta;
             const reply = await send({
                 jsonrpc: "2.0",
                 id: forwardedId,
                 method: "tools/call",
-                params: { name: tool.name, arguments: args, _meta: { githerd: client() } },
+                params: { name: tool.name, arguments: args, _meta: { githerd } },
             });
             if (reply?.error) throw new Error(`githerd daemon: ${reply.error.message}`);
             const text = (reply?.result?.content ?? [])

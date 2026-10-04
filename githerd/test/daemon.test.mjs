@@ -981,11 +981,18 @@ describe("the poll loop", () => {
             (
                 await fetch(`${daemon.url}/owner`, {
                     method: "POST",
-                    headers: { "x-githerd-caller": "owner" },
+                    headers: { "x-githerd-caller": "owner", "x-githerd-tty": "1" },
                     body: JSON.stringify(cmd),
                 })
             ).json();
         const policy = { op: "policy", text: "hold src during the move", switch: "hold-package", value: "src" };
+        // The owner's words count only from his terminal: an agent's Bash tool, or no terminal, is refused.
+        for (const headers of [{ "x-githerd-caller": "agent" }, { "x-githerd-caller": "owner" }]) {
+            const res = await fetch(`${daemon.url}/owner`, { method: "POST", headers, body: JSON.stringify(policy) });
+            expect(res.status).toBe(403);
+            expect((await res.json()).text).toMatch(/only from his own terminal/);
+        }
+        expect(daemon.state.policies ?? []).toEqual([]);
         expect(await owner(policy)).toMatchObject({ ok: true });
         await poll(daemon);
         expect(daemon.state.mergeGate.posted["7"]).toMatchObject({
@@ -1118,7 +1125,7 @@ describe("the poll loop", () => {
         expect(daemon.state.presence?.lastAt).toBeUndefined();
         const res = await fetch(`${daemon.url}/owner`, {
             method: "POST",
-            headers: { "x-githerd-caller": "owner" },
+            headers: { "x-githerd-caller": "owner", "x-githerd-tty": "1" },
             body: JSON.stringify({ op: "ack", key: "x" }),
         });
         expect(res.status).toBe(404);

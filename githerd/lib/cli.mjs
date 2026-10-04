@@ -94,6 +94,7 @@ const LOWER_MODES = new Set(["dry-run", "paused"]);
  * @property {number} [healthWaitMs] how long `ensure` and `dev` wait for a started daemon
  * @property {AbortSignal} [signal] ends `githerd board` (otherwise SIGINT does)
  * @property {typeof runSelftest} [selftest] runs the self-test (tests replace it)
+ * @property {boolean} [tty] a person's terminal is attached; default whether standard input is one
  */
 
 /**
@@ -152,14 +153,18 @@ function readJson(path) {
 /**
  * Who runs this command, for the daemon's presence record (design 11.3): `agent` inside Claude
  * Code (any `CLAUDECODE` or `CLAUDE_*` variable in the environment), else `owner`. A worker also
- * names its job (`GITHERD_JOB`), so the daemon refuses it the owner's commands.
+ * names its job (`GITHERD_JOB`), so the daemon refuses it the owner's commands. `x-githerd-tty`
+ * says a person's terminal is attached: the daemon takes the owner's words (answer, order, policy,
+ * veto, ack) only from his own terminal, never from an agent's Bash tool.
  * @param {Record<string, string | undefined>} env the environment
+ * @param {boolean} tty a person's terminal is attached
  * @returns {Record<string, string>} the headers
  */
-function callerHeader(env) {
+function callerHeader(env, tty) {
     const agent = Object.keys(env).some((k) => k === "CLAUDECODE" || k.startsWith("CLAUDE_"));
     return {
         "x-githerd-caller": agent ? "agent" : "owner",
+        ...(tty && !agent ? { "x-githerd-tty": "1" } : {}),
         ...(env.GITHERD_JOB ? { "x-githerd-job": env.GITHERD_JOB } : {}),
     };
 }
@@ -256,6 +261,7 @@ function daemonEnv(record, stateDir) {
  * @property {number} signTimeoutMs the doctor's signing timeout
  * @property {AbortSignal} [signal] ends `githerd board`
  * @property {typeof runSelftest} selftest runs the self-test
+ * @property {boolean} tty a person's terminal is attached
  */
 
 /**
@@ -275,6 +281,7 @@ export async function runCli(argv, options = {}) {
         healthWaitMs,
         signal,
         selftest = runSelftest,
+        tty = Boolean(process.stdin.isTTY),
     } = options;
     const [command, ...rest] = argv;
 
@@ -315,6 +322,7 @@ export async function runCli(argv, options = {}) {
         signTimeoutMs,
         signal,
         selftest,
+        tty,
     });
 }
 
@@ -341,7 +349,7 @@ async function cmdStatus(c) {
         section: c.positional[0],
         json: c.flags.json === true,
         now: c.now(),
-        headers: callerHeader(c.env),
+        headers: callerHeader(c.env, c.tty),
     });
     (board.ok ? c.out : c.err)(board.text);
     return board.ok ? 0 : 1;
@@ -401,7 +409,7 @@ async function cmdOwner(c) {
         port,
         "/owner",
         ack ? { op: "ack", key: target } : { op: "veto", id: target },
-        callerHeader(c.env),
+        callerHeader(c.env, c.tty),
     );
     (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
     return answer.ok ? 0 : 1;
@@ -473,7 +481,7 @@ async function cmdRecord(c) {
     }
     const port = await daemonPort(c);
     if (port === null) return 1;
-    const answer = await post(port, "/owner", cmd, callerHeader(c.env));
+    const answer = await post(port, "/owner", cmd, callerHeader(c.env, c.tty));
     (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
     return answer.ok ? 0 : 1;
 }
@@ -502,7 +510,7 @@ async function cmdControl(c) {
     }
     const port = await daemonPort(c);
     if (port === null) return 1;
-    const answer = await post(port, "/owner", cmd, callerHeader(c.env));
+    const answer = await post(port, "/owner", cmd, callerHeader(c.env, c.tty));
     (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
     return answer.ok ? 0 : 1;
 }

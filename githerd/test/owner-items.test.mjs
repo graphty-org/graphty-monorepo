@@ -205,6 +205,7 @@ function fakeRepo({ failLabels = false, deleteStatus = 204 } = {}) {
         if (/issues\/comments\/\d+$/.test(path))
             return httpOutput({ status: 200, body: { id: Number(path.split("/").pop()) } });
         if (path.includes("/comments")) return httpOutput({ status: 200, body: comments[n] ?? [] });
+        if (path.includes("/events")) return httpOutput({ status: 200, body: [] });
         if (path.endsWith("/labels"))
             return httpOutput({ status: 200, body: (labels[n] ?? []).map((name) => ({ name })) });
         return httpOutput({ status: 404, body: { message: "Not Found" } });
@@ -332,6 +333,29 @@ describe("owner items on GitHub", () => {
         expect(state.ownerItems[VISUAL.id].endedBy).toBe("comment");
         expect(state.ownerItems[DOOR.id].endedBy).toBe("label-removed");
         expect(state.presence.lastAt).toBe(later);
+    });
+
+    it("does not count a comment or a label removal a Claude session made with the owner's account", async () => {
+        const { gh, labels, comments } = fakeRepo();
+        const { api } = client(gh, "acting");
+        const state = /** @type {any} */ ({});
+        raiseItem(state, VISUAL, at(0));
+        raiseItem(state, DOOR, at(0));
+        await postItems({ api, repo: REPO, state, acting: true, now: at(0) });
+        const later = new Date(Date.parse(state.ownerItems[VISUAL.id].github.at) + MIN).toISOString();
+        comments[412].push({ user: { login: LOGIN }, created_at: later, body: "approved by an agent" });
+        labels[9] = [];
+        /** @type {string[]} */
+        const asked = [];
+        const isSessionWrite = (/** @type {string} */ target, /** @type {string} */ when) =>
+            asked.push(`${target} ${when}`) > 0 && ["pr:412", "issue:9"].includes(target);
+        expect(await readAnswers({ api, repo: REPO, state, login: LOGIN, now: at(MIN), isSessionWrite })).toEqual([]);
+        expect(state.ownerItems[VISUAL.id].endedAt).toBeUndefined();
+        expect(state.presence).toBeUndefined();
+        // The label goes back on at the next post.
+        expect(state.ownerItems[DOOR.id].github.labeled).toBe(false);
+        await postItems({ api, repo: REPO, state, acting: true, now: at(2 * MIN) });
+        expect(labels[9]).toEqual([LABEL]);
     });
 
     it("leaves an item open when the read fails", async () => {

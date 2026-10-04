@@ -47,7 +47,7 @@ import { createInterface } from "node:readline";
 
 import { DEFAULTS, defaultBranch, repoRoot, resolveConfig } from "./config.mjs";
 import { createMcpServer, forwardingTools, identifySession } from "./mcp.mjs";
-import { createNotifier, lastTypedAt } from "./notify.mjs";
+import { createNotifier, lastTyped, lastTypedAt } from "./notify.mjs";
 import { identify, sameProcess } from "./proc.mjs";
 import {
     currentDir,
@@ -1077,18 +1077,46 @@ export function sessionTypedAt(cwd, home) {
             if (!newest || mtimeMs > newest.mtimeMs) newest = { path: join(dir, name), mtimeMs, size };
         }
         if (!newest) return null;
-        const length = Math.min(newest.size, TRANSCRIPT_TAIL);
-        const buf = Buffer.alloc(length);
-        const fd = openSync(newest.path, "r");
-        try {
-            readSync(fd, buf, 0, length, newest.size - length);
-        } finally {
-            closeSync(fd);
-        }
-        return lastTypedAt(buf.toString("utf8"));
+        return lastTypedAt(tail(newest.path));
     } catch {
         return null;
     }
+}
+
+/**
+ * The newest prompt the owner typed into one session, from that session's own transcript (the
+ * last 256 KiB), for `githerd_record` (owner.mjs).
+ * @param {string} cwd the session's working directory
+ * @param {string} home the home directory
+ * @param {string} session the session id
+ * @returns {{at: string, text: string} | null} the prompt, or null when none can be read
+ */
+export function transcriptTyped(cwd, home, session) {
+    if (!/^[\w-]+$/.test(session)) return null;
+    const path = join(home, ".claude", "projects", cwd.replaceAll(/[^A-Za-z0-9]/g, "-"), `${session}.jsonl`);
+    try {
+        return lastTyped(tail(path));
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * The last `TRANSCRIPT_TAIL` bytes of a file.
+ * @param {string} path the file
+ * @returns {string} the text
+ */
+function tail(path) {
+    const { size } = statSync(path);
+    const length = Math.min(size, TRANSCRIPT_TAIL);
+    const buf = Buffer.alloc(length);
+    const fd = openSync(path, "r");
+    try {
+        readSync(fd, buf, 0, length, size - length);
+    } finally {
+        closeSync(fd);
+    }
+    return buf.toString("utf8");
 }
 
 /**
@@ -1186,7 +1214,11 @@ export async function runLauncher({
     // The eleven tools of design section 6, answered at once for `tools/list`. A call is checked
     // against its schema here, then forwarded with this session's identity and the tool protocol.
     const home = env.HOME ?? homedir();
-    const tools = forwardingTools(forward, () => identifySession({ ppid, env, home, stateDir: ctx.stateDir }));
+    const tools = forwardingTools(
+        forward,
+        () => identifySession({ ppid, env, home, stateDir: ctx.stateDir }),
+        (meta) => (meta.session ? transcriptTyped(cwd, home, meta.session) : null),
+    );
     const local = createMcpServer({ serverInfo, tools: () => tools });
 
     /**

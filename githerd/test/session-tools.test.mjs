@@ -297,7 +297,19 @@ describe("sessionToolSet", () => {
             { kind: "answer", item: "ask-pr-7", text: "a" },
             { session: "o1" },
         );
-        expect(answer.text).toBe("answered ask-pr-7; back at work: pr-7");
+        // An owner session with no prompt the owner typed records nothing.
+        expect(answer).toMatchObject({
+            isError: true,
+            text: expect.stringMatching(/typed into in the last 30 minutes/),
+        });
+        const typed = { at: NOW.toISOString(), text: "answer a" };
+        const answered = await call(
+            ctx,
+            "githerd_record",
+            { kind: "answer", item: "ask-pr-7", text: "a" },
+            { session: "o1", typed },
+        );
+        expect(answered.text).toBe("answered ask-pr-7; back at work: pr-7");
         expect(job.state).toBe("working");
         expect(rung).toEqual(["pr-7"]);
         expect(commits.map((c) => c.kind)).toEqual(["owner-item", "owner-item"]);

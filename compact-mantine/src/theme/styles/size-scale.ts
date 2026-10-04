@@ -22,7 +22,7 @@
  * than compact (a 30px xs Button against compact's 24px), so xs would render
  * bigger than sm. A keyed scale keeps the package's whole point -- compact at
  * the default size -- while letting an explicitly sized control differ from
- * its neighbours.
+ * its neighbors.
  *
  * The scales are anchored so that each component's `defaultProps` size resolves
  * to exactly the values this package shipped before the fix; that is what keeps

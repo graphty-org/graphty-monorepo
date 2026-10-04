@@ -64,7 +64,7 @@ describe("RunLayoutsModal - Reset to Defaults", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             // Select ForceAtlas2 which has boolean options
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("ForceAtlas2")).toBeInTheDocument();
@@ -90,7 +90,7 @@ describe("RunLayoutsModal - Reset to Defaults", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             // Select Circular layout
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Circular")).toBeInTheDocument();
@@ -148,7 +148,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             // Open dropdown
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
 
             // Wait for dropdown to open and verify category groups exist
@@ -163,7 +163,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
         it("should show Force-Directed category with correct layouts", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
 
             await waitFor(() => {
@@ -180,7 +180,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
         it("should show Geometric category with correct layouts", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
 
             await waitFor(() => {
@@ -197,7 +197,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
         it("should show Hierarchical category with correct layouts", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
 
             await waitFor(() => {
@@ -211,7 +211,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
         it("should show Special category with correct layouts", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
 
             await waitFor(() => {
@@ -235,7 +235,7 @@ describe("RunLayoutsModal - Category Grouping", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             // Select Circular layout
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("Circular")).toBeInTheDocument();

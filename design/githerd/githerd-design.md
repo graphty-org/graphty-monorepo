@@ -1269,7 +1269,7 @@ Everything is under `~/.githerd/graphty-monorepo/`, outside the repository:
 | Progress | `progress` (current reconcile step and when it began) | n/a |
 | Starts | `starts` (the last 10 start times, for the crash-loop rule) | n/a |
 | Hook events while the daemon was down | `spool/` | n/a |
-| Per job | `jobs/<id>/`: settings, MCP config, news, pane captures, findings | n/a |
+| Per job | `jobs/<id>/`: settings, MCP config, news, pane captures, findings; the guard's `guard.json` (written by the daemon), `writes.jsonl`, `refusals.jsonl` and `agents.json` (written by the guard) | n/a |
 | githerd code | `versions/<sha>/`, `current` -> the running version | master |
 | Fatal reason | `FATAL` | n/a |
 
@@ -1401,16 +1401,25 @@ enforces:
   graphty-org, the review tool's accept and finish, any git write whose `-C` or leading `cd`
   resolves outside the job's worktree, and the comment-reading forms of `gh` (`--comments`,
   `/comments`, `/reviews`, `--json comments` or `reviews`, `api graphql` asking for comments):
-  use `githerd_read`.
-- **Refused in Edit and Write**: paths outside the job's worktree and `./tmp`; the denied paths of
-  7.2.
+  use `githerd_read`. Also refused, because each is another spelling of a refused command or a
+  write the guard cannot attribute: `git -c alias.*`, `core.hooksPath`, `HUSKY=`, the
+  `GIT_DIR`-style variables, `git config` writes (the config is shared by every worktree), `curl`
+  and `wget` to GitHub, `npm` or `pnpm publish`, `nx release`, GraphQL mutations (a node id
+  cannot be checked against the owner items), a comment command that does not name its issue or
+  pull request by number, and a commit message carrying an attribution line. A directory reached
+  through `env -C` or `--chdir`, inside `sh -c` too, counts as a `cd`.
+- **Refused in Edit and Write** (and MultiEdit and NotebookEdit): paths outside the job's worktree
+  (its own `tmp/` included); the denied paths of 7.2.
 - **Agent tool**: at most 2 concurrent subagents, counted by id: in at PostToolUse (`agentId`) or
   SubagentStart, out at SubagentStop with the same id; a stop with no recorded start (Claude Code's
   hidden agents) is ignored [PF 10.11]; **browsers**: no launch at the machine cap.
 - Every refusal names the allowed alternative. Fixed refusals need no daemon; claim checks fail
   closed.
-- The guard logs every allowed `gh` write a worker makes (verb, item) to a local file the daemon
-  reads. An owner-account event on GitHub that matches a worker write within 2 minutes is the
+- The guard logs every allowed `gh` write a worker makes (verb, item) to `jobs/<id>/writes.jsonl`,
+  which the daemon reads, and every refusal to `refusals.jsonl`. It reads its settings from
+  `jobs/<id>/guard.json` (the worktree, the repository, the open owner items, the subagent and
+  browser caps), which the daemon writes before the start and on every owner-item change; a
+  missing or malformed file refuses every call. An owner-account event on GitHub that matches a worker write within 2 minutes is the
   worker's, not owner input: it never answers an owner item, vetoes a close or moves the queue.
 
 Server-side, whatever the guard misses: the ruleset (pull requests only, required checks, no force

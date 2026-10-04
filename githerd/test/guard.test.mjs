@@ -1,83 +1,91 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { countBrowserTrees, launchesBrowser } from "../bin/githerd-guard.mjs";
 import { splitCommands } from "../lib/shellwords.mjs";
 
 const GUARD = fileURLToPath(new URL("../bin/githerd-guard.mjs", import.meta.url));
-const PROTECTED = [
-    "visual-baselines/",
-    ".github/",
-    "githerd/",
-    "githerd.config.json",
-    ".mcp.json",
-    ".claude/",
-    "CLAUDE.md",
-];
+const REPO = "graphty-org/graphty-monorepo";
+/** The issue with an open owner item in every test job. */
+const OWNER_ITEM = 77;
 
 let base;
-/** A run directory and working tree with no merge in progress. */
-let plain;
-/** A pr-conflict run whose working tree is mid-merge (a worktree-style `.git` file). */
-let merging;
+/** The ordinary test job, with room for browsers. */
+let job;
 
 /**
- * Makes a run directory and its working tree.
+ * Makes a job directory and its worktree.
  * @param {string} name a directory name
- * @param {string} kind the run kind
- * @param {boolean} merge whether a merge is in progress
- * @returns {{runDir: string, root: string}} the paths
+ * @param {object} [overrides] fields of guard.json to change
+ * @returns {{jobDir: string, root: string}} the paths
  */
-function makeRun(name, kind, merge) {
-    const runDir = join(base, name, "run");
+function makeJob(name, overrides = {}) {
+    const jobDir = join(base, name, "job");
     const root = join(base, name, "work");
-    mkdirSync(runDir, { recursive: true });
-    mkdirSync(root, { recursive: true });
-    if (merge) {
-        const gitdir = join(base, name, "gitdir");
-        mkdirSync(gitdir);
-        writeFileSync(join(gitdir, "MERGE_HEAD"), "0123456789abcdef0123456789abcdef01234567\n");
-        writeFileSync(join(root, ".git"), `gitdir: ${gitdir}\n`);
-    } else {
-        mkdirSync(join(root, ".git"));
-    }
-    writeFileSync(join(runDir, "guard.json"), JSON.stringify({ kind, root, protectedPaths: PROTECTED }));
-    return { runDir, root };
+    mkdirSync(jobDir, { recursive: true });
+    mkdirSync(join(root, ".git"), { recursive: true });
+    const config = { root, repo: REPO, ownerItems: [OWNER_ITEM], browsers: 100000, ...overrides };
+    writeFileSync(join(jobDir, "guard.json"), JSON.stringify(config));
+    return { jobDir, root };
 }
 
 /**
  * Runs the guard on one hook input.
- * @param {{runDir: string, root: string} | null} run the run, or null for no GITHERD_RUN_DIR
+ * @param {{jobDir: string, root: string} | null} target the job, or null for no job directory argument
  * @param {string | object} input the hook input, or raw stdin text
  * @returns {{status: number | null, stderr: string}} the result
  */
-function guard(run, input) {
-    const env = { PATH: process.env.PATH };
-    if (run) env.GITHERD_RUN_DIR = run.runDir;
+function guard(target, input) {
     const stdin =
-        typeof input === "string" ? input : JSON.stringify({ cwd: run?.root, hook_event_name: "PreToolUse", ...input });
-    const r = spawnSync(process.execPath, [GUARD], { input: stdin, env, encoding: "utf8", timeout: 20000 });
+        typeof input === "string"
+            ? input
+            : JSON.stringify({ cwd: target?.root, session_id: "s1", hook_event_name: "PreToolUse", ...input });
+    const args = target ? [GUARD, target.jobDir] : [GUARD];
+    const r = spawnSync(process.execPath, args, {
+        input: stdin,
+        env: { PATH: process.env.PATH, HOME: process.env.HOME },
+        encoding: "utf8",
+        timeout: 20000,
+    });
     return { status: r.status, stderr: r.stderr };
 }
 
 /**
  * Runs the guard on one Bash command.
- * @param {{runDir: string, root: string}} run the run
+ * @param {{jobDir: string, root: string}} target the job
  * @param {string} command a Bash command
  * @returns {{status: number | null, stderr: string}} the result
  */
-const bash = (run, command) => guard(run, { tool_name: "Bash", tool_input: { command } });
+const bash = (target, command) => guard(target, { tool_name: "Bash", tool_input: { command } });
+
+/**
+ * Reads a JSON-lines file of a job.
+ * @param {{jobDir: string}} target the job
+ * @param {string} name the file
+ * @returns {any[]} the lines
+ */
+function lines(target, name) {
+    try {
+        return readFileSync(join(target.jobDir, name), "utf8")
+            .trim()
+            .split("\n")
+            .filter(Boolean)
+            .map((l) => JSON.parse(l));
+    } catch {
+        return [];
+    }
+}
 
 beforeAll(() => {
     base = mkdtempSync(join(tmpdir(), "githerd-guard-"));
-    plain = makeRun("plain", "pr-fix", false);
-    merging = makeRun("merging", "pr-conflict", true);
-    writeFileSync(join(plain.root, "msg-attributed.txt"), "fix: x\n\nCo-Authored-By: Someone <a@b.c>\n");
-    writeFileSync(join(plain.root, "msg-clean.txt"), "fix: x\n");
+    job = makeJob("plain");
+    writeFileSync(join(job.root, "msg-attributed.txt"), "fix: x\n\nCo-Authored-By: Someone <a@b.c>\n");
+    writeFileSync(join(job.root, "msg-clean.txt"), "fix: x\n");
 });
 
 afterAll(() => {
@@ -91,319 +99,493 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"`;
 
-/** Bash commands denied in a pr-fix run with no merge in progress. */
-const DENIED = [
-    // every git push spelling
-    "git push",
-    "git push origin HEAD",
-    "git push --force-with-lease origin githerd/x-1",
-    "/usr/bin/git push",
-    '"git" push',
-    "g\\it pu\\sh",
-    "git -C /tmp push",
-    "git -c user.name=x push",
-    "git --no-pager push",
-    "git --git-dir .git push",
-    "FOO=1 git push",
-    "env GIT_TRACE=1 git push",
-    "env -i PATH=/usr/bin git push",
-    "command git push",
-    "exec git push",
-    "nice -n 5 git push",
-    "time git push",
-    "timeout 30 git push",
-    "echo hi; git push",
-    "true && git push",
-    "false || git push",
-    "echo hi | git push",
-    "echo hi\ngit push",
-    "echo $(git push)",
-    "echo `git push`",
-    'echo "$(git push)"',
-    "(git push)",
-    "{ git push; }",
-    "if true; then git push; fi",
-    "bash -c 'git push'",
-    'sh -lc "git push origin"',
-    "eval git push",
-    "env -S 'git push'",
-    "echo origin | xargs git push",
-    "find . -maxdepth 0 -exec git push \\;",
-    "git -c alias.p=push p",
-    "git config alias.p push",
-    // GitHub, remote access and credentials
-    "gh pr list",
-    "/usr/local/bin/gh api repos/x/y",
-    "npx gh pr create",
-    "curl https://api.github.com/repos/x/y",
-    "curl -s https://github.com/x/y",
-    "wget https://api.github.com/user",
-    "ssh git@github.com",
-    "scp a host:b",
-    "git credential fill",
-    "echo url=https://github.com | git credential fill",
-    "git credential-store get",
-    "git -c credential.helper=store fetch",
-    // history-rewriting and working-tree-discarding git
-    "git stash",
-    "git stash push -m x",
-    "git reset --hard HEAD~1",
-    "git reset HEAD file",
-    "git switch main",
-    "git restore file.ts",
-    "git clean -fdx",
-    "git rebase master",
-    "git checkout master",
-    "git checkout -- file.ts",
-    "git checkout -b new",
-    "git checkout MERGE_HEAD -- visual-baselines/x.png",
+const API = `repos/${REPO}`;
+
+/**
+ * Bash commands refused, each with text its refusal must contain: the allowed alternative where
+ * design 10.1 names one.
+ * @type {[string, RegExp][]}
+ */
+const REFUSED = [
+    // every git push spelling: githerd_push
+    ...[
+        "git push",
+        "git push origin HEAD",
+        "git push --force-with-lease origin githerd/x-1",
+        "/usr/bin/git push",
+        '"git" push',
+        "g\\it pu\\sh",
+        "git -C /tmp push",
+        "git -c user.name=x push",
+        "git --no-pager push",
+        "FOO=1 git push",
+        "env GIT_TRACE=1 git push",
+        "env -i PATH=/usr/bin git push",
+        "command git push",
+        "exec git push",
+        "nice -n 5 git push",
+        "time git push",
+        "timeout 30 git push",
+        "echo hi; git push",
+        "true && git push",
+        "false || git push",
+        "echo hi | git push",
+        "echo hi\ngit push",
+        "echo $(git push)",
+        "echo `git push`",
+        'echo "$(git push)"',
+        "(git push)",
+        "{ git push; }",
+        "if true; then git push; fi",
+        "bash -c 'git push'",
+        'sh -lc "git push origin"',
+        "eval git push",
+        "env -S 'git push'",
+        "echo origin | xargs git push",
+        "find . -maxdepth 0 -exec git push \\;",
+        "npx -c 'git push'",
+    ].map((c) => /** @type {[string, RegExp]} */ ([c, /githerd_push/])),
+    // spellings that hide a subcommand or skip the hooks
+    ["git -c alias.p=push p", /aliases/],
+    ["git -c credential.helper=store fetch", /credential/],
+    ["git credential fill", /credential/],
+    ["git commit --no-verify -m 'fix: x'", /hooks always run/],
+    ["git commit -n -m 'fix: x'", /hooks always run/],
+    ["git commit -anm 'fix: x'", /hooks always run/],
+    ["git merge --no-verify origin/master", /hooks always run/],
+    ["git -c core.hooksPath=/dev/null commit -m 'fix: x'", /hooks always run/],
+    ["HUSKY=0 git commit -m 'fix: x'", /HUSKY/],
+    // history-rewriting and change-discarding git
+    ["git stash", /commit the work in progress/],
+    ["git stash push -m x", /commit the work in progress/],
+    ["git reset --hard HEAD~1", /git revert|git switch -c/],
+    ["git reset HEAD file", /git revert|git switch -c/],
+    ["git clean -fdx", /rm/],
+    ["git rebase master", /git merge origin\/master/],
+    ["git checkout -- file.ts", /git switch/],
+    ["git checkout master", /git switch/],
+    ["git checkout HEAD~1 -- a.ts", /git switch/],
+    ["git checkout -b x -- a.ts", /git switch/],
+    ["git restore file.ts", /new commit/],
+    ["git restore --staged --worktree a.ts", /new commit/],
+    ["git switch --discard-changes main", /commit the changes first/],
+    ["git switch -f main", /commit the changes first/],
+    // remotes and shared config
+    ["git remote add fork https://github.com/x/y", /githerd_push/],
+    ["git remote set-url origin x", /githerd_push/],
+    ["git remote remove origin", /githerd_push/],
+    ["git config remote.origin.url x", /git -c/],
+    ["git config user.name x", /git -c/],
+    ["git config --global commit.gpgsign false", /git -c/],
     // unsigned commits and attribution
-    'git commit --no-gpg-sign -m "fix: x"',
-    'git -c commit.gpgsign=false commit -m "fix: x"',
-    'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false git commit -m "fix: x"',
-    'git commit -S -m "fix: x" -m "Co-Authored-By: Claude <noreply@anthropic.com>"',
-    'git commit -S -m "fix: x" -m "Claude-Session: abc"',
-    'git commit -S -m "fix: x\n\nGenerated with Claude Code"',
-    SIGNED_ATTRIBUTION,
-    "git commit -S -F - <<EOF\nfix: x\n\nco-authored-by: a <b@c>\nEOF",
-    "git commit -S -F msg-attributed.txt",
-    "git commit -S --file=msg-attributed.txt",
-    "git commit -S -F missing-message.txt",
-    'git merge -m "Merge\n\nCo-Authored-By: x" abc123',
-    // long-lived processes
-    "servherd start --name x",
-    "npx -y servherd start",
-    "npx servherd@latest list",
-    "pm2 start x",
-    "pnpm exec pm2 list",
-    "githerd install",
-    "githerd ensure",
-    "node githerd/bin/githerd.mjs restart",
-    "node --no-warnings /abs/githerd/bin/githerd.mjs dev",
-    "./githerd/bin/githerd.mjs install",
-    "pnpm exec githerd ensure",
-    "npx githerd restart",
-    "nohup node server.js",
-    "setsid node server.js",
-    "node server.js & disown",
-    "node server.js &",
-    "sleep 100 &",
-    "(sleep 100) &",
-    "node server.js > log 2>&1 &",
-    "pnpm run dev",
-    "pnpm run dev:graphty",
-    "npm run dev",
-    "pnpm dev",
-    "pnpm --filter graphty-element run dev",
-    "npm run storybook",
-    "pnpm run storybook:graphty-element",
-    "storybook dev -p 9001",
-    "npx storybook dev",
-    "pnpm exec nx run graphty-element:storybook",
-    "npx vite",
-    // privilege and publishing
-    "sudo ls",
-    "npm publish",
-    "pnpm publish --access public",
-    "pnpm -r publish",
-    "nx release",
-    "pnpm exec nx release --dry-run",
-    "npx nx release",
+    ['git commit --no-gpg-sign -m "fix: x"', /signed/],
+    ['git -c commit.gpgsign=false commit -m "fix: x"', /signed/],
+    ['GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false git commit -m "fix: x"', /GIT_/],
+    ['git commit -S -m "fix: x" -m "Co-Authored-By: Claude <noreply@anthropic.com>"', /message/],
+    ['git commit -S -m "fix: x" -m "Claude-Session: abc"', /message/],
+    [SIGNED_ATTRIBUTION, /message/],
+    ["git commit -S -F - <<EOF\nfix: x\n\nco-authored-by: a <b@c>\nEOF", /message/],
+    ["git commit -S -F msg-attributed.txt", /message/],
+    ["git commit -S --file=msg-attributed.txt", /message/],
+    ["git commit -S -F missing-message.txt", /guard error/],
+    // git writes outside the job's worktree
+    ["git -C /tmp commit -m 'fix: x'", /stay in the job's worktree/],
+    ["cd /tmp && git commit -m 'fix: x'", /stay in the job's worktree/],
+    ["cd .. && git add -A", /stay in the job's worktree/],
+    ["cd && git add -A", /stay in the job's worktree/],
+    ["cd ~/x; git add -A", /stay in the job's worktree/],
+    ["env -C /tmp git commit -m 'fix: x'", /stay in the job's worktree/],
+    ["git -C ../main merge x", /stay in the job's worktree/],
+    ["cd $HOME/x && git commit -m 'fix: x'", /cd to a plain path/],
+    ["cd - && git add -A", /cd to a plain path/],
+    ["git --git-dir=/tmp/x/.git commit -m 'fix: x'", /--git-dir/],
+    ["git --work-tree /tmp/x add -A", /--git-dir/],
+    ["GIT_DIR=/tmp/x git commit -m 'fix: x'", /GIT_/],
+    // merging, statuses, updates and retargets: the daemon's
+    ["gh pr merge 12", /Mergify/],
+    ["gh pr merge 12 --auto --merge", /Mergify/],
+    ["gh pr merge --disable-auto 12", /Mergify/],
+    ["gh pr update-branch 12", /daemon updates/],
+    ["gh pr edit 12 --base other", /retargets/],
+    [`gh api -X PATCH ${API}/pulls/12 -f base=other`, /retargets/],
+    [`gh api -X POST ${API}/statuses/abc -f state=success`, /statuses/],
+    ["gh api repos/{owner}/{repo}/statuses/abc -f state=success", /statuses/],
+    [`gh api -X PUT ${API}/pulls/12/merge`, /Mergify/],
+    [`gh api -X POST ${API}/merges -f base=x -f head=y`, /Mergify/],
+    [`gh api -X PUT ${API}/pulls/12/update-branch`, /daemon updates/],
+    [`gh api -X POST ${API}/git/refs -f ref=refs/heads/x -f sha=abc`, /githerd_push/],
+    [`gh api -X DELETE ${API}/git/refs/heads/x`, /githerd_push/],
+    [`gh api -X PUT ${API}/contents/a.txt -f message=x -f content=eA==`, /githerd_push/],
+    [`gh api -X PUT ${API}/branches/master/protection --input p.json`, /owner's/],
+    ["gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }'", /mutation/],
+    ["gh api graphql -f query='mutation { addComment(input: {}) { clientMutationId } }'", /mutation/],
+    // re-runs and dispatches: githerd_rerun
+    ["gh run rerun 123", /githerd_rerun/],
+    ["gh run rerun 123 --job 456", /githerd_rerun/],
+    ["gh workflow run ci.yml", /githerd_rerun/],
+    [`gh api -X POST ${API}/actions/runs/1/rerun`, /githerd_rerun/],
+    [`gh api -X POST ${API}/actions/jobs/1/rerun`, /githerd_rerun/],
+    [`gh api ${API}/actions/workflows/gpu.yml/dispatches -f ref=master`, /githerd_rerun/],
+    // closes and reopens
+    ["gh issue close 12", /grace period/],
+    ["gh issue reopen 12", /githerd_ask_owner/],
+    ["gh pr close 12", /not-needed/],
+    ["gh pr reopen 12", /githerd_ask_owner/],
+    [`gh api -X PATCH ${API}/issues/12 -f state=closed`, /closes and reopens/],
+    // the owner's and githerd's labels
+    ["gh issue edit 12 --add-label needs-decision", /belongs to the owner/],
+    ["gh pr edit 12 --remove-label hold", /belongs to the owner/],
+    ["gh issue edit 12 --add-label bug,githerd:parked", /belongs to the owner/],
+    ["gh issue edit 12 --add-label=intermittent", /belongs to the owner/],
+    ["gh issue create --title x --body y --label intermittent", /belongs to the owner/],
+    ["gh label delete hold --yes", /belongs to the owner/],
+    [`gh api -X POST ${API}/issues/12/labels -f 'labels[]=hold'`, /belongs to the owner/],
+    [`gh api -X DELETE ${API}/issues/12/labels/needs-decision`, /belongs to the owner/],
+    // comments on an item with an open owner item
+    [`gh issue comment ${OWNER_ITEM} --body x`, /githerd_ask_owner/],
+    [`gh pr comment ${OWNER_ITEM} -b x`, /githerd_ask_owner/],
+    [`gh pr review ${OWNER_ITEM} --comment -b x`, /githerd_ask_owner/],
+    [`gh issue comment https://github.com/${REPO}/issues/${OWNER_ITEM} -b x`, /githerd_ask_owner/],
+    [`gh api -X POST ${API}/issues/${OWNER_ITEM}/comments -f body=x`, /githerd_ask_owner/],
+    ["gh pr comment -b x", /name the issue or pull request number/],
+    [`gh api -X PATCH ${API}/issues/comments/5 -f body=x`, /--edit-last/],
+    // writes outside the organization
+    ["gh issue comment 5 -R cytoscape/cytoscape.js -b x", /only to graphty-org/],
+    ["gh issue comment https://github.com/cytoscape/cytoscape.js/issues/5 -b x", /only to graphty-org/],
+    ["gh issue create -R apowers313/scratch -t x -b y", /only to graphty-org/],
+    ["gh repo create scratch --private", /only to graphty-org/],
+    ["gh repo fork cytoscape/cytoscape.js", /only to graphty-org/],
+    ["gh api -X POST repos/cytoscape/cytoscape.js/issues/5/comments -f body=x", /only to graphty-org/],
+    ["curl -X POST https://api.github.com/repos/cytoscape/cytoscape.js/issues/5/comments", /use gh/],
+    ["wget https://api.github.com/user", /use gh/],
+    // the review tool's accept and finish
+    ["node visual-review/trusted/cli.mjs accept", /only the owner/],
+    ["node visual-review/trusted/cli.mjs finish --pr 12", /only the owner/],
+    ["pnpm exec visual-review accept", /only the owner/],
+    ["npx visual-review finish", /only the owner/],
+    // the comment-reading forms of gh: githerd_read
+    ["gh pr view 12 --comments", /githerd_read/],
+    ["gh issue view 12 --comments", /githerd_read/],
+    ["gh pr view 12 --json title,comments", /githerd_read/],
+    ["gh pr view 12 --json reviews", /githerd_read/],
+    ["gh pr view 12 --json=latestReviews", /githerd_read/],
+    [`gh api ${API}/issues/12/comments`, /githerd_read/],
+    ["gh api repos/{owner}/{repo}/pulls/12/reviews", /githerd_read/],
+    [`gh api /${API}/issues/12/timeline`, /githerd_read/],
+    [
+        'gh api graphql -f query=\'{ repository(owner: "a", name: "b") { issue(number: 1) { comments(first: 9) { nodes { body } } } } }\'',
+        /githerd_read/,
+    ],
+    // publishing
+    ["npm publish", /release\.yml/],
+    ["pnpm publish --access public", /release\.yml/],
+    ["pnpm -r publish", /release\.yml/],
+    ["nx release", /release\.yml/],
+    ["pnpm exec nx release --dry-run", /release\.yml/],
 ];
 
-/** Bash commands allowed in a pr-fix run. */
+/** Bash commands allowed: the alternatives the refusals name, and ordinary work. */
 const ALLOWED = [
     'git commit -S -m "fix: x"',
     "git commit -S -m \"$(cat <<'EOF'\nfix(githerd): x\n\nBody text.\nEOF\n)\"",
     "git commit -S -F msg-clean.txt",
+    "git commit -am 'fix: x'",
     "git -c commit.gpgsign=true commit -m 'fix: x'",
-    "pnpm exec nx run x:test",
-    "pnpm exec nx run githerd:coverage",
-    "pnpm exec nx run-many -t build",
-    "git merge 0123456789abcdef0123456789abcdef01234567",
+    "cd sub && git commit -S -m 'fix: x'",
+    "cd /tmp && cd - >/dev/null; ls",
+    "git merge origin/master",
     "git merge --no-edit abc123",
+    "git revert --no-edit abc123",
+    "git checkout -b feat/x",
+    "git checkout -b feat/x origin/master",
+    "git switch feat/x",
+    "git switch -c feat/x",
+    "git restore --staged a.ts",
     "git status --short",
     "git diff HEAD~1 -- src/a.ts",
     "git log --oneline -5",
+    "git -C /tmp log --oneline",
+    "cd /tmp && git status",
+    "git -C ../main branch -a",
     "git add -A",
     "git fetch origin",
+    "git remote -v",
+    "git remote get-url origin",
     "git config user.name",
+    "git config --get user.email",
+    "git worktree list",
+    "gh pr create --title 'fix: x' --body y",
+    "gh pr edit 12 --title 'fix: y' --add-label bug",
+    "gh issue comment 12 --body x",
+    "gh pr comment 12 -b x",
+    "gh issue create -t x -b y --label bug",
+    "gh issue create -R graphty-org/graphty-monorepo -t x -b y",
+    "gh pr view 12",
+    "gh pr view 12 --json title,state,reviewDecision",
+    "gh pr checks 12",
+    "gh run view 123 --log-failed",
+    "gh run list -w ci.yml",
+    `gh api ${API}/pulls/12`,
+    `gh api ${API}/commits/abc/statuses`,
+    "gh api repos/cytoscape/cytoscape.js/issues/5",
+    "gh issue view 5 -R cytoscape/cytoscape.js",
+    "gh api graphql -f query='{ viewer { login } }'",
+    "node visual-review/trusted/cli.mjs update 12",
+    "node visual-review/trusted/cli.mjs capture --project p --out tmp/x",
+    "pnpm exec nx run x:test",
+    "pnpm exec nx run-many -t build",
     "pnpm install --frozen-lockfile",
     "npm test",
     "pnpm run build",
-    "npx vite build",
     "npm run test:run -- --project=browser",
     "curl https://registry.npmjs.org/vitest",
     "ls -la && cat README.md | grep push",
     "echo 'git push' > notes.txt",
     "grep -rn 'git push' lib/",
     "echo done # git push",
-    "node tools/check.mjs 2>&1",
     "cat <<EOF > notes.txt\ngit push\nnpm publish\nEOF",
     "find . -name '*.ts' -exec grep -l push {} +",
     "timeout 30 git commit -S -m 'fix: y'",
-    "node githerd/bin/githerd.mjs status",
-    "githerd why pr:12",
 ];
 
-describe("guard: Bash commands", () => {
-    it.each(DENIED)("denies %j", (command) => {
-        const r = bash(plain, command);
+describe("guard: Bash refusals of design 10.1", () => {
+    it.each(REFUSED)("refuses %j and names what to do", (command, says) => {
+        const r = bash(job, command);
         expect(r.status, r.stderr).toBe(2);
-        expect(r.stderr.length).toBeGreaterThan(0);
+        expect(r.stderr).toMatch(says);
     });
 
     it.each(ALLOWED)("allows %j", (command) => {
-        const r = bash(plain, command);
+        const r = bash(job, command);
         expect(r.stderr).toBe("");
         expect(r.status).toBe(0);
     });
-
-    it("covers at least 60 commands", () => {
-        expect(DENIED.length + ALLOWED.length).toBeGreaterThanOrEqual(60);
-    });
 });
 
-describe("guard: git checkout MERGE_HEAD", () => {
-    it("allows protected paths during a merge in a pr-conflict run", () => {
-        expect(bash(merging, "git checkout MERGE_HEAD -- visual-baselines/x.png").status).toBe(0);
-        expect(bash(merging, "git checkout MERGE_HEAD -- visual-baselines/a.png .github/workflows/ci.yml").status).toBe(
-            0,
+describe("guard: the write log", () => {
+    it("logs every allowed gh write with its verb and item, and no reads", () => {
+        const logged = makeJob("writes");
+        const r = bash(
+            logged,
+            `gh pr view 3 && gh issue comment 12 --body x && gh api -X POST ${API}/issues/13/labels -f 'labels[]=bug' && gh pr create -t 'fix: x' -b y`,
         );
+        expect(r.status, r.stderr).toBe(0);
+        expect(lines(logged, "writes.jsonl")).toMatchObject([
+            { verb: "issue comment", item: 12, repo: REPO },
+            { verb: `api POST /${API}/issues/13/labels`, item: 13, repo: REPO },
+            { verb: "pr create", item: null, repo: REPO },
+        ]);
+        expect(lines(logged, "writes.jsonl")[0].at).toMatch(/^\d{4}-/);
     });
 
-    it("denies it outside a merge, in another kind, for other paths and in other forms", () => {
-        expect(bash(plain, "git checkout MERGE_HEAD -- visual-baselines/x.png").stderr).toMatch(/checkout/);
-        const outside = makeRun("conflict-no-merge", "pr-conflict", false);
-        expect(bash(outside, "git checkout MERGE_HEAD -- visual-baselines/x.png").stderr).toMatch(/outside a merge/);
-        expect(bash(merging, "git checkout MERGE_HEAD -- src/a.ts").stderr).toMatch(/not protected/);
-        expect(bash(merging, "git checkout MERGE_HEAD -- visual-baselines/x.png src/a.ts").status).toBe(2);
-        expect(bash(merging, "git checkout MERGE_HEAD visual-baselines/x.png").status).toBe(2);
-        expect(bash(merging, "git checkout MERGE_HEAD --").status).toBe(2);
-        expect(bash(merging, "git checkout HEAD -- visual-baselines/x.png").status).toBe(2);
-        expect(bash(merging, "git checkout MERGE_HEAD -- ../escape/visual-baselines/x.png").status).toBe(2);
+    it("logs nothing when any part of the command line is refused", () => {
+        const logged = makeJob("writes-refused");
+        expect(bash(logged, "gh issue comment 12 --body x && gh pr merge 12").status).toBe(2);
+        expect(lines(logged, "writes.jsonl")).toEqual([]);
     });
 });
 
 describe("guard: Edit and Write", () => {
-    const PROTECTED_FILES = [
+    const DENIED = [
         "visual-baselines/graphty-element/a.png",
-        ".github/workflows/ci.yml",
         "githerd/lib/runner.mjs",
-        "githerd.config.json",
-        ".mcp.json",
         ".claude/settings.json",
-        "CLAUDE.md",
+        ".github/workflows/ci.yml",
+        ".husky/pre-push",
+        "tools/prepush.sh",
+        ".git/config",
         "./.claude/../.claude/rules.md",
     ];
 
-    it.each(
-        PROTECTED_FILES.flatMap((f) => [
-            ["Edit", f],
-            ["Write", f],
-        ]),
-    )("denies %s to %s", (tool, file) => {
-        const r = guard(plain, { tool_name: tool, tool_input: { file_path: join(plain.root, file), content: "x" } });
-        expect(r.status, r.stderr).toBe(2);
-        expect(r.stderr).toMatch(/protected/);
+    it.each(DENIED.flatMap((f) => ["Edit", "Write", "MultiEdit"].map((t) => [t, f])))(
+        "refuses %s to %s",
+        (tool, file) => {
+            const r = guard(job, { tool_name: tool, tool_input: { file_path: join(job.root, file), content: "x" } });
+            expect(r.status, r.stderr).toBe(2);
+            expect(r.stderr).toMatch(/githerd_ask_owner/);
+        },
+    );
+
+    it("resolves a relative path against the session's directory", () => {
+        expect(guard(job, { tool_name: "Write", tool_input: { file_path: "tools/prepush.sh" } }).status).toBe(2);
     });
 
-    it("resolves a relative path against the current directory", () => {
-        const r = guard(plain, { tool_name: "Write", tool_input: { file_path: "CLAUDE.md", content: "x" } });
-        expect(r.status).toBe(2);
-    });
+    it.each(["/tmp/x.txt", "../other/a.ts", `${process.env.HOME}/.githerd/graphty-monorepo/state.json`])(
+        "refuses a path outside the worktree: %s",
+        (file) => {
+            for (const tool of ["Edit", "Write"]) {
+                const r = guard(job, { tool_name: tool, tool_input: { file_path: file, content: "x" } });
+                expect(r.status).toBe(2);
+                expect(r.stderr).toMatch(/inside the job's worktree.*tmp\//);
+            }
+        },
+    );
 
-    it("allows other paths, including a nested CLAUDE.md and a file named like a protected directory", () => {
-        for (const file of ["src/a.ts", "graphty-element/CLAUDE.md", "githerd.md", "docs/.github-notes.md"]) {
-            const r = guard(plain, { tool_name: "Edit", tool_input: { file_path: join(plain.root, file) } });
+    it("allows other paths in the worktree, its tmp/ included", () => {
+        const files = ["src/a.ts", "tmp/githerd/x.txt", ".github/ISSUE_TEMPLATE/x.md", "tools/other.sh", "CLAUDE.md"];
+        for (const file of files) {
+            const r = guard(job, { tool_name: "Edit", tool_input: { file_path: join(job.root, file) } });
             expect(r.status, file).toBe(0);
         }
-    });
-
-    it.each([
-        ["a relative path out of the tree", "../../.githerd/runs/x/guard.json"],
-        ["the main checkout's git config", "/abs/root/.git/config"],
-        ["the owner's settings", "/home/x/.claude/settings.json"],
-    ])("denies Edit and Write to %s", (_, file) => {
-        for (const tool of ["Edit", "Write"]) {
-            const r = guard(plain, { tool_name: tool, tool_input: { file_path: file, content: "x" } });
-            expect(r.status, `${tool} ${file}`).toBe(2);
-            expect(r.stderr).toMatch(/inside their working tree/);
-        }
-    });
-
-    it("denies Edit and Write to the tree's .git and .husky/", () => {
-        for (const file of [".git", ".git/config", ".husky/_/reference-transaction", ".husky/pre-push"]) {
-            const r = guard(plain, {
-                tool_name: "Write",
-                tool_input: { file_path: join(plain.root, file), content: "x" },
-            });
-            expect(r.status, file).toBe(2);
-            expect(r.stderr).toMatch(/git or hook files/);
-        }
-        const ok = guard(plain, { tool_name: "Write", tool_input: { file_path: join(plain.root, ".gitignore") } });
-        expect(ok.status).toBe(0);
+        const nb = guard(job, { tool_name: "NotebookEdit", tool_input: { notebook_path: join(job.root, "a.ipynb") } });
+        expect(nb.status).toBe(0);
     });
 
     it("allows tools it does not guard", () => {
-        expect(
-            guard(plain, { tool_name: "Read", tool_input: { file_path: join(plain.root, "CLAUDE.md") } }).status,
-        ).toBe(0);
+        expect(guard(job, { tool_name: "Read", tool_input: { file_path: "/etc/hosts" } }).status).toBe(0);
     });
 });
 
-describe("guard: failures deny", () => {
-    it("denies malformed JSON input and records it", () => {
-        const r = guard(plain, "{not json");
+describe("guard: the Agent cap", () => {
+    /**
+     * Sends one non-PreToolUse event.
+     * @param {{jobDir: string, root: string}} target the job
+     * @param {object} input the event
+     * @returns {number | null} the exit status
+     */
+    const event = (target, input) => guard(target, { session_id: "s1", ...input }).status;
+    const launch = (target, session = "s1") =>
+        guard(target, { tool_name: "Agent", session_id: session, tool_input: { description: "d", prompt: "p" } });
+
+    it("refuses a third concurrent subagent, counted by id", () => {
+        const agents = makeJob("agents");
+        expect(launch(agents).status).toBe(0);
+        expect(event(agents, { hook_event_name: "SubagentStart", agent_id: "a1", agent_type: "general-purpose" })).toBe(
+            0,
+        );
+        expect(
+            event(agents, {
+                hook_event_name: "PostToolUse",
+                tool_name: "Agent",
+                tool_response: { isAsync: true, status: "async_launched", agentId: "a1" },
+            }),
+        ).toBe(0);
+        expect(launch(agents).status).toBe(0);
+        expect(
+            event(agents, {
+                hook_event_name: "PostToolUse",
+                tool_name: "Agent",
+                tool_response: { agentId: "a2" },
+            }),
+        ).toBe(0);
+        const third = launch(agents);
+        expect(third.status).toBe(2);
+        expect(third.stderr).toMatch(/at most 2 subagents.*do this part yourself/);
+        // a hidden agent stops without a start: nothing changes
+        expect(event(agents, { hook_event_name: "SubagentStop", agent_id: "hidden", agent_type: "" })).toBe(0);
+        expect(launch(agents).status).toBe(2);
+        expect(event(agents, { hook_event_name: "SubagentStop", agent_id: "a1" })).toBe(0);
+        expect(launch(agents).status).toBe(0);
+        // a new session starts from zero
+        expect(event(agents, { hook_event_name: "SubagentStart", agent_id: "a3" })).toBe(0);
+        expect(launch(agents).status).toBe(2);
+        expect(launch(agents, "s2").status).toBe(0);
+    });
+
+    it("takes the cap from guard.json", () => {
+        const one = makeJob("agents-one", { subagents: 1 });
+        event(one, { hook_event_name: "SubagentStart", agent_id: "a1" });
+        expect(launch(one).stderr).toMatch(/at most 1 subagents/);
+    });
+
+    it("never blocks a tracking event, even without a job directory or with garbage", () => {
+        expect(guard(null, { hook_event_name: "SubagentStop", agent_id: "a1" }).status).toBe(0);
+        expect(guard(job, { hook_event_name: "SubagentStart" }).status).toBe(0);
+        const lost = { jobDir: join(base, "nowhere", "job"), root: job.root };
+        expect(guard(lost, { hook_event_name: "SubagentStart", agent_id: "a1" }).status).toBe(0);
+    });
+});
+
+describe("guard: the browser cap", () => {
+    it.each([
+        "npx playwright test",
+        "pnpm exec playwright test e2e/",
+        "npm run test:run -- --project=browser",
+        "npx vitest run --project storybook",
+        "npx vitest --browser.headless",
+        "pnpm run test:browser",
+        "npm run test:storybook",
+        "test-storybook --url http://x",
+        "chromium --headless about:blank",
+    ])("refuses %j at the machine cap", (command) => {
+        const full = makeJob("browsers-full", { browsers: 0 });
+        const r = bash(full, command);
+        expect(r.status, r.stderr).toBe(2);
+        expect(r.stderr).toMatch(/Chromium trees.*githerd_expect/);
+    });
+
+    it("allows commands that start no browser at the cap", () => {
+        const full = makeJob("browsers-full-2", { browsers: 0 });
+        for (const command of ["npm test -- --project=default", "npx playwright install chromium", "pnpm run build"]) {
+            expect(bash(full, command).status, command).toBe(0);
+        }
+    });
+
+    it("recognizes launches", () => {
+        expect(launchesBrowser("playwright", ["test"])).toBe(true);
+        expect(launchesBrowser("playwright", ["install"])).toBe(false);
+        expect(launchesBrowser("vitest", ["--project=xr"])).toBe(true);
+        expect(launchesBrowser("vitest", ["--project", "default"])).toBe(false);
+        expect(launchesBrowser("node", ["a.mjs"])).toBe(false);
+    });
+
+    it("counts Chromium trees from /proc: a Chromium process whose parent is not one", () => {
+        const proc = join(base, "proc");
+        const stat = (pid, comm, ppid) => {
+            mkdirSync(join(proc, String(pid)), { recursive: true });
+            writeFileSync(join(proc, String(pid), "stat"), `${pid} (${comm}) S ${ppid} 1 1 0`);
+        };
+        stat(1, "bash", 0);
+        stat(10, "chrome", 1);
+        stat(11, "chrome", 10);
+        stat(12, "headless_shell", 1);
+        stat(13, "node", 1);
+        stat(14, "chrome", 13);
+        stat(15, "tmux: server (x)", 1);
+        mkdirSync(join(proc, "16"));
+        mkdirSync(join(proc, "self"));
+        expect(countBrowserTrees(proc)).toBe(3);
+        expect(countBrowserTrees()).toBeGreaterThanOrEqual(0);
+    });
+});
+
+describe("guard: failures refuse", () => {
+    it("refuses malformed JSON input", () => {
+        const r = guard(job, "{not json");
         expect(r.status).toBe(2);
         expect(r.stderr).toMatch(/guard error/);
-        expect(readFileSync(join(plain.runDir, "denials.jsonl"), "utf8")).toMatch(/guard error/);
     });
 
-    it("denies input with no tool or no command", () => {
-        expect(guard(plain, { tool_input: { command: "ls" } }).status).toBe(2);
-        expect(guard(plain, { tool_name: "Bash", tool_input: {} }).status).toBe(2);
-        expect(guard(plain, { tool_name: "Write", tool_input: {} }).status).toBe(2);
+    it("refuses input with no tool or no command", () => {
+        expect(guard(job, { tool_input: { command: "ls" } }).status).toBe(2);
+        expect(guard(job, { tool_name: "Bash", tool_input: {} }).status).toBe(2);
+        expect(guard(job, { tool_name: "Write", tool_input: {} }).status).toBe(2);
     });
 
-    it("denies an unterminated quote or substitution", () => {
-        expect(bash(plain, "echo 'abc").status).toBe(2);
-        expect(bash(plain, "echo $(ls").status).toBe(2);
+    it("refuses an unterminated quote or substitution", () => {
+        expect(bash(job, "echo 'abc").status).toBe(2);
+        expect(bash(job, "echo $(ls").status).toBe(2);
     });
 
-    it("denies when GITHERD_RUN_DIR is unset", () => {
-        expect(guard(null, { tool_name: "Bash", tool_input: { command: "ls" } }).stderr).toMatch(/GITHERD_RUN_DIR/);
-    });
-
-    it("denies when the run directory cannot be read", () => {
-        const run = makeRun("unreadable", "pr-fix", false);
-        chmodSync(run.runDir, 0o000);
-        try {
-            const r = bash(run, "ls");
-            // root can read anything; the check only means something for an ordinary user
-            if (process.getuid?.() !== 0) expect(r.status).toBe(2);
-        } finally {
-            chmodSync(run.runDir, 0o755);
+    it("refuses without a job directory, or with a missing or malformed guard.json", () => {
+        expect(guard(null, { tool_name: "Bash", tool_input: { command: "ls" } }).stderr).toMatch(/job directory/);
+        expect(bash({ jobDir: join(base, "missing"), root: job.root }, "ls").status).toBe(2);
+        for (const bad of [
+            { root: "relative", repo: REPO, ownerItems: [] },
+            { root: "/x", repo: "x", ownerItems: [] },
+        ]) {
+            const broken = makeJob(`malformed-${bad.repo}`);
+            writeFileSync(join(broken.jobDir, "guard.json"), JSON.stringify(bad));
+            expect(bash(broken, "ls").stderr).toMatch(/malformed/);
         }
-        expect(bash({ runDir: join(base, "missing"), root: plain.root }, "ls").status).toBe(2);
     });
 
-    it("denies a malformed guard.json", () => {
-        const run = makeRun("malformed", "pr-fix", false);
-        writeFileSync(join(run.runDir, "guard.json"), JSON.stringify({ kind: "pr-fix" }));
-        expect(bash(run, "ls").stderr).toMatch(/malformed/);
-    });
-
-    it("records each denial with the tool, the input and the reason", () => {
-        const run = makeRun("record", "pr-fix", false);
-        bash(run, "git push");
-        const lines = readFileSync(join(run.runDir, "denials.jsonl"), "utf8")
-            .trim()
-            .split("\n")
-            .map((l) => JSON.parse(l));
-        expect(lines).toHaveLength(1);
-        expect(lines[0]).toMatchObject({ tool: "Bash", input: "git push" });
-        expect(lines[0].reason).toMatch(/git push/);
+    it("records each refusal with the tool, the input and the reason", () => {
+        const recorded = makeJob("record");
+        bash(recorded, "git push");
+        expect(lines(recorded, "refusals.jsonl")).toMatchObject([
+            { tool: "Bash", input: "git push", reason: expect.stringMatching(/githerd_push/) },
+        ]);
     });
 });
 
@@ -479,6 +661,14 @@ describe("splitCommands", () => {
         expect(argvs("bash script.sh")).toEqual([["bash", "script.sh"]]);
         expect(argvs("env")).toEqual([]);
         expect(argvs("# only a comment\n")).toEqual([]);
+    });
+
+    it("records the directories env -C moves to, through sh -c", () => {
+        expect(splitCommands("env -C /a --chdir=b bash -c 'env --chdir c git add -A'")[0]).toMatchObject({
+            argv: ["git", "add", "-A"],
+            chdir: ["/a", "b", "c"],
+        });
+        expect(splitCommands("git status")[0].chdir).toEqual([]);
     });
 
     it("keeps the background flag and assignments through sh -c", () => {

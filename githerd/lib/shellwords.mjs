@@ -1,6 +1,6 @@
 /**
- * Splits a shell command line into the simple commands it would run, for the guard hook (design
- * section 9.4). It follows POSIX shell quoting closely enough to see through the ordinary
+ * Splits a shell command line into the simple commands it would run, for the worker guard (design
+ * section 10.1). It follows POSIX shell quoting closely enough to see through the ordinary
  * spellings of a command: quotes and backslashes, `;`, `&&`, `||`, `|`, `&` and newlines,
  * `$(...)`, backticks and process substitution, subshells, redirections, here-documents, leading
  * variable assignments, reserved words, and the wrappers `env`, `command`, `exec`, `nice`, `time`,
@@ -18,6 +18,7 @@
  * @property {boolean} background true when the command, or a list it is part of, ends in `&`
  * @property {string[]} input here-document bodies and here-strings fed to its standard input
  * @property {string[]} assign leading `NAME=value` assignments, including those given to `env`
+ * @property {string[]} chdir the directories `env -C` moves to before running it, in order
  */
 
 /**
@@ -394,7 +395,7 @@ class Parser {
  * @returns {SimpleCommand} an empty command
  */
 function newCommand() {
-    return { argv: [], background: false, input: [], assign: [] };
+    return { argv: [], background: false, input: [], assign: [], chdir: [] };
 }
 
 /**
@@ -441,6 +442,21 @@ function envOptions(rest, assign) {
 }
 
 /**
+ * The directories `env`'s `-C` and `--chdir` options name.
+ * @param {string[]} options env's words before its command
+ * @returns {string[]} the directories, in order
+ */
+function envDirs(options) {
+    /** @type {string[]} */
+    const dirs = [];
+    options.forEach((a, k) => {
+        if (a === "-C" || a === "--chdir") dirs.push(options[k + 1] ?? "");
+        else if (a.startsWith("--chdir=")) dirs.push(a.slice("--chdir=".length));
+    });
+    return dirs;
+}
+
+/**
  * The script a shell runs with `-c`.
  * @param {string[]} rest the shell's arguments
  * @returns {string | null | undefined} the script; undefined when `-c` has none, null without `-c`
@@ -461,6 +477,7 @@ function shellScript(rest) {
 function unwrap(cmd, depth) {
     let argv = cmd.argv;
     const assign = [...cmd.assign];
+    const chdir = [...cmd.chdir];
     /**
      * Parses a nested command line, carrying this command's flags into it.
      * @param {string} text a nested command line
@@ -471,12 +488,13 @@ function unwrap(cmd, depth) {
             ...c,
             background: c.background || cmd.background,
             assign: [...assign, ...c.assign],
+            chdir: [...chdir, ...c.chdir],
         }));
     for (;;) {
         argv = stripLeading(argv, assign);
         if (argv.length === 0) return [];
-        const next = unwrapOnce(baseName(argv[0]), argv.slice(1), assign);
-        if (next === null) return [{ ...cmd, argv, assign }];
+        const next = unwrapOnce(baseName(argv[0]), argv.slice(1), assign, chdir);
+        if (next === null) return [{ ...cmd, argv, assign, chdir }];
         if (next.line !== undefined) return nested(next.line);
         argv = next.argv ?? [];
     }
@@ -487,10 +505,11 @@ function unwrap(cmd, depth) {
  * @param {string} name the command name
  * @param {string[]} rest its arguments
  * @param {string[]} assign collects assignments given to `env`
+ * @param {string[]} chdir collects the directories `env -C` moves to
  * @returns {{line?: string, argv?: string[]} | null} a command line to parse again, the wrapped
  *   command's words, or null when `name` is not a wrapper
  */
-function unwrapOnce(name, rest, assign) {
+function unwrapOnce(name, rest, assign, chdir) {
     if (name === "eval") return { line: rest.join(" ") };
     if (SHELLS.has(name)) {
         const script = shellScript(rest);
@@ -499,6 +518,7 @@ function unwrapOnce(name, rest, assign) {
     }
     if (name === "env") {
         const env = envOptions(rest, assign);
+        chdir.push(...envDirs(rest.slice(0, env.k)));
         return env.split === undefined ? { argv: rest.slice(env.k) } : { line: env.split };
     }
     const skip = WRAPPERS[name];

@@ -63,15 +63,21 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import type { SelectionOp } from "./src/session/selection";
 
 export type {
+    ColumnRole,
     CommandOutcome,
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
     DataSourceDescriptor,
     DataSourceInput,
+    DraftColumn,
+    DraftRow,
+    DraftRowOptions,
+    DraftTable,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
+    Endpoint,
     FindEnd,
     FindHit,
     FindHitBase,
@@ -86,6 +92,10 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    LoadChoices,
+    LoadDraft,
+    LoadMapping,
+    LoadMappingRead,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -120,6 +130,8 @@ export type {
     SessionStatus,
     SessionViews,
     StyleProblem,
+    TableMapping,
+    TableMappingRead,
     TransactionOptions,
     TransactionScope,
 } from "./src/session";
@@ -135,7 +147,7 @@ export { createGraphSession } from "./src/session";
  * `data-loaded` and `data-loading-complete`.
  */
 export type { EndpointSpelling } from "./src/data/endpoints";
-export type { ImportReport, RepeatedEdgeCounts } from "./src/data/report";
+export type { ImportReport, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
 
 // ---------------------------------------------------------------------------------------------
 // The node coordinates

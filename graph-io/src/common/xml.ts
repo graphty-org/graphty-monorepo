@@ -447,7 +447,27 @@ export async function tokenizeXml(
     repairs?: XmlRepairs,
 ): Promise<void> {
     const tokenizer = new XmlTokenizer(handler, repairs);
+    // XML 1.0 section 2.8: nothing may precede the XML declaration, not even whitespace (template
+    // output often adds a line break, and the declared encoding would then go unread)
+    let skipped = 0;
+    let lines = 1;
+    let leading = true;
     for await (const chunk of chunks) {
+        if (leading) {
+            const start = chunk.search(/\S/);
+            const blank = start < 0 ? chunk : chunk.slice(0, start);
+            skipped += blank.length;
+            lines += blank.split("\n").length - 1;
+            if (start >= 0) {
+                leading = false;
+                if (skipped > 0 && /^<\?xml\s/.test(chunk.slice(start, start + 6))) {
+                    throw new XmlSyntaxError(
+                        "the XML declaration must be at the very start of the document; whitespace precedes it",
+                        lines,
+                    );
+                }
+            }
+        }
         tokenizer.push(chunk);
     }
     tokenizer.finish();

@@ -471,6 +471,91 @@ describe("InlineRename", () => {
     });
 });
 
+describe("Tree: row parts and row keys", () => {
+    const PARTS: TreeNodeData[] = [
+        {
+            id: "pr",
+            name: "PageRank",
+            icon: <span data-testid="kind" />,
+            swatch: <span data-testid="ramp" style={{ display: "block", width: 16, height: 8 }} />,
+            count: "77",
+            progress: 0.25,
+            description: "Running",
+            actions: <button type="button">Hide PageRank</button>,
+        },
+        { id: "deg", name: "Degree", progress: "indeterminate", description: "Failed: no edges" },
+    ];
+
+    it("draws the swatch between the glyph and the name, and the count before the toggles", async () => {
+        await renderThemed(<Tree items={PARTS} />);
+        const pr = row("PageRank");
+        const kind = within(pr).getByTestId("kind").getBoundingClientRect();
+        const ramp = within(pr).getByTestId("tree-swatch").getBoundingClientRect();
+        const name = pr.querySelector(".cm-tree-name")!.getBoundingClientRect();
+        const count = within(pr).getByTestId("tree-count");
+        const toggles = pr.querySelector(".cm-tree-actions")!.getBoundingClientRect();
+
+        expect(ramp.left).toBeGreaterThanOrEqual(kind.right);
+        expect(name.left).toBeGreaterThanOrEqual(ramp.right);
+        expect(count.getBoundingClientRect().left).toBeGreaterThanOrEqual(name.right);
+        expect(count.getBoundingClientRect().right).toBeLessThanOrEqual(toggles.left);
+        // The toggles hide until hover; the count does not.
+        await userEvent.unhover(pr);
+        expect(getComputedStyle(count).opacity).toBe("1");
+    });
+
+    it("describes the row by its count and its state, and keeps the name alone as its name", async () => {
+        await renderThemed(<Tree items={PARTS} />);
+        expect(row("PageRank")).toHaveAccessibleDescription("77 Running");
+        expect(row("Degree")).toHaveAccessibleDescription("Failed: no edges");
+    });
+
+    it("draws a progress line, determinate or not", async () => {
+        await renderThemed(<Tree items={PARTS} />);
+        const determinate = within(row("PageRank")).getByRole("progressbar", { name: "PageRank" });
+        expect(determinate).toHaveAttribute("aria-valuenow", "25");
+        const box = determinate.getBoundingClientRect();
+        expect(box.height).toBeCloseTo(2, 1);
+        const fill = determinate.firstElementChild!.getBoundingClientRect();
+        expect(fill.width / box.width).toBeCloseTo(0.25, 2);
+        const indeterminate = within(row("Degree")).getByRole("progressbar", { name: "Degree" });
+        expect(indeterminate).not.toHaveAttribute("aria-valuenow");
+    });
+
+    it("hands each key on a row to onRowKeyDown first, and lets it claim the key", async () => {
+        const onSelect = vi.fn();
+        const seen: string[] = [];
+        await renderThemed(
+            <Tree
+                items={PARTS}
+                onSelect={onSelect}
+                onRowKeyDown={(id, event) => {
+                    seen.push(`${id}:${event.key}`);
+                    if (event.key === " ") {
+                        event.preventDefault();
+                    }
+                }}
+            />,
+        );
+        await tabIn();
+        await userEvent.keyboard(" ");
+        expect(onSelect).not.toHaveBeenCalled();
+        await userEvent.keyboard("{ArrowDown}");
+        expect(focused()).toBe("deg");
+        await userEvent.keyboard("{Enter}");
+        expect(onSelect).toHaveBeenCalledWith(["deg"], expect.anything());
+        expect(seen).toEqual(["pr: ", "pr:ArrowDown", "deg:Enter"]);
+    });
+
+    it("does not hand it keys pressed on a control inside the row", async () => {
+        const onRowKeyDown = vi.fn();
+        await renderThemed(<Tree items={PARTS} onRowKeyDown={onRowKeyDown} />);
+        screen.getByRole("button", { name: "Hide PageRank" }).focus();
+        await userEvent.keyboard(" ");
+        expect(onRowKeyDown).not.toHaveBeenCalled();
+    });
+});
+
 describe("ResultRow", () => {
     it("is an option that keeps focus in the search field when pressed", async () => {
         const onClick = vi.fn();

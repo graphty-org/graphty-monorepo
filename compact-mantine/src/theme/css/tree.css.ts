@@ -131,6 +131,47 @@ const css = `
 .cm-tree-row[data-dimmed] .cm-tree-icon { color: var(--cm-text-tertiary); }
 .cm-tree-row .cm-rename { flex: none; width: 176px; }
 
+/* The swatch between the glyph and the name, and the always-visible count before the toggles. */
+.cm-tree-swatch {
+    flex: none;
+    display: flex;
+    align-items: center;
+    margin-inline-start: 8px;
+}
+.cm-tree-count {
+    flex: none;
+    margin-inline: 4px;
+    color: var(--cm-text-secondary);
+    font-weight: 450;
+    font-variant-numeric: tabular-nums;
+}
+.cm-tree-row:not(:has(.cm-tree-actions)) .cm-tree-count { margin-inline-end: 8px; }
+/* A running row's progress line: 2px along the bottom of the row's pill. */
+.cm-tree-progress {
+    position: absolute;
+    bottom: 4px;
+    inset-inline-start: 12px;
+    inset-inline-end: 8px;
+    height: 2px;
+    overflow: hidden;
+    border-radius: 1px;
+    background: var(--cm-border);
+    pointer-events: none;
+}
+.cm-tree-progress-fill {
+    display: block;
+    height: 100%;
+    background: var(--cm-bg-brand);
+}
+.cm-tree-progress[data-indeterminate] .cm-tree-progress-fill {
+    width: 30%;
+    animation: cm-tree-progress 1.2s linear infinite;
+}
+@keyframes cm-tree-progress { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) {
+    .cm-tree-progress[data-indeterminate] .cm-tree-progress-fill { width: 100%; opacity: 0.5; animation: none; }
+}
+
 /* Lock / eye: 24 hit targets on a 20 pitch, ending 8 from the panel edge. Hidden until the row
    is hovered or focused; a toggle that is on stays visible. */
 .cm-tree-actions {

@@ -54,6 +54,24 @@ import { LAYERS, Panel, STYLE_LAYERS } from "./fixtures";
  * `renameTreeItem` apply a reported move or rename to your list, whatever else its items carry,
  * and return a new list.
  *
+ * ## Row parts
+ *
+ * Besides its glyph, name and toggles, an item can carry a `swatch` (between the glyph and the
+ * name), a `count` (before the toggles, always visible), a `progress` line along its bottom
+ * (a fraction, or `"indeterminate"`) and a `description` -- its state in words, never drawn,
+ * read after the name. Put anything a glyph or tooltip says about the row in `description`,
+ * since a row's accessible name is its `name` alone.
+ *
+ * ```tsx
+ * { id: "pr", name: "PageRank", swatch: <Ramp />, count: 77, progress: 0.4, description: "Running" }
+ * ```
+ *
+ * ## Row shortcuts
+ *
+ * `onRowKeyDown(id, event)` sees every key pressed on a focused row before the tree does; call
+ * `event.preventDefault()` to claim it. That is how a row gets its own keys -- Space toggles its
+ * eye, Delete deletes it -- without the tree reading Space as select.
+ *
  * ## Keyboard and accessibility
  *
  * - One Tab stop with roving focus. ArrowUp / ArrowDown move; ArrowRight opens a closed parent
@@ -176,6 +194,60 @@ export const Default: Story = {
     render: (args) => (
         <Panel>
             <Tree {...args} />
+        </Panel>
+    ),
+};
+
+/**
+ * The optional row parts: a swatch after the glyph, an always-visible count, a progress line
+ * under a running row, and a description (here "Running" and "Failed: the graph has no edges")
+ * that only a screen reader hears.
+ */
+export const RowParts: Story = {
+    render: () => (
+        <Panel>
+            <Tree
+                label="Paint"
+                items={[
+                    {
+                        id: "pagerank",
+                        name: "PageRank",
+                        icon: <UiGlyph name="frame" />,
+                        swatch: (
+                            <span
+                                style={{
+                                    display: "block",
+                                    width: 16,
+                                    height: 8,
+                                    borderRadius: 2,
+                                    background: "linear-gradient(to right, #fde725, #21918c, #440154)",
+                                }}
+                            />
+                        ),
+                        count: "77",
+                        progress: 0.4,
+                        description: "Running",
+                    },
+                    {
+                        id: "degree",
+                        name: "Degree",
+                        icon: <UiGlyph name="frame" />,
+                        count: "77",
+                    },
+                    {
+                        id: "louvain",
+                        name: "Communities",
+                        icon: <UiGlyph name="frame" />,
+                        swatch: (
+                            <span
+                                style={{ display: "block", width: 8, height: 8, borderRadius: 4, background: "#e15759" }}
+                            />
+                        ),
+                        count: "6",
+                        description: "Failed: the graph has no edges",
+                    },
+                ]}
+            />
         </Panel>
     ),
 };

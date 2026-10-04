@@ -1004,13 +1004,10 @@ class ExportPlan {
      * @returns nothing
      */
     private *nodeLines(): Generator<SectionLine, void, undefined> {
-        const { snapshot, labels, nodeColumns } = this;
-        const { delimiter } = this.options.syntax;
-        const propertyHeaders = nodeColumns.map((plan) => plan.header).join(delimiter);
+        const { snapshot } = this;
         let sections = 0;
         let sectionSpace: string | null = null;
         let sectionIdName: string | null = null;
-        const cells: string[] = [];
         for (let i = 0; i < snapshot.nodeCount; i++) {
             const space = this.spaceOf(i);
             const stored = this.storedIdOf(i);
@@ -1019,39 +1016,50 @@ class ExportPlan {
                 sections++;
                 sectionSpace = space;
                 sectionIdName = idName;
-                const header = [formatHeaderField(idName, ID_TYPE, space)];
-                if (labels !== null) {
-                    header.push(":LABEL");
-                }
-                if (propertyHeaders.length > 0) {
-                    header.push(propertyHeaders);
-                }
-                yield {
-                    line: `${header.join(delimiter)}\n`,
-                    file: { kind: "nodes", name: fileName("nodes", space ?? idName, null) },
-                };
+                yield this.nodeHeader(idName, space, space ?? idName);
             }
-            cells.length = 0;
-            cells.push(this.cell(this.idTextOf(i)));
-            if (labels !== null) {
-                cells.push(this.cell(this.labelsText(i)));
-            }
-            for (const plan of nodeColumns) {
-                cells.push(this.cell(this.valueText(plan, i)));
-            }
-            yield { line: `${cells.join(delimiter)}\n`, file: null };
+            yield { line: this.nodeRow(i), file: null };
         }
         if (sections === 0) {
             // no nodes: one header so the section (and its columns) still exists
-            const header = [formatHeaderField(this.options.idColumn ?? "", ID_TYPE, null)];
-            if (labels !== null) {
-                header.push(":LABEL");
-            }
-            if (propertyHeaders.length > 0) {
-                header.push(propertyHeaders);
-            }
-            yield { line: `${header.join(delimiter)}\n`, file: { kind: "nodes", name: fileName("nodes", null, null) } };
+            yield this.nodeHeader(this.options.idColumn ?? "", null, null);
         }
+    }
+
+    /**
+     * The header line of a node section, which starts its file.
+     * @param idName - the id column's name
+     * @param space - the id space, or null
+     * @param fileKey - what names the file, or null for the default name
+     * @returns the line
+     */
+    private nodeHeader(idName: string, space: string | null, fileKey: string | null): SectionLine {
+        const { delimiter } = this.options.syntax;
+        const header = [formatHeaderField(idName, ID_TYPE, space)];
+        if (this.labels !== null) {
+            header.push(":LABEL");
+        }
+        const properties = this.nodeColumns.map((plan) => plan.header).join(delimiter);
+        if (properties.length > 0) {
+            header.push(properties);
+        }
+        return { line: `${header.join(delimiter)}\n`, file: { kind: "nodes", name: fileName("nodes", fileKey, null) } };
+    }
+
+    /**
+     * One node's line: the id, the labels, the properties.
+     * @param i - the node
+     * @returns the line
+     */
+    private nodeRow(i: number): string {
+        const cells = [this.cell(this.idTextOf(i))];
+        if (this.labels !== null) {
+            cells.push(this.cell(this.labelsText(i)));
+        }
+        for (const plan of this.nodeColumns) {
+            cells.push(this.cell(this.valueText(plan, i)));
+        }
+        return `${cells.join(this.options.syntax.delimiter)}\n`;
     }
 
     /**
@@ -1060,32 +1068,11 @@ class ExportPlan {
      * @returns nothing
      */
     private *relationshipLines(): Generator<SectionLine, void, undefined> {
-        const { snapshot, kind, weights, edgeColumns, folding } = this;
-        const { delimiter } = this.options.syntax;
+        const { snapshot, folding } = this;
         const list = snapshot.edgeList();
-        const propertyHeaders = edgeColumns.map((plan) => plan.header).join(delimiter);
-        const weightHeader =
-            weights === null ? null : formatHeaderField(this.options.weightColumn ?? "weight", "double", null);
         let sections = 0;
         let sectionStart: string | null = null;
         let sectionEnd: string | null = null;
-        const cells: string[] = [];
-        const headerOf = (startSpace: string | null, endSpace: string | null): SectionLine => {
-            const header = [formatHeaderField("", "START_ID", startSpace), formatHeaderField("", "END_ID", endSpace)];
-            if (kind !== null) {
-                header.push(":TYPE");
-            }
-            if (weightHeader !== null) {
-                header.push(weightHeader);
-            }
-            if (propertyHeaders.length > 0) {
-                header.push(propertyHeaders);
-            }
-            return {
-                line: `${header.join(delimiter)}\n`,
-                file: { kind: "relationships", name: fileName("relationships", startSpace, endSpace) },
-            };
-        };
         for (let e = 0; e < snapshot.edgeCount; e++) {
             if (folding.folded(e)) {
                 continue;
@@ -1098,24 +1085,60 @@ class ExportPlan {
                 sections++;
                 sectionStart = startSpace;
                 sectionEnd = endSpace;
-                yield headerOf(startSpace, endSpace);
+                yield this.relationshipHeader(startSpace, endSpace);
             }
-            cells.length = 0;
-            cells.push(this.cell(this.idTextOf(u)), this.cell(this.idTextOf(v)));
-            if (kind !== null) {
-                cells.push(this.cell(kind.isSet(e) ? textOf(kind, e) : null));
-            }
-            if (weights !== null) {
-                cells.push(this.cell(weights.text(e)));
-            }
-            for (const plan of edgeColumns) {
-                cells.push(this.cell(this.valueText(plan, e)));
-            }
-            yield { line: `${cells.join(delimiter)}\n`, file: null };
+            yield { line: this.relationshipRow(e, u, v), file: null };
         }
         if (sections === 0) {
-            yield headerOf(null, null);
+            yield this.relationshipHeader(null, null);
         }
+    }
+
+    /**
+     * The header line of a relationship section, which starts its file.
+     * @param startSpace - the id space of the start nodes, or null
+     * @param endSpace - the id space of the end nodes, or null
+     * @returns the line
+     */
+    private relationshipHeader(startSpace: string | null, endSpace: string | null): SectionLine {
+        const { delimiter } = this.options.syntax;
+        const header = [formatHeaderField("", "START_ID", startSpace), formatHeaderField("", "END_ID", endSpace)];
+        if (this.kind !== null) {
+            header.push(":TYPE");
+        }
+        if (this.weights !== null) {
+            header.push(formatHeaderField(this.options.weightColumn ?? "weight", "double", null));
+        }
+        const properties = this.edgeColumns.map((plan) => plan.header).join(delimiter);
+        if (properties.length > 0) {
+            header.push(properties);
+        }
+        return {
+            line: `${header.join(delimiter)}\n`,
+            file: { kind: "relationships", name: fileName("relationships", startSpace, endSpace) },
+        };
+    }
+
+    /**
+     * One relationship's line: the ends, the type, the weight, the properties.
+     * @param e - the edge
+     * @param u - its source
+     * @param v - its target
+     * @returns the line
+     */
+    private relationshipRow(e: number, u: number, v: number): string {
+        const { kind, weights } = this;
+        const cells = [this.cell(this.idTextOf(u)), this.cell(this.idTextOf(v))];
+        if (kind !== null) {
+            cells.push(this.cell(kind.isSet(e) ? textOf(kind, e) : null));
+        }
+        if (weights !== null) {
+            cells.push(this.cell(weights.text(e)));
+        }
+        for (const plan of this.edgeColumns) {
+            cells.push(this.cell(this.valueText(plan, e)));
+        }
+        return `${cells.join(this.options.syntax.delimiter)}\n`;
     }
 
     /**

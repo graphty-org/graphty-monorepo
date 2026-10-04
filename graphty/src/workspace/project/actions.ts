@@ -10,17 +10,8 @@
 import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
 
 import type { CommandContext } from "../commands/registry";
-import type { WorkspaceStore } from "../state/store";
-import {
-    chooseSaveFile,
-    isCancel,
-    keepsFileHandles,
-    locateFile,
-    nameFromFileName,
-    projectFileName,
-    readHandle,
-    writeFile,
-} from "./files";
+import { newProjectId, type WorkspaceStore } from "../state/store";
+import { chooseSaveFile, isCancel, keepsFileHandles, locateFile, readHandle, writeFile } from "./files";
 import { entryForHandle, forgetRecent, type RecentProject, rememberRecent } from "./recent";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
@@ -37,6 +28,12 @@ interface ProjectFileState {
     recentId: string | null;
     /** What Discard does in the unsaved-changes dialog. */
     onDiscard: (() => Promise<void>) | null;
+    /**
+     * The last Save failed to write the file. Temporary: `session.project.save()` clears `dirty`
+     * before the file is written, so after a failed write the element reports nothing unsaved
+     * (#918). Delete this once the element clears `dirty` only after the write.
+     */
+    writeFailed: boolean;
     /** A file to open in the project's element once it comes up (opened from the start screen). */
     pending: { file: File; handle?: FileSystemFileHandle; recentId?: string } | null;
 }
@@ -52,7 +49,14 @@ function fileState(store: WorkspaceStore): ProjectFileState {
     const projectId = store.get().project?.id ?? 0;
     let state = states.get(store);
     if (state?.projectId !== projectId) {
-        state = { projectId, target: null, recentId: null, onDiscard: null, pending: state?.pending ?? null };
+        state = {
+            projectId,
+            target: null,
+            recentId: null,
+            onDiscard: null,
+            writeFailed: false,
+            pending: state?.pending ?? null,
+        };
         states.set(store, state);
     }
     return state;
@@ -145,12 +149,19 @@ async function writeProject(
     }
     await nameTheProject(workspace, session);
     const name = headerName(workspace);
-    if (target === "download") {
-        await element.downloadProject({ fileName: projectFileName(name) });
-    } else {
-        await writeFile(target, (await session.project.save()).text);
+    const state = fileState(workspace);
+    try {
+        if (target === "download") {
+            await element.downloadProject();
+        } else {
+            await writeFile(target, (await session.project.save()).text);
+        }
+    } catch (error) {
+        state.writeFailed = true;
+        throw error;
     }
-    fileState(workspace).target = target;
+    state.writeFailed = false;
+    state.target = target;
     await remember(workspace, session, target === "download" ? undefined : target);
     workspace.set({ notice: { message: `${target === "download" ? "Downloaded" : verb} ${name}` } });
 }
@@ -181,6 +192,7 @@ export async function saveProject(ctx: CommandContext): Promise<void> {
  * @returns false when the reader cancelled the browser's save picker, so the dialog stays.
  */
 export async function saveProjectAs(ctx: CommandContext, name: string): Promise<boolean> {
+    const { workspace, session } = ctx;
     let target: FileSystemFileHandle | "download" = "download";
     if (keepsFileHandles()) {
         try {
@@ -189,15 +201,27 @@ export async function saveProjectAs(ctx: CommandContext, name: string): Promise<
             if (isCancel(error)) {
                 return false;
             }
-            throw error;
+            workspace.set({ notice: { message: `${name} could not be saved.` } });
+            return true;
         }
     }
-    ctx.workspace.set((state) => ({ project: state.project && { ...state.project, name } }));
-    fileState(ctx.workspace).recentId = null;
+    const before = { header: headerName(workspace), element: session?.project.name ?? null };
+    const state = fileState(workspace);
+    const { recentId } = state;
+    workspace.set((now) => ({ project: now.project && { ...now.project, name } }));
+    state.recentId = null;
     try {
         await writeProject(ctx, target, "Saved as");
     } catch {
-        ctx.workspace.set({ notice: { message: `${name} could not be saved.` } });
+        // Nothing was saved, so the project keeps the name it had.
+        state.recentId = recentId;
+        workspace.set((now) => ({
+            project: now.project && { ...now.project, name: before.header },
+            notice: { message: `${name} could not be saved.` },
+        }));
+        if (session !== null && session.project.name !== before.element) {
+            await session.project.rename(before.element).catch(() => undefined);
+        }
     }
     return true;
 }
@@ -234,20 +258,42 @@ function closeNow(store: WorkspaceStore): void {
 }
 
 /**
- * Close project: back to the start screen, asking first when the element reports unsaved changes.
+ * Whether the open project has changes that are not in a file: what the element reports, or a
+ * Save whose write failed (#918).
  * @param ctx - the command context.
  * @param ctx.workspace - the workspace store.
  * @param ctx.session - the project's session, or null.
+ * @returns true when replacing the project would lose changes.
  */
-export function closeProject({ workspace, session }: CommandContext): void {
-    if (session?.project.dirty === true) {
-        askToDiscard(workspace, () => {
-            closeNow(workspace);
+function hasUnsaved({ workspace, session }: CommandContext): boolean {
+    return workspace.get().project !== null && (session?.project.dirty === true || fileState(workspace).writeFailed);
+}
+
+/**
+ * Runs something that replaces or closes the open project (New project, Close project), asking
+ * first when that would throw away unsaved changes.
+ * @param ctx - the command context.
+ * @param proceed - what replaces the project.
+ */
+export function unlessUnsaved(ctx: CommandContext, proceed: () => void): void {
+    if (hasUnsaved(ctx)) {
+        askToDiscard(ctx.workspace, () => {
+            proceed();
             return Promise.resolve();
         });
         return;
     }
-    closeNow(workspace);
+    proceed();
+}
+
+/**
+ * Close project: back to the start screen, asking first when the element reports unsaved changes.
+ * @param ctx - the command context.
+ */
+export function closeProject(ctx: CommandContext): void {
+    unlessUnsaved(ctx, () => {
+        closeNow(ctx.workspace);
+    });
 }
 
 /**
@@ -267,13 +313,17 @@ async function openInSession(
 ): Promise<void> {
     const { workspace } = ctx;
     const { file, handle, recentId } = pending;
+    if (!discard && fileState(workspace).writeFailed) {
+        askToDiscard(workspace, () => openInSession(ctx, session, pending, true));
+        return;
+    }
     try {
         const report = await session.project.open(file, { discard, fileName: file.name });
         if (report.opened !== "project") {
             workspace.set({ notice: { message: `Added ${file.name} to this project` } });
             return;
         }
-        const name = report.name ?? nameFromFileName(file.name);
+        const name = report.name ?? headerName(workspace);
         workspace.set((state) => ({ project: state.project && { ...state.project, name } }));
         const state = fileState(workspace);
         state.target = handle ?? "download";
@@ -311,14 +361,18 @@ async function openProjectFile(
     handle?: FileSystemFileHandle,
     recentId?: string,
 ): Promise<void> {
-    const pending = { file, ...(handle === undefined ? {} : { handle }), ...(recentId === undefined ? {} : { recentId }) };
+    const pending = {
+        file,
+        ...(handle === undefined ? {} : { handle }),
+        ...(recentId === undefined ? {} : { recentId }),
+    };
     if (ctx.workspace.get().project !== null && ctx.session !== null) {
         await openInSession(ctx, ctx.session, pending, false);
         return;
     }
     fileState(ctx.workspace).pending = pending;
     ctx.workspace.set((state) => ({
-        project: { name: nameFromFileName(file.name), id: (state.project?.id ?? 0) + 1 },
+        project: { name: file.name, id: newProjectId(state) },
         page: "panels",
         place: "graph",
         inspected: null,
@@ -341,7 +395,28 @@ export async function openPending(ctx: CommandContext): Promise<void> {
 }
 
 /** What happened when the reader clicked a Recent projects entry. */
-type RecentOutcome = "opened" | "missing" | "cancelled";
+type RecentOutcome = "opened" | "missing" | "cancelled" | "failed";
+
+/**
+ * Runs a Recent projects step, turning a failure other than a cancel (a picker the browser
+ * refused, a file that would not read) into a notice.
+ * @param ctx - the command context.
+ * @param entry - the entry.
+ * @param step - the step.
+ * @returns what the step returned, or "failed".
+ */
+async function noticeFailure(
+    ctx: CommandContext,
+    entry: RecentProject,
+    step: () => Promise<RecentOutcome>,
+): Promise<RecentOutcome> {
+    try {
+        return await step();
+    } catch {
+        ctx.workspace.set({ notice: { message: `${entry.name} could not be opened.` } });
+        return "failed";
+    }
+}
 
 /**
  * Opens a Recent projects entry: its file where the browser keeps the handle; otherwise, or when
@@ -350,16 +425,19 @@ type RecentOutcome = "opened" | "missing" | "cancelled";
  * @param entry - the entry.
  * @returns "missing" when the browser could not read the file.
  */
-export async function openRecent(ctx: CommandContext, entry: RecentProject): Promise<RecentOutcome> {
-    if (entry.handle === undefined) {
+export function openRecent(ctx: CommandContext, entry: RecentProject): Promise<RecentOutcome> {
+    const { handle } = entry;
+    if (handle === undefined) {
         return locateRecent(ctx, entry);
     }
-    const file = await readHandle(entry.handle);
-    if (file === null) {
-        return "missing";
-    }
-    await openProjectFile(ctx, file, entry.handle, entry.id);
-    return "opened";
+    return noticeFailure(ctx, entry, async () => {
+        const file = await readHandle(handle);
+        if (file === null) {
+            return "missing";
+        }
+        await openProjectFile(ctx, file, handle, entry.id);
+        return "opened";
+    });
 }
 
 /**
@@ -369,13 +447,15 @@ export async function openRecent(ctx: CommandContext, entry: RecentProject): Pro
  * @param entry - the entry.
  * @returns "cancelled" when the reader closed the picker.
  */
-export async function locateRecent(ctx: CommandContext, entry: RecentProject): Promise<RecentOutcome> {
-    const located = await locateFile();
-    if (located === undefined) {
-        return "cancelled";
-    }
-    await openProjectFile(ctx, located.file, located.handle, entry.id);
-    return "opened";
+export function locateRecent(ctx: CommandContext, entry: RecentProject): Promise<RecentOutcome> {
+    return noticeFailure(ctx, entry, async () => {
+        const located = await locateFile();
+        if (located === undefined) {
+            return "cancelled";
+        }
+        await openProjectFile(ctx, located.file, located.handle, entry.id);
+        return "opened";
+    });
 }
 
 /**

@@ -10,7 +10,8 @@ import { type RecentProject, useRecentProjects } from "./recent";
 import { sizeWords, whenWords } from "./words";
 
 /**
- * One Recent projects row: a click reopens the file (or asks for it with Locate... where the
+ * One Recent projects row (built from Mantine parts until compact-mantine's PageList rows can
+ * carry a second line, a size and a row menu, #920): a click reopens the file (or asks for it with Locate... where the
  * browser keeps no handle, or can no longer read the file); its menu offers Locate... and Remove
  * from list.
  * @param props - Component props
@@ -32,7 +33,6 @@ function RecentRow({ entry }: { entry: RecentProject }): React.JSX.Element {
         <Group gap={4} wrap="nowrap" className="ws-recent-row">
             <UnstyledButton
                 className="ws-recent-open"
-                aria-label={`Open ${entry.name}`}
                 onClick={() => {
                     const go = locate ? locateRecent(workspace, entry) : openRecent(workspace, entry);
                     void go.then((outcome) => {

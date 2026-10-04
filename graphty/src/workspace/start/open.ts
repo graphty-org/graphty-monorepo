@@ -8,7 +8,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
-import type { WorkspaceStore } from "../state/store";
+import { newProjectId, type WorkspaceStore } from "../state/store";
 
 /**
  * Opens a new project and hands its load to the workspace, which runs it once the project's
@@ -19,7 +19,7 @@ import type { WorkspaceStore } from "../state/store";
  */
 function openProject(workspace: WorkspaceStore, name: string, load: (session: GraphSession) => Promise<void>): void {
     workspace.set((state) => ({
-        project: { name, id: (state.project?.id ?? 0) + 1 },
+        project: { name, id: newProjectId(state) },
         page: "panels",
         place: "graph",
         inspected: null,

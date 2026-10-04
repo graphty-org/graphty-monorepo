@@ -109,6 +109,20 @@ export interface WorkspaceStore {
     subscribe: (listener: () => void) => () => void;
 }
 
+let lastProjectId = 0;
+
+/**
+ * An id for a project that is about to open: never one this page has given before, nor the open
+ * project's, so state kept per project (where Save writes, its Recent projects entry) never
+ * carries over to another project.
+ * @param state - the state now.
+ * @returns the id.
+ */
+export function newProjectId(state: WorkspaceState): number {
+    lastProjectId = Math.max(lastProjectId, state.project?.id ?? 0) + 1;
+    return lastProjectId;
+}
+
 /**
  * Makes a store.
  * @param initial - fields to start from (a story's or test's state).

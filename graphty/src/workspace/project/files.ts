@@ -4,7 +4,11 @@
  * Save downloads a copy and reopening asks for the file. Nothing here reads what is in a file.
  */
 
-/** The file type a project is saved as (graphty-element writes a graphty document). */
+/**
+ * The file type a project is saved as, for the save picker. Temporary copy of what
+ * graphty-element's `downloadProject` uses, which the element does not export (#919); import it
+ * from the element and delete this once it does.
+ */
 const PROJECT_TYPE = {
     description: "graphty project",
     accept: { "application/vnd.graphty+json": [".json"] },
@@ -42,21 +46,13 @@ export function keepsFileHandles(): boolean {
 }
 
 /**
- * The file name a project is saved under.
+ * The file name a project is saved under, suggested by the save picker. Temporary copy of
+ * `downloadProject`'s naming rule (#919); use the element's once it exports one.
  * @param name - the project's name.
  * @returns `<name>.graphty.json`.
  */
-export function projectFileName(name: string): string {
+function projectFileName(name: string): string {
     return `${name}.graphty.json`;
-}
-
-/**
- * The name a reader knows a project file by: its file name without `.graphty.json` or `.json`.
- * @param fileName - the file's name.
- * @returns the name.
- */
-export function nameFromFileName(fileName: string): string {
-    return fileName.replace(/(\.graphty)?\.json$/i, "") || fileName;
 }
 
 /**

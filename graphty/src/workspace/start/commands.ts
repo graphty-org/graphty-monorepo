@@ -1,4 +1,6 @@
 import { defineRegistration } from "../commands/registry";
+import { unlessUnsaved } from "../project/actions";
+import { newProjectId } from "../state/store";
 import { chooseAndOpenFile } from "./open";
 
 /**
@@ -20,14 +22,16 @@ export const registration = defineRegistration({
             id: "data.new",
             label: "New from data...",
             group: "Data",
-            run: ({ workspace }) => {
-                workspace.set((state) => ({
-                    project: { name: "Untitled", id: (state.project?.id ?? 0) + 1 },
-                    page: "data-page",
-                    place: "graph",
-                    inspected: null,
-                    dialog: null,
-                }));
+            run: (ctx) => {
+                unlessUnsaved(ctx, () => {
+                    ctx.workspace.set((state) => ({
+                        project: { name: "Untitled", id: newProjectId(state) },
+                        page: "data-page",
+                        place: "graph",
+                        inspected: null,
+                        dialog: null,
+                    }));
+                });
             },
         },
     ],

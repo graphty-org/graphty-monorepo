@@ -24,12 +24,15 @@ const TIMEOUT_MS = 60_000;
 
 /**
  * The notice after a reopen. Issue #909: graphty-element reopens an undirected graph as directed
- * and reports `W_DATA_DIFFERS` for every saved run, so the notice adds "1 part did not come back".
- * Match the exact "Opened <name>" once that is fixed.
+ * and reports `W_DATA_DIFFERS` for the saved run, so the notice adds "1 part did not come back".
+ * Match only "Opened <name>" once that is fixed.
  * @param name - the project's name.
  * @returns the pattern.
  */
-const OPENED = (name: string): RegExp => new RegExp(`^Opened ${name}(\\.|$)`);
+const OPENED = (name: string): RegExp => new RegExp(`^Opened ${name}(\\. 1 part did not come back\\.)?$`);
+
+/** Where the pinned node is placed, in scene units. */
+const PINNED_AT = { x: 3, y: -2, z: 0 };
 
 /** What the reopened project must hold again. */
 interface Snapshot {
@@ -37,19 +40,35 @@ interface Snapshot {
     readonly styles: unknown;
     readonly selection: string[];
     readonly nodes: number;
+    /** What the label line is bound to. */
+    readonly label: string | undefined;
+    readonly dimension: "2d" | "3d";
+    readonly pinned: string[];
+    /** Where the first node stands. */
+    readonly position: { x: number; y: number; z: number };
 }
 
 /**
  * Reads what the project holds now.
  * @param session - the element's session.
- * @returns its runs, styles, selection and node count.
+ * @returns its runs, styles, label line, selection, node count, view mode and positions.
  */
 function snapshot(session: GraphSession): Snapshot {
+    const binding = session.styles
+        .list()
+        .map((layer) => layer.encode?.["node.label"])
+        .find((encode) => encode !== undefined);
+    const position = { x: NaN, y: NaN, z: NaN };
+    session.positions.read(0, position);
     return {
         runs: session.runs.list().map((run) => run.id),
         styles: session.styles.toDocument(),
         selection: [...session.selection.nodes].map(String),
         nodes: session.data.statistics().nodeCount,
+        label: binding !== undefined && "by" in binding ? binding.by : undefined,
+        dimension: session.layout.dimension,
+        pinned: [...session.positions.pinned].map(String),
+        position,
     };
 }
 
@@ -75,8 +94,9 @@ async function elementSession(previous?: GraphSession): Promise<GraphSession> {
 }
 
 /**
- * From the empty app: opens the Florentine families sample, runs Degree, adds a layer and selects
- * a node, as the other packages' doors would.
+ * From the empty app: opens the Florentine families sample, runs Degree, adds a layer and a label
+ * line bound to the name, draws it flat, pins the first node at a known place and selects it, as
+ * the other packages' doors would.
  * @param store - the workspace store.
  * @returns the session and what it holds.
  */
@@ -91,10 +111,26 @@ async function buildProject(store: WorkspaceStore): Promise<{ session: GraphSess
         { timeout: TIMEOUT_MS },
     );
     await session.runs.start("degree");
-    await session.styles.add({ name: "All in orange", target: "node", selector: { match: "everything" }, set: { "node.color": "#ff9900" } });
+    await session.styles.add({
+        name: "All in orange",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.color": "#ff9900" },
+    });
+    const name = session.data.attributes().find((column) => column.kind === "node" && column.name === "name");
+    assert.isDefined(name);
+    if (name !== undefined) {
+        await session.styles.encode({ column: name, channel: "node.label" });
+    }
+    await session.layout.setDimension("2d");
     const [first] = session.data.nodes();
+    await session.positions.set([{ id: first.id, ...PINNED_AT }]);
+    await session.positions.pin([first.id]);
     await session.selection.apply({ nodes: [first.id] });
-    return { session, before: snapshot(session) };
+    const before = snapshot(session);
+    assert.equal(before.label, "data.name");
+    assert.deepEqual(before.position, PINNED_AT);
+    return { session, before };
 }
 
 /**
@@ -152,7 +188,12 @@ describe("T14: save and reopen, on the real element", () => {
                 assert.include(await (await file.getFile()).text(), "graphty-document");
 
                 // A later Save writes the same file, with no dialog.
-                await session.styles.add({ name: "Later", target: "node", selector: { match: "everything" }, set: { "node.size": 2 } });
+                await session.styles.add({
+                    name: "Later",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.size": 2 },
+                });
                 await userEvent.keyboard("{Control>}s{/Control}");
                 await waitFor(() => {
                     assert.equal(store.get().notice?.message, "Saved Florentine, my copy");
@@ -162,7 +203,7 @@ describe("T14: save and reopen, on the real element", () => {
 
                 await closeFromMenu("Florentine, my copy");
                 assert.isNull(store.get().project);
-                const recent = await screen.findByRole("button", { name: "Open Florentine, my copy" });
+                const recent = await screen.findByRole("button", { name: /^Florentine, my copy/ });
                 assert.isNotNull(within(recent).getByText("15 nodes"));
 
                 await userEvent.click(recent);
@@ -180,7 +221,12 @@ describe("T14: save and reopen, on the real element", () => {
                 assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine, my copy" }));
 
                 // Opening it again over unsaved changes: the element refuses, the reader discards.
-                await reopened.styles.add({ name: "Unsaved", target: "node", selector: { match: "everything" }, set: { "node.size": 3 } });
+                await reopened.styles.add({
+                    name: "Unsaved",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.size": 3 },
+                });
                 store.set({ notice: null });
                 await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
                 await userEvent.hover(await screen.findByRole("menuitem", { name: "Open recent" }));
@@ -237,7 +283,7 @@ describe("T14: save and reopen, on the real element", () => {
                 );
 
                 await closeFromMenu("Florentine");
-                const recent = await screen.findByRole("button", { name: "Open Florentine" });
+                const recent = await screen.findByRole("button", { name: /^Florentine/ });
                 assert.isNotNull(within(recent).getByText(/ - Locate\.\.\.$/));
 
                 // Locate... asks for the file: the reader picks the download.
@@ -259,7 +305,12 @@ describe("T14: save and reopen, on the real element", () => {
                 assert.deepEqual(snapshot(reopened), before);
 
                 // Save again downloads a new copy, with no dialog.
-                await reopened.styles.add({ name: "Later", target: "node", selector: { match: "everything" }, set: { "node.size": 2 } });
+                await reopened.styles.add({
+                    name: "Later",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.size": 2 },
+                });
                 await userEvent.keyboard("{Control>}s{/Control}");
                 await waitFor(() => {
                     assert.equal(store.get().notice?.message, "Downloaded Florentine");
@@ -273,11 +324,93 @@ describe("T14: save and reopen, on the real element", () => {
     );
 
     it(
-        "asks before Close project throws away unsaved changes",
+        "renames through the element: the new name is unsaved and survives an edit",
+        async () => {
+            const root = await navigator.storage.getDirectory();
+            const file = await root.getFileHandle("t14-rename.graphty.json", { create: true });
+            vi.stubGlobal(
+                "showSaveFilePicker",
+                vi.fn(() => Promise.resolve(file)),
+            );
+            try {
+                const store = createWorkspaceStore();
+                const { session } = await buildProject(store);
+                await saveAs("Florentine A");
+                await waitFor(() => {
+                    assert.isFalse(session.project.dirty);
+                });
+
+                await userEvent.keyboard("{F2}");
+                const field = await screen.findByRole("textbox", { name: "Project name" });
+                await userEvent.clear(field);
+                await userEvent.type(field, "Florentine B{Enter}");
+                await waitFor(() => {
+                    assert.equal(session.project.name, "Florentine B");
+                });
+                assert.isTrue(session.project.dirty);
+
+                // An edit publishes the project's status again; the header keeps the new name.
+                await session.styles.add({
+                    name: "Later",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.size": 2 },
+                });
+                assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine B" }));
+
+                // Close asks, because the rename is not saved.
+                await closeFromMenu("Florentine B");
+                const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+                await userEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
+            } finally {
+                vi.unstubAllGlobals();
+                await root.removeEntry("t14-rename.graphty.json");
+            }
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "keeps the old name and still asks before Close when Save as cannot write the file",
+        async () => {
+            const refused = {
+                createWritable: () => Promise.reject(new DOMException("refused", "NotAllowedError")),
+            };
+            vi.stubGlobal(
+                "showSaveFilePicker",
+                vi.fn(() => Promise.resolve(refused)),
+            );
+            try {
+                const store = createWorkspaceStore();
+                await buildProject(store);
+                await saveAs("Florentine, unsaved");
+                await waitFor(() => {
+                    assert.equal(store.get().notice?.message, "Florentine, unsaved could not be saved.");
+                });
+                assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine families" }));
+
+                await closeFromMenu("Florentine families");
+                assert.isNotNull(await screen.findByRole("dialog", { name: "Discard unsaved changes?" }));
+                assert.isNotNull(store.get().project);
+            } finally {
+                vi.unstubAllGlobals();
+            }
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "asks before Close project or New project throws away unsaved changes",
         async () => {
             const store = createWorkspaceStore();
             const { session } = await buildProject(store);
             assert.isTrue(session.project.dirty);
+
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "New project" }));
+            const asked = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+            await userEvent.click(within(asked).getByRole("button", { name: "Cancel" }));
+            assert.equal(store.get().project?.name, "Florentine families");
 
             await closeFromMenu("Florentine families");
             const dialog = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });

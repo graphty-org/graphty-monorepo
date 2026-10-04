@@ -9,9 +9,12 @@ import { Workspace } from "../Workspace";
 import { DISCARD_DIALOG, SAVE_AS_DIALOG } from "./actions";
 import { clearRecent, rememberRecent } from "./recent";
 
-/** Fixed times, so the list reads the same in every capture: 2026-10-01 and 2026-09-28, 09:30 UTC. */
+/**
+ * Fixed times, so the list reads the same in every capture: 2026-10-01 and 2026-09-28, 09:30 in
+ * the capturing browser's own time zone, which is the zone the list formats in.
+ */
 const DAY = 24 * 60 * 60 * 1000;
-const RECENT_AT = Date.UTC(2026, 9, 1, 9, 30);
+const RECENT_AT = new Date(2026, 9, 1, 9, 30).getTime();
 
 /** Eight nodes on a ring with two chords, laid out on a flat circle, which places them the same way every time. */
 const NODES = Array.from({ length: 8 }, (_, i) => ({ id: `n${String(i)}` }));
@@ -97,8 +100,10 @@ export const RecentMissing: Story = {
     play: async ({ canvasElement }) => {
         const row = await new Promise<HTMLElement>((resolve) => {
             const find = (): void => {
-                const found = canvasElement.querySelector<HTMLElement>('[aria-label="Open Les Miserables, my copy"]');
-                if (found === null) {
+                const found = [...canvasElement.querySelectorAll<HTMLElement>(".ws-recent-open")].find((button) =>
+                    button.textContent?.startsWith("Les Miserables, my copy"),
+                );
+                if (found === undefined) {
                     requestAnimationFrame(find);
                 } else {
                     resolve(found);

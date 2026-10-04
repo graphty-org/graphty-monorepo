@@ -13,7 +13,6 @@ import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { problemSentence, SAVE_AS_DIALOG } from "../actions";
 import { registration } from "../commands";
-import { nameFromFileName } from "../files";
 import { clearRecent, rememberRecent } from "../recent";
 
 const OPEN: Partial<WorkspaceState> = { project: { name: "Les Miserables", id: 1 } };
@@ -45,12 +44,16 @@ describe("the Project package", () => {
         assert.isNull(store.get().dialog);
     });
 
-    it("keeps Save closed while the graph is still loading", async () => {
+    it("keeps Save closed while the graph is still loading, and says why", async () => {
         const store = createWorkspaceStore(OPEN);
         render(<Workspace store={store} />);
 
         await userEvent.keyboard("{Control>}s{/Control}");
         assert.isNull(store.get().dialog);
+        await userEvent.click(screen.getByRole("button", { name: "Project: Les Miserables" }));
+        const save = await screen.findByRole("menuitem", { name: /^Save(?! as)/ });
+        assert.equal(save.getAttribute("aria-disabled"), "true");
+        assert.isNotNull(within(save).getByText("The graph is still loading"));
     });
 
     it("closes a project with nothing unsaved straight to the start screen", async () => {
@@ -68,10 +71,10 @@ describe("the Project package", () => {
         await rememberRecent({ id: "b", name: "Les Miserables", nodes: 77, at: 2 });
         render(<Workspace />);
 
-        const rows = await screen.findAllByRole("button", { name: /^Open (Older|Les Miserables)$/ });
+        const rows = await screen.findAllByRole("button", { name: /^(Older|Les Miserables)/ });
         assert.deepEqual(
-            rows.map((row) => row.getAttribute("aria-label")),
-            ["Open Les Miserables", "Open Older"],
+            rows.map((row) => row.querySelector("span")?.textContent),
+            ["Les Miserables", "Older"],
         );
         assert.isNotNull(within(rows[0]).getByText("77 nodes"));
         assert.isNotNull(within(rows[1]).getByText("1 node"));
@@ -80,7 +83,7 @@ describe("the Project package", () => {
         await userEvent.click(screen.getByRole("button", { name: "More for Older" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Remove from list" }));
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("button", { name: "Open Older" }));
+            assert.isNull(screen.queryByRole("button", { name: /^Older/ }));
         });
     });
 
@@ -103,11 +106,5 @@ describe("the Project package", () => {
         );
         assert.equal(problemSentence("a.json", error("E_TOO_LARGE")), "a.json is too large to open.");
         assert.equal(problemSentence("a.json", new Error("x")), "a.json could not be opened.");
-    });
-
-    it("names a project after its file", () => {
-        assert.equal(nameFromFileName("Les Miserables.graphty.json"), "Les Miserables");
-        assert.equal(nameFromFileName("plain.json"), "plain");
-        assert.equal(nameFromFileName("notes.txt"), "notes.txt");
     });
 });

@@ -4,7 +4,7 @@
  * Every line here must compile without a cast; a method or option the augmentation lost fails the build.
  */
 
-import graphtyCytoscape, { type Backend, type GraphtyLayoutOptions } from "@graphty/cytoscape-extensions";
+import graphtyCytoscape, { type Backend, type GraphtyLayoutOptions, toSnapshot } from "@graphty/cytoscape-extensions";
 import cytoscape from "cytoscape";
 
 cytoscape.use(graphtyCytoscape);
@@ -22,7 +22,7 @@ cy.elements()
     .run();
 cy.layout({ name: "graphty-grid", boundingBox: { x1: 0, y1: 0, w: 100, h: 100 } }).run();
 cy.layout({ name: "grid", rows: 2 }).run();
-// a simulation says which backend ran, as the README tells readers to check
+// a simulation says which backend ran, as the WebGPU guide tells readers to check
 const simulation = cy.layout({ name: "graphty-forceatlas2", maxIter: 10, gpu: "off" }).run();
 const ranOn: "gpu" | "cpu" | undefined = simulation.backend?.ran;
 // @ts-expect-error -- Cytoscape's own layouts keep their own option types
@@ -31,6 +31,8 @@ cy.layout({ name: "grid", boundingBox: 3 });
 const rank: number | undefined = cy.elements().graphtyPageRank().rank("#a");
 const path = cy.elements().graphtyDijkstra({ root: "#a", weight: "w" }).pathTo("#b");
 const communities = cy.graphtyLouvain();
+// a snapshot of the nodes alone, as the snapshot guide writes it
+const { nodeCount }: { nodeCount: number } = toSnapshot(cy.nodes()).snapshot;
 
 /**
  * The asynchronous methods report which backend ran.
@@ -45,4 +47,4 @@ export async function run(): Promise<Backend> {
     return r.backend;
 }
 
-export { communities, path, rank, ranOn };
+export { communities, nodeCount, path, rank, ranOn };

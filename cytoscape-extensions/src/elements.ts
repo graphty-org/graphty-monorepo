@@ -9,8 +9,8 @@ import type { Collection, ElementDefinition } from "cytoscape";
 
 /**
  * Data fields Cytoscape gives a meaning of its own, and "__proto__", whose assignment would set the data object's
- * prototype (and with it inherited id, source, target or parent fields); a column with one of these names is not
- * copied into data.
+ * prototype (and with it inherited id, source, target or parent fields). An element's own data fields of these names
+ * are not exported as columns; a column with one of these names is imported under another name (see fieldNames).
  */
 const RESERVED: ReadonlySet<string> = new Set(["id", "source", "target", "parent", "__proto__"]);
 
@@ -23,9 +23,17 @@ function plain(v: unknown): unknown {
     return ArrayBuffer.isView(v) ? Array.from(v as unknown as ArrayLike<number>) : v;
 }
 
+/** A column that arrives under another data field name, because Cytoscape reserves its own. */
+export interface RenamedColumn {
+    readonly domain: "node" | "edge";
+    readonly from: string;
+    readonly to: string;
+}
+
 /**
  * Cytoscape element definitions for a snapshot. Node ids are the snapshot's ids as strings. Every node and edge
- * column becomes a data field of the same name (except the reserved `id`, `source`, `target` and `parent`), and:
+ * column becomes a data field of the same name, except that one named `id`, `source`, `target` or `parent` (which
+ * Cytoscape reserves) becomes `<name>#<the attribute's id in the file>`, or `<name>#2` when it has none, and:
  * - a node column with the role "position" becomes the node's position (x and y; a z is dropped);
  * - a node column with the role "parent" (a compound parent, as Cytoscape JSON, GraphML nested graphs and DOT
  *   clusters carry it) becomes `data.parent`;
@@ -34,23 +42,61 @@ function plain(v: unknown): unknown {
  * - the edge weights become `data.weight`: the weight column when the file had one, else the snapshot's weights
  *   when it is weighted.
  * @param snapshot - the snapshot
+ * @param onRename - told about each column renamed because its name is reserved
  * @returns the nodes, then the edges
  */
-export function snapshotToElements(snapshot: GraphSnapshot): ElementDefinition[] {
+export function snapshotToElements(
+    snapshot: GraphSnapshot,
+    onRename?: (renamed: RenamedColumn) => void,
+): ElementDefinition[] {
     const ids: string[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
         ids.push(String(snapshot.ids.idOf(i)));
     }
-    return [...nodeElements(snapshot, ids), ...edgeElements(snapshot, ids)];
+    return [...nodeElements(snapshot, ids, onRename), ...edgeElements(snapshot, ids, onRename)];
 }
 
 /**
- * Whether a column becomes a data field of its own (not a reserved name, an id or a parent).
+ * Whether a column becomes a data field of its own (not the id or the parent, which the element gets as such).
  * @param c - the column
  * @returns true to copy it into data
  */
 function kept(c: Column): boolean {
-    return !RESERVED.has(c.meta.name) && c.meta.role !== "id" && c.meta.role !== "parent";
+    return c.meta.role !== "id" && c.meta.role !== "parent";
+}
+
+/**
+ * The data field name of each column: its own, or for a reserved name `<name>#<origin id>` (`<name>#2`, `#3`, ...
+ * without one, or when that is taken), the rule graph-io follows when two attributes share a name.
+ * @param cols - the columns copied into data
+ * @param domain - node or edge, for onRename
+ * @param onRename - told about each renamed column
+ * @returns the field name by column
+ */
+function fieldNames(
+    cols: readonly Column[],
+    domain: RenamedColumn["domain"],
+    onRename: ((renamed: RenamedColumn) => void) | undefined,
+): Map<Column, string> {
+    const taken = new Set([...RESERVED, ...cols.map((c) => c.meta.name)]);
+    const out = new Map<Column, string>();
+    for (const c of cols) {
+        const from = c.meta.name;
+        if (!RESERVED.has(from)) {
+            out.set(c, from);
+            continue;
+        }
+        const id = c.meta.origin?.id ?? null;
+        const base = id === null ? from : `${from}#${id}`;
+        let to = id !== null && !taken.has(base) ? base : undefined;
+        for (let n = 2; to === undefined; n++) {
+            to = taken.has(`${base}#${n}`) ? undefined : `${base}#${n}`;
+        }
+        taken.add(to);
+        out.set(c, to);
+        onRename?.({ domain, from, to });
+    }
+    return out;
 }
 
 /**
@@ -74,16 +120,22 @@ function rowData(cols: readonly Column[], row: number, fieldOf: (c: Column) => s
  * The node elements of snapshotToElements().
  * @param snapshot - the snapshot
  * @param ids - the node ids as strings, by node index
+ * @param onRename - told about each renamed column
  * @returns one element per node
  */
-function nodeElements(snapshot: GraphSnapshot, ids: readonly string[]): ElementDefinition[] {
+function nodeElements(
+    snapshot: GraphSnapshot,
+    ids: readonly string[],
+    onRename: ((renamed: RenamedColumn) => void) | undefined,
+): ElementDefinition[] {
     const nodeCols = [...snapshot.nodes].filter(kept);
     const position = nodeCols.find((c) => c.meta.role === "position" && c.meta.components >= 2);
     const nodeData = nodeCols.filter((c) => c !== position);
+    const names = fieldNames(nodeData, "node", onRename);
     const parent = snapshot.nodes.byRole("parent");
     const out: ElementDefinition[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const data = rowData(nodeData, i, (c) => c.meta.name);
+        const data = rowData(nodeData, i, (c) => names.get(c) ?? c.meta.name);
         data.id = ids[i];
         const p = parent?.isSet(i) === true ? parent.value(i) : undefined;
         if (typeof p === "number" && p !== i && p < ids.length) {
@@ -103,13 +155,19 @@ function nodeElements(snapshot: GraphSnapshot, ids: readonly string[]): ElementD
  * The edge elements of snapshotToElements().
  * @param snapshot - the snapshot
  * @param ids - the node ids as strings, by node index
+ * @param onRename - told about each renamed column
  * @returns one element per edge
  */
-function edgeElements(snapshot: GraphSnapshot, ids: readonly string[]): ElementDefinition[] {
+function edgeElements(
+    snapshot: GraphSnapshot,
+    ids: readonly string[],
+    onRename: ((renamed: RenamedColumn) => void) | undefined,
+): ElementDefinition[] {
     const edgeCols = [...snapshot.edges].filter(kept);
     const named = edgeCols.some((c) => c.meta.name === "weight");
     const weightColumn = edgeCols.find((c) => c.meta.role === "weight");
-    const fieldOf = (c: Column): string => (c === weightColumn && !named ? "weight" : c.meta.name);
+    const names = fieldNames(edgeCols, "edge", onRename);
+    const fieldOf = (c: Column): string => (c === weightColumn && !named ? "weight" : (names.get(c) ?? c.meta.name));
     const edgeIds = snapshot.edges.byRole("id");
     const nodeIds = new Set(ids);
     const usedEdgeIds = new Set<string>();
@@ -155,7 +213,8 @@ function column(values: unknown[], label: boolean): ColumnInput | undefined {
     if (all((v) => typeof v === "string")) {
         return { data: rows, decl: { dtype: "string", ...(label ? { role: "label" } : {}) } };
     }
-    return { data: rows, decl: { dtype: "json" } };
+    // in a json column null is a set value (JSON null), which a format would write as the text "null"
+    return { data: values.map((v) => v ?? undefined), decl: { dtype: "json" } };
 }
 
 /**
@@ -193,20 +252,24 @@ function columns(records: readonly Record<string, unknown>[]): Record<string, Co
  * out, so the node is written as a top-level node). Hidden elements are written like any other: pass
  * `cy.elements(":visible")` to leave them out.
  * @param eles - the collection
- * @param options - the direction
+ * @param options - the direction and the id type
  * @param options.directed - write a directed graph (default false)
+ * @param options.integerIds - when every node id is a non-negative integer written plainly ("0", "17"), give the
+ * snapshot number ids, so a format that holds only integer ids (GML, CX2) writes them as they are (default false)
  * @returns the snapshot
  */
 export function elementsToSnapshot(
     eles: Collection,
-    options: { readonly directed?: boolean | undefined } = {},
+    options: { readonly directed?: boolean | undefined; readonly integerIds?: boolean | undefined } = {},
 ): GraphSnapshot {
     const nodes = eles.nodes();
     const index = new Map<string, number>();
-    const ids = nodes.map((n, i) => {
+    const names = nodes.map((n, i) => {
         index.set(n.id(), i);
         return n.id();
     });
+    const integers = options.integerIds === true && names.every((id) => /^(?:0|[1-9]\d{0,14})$/.test(id));
+    const ids: (string | number)[] = integers ? names.map(Number) : names;
     const edges = eles.edges().filter((e) => index.has(e.source().id()) && index.has(e.target().id()));
     const src = new Uint32Array(edges.length);
     const dst = new Uint32Array(edges.length);

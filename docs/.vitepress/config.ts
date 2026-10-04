@@ -182,12 +182,52 @@ export default defineConfig({
                     items: [{ text: "Overview", link: "/layout/api/generated/" }, ...layoutTypedoc],
                 },
             ],
-            // One guide page (the package README) and the generated TypeDoc reference.
             "/cytoscape-extensions/": [
                 {
-                    text: "cytoscape-extensions",
+                    text: "Guide",
                     items: [
-                        { text: "Guide", link: "/cytoscape-extensions/" },
+                        { text: "Overview", link: "/cytoscape-extensions/" },
+                        { text: "Getting Started", link: "/cytoscape-extensions/guide/getting-started" },
+                        { text: "Installation", link: "/cytoscape-extensions/guide/installation" },
+                        { text: "Layouts", link: "/cytoscape-extensions/guide/layouts" },
+                        { text: "Algorithms", link: "/cytoscape-extensions/guide/algorithms" },
+                        { text: "WebGPU", link: "/cytoscape-extensions/guide/webgpu" },
+                        { text: "Graphs In and Out", link: "/cytoscape-extensions/guide/graphs-in-and-out" },
+                        { text: "Calling graphty functions directly", link: "/cytoscape-extensions/guide/snapshot" },
+                        { text: "Limits", link: "/cytoscape-extensions/guide/limits" },
+                        {
+                            text: "Migrating from Cytoscape",
+                            link: "/cytoscape-extensions/guide/migrating-from-cytoscape",
+                        },
+                        { text: "Troubleshooting", link: "/cytoscape-extensions/guide/troubleshooting" },
+                    ],
+                },
+                {
+                    text: "Recipes",
+                    items: [
+                        {
+                            text: "Color Nodes by PageRank",
+                            link: "/cytoscape-extensions/guide/recipes/color-by-pagerank",
+                        },
+                        { text: "Size Nodes by Degree", link: "/cytoscape-extensions/guide/recipes/size-by-degree" },
+                        { text: "Find Communities", link: "/cytoscape-extensions/guide/recipes/find-communities" },
+                        {
+                            text: "Highlight a Shortest Path",
+                            link: "/cytoscape-extensions/guide/recipes/highlight-shortest-path",
+                        },
+                        { text: "Load a GraphML File", link: "/cytoscape-extensions/guide/recipes/load-graphml-file" },
+                        {
+                            text: "Animate a Force Layout",
+                            link: "/cytoscape-extensions/guide/recipes/animate-force-layout",
+                        },
+                    ],
+                },
+                {
+                    text: "Reference",
+                    items: [
+                        { text: "Layouts", link: "/cytoscape-extensions/reference/layouts" },
+                        { text: "Algorithms", link: "/cytoscape-extensions/reference/algorithms" },
+                        { text: "Generators, Datasets and Formats", link: "/cytoscape-extensions/reference/graphs" },
                         { text: "Demo", link: "https://graphty.app/storybook/cytoscape-extensions/" },
                     ],
                 },

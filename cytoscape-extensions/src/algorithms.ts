@@ -11,9 +11,11 @@
  *   of collections, never index arrays;
  * - `field` writes the per-element value (what `score` or `cluster` returns) into `data(field)`, so a stylesheet
  *   can map it;
- * - every other option goes to the @graphty/algorithms function unchanged;
+ * - every other option the method's type lists goes to the @graphty/algorithms function unchanged, and an option it
+ *   does not list throws (src/algorithm-options.ts, generated from those types);
  * - errors throw, from the adapter (a selection that matches nothing, a weight given to an algorithm that ignores
- *   weights) and from the algorithm (an undirected graph given to one that needs a directed one).
+ *   weights, an unknown option) and from the algorithm (an undirected graph given to one that needs a directed one),
+ *   each message starting with the method name.
  */
 
 import {
@@ -37,7 +39,6 @@ import {
     commonNeighborsForPairs,
     commonNeighborsPrediction,
     commonNeighborsScore,
-    compareAdamicAdarWithCommonNeighbors,
     condensation,
     connectedComponents,
     degreeCentrality,
@@ -134,6 +135,7 @@ import type {
     NodeSingular,
 } from "cytoscape";
 
+import { OPTION_NAMES } from "./algorithm-options.js";
 import { type Backend, backendOf, gpuFor, type GpuMode, recording, warnIfFixable } from "./gpu.js";
 import {
     coreOf,
@@ -156,7 +158,10 @@ export interface AlgorithmOptions {
     readonly directed?: boolean;
     /** Edge data field holding the weight, or a function of the edge. Default: every edge weighs 1. */
     readonly weight?: SnapshotOptions["weight"];
-    /** Write each element's value (what `score` or `cluster` returns) into `data(field)`. */
+    /**
+     * Write each element's value (what `score` or `cluster` returns) into `data(field)`. A method whose result has no
+     * per-element value (a path, a tree, a number, a list of predictions) throws when given it.
+     */
     readonly field?: string;
     /**
      * The `...Async` methods only: "auto" (default) runs on the GPU when the runtime has a usable WebGPU device,
@@ -200,7 +205,9 @@ export interface SearchResult {
 
 /** One path between two nodes, in the shape of Cytoscape's `aStar`. */
 export interface PointPathResult {
+    /** Whether `goal` can be reached from `root`. */
     readonly found: boolean;
+    /** The length of the path; Infinity when not found. */
     readonly distance: number;
     /** Alternating node, edge, node; empty when not found. */
     readonly path: CollectionReturnValue;
@@ -210,15 +217,21 @@ export interface PointPathResult {
 export interface CutResult {
     /** The total weight (capacity) of the cut edges. */
     readonly value: number;
+    /** The edges that cross the cut. */
     readonly cut: EdgeCollection;
+    /** The nodes on one side: the source side for a flow or s-t cut. */
     readonly partitionFirst: NodeCollection;
+    /** The nodes on the other side. */
     readonly partitionSecond: NodeCollection;
 }
 
 /** A predicted link. */
 export interface PredictedLink {
+    /** One end of the proposed edge. */
     readonly source: NodeSingular;
+    /** The other end. */
     readonly target: NodeSingular;
+    /** The pair's score; higher is a more likely link. */
     readonly score: number;
 }
 
@@ -322,7 +335,7 @@ const ADAPTER_KEYS = new Set([
 ]);
 
 // Algorithms that read no weights: a `weight` option would be silently ignored, so it throws.
-const UNWEIGHTED = new Set([
+export const UNWEIGHTED: ReadonlySet<string> = new Set([
     "breadthFirstSearch",
     "directionOptimizedBfs",
     "depthFirstSearch",
@@ -360,8 +373,38 @@ const UNWEIGHTED = new Set([
     "compareAdamicAdarWithCommonNeighbors",
 ]);
 
+// Algorithms whose result has no per-element value to write: a `field` option would be silently ignored, so it throws.
+export const NO_FIELD: ReadonlySet<string> = new Set([
+    "hasCycle",
+    "topologicalSort",
+    "bidirectionalDijkstra",
+    "aStar",
+    "allPairsShortestPath",
+    "degrees",
+    "nodeClosenessCentrality",
+    "isGraphIsomorphic",
+    "findAllIsomorphisms",
+    "modularity",
+    "hierarchicalClustering",
+    "kruskalMST",
+    "primMST",
+    "maximumBipartiteMatching",
+    "greedyBipartiteMatching",
+    "commonNeighborsScore",
+    "adamicAdarScore",
+    "commonNeighborsPrediction",
+    "adamicAdarPrediction",
+    "commonNeighborsForPairs",
+    "adamicAdarForPairs",
+    "topCandidatesForNode",
+    "topAdamicAdarCandidatesForNode",
+    "evaluateCommonNeighbors",
+    "evaluateAdamicAdar",
+    "compareAdamicAdarWithCommonNeighbors",
+]);
+
 // This package's own defaults, passed explicitly to @graphty/algorithms (and through it to the GPU), so a change of
-// a library default does not change what a Cytoscape user gets. The README's "Defaults" table lists them; a caller's
+// a library default does not change what a Cytoscape user gets. docs/reference/algorithms.md shows them; a caller's
 // option overrides them. `weighted` is pinned separately: it is true exactly when the caller passed `weight`.
 const POWER = { maxIterations: 100, tolerance: 1e-6 } as const;
 const PAGERANK = { ...POWER, dampingFactor: 0.85 } as const;
@@ -375,6 +418,9 @@ export const DEFAULTS: Readonly<Record<string, Readonly<Record<string, unknown>>
     labelPropagation: { maxIterations: 100 },
     labelPropagationSynchronous: { maxIterations: 100 },
     labelPropagationSemiSupervised: { maxIterations: 100 },
+    allPairsShortestPath: { paths: true },
+    maxFlow: { algorithm: "edmonds-karp" },
+    minSTCut: { algorithm: "ford-fulkerson" },
 };
 
 // Algorithms defined only for directed graphs: `directed` defaults to true.
@@ -397,6 +443,19 @@ export const DIRECTED: ReadonlySet<string> = new Set([
  */
 function collect(c: Ctx, eles: readonly (NodeSingular | EdgeSingular)[]): CollectionReturnValue {
     return c.cy.collection(eles as unknown as CollectionArgument);
+}
+
+/**
+ * Throws on a negative edge weight, which Dijkstra and A* cannot take (on an undirected graph Dijkstra would never
+ * return). The code matches graphtyBidirectionalDijkstra's error.
+ * @param c - the context
+ */
+function nonNegative(c: Ctx): void {
+    if (c.s.weights?.some((w) => w < 0) === true) {
+        throw Object.assign(new Error(`${c.name}: a weight is negative; use graphtyBellmanFord`), {
+            code: "E_BAD_WEIGHT",
+        });
+    }
 }
 
 /**
@@ -750,7 +809,8 @@ function isoOptions(c: Ctx, other: CytoscapeSnapshot, o: IsomorphismOptions): Re
  * @returns its snapshot
  */
 function otherOf(c: Ctx, o: IsomorphismOptions): CytoscapeSnapshot {
-    if (o.other === undefined) {
+    // required by the type, checked for callers without types
+    if ((o.other as Collection | undefined) === undefined) {
         throw new Error(`${c.name}: the other option (the collection to compare with) is required`);
     }
     return toSnapshot(o.other, { directed: c.s.directed });
@@ -778,14 +838,32 @@ function vectorOf(c: Ctx, v: NodeSelection | ((node: NodeSingular) => number) | 
 }
 
 /**
+ * The teleport vector of a personalized PageRank. One that selects no node would run plain PageRank without a word,
+ * so it throws, as a required node option that matches nothing does.
+ * @param c - the context
+ * @param v - the selection or the weight function
+ * @returns the vector
+ */
+function teleportOf(c: Ctx, v: NodeSelection | ((node: NodeSingular) => number) | undefined): F64 {
+    const p = vectorOf(c, v, "personalization");
+    if (!p.some((x) => x > 0)) {
+        throw new Error(
+            `${c.name}: personalization ${typeof v === "function" ? "gives no node a positive weight" : "matches no node"}`,
+        );
+    }
+    return p;
+}
+
+/**
  * Labels per node from a list of clusters or a node data field.
  * @param c - the context
  * @param clusters - the clusters, or the data field holding each node's cluster
+ * @param what - the option name, for the error
  * @returns label per node index (INVALID_INDEX: none)
  */
-function labelsOf(c: Ctx, clusters: string | readonly NodeSelection[] | undefined): U32 {
+function labelsOf(c: Ctx, clusters: string | readonly NodeSelection[] | undefined, what: string): U32 {
     if (clusters === undefined) {
-        throw new Error(`${c.name}: the clusters option is required`);
+        throw new Error(`${c.name}: the ${what} option is required`);
     }
     const labels = new Uint32Array(c.s.nodeCount).fill(INVALID_INDEX);
     if (typeof clusters === "string") {
@@ -914,7 +992,7 @@ interface FlowOptions extends AlgorithmOptions, Omit<MaxFlowOptions, "weights"> 
 
 interface IsomorphismOptions extends AlgorithmOptions {
     /** The collection to compare with, read with the same `directed`. */
-    readonly other?: Collection;
+    readonly other: Collection;
     /** Two nodes may be paired only when this returns true; by default any two may. */
     readonly nodeMatch?: (a: NodeSingular, b: NodeSingular) => boolean;
     /** Two edges may be paired only when this returns true; by default any two may. */
@@ -926,7 +1004,7 @@ interface MatchingOptions extends AlgorithmOptions {
     readonly left?: NodeSelection;
     /** The other side; inferred when absent. */
     readonly right?: NodeSelection;
-    /** With `directed`: "both" (default) ignores direction; "out" joins a left node only to its out-neighbours. */
+    /** With `directed`: "both" (default) ignores direction; "out" joins a left node only to its out-neighbors. */
     readonly arcs?: "both" | "out";
 }
 
@@ -938,7 +1016,11 @@ interface Cutoff {
 
 /** Sampled centrality. */
 interface Sampled {
-    /** Sampled: the nodes to run from, a selector or a collection; default every node. */
+    /**
+     * The nodes to run from, a selector or a collection; default every node. A sample is not rescaled: each value
+     * sums over these sources only (closeness is 1 / the sum of the distances from them), where NetworkX multiplies
+     * a k-source betweenness by n / k to estimate the full value.
+     */
     readonly sources?: NodeSelection;
 }
 
@@ -960,6 +1042,17 @@ interface PairsOptions {
 interface Candidates {
     /** The nodes to consider linking to `root`; default every node. */
     readonly candidates?: NodeSelection;
+}
+
+/**
+ * The `topK` of a candidates method with the meaning it has on the prediction methods: a positive count keeps that
+ * many, 0 or less keeps every candidate (@graphty/algorithms slices with it, so 0 would keep none and -1 drop one).
+ * @param o - the options
+ * @param o.topK - the caller's value
+ * @returns the value for @graphty/algorithms
+ */
+function topK(o: { readonly topK?: number }): number | undefined {
+    return o.topK !== undefined && o.topK <= 0 ? Infinity : o.topK;
 }
 
 interface MatchingResult {
@@ -1038,14 +1131,17 @@ const IMPLS = {
         const order = topologicalSort(c.s);
         return order === null ? null : nodesAt(c, order);
     },
-    dijkstra: (c: Ctx, o: Rooted & Cutoff): PathsResult | Promise<PathsResult> =>
-        then(c.call("sssp", c.s, req(c, o.root, "root"), c.rest), (r) => paths(c, r)),
+    dijkstra: (c: Ctx, o: Rooted & Cutoff): PathsResult | Promise<PathsResult> => {
+        nonNegative(c);
+        return then(c.call("sssp", c.s, req(c, o.root, "root"), c.rest), (r) => paths(c, r));
+    },
     bellmanFord: (c: Ctx, o: Rooted & Cutoff): MaybeAsync<PathsResult & { readonly hasNegativeWeightCycle: boolean }> =>
         then(c.call("bellmanFord", c.s, req(c, o.root, "root"), c.rest), (r) => ({
             ...paths(c, r),
             hasNegativeWeightCycle: r.hasNegativeCycle,
         })),
     bidirectionalDijkstra: (c: Ctx, o: PointToPoint): PointPathResult => {
+        nonNegative(c);
         const r = bidirectionalDijkstra(c.s, req(c, o.root, "root"), req(c, o.goal, "goal"), c.rest);
         return { found: r.path.length > 0, distance: r.distance, path: pathOf(c, r.path, r.edges) };
     },
@@ -1057,6 +1153,7 @@ const IMPLS = {
         },
     ): PointPathResult => {
         const h = o.heuristic;
+        nonNegative(c);
         const r = astar(
             c.s,
             req(c, o.root, "root"),
@@ -1069,8 +1166,7 @@ const IMPLS = {
     allPairsShortestPath: (
         c: Ctx,
         _o: AlgorithmOptions & Omit<ApspOptions, "weights" | "weighted"> = {},
-    ): MaybeAsync<ApspResult> =>
-        then(c.call("allPairsShortestPath", c.s, { paths: true, ...c.rest }), (r) => apsp(c, r)),
+    ): MaybeAsync<ApspResult> => then(c.call("allPairsShortestPath", c.s, c.rest), (r) => apsp(c, r)),
 
     // Centrality
     degreeCentrality: (
@@ -1085,6 +1181,12 @@ const IMPLS = {
         _o: AlgorithmOptions = {},
     ): { indegree(node: ElementRef): number | undefined; outdegree(node: ElementRef): number | undefined } => {
         const r = degrees(c.s);
+        if (!c.s.directed) {
+            // read both ways, an edge enters and leaves each end: both accessors give the degree (@graphty/algorithms'
+            // degrees counts by source and target whatever the direction)
+            const degree = Float64Array.from(r.inDegree, (d, i) => d + r.outDegree[i]);
+            return { indegree: accessor(c, degree), outdegree: accessor(c, degree) };
+        }
         return { indegree: accessor(c, r.inDegree), outdegree: accessor(c, r.outDegree) };
     },
     pageRank: (
@@ -1106,7 +1208,7 @@ const IMPLS = {
             readonly initialRanks?: (node: NodeSingular) => number;
         },
     ): MaybeAsync<RankResult> => {
-        const p = vectorOf(c, o.personalization, "personalization");
+        const p = teleportOf(c, o.personalization);
         const initialRanks = o.initialRanks && vectorOf(c, o.initialRanks, "initialRanks");
         return then(c.call("personalizedPageRank", c.s, p, { ...c.rest, initialRanks, weighted: c.weighted }), (r) =>
             ranked(c, r),
@@ -1115,7 +1217,12 @@ const IMPLS = {
     deltaPageRank: (
         c: Ctx,
         o: WeightedFlag<Omit<DeltaPageRankComputeOptions, "personalization">> & {
-            /** Process the largest pending delta first (`PriorityDeltaPageRank`, which ignores `personalization`). */
+            /**
+             * Process the largest pending delta first (`PriorityDeltaPageRank`, which ignores `personalization`); its
+             * ranks match `graphtyPageRank({ directed: true })`. Without it the ranks can differ from PageRank's (by up
+             * to 0.07 on the karate club), the run usually goes on until `maxIterations`, and a `maxIterations` in the
+             * thousands overflows and throws.
+             */
             readonly priority?: boolean;
             /** The teleport set: a selection (uniform over it) or a weight per node. */
             readonly personalization?: NodeSelection | ((node: NodeSingular) => number);
@@ -1123,13 +1230,23 @@ const IMPLS = {
     ): ScoreResult & { rank(node: ElementRef): number | undefined } => {
         // The engines keep state for `update()` over the same frozen snapshot; a changed Cytoscape graph is a new
         // snapshot, so only the one-shot computation is offered.
-        const personalization =
-            o.personalization === undefined ? undefined : vectorOf(c, o.personalization, "personalization");
-        const opts = { ...c.rest, personalization, weighted: c.weighted };
+        const personalization = o.personalization === undefined ? undefined : teleportOf(c, o.personalization);
+        // PriorityDeltaPageRank's maxIterations counts processed nodes, so the pinned 100 rounds would stop it long
+        // before it converges on any but a tiny graph: without the caller's own budget it runs until no delta is left
+        const budget = o.priority === true && o.maxIterations === undefined ? { maxIterations: Infinity } : {};
+        const opts = { ...c.rest, ...budget, personalization, weighted: c.weighted };
         const v =
             o.priority === true
                 ? new PriorityDeltaPageRank(c.s).computeWithPriority(opts)
                 : new DeltaPageRank(c.s).compute(opts);
+        // ponytail: @graphty/algorithms' DeltaPageRank overflows to NaN at a large maxIterations; refuse it here
+        // until that engine converges (then this check never fires)
+        if (v.some((x) => !Number.isFinite(x))) {
+            throw new RangeError(
+                `${c.name}: the ranks overflowed (maxIterations ${String(c.rest.maxIterations)} is too high for this graph); ` +
+                    "lower maxIterations, or pass priority: true",
+            );
+        }
         return scored(c, v, { rank: accessor(c, v) });
     },
     eigenvectorCentrality: (
@@ -1219,7 +1336,10 @@ const IMPLS = {
             Sampled & {
                 /** Divide by `(n - 1)(n - 2)` on a directed graph, half that on an undirected one. Default false. */
                 readonly normalized?: boolean;
-                /** Sampled: how many source nodes to draw (the same count draws the same nodes every time). */
+                /**
+                 * Draw this many source nodes instead of using every node; the same count draws the same nodes. Not
+                 * rescaled (see `sources`).
+                 */
                 readonly k?: number;
             } = {},
     ): MaybeAsync<ScoreResult> => {
@@ -1297,7 +1417,7 @@ const IMPLS = {
                 /** The clusters (a partition result, or selections), or the node data field holding each node's cluster. */
                 readonly clusters: string | readonly NodeSelection[];
             },
-    ): number => modularity(c.s, labelsOf(c, o.clusters), c.rest),
+    ): number => modularity(c.s, labelsOf(c, o.clusters, "clusters"), c.rest),
 
     // Community detection and clustering
     louvain: (
@@ -1327,11 +1447,18 @@ const IMPLS = {
     labelPropagationSemiSupervised: (
         c: Ctx,
         o: WeightedFlag<LabelPropagationOptions> & {
-            /** Seed labels: the node data field holding them (nodes without it are free), or one selection per label. */
+            /**
+             * Seed labels: the node data field holding them (nodes without it are free), or one selection per label.
+             * Every free node starts with a label of its own, so a seed label spreads only where its seeds outvote
+             * their neighbors: a single seed in a dense group can end up alone in its own cluster.
+             */
             readonly seeds: string | readonly NodeSelection[];
         },
     ): Partition<{ iterations: number; converged: boolean }> => {
-        const r = labelPropagationSemiSupervised(c.s, labelsOf(c, o.seeds), { ...c.rest, weighted: c.weighted });
+        const r = labelPropagationSemiSupervised(c.s, labelsOf(c, o.seeds, "seeds"), {
+            ...c.rest,
+            weighted: c.weighted,
+        });
         return partition(c, r.labels, { iterations: r.iterations, converged: r.converged });
     },
     girvanNewman: (
@@ -1383,8 +1510,12 @@ const IMPLS = {
         partition(c, grsbm(c.s, { ...c.rest, weighted: c.weighted }).labels, {}),
     syncClustering: (
         c: Ctx,
-        _o: AlgorithmOptions & SyncClusteringOptions,
+        o: AlgorithmOptions & SyncClusteringOptions,
     ): Partition<{ loss: number; iterations: number; converged: boolean }> => {
+        // required by the type, checked for callers without types
+        if ((o.numClusters as number | undefined) === undefined) {
+            throw new Error(`${c.name}: the numClusters option is required`);
+        }
         const r = syncClustering(c.s, c.rest as unknown as SyncClusteringOptions);
         return partition(c, r.labels, { loss: r.loss, iterations: r.iterations, converged: r.converged });
     },
@@ -1405,9 +1536,9 @@ const IMPLS = {
     ): CollectionReturnValue & { totalWeight: number } => {
         const start = indexOf(c.cs, o.root, `${c.name}: root`);
         const r = primMST(c.s, { ...c.rest, start });
-        const tree = nodesAt(c, Array.from(r.edges, (e) => [c.s.edgeSource(e), c.s.edgeTarget(e)]).flat());
-        const nodes = r.edges.length === 0 && start !== undefined ? nodesAt(c, [start]) : tree;
-        return Object.assign(nodes.union(edgesAt(c, r.edges)), { totalWeight: r.totalWeight });
+        // a run that does not throw spans every node: the graph is connected, or `forest` grew a tree in every
+        // component (an isolated node is a tree of its own)
+        return Object.assign(c.cs.nodes.union(edgesAt(c, r.edges)), { totalWeight: r.totalWeight });
     },
     maxFlow: (c: Ctx, o: FlowOptions): CutResult & { flow(edge: ElementRef): number | undefined } => {
         const r = maxFlow(c.s, req(c, o.source, "source"), req(c, o.sink, "sink"), c.rest);
@@ -1447,7 +1578,12 @@ const IMPLS = {
         const candidates = o.candidates === undefined ? undefined : indicesOf(c.cs, o.candidates);
         return links(
             c,
-            getTopCandidatesForNode(c.s, req(c, o.root, "root"), { ...c.rest, candidates, directed: c.s.directed }),
+            getTopCandidatesForNode(c.s, req(c, o.root, "root"), {
+                ...c.rest,
+                topK: topK(o),
+                candidates,
+                directed: c.s.directed,
+            }),
         );
     },
     topAdamicAdarCandidatesForNode: (
@@ -1459,6 +1595,7 @@ const IMPLS = {
             c,
             getTopAdamicAdarCandidatesForNode(c.s, req(c, o.root, "root"), {
                 ...c.rest,
+                topK: topK(o),
                 candidates,
                 directed: c.s.directed,
             }),
@@ -1475,10 +1612,17 @@ const IMPLS = {
     compareAdamicAdarWithCommonNeighbors: (
         c: Ctx,
         o: EvaluateOptions,
-    ): { adamicAdar: LinkPredictionMetrics; commonNeighbors: LinkPredictionMetrics } =>
-        compareAdamicAdarWithCommonNeighbors(c.s, pairsOf(c, o.edges, "edges"), pairsOf(c, o.nonEdges, "nonEdges"), {
-            directed: c.s.directed,
-        }),
+    ): { adamicAdar: LinkPredictionMetrics; commonNeighbors: LinkPredictionMetrics } => {
+        // both halves with `directed` (@graphty/algorithms' compareAdamicAdarWithCommonNeighbors drops it for the
+        // common-neighbors half), so each matches the method of its own name
+        const edges = pairsOf(c, o.edges, "edges");
+        const nonEdges = pairsOf(c, o.nonEdges, "nonEdges");
+        const opts = { directed: c.s.directed };
+        return {
+            adamicAdar: evaluateAdamicAdar(c.s, edges, nonEdges, opts),
+            commonNeighbors: evaluateCommonNeighbors(c.s, edges, nonEdges, opts),
+        };
+    },
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1564,8 +1708,21 @@ function run(
     algos: Algos,
 ): { result: unknown; snapshot: GraphSnapshot } {
     const name = methodName(key);
+    // a Cytoscape built-in takes some arguments positionally (kruskal(weightFn)); one ignored here would run unweighted
+    if (typeof options !== "object" || options === null || Array.isArray(options)) {
+        throw new TypeError(`${name}: takes one options object; pass a weight function as { weight: fn }`);
+    }
     if (options.weight !== undefined && UNWEIGHTED.has(key)) {
         throw new Error(`${name}: this algorithm reads no edge weights; remove the weight option`);
+    }
+    if (options.field !== undefined && NO_FIELD.has(key)) {
+        throw new Error(`${name}: this algorithm has no per-element value to write; remove the field option`);
+    }
+    const known = OPTION_NAMES[name] ?? [];
+    for (const [k, v] of Object.entries(options)) {
+        if (v !== undefined && !known.includes(k)) {
+            throw new Error(`${name}: unknown option ${k}; the options are ${known.join(", ")}`);
+        }
     }
     const cs = toSnapshot(eles, { directed: options.directed ?? DIRECTED.has(key), weight: options.weight });
     const rest = {
@@ -1582,7 +1739,41 @@ function run(
         rest,
         call: (k, ...args) => (algos[k] as (...a: unknown[]) => never)(...args),
     };
-    return { result: (IMPLS[key] as (c: Ctx, o: AlgorithmOptions) => unknown)(c, options), snapshot: cs.snapshot };
+    const fail = (error: unknown): never => {
+        throw named(error, key);
+    };
+    let result: unknown;
+    try {
+        result = (IMPLS[key] as (c: Ctx, o: AlgorithmOptions) => unknown)(c, options);
+    } catch (error) {
+        fail(error);
+    }
+    return { result: result instanceof Promise ? result.catch(fail) : result, snapshot: cs.snapshot };
+}
+
+/**
+ * An algorithm's error in a Cytoscape user's terms: it starts with the method name, and a graph of the wrong
+ * direction is told which option to change (the @graphty/algorithms message names its own functions and snapshot
+ * methods). The error object, its class and its `code` are kept.
+ * @param error - what the algorithm threw
+ * @param key - the algorithm
+ * @returns the error to throw
+ */
+function named(error: unknown, key: keyof Impls): unknown {
+    if (!(error instanceof Error)) {
+        return error;
+    }
+    const name = methodName(key);
+    const { code } = error as { code?: unknown };
+    if (code === "E_NEEDS_UNDIRECTED") {
+        const instead = key === "connectedComponents" ? ", or call graphtyWeaklyConnectedComponents" : "";
+        error.message = `${name}: needs an undirected graph; leave out directed: true${instead}`;
+    } else if (code === "E_NEEDS_DIRECTED") {
+        error.message = `${name}: needs a directed graph; ${DIRECTED.has(key) ? "leave out directed: false" : "pass directed: true"}`;
+    } else if (!error.message.startsWith(`${name}:`)) {
+        error.message = `${name}: ${error.message}`;
+    }
+    return error;
 }
 
 /**
@@ -1594,7 +1785,12 @@ function run(
  */
 function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): unknown {
     if (options.gpu === "require") {
-        throw new Error(`${methodName(key)}: runs on the CPU; call ${methodName(key)}Async for the GPU`);
+        const name = methodName(key);
+        throw new Error(
+            (ASYNC_KEYS as readonly string[]).includes(key)
+                ? `${name}: runs on the CPU; call ${name}Async for the GPU`
+                : `${name}: has no GPU implementation and runs only on the CPU; leave out gpu: "require"`,
+        );
     }
     return run(eles, key, options, CPU as unknown as Algos).result;
 }

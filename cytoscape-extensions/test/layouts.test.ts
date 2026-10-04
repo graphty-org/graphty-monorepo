@@ -250,9 +250,9 @@ describe("simulations", () => {
 
     it("spring-electrical needs an accelerator and says so", () => {
         const cy = makeCy();
-        expect(() =>
-            cy.layout({ name: "graphty-spring-electrical", boundingBox: BOX } as unknown as LayoutOptions).run(),
-        ).toThrow(/no CPU simulation/);
+        const layout = cy.layout({ name: "graphty-spring-electrical", boundingBox: BOX } as unknown as LayoutOptions);
+        expect(() => layout.run()).toThrow(/no CPU simulation/);
+        expect((layout as unknown as { backend?: unknown }).backend).toBeUndefined();
     });
 
     /**
@@ -316,4 +316,68 @@ describe("simulations", () => {
             expect((errors[0] as Error).message).toBe("device lost");
         });
     }
+});
+
+describe("simulations with locked nodes and per-node data", () => {
+    for (const name of ["forceatlas2", "fruchterman-reingold"]) {
+        it(`graphty-${name}: with one node locked in the box, every node ends inside the box`, async () => {
+            const cy = makeCy();
+            cy.$("#n5").position({ x: 200, y: 150 }).lock();
+            await run(cy, { name: `graphty-${name}`, maxIter: 300, iterations: 300 });
+            expect(cy.$("#n5").position()).toEqual({ x: 200, y: 150 });
+            const ps = [...positions(cy).values()];
+            for (const p of ps) {
+                expect(p.x).toBeGreaterThanOrEqual(BOX.x1 - 1e-6);
+                expect(p.x).toBeLessThanOrEqual(BOX.x1 + BOX.w + 1e-6);
+                expect(p.y).toBeGreaterThanOrEqual(BOX.y1 - 1e-6);
+                expect(p.y).toBeLessThanOrEqual(BOX.y1 + BOX.h + 1e-6);
+            }
+            // the result fills the box rather than collapsing onto the locked node
+            const xs = ps.map((p) => p.x);
+            const ys = ps.map((p) => p.y);
+            expect(Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))).toBeGreaterThan(100);
+        });
+    }
+
+    it("graphty-forceatlas2 reads nodeMass from a node data field, a missing value counting as the default", async () => {
+        const byField = makeCy();
+        byField.$("#n0").data("mass", 50);
+        await run(byField, { name: "graphty-forceatlas2", nodeMass: "mass" });
+        const byRecord = makeCy();
+        await run(byRecord, { name: "graphty-forceatlas2", nodeMass: { n0: 50 } });
+        expect([...positions(byField).values()]).toEqual([...positions(byRecord).values()]);
+        const plain = makeCy();
+        await run(plain, { name: "graphty-forceatlas2" });
+        expect([...positions(byField).values()]).not.toEqual([...positions(plain).values()]);
+    });
+});
+
+describe("library fixes found by the docs review", () => {
+    it("refuses a tween on a headless core without styleEnabled, naming the fix", () => {
+        const cy = makeCy();
+        for (const name of ["graphty-circular", "graphty-forceatlas2"]) {
+            expect(() => cy.layout({ name, animate: "end", gpu: "off" } as unknown as LayoutOptions).run()).toThrow(
+                `${name}: animate needs a core that renders; create a headless core with styleEnabled: true, or pass animate: false`,
+            );
+        }
+    });
+
+    it("continues a ForceAtlas2 run with randomize: false instead of jolting its first step", async () => {
+        // the shape after normalizing away translation and size
+        const shape = (cy: Core): number[][] => {
+            const p = cy.nodes().map((n) => n.position());
+            const mx = p.reduce((s, q) => s + q.x, 0) / p.length;
+            const my = p.reduce((s, q) => s + q.y, 0) / p.length;
+            const r = Math.sqrt(p.reduce((s, q) => s + (q.x - mx) ** 2 + (q.y - my) ** 2, 0) / p.length);
+            return p.map((q) => [(q.x - mx) / r, (q.y - my) / r]);
+        };
+        const change = (a: number[][], b: number[][]): number =>
+            a.reduce((s, q, i) => s + Math.hypot(q[0] - b[i][0], q[1] - b[i][1]), 0) / a.length;
+        const cy = makeCy();
+        await run(cy, { name: "graphty-forceatlas2", gpu: "off", maxIter: 60 });
+        const before = shape(cy);
+        await run(cy, { name: "graphty-forceatlas2", gpu: "off", maxIter: 1, randomize: false });
+        // reading the positions at the box's scale moved this 0.3 or more in one iteration
+        expect(change(before, shape(cy))).toBeLessThan(0.05);
+    });
 });

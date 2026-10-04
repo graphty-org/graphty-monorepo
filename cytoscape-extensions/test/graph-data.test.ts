@@ -188,7 +188,7 @@ describe("snapshotToElements", () => {
         expect(Object.getPrototypeOf(a.data())).toBe(Object.prototype);
     });
 
-    it("never copies a column into Cytoscape's reserved data fields", () => {
+    it("never copies a column into Cytoscape's reserved data fields: it renames it and says so", () => {
         const snapshot = fromEdgeArrays({
             directed: false,
             ids: ["x", "y"],
@@ -197,8 +197,84 @@ describe("snapshotToElements", () => {
             nodeColumns: { parent: { data: ["y", null], decl: { dtype: "string" } } },
             edgeColumns: { source: { data: ["z"], decl: { dtype: "string" } } },
         });
-        const [x, , e] = snapshotToElements(snapshot);
-        expect(x.data).toEqual({ id: "x" });
-        expect(e.data).toEqual({ source: "x", target: "y" });
+        const renamed: unknown[] = [];
+        const [x, , e] = snapshotToElements(snapshot, (r) => renamed.push(r));
+        expect(x.data).toEqual({ id: "x", "parent#2": "y" });
+        expect(e.data).toEqual({ source: "x", target: "y", "source#2": "z" });
+        expect(renamed).toEqual([
+            { domain: "node", from: "parent", to: "parent#2" },
+            { domain: "edge", from: "source", to: "source#2" },
+        ]);
+    });
+});
+
+describe("generated graphs", () => {
+    it("give edges the ids e0, e1, ..., so the same seed gives the same element ids", async () => {
+        const a = core();
+        const b = core();
+        await a.graphtyGenerate("barabasi-albert", { n: 30, m: 2, seed: 1 });
+        await b.graphtyGenerate("barabasi-albert", { n: 30, m: 2, seed: 1 });
+        expect(a.edges().map((e) => e.id())).toEqual(b.edges().map((e) => e.id()));
+        expect(a.edges()[0]?.id()).toBe("e0");
+        expect(await a.graphtyExport("graphml")).toBe(await b.graphtyExport("graphml"));
+    });
+
+    it("place nodes at the generator's coordinates", async () => {
+        const cy = core();
+        await cy.graphtyGenerate("grid", { rows: 2, cols: 3, positions: true });
+        expect(cy.$("#4").position()).toEqual({ x: 1, y: 1 });
+        expect(cy.$("#4").data()).toEqual({ id: "4" });
+        const geometric = core();
+        await geometric.graphtyGenerate("random-geometric", { n: 5, radius: 0.5, seed: 1 });
+        expect(
+            geometric
+                .nodes()
+                .toArray()
+                .every((n) => n.position().x > 0 && n.position().x < 1),
+        ).toBe(true);
+    });
+});
+
+describe("graphtyDataset with an abort signal", () => {
+    it("rejects with AbortError and adds nothing, even when a custom fetch ignores the signal", async () => {
+        const controller = new AbortController();
+        controller.abort();
+        let fetched = 0;
+        const fetchIgnoringSignal = (): Promise<Response> => {
+            fetched++;
+            return Promise.resolve(new Response("not a dataset", { status: 404 }));
+        };
+        for (const name of ["karate", "road-ny"]) {
+            const cy = core();
+            await expect(
+                cy.graphtyDataset(name, { signal: controller.signal, fetch: fetchIgnoringSignal }),
+            ).rejects.toMatchObject({ name: "AbortError" });
+            expect(cy.elements().length).toBe(0);
+        }
+        expect(fetched).toBe(0);
+    });
+});
+
+describe("integer ids in the integer-id formats", () => {
+    it("write a graph whose ids are all integers to GML and CX2 with sanitizeIds 'error', and read the same ids back", async () => {
+        const cy = core();
+        await cy.graphtyGenerate("path", { n: 4 });
+        for (const format of ["gml", "cx2"] as const) {
+            const text = await cy.graphtyExport(format, { sanitizeIds: "error" });
+            const back = core();
+            await back.graphtyImport(text, format);
+            expect(back.nodes().map((n) => n.id())).toEqual(["0", "1", "2", "3"]);
+            expect(back.nodes().every((n) => Object.keys(n.data()).length === 1)).toBe(true);
+        }
+    });
+
+    it("do not tell onLoss that integer-text ids change type: graphtyImport reads them back as the same strings", async () => {
+        const cy = core();
+        await cy.graphtyGenerate("path", { n: 3 });
+        for (const format of ["graphml", "gexf"] as const) {
+            const codes: string[] = [];
+            await cy.graphtyExport(format, { onLoss: (notes) => codes.push(...notes.map((n) => n.code)) });
+            expect(codes).not.toContain("W_ID_TEXT_TYPE");
+        }
     });
 });

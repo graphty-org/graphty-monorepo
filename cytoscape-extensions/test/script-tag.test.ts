@@ -84,4 +84,15 @@ describe("the script-tag bundle", () => {
     it("leaves registration to the page when Cytoscape is not loaded yet", () => {
         expect(typeof load(false)).toBe("function");
     });
+
+    it("puts the named exports on the global graphtyCytoscape", () => {
+        const g = load(false) as Record<string, unknown>;
+        for (const name of ["configureWebGpu", "toSnapshot", "writeData"]) {
+            expect(typeof g[name], name).toBe("function");
+        }
+        expect(g.LAYOUT_NAMES).toContain("forceatlas2");
+        expect(Array.isArray(g.ALGORITHM_NAMES)).toBe(true);
+        expect(Array.isArray(g.ASYNC_ALGORITHM_NAMES)).toBe(true);
+        expect(typeof g.GPU_SIZE_FLOOR).toBe("number");
+    });
 });

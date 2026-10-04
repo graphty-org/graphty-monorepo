@@ -162,24 +162,47 @@ export function onSnapshotsDropped(cy: Core, listener: (dropped: readonly GraphS
  * @param options - directed flag and weight field
  * @returns the snapshot and the element arrays its indices refer to
  */
-export function toSnapshot(eles: Collection, options: SnapshotOptions = {}): CytoscapeSnapshot {
+export function toSnapshot(
+    eles: Collection | NodeCollection | EdgeCollection,
+    options: SnapshotOptions = {},
+): CytoscapeSnapshot {
     const directed = options.directed ?? false;
+    const all = eles as Collection;
     if (typeof options.weight === "function") {
-        return build(eles, directed, options.weight);
+        return build(all, directed, options.weight);
     }
     const key = `${String(directed)}|${options.weight ?? ""}`;
     const cs = coreState(coreOf(eles));
-    const hit = cs.entries.find((e) => e.key === key && e.version === cs.version && e.eles.same(eles));
+    // the same elements in the same order: indices follow the collection's order, so a reordered one is another snapshot
+    const hit = cs.entries.find((e) => e.key === key && e.version === cs.version && sameOrder(e.eles, all));
     if (hit !== undefined) {
         return hit.value;
     }
-    const value = build(eles, directed, options.weight);
+    const value = build(all, directed, options.weight);
     drop(
         cs,
         cs.entries.filter((e) => e.key === key),
     );
-    cs.entries = [...cs.entries.filter((e) => e.key !== key), { key, eles, version: cs.version, value }];
+    cs.entries = [...cs.entries.filter((e) => e.key !== key), { key, eles: all, version: cs.version, value }];
     return value;
+}
+
+/**
+ * Whether two collections hold the same elements in the same order.
+ * @param a - one collection
+ * @param b - the other
+ * @returns true when they match element by element
+ */
+function sameOrder(a: Collection, b: Collection): boolean {
+    if (a.length !== b.length) {
+        return false;
+    }
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**

@@ -31,13 +31,17 @@ export interface ImportedGraph extends AddedGraph {
 export interface GraphtyGraphData {
     /**
      * Adds a generated graph: `cy.graphtyGenerate("barabasi-albert", { n: 500, m: 2, seed: 1 })`. Node ids are
-     * "0", "1", ...; ground-truth columns (`community`, ...) become data fields and weights `data.weight`. Nodes
-     * are placed at the origin: run a layout next. Throws, adding nothing, when the core already holds one of the graph's node ids.
+     * "0", "1", ... and edge ids "e0", "e1", ...; ground-truth columns (`community`, ...) become data fields and
+     * weights `data.weight`. Nodes are placed at the origin (run a layout next), except that a generator's
+     * coordinates (`positions: true` on the lattices; the geometric generators) become node positions, in the
+     * generator's own units. Throws, adding nothing, when the core already holds one of the graph's node ids.
      */
     graphtyGenerate<N extends GeneratorName>(name: N, options: GeneratorOptions<N>): Promise<AddedGraph>;
     /**
      * Adds a sample dataset: `cy.graphtyDataset("karate")`. The small ones ship with the package; the large ones
      * (road-ny, ogbn-arxiv, com-dblp) are downloaded from graphty.app. Throws, adding nothing, when the core already holds one of the graph's node ids.
+     * `options.signal` cancels it: once aborted, it rejects with the signal's reason and adds nothing, whatever
+     * `options.fetch` does with the signal.
      */
     graphtyDataset(name: string, options?: FetchDatasetOptions): Promise<AddedGraph>;
     /**
@@ -104,6 +108,7 @@ export function registerGraphData(cytoscape: Register): void {
     cytoscape("core", "graphtyDataset", async function (this: Core, name: string, options?: FetchDatasetOptions) {
         const { datasetElements } = await import("./samples.js");
         const r = await datasetElements(name, options);
+        options?.signal?.throwIfAborted();
         return { elements: addTo(this, r.elements), directed: r.directed };
     });
     cytoscape(

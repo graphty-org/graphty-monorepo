@@ -124,8 +124,33 @@ function fromSample(graph: SampleGraph | GraphSnapshot): SampleElements {
 }
 
 /**
+ * A generated graph with its coordinate columns `x` and `y` (the lattices with `positions: true`, and the geometric
+ * generators) as one position column, so they become node positions; `z` stays a data field.
+ * @param graph - the generated graph
+ * @returns the graph, its x and y as a position
+ */
+function withPosition(graph: SampleGraph): SampleGraph {
+    const { x, y, ...rest } = graph.nodeColumns ?? {};
+    if (!ArrayBuffer.isView(x) || !ArrayBuffer.isView(y)) {
+        return graph;
+    }
+    const xs = x as unknown as ArrayLike<number>;
+    const ys = y as unknown as ArrayLike<number>;
+    const xy = new Float64Array(2 * graph.nodeCount);
+    for (let i = 0; i < graph.nodeCount; i++) {
+        xy[2 * i] = xs[i];
+        xy[2 * i + 1] = ys[i];
+    }
+    return {
+        ...graph,
+        nodeColumns: { ...rest, position: { data: xy, decl: { dtype: "f64", components: 2, role: "position" } } },
+    };
+}
+
+/**
  * Generates a graph. Ground-truth columns (`community`, `side`, `layer`, ...) become node data fields; weights
- * become `data.weight`.
+ * become `data.weight`; coordinates (`x` and `y`) become node positions. Edge k gets the id "e<k>", so the same
+ * options and seed give the same element ids as well as the same graph.
  * @param name - the generator
  * @param options - the generator's options
  * @returns the elements and the direction
@@ -136,17 +161,30 @@ export function generateElements<N extends GeneratorName>(name: N, options: Gene
     if (make === undefined) {
         throw new RangeError(`unknown generator ${JSON.stringify(name)}; the names are in GENERATORS`);
     }
-    return fromSample(make(options));
+    const r = fromSample(withPosition(make(options)));
+    let k = 0;
+    for (const el of r.elements) {
+        // node ids are "0", "1", ..., so "e<k>" never collides with one
+        if (el.group === "edges") {
+            el.data.id = `e${String(k++)}`;
+        }
+    }
+    return r;
 }
 
 /**
  * Loads a sample dataset: a bundled one from its own module, any other from graphty.app (see graph-samples'
  * `DATASETS` for the list, with each one's source, citation and license).
  * @param name - the dataset name, e.g. "karate"
- * @param options - for a hosted dataset: the base URL, fetch implementation and abort signal
+ * @param options - for a hosted dataset: the base URL and fetch implementation; for any dataset, an abort signal
  * @returns the elements and the direction
+ * @throws the signal's reason (an AbortError) when it is aborted before the dataset is decoded
  */
 export async function datasetElements(name: string, options: FetchDatasetOptions = {}): Promise<SampleElements> {
+    // checked here too, not only by fetch: a bundled dataset is not fetched, and a custom fetch may ignore the signal
+    options.signal?.throwIfAborted();
     const load = BUNDLED[name];
-    return fromSample(load === undefined ? await fetchDataset(name, options) : await load());
+    const graph = load === undefined ? await fetchDataset(name, options) : await load();
+    options.signal?.throwIfAborted();
+    return fromSample(graph);
 }

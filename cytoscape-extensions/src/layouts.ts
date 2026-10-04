@@ -11,7 +11,7 @@
  * Positions are 2D. A 3D run (`dim: 3`) is projected onto the x-y plane.
  */
 
-import { type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
+import { type GraphSnapshot, makeMask, maskSet, maskTest, type U32 } from "@graphty/graph-format";
 import {
     arf,
     bfs,
@@ -67,9 +67,17 @@ export interface GraphtyLayoutOptions {
     readonly fit?: boolean;
     /** Space around the result when `fit` is true, in pixels. */
     readonly padding?: number;
-    /** Where to place the result; default the viewport, which is 1 x 1 when headless. */
+    /**
+     * Where to place the result. Default: the viewport, which is 1 x 1 pixel on a headless core. The result keeps its
+     * shape: its centroid goes to the center of the box, and it is scaled so the node farthest from the centroid is
+     * half the box's shorter side away. A box wider than it is tall is therefore not filled from side to side. A
+     * simulation with locked nodes keeps them in place and scales the free nodes around them instead.
+     */
     readonly boundingBox?: BoundingBox12 | BoundingBoxWH;
-    /** Expands (above 1) or compresses (below 1) the area the result takes up. */
+    /**
+     * Expands (above 1) or compresses (below 1) the area the result takes up, after it is fitted to `boundingBox`, so
+     * a value above 1 can put nodes outside the box.
+     */
     readonly spacingFactor?: number;
     /** Changes each final position: called with the node and its computed position, returns the position to use. */
     readonly transform?: (node: NodeSingular, position: Position) => Position;
@@ -79,7 +87,11 @@ export interface GraphtyLayoutOptions {
     readonly stop?: LayoutHandler;
     /** 2 (default) or 3; a 3D result is projected onto x-y. */
     readonly dim?: 2 | 3;
-    /** Seed of the layouts that draw random numbers; random when absent. */
+    /**
+     * Seed of the layouts that draw random numbers: graphty-random, graphty-spectral, graphty-planar, graphty-arf and
+     * the three simulations. The same seed gives the same positions; without one each run differs. The other layouts
+     * ignore it.
+     */
     readonly seed?: number;
     /** Edge data field holding the weight (forceatlas2, kamada-kawai, the simulations). Default: unweighted. */
     readonly weight?: string;
@@ -99,11 +111,20 @@ export interface GraphtyLayoutOptions {
     readonly accelerator?: LayoutAccelerator | null;
     /** shell: the shells, innermost first. */
     readonly nlist?: readonly NodeSelection[];
-    /** multipartite: a node data field whose value names the layer (default "subset"), or the layers in order. */
+    /**
+     * multipartite: a node data field whose value names the layer (default "subset"), or the layers in order. Layers
+     * named by a field are ordered by value, numbers ascending and other values alphabetically. A node with no value in
+     * the field is not placed and keeps its position, so on a graph where no node has the field nothing moves.
+     */
     readonly subsets?: string | readonly NodeSelection[];
-    /** bipartite: the nodes of the first line. */
+    /**
+     * bipartite: the nodes of the first line, the left column when `align` is "vertical" and the top row when it is
+     * "horizontal". Absent: the first, third, fifth and so on of the laid-out nodes.
+     */
     readonly top?: NodeSelection;
-    /** bfs: the start node; radial: the centre node. */
+    /**
+     * bfs: the start node, default the first node; radial: the center node, default the node with the most neighbors.
+     */
     readonly root?: NodeSelection;
     readonly [option: string]: unknown;
 }
@@ -282,6 +303,86 @@ function fitRows(rows: ArrayLike<number>, stride: number, n: number, b: Bounding
 }
 
 /**
+ * The x-y pairs of a simulation with locked nodes: each locked node where it stands, each free node scaled about
+ * the locked nodes' centroid by the largest factor that keeps every free node inside the box (by the factor that
+ * puts the farthest at half the box's shorter side when the centroid is outside the box).
+ * @param pos - the stride-3 positions, in pixels
+ * @param locked - the locked nodes' mask
+ * @param n - node count
+ * @param b - the target box
+ * @returns 2n values
+ */
+function fitAroundLocked(pos: ArrayLike<number>, locked: U32, n: number, b: BoundingBoxWH): Float64Array {
+    let cx = 0;
+    let cy = 0;
+    let count = 0;
+    for (let i = 0; i < n; i++) {
+        if (maskTest(locked, i)) {
+            cx += pos[3 * i];
+            cy += pos[3 * i + 1];
+            count++;
+        }
+    }
+    cx /= count;
+    cy /= count;
+    const inside = cx >= b.x1 && cx <= b.x1 + b.w && cy >= b.y1 && cy <= b.y1 + b.h;
+    // the largest factor keeping one coordinate inside [lo, hi], seen from c
+    const limit = (c: number, d: number, lo: number, hi: number): number => {
+        if (d === 0) {
+            return Infinity;
+        }
+        return ((d > 0 ? hi : lo) - c) / d;
+    };
+    let scale = Infinity;
+    let farthest = 0;
+    for (let i = 0; i < n; i++) {
+        if (!maskTest(locked, i)) {
+            const dx = pos[3 * i] - cx;
+            const dy = pos[3 * i + 1] - cy;
+            scale = Math.min(scale, limit(cx, dx, b.x1, b.x1 + b.w), limit(cy, dy, b.y1, b.y1 + b.h));
+            farthest = Math.max(farthest, Math.hypot(dx, dy));
+        }
+    }
+    if (!inside) {
+        scale = farthest > 0 ? frame(b).radius / farthest : 1;
+    } else if (!Number.isFinite(scale)) {
+        scale = 1;
+    }
+    const xy = new Float64Array(2 * n);
+    for (let i = 0; i < n; i++) {
+        const s = maskTest(locked, i) ? 1 : scale;
+        xy[2 * i] = cx + s * (pos[3 * i] - cx);
+        xy[2 * i + 1] = cy + s * (pos[3 * i + 1] - cy);
+    }
+    return xy;
+}
+
+/**
+ * The per-node options given as a node data field (`nodeMass: "mass"`), as the id-keyed records @graphty/layout
+ * takes; a node whose field is missing or not a finite number gets the layout's default.
+ * @param cs - the layout's snapshot
+ * @param o - the layout options
+ * @returns the converted options
+ */
+function nodeFields(cs: CytoscapeSnapshot, o: ConstructorOptions): Record<string, Record<string, number>> {
+    const out: Record<string, Record<string, number>> = {};
+    for (const key of ["nodeMass", "nodeSize"]) {
+        const field = o[key];
+        if (typeof field === "string") {
+            const values: Record<string, number> = {};
+            cs.nodes.forEach((node) => {
+                const v: unknown = node.data(field);
+                if (typeof v === "number" && Number.isFinite(v)) {
+                    values[node.id()] = v;
+                }
+            });
+            out[key] = values;
+        }
+    }
+    return out;
+}
+
+/**
  * The position function `layoutPositions` and `positions()` take: an unplaced node keeps its position.
  * @param xy - 2n values by node index
  * @returns the position of node i
@@ -329,12 +430,29 @@ function layoutSnapshot(o: ConstructorOptions): CytoscapeSnapshot {
 }
 
 /**
+ * Throws when the run would tween on a core that cannot: a headless core without `styleEnabled: true`, where
+ * Cytoscape's own tween fails with "ani.play is not a function".
+ * @param o - the layout options
+ * @param simulation - whether the layout is a simulation, which draws `animate: true` frame by frame instead
+ */
+function checkTween(o: ConstructorOptions, simulation: boolean): void {
+    const tweens = simulation ? o.animate !== true && Boolean(o.animate) : Boolean(o.animate);
+    // styleEnabled() is public Cytoscape API that its typings leave out
+    if (tweens && !(o.cy as Core & { styleEnabled(): boolean }).styleEnabled()) {
+        throw new Error(
+            `${o.name}: animate needs a core that renders; create a headless core with styleEnabled: true, or pass animate: false`,
+        );
+    }
+}
+
+/**
  * Runs a static layout.
  * @param layout - the layout
  * @param fn - the layout function
  */
 function runStatic(layout: LayoutThis, fn: StaticLayout): void {
     const o = layout.options;
+    checkTween(o, false);
     const cs = layoutSnapshot(o);
     const r = fn(cs.snapshot, graphtyOptions(o), cs);
     finishDiscrete(layout, cs.nodes, fitRows(r.positions, r.dim, r.n, box(o.boundingBox, o.cy)));
@@ -366,6 +484,7 @@ function stepToEnd(sim: LayoutSimulation, layout: LayoutThis): void | Promise<vo
  */
 function runSimulation(layout: LayoutThis, type: SimulationType): void {
     const o = layout.options;
+    checkTween(o, true);
     layout.stopped = false;
     if (o.accelerator !== undefined) {
         layout.backend =
@@ -402,6 +521,25 @@ function runSimulation(layout: LayoutThis, type: SimulationType): void {
         });
 }
 
+/** Per core and simulation: pixels per simulation unit of its last run, which a randomize: false run continues. */
+const DRAWN_SCALE = new WeakMap<Core, Map<SimulationType, number>>();
+
+/**
+ * The x-y centroid of stride-3 rows.
+ * @param pos - the rows
+ * @param n - row count
+ * @returns the centroid, z 0
+ */
+function centroidOf(pos: ArrayLike<number>, n: number): [number, number, number] {
+    let x = 0;
+    let y = 0;
+    for (let i = 0; i < n; i++) {
+        x += pos[3 * i];
+        y += pos[3 * i + 1];
+    }
+    return n === 0 ? [0, 0, 0] : [x / n, y / n, 0];
+}
+
 /**
  * Runs a simulation on an accelerator (null: the CPU).
  * @param layout - the layout
@@ -411,8 +549,11 @@ function runSimulation(layout: LayoutThis, type: SimulationType): void {
 function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutAccelerator | null): void {
     const o = layout.options;
     if (accelerator === null && type === "spring-electrical") {
+        const reason = layout.backend?.reason ?? "none was available";
+        // nothing ran, so no backend: "cpu" would say the layout ran there (as with gpu: "require")
+        layout.backend = undefined;
         throw new Error(
-            `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because ${layout.backend?.reason ?? "none was available"}`,
+            `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because ${reason}`,
         );
     }
     const cs = layoutSnapshot(o);
@@ -441,9 +582,21 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
         pos[3 * i + 1] = keep ? p.y : b.y1 + rng.next() * b.h;
         pos[3 * i + 2] = keep || dim === 2 ? 0 : (rng.next() * 2 - 1) * radius;
     });
+    // A continuation (randomize: false) reads the positions at the scale the last run of this simulation on this core
+    // drew them at, about their centroid. Read at the box's scale instead, the graph would start far smaller than the
+    // simulation's own size, and the first steps would jolt it back out.
+    const drawn = o.randomize === false && !anyLocked ? DRAWN_SCALE.get(o.cy)?.get(type) : undefined;
+    const scale = drawn ?? radius;
     const sim = createSimulation(
         type,
-        { ...SIMULATION_DEFAULTS[type], ...graphtyOptions(o), scale: radius, center, iterationsPerStep: 1 },
+        {
+            ...SIMULATION_DEFAULTS[type],
+            ...graphtyOptions(o),
+            ...nodeFields(cs, o),
+            scale,
+            center: drawn === undefined ? center : centroidOf(pos, n),
+            iterationsPerStep: 1,
+        },
         accelerator,
     );
     sim.load(s, pos);
@@ -455,20 +608,23 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
     const dispose = (): void => {
         sim.dispose();
         unhold();
+        if (!anyLocked) {
+            // pixels per simulation unit once fitted to the box: fitRows scales the farthest node to `radius`
+            const [cx, cy] = centroidOf(pos, n);
+            let farthest = 0;
+            for (let i = 0; i < n; i++) {
+                farthest = Math.max(farthest, Math.hypot(pos[3 * i] - cx, pos[3 * i + 1] - cy));
+            }
+            if (farthest > 0) {
+                const scales = DRAWN_SCALE.get(o.cy) ?? new Map<SimulationType, number>();
+                scales.set(type, (scale * radius) / farthest);
+                DRAWN_SCALE.set(o.cy, scales);
+            }
+        }
     };
 
-    // With a locked node the pixel frame is fixed by it; otherwise the result is fitted to the box, as static ones are
-    const xy = (): ArrayLike<number> => {
-        if (!anyLocked) {
-            return fitRows(pos, 3, n, b);
-        }
-        const out = new Float64Array(2 * n);
-        for (let i = 0; i < n; i++) {
-            out[2 * i] = pos[3 * i];
-            out[2 * i + 1] = pos[3 * i + 1];
-        }
-        return out;
-    };
+    // Fitted to the box as a static result is; with a locked node, the free nodes are scaled about the locked ones
+    const xy = (): ArrayLike<number> => (anyLocked ? fitAroundLocked(pos, fixed, n, b) : fitRows(pos, 3, n, b));
     const fail = (error: unknown): void => {
         layout.looping = false;
         dispose();

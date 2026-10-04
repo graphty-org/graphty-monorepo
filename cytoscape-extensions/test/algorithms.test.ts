@@ -1,6 +1,7 @@
 import cytoscape from "cytoscape";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
+import { NO_FIELD } from "../src/algorithms";
 import graphtyCytoscape, { ALGORITHM_NAMES } from "../src/index";
 
 beforeAll(() => {
@@ -83,6 +84,19 @@ describe("registration", () => {
             ["a", "b"],
             ["e", "f"],
         ]);
+    });
+});
+
+describe("registering twice", () => {
+    it("does nothing the second time, so a page that loaded the script-tag build may call use() again", () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+        try {
+            cytoscape.use(graphtyCytoscape);
+            expect(warn).not.toHaveBeenCalled();
+        } finally {
+            warn.mockRestore();
+        }
+        expect(graph(SQUARE).graphtyPageRank().rank("#a")).toBeCloseTo(0.25, 9);
     });
 });
 
@@ -344,6 +358,13 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         expect(d.outdegree("#a")).toBe(3);
         expect(d.indegree("#a")).toBe(0);
         expect(d.indegree("#b")).toBe(1);
+        // undirected (the default), each edge counts both ways: in and out are the degree, as Cytoscape's degree()
+        for (const u of [cy.graphtyDegrees(), cy.graphtyDegrees({ directed: false })]) {
+            for (const n of cy.nodes()) {
+                expect(u.indegree(n)).toBe(n.degree(false));
+                expect(u.outdegree(n)).toBe(n.degree(false));
+            }
+        }
     });
 });
 
@@ -604,6 +625,16 @@ describe("link prediction", () => {
         expect(e.graphtyTopCandidatesForNode({ root: "#a" }).map((p) => p.target.id())).toEqual(["c"]);
         expect(e.graphtyTopAdamicAdarCandidatesForNode({ root: "#a", candidates: "#c" })[0]?.target.id()).toBe("c");
         const held = { edges: [["#a", "#c"]] as const, nonEdges: [["#a", "#b"]] as const };
+        // topK means the same on all four: a positive count keeps that many, 0 or less keeps every one
+        const bar = graph(BARBELL).elements();
+        const cand = { root: "#a", includeExisting: true };
+        expect(bar.graphtyTopCandidatesForNode({ ...cand, topK: 100 }).length).toBe(3);
+        for (const k of [0, -1]) {
+            expect(bar.graphtyTopCandidatesForNode({ ...cand, topK: k }).length).toBe(3);
+            expect(bar.graphtyTopAdamicAdarCandidatesForNode({ ...cand, topK: k }).length).toBe(3);
+            expect(e.graphtyCommonNeighborsPrediction({ topK: k }).length).toBe(4);
+        }
+        expect(bar.graphtyTopCandidatesForNode({ ...cand, topK: 1 }).length).toBe(1);
         expect(e.graphtyEvaluateCommonNeighbors(held).auc).toBe(1);
         expect(e.graphtyEvaluateAdamicAdar(held).auc).toBe(1);
         expect(e.graphtyCompareAdamicAdarWithCommonNeighbors(held).commonNeighbors.auc).toBe(1);
@@ -626,8 +657,58 @@ describe("errors", () => {
         expect(() => cy.elements().graphtyDijkstra({ root: "#nope" })).toThrow(/root matches no node/);
         expect(() => cy.elements().graphtyCommonNeighborsForPairs({} as never)).toThrow(/pairs option is required/);
         expect(() => cy.elements().graphtyModularity({} as never)).toThrow(/clusters option is required/);
-        expect(() => cy.elements().graphtyIsGraphIsomorphic({})).toThrow(/other option/);
+        expect(() => cy.elements().graphtyIsGraphIsomorphic({} as never)).toThrow(/other option/);
         expect(() => cy.elements().graphtyPersonalizedPageRank({} as never)).toThrow(/personalization option/);
+        // a teleport set that selects nothing would be plain PageRank, without a word
+        expect(() => cy.graphtyPersonalizedPageRank({ personalization: "#nope" })).toThrow(
+            "graphtyPersonalizedPageRank: personalization matches no node",
+        );
+        expect(() => cy.graphtyPersonalizedPageRank({ personalization: () => 0 })).toThrow(
+            "graphtyPersonalizedPageRank: personalization gives no node a positive weight",
+        );
+        expect(() => cy.graphtyDeltaPageRank({ personalization: "#nope" })).toThrow(
+            "graphtyDeltaPageRank: personalization matches no node",
+        );
+    });
+
+    it("throws when field is given to an algorithm with no per-element value, and writes it everywhere else", () => {
+        const cy = graph(BARBELL);
+        expect(() => cy.graphtyAStar({ root: "#a", goal: "#f", field: "x" })).toThrow(
+            "graphtyAStar: this algorithm has no per-element value to write; remove the field option",
+        );
+        expect(() => cy.graphtyDegrees({ field: "x" })).toThrow(/graphtyDegrees: this algorithm has no per-element/);
+        // the options a method needs to run here; every method not in NO_FIELD must write its field
+        const needs: Record<string, object> = {
+            graphtyBreadthFirstSearch: { root: "#a" },
+            graphtyDepthFirstSearch: { root: "#a" },
+            graphtyDirectionOptimizedBfs: { root: "#a" },
+            graphtyDijkstra: { root: "#a" },
+            graphtyBellmanFord: { root: "#a" },
+            graphtyPersonalizedPageRank: { personalization: "#a" },
+            graphtyMaxFlow: { source: "#a", sink: "#f" },
+            graphtyMinSTCut: { source: "#a", sink: "#f" },
+            graphtyLabelPropagationSemiSupervised: { seeds: ["#a", "#f"] },
+            graphtySpectralClustering: { k: 2 },
+            graphtySyncClustering: { numClusters: 2 },
+        };
+        const methods = cy as unknown as Record<string, (o: object) => unknown>;
+        for (const name of ALGORITHM_NAMES) {
+            const key = name.charAt(7).toLowerCase() + name.slice(8);
+            if (NO_FIELD.has(key) || key === "isBipartite") {
+                continue;
+            }
+            const sub = key === "stronglyConnectedComponents" || key === "condensation" ? { directed: true } : {};
+            cy.elements().removeData("f");
+            methods[name]({ ...needs[name], ...sub, field: "f" });
+            expect(
+                cy.elements().some((el) => el.data("f") !== undefined),
+                `${name} writes its field`,
+            ).toBe(true);
+        }
+        // isBipartite writes its sides when there are two
+        const sq = graph(SQUARE);
+        sq.graphtyIsBipartite({ field: "side" });
+        expect([sq.$("#a").data("side"), sq.$("#b").data("side")].sort()).toEqual([0, 1]);
     });
 
     it("lets the algorithm's own errors through", () => {
@@ -642,5 +723,140 @@ describe("errors", () => {
         expect(r.rank("#d")).toBeUndefined();
         expect(r.rank("#nothing")).toBeUndefined();
         expect(cy.$("#a, #b").graphtyDijkstra({ root: "#a" }).distanceTo("#f")).toBe(Infinity);
+    });
+});
+
+describe("results and errors in Cytoscape terms", () => {
+    it("primMST returns each node and edge once, and every node of a forest", () => {
+        const cy = graph(WEIGHTED, ["z"]);
+        const tree = cy.$("#a, #b, #c, #d, #e").union(cy.edges()).graphtyPrimMST({ weight: "w" });
+        expect(tree.length).toBe(5 + 4);
+        expect(new Set(ids(tree)).size).toBe(tree.length);
+        const forest = cy.elements().graphtyPrimMST({ weight: "w", forest: true });
+        const kruskal = cy.elements().graphtyKruskalMST({ weight: "w" });
+        expect(ids(forest.nodes()).sort()).toEqual(ids(kruskal.nodes()).sort());
+        expect(forest.length).toBe(6 + 4);
+    });
+
+    it("refuses an option the method does not take, naming the ones it does", () => {
+        const cy = graph(BARBELL);
+        expect(() => cy.elements().graphtyLouvain({ resoluton: 2 } as never)).toThrow(
+            /^graphtyLouvain: unknown option resoluton; the options are .*\bresolution\b/,
+        );
+        expect(() => cy.graphtyPageRank({ root: "#a" } as never)).toThrow(/graphtyPageRank: unknown option root/);
+        // an option left undefined is not an option given
+        expect(() => cy.graphtyLouvain({ resolution: undefined })).not.toThrow();
+    });
+
+    it("names the option a semi-supervised run is missing", () => {
+        const cy = graph(BARBELL);
+        expect(() => cy.elements().graphtyLabelPropagationSemiSupervised({} as never)).toThrow(
+            "graphtyLabelPropagationSemiSupervised: the seeds option is required",
+        );
+    });
+
+    it("starts an algorithm's own error with the method name and says which option to change", () => {
+        const cy = graph(DAG);
+        expect(() => cy.graphtyConnectedComponents({ directed: true })).toThrow(
+            "graphtyConnectedComponents: needs an undirected graph; leave out directed: true, or call graphtyWeaklyConnectedComponents",
+        );
+        expect(() => cy.graphtyLouvain({ directed: true })).toThrow(
+            "graphtyLouvain: needs an undirected graph; leave out directed: true",
+        );
+        expect(() => cy.graphtyTopologicalSort({ directed: false })).toThrow(
+            "graphtyTopologicalSort: needs a directed graph; leave out directed: false",
+        );
+        expect(() => cy.graphtySpectralClustering({ k: 0 })).toThrow(/^graphtySpectralClustering: (?!unknown option)/);
+    });
+
+    it("refuses a DeltaPageRank run whose ranks overflowed instead of returning NaN", () => {
+        const cy = graph([
+            ["a", "b"],
+            ["b", "c"],
+            ["c", "a"],
+            ["c", "d"],
+            ["d", "e"],
+            ["f", "g"],
+        ]);
+        cy.add({ data: { id: "h" } });
+        expect(() => cy.graphtyDeltaPageRank({ maxIterations: 2000 })).toThrow(
+            /graphtyDeltaPageRank: the ranks overflowed/,
+        );
+        const prio = cy.graphtyDeltaPageRank({ priority: true, maxIterations: 2000 });
+        expect(prio.rank("#a")).toBeCloseTo(cy.graphtyPageRank({ directed: true }).rank("#a") ?? NaN, 6);
+    });
+
+    it("compareAdamicAdarWithCommonNeighbors gives the same metrics as the two evaluations, directed too", () => {
+        const cy = graph([
+            ["a", "b"],
+            ["b", "c"],
+            ["c", "d"],
+            ["d", "a"],
+            ["a", "c"],
+            ["b", "e"],
+            ["e", "d"],
+        ]);
+        const held = {
+            edges: [
+                ["#a", "#e"],
+                ["#c", "#e"],
+            ] as const,
+            nonEdges: [
+                ["#b", "#d"],
+                ["#e", "#a"],
+            ] as const,
+        };
+        for (const directed of [false, true]) {
+            const both = cy.graphtyCompareAdamicAdarWithCommonNeighbors({ ...held, directed });
+            expect(both.commonNeighbors).toEqual(cy.graphtyEvaluateCommonNeighbors({ ...held, directed }));
+            expect(both.adamicAdar).toEqual(cy.graphtyEvaluateAdamicAdar({ ...held, directed }));
+        }
+    });
+});
+
+describe("library fixes found by the docs review", () => {
+    it("refuses a weight function passed positionally, as Cytoscape's kruskal takes it", () => {
+        const cy = graph(BARBELL);
+        expect(() => cy.graphtyKruskalMST((() => 1) as never)).toThrow(
+            "graphtyKruskalMST: takes one options object; pass a weight function as { weight: fn }",
+        );
+    });
+
+    it("throws on a negative weight in Dijkstra and A*, which would otherwise hang or be wrong", async () => {
+        const cy = graph([
+            ["a", "b", 1],
+            ["b", "c", -1],
+        ]);
+        const message = /: a weight is negative; use graphtyBellmanFord$/;
+        expect(() => cy.graphtyDijkstra({ root: "#a", weight: "w" })).toThrow(message);
+        expect(() => cy.graphtyDijkstra({ root: "#a", weight: "w", directed: true })).toThrow(message);
+        expect(() => cy.graphtyAStar({ root: "#a", goal: "#c", weight: "w" })).toThrow(message);
+        expect(() => cy.graphtyBidirectionalDijkstra({ root: "#a", goal: "#c", weight: "w" })).toThrow(message);
+        await expect(cy.graphtyDijkstraAsync({ root: "#a", weight: "w", gpu: "off" })).rejects.toThrow(message);
+        expect(cy.graphtyBellmanFord({ root: "#a", weight: "w", directed: true }).distanceTo("#c")).toBe(0);
+    });
+
+    it("names numClusters when SyncClustering is called without it", () => {
+        const cy = graph(BARBELL);
+        expect(() => cy.graphtySyncClustering({} as never)).toThrow(
+            "graphtySyncClustering: the numClusters option is required",
+        );
+    });
+
+    it("runs priority DeltaPageRank to convergence when maxIterations is not given", () => {
+        // 200 nodes: a directed ring with chords, far more than 100 processed nodes need
+        const edges: Edge[] = [];
+        for (let i = 0; i < 200; i++) {
+            edges.push([`n${i}`, `n${(i + 1) % 200}`], [`n${i}`, `n${(i * 7 + 3) % 200}`]);
+        }
+        const cy = graph(edges);
+        const pr = cy.graphtyPageRank({ directed: true, tolerance: 1e-10, maxIterations: 1000 });
+        const delta = cy.graphtyDeltaPageRank({ priority: true });
+        // the old budget, 100 processed nodes, stops far from the ranks
+        const capped = cy.graphtyDeltaPageRank({ priority: true, maxIterations: 100 });
+        expect(Math.abs((capped.rank("#n57") ?? NaN) - (pr.rank("#n57") ?? NaN))).toBeGreaterThan(1e-4);
+        for (const id of ["n0", "n57", "n199"]) {
+            expect(delta.rank(`#${id}`)).toBeCloseTo(pr.rank(`#${id}`) ?? NaN, 5);
+        }
     });
 });

@@ -34,7 +34,8 @@ const contentMap = [
         dest: "layout",
         exclude: [".vitepress", "decisions"],
     },
-    // One page, index.md, which includes cytoscape-extensions/README.md when the site is built.
+    // The landing page (index.md), the guide and recipes under guide/, and the reference pages under reference/,
+    // whose tables cytoscape-extensions/scripts/reference.ts generates.
     {
         src: "cytoscape-extensions/docs",
         dest: "cytoscape-extensions",
@@ -71,7 +72,7 @@ for (const { src, dest, exclude } of contentMap) {
     // Clean destination (but preserve api/generated which is created by typedoc)
     if (existsSync(destPath)) {
         // Remove everything except api/generated
-        const items = ["guide", "index.md", "api/index.md"];
+        const items = ["guide", "reference", "index.md", "api/index.md"];
         for (const item of items) {
             const itemPath = join(destPath, item);
             if (existsSync(itemPath)) {

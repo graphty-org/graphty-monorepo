@@ -11,12 +11,16 @@ import {
     importGraph,
     type ImportGraphOptions,
     type ImportInput,
+    type ImportIssue,
     type ImportReport,
     type LossNote,
 } from "@graphty/graph-io";
 import type { Collection, ElementDefinition } from "cytoscape";
 
 import { elementsToSnapshot, snapshotToElements } from "./elements.js";
+
+/** One thing graphtyExport's format cannot hold: `code`, `message`, the data field (`column`) and how many values. */
+export type { LossNote } from "@graphty/graph-io";
 
 /** The formats graphtyImport reads; "auto" sniffs the format from the content (and `filename` when given). */
 export type ImportFormat =
@@ -41,8 +45,10 @@ export type ImportOptions = Omit<ImportGraphOptions, "format">;
 
 /**
  * Options of graphtyExport: graph-io's export options for the format, plus whether to write a directed graph.
- * `sanitizeIds` defaults to "mangle" here (graph-io's default is "error"): GML and CX2 take only integer ids,
- * Cytoscape's are strings, so they are numbered and the original kept in an attribute graphtyImport restores.
+ * `sanitizeIds` defaults to "mangle" here (graph-io's default is "error"): GML and CX2 take only integer ids, so
+ * when a node id is not a plain non-negative integer ("a", "-1", "007") the nodes are numbered and the original
+ * kept in an attribute graphtyImport restores. When every id is one ("0", "17"), the ids are written as they are,
+ * and "error" accepts them too.
  * JSON is written as Cytoscape JSON (`dialect: "cytoscape"`, the shape `cy.json()` and `cy.add()` use), which keeps
  * edge ids, compound parents and positions; pass `dialect: "node-link"` for the NetworkX shape.
  */
@@ -82,13 +88,50 @@ export async function importElements(
     options: ImportOptions = {},
 ): Promise<ImportedElements> {
     const r = await importGraph(input, { ...options, format });
-    return {
-        elements: snapshotToElements(r.snapshot),
-        directed: r.snapshot.directed,
-        format: r.format,
-        report: r.report,
-    };
+    const renamed: ImportIssue[] = [];
+    const elements = snapshotToElements(r.snapshot, ({ domain, from, to }) =>
+        renamed.push({
+            category: "coercion",
+            severity: "warning",
+            code: "W_COLUMN_RENAMED",
+            message: `${domain} attribute "${from}" renamed to "${to}": Cytoscape reserves the data field "${from}"`,
+            line: null,
+            element: from,
+        }),
+    );
+    const report =
+        renamed.length === 0
+            ? r.report
+            : {
+                  ...r.report,
+                  issues: [...r.report.issues, ...renamed],
+                  warningCount: r.report.warningCount + renamed.length,
+              };
+    return { elements, directed: r.snapshot.directed, format: r.format, report };
 }
+
+/**
+ * Whether a graph-io loss note is a loss for a Cytoscape graph. graph-io's notes describe its own snapshot read back
+ * by itself; graphtyImport restores some of what they report:
+ * - W_ID_TEXT_TYPE: every id is turned back into a string;
+ * - W_COLUMN_NAME_CHANGED on the edge `id`, the `parent` or the `position` (DOT reads them back as "key",
+ *   "graphty.parent" and "pos"): they are read back by their role, as the edge id, `data.parent` and the position;
+ * - W_ROLE_DROPPED on `label`: the values read back as `data.label`, and Cytoscape has no label role to lose.
+ * @param n - the note
+ * @returns false for a note about something graphtyImport gives back
+ */
+function lostForCytoscape(n: LossNote): boolean {
+    if (n.code === "W_ID_TEXT_TYPE") {
+        return false;
+    }
+    if (n.code === "W_COLUMN_NAME_CHANGED" && (n.column === "id" || n.column === "parent" || n.column === "position")) {
+        return false;
+    }
+    return !(n.code === "W_ROLE_DROPPED" && n.column === "label");
+}
+
+/** The formats that hold only integer node ids: a graph whose ids are all integers is written with them as they are. */
+const INTEGER_ID_FORMATS: ReadonlySet<ExportFormat> = new Set(["gml", "cx2"]);
 
 /**
  * Writes a collection as a graph file: every data field, each node's position and compound parent, and each
@@ -96,18 +139,28 @@ export async function importElements(
  * @param eles - the nodes and the edges between them
  * @param format - the format
  * @param options - graph-io's export options for the format, plus `directed`
- * @returns the file's text
+ * @returns the file's text; rejects (a TypeError) when `eles` is not a collection
  */
-export function exportElements(eles: Collection, format: ExportFormat, options: ExportOptions = {}): Promise<string> {
+export async function exportElements(
+    eles: Collection,
+    format: ExportFormat,
+    options: ExportOptions = {},
+): Promise<string> {
+    // importElements returns definitions, which this cannot read without a core to build them
+    if (typeof (eles as Partial<Collection> | null)?.nodes !== "function") {
+        throw new TypeError(
+            "exportElements needs a Cytoscape collection; wrap element definitions with cytoscape({ headless: true, elements }).elements()",
+        );
+    }
     const { directed, onLoss, ...rest } = options;
-    const snapshot = elementsToSnapshot(eles, { directed });
+    const snapshot = elementsToSnapshot(eles, { directed, integerIds: INTEGER_ID_FORMATS.has(format) });
     const graphOptions = {
         sanitizeIds: "mangle" as const,
         ...(format === "json" ? { dialect: "cytoscape" } : {}),
         ...rest,
     };
     if (onLoss !== undefined) {
-        const notes = checkExport(snapshot, format, graphOptions);
+        const notes = checkExport(snapshot, format, graphOptions).filter(lostForCytoscape);
         if (notes.length > 0) {
             onLoss(notes);
         }

@@ -105,6 +105,10 @@ describe("the CPU path (WebGPU disabled)", () => {
 
     it('a synchronous method rejects gpu: "require"', () => {
         expect(() => mainGraph().graphtyPageRank({ gpu: "require" })).toThrow(/graphtyPageRankAsync/);
+        // a method with no Async twin does not send the caller to one
+        expect(() => mainGraph().graphtyDegrees({ gpu: "require" })).toThrow(
+            'graphtyDegrees: has no GPU implementation and runs only on the CPU; leave out gpu: "require"',
+        );
     });
 
     it("a simulation stays synchronous and reports the CPU", () => {
@@ -490,6 +494,8 @@ describe("the device lifecycle (a fake provider)", () => {
         expect((se.errors[0] as Error).message).toMatch(
             /no CPU simulation and runs only on the GPU; no GPU ran because .+/,
         );
+        // nothing ran, so it does not claim the CPU did
+        expect(se.backend).toBeUndefined();
     });
 
     it('a simulation with gpu: "off" or accelerator: null stays on the CPU', async () => {

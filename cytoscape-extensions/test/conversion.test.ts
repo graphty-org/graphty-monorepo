@@ -224,6 +224,14 @@ describe("data types through export and import", () => {
         }
     });
 
+    it("gives a node without a list or object field no such field after any round trip", async () => {
+        for (const format of ["json", "gml", "graphml", "gexf", "neo4j", "cx2", "dot"] as const) {
+            const back = await roundTrip(core(typed()), format);
+            expect(back.$("#a").data("list"), format).toBeUndefined();
+            expect(back.$("#a").data("obj"), format).toBeUndefined();
+        }
+    });
+
     it("tells onLoss what a format cannot hold", async () => {
         const heard: LossNote[][] = [];
         await core(typed()).graphtyExport("dot", { onLoss: (notes) => heard.push([...notes]) });
@@ -255,6 +263,76 @@ describe("data types through export and import", () => {
         const v = s.nodes.get("v");
         expect(v?.meta.dtype).toBe("f64");
         expect([v?.value(0), v?.value(1), v?.value(2)]).toEqual([Number.NaN, Infinity, 1]);
+    });
+});
+
+describe("what onLoss reports and what comes back", () => {
+    const sample = (): cytoscape.ElementDefinition[] => [
+        { data: { id: "p", label: "P" } },
+        // 10.1 is not a float32, so a note that positions read back as float32 is borne out
+        { data: { id: "a", label: "A", parent: "p" }, position: { x: 10.1, y: 20 } },
+        { data: { id: "b", label: "B" }, position: { x: 30, y: 40 } },
+        { data: { id: "e1", source: "a", target: "b", label: "AB" } },
+    ];
+    // graph-io's own check() is wrong here: its CX2 exporter writes only the node label as "name"
+    const GRAPH_IO_DEFECTS = new Set(["cx2 W_COLUMN_NAME_CHANGED edge label"]);
+
+    it.each(["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j", "cx2"] as const)(
+        "%s: every note about a label, an edge id, a parent or a position matches a real loss",
+        async (format) => {
+            let notes: readonly LossNote[] = [];
+            const back = await roundTrip(core(sample()), format, {
+                onLoss: (n: readonly LossNote[]) => {
+                    notes = n;
+                },
+            });
+            const a = back.$("#a");
+            const edge = back.edges()[0];
+            const kept: Record<string, boolean> = {
+                "node label": a.data("label") === "A",
+                "edge label": edge.data("label") === "AB",
+                "edge id": edge.id() === "e1",
+                "node parent": a.data("parent") === "p",
+                "node position": a.position().x === 10.1 && a.position().y === 20,
+            };
+            for (const n of notes) {
+                const domain = n.message.startsWith("edge") ? "edge" : "node";
+                const field = `${domain} ${n.column ?? ""}`;
+                if (field in kept && !GRAPH_IO_DEFECTS.has(`${format} ${n.code} ${field}`)) {
+                    expect({ note: `${n.code}: ${n.message}`, kept: kept[field] }).toEqual({
+                        note: `${n.code}: ${n.message}`,
+                        kept: false,
+                    });
+                }
+            }
+        },
+    );
+});
+
+describe("attributes with a name Cytoscape reserves", () => {
+    it("arrive renamed, each with a W_COLUMN_RENAMED warning, never dropped", async () => {
+        const graphml = `<graphml>
+            <key id="k0" for="node" attr.name="id" attr.type="string"/>
+            <key id="k1" for="node" attr.name="source" attr.type="string"/>
+            <key id="k3" for="edge" attr.name="target" attr.type="string"/>
+            <graph edgedefault="undirected">
+                <node id="a"><data key="k0">fake-a</data><data key="k1">src</data></node>
+                <node id="b"/>
+                <edge source="a" target="b"><data key="k3">tt</data></edge>
+            </graph></graphml>`;
+        const cy = core();
+        const { report } = await cy.graphtyImport(graphml, "graphml");
+        expect(cy.$("#a").data()).toMatchObject({ id: "a", "id#k0": "fake-a", "source#k1": "src" });
+        expect(cy.edges()[0].data()).toMatchObject({ source: "a", target: "b", "target#k3": "tt" });
+        const renamed = report.issues.filter((i) => i.code === "W_COLUMN_RENAMED").map((i) => i.element);
+        expect(renamed.sort()).toEqual(["id", "source", "target"]);
+        expect(report.warningCount).toBeGreaterThanOrEqual(3);
+
+        const csv = core();
+        const r = await csv.graphtyImport("source,target,parent\na,b,x\n", "csv");
+        const keys = Object.keys(csv.edges()[0].data() as object);
+        expect(keys.some((k) => k.startsWith("parent#"))).toBe(true);
+        expect(r.report.issues.some((i) => i.code === "W_COLUMN_RENAMED" && i.element === "parent")).toBe(true);
     });
 });
 
@@ -324,4 +402,14 @@ describe("hostile files", () => {
             expect(cy.elements()).toHaveLength(0);
         },
     );
+});
+
+describe("exportElements", () => {
+    it("rejects element definitions with a TypeError that says how to make a collection", async () => {
+        const { exportElements } = await import("../src/io");
+        const defs = [{ data: { id: "a" } }] as unknown as cytoscape.Collection;
+        const p = exportElements(defs, "gml");
+        await expect(p).rejects.toThrow(TypeError);
+        await expect(p).rejects.toThrow(/wrap element definitions with cytoscape\(\{ headless: true, elements \}\)/);
+    });
 });

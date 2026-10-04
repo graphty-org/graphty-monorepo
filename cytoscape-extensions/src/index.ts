@@ -40,18 +40,27 @@ export {
 } from "./algorithms.js";
 export { type Backend, configureWebGpu, GPU_SIZE_FLOOR, type GpuMode, type WebGpuOptions } from "./gpu.js";
 export { type AddedGraph, type GraphtyGraphData, type ImportedGraph } from "./graph-data.js";
-export type { ExportFormat, ExportOptions, ImportFormat, ImportOptions } from "./io.js";
+export type { ExportFormat, ExportOptions, ImportFormat, ImportOptions, LossNote } from "./io.js";
 export { type GraphtyLayoutOptions, type GraphtyLayouts, LAYOUT_NAMES } from "./layouts.js";
 export type { GeneratorName, GeneratorOptions } from "./samples.js";
 export { type CytoscapeSnapshot, type NodeSelection, type SnapshotOptions, toSnapshot, writeData } from "./snapshot.js";
 
+/** Set on a cytoscape function once the extension is registered on it. */
+const REGISTERED = Symbol.for("@graphty/cytoscape-extensions");
+
 /**
  * The Cytoscape extension: `cytoscape.use(graphtyCytoscape)` registers every layout in LAYOUT_NAMES as
  * "graphty-<name>", every algorithm in ALGORITHM_NAMES as a collection and core method, and the core methods
- * graphtyGenerate, graphtyDataset, graphtyImport and graphtyExport.
+ * graphtyGenerate, graphtyDataset, graphtyImport and graphtyExport. A second `use()` with the same cytoscape does
+ * nothing (the script-tag build has already registered itself when a page calls `use()` again).
  * @param cytoscape - the cytoscape function `use()` passes in
  */
 export default function graphtyCytoscape(cytoscape: (type: string, name: string, registrant: unknown) => void): void {
+    const marked = cytoscape as unknown as Record<symbol, boolean | undefined>;
+    if (marked[REGISTERED] === true) {
+        return;
+    }
+    marked[REGISTERED] = true;
     registerLayouts(cytoscape);
     registerAlgorithms(cytoscape);
     registerGraphData(cytoscape);

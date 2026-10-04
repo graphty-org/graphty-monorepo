@@ -67,6 +67,18 @@ describe("toSnapshot", () => {
     });
 });
 
+describe("toSnapshot order", () => {
+    it("follows each collection's own order, also when the same elements were snapshotted in another order", () => {
+        const cy = cytoscape({ headless: true, elements: elements() });
+        const reversed = toSnapshot(cy.nodes().sort((x, y) => y.id().localeCompare(x.id())));
+        expect(reversed.nodes.map((n) => n.id())).toEqual(["c", "b", "a"]);
+        const plain = toSnapshot(cy.nodes());
+        expect(plain.nodes.map((n) => n.id())).toEqual(["a", "b", "c"]);
+        expect(plain.snapshot.ids.idOf(0)).toBe("a");
+        expect(toSnapshot(cy.nodes())).toBe(plain);
+    });
+});
+
 describe("writeData", () => {
     it("writes one value per element in index order", () => {
         const cy = cytoscape({ headless: true, elements: elements() });
@@ -78,7 +90,7 @@ describe("writeData", () => {
     });
 });
 
-describe("the README's algorithm example", () => {
+describe("the snapshot guide's algorithm example", () => {
     it("runs a @graphty/algorithms function and writes its result into node data", () => {
         const cy = cytoscape({ headless: true, elements: elements() });
         const { snapshot, nodes } = toSnapshot(cy.elements());

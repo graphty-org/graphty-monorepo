@@ -2,30 +2,18 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import { Workspace } from "../Workspace";
+import { EDGES, NODES } from "./twoRings.fixture";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
-
-/**
- * Two rings of six joined by one bridge edge, laid out on a flat circle, which places them the
- * same way every time: PageRank ranks the bridge's ends highest and Louvain finds the two rings.
- * Each node carries a name and a team, so the table has attributes to show.
- */
-const NAMES = ["Ada", "Ben", "Cal", "Dee", "Eve", "Fay", "Gus", "Hal", "Ivy", "Jo", "Kai", "Lu"];
-const NODES = NAMES.map((name, i) => ({ id: `n${String(i)}`, name, team: i < 6 ? "North" : "South" }));
-const ring = (from: number): { source: string; target: string }[] =>
-    Array.from({ length: 6 }, (_, i) => ({
-        source: `n${String(from + i)}`,
-        target: `n${String(from + ((i + 1) % 6))}`,
-    }));
-const EDGES = [...ring(0), ...ring(6), { source: "n0", target: "n6" }, { source: "n1", target: "n3" }];
 
 const OPEN = { project: { name: "Two rings", id: 1 }, dockOpen: true, dockHeight: 320 } as const;
 
 /**
- * Loads the two rings into the story's element and waits for a stable frame.
+ * Loads the two rings into the story's element, laid out flat at the fixture's fixed positions so
+ * no layout runs, and waits for a stable frame.
  * @param canvasElement - the story's root.
  * @returns the element.
  */
@@ -36,7 +24,7 @@ async function loadRings(canvasElement: HTMLElement): Promise<GraphtyElement> {
         throw new Error("the story rendered no <graphty-element>");
     }
     await element.session.layout.setDimension("2d");
-    await element.session.layout.set("circular", { options: { scale: 0.2 } });
+    await element.session.layout.set("fixed");
     await element.session.data.addNodes(NODES);
     await element.session.data.addEdges(EDGES);
     await element.waitForStableFrame();
@@ -66,6 +54,14 @@ async function press(canvasElement: HTMLElement, role: string, name: string | Re
     await userEvent.click(await within(canvasElement).findByRole(role, { name }));
 }
 
+/**
+ * The dock's region.
+ * @param canvasElement - the story's root.
+ * @returns queries inside the dock.
+ */
+const dock = async (canvasElement: HTMLElement): Promise<ReturnType<typeof within>> =>
+    within(await within(canvasElement).findByRole("region", { name: "Table" }));
+
 /** The body, where menus render. */
 const body = (): ReturnType<typeof within> => within(document.body);
 
@@ -83,6 +79,10 @@ export const Nodes: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
+        const table = await dock(canvasElement);
+        await expect(await table.findByText("12 nodes")).toBeVisible();
+        await expect(table.getByText("In the order loaded")).toBeVisible();
+        await expect(await table.findByRole("button", { name: /^Influence/ })).toBeVisible();
     },
 };
 
@@ -92,6 +92,8 @@ export const SortedByResult: Story = {
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
         await press(canvasElement, "button", /^Influence/);
+        const table = await dock(canvasElement);
+        await expect(await table.findByText("Sorted by Influence, highest first")).toBeVisible();
     },
 };
 
@@ -101,6 +103,9 @@ export const Edges: Story = {
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
         await press(canvasElement, "tab", "Edges");
+        const table = await dock(canvasElement);
+        await expect(await table.findByText(`${String(EDGES.length)} edges`)).toBeVisible();
+        await expect(table.getByRole("grid", { name: "Edges" })).toBeVisible();
     },
 };
 
@@ -110,6 +115,9 @@ export const Communities: Story = {
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
         await press(canvasElement, "tab", "Communities");
+        const table = await dock(canvasElement);
+        await expect(await table.findByText("2 groups")).toBeVisible();
+        await expect(table.getByText("Largest group first")).toBeVisible();
     },
 };
 
@@ -121,6 +129,9 @@ export const MembersOfRow: Story = {
         await press(canvasElement, "tab", "Communities");
         await press(canvasElement, "button", "Group 1 options");
         await userEvent.click(await body().findByRole("menuitem", { name: "Show members in table" }));
+        const table = await dock(canvasElement);
+        await expect(await table.findByText("Communities: Group 1")).toBeVisible();
+        await expect(await table.findByText("6 nodes")).toBeVisible();
     },
 };
 
@@ -130,6 +141,9 @@ export const Columns: Story = {
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
         await press(canvasElement, "button", /^Columns:/);
+        const table = await dock(canvasElement);
+        await expect(table.getByRole("button", { name: /^Columns: (\d+) of \1$/ })).toBeVisible();
+        await expect(await body().findByRole("menuitemcheckbox", { name: "Influence" })).toBeVisible();
     },
 };
 
@@ -139,6 +153,7 @@ export const TableOptions: Story = {
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
         await press(canvasElement, "button", "Table options");
+        await expect(await body().findByRole("menuitem", { name: "Export..." })).toBeVisible();
     },
 };
 
@@ -147,5 +162,6 @@ export const Closed: Story = {
     args: { initialState: { ...OPEN, dockOpen: false } },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
+        await expect(within(canvasElement).queryByRole("region", { name: "Table" })).toBeNull();
     },
 };

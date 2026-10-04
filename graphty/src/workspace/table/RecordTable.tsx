@@ -7,7 +7,7 @@ import type {
     RecordPage,
     ScopeInput,
 } from "@graphty/graphty-element/session";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 
 import { elementSort, type RecordKind, type TableColumnChoice } from "./columns";
 
@@ -31,8 +31,6 @@ interface RecordTableProps {
     sort: DataTableSort | null;
     onSortChange: (sort: DataTableSort | null) => void;
     height: number;
-    /** Called with each page read, for the count line. */
-    onTotal: (total: number) => void;
 }
 
 /**
@@ -62,7 +60,6 @@ function tableValue(value: unknown): DataTableValue {
  * @param props.sort - The sorted column
  * @param props.onSortChange - Called with a new sort
  * @param props.height - The table's height in pixels
- * @param props.onTotal - Called with the record count
  * @returns The table
  */
 export function RecordTable({
@@ -73,7 +70,6 @@ export function RecordTable({
     sort,
     onSortChange,
     height,
-    onTotal,
 }: RecordTableProps): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
@@ -90,10 +86,6 @@ export function RecordTable({
     };
     const page: RecordPage<NodeRecord | EdgeRecord> =
         kind === "node" ? session.data.nodePage(options) : session.data.edgePage(options);
-
-    useEffect(() => {
-        onTotal(page.total);
-    }, [onTotal, page.total]);
 
     const rows = page.records.map((record, index): Row => ({ record, index }));
     const tableColumns = columns.map((column): DataTableColumn<Row> => {

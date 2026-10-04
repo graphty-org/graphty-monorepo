@@ -32,9 +32,9 @@ describe("the table dock's words and sorts", () => {
         assert.equal(countOf(1200, "edge"), "1,200 edges");
     });
 
-    it("names a group by the element's name, else its id", () => {
-        assert.equal(groupName({ group: 3, size: 4, name: "Group 4" }), "Group 4");
-        assert.equal(groupName({ group: 3, size: 4 }), "3");
+    it("names a partition's group by its rank, and a category by its value", () => {
+        assert.equal(groupName({ group: 3, size: 4, name: "Group 4" }, 2), "Group 2");
+        assert.equal(groupName({ group: "North", size: 4 }, 1), "North");
     });
 
     it("registers Table on Shift+T, disabled with no project", () => {

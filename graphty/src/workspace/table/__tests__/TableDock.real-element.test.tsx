@@ -1,9 +1,10 @@
 /**
  * The table dock on the REAL graphty-element: Shift+T opens it on Nodes; a run's result is a
- * column the element sorts; a group run gets an item tab whose "Show members in table" narrows
- * Nodes; a row click selects through the element; Export... opens the one Export dialog on the
- * table that is showing. Every assertion reads what the element reports or what the table draws
- * from it, never pixels.
+ * column the element sorts and fills; the Columns chooser hides a column; a group run gets an item
+ * tab whose "Show members in table" narrows Nodes; a row click selects a node or an edge through
+ * the element; Export... opens the one Export dialog on the table that is showing; closing and
+ * reopening the dock keeps the reader's arrangement. Every assertion reads what the element
+ * reports or what the table draws from it, never pixels.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -29,15 +30,24 @@ const ring = (from: number): { source: string; target: string }[] =>
 const EDGES = [...ring(0), ...ring(6), { source: "n0", target: "n6" }];
 
 /**
+ * The cells of a table's drawn rows, top to bottom.
+ * @param name - the table: "Nodes" or "Edges".
+ * @returns each row's cell texts.
+ */
+function drawnRows(name: string): string[][] {
+    const grid = screen.getByRole("grid", { name });
+    return within(grid)
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).queryAllByRole("gridcell").map((cell) => cell.textContent ?? ""));
+}
+
+/**
  * The ids in the Nodes table's first column, top to bottom.
  * @returns the ids drawn.
  */
 function drawnIds(): string[] {
-    const grid = screen.getByRole("grid", { name: "Nodes" });
-    return within(grid)
-        .getAllByRole("row")
-        .slice(1)
-        .map((row) => within(row).getAllByRole("gridcell")[0]?.textContent ?? "");
+    return drawnRows("Nodes").map((cells) => cells[0] ?? "");
 }
 
 describe("the table dock", () => {
@@ -80,6 +90,25 @@ describe("the table dock", () => {
             await waitFor(() => {
                 assert.deepEqual(drawnIds().slice(0, 3), expected);
             });
+            // The result cell is the element's value for that node.
+            const top = live.data.nodePage({
+                columns: [pagerank.id],
+                sort: { run: pagerank.id, descending: true },
+                limit: 1,
+            });
+            assert.include(drawnRows("Nodes")[0], new Intl.NumberFormat("en-US").format(Number(top.columns[0].values[0])));
+
+            // The Columns chooser lists each attribute and each run; unchecking one hides it.
+            const columns = within(dock).getByRole("button", { name: /^Columns:/ });
+            const [, shown, all] = /^Columns: (\d+) of (\d+)$/.exec(columns.textContent) ?? [];
+            assert.equal(shown, all);
+            assert.isNotNull(within(dock).getByRole("button", { name: /^team/ }));
+            await userEvent.click(columns);
+            assert.isNotNull(await screen.findByRole("menuitemcheckbox", { name: pagerank.label }));
+            await userEvent.click(await screen.findByRole("menuitemcheckbox", { name: "team" }));
+            await within(dock).findByRole("button", { name: `Columns: ${String(Number(all) - 1)} of ${all}` });
+            assert.isNull(within(dock).queryByRole("button", { name: /^team/ }));
+            await userEvent.keyboard("{Escape}");
 
             // A row click selects that node through the element.
             await userEvent.click(within(dock).getAllByRole("gridcell", { name: expected[0] })[0]);
@@ -102,13 +131,25 @@ describe("the table dock", () => {
             await userEvent.click(within(dock).getByRole("button", { name: `Show every node, not only ${name}` }));
             await within(dock).findByText("12 nodes");
 
-            // Export... from the Edges tab opens the Export dialog on Data with the edge table.
+            // An Edges row click selects that edge through the element.
             await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));
             await within(dock).findByText(`${String(EDGES.length)} edges`);
+            const [edge] = live.data.edgePage({ limit: 1 }).records;
+            await userEvent.click(within(screen.getByRole("grid", { name: "Edges" })).getAllByRole("gridcell")[0]);
+            await waitFor(() => {
+                assert.deepEqual(live.selection.edges.map(String), [edge.id]);
+            });
+
+            // Export... from the Edges tab opens the Export dialog on Data with the edge table.
             await userEvent.click(within(dock).getByRole("button", { name: "Table options" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: "Export..." }));
             const dialog = await screen.findByRole("dialog", { name: "Export" });
             await within(dialog).findByText(/^One row per edge/);
+            // The file holds every edge: its first line is the header, then one line per edge.
+            const preview = within(dialog).getByLabelText("Preview of the exported data");
+            await waitFor(() => {
+                assert.include(preview.textContent, "n0");
+            });
 
             // Shift+T again closes the dock.
             await userEvent.keyboard("{Escape}");
@@ -119,6 +160,13 @@ describe("the table dock", () => {
             await waitFor(() => {
                 assert.isNull(screen.queryByRole("region", { name: "Table" }));
             });
+
+            // Reopened, the dock is as the reader left it: on Edges, with team hidden on Nodes.
+            await userEvent.keyboard("{Shift>}T{/Shift}");
+            const reopened = await screen.findByRole("region", { name: "Table" });
+            assert.equal(within(reopened).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
+            await userEvent.click(within(reopened).getByRole("tab", { name: "Nodes" }));
+            await within(reopened).findByRole("button", { name: `Columns: ${String(Number(all) - 1)} of ${all}` });
         },
         TIMEOUT_MS * 2,
     );

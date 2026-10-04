@@ -5,14 +5,15 @@
  * table's sort into the element's.
  */
 
-import type {
-    AttributeDescriptor,
-    GraphSession,
-    PageColumn,
-    RecordSort,
-    ResultSort,
-    Run,
-    SummaryGroup,
+import {
+    type AttributeDescriptor,
+    type GraphSession,
+    isGraphtyError,
+    type PageColumn,
+    type RecordSort,
+    type ResultSort,
+    type Run,
+    type SummaryGroup,
 } from "@graphty/graphty-element/session";
 
 /** Which records a table holds. */
@@ -49,6 +50,11 @@ const KEYS: Readonly<Record<RecordKind, readonly TableColumnChoice[]>> = {
  * A run's result as a column of this table, as graphty-element reads it: undefined when the run
  * has no result yet, or publishes no value per record of this kind (a bare fact, an edge metric on
  * the Nodes tab), which the element refuses with `E_BAD_COMMAND`.
+ *
+ * WORKAROUND (temporary, #922): the element publishes which runs give one value per node or per
+ * edge only by refusing a page read, so this reads a zero-row page and takes that one refusal as
+ * "no column here". Every other error is rethrown. Delete this probe when the element lists a
+ * kind's result columns.
  * @param session - the element's session.
  * @param run - the run.
  * @param kind - nodes or edges.
@@ -62,14 +68,18 @@ function resultColumn(session: GraphSession, run: Run, kind: RecordKind): PageCo
     try {
         const page = kind === "node" ? session.data.nodePage(options) : session.data.edgePage(options);
         return page.columns[0];
-    } catch {
-        return undefined;
+    } catch (error) {
+        if (isGraphtyError(error) && error.code === "E_BAD_COMMAND") {
+            return undefined;
+        }
+        throw error;
     }
 }
 
 /**
  * Every column the table can show for one kind: the keys, the attributes the records arrived with,
- * then each run's result.
+ * then each run's result. Every attribute starts shown: the design shows only the attributes in
+ * use, which the element does not publish yet (#923).
  * @param session - the element's session.
  * @param kind - nodes or edges.
  * @returns the columns in the chooser's order.
@@ -155,10 +165,14 @@ export function countOf(count: number, noun: string): string {
 }
 
 /**
- * What to call a group: the element's name for it ("Group 1"), else its id.
+ * What to call a group: "Group 1" for the largest group of a partition, else the group's own
+ * value (a category). The element lists a partition's groups largest first and marks a partition
+ * by naming its groups; the words are the app's, from the rank (#921 asks the element to publish
+ * the rank itself).
  * @param group - the group.
+ * @param rank - its 1-based place in the summary's list.
  * @returns the name.
  */
-export function groupName(group: SummaryGroup): string {
-    return group.name ?? String(group.group);
+export function groupName(group: SummaryGroup, rank: number): string {
+    return group.name === undefined ? String(group.group) : `Group ${String(rank)}`;
 }

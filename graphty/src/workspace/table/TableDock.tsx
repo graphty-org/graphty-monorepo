@@ -3,10 +3,11 @@ import "./table.css";
 import { type DataTableSort, MenuCheckItem, UiGlyph } from "@graphty/compact-mantine";
 import type { GraphSession, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Menu, Pill, Tabs, Text } from "@mantine/core";
-import React, { useCallback, useState } from "react";
+import React, { useEffect, useState } from "react";
 
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { columnChoices, countOf, groupName, type RecordKind, sortCaption, type TableColumnChoice } from "./columns";
+import { columnChoices, countOf, type RecordKind, sortCaption, type TableColumnChoice } from "./columns";
 import { GroupTable } from "./GroupTable";
 import { RecordTable } from "./RecordTable";
 import { useSessionVersion } from "./useSessionVersion";
@@ -31,6 +32,22 @@ interface Members {
 
 const EMPTY_VIEW: View = { hidden: [], sort: null };
 
+/** The reader's arrangement of the dock: its tab, each table's view, and the members chip. */
+interface Arrangement {
+    readonly tab: string;
+    readonly views: Readonly<Record<RecordKind, View>>;
+    readonly members: Members | null;
+}
+
+const FIRST_ARRANGEMENT: Arrangement = { tab: "nodes", views: { node: EMPTY_VIEW, edge: EMPTY_VIEW }, members: null };
+
+/**
+ * The arrangement per workspace, kept while the dock is closed: the Frame unmounts the dock, and
+ * Shift+T twice must bring back the same tab, sort, columns and chip. Keyed by the workspace's
+ * store, so each mounted workspace (each story, each test) keeps its own.
+ */
+const ARRANGEMENTS = new WeakMap<WorkspaceStore, Arrangement>();
+
 /**
  * The runs that partition the graph into groups, each with its groups as graphty-element's result
  * summary lists them: one item tab each.
@@ -52,7 +69,9 @@ function groupRuns(session: GraphSession): { id: string; label: string; groups: 
  * @returns the scope.
  */
 function membersScope(session: GraphSession, run: string, group: SummaryGroup): ScopeInput {
-    // The page column names the run's primary field (a community's `group`) as the element reads it.
+    // WORKAROUND (temporary, #354): `run.fields[].path` does not name the field a result item
+    // resolves, so the field's name is read from a zero-row page column instead. Read it from the
+    // run's fields once #354 is fixed.
     const [column] = session.data.nodePage({ limit: 0, columns: [run] }).columns;
     return {
         define: {
@@ -128,41 +147,67 @@ function ColumnsMenu({ choices, hidden, onHiddenChange }: ColumnsMenuProps): Rea
  * and inspector share graphty-element's one selection.
  * @returns The dock's contents
  */
-export function TableDock(): React.JSX.Element | null {
+export function TableDock(): React.JSX.Element {
     const { session, store } = useWorkspace();
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
     useSessionVersion(session);
-    const [tab, setTab] = useState<string>("nodes");
-    const [views, setViews] = useState<Record<RecordKind, View>>({ node: EMPTY_VIEW, edge: EMPTY_VIEW });
-    const [members, setMembers] = useState<Members | null>(null);
-    const [total, setTotal] = useState(0);
-    const onTotal = useCallback((count: number) => {
-        setTotal(count);
-    }, []);
+    const [arrangement, setArrangement] = useState<Arrangement>(() => ARRANGEMENTS.get(store) ?? FIRST_ARRANGEMENT);
+    useEffect(() => {
+        ARRANGEMENTS.set(store, arrangement);
+    }, [store, arrangement]);
+    const { tab, views, members } = arrangement;
+    const arrange = (change: Partial<Arrangement>): void => {
+        setArrangement((now) => ({ ...now, ...change }));
+    };
 
-    if (session === null) {
-        return null;
-    }
-
-    const groups = groupRuns(session);
+    // Cheap reads: the element caches each run's summary, and a zero-row page reads no values.
+    const groups = session === null ? [] : groupRuns(session);
     // A group tab whose run went away (undo, remove) falls back to Nodes.
     const active = tab.startsWith("g:") && !groups.some((run) => `g:${run.id}` === tab) ? "nodes" : tab;
-    const groupRun = groups.find((run) => `g:${run.id}` === active);
     const kind: RecordKind = active === "edges" ? "edge" : "node";
+    const choices = session === null ? [] : columnChoices(session, kind);
+
+    const close = (
+        <ActionIcon
+            variant="subtle"
+            aria-label="Close table"
+            onClick={() => {
+                store.set({ dockOpen: false });
+            }}
+        >
+            <UiGlyph name="close" />
+        </ActionIcon>
+    );
+    if (session === null) {
+        // Before the element has come up there is nothing to list; the dock can still be closed.
+        return (
+            <div className="ws-table">
+                <div className="ws-table-strip">
+                    <span className="ws-table-spacer" />
+                    {close}
+                </div>
+            </div>
+        );
+    }
+
+    const groupRun = groups.find((run) => `g:${run.id}` === active);
     const view = views[kind];
-    const choices = columnChoices(session, kind);
     const visible = choices.filter((choice) => !view.hidden.includes(choice.id));
     const sorted = visible.find((choice) => choice.id === view.sort?.id);
     const shownMembers = members !== null && groups.some((run) => run.id === members.run) ? members : null;
+    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : "graph";
     const tableHeight = Math.max(32, dockHeight - CHROME_HEIGHT);
 
     const setView = (change: Partial<View>): void => {
-        setViews((all) => ({ ...all, [kind]: { ...all[kind], ...change } }));
+        setArrangement((now) => ({ ...now, views: { ...now.views, [kind]: { ...now.views[kind], ...change } } }));
     };
 
-    let count = countOf(total, kind);
-    if (groupRun !== undefined) {
-        count = countOf(groupRun.groups.length, "group");
+    // The count is the element's, read for the records showing, so it never lags a tab change.
+    let count = countOf(groupRun?.groups.length ?? 0, "group");
+    if (groupRun === undefined) {
+        const counted = { limit: 0, scope };
+        const total = kind === "node" ? session.data.nodePage(counted).total : session.data.edgePage(counted).total;
+        count = countOf(total, kind);
     }
 
     return (
@@ -172,7 +217,7 @@ export function TableDock(): React.JSX.Element | null {
                     value={active}
                     onChange={(value) => {
                         if (value !== null) {
-                            setTab(value);
+                            arrange({ tab: value });
                         }
                     }}
                 >
@@ -192,15 +237,16 @@ export function TableDock(): React.JSX.Element | null {
                 {active === "nodes" && shownMembers !== null ? (
                     <Pill
                         withRemoveButton
-                        // Mantine hides a Pill's remove button from the keyboard and screen readers;
-                        // this one is the chip's only control, so it is made reachable.
+                        // WORKAROUND (temporary, #925): Mantine's Pill hides its remove button from
+                        // the keyboard and screen readers; this one is the chip's only control.
+                        // Delete these props when compact-mantine's Pill theme makes it reachable.
                         removeButtonProps={{
                             "aria-label": `Show every node, not only ${shownMembers.name}`,
                             "aria-hidden": false,
                             tabIndex: 0,
                         }}
                         onRemove={() => {
-                            setMembers(null);
+                            arrange({ members: null });
                         }}
                     >
                         {`${shownMembers.runLabel}: ${shownMembers.name}`}
@@ -225,6 +271,9 @@ export function TableDock(): React.JSX.Element | null {
                     <Menu.Dropdown>
                         <Menu.Item
                             onClick={() => {
+                                // The file holds every column and every record of the table that is
+                                // showing: the element's export cannot be limited to the visible
+                                // columns (#875) or to a group's members (#820) yet.
                                 store.set({ dialog: "export", exportOn: kind === "edge" ? "edges" : "nodes" });
                             }}
                         >
@@ -232,15 +281,7 @@ export function TableDock(): React.JSX.Element | null {
                         </Menu.Item>
                     </Menu.Dropdown>
                 </Menu>
-                <ActionIcon
-                    variant="subtle"
-                    aria-label="Close table"
-                    onClick={() => {
-                        store.set({ dockOpen: false });
-                    }}
-                >
-                    <UiGlyph name="close" />
-                </ActionIcon>
+                {close}
             </div>
             <Text size="xs" c="dimmed" className="ws-table-caption">
                 {groupRun === undefined ? sortCaption(sorted, view.sort?.desc ?? false) : "Largest group first"}
@@ -251,27 +292,28 @@ export function TableDock(): React.JSX.Element | null {
                     session={session}
                     kind={kind}
                     columns={visible}
-                    scope={kind === "node" && shownMembers !== null ? shownMembers.scope : "graph"}
+                    scope={scope}
                     sort={sorted === undefined ? null : view.sort}
                     onSortChange={(sort) => {
                         setView({ sort });
                     }}
                     height={tableHeight}
-                    onTotal={onTotal}
                 />
             ) : (
                 <GroupTable
                     runLabel={groupRun.label}
                     groups={groupRun.groups}
                     height={tableHeight}
-                    onShowMembers={(group) => {
-                        setMembers({
-                            run: groupRun.id,
-                            runLabel: groupRun.label,
-                            name: groupName(group),
-                            scope: membersScope(session, groupRun.id, group),
+                    onShowMembers={(group, name) => {
+                        arrange({
+                            tab: "nodes",
+                            members: {
+                                run: groupRun.id,
+                                runLabel: groupRun.label,
+                                name,
+                                scope: membersScope(session, groupRun.id, group),
+                            },
                         });
-                        setTab("nodes");
                     }}
                 />
             )}

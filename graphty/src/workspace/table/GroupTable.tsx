@@ -12,13 +12,20 @@ interface GroupTableProps {
     /** The run's groups, as graphty-element's result summary lists them (largest first). */
     groups: readonly SummaryGroup[];
     height: number;
-    /** "Show members in table": the Nodes tab, narrowed to this group. */
-    onShowMembers: (group: SummaryGroup) => void;
+    /** "Show members in table": the Nodes tab, narrowed to this group, called with its name. */
+    onShowMembers: (group: SummaryGroup, name: string) => void;
+}
+
+/** One row: a group and its name. */
+interface Row {
+    readonly group: SummaryGroup;
+    readonly name: string;
 }
 
 /**
- * A group run's item tab (tier1-design.md section 2.9): one row per group with its size. Each
- * row's "..." menu holds "Show members in table".
+ * A group run's item tab (tier1-design.md section 2.9): one row per group with its size, largest
+ * first. Each row's "..." menu holds "Show members in table". The rows keep the element's order,
+ * so the headers do not sort and the caption "Largest group first" stays true.
  * @param props - Component props
  * @param props.runLabel - The run's name
  * @param props.groups - The run's groups
@@ -27,9 +34,10 @@ interface GroupTableProps {
  * @returns The table
  */
 export function GroupTable({ runLabel, groups, height, onShowMembers }: GroupTableProps): React.JSX.Element {
-    const columns: DataTableColumn<SummaryGroup>[] = [
-        { id: "group", header: "Group", value: groupName },
-        { id: "size", header: "Size", value: (group) => group.size, align: "end" },
+    const rows = groups.map((group, index): Row => ({ group, name: groupName(group, index + 1) }));
+    const columns: DataTableColumn<Row>[] = [
+        { id: "group", header: "Group", sortable: false, value: (row) => row.name },
+        { id: "size", header: "Size", sortable: false, value: (row) => row.group.size, align: "end" },
         {
             id: "menu",
             header: "",
@@ -38,17 +46,17 @@ export function GroupTable({ runLabel, groups, height, onShowMembers }: GroupTab
             filterable: false,
             hideable: false,
             value: () => undefined,
-            cell: (group) => (
+            cell: (row) => (
                 <Menu position="bottom-end">
                     <Menu.Target>
-                        <ActionIcon variant="subtle" aria-label={`${groupName(group)} options`}>
+                        <ActionIcon variant="subtle" aria-label={`${row.name} options`}>
                             <UiGlyph name="more" />
                         </ActionIcon>
                     </Menu.Target>
                     <Menu.Dropdown>
                         <Menu.Item
                             onClick={() => {
-                                onShowMembers(group);
+                                onShowMembers(row.group, row.name);
                             }}
                         >
                             Show members in table
@@ -59,11 +67,11 @@ export function GroupTable({ runLabel, groups, height, onShowMembers }: GroupTab
         },
     ];
     return (
-        <DataTable<SummaryGroup>
+        <DataTable<Row>
             label={runLabel}
-            data={groups}
+            data={rows}
             columns={columns}
-            getRowId={(group) => String(group.group)}
+            getRowId={(row) => String(row.group.group)}
             height={height}
             selectionMode="none"
         />

@@ -238,12 +238,14 @@ export function rankFormats(
 }
 
 /**
- * The best candidate of rankFormats(), or null when no importer matches. Most callers want the
- * top-level `sniff(hints)`, which uses the registered importers.
+ * Format detection over a list of importers you pass in, for code that keeps importers outside any
+ * registry. To detect a file's format, call `sniff(hints)` instead: it takes the same hints and
+ * knows every built-in and registered format. Returns the best candidate of rankFormats(), or null
+ * when no importer matches.
  * @param hints - `{ filename, mimeType, head }`, any of them
  * @param importers - the importers to rank, in tie-break order (`registry.importers()`)
  * @returns the best candidate, or null
- * @category Formats and detection
+ * @category Plugin helpers
  */
 export function sniffFormat(hints: SniffHints, importers: Iterable<GraphImporter>): SniffResult | null {
     const ranked = rankFormats(hints, importers);

@@ -14,7 +14,7 @@ import type { GraphFormatErrorCode } from "@graphty/graph-format";
 // ============================================================ importer issues
 
 /**
- * Issue code: the URL could not be fetched (network failure, CORS refusal or a non-2xx status).
+ * The URL could not be fetched (network failure, CORS refusal or a non-2xx status).
  * @category Issue and loss codes
  */
 export const FETCH_CODE = "E_FETCH";
@@ -38,7 +38,7 @@ export const MISSING_ENDPOINT_CODE = "E_MISSING_ENDPOINT";
 export const DUPLICATE_NODE_CODE = "W_DUPLICATE_NODE";
 
 /**
- * The document declares no graph at all (fatal).
+ * The file declares no graph at all. The import stops.
  * @category Issue and loss codes
  */
 export const NO_GRAPH_CODE = "E_NO_GRAPH";
@@ -51,19 +51,19 @@ export const NO_GRAPH_CODE = "E_NO_GRAPH";
 export const MULTIPLE_GRAPHS_CODE = "W_MULTIPLE_GRAPHS";
 
 /**
- * The input is empty (fatal).
+ * The input is empty. The import stops.
  * @category Issue and loss codes
  */
 export const EMPTY_INPUT_CODE = "E_EMPTY_INPUT";
 
 /**
- * The text grammar of the format is violated (fatal; the message carries the detail).
+ * The text breaks the format's syntax; the message says where and how. The import stops.
  * @category Issue and loss codes
  */
 export const SYNTAX_CODE = "E_SYNTAX";
 
 /**
- * The XML is not well-formed (fatal; the message carries the detail and the line).
+ * The XML is not well-formed; the message says where. The import stops.
  * @category Issue and loss codes
  */
 export const XML_SYNTAX_CODE = "E_XML_SYNTAX";
@@ -87,7 +87,7 @@ export const STRAY_TEXT_CODE = "W_STRAY_TEXT";
 export const UNKNOWN_PARENT_CODE = "E_UNKNOWN_PARENT";
 
 /**
- * A hyperedge under the `hyperedges: "error"` policy (fatal).
+ * A hyperedge (an edge with more than two ends) while `hyperedges` is "error". The import stops.
  * @category Issue and loss codes
  */
 export const HYPEREDGE_CODE = "E_HYPEREDGE";
@@ -105,7 +105,10 @@ export const DUPLICATE_KEY_CODE = "E_DUPLICATE_KEY";
  */
 export const COLUMN_RENAMED_CODE = "W_COLUMN_RENAMED";
 
-/** A node or edge attribute is not written, because the format has nowhere to put it. */
+/**
+ * A node or edge attribute is not written, because the format has nowhere to put it.
+ * @category Issue and loss codes
+ */
 export const COLUMN_DROPPED_CODE = "W_COLUMN_DROPPED";
 
 /**
@@ -122,7 +125,8 @@ export const ROLE_TAKEN_CODE = "W_ROLE_TAKEN";
 export const PRECISION_CODE = "W_PRECISION";
 
 /**
- * Two distinct id texts became one number under ids "number".
+ * Two different id texts became the same number because `ids` is "number" ("042" and "42", say), so their nodes were
+ * merged.
  * @category Issue and loss codes
  */
 export const ID_MERGED_CODE = "W_ID_MERGED";
@@ -141,13 +145,14 @@ export const SINK_OPTION_CODE = "W_SINK_OPTION";
 export const OPTION_IGNORED_CODE = "W_OPTION_IGNORED";
 
 /**
- * An invalid UTF-8 sequence in the input (fatal).
+ * The input is not valid UTF-8. The import stops.
  * @category Issue and loss codes
  */
 export const INVALID_UTF8_CODE = "E_INVALID_UTF8";
 
 /**
- * Bytes that are not valid in the encoding a BOM, a declaration or the `encoding` option chose (fatal).
+ * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's own declaration or the
+ * `encoding` option). The import stops.
  * @category Issue and loss codes
  */
 export const INVALID_ENCODING_CODE = "E_INVALID_ENCODING";
@@ -173,16 +178,15 @@ export const UNKNOWN_ENCODING_CODE = "W_UNKNOWN_ENCODING";
 export const ENCODING_CONFLICT_CODE = "W_ENCODING_CONFLICT";
 
 /**
- * The text holds a control character (C0 other than TAB, LF, FF and CR; DEL; C1) or a stray U+FEFF
- * that is kept in the id or value it is part of, or a trailing Ctrl-Z end-of-file marker that was
- * ignored; recorded once per import.
+ * The text holds a control character, such as a NUL byte or an escape character, which is kept in the id or value it
+ * is part of; or it ends with a Ctrl-Z end-of-file marker, which was ignored. Reported once per import.
  * @category Issue and loss codes
  */
 export const CONTROL_CHARACTER_CODE = "W_CONTROL_CHARACTER";
 
 /**
- * The input is a known file type that is no graph format at all (an HTML page, a PDF, gzip or zip
- * data, a PNG image), so it is not read as the format asked for (fatal).
+ * The input is a known kind of file that is not a graph: an HTML page, a PDF, compressed or zip data, or an image. The
+ * import stops.
  * @category Issue and loss codes
  */
 export const FOREIGN_FORMAT_CODE = "E_FOREIGN_FORMAT";
@@ -201,14 +205,17 @@ export const ISSUES_SUPPRESSED_CODE = "W_ISSUES_SUPPRESSED";
 export const UNKNOWN_XML_ATTRIBUTE_CODE = "W_UNKNOWN_XML_ATTRIBUTE";
 
 /**
- * You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with
- * the builder's direction instead of its own.
+ * You read into a graph builder that already holds edges (or whose direction is locked), and its direction differs
+ * from the file's, so the file is read with the builder's direction. A builder without edges takes the file's
+ * direction.
  * @category Issue and loss codes
  */
 export const DIRECTION_REFUSED_CODE = "W_DIRECTION_REFUSED";
 
 /**
- * Edges of the other direction were forced to the policy's direction.
+ * `onMixedDirection` ("directed" or "undirected") made edges take a direction the file did not give them. It can
+ * appear twice in one report: once for the direction the file declares and once for the edges that declared
+ * their own.
  * @category Issue and loss codes
  */
 export const DIRECTION_FORCED_CODE = "W_DIRECTION_FORCED";
@@ -217,6 +224,7 @@ export const DIRECTION_FORCED_CODE = "W_DIRECTION_FORCED";
  * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
  * format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write it
  * anyway.
+ * @category Issue and loss codes
  */
 export const MIXED_DIRECTION_CODE = "E_MIXED_DIRECTION";
 
@@ -291,8 +299,8 @@ export const PARENT_CYCLE_CODE = "E_PARENT_CYCLE";
 export const EQUATION_AS_TEXT_CODE = "W_EQUATION_AS_TEXT";
 
 /**
- * The file's style rules (defaults, mappings, dependencies, visual property aspects) are not
- * applied to the snapshot; recorded once per import, the message names what was not applied.
+ * The file's style rules (default styles, mappings, visual properties) are not applied to the graph. Reported once per
+ * import; the message names what was not applied.
  * @category Issue and loss codes
  */
 export const STYLES_NOT_IMPORTED_CODE = "W_STYLES_NOT_IMPORTED";
@@ -335,7 +343,8 @@ export const ASPECT_ORDER_CODE = "W_ASPECT_ORDER";
 export const COUNT_MISMATCH_CODE = "W_COUNT_MISMATCH";
 
 /**
- * The producer marked the document as failed (CX `status.success: false`): it is incomplete (fatal).
+ * The program that wrote the file marked it as failed (CX `status.success: false`), so it is incomplete. The import
+ * stops.
  * @category Issue and loss codes
  */
 export const STATUS_FAILED_CODE = "E_STATUS_FAILED";
@@ -354,13 +363,13 @@ export const STATUS_WARNING_CODE = "W_STATUS_WARNING";
 export const TOO_LARGE_CODE = "E_TOO_LARGE";
 
 /**
- * `graphIndex` is beyond the graphs of the input, or `graphName` names none of them (fatal).
+ * `graphIndex` is past the last graph in the file, or `graphName` matches none of them. The import stops.
  * @category Issue and loss codes
  */
 export const GRAPH_NOT_FOUND_CODE = "E_GRAPH_NOT_FOUND";
 
 /**
- * `graphName` names more than one graph of the input; the message lists their indexes (fatal).
+ * `graphName` matches more than one graph; the message lists their positions. The import stops.
  * @category Issue and loss codes
  */
 export const AMBIGUOUS_GRAPH_NAME_CODE = "E_AMBIGUOUS_GRAPH_NAME";
@@ -393,7 +402,10 @@ export const SELF_LOOPS_DROPPED_CODE = "W_SELF_LOOPS_DROPPED";
 
 // ============================================================ exporter loss notes
 
-/** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
+/**
+ * An attribute with a role the format has no place for is written as a plain attribute; the role is lost.
+ * @category Issue and loss codes
+ */
 export const ROLE_DROPPED_CODE = "W_ROLE_DROPPED";
 
 /**
@@ -439,7 +451,14 @@ export const ID_TEXT_COLLISION_CODE = "E_ID_TEXT_COLLISION";
 export const TEMPORAL_TEXT_DROPPED_CODE = "W_TEMPORAL_TEXT_DROPPED";
 
 /**
- * A plain column named like the importer's weight key reads back as THE weight.
+ * The graph has edge weights and the file does not keep them: every edge reads back with the default weight 1.
+ * @category Issue and loss codes
+ */
+export const WEIGHTS_DROPPED_CODE = "W_WEIGHTS_DROPPED";
+
+/**
+ * An attribute without the weight role is named like the attribute graph-io reads weights from (`weight`, say), so it
+ * reads back as the edge weight.
  * @category Issue and loss codes
  */
 export const WEIGHT_KEY_CLASH_CODE = "W_WEIGHT_KEY_CLASH";
@@ -447,12 +466,14 @@ export const WEIGHT_KEY_CLASH_CODE = "W_WEIGHT_KEY_CLASH";
 /**
  * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads
  * back with that role.
+ * @category Issue and loss codes
  */
 export const ROLE_ASSUMED_CODE = "W_ROLE_ASSUMED";
 
 /**
  * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the name
  * the format's importer gives it.
+ * @category Issue and loss codes
  */
 export const COLUMN_RENAMED_LOSS_CODE = "W_COLUMN_NAME_CHANGED";
 
@@ -479,6 +500,7 @@ export const INTEGRAL_F64_CODE = "W_INTEGRAL_F64_AS_I32";
 /**
  * A text value that reads back as a number or a boolean, because the format does not record that it was text (the text
  * "42" reads back as the number 42).
+ * @category Issue and loss codes
  */
 export const TEXT_INFERRED_CODE = "W_TEXT_INFERRED";
 
@@ -507,7 +529,8 @@ export const RELATION_ASSUMED_CODE = "W_RELATION_ASSUMED";
 export const TYPEDEF_NODES_CODE = "W_TYPEDEF_NODES";
 
 /**
- * A graph column is written into the file's metadata and reads back in `meta.extra`, not as a column.
+ * A graph attribute is written into the file's metadata and reads back in `snapshot.meta.extra`, not as a graph
+ * attribute.
  * @category Issue and loss codes
  */
 export const GRAPH_COLUMN_AS_METADATA_CODE = "W_GRAPH_COLUMN_AS_METADATA";
@@ -515,6 +538,7 @@ export const GRAPH_COLUMN_AS_METADATA_CODE = "W_GRAPH_COLUMN_AS_METADATA";
 /**
  * The file cannot record direction: an undirected graph's edges read back as directed, or the whole graph reads back
  * with the importer's default direction.
+ * @category Issue and loss codes
  */
 export const DIRECTION_DROPPED_CODE = "W_DIRECTION_DROPPED";
 
@@ -524,11 +548,15 @@ export const DIRECTION_DROPPED_CODE = "W_DIRECTION_DROPPED";
  */
 export const NONFINITE_AS_NULL_CODE = "W_NONFINITE_AS_NULL";
 
-/** The nodes read back in a different order. */
+/**
+ * The nodes read back in a different order.
+ * @category Issue and loss codes
+ */
 export const NODE_ORDER_CODE = "W_NODE_ORDER";
 
 /**
- * A dictionary attribute without a declared list of allowed values gains one, its distinct values, on re-import.
+ * A text attribute stored as a dictionary, without a declared list of allowed values, reads back with its distinct
+ * values as that list.
  * @category Issue and loss codes
  */
 export const OPTIONS_GAINED_CODE = "W_OPTIONS_GAINED";
@@ -541,15 +569,15 @@ export const OPTIONS_GAINED_CODE = "W_OPTIONS_GAINED";
  * @category Issue and loss codes
  */
 export const INPUT_ISSUE = Object.freeze({
-    /** The input is empty or holds only whitespace (fatal). */
+    /** The input is empty or holds only whitespace. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** The input is longer than one JavaScript string, or holds a line that is (fatal). */
+    /** The input, or one of its lines, is longer than a JavaScript string can hold. The import stops. */
     TOO_LARGE: TOO_LARGE_CODE,
     /** A byte order mark, the encoding option and the declared encoding disagree. */
     ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
     /** A control character or a stray U+FEFF in the text, or an ignored trailing Ctrl-Z. */
     CONTROL_CHARACTER: CONTROL_CHARACTER_CODE,
-    /** The input is an HTML page, a PDF, compressed or archived data or an image (fatal). */
+    /** The input is an HTML page, a PDF, compressed or zip data, or an image. The import stops. */
     FOREIGN_FORMAT: FOREIGN_FORMAT_CODE,
     /** Warnings of one code beyond the number a report keeps, counted in one warning. */
     ISSUES_SUPPRESSED: ISSUES_SUPPRESSED_CODE,

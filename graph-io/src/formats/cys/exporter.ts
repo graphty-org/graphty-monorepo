@@ -49,11 +49,11 @@ import {
 import { FORMAT } from "./constants.js";
 
 /**
- * The format-specific options of the Cytoscape session exporter: none yet. The collection and
- * network names come from the snapshot's `meta.name` (default "Network").
+ * The options of the Cytoscape session exporter: the common export options; it has none of its own. The
+ * collection and network names come from the snapshot's `meta.name` (default "Network").
  * @category Built-in formats
  */
-export type CysExportOptions = Readonly<Record<never, never>>;
+export type CysExportOptions = CommonExportOptions;
 
 /**
  * The loss notes the session exporter's check() returns, by name. A key is the code without its
@@ -103,7 +103,10 @@ export const CYS_LOSS = Object.freeze({
     ID_MANGLED: LOSS.ID_MANGLED,
     /** Edges without a usable id get generated SUIDs. */
     EDGE_IDS_GENERATED: LOSS.EDGE_IDS_GENERATED,
-    /** A dtype written as a wider Cytoscape type (f32 as Double, u8 as Integer, ...), or a label written as text. */
+    /**
+     * An attribute type Cytoscape stores as a wider one (a 32-bit float as Double, a byte as Integer), or a label that
+     * is not text and is written as text; it reads back with the Cytoscape type.
+     */
     DTYPE_UNSUPPORTED: LOSS.DTYPE,
     /** A column whose every cell is unset (and which is not text) vanishes. */
     EMPTY_COLUMN_DROPPED: LOSS.EMPTY_COLUMN,
@@ -1218,7 +1221,7 @@ function* entries(snapshot: GraphSnapshot, p: Plan): Generator<ZipWriteEntry, vo
  */
 async function* write(
     snapshot: GraphSnapshot,
-    options: (CysExportOptions & CommonExportOptions) | undefined,
+    options: (CysExportOptions) | undefined,
 ): AsyncGenerator<Uint8Array, void, undefined> {
     const p = plan(snapshot, resolveExportOptions(options));
     await Promise.resolve();
@@ -1239,7 +1242,7 @@ export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: CysExportOptions & CommonExportOptions): readonly LossNote[] {
+    check(snapshot: GraphSnapshot, options?: CysExportOptions): readonly LossNote[] {
         return Object.freeze([...plan(snapshot, resolveExportOptions(options)).notes]);
     },
 
@@ -1249,7 +1252,7 @@ export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the bytes
      */
-    export(snapshot: GraphSnapshot, options?: CysExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+    export(snapshot: GraphSnapshot, options?: CysExportOptions): AsyncIterable<Uint8Array> {
         return write(snapshot, options);
     },
 
@@ -1259,7 +1262,7 @@ export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns never
      */
-    exportToString(snapshot: GraphSnapshot, options?: CysExportOptions & CommonExportOptions): Promise<string> {
+    exportToString(snapshot: GraphSnapshot, options?: CysExportOptions): Promise<string> {
         void snapshot;
         void options;
         return Promise.reject(

@@ -40,7 +40,7 @@ import {
  * The format-specific options of the Pajek exporter.
  * @category Built-in formats
  */
-export interface PajekExportOptions {
+export interface PajekExportOptions extends CommonExportOptions {
     /**
      * Write a `*Network <name>` line, as Pajek project files (.paj) have, when the graph has a name
      * (`snapshot.meta.name`). Plain .net readers do not expect it.
@@ -63,7 +63,10 @@ export const PAJEK_LOSS = Object.freeze({
     TEXT: "E_PAJEK_TEXT",
     /** A column whose name cannot be a parameter key (whitespace, a quote, numeric, a shape keyword); skipped. */
     KEY_DROPPED: "W_PAJEK_KEY_DROPPED",
-    /** A label role column that is not text; its values are written as text and re-import as string. */
+    /**
+     * The node label attribute holds numbers or other values that are not text; they are written as text and read back
+     * as text.
+     */
     LABEL_AS_TEXT: "W_PAJEK_LABEL_AS_TEXT",
     /** NaN or an infinity is written as the text Infinity or NaN, which reads back as text. */
     NONFINITE_AS_TEXT: "W_PAJEK_NONFINITE_AS_TEXT",
@@ -71,13 +74,19 @@ export const PAJEK_LOSS = Object.freeze({
     MUTUAL_AS_UNDIRECTED: LOSS.MUTUAL_AS_UNDIRECTED,
     /** A start / end / timestamp role column; Pajek intervals are written from the spells role only. */
     TEMPORAL_DROPPED: LOSS.TEMPORAL,
-    /** A position column with a stride other than 2 or 3. */
+    /** A position with other than 2 or 3 coordinates is not written. */
     POSITION_STRIDE: "W_PAJEK_POSITION_STRIDE",
-    /** meta.extra.pajek.firstMode is not a count within 0..N; the two-mode header is not written. */
+    /**
+     * The graph's two-mode vertex count (`meta.extra.pajek.firstMode`) is not between 0 and the number of nodes, so
+     * the file is written as a one-mode network.
+     */
     FIRST_MODE_DROPPED: "W_PAJEK_FIRST_MODE_DROPPED",
     /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
-    /** A `shape` column with a value outside the shape keywords is written as a parameter (a string on re-import). */
+    /**
+     * A `shape` attribute whose value is not one of Pajek's shape names is written as a parameter, and reads back as a
+     * plain text attribute.
+     */
     SHAPE_AS_PARAMETER: "W_PAJEK_SHAPE_AS_PARAMETER",
     /** A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label. */
     LABEL_GAINED: "W_PAJEK_LABEL_GAINED",
@@ -86,7 +95,10 @@ export const PAJEK_LOSS = Object.freeze({
      * reads back with that role.
      */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
-    /** Under sanitizeIds "mangle": an original id whose text reads back as the other type under ids "canonical". */
+    /**
+     * With `sanitizeIds: "mangle"`: an original id that reads back as a different type, such as the text "7" as the
+     * number 7.
+     */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /**
      * A text value that reads back as a number or a boolean, because the format does not record that it was text (the

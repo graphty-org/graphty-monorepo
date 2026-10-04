@@ -80,7 +80,7 @@ const MUTUAL_DECL: ColumnDecl = { name: MUTUAL_COLUMN, dtype: "bool", role: "mut
 /**
  * Pushes edges into a sink while resolving each edge's direction. One instance per
  * import call; `setHeader()` before the first `addEdge()`.
- * @category Plugin helpers
+ * @category Writing a format
  */
 export class DirectionResolver {
     private readonly sink: GraphSink;
@@ -474,7 +474,7 @@ export interface PairFoldingOptions {
  * @param snapshot - the snapshot
  * @param options - the per-format choice
  * @returns the view
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function pairFolding(snapshot: GraphSnapshot, options: PairFoldingOptions = {}): PairFolding {
     const foldMutual = options.foldMutual ?? false;

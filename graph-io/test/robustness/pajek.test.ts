@@ -90,7 +90,7 @@ describe("Pajek robustness: counts", () => {
         }
         const err = await rejects(pajekImporter.import("*Vertices 3\n*Edges\n", new SmallSink({ directed: true })));
         expect(fatalCode(err)).toBe("E_PAJEK_VERTICES_COUNT");
-        expect(err.message).toBe("*Vertices 3: the sink cannot hold that many (no room)");
+        expect(err.message).toBe("line 1: *Vertices 3: the sink cannot hold that many (no room)");
         expect(issue(err.report, "E_PAJEK_VERTICES_COUNT").line).toBe(1);
     });
 

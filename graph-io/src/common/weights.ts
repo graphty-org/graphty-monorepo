@@ -37,7 +37,7 @@ export function isWeightField(name: string, weightFrom: string | null): boolean 
  * omitted), the number otherwise.
  * @param text - the cell text
  * @returns the weight, or undefined when blank; E_INVALID_WEIGHT for NaN or non-numeric text
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function parseWeightText(text: string): number | undefined {
     const trimmed = text.trim();
@@ -167,7 +167,7 @@ function weightFormatter(dtype: string): (value: number) => string {
  * Build the explicit-weight view of a snapshot.
  * @param snapshot - the snapshot
  * @returns the view
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function explicitWeights(snapshot: GraphSnapshot): ExplicitWeights {
     const shadowColumn = snapshot.edges.byRole("weight");

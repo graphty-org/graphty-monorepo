@@ -512,6 +512,7 @@ export function localName(name: string): string {
  * @param chunks - the text (already UTF-8 decoded, BOM removed)
  * @param handler - the event sink
  * @param repairs - the opt-in repairs (XGMML only); none by default
+ * @category Plugin helpers
  */
 export async function tokenizeXml(
     chunks: AsyncIterable<string>,

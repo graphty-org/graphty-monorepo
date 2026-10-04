@@ -49,7 +49,7 @@ import {
  * The format-specific options of the XGMML importer.
  * @category Built-in formats
  */
-export interface XgmmlImportOptions extends GraphChoiceOptions {
+export interface XgmmlImportOptions extends GraphChoiceOptions, CommonImportOptions {
     /**
      * Find an edge end that is missing, or names no node, from Cytoscape's `"source (interaction)
      * target"` edge label, and fill a missing interaction from it. The default is on for files that

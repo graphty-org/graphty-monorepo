@@ -1,7 +1,6 @@
 {
     "$schema": "https://typedoc.org/schema.json",
     "entryPoints": [
-        "./src/index.ts",
         "./src/formats/gexf/index.ts",
         "./src/formats/graphml/index.ts",
         "./src/formats/gml/index.ts",
@@ -14,7 +13,8 @@
         "./src/formats/cx2/index.ts",
         "./src/formats/cx/index.ts",
         "./src/formats/obo/index.ts",
-        "./src/formats/cys/index.ts"
+        "./src/formats/cys/index.ts",
+        "./src/index.ts"
     ],
     "entryPointStrategy": "resolve",
     "tsconfig": "./tsconfig.build.json",
@@ -37,7 +37,7 @@
     },
     "treatValidationWarningsAsErrors": true,
     "docsRoot": "./docs",
-    "defaultCategory": "Re-exports",
+    "defaultCategory": "Other",
     "categoryOrder": [
         "Loading",
         "Saving",
@@ -45,13 +45,14 @@
         "Formats and detection",
         "Built-in formats",
         "Issue and loss codes",
+        "Writing a format",
         "Plugin helpers",
-        "Re-exports",
         "*"
     ],
     "externalPattern": ["**/node_modules/**", "**/graph-format/**"],
     "navigation": {
         "includeCategories": true,
         "includeGroups": false
-    }
+    },
+    "excludeReferences": true
 }

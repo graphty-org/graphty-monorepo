@@ -49,7 +49,7 @@ import { EMPTY_LIST_TEXT, isGmlKey, LIST_START_MARKER, mangleGmlKey, ORIGINAL_ID
  * The format-specific options of the GML exporter.
  * @category Built-in formats
  */
-export interface GmlExportOptions {
+export interface GmlExportOptions extends CommonExportOptions {
     /**
      * The edge key the weights are written under. The default is the key a GML import read them
      * from, else `value`.
@@ -67,17 +67,17 @@ export interface GmlExportOptions {
 }
 
 /**
- * Loss code: a json column holds numbers; JSON cannot keep GML's int / real distinction (design section 8.5).
+ * A nested (json) attribute holds numbers; GML records do not keep the difference between integers and decimals.
  * @category Issue and loss codes
  */
 export const RECORD_NUMBER_TYPE_CODE = "W_GML_RECORD_NUMBER_TYPE";
 /**
- * Loss code: a json column holds booleans, written as 1 / 0.
+ * A json column holds booleans, written as 1 / 0.
  * @category Issue and loss codes
  */
 export const RECORD_BOOLEAN_CODE = "W_GML_RECORD_BOOLEAN";
 /**
- * Loss code: a json column holds nulls, which GML cannot write; the key (or the row) is omitted.
+ * A json column holds nulls, which GML cannot write; the key (or the row) is omitted.
  * @category Issue and loss codes
  */
 export const RECORD_NULL_CODE = "W_GML_RECORD_NULL";
@@ -87,37 +87,37 @@ export const RECORD_NULL_CODE = "W_GML_RECORD_NULL";
  */
 export const NESTED_ARRAY_CODE = "E_GML_NESTED_ARRAY";
 /**
- * Loss code: a json column holds arrays as row values; written as repeated keys, they re-import as a list column.
+ * A nested (json) attribute holds arrays; they are written as repeated keys and read back as a list attribute.
  * @category Issue and loss codes
  */
 export const JSON_ARRAY_CODE = "W_GML_JSON_ARRAY";
 /**
- * Loss code: a column name or record key is not a GML key; export() throws unless sanitizeKeys is "mangle".
+ * A column name or record key is not a GML key; export() throws unless sanitizeKeys is "mangle".
  * @category Issue and loss codes
  */
 export const INVALID_KEY_CODE = "E_GML_INVALID_KEY";
 /**
- * Loss code: a column name collides with a structural GML key; export() throws unless sanitizeKeys is "mangle".
+ * A column name collides with a structural GML key; export() throws unless sanitizeKeys is "mangle".
  * @category Issue and loss codes
  */
 export const RESERVED_KEY_CODE = "E_GML_RESERVED_KEY";
 /**
- * Loss code: keys rewritten under sanitizeKeys "mangle".
+ * Keys rewritten under sanitizeKeys "mangle".
  * @category Issue and loss codes
  */
 export const KEY_MANGLED_CODE = "W_GML_KEY_MANGLED";
 /**
- * Loss code: a position column with more than three components; x, y and z are written.
+ * A position column with more than three components; x, y and z are written.
  * @category Issue and loss codes
  */
 export const POSITION_COMPONENTS_CODE = "W_GML_POSITION_COMPONENTS";
 /**
- * Loss code: a node's graphics record has x / y / z keys the position column replaces.
+ * A node's graphics record has x / y / z keys the position column replaces.
  * @category Issue and loss codes
  */
 export const GRAPHICS_OVERRIDDEN_CODE = "W_GML_GRAPHICS_OVERRIDDEN";
 /**
- * Loss code: a node's graphics value is not a record and cannot hold the position; export() throws.
+ * A node's graphics value is not a record and cannot hold the position; export() throws.
  * @category Issue and loss codes
  */
 export const GRAPHICS_CONFLICT_CODE = "E_GML_GRAPHICS_CONFLICT";
@@ -263,11 +263,15 @@ function isWritten(column: Column): boolean {
 /**
  * The key a column is written under.
  * @param meta - the column metadata
- * @returns origin.id when the column came from GML (the key it was read from), else the name
+ * @returns origin.id when the column came from GML under that key (its name is the key, or the importer's
+ * `<key>#...` rename of it), else the name: a column renamed since it was read is written under its new name
  */
 function preferredKey(meta: ColumnMeta): string {
-    const { origin } = meta;
-    return origin !== null && origin.format === "gml" && origin.id !== null ? origin.id : meta.name;
+    const { origin, name } = meta;
+    if (origin === null || origin.format !== "gml" || origin.id === null) {
+        return name;
+    }
+    return name === origin.id || name.startsWith(`${origin.id}#`) ? origin.id : name;
 }
 
 /**

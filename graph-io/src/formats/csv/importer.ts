@@ -99,7 +99,7 @@ import { InferredColumn } from "./values.js";
  * The format-specific options of the CSV importer.
  * @category Built-in formats
  */
-export interface CsvImportOptions {
+export interface CsvImportOptions extends CommonImportOptions {
     /**
      * The field delimiter. The default is to detect it from the first rows: `,`, tab, `;`, `|` or
      * space.
@@ -162,122 +162,123 @@ export interface CsvImportOptions {
 }
 
 /**
- * Issue code: the input holds no header row at all.
+ * The input holds no header row at all.
  * @category Issue and loss codes
  */
 export const EMPTY_INPUT_CODE = SHARED_EMPTY_INPUT_CODE;
 /**
- * Issue code: the header names no source / target (or, for a node table, no id) column.
+ * The header names no source / target (or, for a node table, no id) column.
  * @category Issue and loss codes
  */
 export const NO_ENDPOINT_COLUMNS_CODE = "E_CSV_NO_ENDPOINT_COLUMNS";
 /**
- * Issue code: a node table without an id column.
+ * A node table without an id column.
  * @category Issue and loss codes
  */
 export const NO_ID_COLUMN_CODE = "E_CSV_NO_ID_COLUMN";
 /**
- * Issue code: a row with a different number of fields than the header.
+ * A row with a different number of fields than the header.
  * @category Issue and loss codes
  */
 export const FIELD_COUNT_CODE = "E_CSV_FIELD_COUNT";
 /**
- * Issue code: an edge row with a blank source or target cell.
+ * An edge row with a blank source or target cell.
  * @category Issue and loss codes
  */
 export const MISSING_ENDPOINT_CODE = SHARED_MISSING_ENDPOINT_CODE;
 /**
- * Issue code: a node row with a blank id cell.
+ * A node row with a blank id cell.
  * @category Issue and loss codes
  */
 export const MISSING_ID_CODE = SHARED_MISSING_ID_CODE;
 /**
- * Issue code: a Type cell that is not Directed, Undirected or Mutual.
+ * A Type cell that is not Directed, Undirected or Mutual.
  * @category Issue and loss codes
  */
 export const BAD_TYPE_CODE = "E_CSV_BAD_TYPE";
 /**
- * Issue code: the table has a header and no data rows.
+ * The table has a header and no data rows.
  * @category Issue and loss codes
  */
 export const NO_DATA_ROWS_CODE = "W_CSV_NO_DATA_ROWS";
 /**
- * Issue code: a node table row repeats an id; its attributes overwrite the earlier row's.
+ * A node table row repeats an id; its attributes overwrite the earlier row's.
  * @category Issue and loss codes
  */
 export const DUPLICATE_NODE_CODE = SHARED_DUPLICATE_NODE_CODE;
 /**
- * Issue code: two distinct id cells became one id under `ids: "number"` (design section 4.1).
+ * Two different id cells became the same number because `ids` is "number", so their nodes were merged.
  * @category Issue and loss codes
  */
 export const ID_MERGED_CODE = SHARED_ID_MERGED_CODE;
 /**
- * Issue code: an explicitly named weight column the file does not have.
+ * An explicitly named weight column the file does not have.
  * @category Issue and loss codes
  */
 export const COLUMN_MISSING_CODE = "W_CSV_COLUMN_MISSING";
 /**
- * Issue code: a column whose role (id, label) is already held by another column of the sink.
+ * You read into a graph builder that already has an id or label attribute, so this file's one is kept without its
+ * role.
  * @category Issue and loss codes
  */
 export const ROLE_TAKEN_CODE = SHARED_ROLE_TAKEN_CODE;
 /**
- * Issue code: a repeated edge id (the column is unique); the edge is skipped.
+ * A repeated edge id (the column is unique); the edge is skipped.
  * @category Issue and loss codes
  */
 export const DUPLICATE_EDGE_ID_CODE = SHARED_DUPLICATE_EDGE_ID_CODE;
 /**
- * Issue code: the input opens like another format (XML / HTML, JSON, GML, DOT, Pajek), not CSV (fatal).
+ * The input starts like another format (XML or HTML, JSON, GML, DOT or Pajek), not CSV. The import stops.
  * @category Issue and loss codes
  */
 export const OTHER_FORMAT_CODE = "E_CSV_OTHER_FORMAT";
 /**
- * Issue code: a quote inside an unquoted field (RFC 4180 forbids it); the quote is kept as text.
+ * A quote inside an unquoted field (RFC 4180 forbids it); the quote is kept as text.
  * @category Issue and loss codes
  */
 export const STRAY_QUOTE_CODE = "W_CSV_STRAY_QUOTE";
 /**
- * Issue code: a leading comment's direction disagrees with defaultDirected or with an earlier comment.
+ * A leading comment's direction disagrees with defaultDirected or with an earlier comment.
  * @category Issue and loss codes
  */
 export const COMMENT_DIRECTION_CODE = "W_CSV_COMMENT_DIRECTION";
 /**
- * Issue code: a column named like Gephi's Type holds direction words but is read as a plain attribute.
+ * A column named like Gephi's Type holds direction words but is read as a plain attribute.
  * @category Issue and loss codes
  */
 export const TYPE_COLUMN_IGNORED_CODE = "W_CSV_TYPE_COLUMN_IGNORED";
 /**
- * Issue code: the header ends in a delimiter; rows without the empty last cell are read as complete.
+ * The header ends in a delimiter; rows without the empty last cell are read as complete.
  * @category Issue and loss codes
  */
 export const TRAILING_HEADER_DELIMITER_CODE = "W_CSV_TRAILING_HEADER_DELIMITER";
 /**
- * Issue code: every row is one cell that another delimiter would split (a likely wrong delimiter).
+ * Every row is one cell that another delimiter would split (a likely wrong delimiter).
  * @category Issue and loss codes
  */
 export const SINGLE_COLUMN_CODE = "W_CSV_SINGLE_COLUMN";
 /**
- * Issue code: several header columns name the same role; the one not chosen is a plain attribute.
+ * Several header columns name the same role; the one not chosen is a plain attribute.
  * @category Issue and loss codes
  */
 export const AMBIGUOUS_COLUMN_CODE = "W_CSV_AMBIGUOUS_COLUMN";
 /**
- * Issue code: an unquoted id with leading or trailing whitespace (kept, RFC 4180), distinct from the bare id.
+ * An unquoted id with leading or trailing whitespace (kept, RFC 4180), distinct from the bare id.
  * @category Issue and loss codes
  */
 export const PADDED_ID_CODE = "W_CSV_PADDED_ID";
 /**
- * Issue code: a leading `#` / `%` line skipped as a comment has the fields of a record.
+ * A leading `#` / `%` line skipped as a comment has the fields of a record.
  * @category Issue and loss codes
  */
 export const COMMENT_LIKE_RECORD_CODE = "W_CSV_COMMENT_LIKE_RECORD";
 /**
- * Issue code: data rows end in one extra empty cell (a trailing delimiter); the cell is dropped.
+ * Data rows end in one extra empty cell (a trailing delimiter); the cell is dropped.
  * @category Issue and loss codes
  */
 export const TRAILING_DELIMITER_CODE = "W_CSV_TRAILING_DELIMITER";
 /**
- * Issue code: a headerless three-column table's third column holds text, so it is an attribute, not the weight.
+ * A headerless three-column table's third column holds text, so it is an attribute, not the weight.
  * @category Issue and loss codes
  */
 export const WEIGHT_AS_ATTRIBUTE_CODE = "W_CSV_WEIGHT_AS_ATTRIBUTE";
@@ -814,7 +815,7 @@ class TableReader {
             report.warning(
                 "validation-error",
                 TRAILING_HEADER_DELIMITER_CODE,
-                `line ${firstLine}: the header ends in a delimiter; rows without the empty last cell are read as complete`,
+                `the header ends in a delimiter; rows without the empty last cell are read as complete`,
                 { line: firstLine, element: names[last] },
             );
         }
@@ -878,7 +879,7 @@ class TableReader {
         if (OTHER_FORMAT.test(preview)) {
             this.state.report.fail(
                 OTHER_FORMAT_CODE,
-                `line ${line}: the input opens like another format (XML / HTML, JSON, GML, DOT or Pajek), not CSV: ${JSON.stringify(preview.trimStart().slice(0, 60))}`,
+                `the input opens like another format (XML / HTML, JSON, GML, DOT or Pajek), not CSV: ${JSON.stringify(preview.trimStart().slice(0, 60))}`,
                 { line },
             );
         }
@@ -952,7 +953,7 @@ class TableReader {
                 this.state.report.warnOnce(
                     "parse-error",
                     COMMENT_LIKE_RECORD_CODE,
-                    `line ${leadingCommentLines[i]}: ${JSON.stringify(comment)} was skipped as a leading comment but has the fields of a record; quote an id that starts with # or %`,
+                    `${JSON.stringify(comment)} was skipped as a leading comment but has the fields of a record; quote an id that starts with # or %`,
                     { line: leadingCommentLines[i], element: comment },
                 );
             }
@@ -990,7 +991,7 @@ class TableReader {
             report.warnOnce(
                 "parse-error",
                 STRAY_QUOTE_CODE,
-                `line ${strayQuoteLine}: a quote inside an unquoted field is kept as text (RFC 4180 quotes a whole field)`,
+                `a quote inside an unquoted field is kept as text (RFC 4180 quotes a whole field)`,
                 { line: strayQuoteLine },
             );
         }
@@ -1117,7 +1118,7 @@ class TableReader {
                     report.warnOnce(
                         "validation-error",
                         WEIGHT_AS_ATTRIBUTE_CODE,
-                        `line ${line}: the third column holds text in the first row(s), so it is read as the attribute ${names[2]}, not the weight`,
+                        `the third column holds text in the first row(s), so it is read as the attribute ${names[2]}, not the weight`,
                         { line, element: names[2] },
                     );
                 } else {
@@ -1369,7 +1370,7 @@ class TableReader {
             }
         }
         if (isUnset(row[0], quoted[0])) {
-            report.error("missing-value", MISSING_ID_CODE, `line ${line}: blank node cell`, { line });
+            report.error("missing-value", MISSING_ID_CODE, `blank node cell`, { line });
             counts.skippedNodes++;
             counts.skippedEdges += neighbors;
             return;
@@ -1425,12 +1426,9 @@ class TableReader {
         const { counts } = report;
         const quoted = completeRow(plan, row, cellQuoted, report, line);
         if (row.length !== plan.width) {
-            report.error(
-                "validation-error",
-                FIELD_COUNT_CODE,
-                `line ${line}: ${row.length} field(s), expected ${plan.width}`,
-                { line },
-            );
+            report.error("validation-error", FIELD_COUNT_CODE, `${row.length} field(s), expected ${plan.width}`, {
+                line,
+            });
             counts.skippedEdges++;
             return;
         }
@@ -1438,12 +1436,9 @@ class TableReader {
         const targetText = row[plan.target];
         const sourceMissing = isUnset(sourceText, quoted[plan.source]);
         if (sourceMissing || isUnset(targetText, quoted[plan.target])) {
-            report.error(
-                "missing-value",
-                MISSING_ENDPOINT_CODE,
-                `line ${line}: blank ${sourceMissing ? "source" : "target"} cell`,
-                { line },
-            );
+            report.error("missing-value", MISSING_ENDPOINT_CODE, `blank ${sourceMissing ? "source" : "target"} cell`, {
+                line,
+            });
             counts.skippedEdges++;
             return;
         }
@@ -1454,7 +1449,7 @@ class TableReader {
                 report.error(
                     "validation-error",
                     BAD_TYPE_CODE,
-                    `line ${line}: Type ${JSON.stringify(row[plan.type])} is not Directed, Undirected or Mutual`,
+                    `Type ${JSON.stringify(row[plan.type])} is not Directed, Undirected or Mutual`,
                     { line },
                 );
                 counts.skippedEdges++;
@@ -1472,7 +1467,7 @@ class TableReader {
             report.error(
                 "validation-error",
                 DUPLICATE_EDGE_ID_CODE,
-                `line ${line}: edge id ${JSON.stringify(idText)} repeats an earlier row's; the row is skipped`,
+                `edge id ${JSON.stringify(idText)} repeats an earlier row's; the row is skipped`,
                 { line, element: idText },
             );
             counts.skippedEdges++;
@@ -1510,7 +1505,7 @@ class TableReader {
             report.warnOnce(
                 "unsupported",
                 TYPE_COLUMN_IGNORED_CODE,
-                `line ${line}: column ${JSON.stringify(plan.names[plan.typeHint])} holds the direction word ${JSON.stringify(row[plan.typeHint])} but is a plain attribute; the per-row direction is read from an exact "Type" column beside "Source" and "Target", or from the typeColumn option`,
+                `column ${JSON.stringify(plan.names[plan.typeHint])} holds the direction word ${JSON.stringify(row[plan.typeHint])} but is a plain attribute; the per-row direction is read from an exact "Type" column beside "Source" and "Target", or from the typeColumn option`,
                 { line, element: plan.names[plan.typeHint] },
             );
         }
@@ -1533,18 +1528,15 @@ class TableReader {
         const ordinal = this.nodeOrdinal++;
         const quoted = completeRow(plan, row, cellQuoted, report, line);
         if (row.length !== plan.width) {
-            report.error(
-                "validation-error",
-                FIELD_COUNT_CODE,
-                `line ${line}: ${row.length} field(s), expected ${plan.width}`,
-                { line },
-            );
+            report.error("validation-error", FIELD_COUNT_CODE, `${row.length} field(s), expected ${plan.width}`, {
+                line,
+            });
             counts.skippedNodes++;
             return;
         }
         const idText = plan.id >= 0 ? row[plan.id] : String(ordinal);
         if (plan.id >= 0 && isUnset(idText, quoted[plan.id])) {
-            report.error("missing-value", MISSING_ID_CODE, `line ${line}: blank id cell`, { line });
+            report.error("missing-value", MISSING_ID_CODE, `blank id cell`, { line });
             counts.skippedNodes++;
             return;
         }
@@ -1561,7 +1553,7 @@ class TableReader {
                 report.warning(
                     "merged",
                     DUPLICATE_NODE_CODE,
-                    `line ${line}: node ${JSON.stringify(id)} already exists; its attributes are overwritten`,
+                    `node ${JSON.stringify(id)} already exists; its attributes are overwritten`,
                     where,
                 );
             } else {
@@ -1591,7 +1583,7 @@ class TableReader {
             this.state.report.warnOnce(
                 "validation-error",
                 PADDED_ID_CODE,
-                `line ${line}: id ${JSON.stringify(text)} has leading or trailing whitespace and is kept as written, a different id from the trimmed text`,
+                `id ${JSON.stringify(text)} has leading or trailing whitespace and is kept as written, a different id from the trimmed text`,
                 { line, element: text },
             );
         }
@@ -1736,7 +1728,7 @@ function completeRow(
         report.warnOnce(
             "validation-error",
             TRAILING_DELIMITER_CODE,
-            `line ${line}: the row ends in a delimiter the header does not have; the empty last cell is dropped`,
+            `the row ends in a delimiter the header does not have; the empty last cell is dropped`,
             { line },
         );
         return quoted;

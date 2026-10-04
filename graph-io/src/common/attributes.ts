@@ -106,12 +106,12 @@ export interface DeclaredAttribute {
 }
 
 /**
- * Issue code: the declared type is not one the format defines; the column is kept as string.
+ * The declared type is not one the format defines; the column is kept as string.
  * @category Issue and loss codes
  */
 export const UNKNOWN_TYPE_CODE = UNKNOWN_ATTR_TYPE_CODE;
 /**
- * Issue code: the column was renamed `<name>#<id>` because the name was taken.
+ * The column was renamed `<name>#<id>` because the name was taken.
  * @category Issue and loss codes
  */
 export const RENAMED_CODE = COLUMN_RENAMED_CODE;

@@ -95,7 +95,7 @@ import { DotSyntaxError, type DotToken, DotTokenizer } from "./tokenizer.js";
  * The DOT importer's format-specific options.
  * @category Built-in formats
  */
-export interface DotImportOptions {
+export interface DotImportOptions extends CommonImportOptions {
     /**
      * What an edge operator that contradicts the graph keyword means (`--` in a digraph, `->` in a
      * graph; Graphviz refuses such a file): "operator" reads the edge with the operator's
@@ -121,13 +121,16 @@ export interface DotImportOptions {
  */
 export const DOT_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
-    /** A grammar violation; fatal. */
+    /** The text breaks DOT's syntax; the message says where. The import stops. */
     SYNTAX: SYNTAX_CODE,
-    /** The input holds no graph at all (empty or only comments); fatal. */
+    /** The input holds no graph: it is empty or only comments. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** The input holds invalid UTF-8 (fatal). */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
+     * `encoding` option). The import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
@@ -135,7 +138,7 @@ export const DOT_ISSUE = Object.freeze({
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** A declared encoding the byte order mark contradicts (the mark wins). */
     ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
-    /** Subgraphs or braces nested deeper than the parser's limit; fatal. */
+    /** Subgraphs or braces are nested deeper than graph-io reads. The import stops. */
     NESTING: "E_DOT_NESTING",
     /** An edge operator contradicting the graph keyword (warning under "operator" / "header"). */
     EDGE_OPERATOR: "W_DOT_EDGE_OPERATOR",
@@ -183,7 +186,7 @@ export const DOT_ISSUE = Object.freeze({
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** Two distinct id texts merged under ids: "number". */
+    /** Two different id texts became the same number because `ids` is "number", so their nodes were merged. */
     ID_MERGED: ID_MERGED_CODE,
     /**
      * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
@@ -195,7 +198,7 @@ export const DOT_ISSUE = Object.freeze({
      * with the builder's direction instead of its own.
      */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
-    /** Edges forced to the policy's direction. */
+    /** Edges of the other direction were read with the direction `onMixedDirection` chose. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
     /**
      * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a

@@ -20,7 +20,7 @@ import { describe } from "./options.js";
 import { ImportReportBuilder } from "./report.js";
 
 /**
- * The issue code of an import stopped for allocating too many empty attribute slots.
+ * Import stopped for allocating too many empty attribute slots.
  * @category Issue and loss codes
  */
 export const TOO_MANY_EMPTY_CELLS_CODE = "E_TOO_MANY_EMPTY_CELLS";

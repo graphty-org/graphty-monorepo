@@ -1,18 +1,19 @@
 /**
  * Read and write graph files as `@graphty/graph-format` snapshots.
  *
- * Start with Loading and Saving: `loadFromUrl()`, `loadFromFile()` and `importGraph()` read a graph;
- * `exportGraphToBytes()`, `exportGraphToBlob()`, `downloadGraph()` and `checkExport()` write one.
- * Built-in formats holds each format's importer, exporter, options and code table, which you can
- * also import from `@graphty/graph-io/<format>`. Plugin helpers are the building blocks for adding
- * a format of your own. The guide is at https://graphty.app/docs/graph-io/.
- * @module
+ * Most programs need eight functions: `loadFromUrl()`, `loadFromFile()` and `importGraph()` to read
+ * a graph; `exportGraphToBytes()`, `exportGraphToString()`, `exportGraphToBlob()` and
+ * `downloadGraph()` to write one; and `checkExport()` to see what a format would not keep. They are
+ * under Loading and Saving. Each format's importer, exporter, options and codes are in its own
+ * module, `@graphty/graph-io/<format>`, and are also exported here. Writing a format and Plugin
+ * helpers are for adding a format of your own. The guide is at https://graphty.app/docs/graph-io/.
+ * @module @graphty/graph-io
  */
 
 // ============================================================ graph-format re-exports
 // The error class every deliberate graph-io failure extends, and the graph type every function takes
-// or returns, so a caller needs no second import.
-export { GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
+// or returns, and the graph an importer fills, so a caller needs no second import.
+export { GraphFormatError, type GraphSink, type GraphSnapshot } from "@graphty/graph-format";
 
 // ============================================================ io contract types (12.4)
 export {
@@ -167,6 +168,7 @@ export {
     jsonImporter,
     type JsonImportOptions,
     type JsonShapeMeta,
+    jsonShapeOf,
 } from "./formats/json/index.js";
 export {
     ID_SPACE_COLUMN,
@@ -243,6 +245,7 @@ export {
     LOSS,
     mangleNmtoken,
     NO_CAPABILITIES,
+    refusedSave,
     type SanitizedIds,
     sanitizeIds,
 } from "./common/export.js";

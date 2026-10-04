@@ -334,7 +334,7 @@ describe("neo4jExporter (design 8.5)", () => {
             expect(lines(text)).toEqual(["key:ID", "a", "b", ":START_ID,:END_ID,cost:double", "a,b,2"]);
             const none = await neo4jExporter.exportToString(s, { weightColumn: null, part: "relationships" });
             expect(none).toBe(":START_ID,:END_ID\na,b\n");
-            expect(neo4jExporter.check(s, { weightColumn: null })).toEqual([]);
+            expect(neo4jExporter.check(s, { weightColumn: null }).map((n) => n.code)).toEqual(["W_WEIGHTS_DROPPED"]);
         });
 
         it("groups nodes and relationships into sections by id space in index order", async () => {

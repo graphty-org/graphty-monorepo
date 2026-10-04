@@ -69,7 +69,7 @@ import {
  * The format-specific options of the OBO exporter.
  * @category Built-in formats
  */
-export interface OboExportOptions {
+export interface OboExportOptions extends CommonExportOptions {
     /**
      * The relation written for an edge that has none of its own (no `relation` value): an OBO id
      * such as `is_a` or `part_of`. Reasoners and ROBOT read `is_a` as subclassing.
@@ -96,7 +96,7 @@ export const OBO_LOSS = Object.freeze({
     COLUMN_AS_PROPERTY_VALUE: COLUMN_AS_PROPERTY_VALUE_CODE,
     /** An edge column (or the explicit weights) reads back inside the `qualifiers` column. */
     EDGE_COLUMN_AS_QUALIFIER: "W_OBO_EDGE_COLUMN_AS_QUALIFIER",
-    /** Every edge is written from its source to its target: an undirected snapshot reads back directed. */
+    /** Every edge is written from its source to its target, so an undirected graph reads back as directed. */
     UNDIRECTED_AS_DIRECTED: "W_OBO_UNDIRECTED_AS_DIRECTED",
     /** Two identical clauses on one frame (parallel edges with one relation and the same qualifiers, a repeated list item) read back as one. */
     DUPLICATE_CLAUSE: "W_OBO_DUPLICATE_CLAUSE",
@@ -108,9 +108,12 @@ export const OBO_LOSS = Object.freeze({
     ONTOLOGY_NAME: "W_OBO_ONTOLOGY_NAME",
     /** `[Typedef]` frames read back as nodes only under the importer's `typedefs: "nodes"`; by default they are metadata. */
     TYPEDEF_NODES: TYPEDEF_NODES_CODE,
-    /** Edges are written on their source's frame, so a re-import lists them grouped by source, in node order. */
+    /** Edges are written in the frame of their source node, so they read back grouped by source, in node order. */
     EDGE_ORDER: "W_OBO_EDGE_ORDER",
-    /** A graph column is written as a header `property_value` and reads back in `meta.extra.obo.header`, not as a column. */
+    /**
+     * A graph attribute is written as a header `property_value` and reads back in `snapshot.meta.extra.obo.header`,
+     * not as a graph attribute.
+     */
     GRAPH_COLUMN_AS_METADATA: GRAPH_COLUMN_AS_METADATA_CODE,
     /** A carriage return or form feed in a text cannot be written; it is written as a line feed. */
     LINE_END: "W_OBO_LINE_END",
@@ -118,7 +121,9 @@ export const OBO_LOSS = Object.freeze({
     NODE_ORDER: NODE_ORDER_CODE,
     /** A mutual pair is written as two clauses without its mark. */
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
-    /** Undirected edges of a directed snapshot under onMixedDirection "directed" / "undirected". */
+    /**
+     * The undirected edges of a mixed graph are written the way `onMixedDirection` chose ("directed" or "undirected").
+     */
     MIXED_DIRECTION: LOSS.MIXED_DIRECTION,
     /**
      * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
@@ -148,7 +153,10 @@ export const OBO_LOSS = Object.freeze({
      * name the format's importer gives it.
      */
     COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
-    /** A vocabulary column of the other text dtype (string for dict, dict for string) reads back as the vocabulary's. */
+    /**
+     * An OBO attribute stored as text where graph-io uses a dictionary (or the other way round); it reads back with
+     * graph-io's usual type. The values are the same.
+     */
     DTYPE_UNSUPPORTED: LOSS.DTYPE,
     /** A column without a value on any written element reads back absent. */
     EMPTY_COLUMN_DROPPED: LOSS.EMPTY_COLUMN,

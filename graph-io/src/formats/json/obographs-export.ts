@@ -81,7 +81,7 @@ export const OBOGRAPHS_SHARED_LOSS = Object.freeze({
     RELATION_ASSUMED: RELATION_ASSUMED_CODE,
     /** Typedef nodes are written as PROPERTY nodes, which read back as nodes only under `typedefs: "nodes"`. */
     TYPEDEF_NODES: TYPEDEF_NODES_CODE,
-    /** A graph column is written into the graph's `meta` and reads back in `meta.extra.obographs`. */
+    /** A graph attribute is written into the graph's `meta` and reads back in `snapshot.meta.extra.obographs`. */
     GRAPH_COLUMN_AS_METADATA: GRAPH_COLUMN_AS_METADATA_CODE,
 });
 

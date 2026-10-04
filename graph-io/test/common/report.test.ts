@@ -247,7 +247,7 @@ describe("ImportReportBuilder", () => {
         }
         expect(caught).toBeInstanceOf(ImportError);
         const err = caught as ImportError;
-        expect(err.message).toBe("bad bytes");
+        expect(err.message).toBe("line 2: bad bytes");
         expect(err.details).toEqual({ code: "E_INVALID_UTF8", byteOffset: 17 });
         expect(err.report.issues).toEqual([
             {

@@ -81,7 +81,7 @@ import {
  * The format-specific options of the GML importer.
  * @category Built-in formats
  */
-export interface GmlImportOptions {
+export interface GmlImportOptions extends CommonImportOptions {
     /**
      * Read a node's `graphics [ x y z ]` record as its position; false keeps the whole record as a
      * JSON attribute named `graphics`.
@@ -97,62 +97,64 @@ export interface GmlImportOptions {
 }
 
 /**
- * Issue code: the text holds no `graph [ ... ]` block.
+ * The text holds no `graph [ ... ]` block.
  * @category Issue and loss codes
  */
 export const NO_GRAPH_CODE = SHARED_NO_GRAPH_CODE;
 /**
- * Issue code: the text holds more than one `graph [ ... ]` block; import() reads the first, importAll() every one.
+ * The text holds more than one `graph [ ... ]` block; import() reads the first, importAll() every one.
  * @category Issue and loss codes
  */
 export const SECOND_GRAPH_CODE = MULTIPLE_GRAPHS_CODE;
 /**
- * Issue code: a node block has no `id` key.
+ * A node block has no `id` key.
  * @category Issue and loss codes
  */
 export const MISSING_ID_CODE = SHARED_MISSING_ID_CODE;
 /**
- * Issue code: a node block has no `label` key under `nodeIdFrom: "label"`.
+ * A node block has no `label` key under `nodeIdFrom: "label"`.
  * @category Issue and loss codes
  */
 export const MISSING_LABEL_CODE = "E_GML_MISSING_LABEL";
 /**
- * Issue code: an edge block has no `source` or no `target` key.
+ * An edge block has no `source` or no `target` key.
  * @category Issue and loss codes
  */
 export const MISSING_ENDPOINT_CODE = SHARED_MISSING_ENDPOINT_CODE;
 /**
- * Issue code: an `id`, `source` or `target` value is neither an integer nor a string.
+ * An `id`, `source` or `target` value is neither an integer nor a string.
  * @category Issue and loss codes
  */
 export const ID_TYPE_CODE = "E_GML_ID_TYPE";
 /**
- * Issue code: string `id`, `source` or `target` values, outside the GML spec's integer ids; warned once per file.
+ * Node ids, sources or targets are text, where GML expects integers. They are read under the `ids` option. Reported
+ * once per file.
  * @category Issue and loss codes
  */
 export const STRING_ID_CODE = "W_GML_STRING_ID";
 /**
- * Issue code: a node id (or label under `nodeIdFrom: "label"`) is declared twice; later keys overwrite.
+ * A node id (or label under `nodeIdFrom: "label"`) is declared twice; later keys overwrite.
  * @category Issue and loss codes
  */
 export const DUPLICATE_NODE_CODE = SHARED_DUPLICATE_NODE_CODE;
 /**
- * Issue code: a structural key (`id`, `source`, `target`) appears twice in one block.
+ * A structural key (`id`, `source`, `target`) appears twice in one block.
  * @category Issue and loss codes
  */
 export const REPEATED_KEY_CODE = "E_GML_REPEATED_KEY";
 /**
- * Issue code: a `node` or `edge` key whose value is not a `[ ... ]` block.
+ * A `node` or `edge` key whose value is not a `[ ... ]` block.
  * @category Issue and loss codes
  */
 export const ELEMENT_TYPE_CODE = "E_GML_ELEMENT_TYPE";
 /**
- * Issue code: a `directed` or `multigraph` flag that is not an integer.
+ * A `directed` or `multigraph` flag that is not an integer.
  * @category Issue and loss codes
  */
 export const FLAG_TYPE_CODE = "E_GML_FLAG_TYPE";
 /**
- * Issue code: a `directed` / `multigraph` flag that is not 0 or 1 (read as its truth value), one written as a quoted integer, or one repeated.
+ * A `directed` / `multigraph` flag that is not 0 or 1 (read as its truth value), one written as a quoted integer, or
+ * one repeated.
  * @category Issue and loss codes
  */
 export const FLAG_VALUE_CODE = "W_GML_FLAG_VALUE";
@@ -160,50 +162,52 @@ export const FLAG_VALUE_CODE = "W_GML_FLAG_VALUE";
 /** A flag written as a quoted integer, surrounding spaces allowed. */
 const QUOTED_INT = /^\s*[+-]?[0-9]+\s*$/;
 /**
- * Issue code: a named entity in a string that is neither an XML nor an ISO-8859-1 HTML entity, or a
- * numeric reference beyond U+10FFFF; it is kept as written.
+ * A named entity in a string that is neither an XML nor an ISO-8859-1 HTML entity, or a numeric reference beyond
+ * U+10FFFF; it is kept as written.
  * @category Issue and loss codes
  */
 export const UNKNOWN_ENTITY_CODE = "W_GML_UNKNOWN_ENTITY";
 /**
- * Issue code: a node's `graphics` value cannot give a position as written (not a record, repeated
- * in the node, or with an x / y / z that is not one number); the value is kept in the graphics
- * json column. Warned once per kind of problem, naming the first node.
+ * A node's `graphics` value cannot give a position as written (not a record, repeated in the node, or with an x / y /
+ * z that is not one number); the value is kept in the graphics json column. Warned once per kind of problem, naming
+ * the first node.
  * @category Issue and loss codes
  */
 export const GRAPHICS_CODE = "W_GML_GRAPHICS";
 /**
- * Issue code: a `graph`, `node` or `edge` record inside a node or edge; kept as a json column, not read as structure.
+ * A `graph`, `node` or `edge` record inside a node or edge; kept as a json column, not read as structure.
  * @category Issue and loss codes
  */
 export const NESTED_ELEMENT_CODE = "W_GML_NESTED_ELEMENT";
 /**
- * Issue code: yEd's group keys (`isGroup`, `gid`); kept as plain node columns, the hierarchy is not read as containment.
+ * YEd's group keys (`isGroup`, `gid`); kept as plain node columns, the hierarchy is not read as containment.
  * @category Issue and loss codes
  */
 export const GROUPS_CODE = "W_GML_GROUPS";
 /**
- * Issue code: a key whose values mix numbers and strings; the column is string, the numbers kept as written.
+ * A key whose values mix numbers and strings; the column is string, the numbers kept as written.
  * @category Issue and loss codes
  */
 export const WIDENED_CODE = SHARED_WIDENED_CODE;
 /**
- * Issue code: an integer beyond 2^53 stored as the nearest f64 (design section 5.1).
+ * An integer above 2^53 was stored as the nearest JavaScript number, so its last digits may differ. Pass `long:
+ * "string"` to keep every digit as text.
  * @category Issue and loss codes
  */
 export const PRECISION_CODE = SHARED_PRECISION_CODE;
 /**
- * Issue code: the sink already holds a column of the name with another declaration; renamed `<name>#<key>`.
+ * Two attributes would have had the same name, so this one was renamed `<name>#<key>`.
  * @category Plugin helpers
  */
 export const COLUMN_RENAMED_CODE_GML = COLUMN_RENAMED_CODE;
 /**
- * Issue code: the sink already holds a column with the role; the column is declared without it.
+ * You read into a graph builder that already has an attribute with this role, so this file's attribute is kept without
+ * the role.
  * @category Issue and loss codes
  */
 export const ROLE_TAKEN_CODE = SHARED_ROLE_TAKEN_CODE;
 /**
- * Loss code: under `nodeIdFrom` "label" / "index" the integer `id` keys are not kept.
+ * Under `nodeIdFrom` "label" / "index" the integer `id` keys are not kept.
  * @category Issue and loss codes
  */
 export const ID_DROPPED_CODE = "W_GML_ID_DROPPED";

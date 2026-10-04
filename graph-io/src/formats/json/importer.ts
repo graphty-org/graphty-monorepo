@@ -128,10 +128,10 @@ import { importObographs } from "./obographs.js";
  * label.
  * @category Built-in formats
  */
-export interface JsonImportOptions extends GraphChoiceOptions {
+export interface JsonImportOptions extends GraphChoiceOptions, CommonImportOptions {
     /**
-     * The dialect to read; "auto" detects it from the document. The dialect that was read is in
-     * `snapshot.meta.extra.json.dialect`.
+     * The dialect to read; "auto" detects it from the document. `jsonShapeOf(snapshot).dialect` is
+     * the dialect that was read.
      * @defaultValue "auto"
      */
     dialect?: JsonImportDialect | "auto" | undefined;
@@ -206,9 +206,9 @@ export interface JsonImportOptions extends GraphChoiceOptions {
  */
 export const JSON_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
-    /** The text is empty or whitespace (fatal). */
+    /** The text is empty or whitespace. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** JSON.parse refused the text (fatal). */
+    /** The text is not valid JSON. The import stops. */
     SYNTAX: SYNTAX_CODE,
     /** No dialect matches the document's top-level shape. */
     DIALECT: "E_JSON_DIALECT",
@@ -220,7 +220,10 @@ export const JSON_ISSUE = Object.freeze({
     BAD_ELEMENT: "E_BAD_ELEMENT",
     /** A node record has no id. */
     MISSING_ID: MISSING_ID_CODE,
-    /** A node id is a JSON boolean or null (legal in NetworkX, not a NodeId); coerced only under ids "string". */
+    /**
+     * A node id is a JSON boolean or null, which graph-io cannot use as an id; the node is skipped. With `ids:
+     * "string"` it is read as the text "true", "false" or "null".
+     */
     UNSUPPORTED_ID: "E_UNSUPPORTED_ID",
     /** An edge record has no source or no target. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
@@ -236,7 +239,7 @@ export const JSON_ISSUE = Object.freeze({
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge id (Cytoscape data.id, graphology key, vis id) repeated by a later edge; the edge is skipped. */
     DUPLICATE_EDGE_ID: DUPLICATE_EDGE_ID_CODE,
-    /** Two distinct id texts merged into one number under ids "number". */
+    /** Two different id texts became the same number because `ids` is "number", so their nodes were merged. */
     ID_MERGED: ID_MERGED_CODE,
     /** Edge ids of mixed JSON types were stored as text. */
     EDGE_ID_STRINGIFIED: "W_EDGE_ID_STRINGIFIED",
@@ -245,19 +248,26 @@ export const JSON_ISSUE = Object.freeze({
      * `importAllGraphs()` reads every one.
      */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
-    /** `graphIndex` is beyond the `graphs` array, or `graphName` names none of its graphs (fatal). */
+    /**
+     * `graphIndex` is past the end of the `graphs` array, or `graphName` matches none of its graphs. The import stops.
+     */
     GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
-    /** `graphName` names more than one graph of the `graphs` array (fatal). */
+    /** `graphName` matches more than one graph of the `graphs` array. The import stops. */
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
-    /** obographs: an edge uses the outdated `subj` key of the OBO Graphs README; it is read as `sub`. */
+    /** Obographs: an edge uses the outdated `subj` key of the OBO Graphs README; it is read as `sub`. */
     OBOGRAPHS_SUBJ: "W_JSON_OBOGRAPHS_SUBJ",
-    /** obographs: an edge endpoint missing from `nodes` (a placeholder node is made, or the edge dropped under addMissingNodes false). */
+    /**
+     * Obographs: an edge endpoint missing from `nodes` (a placeholder node is made, or the edge dropped under
+     * addMissingNodes false).
+     */
     DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,
-    /** The document is longer than one JavaScript string can hold (fatal; category unsupported). */
+    /** The document is longer than a JavaScript string can hold. The import stops. */
     TOO_LARGE: TOO_LARGE_CODE,
-    /** JGF hyperedges under the "error" policy. */
+    /** A JGF hyperedge (an edge with more than two ends) while `hyperedges` is "error". */
     HYPEREDGE: HYPEREDGE_CODE,
-    /** JGF hyperedges skipped under the default "skip" policy. */
+    /**
+     * JGF hyperedges were skipped, because `hyperedges` is "skip" (the default). Pass "star" or "clique" to keep them.
+     */
     HYPEREDGES_SKIPPED: "W_HYPEREDGES_SKIPPED",
     /** A JGF hyperedge with neither a nodes array nor source / target arrays. */
     HYPEREDGE_SHAPE: "E_HYPEREDGE_SHAPE",
@@ -272,9 +282,12 @@ export const JSON_ISSUE = Object.freeze({
     SINK_OPTION: SINK_OPTION_CODE,
     /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** The input holds invalid UTF-8 (fatal). */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
+     * `encoding` option). The import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
@@ -292,7 +305,7 @@ export const JSON_ISSUE = Object.freeze({
      * JGF inner id other than its key, the two listings of one adjacency edge.
      */
     INCONSISTENT: "W_JSON_INCONSISTENT",
-    /** indexLinks "auto" read integer endpoints as array positions although they also name node ids. */
+    /** IndexLinks "auto" read integer endpoints as array positions although they also name node ids. */
     INDEX_LINKS: "W_JSON_INDEX_LINKS",
     /** A Cytoscape parent link that would close a cycle; that link is dropped. */
     PARENT_CYCLE: PARENT_CYCLE_CODE,

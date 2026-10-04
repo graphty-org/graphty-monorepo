@@ -86,7 +86,7 @@ import {
  * The format-specific options of the Pajek importer.
  * @category Built-in formats
  */
-export interface PajekImportOptions {
+export interface PajekImportOptions extends CommonImportOptions {
     /**
      * The number of the first vertex: 1 (Pajek's rule), 0 (files written by zero-based scripts), or
      * "auto": 0 when the first vertex line is numbered 0, 1 otherwise.
@@ -101,15 +101,18 @@ export interface PajekImportOptions {
  */
 export const PAJEK_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
-    /** The input holds invalid UTF-8 (fatal). */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
+     * `encoding` option). The import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
-    /** Fatal: no `*Vertices` section (an empty file, or not a Pajek network). */
+    /** There is no `*Vertices` section: the file is empty or not a Pajek network. The import stops. */
     NO_VERTICES: "E_PAJEK_NO_VERTICES",
     /**
      * `*Vertices` without a vertex count, with a count too large to hold, or with a first-mode count outside 0 to N;
@@ -127,7 +130,7 @@ export const PAJEK_ISSUE = Object.freeze({
     SYNTAX: SYNTAX_CODE,
     /** A double quote not closed before the end of the line. */
     UNTERMINATED_QUOTE: "E_PAJEK_UNTERMINATED_QUOTE",
-    /** A vertex line the grammar does not accept. */
+    /** A vertex line that is not in Pajek's vertex syntax; the vertex is skipped. */
     VERTEX_LINE: "E_PAJEK_VERTEX_LINE",
     /** A vertex number outside the declared range. */
     VERTEX_RANGE: "E_PAJEK_VERTEX_RANGE",
@@ -135,9 +138,12 @@ export const PAJEK_ISSUE = Object.freeze({
     VERTEX_COUNT: "W_PAJEK_VERTEX_COUNT",
     /** A second line for the same vertex; the later values overwrite. */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
-    /** A line (arc, edge, list, matrix row, partition or vector value) the grammar does not accept. */
+    /**
+     * A line that is not in Pajek's syntax for its section (an arc, edge, list, matrix row, partition or vector
+     * value); it is skipped.
+     */
     LINE: "E_PAJEK_LINE",
-    /** A line endpoint outside the declared vertex range (the core's code, forwarded). */
+    /** An edge names a vertex number outside the range `*Vertices` declared; the edge is skipped. */
     UNKNOWN_NODE: "E_UNKNOWN_NODE",
     /** A malformed time interval token. */
     INTERVAL: "E_PAJEK_INTERVAL",
@@ -149,7 +155,7 @@ export const PAJEK_ISSUE = Object.freeze({
     OBJECT_COUNT: "E_PAJEK_OBJECT_COUNT",
     /** A project-file section (`*Events`, `*Permutation`, ...) the importer does not read; its lines are skipped. */
     UNSUPPORTED_SECTION: "W_PAJEK_UNSUPPORTED_SECTION",
-    /** Tokens after a section header the grammar does not account for. */
+    /** A section header has extra words Pajek does not define; they are ignored. */
     HEADER_EXTRA: "W_PAJEK_HEADER_EXTRA",
     /** The file declares vertices but no line section. */
     NO_LINES: "W_PAJEK_NO_LINES",
@@ -159,7 +165,7 @@ export const PAJEK_ISSUE = Object.freeze({
     COORD_DIMS: "W_PAJEK_COORD_DIMS",
     /** Two vertices share a label under nodeIdFrom "label" and became one node. */
     LABEL_MERGED: "W_PAJEK_LABEL_MERGED",
-    /** Two distinct label texts became one numeric id under ids "number". */
+    /** Two different labels became the same number because `ids` is "number", so their vertices were merged. */
     ID_MERGED: ID_MERGED_CODE,
     /**
      * Your graph builder cannot change an attribute's type after its first value, so a text column keeps the type of

@@ -14,6 +14,7 @@ import {
     LOSS,
     mangleNmtoken,
     NO_CAPABILITIES,
+    refusedSave,
     sanitizeIds,
 } from "../../src/common/export.js";
 import { resolveExportOptions } from "../../src/common/options.js";
@@ -465,5 +466,35 @@ describe("checkCapabilities extras for plugins", () => {
                 (n) => n.code === LOSS.ID_TEXT_TYPE,
             ),
         ).toBe(false);
+    });
+});
+
+describe("refusedSave", () => {
+    const note = (code: string): LossNote => ({ code, message: `${code} message`, column: "c", count: 2 });
+
+    it("is null when no note refuses the save", () => {
+        expect(refusedSave([])).toBeNull();
+        expect(refusedSave([note("W_ROLE_DROPPED")])).toBeNull();
+    });
+
+    it("throws the kind of failure for the first E_ note, with the note's code in details", () => {
+        const cases: [string, string][] = [
+            ["E_ID_CHARSET", "E_INVALID_ID"],
+            ["E_ID_TEXT_COLLISION", "E_INVALID_ID"],
+            ["E_MIXED_DIRECTION", "E_DIRECTED"],
+            ["E_XML_ILLEGAL_CHAR", "E_COLUMN_TYPE"],
+            ["E_SOMETHING_ELSE", "E_UNSUPPORTED"],
+        ];
+        for (const [noteCode, errorCode] of cases) {
+            const err = refusedSave([note("W_ROLE_DROPPED"), note(noteCode), note("E_ID_CHARSET")]);
+            expect(err).toBeInstanceOf(GraphFormatError);
+            expect(err?.code).toBe(errorCode);
+            expect(err?.message).toBe(`${noteCode} message`);
+            expect(err?.details).toEqual({ code: noteCode, column: "c", count: 2 });
+        }
+    });
+
+    it("maps a plugin's own codes", () => {
+        expect(refusedSave([note("E_PAIRS_BAD_ID")], { E_PAIRS_BAD_ID: "E_INVALID_ID" })?.code).toBe("E_INVALID_ID");
     });
 });

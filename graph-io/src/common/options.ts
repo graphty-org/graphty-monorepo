@@ -118,7 +118,7 @@ const SINK_OPTION_NAMES = ["addMissingNodes", "duplicateEdges", "selfLoops", "we
  * refuses unknown endpoints before the sink sees them), so that request is honored on any sink and
  * only `addMissingNodes: true` against a refusing sink is reported
  * @returns the number of warnings recorded
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function reportSinkOptions(
     sink: GraphSink,
@@ -175,7 +175,7 @@ const IGNORABLE_OPTION_NAMES = [
  * @param report - the report to record into
  * @param used - the common option names the importer reads
  * @returns the number of warnings recorded
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function reportUnusedOptions(
     options: CommonImportOptions | undefined,
@@ -214,7 +214,7 @@ export function reportUnusedOptions(
  * @param options - the caller's graphIndex / graphName
  * @param report - the report a failure is recorded in
  * @returns the index of the graph to read; E_UNSUPPORTED for an option of the wrong type, or both
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function chooseGraph(
     names: readonly (string | null)[],
@@ -282,7 +282,7 @@ export function chooseGraph(
  * @param options - the caller's options, possibly undefined
  * @param defaults - the importer's per-format defaults
  * @returns the resolved options; E_UNSUPPORTED for a value outside its set
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function resolveImportOptions(
     options: CommonImportOptions | undefined,
@@ -313,7 +313,7 @@ export function resolveImportOptions(
  * Apply the documented defaults to an exporter's common options and check the enum values.
  * @param options - the caller's options, possibly undefined
  * @returns the resolved options; E_UNSUPPORTED for a value outside its set
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function resolveExportOptions(options: CommonExportOptions | undefined): ResolvedExportOptions {
     const o: CommonExportOptions = options ?? {};

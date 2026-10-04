@@ -1,6 +1,7 @@
 /**
  * The `@graphty/graph-io/cys` subpath: the Cytoscape session importer and exporter, their option
  * types and their issue and loss code tables.
+ * @module @graphty/graph-io/cys
  */
 
 export { CYS_ISSUE } from "./constants.js";

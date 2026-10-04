@@ -82,7 +82,15 @@ function cell(s: string): string {
             .replace(/\{@link ([^}\s|]+)(?:[\s|][^}]*)?\}/g, "`$1`")
             // outside code spans, `<name>` would be read as an HTML tag by the docs site
             .split("`")
-            .map((part, i) => (i % 2 === 0 ? part.replace(/</g, "&lt;").replace(/>/g, "&gt;") : part))
+            // a bare code becomes inline code, so its underscores are never read as emphasis
+            .map((part, i) =>
+                i % 2 === 0
+                    ? part
+                          .replace(/</g, "&lt;")
+                          .replace(/>/g, "&gt;")
+                          .replace(/\b([EW]_[A-Z0-9_]*[A-Z0-9])\b/g, "`$1`")
+                    : part,
+            )
             .join("`")
             .split("|")
             .join(ESCAPED_PIPE)
@@ -375,6 +383,12 @@ function findExport(exported: ReadonlyMap<string, unknown>, suffix: string, pref
  */
 async function collectFormats(src: Source): Promise<FormatFacts[]> {
     const out: FormatFacts[] = [];
+    // a format's options type includes the common options, which options.md documents once
+    const root = src.exportsOf(ENTRIES["graph-io"]);
+    const commonNames = (type: string): Set<string> =>
+        new Set(src.options(root.get(type) as ts.Symbol).map((r) => r.name));
+    const commonImport = commonNames("CommonImportOptions");
+    const commonExport = commonNames("CommonExportOptions");
     for (const name of registry.formats()) {
         const entry = entryOf(name);
         const runtime = (await import(`../${entry}`)) as Record<string, unknown>;
@@ -400,8 +414,14 @@ async function collectFormats(src: Source): Promise<FormatFacts[]> {
             subpath: `@graphty/graph-io/${name}`,
             importer,
             exporter,
-            importOptions: importOptions === undefined ? undefined : src.options(types.get(importOptions) as ts.Symbol),
-            exportOptions: exportOptions === undefined ? undefined : src.options(types.get(exportOptions) as ts.Symbol),
+            importOptions:
+                importOptions === undefined
+                    ? undefined
+                    : src.options(types.get(importOptions) as ts.Symbol, commonImport),
+            exportOptions:
+                exportOptions === undefined
+                    ? undefined
+                    : src.options(types.get(exportOptions) as ts.Symbol, commonExport),
             issues: rows(issueName),
             losses: rows(lossName),
         });

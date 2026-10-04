@@ -12,16 +12,16 @@ the expectation today; the reference points into
 | Format | Fixtures | Conform | Known failures | Round trips | Round-trip failures |
 |---|---|---|---|---|---|
 | csv | 83 | 71 | 12 | 69 | 1 |
-| cx | 49 | 49 | 0 | 0 | 0 |
+| cx | 51 | 51 | 0 | 47 | 0 |
 | cx2 | 57 | 57 | 0 | 53 | 1 |
-| cys | 53 | 53 | 0 | 0 | 0 |
+| cys | 53 | 53 | 0 | 40 | 0 |
 | dot | 196 | 189 | 7 | 171 | 2 |
 | gexf | 110 | 104 | 6 | 101 | 1 |
 | gml | 109 | 100 | 9 | 90 | 4 |
 | graphml | 148 | 143 | 5 | 129 | 5 |
 | json | 427 | 398 | 29 | 80 | 0 |
 | neo4j | 45 | 26 | 19 | 25 | 0 |
-| obo | 102 | 102 | 0 | 0 | 0 |
+| obo | 102 | 102 | 0 | 101 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
 | xgmml | 77 | 77 | 0 | 75 | 0 |
 
@@ -206,14 +206,14 @@ No known failures.
 
 ### a # comment is accepted only at column 0; an indented or mid-line # is a syntax error (sources.md 5.4) (3)
 
-- `graphviz-issues/1408.dot`: failed: E_SYNTAX: unexpected character "#"
-- `authored/hash-indented.gv`: failed: E_SYNTAX: unexpected character "#"
-- `authored/hash-midline.gv`: failed: E_SYNTAX: unexpected character "#"
+- `graphviz-issues/1408.dot`: failed: E_SYNTAX: line 6: unexpected character "#"
+- `authored/hash-indented.gv`: failed: E_SYNTAX: line 2: unexpected character "#"
+- `authored/hash-midline.gv`: failed: E_SYNTAX: line 2: unexpected character "#"
 
 ### a comma between statements (a, b -> c; {C, Q}) is a syntax error (sources.md 5.4) (2)
 
-- `ts-graphviz/issue1147.dot`: failed: E_SYNTAX: unexpected "," at the start of a statement
-- `authored/comma-node-list.gv`: failed: E_SYNTAX: unexpected "," at the start of a statement
+- `ts-graphviz/issue1147.dot`: failed: E_SYNTAX: line 18: unexpected "," at the start of a statement
+- `authored/comma-node-list.gv`: failed: E_SYNTAX: line 2: unexpected "," at the start of a statement
 
 ### an HTML-string id is kept as its raw <...> text with no HTML flag, so it differs from the Graphviz name and collides with the same quoted text (sources.md 5.4) (2)
 
@@ -249,7 +249,7 @@ No known failures.
 
 ### pid naming a missing node is an error, not a warning (sources.md 1.4 Hierarchy) (1)
 
-- `gephi-datasets/diseasome.gexf`: failed: E_UNKNOWN_PARENT: error limit of 100 exceeded: pid "0" names a node the document does not declare
+- `gephi-datasets/diseasome.gexf`: failed: E_UNKNOWN_PARENT: error limit of 100 exceeded: line 1209: pid "0" names a node the document does not declare
 
 ### round trip: dynamic attribute values shift by one element on GEXF re-export (1)
 
@@ -288,18 +288,18 @@ No known failures.
 
 ### round trip: the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds "mangle" (sources.md 4.4) (1)
 
-- `authored/string-ids.gml`: threw: GraphFormatError: 2 node id(s) cannot be written as integer (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `authored/string-ids.gml`: threw: GraphFormatError: 2 node id(s) are not integers (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
 
 
 ## graphml
 
 ### round trip: a node id with spaces is not an NMTOKEN, so export refuses it without sanitizeIds "mangle" (sources.md 2.1) (5)
 
-- `boost/graphml_test.xml`: threw: GraphFormatError: 1 node id(s) cannot be written as nmtoken (first: "not a canonical node" at index 2); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-string-ids-0.graphml`: threw: GraphFormatError: 5 node id(s) cannot be written as nmtoken (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-string-ids-1.graphml`: threw: GraphFormatError: 5 node id(s) cannot be written as nmtoken (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-infer-string-ids-0.graphml`: threw: GraphFormatError: 5 node id(s) cannot be written as nmtoken (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
-- `networkx-generated/graphml-infer-string-ids-1.graphml`: threw: GraphFormatError: 5 node id(s) cannot be written as nmtoken (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `boost/graphml_test.xml`: threw: GraphFormatError: 1 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "not a canonical node" at index 2); pass sanitizeIds: "mangle" to rewrite them
+- `networkx-generated/graphml-string-ids-0.graphml`: threw: GraphFormatError: 5 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `networkx-generated/graphml-string-ids-1.graphml`: threw: GraphFormatError: 5 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `networkx-generated/graphml-infer-string-ids-0.graphml`: threw: GraphFormatError: 5 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
+- `networkx-generated/graphml-infer-string-ids-1.graphml`: threw: GraphFormatError: 5 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces) (first: "node 0" at index 0); pass sanitizeIds: "mangle" to rewrite them
 
 ### key for="graphml" is rejected as an error (sources.md 2.4, 10) (2)
 
@@ -308,7 +308,7 @@ No known failures.
 
 ### <data> for an undeclared key is an error and its value is dropped (sources.md 2.4) (1)
 
-- `graphology/miserables_broken.graphml`: failed: E_GRAPHML_UNKNOWN_KEY: error limit of 100 exceeded: <data> references undeclared key "label"
+- `graphology/miserables_broken.graphml`: failed: E_GRAPHML_UNKNOWN_KEY: error limit of 100 exceeded: line 512: <data> references undeclared key "label"
 
 ### <key> declared inside <graph> is skipped and its data rejected (sources.md 2.4) (1)
 
@@ -316,7 +316,7 @@ No known failures.
 
 ### per-edge directed other than true/false skips the edge (sources.md 2.4) (1)
 
-- `authored/directed-variants.graphml`: edges: expected 4, got 0; directed: expected true, got false
+- `authored/directed-variants.graphml`: edges: expected 4, got 2
 
 
 ## json
@@ -446,7 +446,11 @@ announced an E_ code (a documented refusal).
 | json cytoscape | 300 | 300 | 0 | 0 | direction, negativeZero, nonFiniteUnset |
 | json graphology | 300 | 300 | 0 | 0 | negativeZero, nonFiniteUnset |
 | cx2 | 300 | 300 | 0 | 0 | direction, nonFiniteUnset |
+| cx | 300 | 300 | 0 | 0 | direction |
 | xgmml | 300 | 289 | 11 (E_XML_ILLEGAL_CHAR) | 0 | idText |
+| obo | 300 | 300 | 0 | 0 | direction, duplicateEdges, edgeOrder, idText, lineEnds, propertyValue, qualifierText |
+| json obographs | 300 | 225 | 75 (E_ID_CHARSET) | 0 | direction, edgeMeta, idText, nonFiniteUnset, propertyValue |
+| cys | 300 | 300 | 0 | 0 | idText, unsetAsEmpty |
 
 The documented losses (a check() note code and the difference it allows):
 
@@ -458,6 +462,7 @@ The documented losses (a check() note code and the difference it allows):
 - `W_CSV_DIRECTION_DROPPED`: direction
 - `W_NEO4J_UNDIRECTED_AS_DIRECTED`: direction
 - `W_CX2_UNDIRECTED_AS_DIRECTED`: direction
+- `W_CX_UNDIRECTED_AS_DIRECTED`: direction
 - `W_NONFINITE_AS_NULL`: nonFiniteUnset
 - `W_CX2_NONFINITE_AS_NULL`: nonFiniteUnset
 - `W_DOT_NON_FINITE`: nonFiniteText, textInferred
@@ -466,6 +471,14 @@ The documented losses (a check() note code and the difference it allows):
 - `W_TEXT_INFERRED`: textInferred, negativeZero
 - `W_DTYPE_UNSUPPORTED`: boolAsInt
 - `W_INTEGRAL_F64_AS_I32`: negativeZero
+- `W_OBO_UNDIRECTED_AS_DIRECTED`: direction
+- `W_COLUMN_AS_PROPERTY_VALUE`: propertyValue
+- `W_OBO_EDGE_COLUMN_AS_QUALIFIER`: qualifierText
+- `W_OBO_EDGE_ORDER`: edgeOrder
+- `W_OBO_DUPLICATE_CLAUSE`: duplicateEdges
+- `W_OBO_LINE_END`: lineEnds
+- `W_OBOGRAPHS_EDGE_COLUMN_AS_META`: edgeMeta
+- `W_CYS_UNSET_AS_EMPTY_STRING`: unsetAsEmpty
 
 Minimal cases (`fixtures/generative/cases.json`):
 

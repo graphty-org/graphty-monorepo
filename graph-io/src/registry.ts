@@ -53,14 +53,15 @@ import {
 } from "./types.js";
 
 /**
- * The issue code of an input whose format no registered importer recognizes.
+ * The input is in no format graph-io can read (or none of the formats you registered, for your own FormatRegistry).
+ * Pass `format` when you know what the file is.
  * @category Issue and loss codes
  */
 export const UNKNOWN_FORMAT_CODE = "E_UNKNOWN_FORMAT";
 
 /**
- * The issue code of a registered importer whose sniff() threw while the format was being chosen;
- * that importer was treated as not recognizing the input (a defect in that importer).
+ * Registered importer whose sniff() threw while the format was being chosen; that importer was treated as not
+ * recognizing the input (a defect in that importer).
  * @category Issue and loss codes
  */
 export const SNIFF_FAILED_CODE = "W_SNIFF_FAILED";
@@ -140,8 +141,8 @@ export interface ImportGraphResult {
     readonly format: string;
     /**
      * How the format was detected (the candidate's `confidence` and what matched), or null when you
-     * named the format. Most callers can ignore it. The JSON dialect that was read is in
-     * `snapshot.meta.extra.json.dialect` either way.
+     * named the format. Most callers can ignore it. For the JSON dialect that was read, call
+     * `jsonShapeOf(snapshot)` from `@graphty/graph-io/json`.
      */
     readonly sniff: SniffResult | null;
     /**
@@ -568,7 +569,7 @@ export class FormatRegistry {
             const what = foreign === null ? "" : `: it is ${foreign}`;
             return failures.fail(
                 UNKNOWN_FORMAT_CODE,
-                `no registered importer recognizes the input${describeHints(options)}${what}; pass the format explicitly`,
+                `the input is not in a graph format graph-io recognizes${describeHints(options)}${what}; if you know its format, pass it as the format option`,
                 undefined,
                 { formats: this.formats() },
             );
@@ -1097,6 +1098,30 @@ interface ChosenImporter {
  */
 function seededBuilder(options: ImportGraphOptions, format: string): GraphBuilder {
     const maxEmptyCells = maxEmptyCellsOption(options.maxEmptyCells);
+    try {
+        return newBuilder(options, format, maxEmptyCells);
+    } catch (err) {
+        // the builder names a bad value by its field; report it as the option the caller passed
+        if (err instanceof GraphFormatError && err.code === "E_UNSUPPORTED" && typeof err.details.field === "string") {
+            const option = err.details.field;
+            throw new GraphFormatError(
+                "E_UNSUPPORTED",
+                `option ${option}: ${JSON.stringify(err.details.found)} is not one of the values it takes`,
+                { option, found: err.details.found },
+            );
+        }
+        throw err;
+    }
+}
+
+/**
+ * The builder of seededBuilder(), before its option errors are reworded.
+ * @param options - the importGraph options
+ * @param format - the format being read
+ * @param maxEmptyCells - the empty-cell budget
+ * @returns the builder
+ */
+function newBuilder(options: ImportGraphOptions, format: string, maxEmptyCells: number): GraphBuilder {
     return new CellBudgetBuilder(
         {
             weightDtype: options.weightDtype ?? "f64",

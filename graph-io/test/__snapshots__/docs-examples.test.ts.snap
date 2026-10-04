@@ -12,52 +12,62 @@ exports[`documentation examples > extending/netscope runs 1`] = `[]`;
 
 exports[`documentation examples > extending/netscope-usage runs 1`] = `[]`;
 
+exports[`documentation examples > extending/numbers-format runs 1`] = `[]`;
+
+exports[`documentation examples > extending/numbers-usage runs 1`] = `[]`;
+
 exports[`documentation examples > extending/pairs-format runs 1`] = `[]`;
 
 exports[`documentation examples > extending/pairs-minimal runs 1`] = `[]`;
 
 exports[`documentation examples > extending/pairs-usage runs 1`] = `[]`;
 
+exports[`documentation examples > extending/sections-format runs 1`] = `[]`;
+
+exports[`documentation examples > extending/sections-usage runs 1`] = `[]`;
+
+exports[`documentation examples > extending/text-cells runs 1`] = `[]`;
+
 exports[`documentation examples > formats/csv runs 1`] = `
 [
-  "[wrote] edges.csv (8728 bytes)",
+  "[wrote] edges.csv (9432 bytes)",
   "[wrote] nodes.csv (1487 bytes)",
 ]
 `;
 
 exports[`documentation examples > formats/cx runs 1`] = `
 [
-  "[wrote] karate.cx (2672 bytes)",
+  "[wrote] got-copy.cx (35625 bytes)",
 ]
 `;
 
 exports[`documentation examples > formats/cx2 runs 1`] = `
 [
-  "[wrote] glypican2-copy.cx2 (10337 bytes)",
+  "[wrote] got-copy.cx2 (22158 bytes)",
 ]
 `;
 
 exports[`documentation examples > formats/cys runs 1`] = `
 [
-  "[wrote] karate.cys (8135 bytes)",
+  "[wrote] got.cys (33449 bytes)",
 ]
 `;
 
 exports[`documentation examples > formats/dot runs 1`] = `
 [
-  "[wrote] cluster-copy.gv (1663 bytes)",
+  "[wrote] teams-copy.gv (500 bytes)",
 ]
 `;
 
 exports[`documentation examples > formats/gexf runs 1`] = `
 [
-  "[wrote] lesmiserables-1.2.gexf (18157 bytes)",
+  "[wrote] got-1.2.gexf (27824 bytes)",
 ]
 `;
 
 exports[`documentation examples > formats/gml runs 1`] = `
 [
-  "[wrote] polbooks-copy.gml (25222 bytes)",
+  "[wrote] got-copy.gml (31748 bytes)",
 ]
 `;
 
@@ -69,7 +79,7 @@ exports[`documentation examples > formats/graphml runs 1`] = `
 
 exports[`documentation examples > formats/json runs 1`] = `
 [
-  "[wrote] miserables.cyjs (46595 bytes)",
+  "[wrote] got.cyjs (63229 bytes)",
 ]
 `;
 
@@ -82,14 +92,14 @@ exports[`documentation examples > formats/neo4j runs 1`] = `
 
 exports[`documentation examples > formats/obo runs 1`] = `
 [
-  "[wrote] basic-copy.obo (379 bytes)",
-  "[wrote] basic.json (1069 bytes)",
+  "[wrote] vehicles-copy.obo (297 bytes)",
+  "[wrote] vehicles.json (835 bytes)",
 ]
 `;
 
 exports[`documentation examples > formats/pajek runs 1`] = `
 [
-  "[wrote] miserables.net (7391 bytes)",
+  "[wrote] got-mangled.net (6694 bytes)",
 ]
 `;
 
@@ -119,7 +129,7 @@ exports[`documentation examples > loading/url-request runs 1`] = `[]`;
 
 exports[`documentation examples > quick-start/download runs 1`] = `
 [
-  "[confirm] 107 node id(s) outside the integer charset are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back
+  "[confirm] 107 node id(s) are not integers are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back
 edge column "Edge Label" is written as "Edge_Label"
 edge column "Edge Label" has no set cell and is not written: GML writes cells, never declarations",
   "[download] got.gml (text/x-gml, 31748 bytes)",
@@ -162,13 +172,13 @@ exports[`documentation examples > report/pasted runs 1`] = `[]`;
 
 exports[`documentation examples > saving/check runs 1`] = `
 [
-  "[wrote] got.graphml (37904 bytes)",
+  "[wrote] got.graphml (37906 bytes)",
 ]
 `;
 
 exports[`documentation examples > saving/download-own runs 1`] = `
 [
-  "[download] edges.csv (text/csv, 8728 bytes)",
+  "[download] edges.csv (text/csv, 9432 bytes)",
 ]
 `;
 
@@ -178,16 +188,18 @@ exports[`documentation examples > saving/options-error runs 1`] = `[]`;
 
 exports[`documentation examples > saving/pick-format runs 1`] = `
 [
-  "[wrote] karate.dot (1304 bytes)",
-  "[wrote] karate.gexf (4009 bytes)",
+  "[wrote] network.dot (17473 bytes)",
+  "[wrote] network.gexf (27677 bytes)",
 ]
 `;
 
 exports[`documentation examples > saving/stream runs 1`] = `
 [
-  "[wrote] airlines.graphml (113768 bytes)",
+  "[wrote] got-copy.gexf (27806 bytes)",
 ]
 `;
+
+exports[`documentation examples > saving/typed-options runs 1`] = `[]`;
 
 exports[`documentation examples > saving/upload runs 1`] = `
 [

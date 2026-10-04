@@ -62,7 +62,7 @@ import { isGraphicsColumn, staleGraphicsRows } from "./yfiles.js";
  * The format-specific options of the GraphML exporter.
  * @category Built-in formats
  */
-export interface GraphmlExportOptions {
+export interface GraphmlExportOptions extends CommonExportOptions {
     /**
      * Indent nested elements; false writes one element per line without indentation.
      * @defaultValue true
@@ -1206,7 +1206,7 @@ function sanitizeEdgeIds(column: Column | null, mode: "error" | "mangle", edgeCo
     if (bad.length > 0 && mode === "error") {
         throw new GraphFormatError(
             "E_INVALID_ID",
-            `${bad.length} edge id(s) cannot be written as nmtoken (first: ${JSON.stringify(edgeIdText(column, bad[0]))} at edge ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
+            `${bad.length} edge id(s) are not XML name tokens (first: ${JSON.stringify(edgeIdText(column, bad[0]))} at edge ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
             { reason: "charset", charset: "nmtoken", count: bad.length, edge: bad[0] },
         );
     }

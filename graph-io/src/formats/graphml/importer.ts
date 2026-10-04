@@ -123,11 +123,16 @@ const EDGE_ATTRIBUTES: ReadonlySet<string> = new Set([
  * The format-specific options of the GraphML importer.
  * @category Built-in formats
  */
-export interface GraphmlImportOptions {
+export interface GraphmlImportOptions extends CommonImportOptions {
     /**
-     * How yEd graphics (keys with a `yfiles.type`) are read: "json" keeps each one as a JSON
-     * attribute holding its XML, which the GraphML exporter writes back unchanged; "skip" leaves
-     * them out, with a W_GRAPHML_YFILES_SKIPPED warning per key.
+     * How yEd graphics (keys with a `yfiles.type`) are read. "json" keeps each one as a JSON
+     * attribute named after the key (`d0`, say) that holds its XML as a tree, which the GraphML
+     * exporter writes back, and also reads the shapes it knows into plain columns beside it:
+     * `yfiles.position`, `yfiles.width`, `yfiles.height`, `yfiles.color`, `yfiles.borderColor`,
+     * `yfiles.borderWidth`, `yfiles.label` and `yfiles.shape` for nodes, and the line color, width
+     * and arrows for edges. The report's `lossy` list then holds W_GRAPHML_YFILES_JSON, because the
+     * XML comes back with the same structure but not byte for byte. "skip" leaves the graphics out,
+     * with a W_GRAPHML_YFILES_SKIPPED warning per key.
      * @defaultValue "json"
      */
     yfiles?: "json" | "skip" | undefined;

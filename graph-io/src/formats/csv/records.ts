@@ -21,13 +21,13 @@ import { type ImportReportBuilder } from "../../common/report.js";
 import { type ImportInput } from "../../types.js";
 
 /**
- * Issue code: a quoted field is never closed; the import aborts (everything after it would be one cell).
+ * A quoted field is never closed; the import aborts (everything after it would be one cell).
  * @category Issue and loss codes
  */
 export const UNCLOSED_QUOTE_CODE = "E_CSV_UNCLOSED_QUOTE";
 
 /**
- * Issue code: a closing quote is followed by text other than a delimiter or a line break; the import aborts.
+ * A closing quote is followed by text other than a delimiter or a line break; the import aborts.
  * @category Issue and loss codes
  */
 export const BAD_QUOTE_CODE = "E_CSV_QUOTE";
@@ -469,7 +469,7 @@ export class RecordReader implements AsyncIterable<number> {
     badQuote(line: number, field: number): never {
         return this.report.fail(
             BAD_QUOTE_CODE,
-            `line ${line}: text after the closing quote of quoted field ${field} (a quote inside a quoted field is written as two quotes)`,
+            `text after the closing quote of quoted field ${field} (a quote inside a quoted field is written as two quotes)`,
             { line },
         );
     }

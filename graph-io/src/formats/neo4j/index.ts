@@ -2,6 +2,7 @@
  * The `@graphty/graph-io/neo4j` subpath: the Neo4j importer and exporter with their option types,
  * the names of the reserved columns and the issue and loss-note codes
  * grouped in two tables.
+ * @module @graphty/graph-io/neo4j
  */
 
 import {
@@ -65,19 +66,25 @@ export {
  */
 export const NEO4J_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
-    /** The input holds invalid UTF-8 (fatal). */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
+     * `encoding` option). The import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
-    /** An unterminated quoted field (fatal). */
+    /** A quoted field is never closed. The import stops. */
     CSV_UNCLOSED_QUOTE: UNCLOSED_QUOTE_CODE,
-    /** Text after a closing quote (fatal). */
+    /**
+     * There is text after a closing quote, such as `"a"b`. Inside a quoted field, write a quote as two quotes. The
+     * import stops.
+     */
     CSV_QUOTE: BAD_QUOTE_CODE,
-    /** No header or a malformed header (fatal). */
+    /** The file has no header, or a header neo4j-admin would refuse. The import stops. */
     HEADER: HEADER_CODE,
     /** A row with a different field count than the header. */
     COLUMN_COUNT: COLUMN_COUNT_CODE,
@@ -91,7 +98,7 @@ export const NEO4J_ISSUE = Object.freeze({
     ID_SPACE_COLLISION: ID_SPACE_COLLISION_CODE,
     /** A spaced relationship endpoint `Space:id` that names a node declared without a space; the row is skipped. */
     ENDPOINT_SPACE: ENDPOINT_SPACE_CODE,
-    /** Two id texts merged into one number under ids "number". */
+    /** Two different id texts became the same number because `ids` is "number", so their nodes were merged. */
     ID_MERGED: ID_MERGED_CODE,
     /** A header brace option the importer does not apply. */
     HEADER_OPTION_IGNORED: HEADER_OPTION_CODE,
@@ -132,15 +139,24 @@ export const NEO4J_ISSUE = Object.freeze({
 export const NEO4J_LOSS = Object.freeze({
     /** `:IGNORE` columns skipped on import. */
     IGNORED_COLUMNS: IGNORED_COLUMNS_LOSS,
-    /** Undirected edges (an undirected snapshot, the folded pairs of a mixed one) written as directed relationships. */
+    /**
+     * Neo4j relationships are always directed, so the edges of an undirected graph, and the undirected edges of a
+     * mixed graph, read back as directed.
+     */
     UNDIRECTED_AS_DIRECTED: UNDIRECTED_LOSS,
     /** A mutual pair written as two directed relationships without its mark. */
     MUTUAL_EXPANDED: MUTUAL_EXPANDED_CODE,
     /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: ROLE_DROPPED_CODE,
-    /** A plain `weight` edge column reads back as THE weight (the importer's weightFrom default). */
+    /**
+     * An attribute named `weight` without the weight role reads back as the edge weight, because GEXF reads weights
+     * from `weight` by default.
+     */
     WEIGHT_KEY_CLASH: WEIGHT_KEY_CLASH_CODE,
-    /** A node id whose text re-imports as another type under the canonical rule. */
+    /**
+     * A node id that reads back as a different type, such as the text "7" as the number 7. Read the file with `ids:
+     * "string"` or `ids: "keep"` to keep the type.
+     */
     ID_TEXT_TYPE: ID_TEXT_TYPE_LOSS,
     /** Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with E_INVALID_ID. */
     ID_TEXT_COLLISION: ID_TEXT_COLLISION_LOSS,

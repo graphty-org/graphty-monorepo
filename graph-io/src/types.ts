@@ -82,8 +82,10 @@ export interface CommonImportOptions {
     onMixedDirection?: "expand" | "directed" | "undirected" | "error" | undefined;
     /**
      * Whether the graph is directed when the file does not say. The default is undirected for
-     * GraphML, GEXF, GML, JSON and XGMML, and directed for DOT, CSV, Pajek, Neo4j, CX, CX2, OBO and
-     * Cytoscape sessions.
+     * GraphML, GEXF, GML, JSON and XGMML, and directed for CSV, Pajek and Cytoscape sessions. DOT,
+     * Neo4j, CX, CX2 and OBO files always settle the direction themselves (DOT by `graph` or
+     * `digraph`; the others are always directed), so those formats do not read this option and
+     * report it as W_OPTION_IGNORED.
      * @defaultValue per format
      */
     defaultDirected?: boolean | undefined;
@@ -96,8 +98,8 @@ export interface CommonImportOptions {
     weightFrom?: string | null | undefined;
     /**
      * The precision of the exact weight column (`snapshot.edges.byRole("weight")`). "f64" keeps 0.1
-     * and 16777217 exact; "f32" uses half the memory. The weight array `snapshot.weights` is always
-     * 32-bit.
+     * and 16777217 exact; "f32" uses half the memory. The weight arrays `snapshot.weights` and
+     * `snapshot.edgeList().weights` are always 32-bit: read exact values from the weight column.
      * @defaultValue "f64"
      */
     weightDtype?: "f32" | "f64" | undefined;
@@ -110,7 +112,8 @@ export interface CommonImportOptions {
     /**
      * Whether to give back the original ids that an export with `sanitizeIds: "mangle"` had to
      * rewrite. The export writes them to the file in an attribute whose name each format page
-     * gives.
+     * gives. When false, the rewritten ids stay the ids and the originals are an ordinary node
+     * attribute (GraphML's `graphty:originalId` reads back as `graphty.originalId`).
      * @defaultValue true
      */
     restoreMangledIds?: boolean | undefined;
@@ -144,8 +147,9 @@ export interface CommonImportOptions {
      * The character encoding of byte input, as a label such as "utf-8", "windows-1252" or
      * "utf-16le". Without it graph-io uses a byte order mark, then the encoding the file declares
      * (an XML declaration, DOT's `charset`), then UTF-8, and reads bytes that are not UTF-8 as
-     * windows-1252 with a warning. A byte order mark wins over this option. Has no effect on a
-     * string input.
+     * windows-1252 with a warning. A byte order mark wins over this option. A string input is
+     * already text: setting this option for one adds a W_OPTION_IGNORED warning, once per input (a
+     * CSV import with a `nodes` table has two inputs).
      */
     encoding?: string | undefined;
 }
@@ -191,7 +195,7 @@ export interface GraphListing {
  * implements); importGraph() then builds the snapshot. Register one with
  * `registry.registerImporter()` to teach graph-io a new format. `Opts` is the type of the format's
  * own options.
- * @category Plugin helpers
+ * @category Writing a format
  */
 export interface GraphImporter<Opts = unknown> {
     /** The name callers pass as `format`, such as "graphml" or "csv"; lowercase, unique in a registry. */
@@ -251,15 +255,29 @@ export interface GraphImporter<Opts = unknown> {
  * @category Saving
  */
 export interface ExportCapabilities {
-    /** Directed and undirected edges in one file. */
+    /**
+     * Whether one file can hold directed and undirected edges together. When false, a graph with both
+     * needs `onMixedDirection` ("directed" or "undirected") to be saved.
+     */
     readonly mixedDirection: boolean;
-    /** Parallel edges. */
+    /**
+     * Whether the file can hold two edges between the same pair of nodes. When false, the extra
+     * edges are not kept as separate edges.
+     */
     readonly multiEdges: boolean;
-    /** Self-loops. */
+    /** Whether the file can hold an edge from a node to itself. When false, such edges are lost. */
     readonly selfLoops: boolean;
-    /** Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored). */
+    /**
+     * Whether edges carry ids. "required": every edge has one, and ids are made up (e0, e1, ...)
+     * for a graph without them. "optional": edge ids are written when the graph has them. "none":
+     * edge ids are lost.
+     */
     readonly edgeIds: "required" | "optional" | "none";
-    /** Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N). */
+    /**
+     * Which node ids the format can write as they are: "any"; "nmtoken" (XML name tokens: letters,
+     * digits and `. - _ :`, no spaces); "integer"; or "dense-1-based" (the nodes are always numbered
+     * 1 to N). Other ids need `sanitizeIds: "mangle"`, which writes the original ids too.
+     */
     readonly idCharset: "any" | "nmtoken" | "integer" | "dense-1-based";
     /**
      * The attribute types the format keeps exactly: "bool", "i32" (32-bit integer), "u32" (unsigned
@@ -269,25 +287,39 @@ export interface ExportCapabilities {
      * W_DTYPE_UNSUPPORTED note.
      */
     readonly dtypes: readonly Dtype[];
-    /** Columns with several numbers per row, such as a position. */
+    /**
+     * Whether an attribute other than the node position can hold several numbers per node or edge
+     * (a vector). When false, such an attribute does not read back as one attribute. Positions
+     * are covered by `positions`.
+     */
     readonly components: boolean;
-    /** List columns. */
+    /** Whether an attribute can hold a list per node or edge. When false, list attributes are lost or flattened. */
     readonly lists: boolean;
-    /** Nested JSON values. */
+    /**
+     * Whether an attribute can hold nested JSON objects and arrays. When false, such attributes are
+     * written as text or lost.
+     */
     readonly json: boolean;
-    /** Columns' declared default values. */
+    /** Whether the file can declare a default value for an attribute. When false, declared defaults are lost. */
     readonly defaults: boolean;
-    /** Declared lists of allowed values (GEXF options). */
+    /**
+     * Whether the file can declare the allowed values of an attribute (GEXF `options`). When false,
+     * those declarations are lost; the values themselves are kept.
+     */
     readonly options: boolean;
-    /** Nesting: nodes inside other nodes (parent columns). */
+    /** Whether nodes can sit inside other nodes (groups or clusters). When false, the nesting is lost. */
     readonly hierarchy: boolean;
-    /** Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). */
+    /**
+     * What the file can say about time: "none" (time attributes are lost), "intervals" (one start
+     * and end per element), "spells" (several intervals per element), or "dynamic-values"
+     * (attribute values that change over time, as well).
+     */
     readonly temporal: "none" | "intervals" | "spells" | "dynamic-values";
-    /** Graph-level attributes. */
+    /** Whether the file can hold attributes of the graph itself. When false, graph attributes are lost. */
     readonly graphAttributes: boolean;
-    /** Node positions. */
+    /** Whether the file can hold node positions. When false, the layout is lost. */
     readonly positions: boolean;
-    /** Visual columns: color, size, shape and thickness. */
+    /** Whether the file can hold node and edge color, size, shape and thickness. When false, they are lost. */
     readonly viz: boolean;
 }
 
@@ -335,7 +367,7 @@ export interface CommonExportOptions {
 /**
  * A format's writer. Register one with `registry.registerExporter()` to make a format writable by
  * every save function. `Opts` is the type of the format's own options.
- * @category Plugin helpers
+ * @category Writing a format
  */
 export interface GraphExporter<Opts = unknown> {
     /** The name callers pass as `format`; the same as the importer's when the format has both. */
@@ -462,11 +494,14 @@ export interface ImportReport {
  * @category Reports and errors
  */
 export class ImportError extends GraphFormatError {
-    /** Everything recorded up to the point the import stopped. */
-    readonly report: ImportReport;
+    /**
+     * Everything recorded up to the point the import stopped. It is not an enumerable property, so an
+     * uncaught ImportError prints its message and issue, not every issue of the report.
+     */
+    declare readonly report: ImportReport;
 
     /**
-     * The issue that stopped the import: its `code` ("E_FETCH", "E_UNKNOWN_FORMAT", "E_GML_SYNTAX", ...),
+     * The issue that stopped the import: its `code` ("E_FETCH", "E_UNKNOWN_FORMAT", "E_CSV_UNCLOSED_QUOTE", ...),
      * `message`, `line` and `element`. This is the value to branch on; `code` is always "E_IMPORT".
      * Null only for an ImportError constructed by hand without a matching issue.
      * @example
@@ -496,7 +531,7 @@ export class ImportError extends GraphFormatError {
     constructor(message: string, report: ImportReport, details?: Readonly<Record<string, unknown>>) {
         super("E_IMPORT", message, details);
         this.name = "ImportError";
-        this.report = report;
+        Object.defineProperty(this, "report", { value: report, enumerable: false });
         this.issue = stoppingIssue(report.issues, details?.code);
     }
 }

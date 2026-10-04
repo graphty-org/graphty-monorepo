@@ -112,7 +112,7 @@ export const CYS_ISSUE = Object.freeze({
     TABLE: "E_CYS_TABLE",
     /** Table rows with too few or too many cells, a repeated key, or a key matching no element. */
     TABLE_ROW: "W_CYS_TABLE_ROW",
-    /** A collapsed group's members are not in the network; they are recorded in meta.extra. */
+    /** The members of a collapsed group are not in the network itself; they are listed in `snapshot.meta.extra`. */
     COLLAPSED_GROUP: "W_CYS_COLLAPSED_GROUP",
     /** Entries the importer does not read (apps, global tables, properties, images, thumbnails). */
     ENTRY_SKIPPED: "W_CYS_ENTRY_SKIPPED",
@@ -135,8 +135,8 @@ export const CYS_ISSUE = Object.freeze({
      * `importAllGraphs()` reads every one.
      */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
-    /** graphIndex / graphName names no network (fatal). */
+    /** `graphIndex` or `graphName` matches no network in the session. The import stops. */
     GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
-    /** graphName names several networks (fatal). */
+    /** `graphName` matches several networks in the session. The import stops. */
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
 });

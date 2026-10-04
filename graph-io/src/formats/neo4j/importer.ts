@@ -92,7 +92,7 @@ import { type FieldKind, type HeaderField, isHeaderRecord, parseHeaderField } fr
  * The format-specific options of the Neo4j importer.
  * @category Built-in formats
  */
-export interface Neo4jImportOptions {
+export interface Neo4jImportOptions extends CommonImportOptions {
     /**
      * More node files, each a string, bytes or a stream with its own header row; read after the
      * main input.
@@ -123,110 +123,113 @@ export interface Neo4jImportOptions {
 
 /**
  * The name of the node list column holding `:LABEL` values.
- * @category Plugin helpers
+ * @category Built-in formats
  */
 export const LABELS_COLUMN = "labels";
 
 /**
  * The name of the edge dict column holding `:TYPE` values.
- * @category Plugin helpers
+ * @category Built-in formats
  */
 export const TYPE_COLUMN = "type";
 
 /**
  * The name of the node dict column holding the id space of `:ID(Space)`.
- * @category Plugin helpers
+ * @category Built-in formats
  */
 export const ID_SPACE_COLUMN = "idSpace";
 
 /**
- * The name of the node string column holding the id text of a node of an id space (its id is `Space:id`).
- * @category Plugin helpers
+ * Neo4j CSV: the name of the node column that holds a node's id as the file wrote it, for a node of an id
+ * space (`:ID(Person)`), whose node id is `Person:<id>`. It has nothing to do with the `originalId` role that
+ * `sanitizeIds: "mangle"` uses.
+ * @category Built-in formats
  */
 export const ORIGINAL_ID_COLUMN = "originalId";
 
 /**
- * Issue code: a header row (or a whole section) is malformed; the import aborts.
+ * A header row (or a whole section) is malformed; the import aborts.
  * @category Issue and loss codes
  */
 export const HEADER_CODE = "E_NEO4J_HEADER";
 
 /**
- * Issue code: a row has a different number of cells than its header.
+ * A row has a different number of cells than its header.
  * @category Issue and loss codes
  */
 export const COLUMN_COUNT_CODE = "E_NEO4J_COLUMN_COUNT";
 
 /**
- * Issue code: a node row has an unquoted empty `:ID` cell (a quoted empty cell is the id "").
+ * A node row has an unquoted empty `:ID` cell (a quoted empty cell is the id "").
  * @category Issue and loss codes
  */
 export const MISSING_ID_CODE = SHARED_MISSING_ID_CODE;
 
 /**
- * Issue code: a relationship row has an unquoted empty `:START_ID` or `:END_ID` cell.
+ * A relationship row has an unquoted empty `:START_ID` or `:END_ID` cell.
  * @category Issue and loss codes
  */
 export const MISSING_ENDPOINT_CODE = SHARED_MISSING_ENDPOINT_CODE;
 
 /**
- * Issue code: a node id was declared twice (same id space); the later row's properties win.
+ * A node id was declared twice (same id space); the later row's properties win.
  * @category Issue and loss codes
  */
 export const DUPLICATE_NODE_CODE = SHARED_DUPLICATE_NODE_CODE;
 
 /**
- * Issue code: a node id was declared in two id spaces -- a spaced id `Space:id` equals the text of an
- * id declared without a space; the later row is skipped.
+ * A node id was declared in two id spaces -- a spaced id `Space:id` equals the text of an id declared without a space;
+ * the later row is skipped.
  * @category Issue and loss codes
  */
 export const ID_SPACE_COLLISION_CODE = "E_NEO4J_ID_SPACE_COLLISION";
 
 /**
- * Issue code: a `:START_ID(Space)` / `:END_ID(Space)` endpoint's qualified id `Space:id` names a node a
- * node row declared in another id space (without a space); the row is skipped.
+ * A `:START_ID(Space)` / `:END_ID(Space)` endpoint's qualified id `Space:id` names a node a node row declared in
+ * another id space (without a space); the row is skipped.
  * @category Issue and loss codes
  */
 export const ENDPOINT_SPACE_CODE = "E_NEO4J_ENDPOINT_SPACE";
 
 /**
- * Issue code: two different id cells became one id under `ids: "number"`.
+ * Two different id cells became one id under `ids: "number"`.
  * @category Issue and loss codes
  */
 export const ID_MERGED_CODE = SHARED_ID_MERGED_CODE;
 
 /**
- * Issue code: a header brace option the importer does not act on.
+ * A header brace option the importer does not act on.
  * @category Issue and loss codes
  */
 export const HEADER_OPTION_CODE = "W_NEO4J_HEADER_OPTION_IGNORED";
 
 /**
- * Issue code: a reserved column (labels / type / idSpace) lost its role because the sink already holds it.
+ * You read into a graph builder that already has the labels, type or id space attribute, so this file's one is kept
+ * without its role.
  * @category Issue and loss codes
  */
 export const ROLE_TAKEN_CODE = SHARED_ROLE_TAKEN_CODE;
 
 /**
- * Issue code: a relationship row with an empty `:TYPE` cell (neo4j-admin requires a type); the relationship is kept.
+ * A relationship row with an empty `:TYPE` cell (neo4j-admin requires a type); the relationship is kept.
  * @category Issue and loss codes
  */
 export const MISSING_TYPE_CODE = "W_NEO4J_MISSING_TYPE";
 
 /**
- * Issue code: a file given under the `nodes` option holds a relationship header, or the reverse.
+ * A file given under the `nodes` option holds a relationship header, or the reverse.
  * @category Issue and loss codes
  */
 export const SECTION_KIND_CODE = "W_NEO4J_SECTION_KIND";
 
 /**
- * Issue code: relationship endpoints that no node row declares became nodes (the shared W_DANGLING_REFERENCE).
+ * Relationship endpoints that no node row declares became nodes (the shared W_DANGLING_REFERENCE).
  * @category Issue and loss codes
  */
 export const DANGLING_REFERENCE_CODE = SHARED_DANGLING_REFERENCE_CODE;
 
 /**
- * Loss code: `:IGNORE` columns were skipped.
+ * `:IGNORE` columns were skipped.
  * @category Built-in formats
  */
 export const IGNORED_COLUMNS_LOSS = "W_NEO4J_IGNORED_COLUMNS";
@@ -780,7 +783,7 @@ class Neo4jImportSession {
                     other === undefined
                         ? ""
                         : `; if the file is delimited by ${JSON.stringify(other)}, pass the delimiter option`;
-                this.report.fail(HEADER_CODE, `line ${line}: ${err.message}${hint}`, { line }, { cause: err.code });
+                this.report.fail(HEADER_CODE, `${err.message}${hint}`, { line }, { cause: err.code });
             }
             throw err;
         }

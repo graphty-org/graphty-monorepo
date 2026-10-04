@@ -25,7 +25,7 @@ export const MAX_WARNINGS_PER_CODE = 1000;
 /**
  * Where an issue was found: the 1-based line and the element (id or attribute name) when known.
  * @public
- * @category Plugin helpers
+ * @category Writing a format
  */
 export interface IssueLocation {
     /** The 1-based source line, when known. */
@@ -74,10 +74,24 @@ const CATEGORY_BY_CODE: Readonly<Partial<Record<GraphFormatErrorCode, IssueCateg
 export const PARSE_ERROR_CODE = "E_PARSE";
 
 /**
+ * An issue message as the ImportError shows it: prefixed with its line when the issue has one and the
+ * message does not already name it.
+ * @param message - the issue message
+ * @param where - the issue location
+ * @returns the message for the error
+ */
+function withLine(message: string, where: IssueLocation | undefined): string {
+    const line = where?.line;
+    return line === undefined || line === null || message.includes(`line ${line}`)
+        ? message
+        : `line ${line}: ${message}`;
+}
+
+/**
  * Accumulates an ImportReport while an importer runs. Errors count toward the error limit; the
  * error that takes the count beyond the limit is still recorded, `truncated` is set, and an
  * ImportError carrying the report so far is thrown. Warnings never abort.
- * @category Plugin helpers
+ * @category Writing a format
  */
 export class ImportReportBuilder {
     /** The importer's format name. */
@@ -172,7 +186,7 @@ export class ImportReportBuilder {
         this.errors++;
         if (this.errors > this.errorLimit) {
             this.truncatedFlag = true;
-            throw this.abort(`error limit of ${this.errorLimit} exceeded: ${message}`, {
+            throw this.abort(`error limit of ${this.errorLimit} exceeded: ${withLine(message, where)}`, {
                 code,
                 limit: this.errorLimit,
             });
@@ -327,7 +341,7 @@ export class ImportReportBuilder {
     ): never {
         this.issueList.push(makeIssue(category, "error", code, message, where));
         this.errors++;
-        throw this.abort(message, { code, ...details });
+        throw this.abort(withLine(message, where), { code, ...details });
     }
 
     /**

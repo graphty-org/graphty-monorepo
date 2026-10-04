@@ -52,7 +52,7 @@ import { aliasesOf } from "./emit.js";
  * The format-specific options of the XGMML exporter.
  * @category Built-in formats
  */
-export interface XgmmlExportOptions {
+export interface XgmmlExportOptions extends CommonExportOptions {
     /**
      * Write line breaks and tabs in text values as Cytoscape's two-character `\n` and `\t`, as
      * Cytoscape does, instead of the XML character references `&#10;` and `&#9;`.

@@ -2,6 +2,7 @@
  * The GEXF subpath entry (`@graphty/graph-io/gexf`): the importer and exporter
  * objects with their format-specific option types, the exporter's loss-note codes and the
  * importer's issue codes grouped in one table.
+ * @module @graphty/graph-io/gexf
  */
 
 import {
@@ -74,11 +75,14 @@ export { type GexfVersion } from "./schema.js";
  */
 export const GEXF_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
-    /** The XML is not well-formed (fatal). */
+    /** The XML is not well-formed. The import stops. */
     XML_SYNTAX: XML_SYNTAX_CODE,
-    /** The input holds invalid UTF-8 (fatal). */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
+     * `encoding` option). The import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
@@ -86,11 +90,11 @@ export const GEXF_ISSUE = Object.freeze({
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** A declared encoding the byte order mark contradicts (the mark wins). */
     ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
-    /** The input holds no markup at all: empty, whitespace or a byte order mark only (fatal). */
+    /** The input holds no XML at all: it is empty, whitespace or a byte order mark only. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** The root element is not `<gexf>` (fatal). */
+    /** The root element is not `<gexf>`. The import stops. */
     NOT_GEXF: NOT_GEXF_CODE,
-    /** The document has no `<graph>` (fatal). */
+    /** The document has no `<graph>`. The import stops. */
     NO_GRAPH: NO_GRAPH_CODE,
     /**
      * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
@@ -124,7 +128,10 @@ export const GEXF_ISSUE = Object.freeze({
      * read as they come.
      */
     COUNT_HINT: COUNT_HINT_CODE,
-    /** A `count` hint that disagrees with the elements of its section. */
+    /**
+     * A `count` attribute disagrees with the number of nodes or edges actually in its section. The elements are read
+     * as they are.
+     */
     COUNT_MISMATCH: COUNT_MISMATCH_CODE,
     /** A node id declared twice. */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
@@ -158,11 +165,11 @@ export const GEXF_ISSUE = Object.freeze({
     TIMED_VALUE_ON_STATIC: TIMED_STATIC_CODE,
     /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
     PRECISION: PRECISION_CODE,
-    /** Two id texts merged into one number under ids "number". */
+    /** Two different id texts became the same number because `ids` is "number", so their nodes were merged. */
     ID_MERGED: ID_MERGED_CODE,
     /** The XML weight attribute ignored under weightFrom null. */
     WEIGHT_IGNORED: WEIGHT_IGNORED_CODE,
-    /** viz elements skipped under viz: false. */
+    /** Viz elements skipped under viz: false. */
     VIZ_SKIPPED: VIZ_SKIPPED_CODE,
     /** A 1.2 dynamic viz element whose bounds were dropped. */
     VIZ_DYNAMIC_DROPPED: VIZ_DYNAMIC_CODE,
@@ -194,7 +201,7 @@ export const GEXF_ISSUE = Object.freeze({
      * with the builder's direction instead of its own.
      */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
-    /** Edges forced to the policy's direction. */
+    /** Edges of the other direction were read with the direction `onMixedDirection` chose. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
     /**
      * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a

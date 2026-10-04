@@ -606,6 +606,16 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
         ],
         [LOSS.EDGE_IDS_GENERATED, "gexf", () => cycle().freeze(), { version: "1.2" }],
         [
+            LOSS.WEIGHTS_DROPPED,
+            "neo4j",
+            () => {
+                const b = cycle();
+                b.addEdge(1, 3, 2.5);
+                return b.freeze();
+            },
+            { weightColumn: null },
+        ],
+        [
             LOSS.EDGE_IDS_DROPPED,
             "pajek",
             () => {
@@ -1002,7 +1012,7 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
         // the cases above plus these cover the whole table
         const covered = new Set([...CASES.map((c) => c[0]), LOSS.SELF_LOOPS, LOSS.COLUMN_DROPPED]);
         expect([...Object.values(LOSS)].filter((code) => !covered.has(code))).toEqual([]);
-        expect(Object.keys(LOSS)).toHaveLength(42);
+        expect(Object.keys(LOSS)).toHaveLength(43);
     });
 });
 

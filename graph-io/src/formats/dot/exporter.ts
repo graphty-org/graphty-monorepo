@@ -42,10 +42,10 @@ import {
  * The DOT exporter's format-specific options.
  * @category Built-in formats
  */
-export interface DotExportOptions {
+export interface DotExportOptions extends CommonExportOptions {
     /**
      * The indentation of one nesting level.
-     * @defaultValue "    " (four spaces)
+     * @defaultValue four spaces
      */
     indent?: string | undefined;
     /**
@@ -87,7 +87,7 @@ export const DOT_LOSS = Object.freeze({
     PARENTS_DROPPED: LOSS.PARENTS,
     /** A position column that is not a node column of 2 or 3 components is not written. */
     POSITION_SHAPE: "W_DOT_POSITION_SHAPE",
-    /** An id whose text reads back as the other type under ids: "canonical" (1.5 as text, "1" as 1). */
+    /** An id that reads back as a different type, such as the decimal 1.5 as text or the text "1" as the number 1. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /** A declared column whose every row is unset is not written (DOT writes cells, never declarations). */
     EMPTY_COLUMN_DROPPED: LOSS.EMPTY_COLUMN,

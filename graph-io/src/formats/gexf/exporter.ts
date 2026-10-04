@@ -51,7 +51,7 @@ import {
  * The format-specific options of the GEXF exporter.
  * @category Built-in formats
  */
-export interface GexfExportOptions {
+export interface GexfExportOptions extends CommonExportOptions {
     /**
      * The GEXF version to write.
      * @defaultValue "1.3"
@@ -74,13 +74,20 @@ export const GEXF_LOSS = Object.freeze({
     ROLE_SHAPE: "W_ROLE_SHAPE",
     /** A temporal extension table without the element / start / end / value columns. */
     TEMPORAL_TABLE_SHAPE: "W_TEMPORAL_TABLE_SHAPE",
-    /** An attribute whose title the importer would rename on re-import (a reserved name). */
+    /** An attribute's name is one GEXF reserves, so a GEXF import would give it another name. */
     ATTRIBUTE_RENAMED: "W_ATTRIBUTE_RENAMED",
     /** A cell, default or option the declared type cannot express (skipped). */
     VALUE_UNWRITABLE: "W_VALUE_UNWRITABLE",
-    /** A declared type the target version lacks (1.2: date, dateTime, typed lists...); the canonical type is written. */
+    /**
+     * An attribute type that this GEXF version does not have (GEXF 1.2 has no date, dateTime or typed lists) is
+     * written as the nearest type it has.
+     */
     DECLARED_TYPE: "W_DECLARED_TYPE",
-    /** A node id whose text reads back as the other type under the canonical rule: a non-integer number, a string of integer text. */
+    /**
+     * A node id that reads back as a different type: a number that is not an integer comes back as text, and text that
+     * looks like an integer ("42") comes back as a number, unless you read the file with `ids: "string"` or `ids:
+     * "keep"`.
+     */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /** A numeric edge id column: GEXF edge ids read back as strings. */
     EDGE_ID_TEXT: "W_GEXF_EDGE_ID_TEXT",
@@ -89,10 +96,14 @@ export const GEXF_LOSS = Object.freeze({
      * as a 32-bit float.
      */
     VIZ_DTYPE: "W_GEXF_VIZ_DTYPE",
-    /** A plain `weight` edge column reads back as THE weight (the importer's weightFrom default). */
+    /**
+     * An attribute named `weight` without the weight role reads back as the edge weight, because GEXF reads weights
+     * from `weight` by default.
+     */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
     /**
-     * A dictionary attribute without a declared list of allowed values gains one, its distinct values, on re-import.
+     * A text attribute stored as a dictionary, without a declared list of allowed values, reads back with its distinct
+     * values as that list.
      */
     OPTIONS_GAINED: LOSS.OPTIONS_GAINED,
     /** A text value holds a character XML 1.0 forbids (most control characters); the save fails with E_COLUMN_TYPE. */

@@ -114,7 +114,7 @@ import {
  * The format-specific options of the GEXF importer.
  * @category Built-in formats
  */
-export interface GexfImportOptions {
+export interface GexfImportOptions extends CommonImportOptions {
     /**
      * Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape,
      * thickness) into node and edge attributes; false skips them, with one W_GEXF_VIZ_SKIPPED
@@ -125,93 +125,93 @@ export interface GexfImportOptions {
 }
 
 /**
- * Issue code: the document is not a GEXF document (no `<gexf>` root).
+ * The document is not a GEXF document (no `<gexf>` root).
  * @category Issue and loss codes
  */
 export const NOT_GEXF_CODE = "E_NOT_GEXF";
 /**
- * Issue code: the graph declares edges but no `<nodes>` section.
+ * The graph declares edges but no `<nodes>` section.
  * @category Issue and loss codes
  */
 export const MISSING_NODES_CODE = "E_GEXF_MISSING_NODES";
 /**
- * Issue code: an edge `type` outside directed / undirected / mutual.
+ * An edge `type` outside directed / undirected / mutual.
  * @category Issue and loss codes
  */
 export const EDGE_TYPE_CODE = "E_GEXF_EDGE_TYPE";
 /**
- * Issue code: an `<attributes>` group without a class, or with an unknown one.
+ * An `<attributes>` group without a class, or with an unknown one.
  * @category Issue and loss codes
  */
 export const ATTRIBUTES_CLASS_CODE = "E_GEXF_ATTRIBUTES_CLASS";
 /**
- * Issue code: an `<attribute>` without an id.
+ * An `<attribute>` without an id.
  * @category Issue and loss codes
  */
 export const ATTRIBUTE_ID_CODE = "E_GEXF_ATTRIBUTE_ID";
 /**
- * Issue code: a graph header value (`defaultedgetype`, `mode`, `timeformat`, ...) outside its set.
+ * A graph header value (`defaultedgetype`, `mode`, `timeformat`, ...) outside its set.
  * @category Issue and loss codes
  */
 export const HEADER_VALUE_CODE = "W_GEXF_HEADER_VALUE";
 /**
- * Issue code: an `<attribute>` without a type (read as string).
+ * An `<attribute>` without a type (read as string).
  * @category Issue and loss codes
  */
 export const ATTRIBUTE_TYPE_CODE = "W_GEXF_ATTRIBUTE_TYPE";
 /**
- * Issue code: an `<attvalue>` naming an attribute the document never declares (once per id).
+ * An `<attvalue>` naming an attribute the document never declares (once per id).
  * @category Issue and loss codes
  */
 export const UNKNOWN_ATTRIBUTE_CODE = "W_GEXF_UNKNOWN_ATTRIBUTE";
 /**
- * Issue code: an `<attvalue>` without a `for` or a `value`.
+ * An `<attvalue>` without a `for` or a `value`.
  * @category Issue and loss codes
  */
 export const ATTVALUE_SHAPE_CODE = "W_GEXF_ATTVALUE_SHAPE";
 /**
- * Issue code: a timed value on an attribute declared in a static group (stored as dynamic anyway).
+ * A timed value on an attribute declared in a static group (stored as dynamic anyway).
  * @category Issue and loss codes
  */
 export const TIMED_STATIC_CODE = "W_GEXF_TIMED_VALUE_ON_STATIC";
 /**
- * Issue code: the `weight` XML attribute is present but `weightFrom` is null.
+ * The `weight` XML attribute is present but `weightFrom` is null.
  * @category Issue and loss codes
  */
 export const WEIGHT_IGNORED_CODE = "W_GEXF_WEIGHT_IGNORED";
 /**
- * Issue code: viz elements skipped under `viz: false`.
+ * Viz elements skipped under `viz: false`.
  * @category Issue and loss codes
  */
 export const VIZ_SKIPPED_CODE = "W_GEXF_VIZ_SKIPPED";
 /**
- * Issue code: a 1.2 dynamic viz element (its bounds are dropped, the value kept).
+ * A 1.2 dynamic viz element (its bounds are dropped, the value kept).
  * @category Issue and loss codes
  */
 export const VIZ_DYNAMIC_CODE = "W_GEXF_VIZ_DYNAMIC_DROPPED";
 /**
- * Issue code: `startopen` / `endopen` on a `<spell>` stored closed. No longer recorded: the open
- * bits of each spell are kept in the spells.open column. Kept so the exported code table is stable.
+ * `startopen` / `endopen` on a `<spell>` stored closed. No longer recorded: the open bits of each spell are kept in
+ * the spells.open column. Kept so the exported code table is stable.
  * @category Issue and loss codes
  */
 export const SPELL_OPEN_CODE = "W_GEXF_SPELL_OPEN_DROPPED";
 /**
- * Issue code: a viz element with a value that does not parse (the element is skipped).
+ * A viz element with a value that does not parse (the element is skipped).
  * @category Issue and loss codes
  */
 export const VIZ_VALUE_CODE = "W_GEXF_VIZ_VALUE";
 /**
- * Issue code: both `start` and `startopen` (or `end` and `endopen`) on one element; the closed bound wins.
+ * Both `start` and `startopen` (or `end` and `endopen`) on one element; the closed bound wins.
  * @category Issue and loss codes
  */
 export const OPEN_BOUND_CONFLICT_CODE = "W_GEXF_OPEN_BOUND_CONFLICT";
 /**
- * Issue code: both `timestamp` and `start` / `end` on one element or value; `start` / `end` win.
+ * Both `timestamp` and `start` / `end` on one element or value; `start` / `end` win.
  * @category Issue and loss codes
  */
 export const TIMESTAMP_CONFLICT_CODE = "W_GEXF_TIMESTAMP_CONFLICT";
 /**
- * Issue code: a value outside the `<options>` its attribute declares (the value is kept).
+ * A value outside the `<options>` its attribute declares (the value is kept).
  * @category Issue and loss codes
  */
 export const VALUE_OUTSIDE_OPTIONS_CODE = "W_GEXF_VALUE_OUTSIDE_OPTIONS";

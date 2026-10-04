@@ -27,6 +27,7 @@ export const DEFAULT_CHUNK_BYTES = 64 * 1024;
  * @param chunkBytes - the target chunk size in bytes
  * @yields UTF-8 chunks
  * @returns nothing
+ * @category Writing a format
  */
 export async function* encodeChunks(
     parts: TextParts,
@@ -57,6 +58,7 @@ export async function* encodeChunks(
  * Join text parts into one string.
  * @param parts - the text parts
  * @returns the whole document
+ * @category Writing a format
  */
 export async function joinText(parts: TextParts): Promise<string> {
     const collected: string[] = [];
@@ -70,6 +72,7 @@ export async function joinText(parts: TextParts): Promise<string> {
  * Decode UTF-8 chunks back into one string (for tests and for callers holding an export() result).
  * @param chunks - the chunks
  * @returns the decoded text
+ * @category Plugin helpers
  */
 export async function decodeChunks(chunks: AsyncIterable<Uint8Array>): Promise<string> {
     const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -85,6 +88,7 @@ export async function decodeChunks(chunks: AsyncIterable<Uint8Array>): Promise<s
  * Collect UTF-8 chunks into one Uint8Array.
  * @param chunks - the chunks
  * @returns the concatenated bytes
+ * @category Plugin helpers
  */
 export async function collectBytes(chunks: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
     const parts: Uint8Array[] = [];
@@ -107,7 +111,7 @@ export async function collectBytes(chunks: AsyncIterable<Uint8Array>): Promise<U
  * the iterable when the stream is canceled.
  * @param chunks - the chunks
  * @returns a byte stream
- * @category Plugin helpers
+ * @category Saving
  */
 export function toReadableStream(chunks: AsyncIterable<Uint8Array>): ReadableStream<Uint8Array> {
     const iterator = chunks[Symbol.asyncIterator]();

@@ -477,3 +477,26 @@ describe("choosing a graph and refusing plain text", () => {
         expect(sniff({ head: "a,b\nc,d\n" })?.format).toBe("csv");
     });
 });
+
+describe("importGraph option and error shapes", () => {
+    it("names an import option value it cannot use in details.option, like an export option", async () => {
+        const err = await importGraph("a,b\n", { format: "csv", duplicateEdges: "average" as "keep" }).catch(
+            (e: unknown) => e,
+        );
+        expect(err).toBeInstanceOf(GraphFormatError);
+        expect((err as GraphFormatError).code).toBe("E_UNSUPPORTED");
+        expect((err as GraphFormatError).details).toEqual({ option: "duplicateEdges", found: "average" });
+        expect((err as GraphFormatError).message).toBe(
+            'option duplicateEdges: "average" is not one of the values it takes',
+        );
+    });
+
+    it("keeps an ImportError's report out of its enumerable properties, so printing one stays short", async () => {
+        const err = await importGraph("a,b\nc\n", { format: "csv", errorLimit: 0 }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ImportError);
+        const importError = err as ImportError;
+        expect(Object.keys(importError)).not.toContain("report");
+        expect(importError.report.errorCount).toBe(1);
+        expect(importError.message).toBe("error limit of 0 exceeded: line 2: 1 field(s), expected 2");
+    });
+});

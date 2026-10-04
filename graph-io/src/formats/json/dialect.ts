@@ -13,20 +13,20 @@
  * (nested `id` / `children`).
  */
 
-import { type GraphMeta } from "@graphty/graph-format";
+import { type GraphMeta, type GraphSnapshot } from "@graphty/graph-format";
 
 import { capabilities } from "../../common/export.js";
 import { type ExportCapabilities } from "../../types.js";
 
 /**
  * The JSON dialects the plugin reads and writes.
- * @category Plugin helpers
+ * @category Built-in formats
  */
 export type JsonDialect = "node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis" | "obographs";
 
 /**
  * Every dialect name, for option checking and messages.
- * @category Plugin helpers
+ * @category Built-in formats
  */
 export const JSON_DIALECTS: readonly JsonDialect[] = Object.freeze([
     "node-link",
@@ -42,7 +42,7 @@ export const JSON_DIALECTS: readonly JsonDialect[] = Object.freeze([
  * The dialects the importer reads: every JsonDialect plus two it only reads, NetworkX
  * adjacency_data (`nodes` plus one neighbor list per node under `adjacency`) and tree_data (a
  * nested `id` / `children` record). The exporter writes neither.
- * @category Plugin helpers
+ * @category Built-in formats
  */
 export type JsonImportDialect = JsonDialect | "adjacency" | "tree";
 
@@ -64,9 +64,9 @@ export const META_KEY = "json";
 
 /**
  * The shape information the importer records under `meta.extra.json` so the exporter can write the
- * same file back. Every field is optional because a snapshot may come from
- * another format or from an older record.
- * @category Plugin helpers
+ * same file back; `jsonShapeOf(snapshot)` reads it. Every field is optional because a graph may
+ * come from another format.
+ * @category Built-in formats
  */
 export interface JsonShapeMeta {
     /** The dialect the file was read as. */
@@ -89,6 +89,19 @@ export interface JsonShapeMeta {
     readonly allowSelfLoops?: boolean | undefined;
     /** cytoscape: every top-level key besides `elements` and `data` (style, zoom, pan, ...), verbatim. */
     readonly cytoscape?: Readonly<Record<string, unknown>> | undefined;
+}
+
+/**
+ * What a JSON import recorded about the document's shape: the dialect it was read as
+ * (`jsonShapeOf(snapshot)?.dialect`), the keys it used, and so on. A JSON export with default
+ * options writes the same shape back.
+ * @param snapshot - a graph read from a JSON document
+ * @returns the shape, or null for a graph that was not read from JSON
+ * @category Built-in formats
+ */
+export function jsonShapeOf(snapshot: GraphSnapshot): JsonShapeMeta | null {
+    const shape = snapshot.meta.extra[META_KEY];
+    return isJsonObject(shape) ? (shape as JsonShapeMeta) : null;
 }
 
 /**
@@ -376,7 +389,7 @@ const TABLES: Readonly<Record<JsonDialect, ExportCapabilities>> = Object.freeze(
  * graph attributes everywhere but d3 (the bare shape) and vis.
  * @param dialect - the dialect
  * @returns its frozen capability table
- * @category Plugin helpers
+ * @category Built-in formats
  */
 export function dialectCapabilities(dialect: JsonDialect): ExportCapabilities {
     return TABLES[dialect];

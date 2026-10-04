@@ -51,7 +51,7 @@ import { ID_SPACE_COLUMN, LABELS_COLUMN, TYPE_COLUMN } from "./importer.js";
  * The format-specific options of the Neo4j exporter.
  * @category Built-in formats
  */
-export interface Neo4jExportOptions {
+export interface Neo4jExportOptions extends CommonExportOptions {
     /**
      * Which tables to write: "all" (the node sections, then the relationship sections), "nodes" or
      * "relationships".
@@ -77,7 +77,10 @@ export interface Neo4jExportOptions {
     quote?: string | undefined;
     /**
      * The relationship property that holds the edge weights, written as `<name>:double`; null
-     * writes no weights. "weight" is also what the importer reads as the weight.
+     * writes no weights (checkExport() then returns W_WEIGHTS_DROPPED). graph-io reads the
+     * "weight" property back as the weight; for any other name, pass the same name as the
+     * `weightFrom` import option to read the weights back (`weightColumn: "strength"` with
+     * `weightFrom: "strength"`), or they come back as a plain edge attribute.
      * @defaultValue "weight"
      */
     weightColumn?: string | null | undefined;
@@ -90,19 +93,20 @@ export interface Neo4jExportOptions {
 }
 
 /**
- * Loss code: undirected edges (an undirected snapshot, or the folded pairs of a mixed one) written as directed relationships.
+ * Neo4j relationships are always directed, so the edges of an undirected graph, and the undirected edges of a mixed
+ * graph, read back as directed.
  * @category Built-in formats
  */
 export const UNDIRECTED_LOSS = "W_NEO4J_UNDIRECTED_AS_DIRECTED";
 
 /**
- * Loss code: node ids whose text re-imports as another type under the canonical id rule.
+ * Node ids that read back as a different type, such as the text "7" as the number 7.
  * @category Built-in formats
  */
 export const ID_TEXT_TYPE_LOSS = ID_TEXT_TYPE_CODE;
 
 /**
- * Loss code: two node ids share one text; export() throws E_INVALID_ID.
+ * Two node ids share one text; export() throws E_INVALID_ID.
  * @category Built-in formats
  */
 export const ID_TEXT_COLLISION_LOSS = ID_TEXT_COLLISION_CODE;
@@ -120,19 +124,19 @@ export const WEIGHT_COLUMN_TAKEN_LOSS = "E_NEO4J_WEIGHT_COLUMN_TAKEN";
 export const ID_COLUMN_TAKEN_LOSS = "E_NEO4J_ID_COLUMN_TAKEN";
 
 /**
- * Loss code: a node has more than one stored-id column set; only the first is written.
+ * A node has more than one stored-id column set; only the first is written.
  * @category Built-in formats
  */
 export const MULTIPLE_ID_PROPERTIES_LOSS = "W_NEO4J_MULTIPLE_ID_PROPERTIES";
 
 /**
- * Loss code: a declared integer type holds non-integral values and is written as double.
+ * A declared integer type holds non-integral values and is written as double.
  * @category Built-in formats
  */
 export const DECLARED_TYPE_CHANGED_LOSS = "W_NEO4J_DECLARED_TYPE_CHANGED";
 
 /**
- * Loss code: a list item contains the array delimiter, which Neo4j cannot escape.
+ * A list item contains the array delimiter, which Neo4j cannot escape.
  * @category Built-in formats
  */
 export const ARRAY_DELIMITER_LOSS = "W_NEO4J_ARRAY_DELIMITER";
@@ -374,6 +378,7 @@ class ExportPlan {
             roles: SLOT_ROLES,
             roleNames: ROLE_NAMES,
             temporalText: true,
+            weights: options.weightColumn !== null,
         });
         this.planColumns("node", snapshot.nodes, this.nodeColumns);
         this.planColumns("edge", snapshot.edges, this.edgeColumns);

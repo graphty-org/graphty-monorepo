@@ -46,7 +46,7 @@ import { OBOGRAPHS_LOSS, OBOGRAPHS_SHARED_LOSS, planObographs } from "./obograph
  * The format-specific options of the JSON exporter.
  * @category Built-in formats
  */
-export interface JsonExportOptions {
+export interface JsonExportOptions extends CommonExportOptions {
     /**
      * The dialect to write. The default is the dialect a JSON import read, else "node-link".
      * Attributes are written under their own names; vis.js shows the `label` attribute, so rename
@@ -78,27 +78,31 @@ export interface JsonExportOptions {
     indexLinks?: boolean | undefined;
     /**
      * node-link, d3 and vis: the source key. The default is the key a JSON import read, else
-     * "source" ("from" for vis).
+     * "source" ("from" for vis). graph-io finds "source", "src" and "from" by itself; for another
+     * key, read the file back with the same `sourceKey` import option, or every edge is skipped.
      * @defaultValue as read, else "source"
      */
     sourceKey?: string | undefined;
     /**
      * node-link, d3 and vis: the target key. The default is the key a JSON import read, else
-     * "target" ("to" for vis).
+     * "target" ("to" for vis). graph-io finds "target", "dst" and "to" by itself; for another key,
+     * read the file back with the same `targetKey` import option.
      * @defaultValue as read, else "target"
      */
     targetKey?: string | undefined;
     /**
      * The key the weight is written under. The default is the key a JSON import read the weights
-     * from, else "weight".
+     * from, else "weight". For another key, read the file back with `weightFrom` set to it, or the
+     * weights come back as a plain edge attribute.
      * @defaultValue as read, else "weight"
      */
     weightKey?: string | undefined;
     /**
-     * OBO Graphs: the ontology IRI that node ids without a prefix are written under
-     * (`<ontologyIri>#<id>`), and the graph id when the graph has none. A graph read from an OBO
-     * Graphs document keeps its own graph id, which this option does not change. The default is
-     * `http://purl.obolibrary.org/obo/<ontology>.owl`.
+     * OBO Graphs: the graph id written when the graph has none. A graph read from an OBO Graphs
+     * document keeps its own graph id, which this option does not change. Node ids are written in
+     * the form graph-io reads back as the same id: an IRI as it is, a prefixed id such as
+     * `GO:0008150` as its OBO address, and an id without a prefix (`a`) as it is, not under this
+     * IRI. The default is `http://purl.obolibrary.org/obo/<ontology>.owl`.
      * @defaultValue the ontology's OBO address
      */
     ontologyIri?: string | undefined;
@@ -120,7 +124,9 @@ export const JSON_LOSS = Object.freeze({
     DIRECTION_DROPPED: DIRECTION_DROPPED_CODE,
     /** GEXF mutual pairs are written as two directed edges. */
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
-    /** JGF keys its nodes by string; numeric ids re-import as text unless ids: "canonical". */
+    /**
+     * JGF keys its nodes by text, so number ids read back as text, unless you read the file with `ids: "canonical"`.
+     */
     NUMERIC_IDS_STRINGIFIED: "W_NUMERIC_IDS_STRINGIFIED",
     /**
      * Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with
@@ -131,7 +137,10 @@ export const JSON_LOSS = Object.freeze({
     NODE_ORDER: NODE_ORDER_CODE,
     /** A column named like a reserved key of the dialect (id, source, target, ...) is skipped. */
     RESERVED_KEY: "W_RESERVED_KEY",
-    /** A plain edge column named like the weight key reads back as THE weight (or is skipped when weights are written). */
+    /**
+     * An attribute without the weight role is named like the key weights are written under; it reads back as the edge
+     * weight, or is not written when the graph has weights of its own.
+     */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
     /** A position column without a slot (every dialect but Cytoscape) is a plain array attribute; the role is lost. */
     POSITIONS_DROPPED: LOSS.POSITIONS,
@@ -139,7 +148,7 @@ export const JSON_LOSS = Object.freeze({
     POSITION_Z_DROPPED: "W_POSITION_Z_DROPPED",
     /** Cytoscape has a single parent; a `parents` list column cannot be written. */
     PARENTS_DROPPED: LOSS.PARENTS,
-    /** node-link / d3 have no edge id slot; the id column is written as a plain attribute. */
+    /** Node-link / d3 have no edge id slot; the id column is written as a plain attribute. */
     EDGE_IDS_DROPPED: LOSS.EDGE_IDS_DROPPED,
     /**
      * A number attribute whose values are all whole numbers reads back as integers, because the format does not record
@@ -150,21 +159,32 @@ export const JSON_LOSS = Object.freeze({
     ROLE_DROPPED: LOSS.ROLE,
     /** A column without a set cell is not written (JSON declares no columns). */
     EMPTY_COLUMN_DROPPED: LOSS.EMPTY_COLUMN,
-    /** obographs: an edge column (or the explicit weights) is written into each edge's meta and reads back inside the meta column. */
+    /**
+     * Obographs: an edge column (or the explicit weights) is written into each edge's meta and reads back inside the
+     * meta column.
+     */
     OBOGRAPHS_EDGE_COLUMN_AS_META: OBOGRAPHS_LOSS.EDGE_COLUMN_AS_META,
-    /** obographs: a node id or relation is written as an IRI the importer's default oboIds "curie" reads back as another id. */
+    /**
+     * Obographs: a node id or relation is written as an IRI the importer's default oboIds "curie" reads back as
+     * another id.
+     */
     OBOGRAPHS_ID_CHANGED: OBOGRAPHS_LOSS.ID_CHANGED,
-    /** obographs: a property_value's xsd datatype has no place in basicPropertyValues and reads back unset. */
+    /** Obographs: a property_value's xsd datatype has no place in basicPropertyValues and reads back unset. */
     OBOGRAPHS_DATATYPE_DROPPED: OBOGRAPHS_LOSS.DATATYPE_DROPPED,
-    /** obographs: a node column outside the OBO vocabulary reads back inside the property_value column. */
+    /** Obographs: a node column outside the OBO vocabulary reads back inside the property_value column. */
     COLUMN_AS_PROPERTY_VALUE: OBOGRAPHS_SHARED_LOSS.COLUMN_AS_PROPERTY_VALUE,
-    /** obographs: an edge without a relation is written with the pred is_a. */
+    /** Obographs: an edge without a relation is written with the pred is_a. */
     RELATION_ASSUMED: OBOGRAPHS_SHARED_LOSS.RELATION_ASSUMED,
-    /** obographs: Typedef nodes are written as PROPERTY nodes, which read back as nodes only under typedefs: "nodes". */
+    /**
+     * Obographs: Typedef nodes are written as PROPERTY nodes, which read back as nodes only under typedefs: "nodes".
+     */
     TYPEDEF_NODES: OBOGRAPHS_SHARED_LOSS.TYPEDEF_NODES,
-    /** obographs: a graph column is written into the graph's meta and reads back in meta.extra.obographs. */
+    /**
+     * OBO Graphs: a graph attribute is written into the graph's `meta` and reads back in
+     * `snapshot.meta.extra.obographs`.
+     */
     GRAPH_COLUMN_AS_METADATA: OBOGRAPHS_SHARED_LOSS.GRAPH_COLUMN_AS_METADATA,
-    /** obographs: numeric node ids are written as text and read back as strings. */
+    /** Obographs: numeric node ids are written as text and read back as strings. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /**
      * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
@@ -176,7 +196,10 @@ export const JSON_LOSS = Object.freeze({
      * name the format's importer gives it.
      */
     COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
-    /** obographs: a vocabulary column of the other text dtype reads back as the vocabulary's. */
+    /**
+     * OBO Graphs: an OBO attribute stored as text where graph-io uses a dictionary (or the other way round); it reads
+     * back with graph-io's usual type. The values are the same.
+     */
     DTYPE_UNSUPPORTED: LOSS.DTYPE,
 });
 
@@ -1744,7 +1767,7 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
  * The capability table of one dialect, for callers that pick a dialect before check().
  * @param dialect - the dialect
  * @returns the frozen table
- * @category Plugin helpers
+ * @category Built-in formats
  */
 export function jsonCapabilities(dialect: JsonDialect): ExportCapabilities {
     return dialectCapabilities(dialect);

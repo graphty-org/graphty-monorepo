@@ -43,7 +43,7 @@ import { DELIMITER_CANDIDATES } from "./records.js";
  * The format-specific options of the CSV exporter.
  * @category Built-in formats
  */
-export interface CsvExportOptions {
+export interface CsvExportOptions extends CommonExportOptions {
     /**
      * The header spelling: "gephi" writes `Source,Target,Type,...,Weight`, with each edge's
      * direction in `Type`; "generic" writes `source,target,...,weight` and no direction column.
@@ -71,7 +71,10 @@ export interface CsvExportOptions {
      */
     newline?: "\n" | "\r\n" | undefined;
     /**
-     * Whether to write the header row (an adjacency table never has one).
+     * Whether to write the header row (an adjacency table never has one). A file without a header is
+     * read back by position: source, target, weight, then unnamed columns. checkExport() returns
+     * W_CSV_HEADERLESS when the table has other columns; for a plain headerless edge list, pass
+     * `dialect: "generic"` and write a graph whose edges have only weights.
      * @defaultValue true
      */
     header?: boolean | undefined;
@@ -87,7 +90,7 @@ export const CSV_LOSS = Object.freeze({
      * E_INVALID_ID.
      */
     ID_TEXT_COLLISION: LOSS.ID_TEXT_COLLISION,
-    /** Ids whose text reads back as the other type under the canonical rule. */
+    /** Ids that read back as a different type, such as the text "7" as the number 7. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /**
      * The generic dialect has no direction column; an undirected or mixed graph reads back as
@@ -122,12 +125,25 @@ export const CSV_LOSS = Object.freeze({
     STORAGE_CLASS_CHANGED: LOSS.STORAGE_CLASS,
     /** Node attributes are written by a `table: "nodes"` export only. */
     NODE_TABLE: "W_CSV_NODE_TABLE",
-    /** The edge table carries no node without an edge: isolated nodes vanish on re-import. */
+    /**
+     * The edge table has no row for a node without edges, so isolated nodes are missing when the file is read back.
+     * Write the node table too (`table: "nodes"`).
+     */
     ISOLATED_NODES: "W_CSV_ISOLATED_NODES",
-    /** The edge table lists nodes by first appearance; the node order (and indices) change on re-import. */
+    /**
+     * The edge table lists nodes in the order they first appear in an edge, so the node order changes when the file is
+     * read back.
+     */
     NODE_ORDER: "W_CSV_NODE_ORDER",
     /** An adjacency table holds no edge column but the weight: edge ids, labels and attributes are not written. */
     EDGE_COLUMNS: "W_CSV_EDGE_COLUMNS",
+    /**
+     * `header: false` with columns a file without a header cannot name: graph-io reads such a file by position
+     * (source, target, weight, then columns it names column4, column5, ...), so these columns read back under other
+     * names or in the wrong place (an edge id in the weight's place, say). Write the header, or write only source,
+     * target and weight with `dialect: "generic"`.
+     */
+    HEADERLESS: "W_CSV_HEADERLESS",
 });
 
 /**
@@ -1043,6 +1059,53 @@ function prepare(snapshot: GraphSnapshot, options: (CsvExportOptions & CommonExp
 }
 
 /**
+ * The note of a table written without its header: a headerless file is read by position (source, target, weight,
+ * then unnamed columns; a node table: id, then unnamed columns), so any other column reads back elsewhere or unnamed.
+ * @param plan - the export plan
+ * @returns the note, or nothing when the header is written or the positions match
+ */
+function headerlessNotes(plan: Plan): LossNote[] {
+    const { csv } = plan;
+    if (csv.header || csv.table === "adjacency") {
+        return [];
+    }
+    const names: string[] = [];
+    if (csv.table === "nodes") {
+        if (plan.nodeLabel !== null) {
+            names.push(plan.nodeLabel.meta.name);
+        }
+        names.push(...plan.nodeColumns.map((c) => c.header));
+    } else {
+        if (csv.dialect.type !== null) {
+            names.push(csv.dialect.type);
+        }
+        if (plan.edgeId !== null) {
+            names.push(plan.edgeId.meta.name);
+        }
+        if (plan.edgeLabel !== null) {
+            names.push(plan.edgeLabel.meta.name);
+        }
+        // a weight right after the target is where a headerless read expects it
+        if (plan.weights.weighted && names.length > 0) {
+            names.push(csv.dialect.weight);
+        }
+        names.push(...plan.edgeColumns.map((c) => c.header));
+    }
+    if (names.length === 0) {
+        return [];
+    }
+    const shown = names.map((n) => JSON.stringify(n)).join(", ");
+    return [
+        Object.freeze({
+            code: CSV_LOSS.HEADERLESS,
+            message: `without a header the file is read back by position (${csv.table === "nodes" ? "id" : "source, target, weight"}, then unnamed columns), so the column(s) ${shown} read back unnamed or in another column's place; write the header, or for an edge list pass dialect: "generic" and write only source, target and weight`,
+            column: null,
+            count: names.length,
+        }),
+    ];
+}
+
+/**
  * Pre-flight: what a CSV export would lose. The generic notes describe the snapshot as a whole
  * against the format; the CSV notes concern the table selected by `table`.
  * @param snapshot - the snapshot
@@ -1054,6 +1117,7 @@ function check(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExpor
     return Object.freeze([
         ...checkCapabilities(snapshot, CSV_CAPABILITIES, plan.common, { roles: KEPT_ROLES }),
         ...plan.notes,
+        ...headerlessNotes(plan),
     ]);
 }
 

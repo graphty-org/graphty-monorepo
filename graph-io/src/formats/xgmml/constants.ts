@@ -186,13 +186,16 @@ export const CYTOSCAPE_ORIGIN_NAMESPACE = "cytoscape";
  */
 export const XGMML_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
-    /** Fatal: the input is not well-formed XML. */
+    /** The input is not well-formed XML. The import stops. */
     XML_SYNTAX: XML_SYNTAX_CODE,
-    /** Fatal: the input is empty or whitespace only. */
+    /** The input is empty or whitespace only. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** Fatal: the input holds invalid UTF-8. */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Fatal: bytes invalid in the encoding a BOM, a declaration or the option chose. */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
+     * `encoding` option). The import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Undeclared non-UTF-8 bytes were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
@@ -200,9 +203,15 @@ export const XGMML_ISSUE = Object.freeze({
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** A declared encoding the byte order mark contradicts (the mark wins). */
     ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
-    /** Fatal: the root element is not `<graph>` (an XHTML page embedding one, a GraphML file). */
+    /**
+     * The root element is not `<graph>` (it may be an XHTML page with a graph inside, or a GraphML file). The import
+     * stops.
+     */
     NO_GRAPH: NO_GRAPH_CODE,
-    /** Fatal: a session view document (`cy:view="1"`): view SUIDs and no topology. */
+    /**
+     * The file is a Cytoscape session view (`cy:view="1"`), which holds only view settings and no nodes or edges. The
+     * import stops.
+     */
     VIEW_DOCUMENT: "E_XGMML_VIEW_DOCUMENT",
     /** A node with neither an id nor a label; it is skipped with its subtree. */
     MISSING_ID: MISSING_ID_CODE,
@@ -274,9 +283,9 @@ export const XGMML_ISSUE = Object.freeze({
      * `importAllGraphs()` reads every one.
      */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
-    /** graphIndex / graphName names no network (fatal). */
+    /** `graphIndex` or `graphName` matches no network in the session. The import stops. */
     GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
-    /** graphName names several networks (fatal). */
+    /** `graphName` matches several networks in the session. The import stops. */
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
     /**
      * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
@@ -288,7 +297,7 @@ export const XGMML_ISSUE = Object.freeze({
      * a plain attribute.
      */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
-    /** Two id texts merged into one number under ids "number". */
+    /** Two different id texts became the same number because `ids` is "number", so their nodes were merged. */
     ID_MERGED: ID_MERGED_CODE,
     /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
@@ -302,7 +311,7 @@ export const XGMML_ISSUE = Object.freeze({
      * with the builder's direction instead of its own.
      */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
-    /** Edges forced to the policy's direction. */
+    /** Edges of the other direction were read with the direction `onMixedDirection` chose. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
     /**
      * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
@@ -334,13 +343,15 @@ export const XGMML_LOSS = Object.freeze({
     TEMPORAL_TEXT_DROPPED: TEMPORAL_TEXT_DROPPED_CODE,
     /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: ROLE_DROPPED_CODE,
-    /** A parents column not written because the snapshot also has a parent column. */
+    /**
+     * A `parents` attribute (several parents per node) is not written because the graph also has a `parent` attribute.
+     */
     PARENTS_DROPPED: PARENTS_DROPPED_CODE,
     /** A mutual pair written as two directed edges. */
     MUTUAL_EXPANDED: MUTUAL_EXPANDED_CODE,
     /** Node ids whose text reads back as the other type. */
     ID_TEXT_TYPE: ID_TEXT_TYPE_CODE,
-    /** An edge id column of another dtype written as text; it reads back as strings. */
+    /** Edge ids that are not text are written as text and read back as text. */
     EDGE_ID_TEXT: "W_XGMML_EDGE_ID_TEXT",
     /** Strings holding a literal backslash-n or backslash-t read back as newline / tab (Cytoscape's escapes). */
     BACKSLASH_ESCAPE: "W_XGMML_BACKSLASH_ESCAPE",
@@ -358,7 +369,7 @@ export const XGMML_LOSS = Object.freeze({
      * reads back with that role.
      */
     ROLE_ASSUMED: ROLE_ASSUMED_CODE,
-    /** A plain `weight` edge column reads back as THE weight. */
+    /** An attribute named `weight` without the weight role reads back as the edge weight. */
     WEIGHT_KEY_CLASH: WEIGHT_KEY_CLASH_CODE,
     /**
      * A text attribute reads back as a dictionary attribute, or the reverse, because the importer chooses by how often

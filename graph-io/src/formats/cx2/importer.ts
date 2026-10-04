@@ -126,7 +126,7 @@ export const BYPASS_NAMESPACE = "cx2.bypass";
  * The format-specific options of the CX2 importer.
  * @category Built-in formats
  */
-export interface Cx2ImportOptions {
+export interface Cx2ImportOptions extends CommonImportOptions {
     /**
      * Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node
      * attribute named `z`; "position" makes it the third coordinate of the position.
@@ -143,27 +143,33 @@ export interface Cx2ImportOptions {
  */
 export const CX2_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
-    /** The input is empty (fatal). */
+    /** The input is empty. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** The text is not JSON (fatal). */
+    /** The text is not valid JSON. The import stops. */
     SYNTAX: SYNTAX_CODE,
-    /** Invalid UTF-8 (fatal). */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark or the `encoding` option). The
+     * import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** An encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
-    /** The document is not an array or does not start with a descriptor holding CXVersion (fatal). */
+    /**
+     * The document is not a JSON array, or its first element is not the CX2 descriptor with `CXVersion`. The import
+     * stops.
+     */
     NO_DESCRIPTOR: "E_CX2_NO_DESCRIPTOR",
-    /** CXVersion names a major version other than 2 (fatal); "1.x" says the file is CX1. */
+    /** `CXVersion` names a version other than 2 ("1.x" means the file is CX1; read it as `cx`). The import stops. */
     VERSION: "E_CX2_VERSION",
     /** CXVersion is a 2.x other than "2.0" (or not a string); the document is read. */
     MINOR_VERSION: "W_CX2_MINOR_VERSION",
     /** The document has no status block, or a malformed one. */
     NO_STATUS: "E_CX2_NO_STATUS",
-    /** The producer marked the document as failed (fatal). */
+    /** The program that wrote the file marked it as failed, so it is incomplete. The import stops. */
     STATUS_FAILED: STATUS_FAILED_CODE,
     /** The producer marked the document as successful with an error text. */
     STATUS_WARNING: STATUS_WARNING_CODE,
@@ -248,7 +254,7 @@ export const CX2_ISSUE = Object.freeze({
      * with the builder's direction instead of its own.
      */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
-    /** Edges forced to the policy's direction. */
+    /** Edges of the other direction were read with the direction `onMixedDirection` chose. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
     /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
@@ -257,7 +263,7 @@ export const CX2_ISSUE = Object.freeze({
      * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
      */
     SINK_OPTION: SINK_OPTION_CODE,
-    /** The input is beyond a size limit (fatal). */
+    /** The input is larger than graph-io's size limit. The import stops. */
     TOO_LARGE: TOO_LARGE_CODE,
 });
 

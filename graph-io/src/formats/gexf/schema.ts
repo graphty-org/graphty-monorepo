@@ -13,7 +13,7 @@ import { TIME_TEXT_ROLE, TIME_TEXT_SUFFIX } from "../../common/temporal.js";
 
 /**
  * The GEXF versions the exporter writes.
- * @category Plugin helpers
+ * @category Built-in formats
  */
 export type GexfVersion = "1.2" | "1.3";
 

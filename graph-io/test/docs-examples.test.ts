@@ -2,11 +2,11 @@
  * Runs every documentation example (docs/examples/**.ts) as a reader would, so the code the guide shows cannot
  * rot. scripts/docs-reference.ts copies each file verbatim into the pages; this file runs them.
  *
- * Each example runs in a fresh directory holding the test corpus files (karate.gml, lesmiserables.gexf,
- * got-edges.csv, ...), with `fetch` answering any URL from those files by its last path segment (a URL ending in
- * `/export`, which has no file name, gets simple.graphml). The browser
+ * Each example runs in a fresh directory holding only the published sample files (docs/samples/), so an example
+ * cannot read a file a reader cannot download, with `fetch` answering any URL from those files by its last path
+ * segment (a URL ending in `/export`, which has no file name, gets simple.graphml). The browser
  * examples get a small stand-in `document`: after the example's top level has run, every element it looked up
- * receives the event it listens for (a file input gets `lesmiserables.gexf` and a "change", anything else a
+ * receives the event it listens for (a file input gets `got.gexf` and a "change", anything else a
  * "click"), and every download it starts is recorded. What an example prints, the files it writes and the
  * downloads it starts are compared with a snapshot.
  */
@@ -32,7 +32,8 @@ const DOCS = fileURLToPath(new URL("../docs/", import.meta.url));
 const EXAMPLES = join(DOCS, "examples");
 const CORPUS = fileURLToPath(new URL("corpus/", import.meta.url));
 const SAMPLES = join(DOCS, "samples");
-const PICKED_FILE = "lesmiserables.gexf";
+const PICKED_FILE = "got.gexf";
+const EXPORT_FILE = "simple.graphml";
 
 /**
  * Every file under a directory, recursively.
@@ -126,7 +127,7 @@ function installGlobals(dir: string, run: Run): Map<string, FakeElement> {
     });
     vi.stubGlobal("fetch", (url: string | URL, init?: RequestInit): Promise<Response> => {
         const last = basename(new URL(String(url), "https://example.com/").pathname);
-        const name = last === "export" ? "simple.graphml" : last;
+        const name = last === "export" ? EXPORT_FILE : last;
         if (init?.method === "POST") {
             output.push(`[upload] ${String(url)}`);
             return Promise.resolve(new Response("ok"));
@@ -153,17 +154,12 @@ function installGlobals(dir: string, run: Run): Map<string, FakeElement> {
  */
 async function runExample(file: string): Promise<Run> {
     const dir = mkdtempSync(join(tmpdir(), "graph-io-docs-"));
-    for (const fixture of readdirSync(CORPUS).filter((d) => d !== "malformed")) {
-        for (const f of readdirSync(join(CORPUS, fixture))) {
-            if (f !== "manifest.json") {
-                copyFileSync(join(CORPUS, fixture, f), join(dir, f));
-            }
-        }
-    }
-    // the sample files the guide publishes, which a reader can download
+    // only the sample files the guide publishes, so every file an example reads is one a reader can download
     for (const f of readdirSync(SAMPLES)) {
         copyFileSync(join(SAMPLES, f), join(dir, f));
     }
+    // what the example API at https://example.com/api/graphs/42/export answers
+    copyFileSync(join(CORPUS, "graphml", EXPORT_FILE), join(dir, EXPORT_FILE));
     const before = new Set(readdirSync(dir));
     const run: Run = { printed: [], effects: [] };
     const cwd = process.cwd();

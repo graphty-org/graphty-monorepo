@@ -658,3 +658,29 @@ describe("csvExporter: adjacency tables", () => {
         );
     });
 });
+
+describe("csvExporter: header: false", () => {
+    it("notes every column a headerless read would put elsewhere, and nothing for a plain weighted edge list", async () => {
+        const s = await importCsv("source,target,weight\na,b,5\nb,c,2\n", undefined, false);
+        const generic = { header: false, dialect: "generic" } as const;
+        expect(codesOf(csvExporter.check(s, generic))).not.toContain(CSV_LOSS.HEADERLESS);
+        // what the note promises: the plain list reads back with its weights
+        const back = await importCsv(await csvExporter.exportToString(s, generic), undefined, false);
+        expect(Array.from(back.edgeList().weights ?? [])).toEqual([5, 2]);
+
+        // the Gephi dialect's Type column sits where a headerless read expects the weight
+        const gephi = csvExporter.check(s, { header: false });
+        expect(codesOf(gephi)).toContain(CSV_LOSS.HEADERLESS);
+        expect(gephi.find((n) => n.code === CSV_LOSS.HEADERLESS)?.message).toContain('"Type"');
+
+        // an edge id or an attribute column has no name without a header
+        const withId = await importCsv("source,target,id,weight,kind\na,b,e1,5,x\n", undefined, false);
+        expect(codesOf(csvExporter.check(withId, generic))).toContain(CSV_LOSS.HEADERLESS);
+        expect(codesOf(csvExporter.check(withId, { ...generic, header: true }))).not.toContain(CSV_LOSS.HEADERLESS);
+    });
+
+    it("notes a headerless node table with columns beyond the id", async () => {
+        const s = await importCsv("id,label\na,Alice\n", { table: "nodes" });
+        expect(codesOf(csvExporter.check(s, { table: "nodes", header: false }))).toContain(CSV_LOSS.HEADERLESS);
+    });
+});

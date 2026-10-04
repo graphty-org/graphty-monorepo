@@ -1,6 +1,7 @@
 /**
  * The `@graphty/graph-io/gml` subpath: the GML importer and exporter, their
  * option types, and their issue and loss-note codes grouped in two tables.
+ * @module @graphty/graph-io/gml
  */
 
 import {
@@ -65,19 +66,25 @@ export { gmlImporter, type GmlImportOptions } from "./importer.js";
  */
 export const GML_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
-    /** A grammar violation: an untokenizable bare token, an unclosed string or `[`, a stray `]`, a key without a value (fatal). */
+    /**
+     * The text breaks GML's syntax: a word that is not a key or a value, an unclosed string or `[`, a stray `]`, or a
+     * key without a value. The import stops.
+     */
     SYNTAX: SYNTAX_CODE,
-    /** The input holds invalid UTF-8 (fatal). */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
+     * `encoding` option). The import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
-    /** No `graph [` block (fatal). */
+    /** There is no `graph [` block. The import stops. */
     NO_GRAPH: NO_GRAPH_CODE,
-    /** More than one `graph` block (fatal). */
+    /** The file holds more than one `graph` block; the first was read, or the one `graphIndex` or `graphName` chose. */
     MULTIPLE_GRAPHS: SECOND_GRAPH_CODE,
     /** A node without an `id`. */
     MISSING_ID: MISSING_ID_CODE,
@@ -87,7 +94,10 @@ export const GML_ISSUE = Object.freeze({
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
     /** A node id, source or target that is neither an integer nor a string. */
     ID_TYPE: ID_TYPE_CODE,
-    /** String node ids, sources or targets (outside the spec's integers), kept under the ids rule; warned once. */
+    /**
+     * Node ids, sources or targets are text, where GML expects integers. They are read under the `ids` option.
+     * Reported once per file.
+     */
     STRING_ID: STRING_ID_CODE,
     /** A node id declared twice (later keys overwrite). */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
@@ -107,7 +117,7 @@ export const GML_ISSUE = Object.freeze({
     GRAPHICS: GRAPHICS_CODE,
     /** A graph, node or edge record nested in a node or edge; kept as json, not read as structure. */
     NESTED_ELEMENT: NESTED_ELEMENT_CODE,
-    /** yEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment. */
+    /** YEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment. */
     GROUPS: GROUPS_CODE,
     /**
      * An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column,
@@ -124,7 +134,7 @@ export const GML_ISSUE = Object.freeze({
      * a plain attribute.
      */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
-    /** Two id texts merged into one number under ids "number". */
+    /** Two different id texts became the same number because `ids` is "number", so their nodes were merged. */
     ID_MERGED: ID_MERGED_CODE,
     /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
@@ -138,7 +148,7 @@ export const GML_ISSUE = Object.freeze({
      * with the builder's direction instead of its own.
      */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
-    /** Edges forced to the policy's direction. */
+    /** Edges of the other direction were read with the direction `onMixedDirection` chose. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
     /**
      * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
@@ -165,7 +175,10 @@ export const GML_LOSS = Object.freeze({
     NESTED_ARRAY: NESTED_ARRAY_CODE,
     /** A json row that is an array, written as repeated keys. */
     JSON_ARRAY: JSON_ARRAY_CODE,
-    /** A column name or record key outside the GML key grammar. */
+    /**
+     * An attribute name GML cannot use as a key (keys are letters and digits, starting with a letter). The save fails
+     * unless `sanitizeKeys` is "mangle".
+     */
     INVALID_KEY: INVALID_KEY_CODE,
     /** A column named like a structural key. */
     RESERVED_KEY: RESERVED_KEY_CODE,

@@ -37,7 +37,7 @@ describe("DOT robustness: wrong format and empty input", () => {
     it("refuses a file of only whitespace and comments with E_EMPTY_INPUT", async () => {
         const err = await rejects(dot("  // a line comment\n/* a block\n comment */\n"));
         expect(fatalCode(err)).toBe("E_EMPTY_INPUT");
-        expect(err.message).toBe("the input holds no graph (empty or only comments)");
+        expect(err.issue?.message).toBe("the input holds no graph (empty or only comments)");
     });
 
     it("refuses an HTML error page as a foreign file", async () => {
@@ -49,7 +49,7 @@ describe("DOT robustness: wrong format and empty input", () => {
     it("refuses a GML file at the [ after graph", async () => {
         const err = await rejects(dot("graph [ node [ id 1 ] ]", { filename: "graph.dot" }));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe('expected "{" after the graph header, found "["');
+        expect(err.issue?.message).toBe('expected "{" after the graph header, found "["');
     });
 
     it("refuses gzip bytes with E_FOREIGN_FORMAT naming gzip", async () => {
@@ -64,19 +64,19 @@ describe("DOT robustness: truncation", () => {
         for (const text of ["digraph", "digraph G"]) {
             const err = await rejects(dot(text));
             expect(fatalCode(err)).toBe("E_SYNTAX");
-            expect(err.message).toBe('expected "{" after the graph header, found end of input');
+            expect(err.issue?.message).toBe('expected "{" after the graph header, found end of input');
         }
     });
 
     it("refuses an edge chain cut after its operator, with the line and the counts so far", async () => {
         const eof = await rejects(dot("digraph G {\n a ->"));
         expect(fatalCode(eof)).toBe("E_SYNTAX");
-        expect(eof.message).toBe("expected an identifier, found end of input");
+        expect(eof.issue?.message).toBe("expected an identifier, found end of input");
         expect(issue(eof.report, "E_SYNTAX").line).toBe(2);
         expect(eof.report.counts.nodes).toBe(1);
         const brace = await rejects(dot("digraph G { a -> b -> }"));
         expect(fatalCode(brace)).toBe("E_SYNTAX");
-        expect(brace.message).toBe('expected an identifier, found "}"');
+        expect(brace.issue?.message).toBe('expected an identifier, found "}"');
         expect(brace.report.counts.nodes).toBe(2);
     });
 
@@ -84,21 +84,21 @@ describe("DOT robustness: truncation", () => {
         for (const text of ["digraph G { a [color=", "digraph G { a [color=red"]) {
             const err = await rejects(dot(text));
             expect(fatalCode(err)).toBe("E_SYNTAX");
-            expect(err.message).toBe("expected an identifier, found end of input");
+            expect(err.issue?.message).toBe("expected an identifier, found end of input");
         }
     });
 
     it("refuses a quoted string cut right after a backslash, never reading past the end", async () => {
         const err = await rejects(dot('digraph G {\n a [label="ab\\'));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe("unterminated quoted string (missing closing quote)");
+        expect(err.issue?.message).toBe("unterminated quoted string (missing closing quote)");
         expect(issue(err.report, "E_SYNTAX").line).toBe(2);
     });
 
     it("refuses an HTML string cut before its closing >", async () => {
         const err = await rejects(dot("digraph G { a [label=<<b>x"));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe("unterminated HTML string (missing closing '>')");
+        expect(err.issue?.message).toBe("unterminated HTML string (missing closing '>')");
     });
 });
 
@@ -106,7 +106,7 @@ describe("DOT robustness: syntax errors", () => {
     it("refuses a stray } after the graph, naming it", async () => {
         const err = await rejects(dot("digraph G { a -> b; }\n}"));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe('unexpected "}" after the end of the graph: no "{" is open');
+        expect(err.issue?.message).toBe('unexpected "}" after the end of the graph: no "{" is open');
         expect(issue(err.report, "E_SYNTAX").line).toBe(2);
     });
 
@@ -116,17 +116,17 @@ describe("DOT robustness: syntax errors", () => {
     it("refuses content after a complete graph that is not a graph, as Graphviz does", async () => {
         const html = await rejects(dot("digraph { a -> b }\n<html>"));
         expect(fatalCode(html)).toBe("E_SYNTAX");
-        expect(html.message).toBe('expected "graph" or "digraph", found "<html>"');
+        expect(html.issue?.message).toBe('expected "graph" or "digraph", found "<html>"');
         expect(issue(html.report, "E_SYNTAX").line).toBe(2);
         const cut = await rejects(dot("digraph { a -> b }\ndigraph { c ->"));
         expect(fatalCode(cut)).toBe("E_SYNTAX");
-        expect(cut.message).toBe('missing "}" at the end of a graph');
+        expect(cut.issue?.message).toBe('missing "}" at the end of a graph');
     });
 
     it("refuses keywords used as bare ids; quoted they are plain ids", async () => {
         const err = await rejects(dot("digraph { node -> edge }"));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe('expected "[" after "node", found "->"');
+        expect(err.issue?.message).toBe('expected "[" after "node", found "->"');
         const quoted = await dot('digraph { "node" -> "edge" }');
         expect(codes(quoted.report)).toEqual([]);
         expect(edgePairs(quoted.snapshot)).toEqual(["node-edge"]);
@@ -135,7 +135,7 @@ describe("DOT robustness: syntax errors", () => {
     it("refuses a graph keyword inside a graph", async () => {
         const err = await rejects(dot("digraph { digraph x { a } }"));
         expect(fatalCode(err)).toBe("E_SYNTAX");
-        expect(err.message).toBe('unexpected keyword "digraph" inside a graph');
+        expect(err.issue?.message).toBe('unexpected keyword "digraph" inside a graph');
     });
 
     it("refuses + concatenation with anything but a double-quoted string", async () => {
@@ -147,17 +147,17 @@ describe("DOT robustness: syntax errors", () => {
         for (const [text, message] of cases) {
             const err = await rejects(dot(text));
             expect(fatalCode(err)).toBe("E_SYNTAX");
-            expect(err.message).toBe(message);
+            expect(err.issue?.message).toBe(message);
         }
     });
 
     it("refuses # in the middle of a line and a single-quoted id", async () => {
         const hash = await rejects(dot("digraph { a # b\n}"));
         expect(fatalCode(hash)).toBe("E_SYNTAX");
-        expect(hash.message).toBe('unexpected character "#"');
+        expect(hash.issue?.message).toBe('unexpected character "#"');
         const single = await rejects(dot("digraph { 'a' -> b }"));
         expect(fatalCode(single)).toBe("E_SYNTAX");
-        expect(single.message).toBe('unexpected character "\'"');
+        expect(single.issue?.message).toBe('unexpected character "\'"');
     });
 });
 
@@ -347,7 +347,7 @@ describe("DOT robustness: policies and several graphs", () => {
 
     it("says which graph has the syntax error in importAllGraphs", async () => {
         const err = await rejects(importAllGraphs("digraph { a } digraph { b -> }", { format: "dot" }));
-        expect(err.message).toBe('graph 1: expected an identifier, found "}"');
+        expect(err.message).toBe('graph 1: line 1: expected an identifier, found "}"');
         expect(err.details.graphIndex).toBe(1);
         expect(fatalCode(err)).toBe("E_SYNTAX");
     });

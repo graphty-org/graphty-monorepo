@@ -72,9 +72,8 @@ export const EMPTY_TUPLE_TEXT = "()";
 export const ORIGINAL_ID_KEY = "graphty_originalId";
 
 /**
- * Issue code of every grammar violation (shared with the other text formats; the message carries
- * the detail): a bare token that is neither a key nor a number, an unclosed string, an unclosed
- * `[`, a `]` with no open `[`, a value without a key or a key without a value.
+ * The text breaks the format's syntax: a word that is not a key or a number, an unclosed string or `[`, a `]` with no
+ * open `[`, or a key without a value. The message says where. The import stops.
  * @category Issue and loss codes
  */
 export const SYNTAX_STRUCTURE_CODE = SYNTAX_CODE;

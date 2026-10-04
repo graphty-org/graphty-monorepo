@@ -120,7 +120,7 @@ function invalidId(value: unknown, reason: string): GraphFormatError {
 /**
  * A stateful coercer for one import call: applies the rule and, under "number", detects merges
  * (two distinct texts mapping to one number) so the importer can report them as coercion issues.
- * @category Plugin helpers
+ * @category Writing a format
  */
 export class IdCoercer {
     /** The rule. */

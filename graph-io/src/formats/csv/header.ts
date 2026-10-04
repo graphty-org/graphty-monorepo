@@ -15,7 +15,7 @@ import { inferTextDtype } from "../../common/text.js";
 
 /**
  * A column named by header text or by 0-based position.
- * @category Plugin helpers
+ * @category Built-in formats
  */
 export type CsvColumnRef = string | number;
 

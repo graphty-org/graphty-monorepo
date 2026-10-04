@@ -180,11 +180,14 @@ export interface GraphmlMeta {
  */
 export const GRAPHML_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
-    /** Fatal: the input is not well-formed XML. */
+    /** The input is not well-formed XML. The import stops. */
     XML_SYNTAX: XML_SYNTAX_CODE,
-    /** Fatal: the input holds invalid UTF-8. */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
+     * `encoding` option). The import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
@@ -192,13 +195,13 @@ export const GRAPHML_ISSUE = Object.freeze({
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** A declared encoding the byte order mark contradicts (the mark wins). */
     ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
-    /** Fatal: the input holds no markup at all (empty, whitespace or a byte order mark only). */
+    /** The input holds no XML at all: it is empty, whitespace or a byte order mark only. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** Fatal: the root element is not `<graphml>`. */
+    /** The root element is not `<graphml>`. The import stops. */
     NOT_GRAPHML: "E_NOT_GRAPHML",
     /** The `<graphml>` root is in a namespace other than GraphML's; it is read as GraphML. */
     NAMESPACE: "W_GRAPHML_NAMESPACE",
-    /** Fatal: the document has no `<graph>`. */
+    /** The document has no `<graph>`. The import stops. */
     NO_GRAPH: NO_GRAPH_CODE,
     /** A `<key>` without an id. */
     KEY_MISSING_ID: "E_GRAPHML_KEY_MISSING_ID",
@@ -254,7 +257,9 @@ export const GRAPHML_ISSUE = Object.freeze({
      * read as they come.
      */
     COUNT_HINT: COUNT_HINT_CODE,
-    /** A `parse.nodes` / `parse.edges` hint that disagrees with what the graph holds. */
+    /**
+     * A `parse.nodes` or `parse.edges` count disagrees with what the graph holds. The elements are read as they are.
+     */
     COUNT_MISMATCH: COUNT_MISMATCH_CODE,
     /** A hyperedge under `hyperedges: "error"`. */
     HYPEREDGE: HYPEREDGE_CODE,
@@ -274,7 +279,10 @@ export const GRAPHML_ISSUE = Object.freeze({
     ORIGINAL_ID_IGNORED: "W_GRAPHML_ORIGINAL_ID_IGNORED",
     /** A yFiles graphics value (a geometry coordinate, a width) that is not a number; it is not mapped. */
     YFILES_VALUE: "W_GRAPHML_YFILES_VALUE",
-    /** A GraphML `parse.*` hint on `<graph>`, `<node>` or `<edge>` the importer does not act on (parse.nodeids, parse.order, ...). */
+    /**
+     * A GraphML `parse.*` attribute (`parse.nodeids`, `parse.order`, ...) that graph-io does not act on; the file is
+     * read normally.
+     */
     PARSE_HINT_IGNORED: "W_GRAPHML_PARSE_HINT_IGNORED",
     /** An XML attribute GraphML does not define (or the importer does not keep) on an element; it is not kept. */
     UNKNOWN_XML_ATTRIBUTE: UNKNOWN_XML_ATTRIBUTE_CODE,
@@ -318,7 +326,7 @@ export const GRAPHML_ISSUE = Object.freeze({
      * with the builder's direction instead of its own.
      */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
-    /** Edges forced to the policy's direction. */
+    /** Edges of the other direction were read with the direction `onMixedDirection` chose. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
     /**
      * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
@@ -335,7 +343,7 @@ export const GRAPHML_ISSUE = Object.freeze({
  * @category Built-in formats
  */
 export const GRAPHML_LOSS = Object.freeze({
-    /** yFiles nested XML kept as a JSON tree: structure preserved, not byte-exact. */
+    /** YFiles nested XML kept as a JSON tree: structure preserved, not byte-exact. */
     YFILES_JSON: "W_GRAPHML_YFILES_JSON",
     /** A mutual pair written as one undirected edge; the mark is lost. */
     MUTUAL_AS_UNDIRECTED: MUTUAL_AS_UNDIRECTED_CODE,
@@ -347,7 +355,7 @@ export const GRAPHML_LOSS = Object.freeze({
     HIERARCHY_REORDERED: "W_GRAPHML_HIERARCHY_REORDERED",
     /** Nodes whose parent chain never reaches a root are written at the top level. */
     PARENT_CYCLE: "W_GRAPHML_PARENT_CYCLE",
-    /** Node ids that change type after a round trip under the canonical rule. */
+    /** Node ids that read back as a different type, such as the text "7" as the number 7. */
     ID_TEXT_TYPE: ID_TEXT_TYPE_CODE,
     /** A numeric edge id column reads back as string. */
     EDGE_ID_TEXT: "W_GRAPHML_EDGE_ID_TEXT",

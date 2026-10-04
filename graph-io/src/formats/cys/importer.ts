@@ -91,7 +91,7 @@ import { cellAtt, type CyTable, readCyTable, type VirtualColumn, virtualColumnsO
  * The format-specific options of the session importer.
  * @category Built-in formats
  */
-export interface CysImportOptions extends GraphChoiceOptions {
+export interface CysImportOptions extends GraphChoiceOptions, CommonImportOptions {
     /**
      * Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node
      * attribute named `z`; "position" makes it the third coordinate of the position.

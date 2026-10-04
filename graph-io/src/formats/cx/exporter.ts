@@ -48,10 +48,10 @@ import { ORIGINAL_ID_ATTRIBUTE } from "../cx2/importer.js";
 const CX_FORMAT = "cx";
 
 /**
- * The format-specific options of the CX exporter: none yet (the common options apply).
+ * The options of the CX exporter: the common export options; it has none of its own.
  * @category Built-in formats
  */
-export type CxExportOptions = Readonly<Record<never, never>>;
+export type CxExportOptions = CommonExportOptions;
 
 /**
  * The loss notes the CX exporter's check() returns, by name. A key is the code without its
@@ -59,13 +59,19 @@ export type CxExportOptions = Readonly<Record<never, never>>;
  * @category Built-in formats
  */
 export const CX_LOSS = Object.freeze({
-    /** Every edge is written directed: an undirected snapshot, or the undirected pairs of a mixed one. */
+    /**
+     * Every edge is written as directed, so an undirected graph, or the undirected edges of a mixed graph, read back
+     * as directed.
+     */
     UNDIRECTED_AS_DIRECTED: "W_CX_UNDIRECTED_AS_DIRECTED",
     /** A nested (json) column is written as a string attribute holding its JSON text. */
     JSON_AS_STRING: "W_CX_JSON_AS_STRING",
     /** A mutual pair is written as two directed edges without its mark. */
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
-    /** A plain edge column named `weight` reads back as THE weight, or is not written. */
+    /**
+     * An attribute named `weight` without the weight role reads back as the edge weight, or is not written when the
+     * graph has weights of its own.
+     */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
     /** A start / end / timestamp column: CX has no time. */
     TEMPORAL_DROPPED: LOSS.TEMPORAL,
@@ -76,7 +82,10 @@ export const CX_LOSS = Object.freeze({
      * reads back with that role.
      */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
-    /** A dtype CX declares as another (f32 as double, u32 as long, u8 as integer, dict as string, ...). */
+    /**
+     * An attribute type CX stores as another (a 32-bit float as double, an unsigned integer as long, a byte as
+     * integer, a dictionary as string); it reads back with that type.
+     */
     DTYPE_UNSUPPORTED: LOSS.DTYPE,
     /** A multi-component column (a second view's `position@2`, a vector) is written as a list of doubles. */
     COMPONENTS_FLATTENED: LOSS.COMPONENTS,
@@ -1378,7 +1387,7 @@ export const cxExporter: GraphExporter<CxExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: CxExportOptions & CommonExportOptions): readonly LossNote[] {
+    check(snapshot: GraphSnapshot, options?: CxExportOptions): readonly LossNote[] {
         return Object.freeze([...plan(snapshot, resolveExportOptions(options)).notes]);
     },
 
@@ -1388,7 +1397,7 @@ export const cxExporter: GraphExporter<CxExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: CxExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+    export(snapshot: GraphSnapshot, options?: CxExportOptions): AsyncIterable<Uint8Array> {
         return encodeChunks(write(snapshot, plan(snapshot, resolveExportOptions(options))));
     },
 
@@ -1398,7 +1407,7 @@ export const cxExporter: GraphExporter<CxExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the document
      */
-    exportToString(snapshot: GraphSnapshot, options?: CxExportOptions & CommonExportOptions): Promise<string> {
+    exportToString(snapshot: GraphSnapshot, options?: CxExportOptions): Promise<string> {
         return joinText(write(snapshot, plan(snapshot, resolveExportOptions(options))));
     },
 });

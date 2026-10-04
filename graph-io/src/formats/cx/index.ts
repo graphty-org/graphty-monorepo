@@ -1,6 +1,7 @@
 /**
  * The `@graphty/graph-io/cx` subpath: the CX version 1 importer and exporter with their option
  * types and code tables.
+ * @module @graphty/graph-io/cx
  */
 
 export { CX_CAPABILITIES, CX_LOSS, cxExporter, type CxExportOptions } from "./exporter.js";

@@ -129,7 +129,7 @@ const CX_BYPASS_NAMESPACE = "cx.bypass";
  * The format-specific options of the CX importer.
  * @category Built-in formats
  */
-export interface CxImportOptions extends GraphChoiceOptions {
+export interface CxImportOptions extends GraphChoiceOptions, CommonImportOptions {
     /**
      * Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node
      * attribute named `z`; "position" makes it the third coordinate of the position.
@@ -146,21 +146,24 @@ export interface CxImportOptions extends GraphChoiceOptions {
  */
 export const CX_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
-    /** The input is empty (fatal). */
+    /** The input is empty. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** The text is not JSON (fatal). */
+    /** The text is not valid JSON. The import stops. */
     SYNTAX: SYNTAX_CODE,
-    /** Invalid UTF-8 (fatal). */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark or the `encoding` option). The
+     * import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** An encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
-    /** The document is not a CX array, or it is CX2 (fatal; the message names CX2). */
+    /** The document is not a CX array, or it is CX2 (the message says so; read it as `cx2`). The import stops. */
     NOT_CX: "E_CX_NOT_CX",
-    /** numberVerification holds another value than 2^48 - 1, or comes twice. */
+    /** NumberVerification holds another value than 2^48 - 1, or comes twice. */
     NUMBER_VERIFICATION: "W_CX_NUMBER_VERIFICATION",
     /** An old Cytoscape aspect name (visualProperties, subNetworks, ...) read under its cy name. */
     OLD_ASPECT_NAME: "W_CX_OLD_ASPECT_NAME",
@@ -168,7 +171,7 @@ export const CX_ISSUE = Object.freeze({
     GROUP_NODE_ADDED: "W_CX_GROUP_NODE_ADDED",
     /** Nodes or edges of the root network that no subnetwork holds: Cytoscape shows them in no network; not read. */
     ROOT_ONLY: "W_CX_ROOT_ONLY",
-    /** The producer marked the document as failed (fatal). */
+    /** The program that wrote the file marked it as failed, so it is incomplete. The import stops. */
     STATUS_FAILED: STATUS_FAILED_CODE,
     /** The producer marked the document as successful with an error text. */
     STATUS_WARNING: STATUS_WARNING_CODE,
@@ -207,7 +210,10 @@ export const CX_ISSUE = Object.freeze({
     DUPLICATE_EDGE_ID: DUPLICATE_EDGE_ID_CODE,
     /** An id that is not an integer. */
     INVALID_ID: "E_INVALID_ID",
-    /** A node or edge key CX does not define, an aspect whose name the importer's own meta.extra.cx entry holds, a cyTableColumn table CX does not define. */
+    /**
+     * A node or edge key CX does not define, an aspect graph-io keeps for writing back, or a table CX does not define;
+     * it is skipped.
+     */
     UNKNOWN_ELEMENT: UNKNOWN_ELEMENT_CODE,
     /** A member holding several aspects; each array-valued key is read as its own fragment. */
     MULTI_ASPECT_FRAGMENT: MULTI_ASPECT_FRAGMENT_CODE,
@@ -230,11 +236,11 @@ export const CX_ISSUE = Object.freeze({
      * `importAllGraphs()` reads every one.
      */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
-    /** graphIndex or graphName names no subnetwork (fatal). */
+    /** `graphIndex` or `graphName` matches no subnetwork. The import stops. */
     GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
-    /** graphName names several subnetworks (fatal). */
+    /** `graphName` matches several subnetworks. The import stops. */
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
-    /** The input holds no graph (fatal). */
+    /** The input holds no graph. The import stops. */
     NO_GRAPH: NO_GRAPH_CODE,
     /**
      * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
@@ -251,7 +257,7 @@ export const CX_ISSUE = Object.freeze({
      * with the builder's direction instead of its own.
      */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
-    /** Edges forced to the policy's direction. */
+    /** Edges of the other direction were read with the direction `onMixedDirection` chose. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
     /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
@@ -260,7 +266,7 @@ export const CX_ISSUE = Object.freeze({
      * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
      */
     SINK_OPTION: SINK_OPTION_CODE,
-    /** The input is beyond a size limit (fatal). */
+    /** The input is larger than graph-io's size limit. The import stops. */
     TOO_LARGE: TOO_LARGE_CODE,
 });
 

@@ -12,7 +12,9 @@ import {
     type JsonExportOptions,
     jsonImporter,
     type JsonImportOptions,
+    jsonShapeOf,
 } from "../../../src/formats/json/index.js";
+import { importGraph } from "../../../src/registry.js";
 import { type CommonExportOptions, type CommonImportOptions } from "../../../src/types.js";
 import { corpusFiles, readCorpusText } from "../../helpers/corpus.js";
 import { type CompareOptions, compareSnapshots, expectSameSnapshot, roundTrip } from "../../helpers/roundtrip.js";
@@ -288,5 +290,17 @@ describe("synthetic round trips", () => {
         const s = b.freeze();
         expect(s.meta.extra).toEqual({});
         await exact(s, undefined, undefined, { originType: false });
+    });
+});
+
+describe("jsonShapeOf", () => {
+    it("returns the shape a JSON import recorded, and null for a graph read from another format", async () => {
+        const json = await importGraph('{"nodes":[{"id":"a"},{"id":"b"}],"links":[{"source":"a","target":"b"}]}', {
+            format: "json",
+        });
+        expect(jsonShapeOf(json.snapshot)?.dialect).toBe("d3");
+        expect(jsonShapeOf(json.snapshot)?.edgesKey).toBe("links");
+        const dot = await importGraph("graph { a -- b }", { format: "dot" });
+        expect(jsonShapeOf(dot.snapshot)).toBeNull();
     });
 });

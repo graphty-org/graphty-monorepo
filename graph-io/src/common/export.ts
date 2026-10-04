@@ -41,10 +41,15 @@ import {
     TEMPORAL_TEXT_DROPPED_CODE,
     TEXT_INFERRED_CODE,
     WEIGHT_KEY_CLASH_CODE,
+    WEIGHTS_DROPPED_CODE,
     XML_ILLEGAL_CHAR_CODE,
 } from "./codes.js";
 import { coerceIdText } from "./ids.js";
 import { type ResolvedExportOptions } from "./options.js";
+import { explicitWeights } from "./weights.js";
+
+/** The code of node ids the format cannot write under `sanitizeIds: "error"`. */
+const ID_CHARSET_REFUSAL = "E_ID_CHARSET";
 
 /**
  * The shared LossNote codes of checkCapabilities().
@@ -68,9 +73,12 @@ export const LOSS = Object.freeze({
     MULTI_EDGES: "W_MULTI_EDGES",
     /** Self-loops in a format without them. */
     SELF_LOOPS: "W_SELF_LOOPS",
-    /** The format requires edge ids and the snapshot has none; canonical e0..e{E-1} are generated. */
+    /**
+     * The format needs an id on every edge and the graph has none, so the file gets ids e0, e1, e2 and so on, which
+     * read back as edge ids.
+     */
     EDGE_IDS_GENERATED: "W_EDGE_IDS_GENERATED",
-    /** The snapshot has an edge id column and the format cannot write one. */
+    /** The graph has edge ids and the format has no place for them, so they are not written. */
     EDGE_IDS_DROPPED: "W_EDGE_IDS_DROPPED",
     /** Ids outside the format's charset are rewritten (sanitizeIds "mangle"). */
     ID_MANGLED: "W_ID_MANGLED",
@@ -78,12 +86,18 @@ export const LOSS = Object.freeze({
      * Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with E_INVALID_ID. Pass
      * `sanitizeIds: "mangle"` to rewrite them.
      */
-    ID_CHARSET: "E_ID_CHARSET",
+    ID_CHARSET: ID_CHARSET_REFUSAL,
     /** The format numbers nodes 1..N; ids that are not their 1-based index are kept as labels only. */
     ID_RENUMBERED: "W_ID_RENUMBERED",
-    /** A column dtype the format does not keep as declared. */
+    /**
+     * An attribute's type is one the format cannot store as it is (a 32-bit float in a format that has only 64-bit
+     * numbers, say), so it reads back with the nearest type the format has.
+     */
     DTYPE: "W_DTYPE_UNSUPPORTED",
-    /** A multi-component column in a format without strides. */
+    /**
+     * An attribute with several numbers per element (other than a position) is written as separate values or a list,
+     * and does not read back as one attribute.
+     */
     COMPONENTS: "W_COMPONENTS_FLATTENED",
     /** A list column in a format without lists. */
     LIST: "W_LIST_UNSUPPORTED",
@@ -114,7 +128,10 @@ export const LOSS = Object.freeze({
      * E_INVALID_ID.
      */
     ID_TEXT_COLLISION: ID_TEXT_COLLISION_CODE,
-    /** A plain column named like the importer's weight key reads back as THE weight. */
+    /**
+     * An attribute without the weight role is named like the attribute graph-io reads weights from (`weight`, say), so
+     * it reads back as the edge weight.
+     */
     WEIGHT_KEY_CLASH: WEIGHT_KEY_CLASH_CODE,
     /**
      * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
@@ -146,7 +163,8 @@ export const LOSS = Object.freeze({
     /** A text value holds a character XML 1.0 forbids (most control characters); the save fails with E_COLUMN_TYPE. */
     XML_ILLEGAL_CHAR: XML_ILLEGAL_CHAR_CODE,
     /**
-     * A dictionary attribute without a declared list of allowed values gains one, its distinct values, on re-import.
+     * A text attribute stored as a dictionary, without a declared list of allowed values, reads back with its distinct
+     * values as that list.
      */
     OPTIONS_GAINED: OPTIONS_GAINED_CODE,
     /** A spells column in a format without spells. */
@@ -165,7 +183,47 @@ export const LOSS = Object.freeze({
     EXTENSION_TABLE: "W_EXTENSION_TABLE_DROPPED",
     /** A NaN or infinite number the format cannot spell; not written (or written as null), it reads back unset. */
     NONFINITE_AS_NULL: NONFINITE_AS_NULL_CODE,
+    /**
+     * The graph has edge weights and the file does not keep them (the format has no weights, or an option turned them
+     * off): every edge reads back with the default weight 1.
+     */
+    WEIGHTS_DROPPED: WEIGHTS_DROPPED_CODE,
 });
+
+/**
+ * The error a save throws for the first `E_` note of a check() result, or null when there is none.
+ * An exporter calls it before it writes anything, so every format refuses a save the same way: an
+ * id note (E_ID_CHARSET, E_ID_TEXT_COLLISION) throws E_INVALID_ID, E_MIXED_DIRECTION throws
+ * E_DIRECTED, E_XML_ILLEGAL_CHAR throws E_COLUMN_TYPE, and any other note E_UNSUPPORTED. Map your
+ * own note codes onto these with `codes`. The error's `details.code` is the note's code.
+ * @param notes - what check() returned
+ * @param codes - the error code for each of your own note codes, such as
+ *   `{ E_PAIRS_BAD_ID: "E_INVALID_ID" }`
+ * @returns the error to throw, or null
+ * @category Writing a format
+ */
+export function refusedSave(
+    notes: readonly LossNote[],
+    codes: Readonly<Record<string, "E_INVALID_ID" | "E_DIRECTED" | "E_COLUMN_TYPE" | "E_UNSUPPORTED">> = {},
+): GraphFormatError | null {
+    const note = notes.find((n) => n.code.startsWith("E_"));
+    if (note === undefined) {
+        return null;
+    }
+    const code = codes[note.code] ?? REFUSAL_CODES[note.code] ?? "E_UNSUPPORTED";
+    return new GraphFormatError(code, note.message, { code: note.code, column: note.column, count: note.count });
+}
+
+/** The error codes a refused save throws. */
+type RefusalCode = "E_INVALID_ID" | "E_DIRECTED" | "E_COLUMN_TYPE" | "E_UNSUPPORTED";
+
+/** The error code a save throws for each shared refusal note. */
+const REFUSAL_CODES: Readonly<Record<string, RefusalCode>> = {
+    [ID_CHARSET_REFUSAL]: "E_INVALID_ID",
+    [ID_TEXT_COLLISION_CODE]: "E_INVALID_ID",
+    [MIXED_DIRECTION_CODE]: "E_DIRECTED",
+    [XML_ILLEGAL_CHAR_CODE]: "E_COLUMN_TYPE",
+};
 
 /**
  * The capabilities of a format that keeps nothing beyond plain topology; the base every exporter overrides.
@@ -195,7 +253,7 @@ export const NO_CAPABILITIES: ExportCapabilities = Object.freeze({
  * conservative NO_CAPABILITIES value, so an exporter states what it keeps and nothing is assumed.
  * @param supported - the fields the format supports
  * @returns a frozen table
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function capabilities(supported: Partial<ExportCapabilities>): ExportCapabilities {
     return Object.freeze({ ...NO_CAPABILITIES, ...supported, dtypes: Object.freeze([...(supported.dtypes ?? [])]) });
@@ -204,7 +262,7 @@ export function capabilities(supported: Partial<ExportCapabilities>): ExportCapa
 /**
  * Format facts checkCapabilities() needs that the capabilities table does not carry.
  * @public
- * @category Plugin helpers
+ * @category Writing a format
  */
 export interface CheckExtras {
     /** Whether the format can write open intervals (GEXF 1.2 startopen / endopen); default false. */
@@ -237,9 +295,19 @@ export interface CheckExtras {
     /**
      * False for a format that writes no node or edge attributes except the ones whose role is in
      * `roles`: every other attribute column is reported once as W_COLUMN_DROPPED, instead of the
-     * type and role notes a written column gets. Default true.
+     * type and role notes a written column gets. Default true. `nodeAttributes` and
+     * `edgeAttributes` override it for one kind.
      */
     readonly attributes?: boolean | undefined;
+    /** Like `attributes`, for node attributes only: false for a format that writes no node attributes. */
+    readonly nodeAttributes?: boolean | undefined;
+    /** Like `attributes`, for edge attributes only: false for a format that writes no edge attributes. */
+    readonly edgeAttributes?: boolean | undefined;
+    /**
+     * False for a format (or an option) that writes no edge weights: a weighted graph gets one
+     * W_WEIGHTS_DROPPED note. Default true.
+     */
+    readonly weights?: boolean | undefined;
     /**
      * How the format's importer turns id text back into ids ("canonical" for most text formats), so
      * an id that comes back with another type (the text "7" as the number 7) is reported as
@@ -263,7 +331,7 @@ const HIERARCHY_ROLES: ReadonlySet<string> = new Set(["parent", "parents"]);
  * @param options - the resolved common export options
  * @param extras - format facts the capabilities table does not carry
  * @returns the notes, empty when the export is exact
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function checkCapabilities(
     snapshot: GraphSnapshot,
@@ -340,14 +408,14 @@ export function checkCapabilities(
         } else if (options.sanitizeIds === "mangle") {
             note(
                 LOSS.ID_MANGLED,
-                `${unrepresentable} node id(s) outside the ${caps.idCharset} charset are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
+                `${unrepresentable} node id(s) ${charsetText(caps.idCharset)} are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
                 null,
                 unrepresentable,
             );
         } else {
             note(
                 LOSS.ID_CHARSET,
-                `${unrepresentable} node id(s) outside the ${caps.idCharset} charset; the save fails unless sanitizeIds is "mangle"`,
+                `${unrepresentable} node id(s) ${charsetText(caps.idCharset)}; the save fails unless sanitizeIds is "mangle"`,
                 null,
                 unrepresentable,
             );
@@ -372,6 +440,7 @@ export function checkCapabilities(
         }
     }
 
+    checkWeights(snapshot, extras, note);
     checkColumns(snapshot.nodes, "node", caps, extras, note);
     checkColumns(snapshot.edges, "edge", caps, extras, note);
     const graphColumns = snapshot.graph.names();
@@ -408,6 +477,55 @@ export function checkCapabilities(
         }
     }
     return notes;
+}
+
+/**
+ * The ids a charset cannot hold, as a message phrase.
+ * @param charset - the format's id charset
+ * @returns the phrase
+ */
+function charsetText(charset: ExportCapabilities["idCharset"]): string {
+    switch (charset) {
+        case "nmtoken":
+            return "are not XML name tokens (letters, digits and . - _ : only; no spaces)";
+        case "integer":
+            return "are not integers";
+        default:
+            return `cannot be written as ${charset} ids`;
+    }
+}
+
+/**
+ * Whether a format writes the attributes of one kind (CheckExtras.nodeAttributes / edgeAttributes, else attributes).
+ * @param domain - "node", "edge" or "graph"
+ * @param extras - format extras
+ * @returns false when it writes none, undefined when the extras do not say
+ */
+function writesAttributes(domain: string, extras: CheckExtras): boolean | undefined {
+    if (domain === "node") {
+        return extras.nodeAttributes ?? extras.attributes;
+    }
+    if (domain === "edge") {
+        return extras.edgeAttributes ?? extras.attributes;
+    }
+    return extras.attributes;
+}
+
+/**
+ * The note of a format (or an option) that writes no weights, for a weighted graph.
+ * @param snapshot - the snapshot
+ * @param extras - format extras
+ * @param note - the recorder
+ */
+function checkWeights(snapshot: GraphSnapshot, extras: CheckExtras, note: NoteFn): void {
+    if (extras.weights === false && explicitWeights(snapshot).weighted) {
+        note(
+            LOSS.WEIGHTS_DROPPED,
+            `the edge weights are not written; ${snapshot.edgeCount} edge(s) read back with weight 1`,
+            null,
+            snapshot.edgeCount,
+        );
+    }
 }
 
 /** A note-recording callback. */
@@ -449,7 +567,7 @@ function checkColumns(
         if (domain === "edge" && role === "id") {
             continue;
         }
-        if (extras.attributes === false && !(role !== null && (extras.roles?.has(role) ?? false))) {
+        if (writesAttributes(domain, extras) === false && !(role !== null && (extras.roles?.has(role) ?? false))) {
             note(LOSS.COLUMN_DROPPED, `${label} is not written`, name, column.length - column.nullCount);
             continue;
         }
@@ -457,7 +575,7 @@ function checkColumns(
             if (extras.temporalText !== true) {
                 note(
                     LOSS.TEMPORAL_TEXT,
-                    `${label} (the lexical form of a temporal column, design section 5.1) cannot be written`,
+                    `${label} (the original text of a date or time column) cannot be written`,
                     name,
                     column.length - column.nullCount,
                 );
@@ -645,7 +763,7 @@ export type IdCharset = ExportCapabilities["idCharset"];
 /**
  * The ids to write for every node after sanitising.
  * @public
- * @category Plugin helpers
+ * @category Writing a format
  */
 export interface SanitizedIds {
     /** The charset applied. */
@@ -802,7 +920,7 @@ export function countUnrepresentableIds(snapshot: GraphSnapshot, charset: IdChar
  * @param charset - the charset
  * @param mode - the resolved sanitizeIds option
  * @returns the ids to write
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function sanitizeIds(snapshot: GraphSnapshot, charset: IdCharset, mode: "error" | "mangle"): SanitizedIds {
     const { ids } = snapshot;
@@ -840,7 +958,7 @@ export function sanitizeIds(snapshot: GraphSnapshot, charset: IdCharset, mode: "
         const first = ids.idOf(bad[0]);
         throw new GraphFormatError(
             "E_INVALID_ID",
-            `${bad.length} node id(s) cannot be written as ${charset} (first: ${JSON.stringify(first)} at index ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
+            `${bad.length} node id(s) ${charsetText(charset)} (first: ${JSON.stringify(first)} at index ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
             { reason: "charset", charset, count: bad.length, id: first, index: bad[0] },
         );
     }

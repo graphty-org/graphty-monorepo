@@ -35,10 +35,10 @@ import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, 
 import { BYPASS_NAMESPACE, CX2_FORMAT, cx2Type, ORIGINAL_ID_ATTRIBUTE } from "./importer.js";
 
 /**
- * The format-specific options of the CX2 exporter: none yet.
+ * The options of the CX2 exporter: the common export options; it has none of its own.
  * @category Built-in formats
  */
-export type Cx2ExportOptions = Readonly<Record<never, never>>;
+export type Cx2ExportOptions = CommonExportOptions;
 
 /**
  * The loss notes the CX2 exporter's check() returns, by name. A key is the
@@ -46,7 +46,10 @@ export type Cx2ExportOptions = Readonly<Record<never, never>>;
  * @category Built-in formats
  */
 export const CX2_LOSS = Object.freeze({
-    /** Every edge is written directed: an undirected snapshot, or the undirected pairs of a mixed one. */
+    /**
+     * Every edge is written as directed, so an undirected graph, or the undirected edges of a mixed graph, read back
+     * as directed.
+     */
     UNDIRECTED_AS_DIRECTED: "W_CX2_UNDIRECTED_AS_DIRECTED",
     /** A nested (json) column is written as a string attribute holding its JSON text. */
     JSON_AS_STRING: "W_CX2_JSON_AS_STRING",
@@ -54,7 +57,10 @@ export const CX2_LOSS = Object.freeze({
     NONFINITE_AS_NULL: "W_CX2_NONFINITE_AS_NULL",
     /** A mutual pair is written as two directed edges without its mark. */
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
-    /** A plain edge column named like the weight key reads back as THE weight (or is skipped when weights are written). */
+    /**
+     * An attribute without the weight role is named like the key weights are written under; it reads back as the edge
+     * weight, or is not written when the graph has weights of its own.
+     */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
     /** A parent / parents column: CX2 has no containment. */
     HIERARCHY_DROPPED: LOSS.HIERARCHY,
@@ -62,7 +68,10 @@ export const CX2_LOSS = Object.freeze({
     TEMPORAL_DROPPED: LOSS.TEMPORAL,
     /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
-    /** A dtype CX2 declares as another (f32 as double, u32 as long, dict as string, ...). */
+    /**
+     * An attribute type CX2 stores as another (a 32-bit float as double, an unsigned integer as long, a dictionary as
+     * string); it reads back with that type.
+     */
     DTYPE_UNSUPPORTED: LOSS.DTYPE,
     /**
      * Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with E_INVALID_ID. Pass
@@ -722,7 +731,7 @@ export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: Cx2ExportOptions & CommonExportOptions): readonly LossNote[] {
+    check(snapshot: GraphSnapshot, options?: Cx2ExportOptions): readonly LossNote[] {
         return Object.freeze([...plan(snapshot, resolveExportOptions(options)).notes]);
     },
 
@@ -732,7 +741,7 @@ export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: Cx2ExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+    export(snapshot: GraphSnapshot, options?: Cx2ExportOptions): AsyncIterable<Uint8Array> {
         return encodeChunks(write(snapshot, plan(snapshot, resolveExportOptions(options))));
     },
 
@@ -742,7 +751,7 @@ export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the document
      */
-    exportToString(snapshot: GraphSnapshot, options?: Cx2ExportOptions & CommonExportOptions): Promise<string> {
+    exportToString(snapshot: GraphSnapshot, options?: Cx2ExportOptions): Promise<string> {
         return joinText(write(snapshot, plan(snapshot, resolveExportOptions(options))));
     },
 });

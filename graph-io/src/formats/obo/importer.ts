@@ -78,7 +78,7 @@ import {
  * The format-specific options of the OBO importer.
  * @category Built-in formats
  */
-export interface OboImportOptions {
+export interface OboImportOptions extends CommonImportOptions {
     /**
      * "keep" reads obsolete terms as nodes with `is_obsolete` set to true; "drop" leaves them and
      * their edges out.
@@ -99,11 +99,14 @@ export interface OboImportOptions {
  */
 export const OBO_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
-    /** The input is empty or whitespace (fatal). */
+    /** The input is empty or whitespace. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** The input holds invalid UTF-8 (fatal). */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark or the `encoding` option). The
+     * import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
@@ -113,9 +116,9 @@ export const OBO_ISSUE = Object.freeze({
     MISSING_ID: MISSING_ID_CODE,
     /** A clause whose value cannot be read (a boolean other than true / false, a relationship with one or three values); the clause is skipped. */
     BAD_VALUE: BAD_VALUE_CODE,
-    /** Two frames with one id were merged (spec 4.1.1). */
+    /** Two frames have the same id, so they were merged into one node. */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
-    /** A single-valued tag given twice for one id (a cardinality violation); the first is kept. */
+    /** A tag that may appear once per frame appears twice; the first value is kept. */
     DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
     /** An unknown tag (kept in `obo.unrecognized`) or frame type (skipped), once per name. */
     UNKNOWN_ELEMENT: UNKNOWN_ELEMENT_CODE,
@@ -123,9 +126,15 @@ export const OBO_ISSUE = Object.freeze({
     DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,
     /** A line without a colon, an unterminated quote, a def without its xref list, a qualifier block that does not parse, an unescaped brace. */
     SYNTAX: "W_OBO_SYNTAX",
-    /** Nothing in the input is OBO: no frame header and no valid header tag (fatal; an HTML page, a JSON or GML file, UTF-16 without a BOM). */
+    /**
+     * Nothing in the input looks like OBO: there is no frame header and no header tag. It may be an HTML page, a JSON
+     * or GML file, or UTF-16 text without a byte order mark. The import stops.
+     */
     NOT_OBO: "E_OBO_NOT_OBO",
-    /** The header has no format-version (required by 1.2 and 1.4), or one that is not 1.0, 1.2 or 1.4; the file is read as the union. */
+    /**
+     * The header has no `format-version` (OBO 1.2 and 1.4 require one), or names a version other than 1.0, 1.2 or 1.4.
+     * The file is read accepting the tags of every version.
+     */
     FORMAT_VERSION: "W_OBO_FORMAT_VERSION",
     /** The frame's `id` is not its first clause; it is used anyway. */
     ID_NOT_FIRST: "W_OBO_ID_NOT_FIRST",
@@ -135,7 +144,7 @@ export const OBO_ISSUE = Object.freeze({
     UNDECLARED: "W_OBO_UNDECLARED",
     /** One id for a Term and a Typedef (or an Instance); the Term (the first node frame) is the node. */
     ID_KIND_CLASH: "W_OBO_ID_KIND_CLASH",
-    /** Fewer than two `intersection_of` or `union_of` clauses on a frame. */
+    /** A frame has only one `intersection_of` or `union_of` clause, where OBO needs at least two. */
     CARDINALITY: "W_OBO_CARDINALITY",
     /** An obsolete term with is_a / relationship, or replaced_by / consider on a term that is not obsolete. */
     OBSOLETION: "W_OBO_OBSOLETION",
@@ -143,11 +152,17 @@ export const OBO_ISSUE = Object.freeze({
     DEPRECATED_TAG: "W_OBO_DEPRECATED_TAG",
     /** A backslash line continuation (deprecated in 1.4). */
     DEPRECATED_SYNTAX: "W_OBO_DEPRECATED_SYNTAX",
-    /** A header clause kept in `meta.extra.obo.header` whose meaning is not applied (import, id-mapping, the treat-xrefs macros, owl-axioms). */
+    /**
+     * A header clause whose meaning graph-io does not apply (`import`, `id-mapping`, the `treat-xrefs` macros,
+     * `owl-axioms`); it is kept in `snapshot.meta.extra.obo.header`.
+     */
     HEADER_NOT_APPLIED: "W_OBO_HEADER_NOT_APPLIED",
     /** Obsolete terms and their edges left out under obsolete: "drop". */
     OBSOLETE_DROPPED: "W_OBO_OBSOLETE_DROPPED",
-    /** Two distinct id texts became one number under ids "number". */
+    /**
+     * Two different id texts became the same number because `ids` is "number" ("042" and "42", say), so their nodes
+     * were merged.
+     */
     ID_MERGED: ID_MERGED_CODE,
     /** An OBO attribute was renamed `<name>#obo` because another attribute already has its name. */
     COLUMN_RENAMED: RENAMED_CODE,

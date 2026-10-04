@@ -942,7 +942,7 @@ function utf8Length(text: string): number {
  * caller can compare the rejection with `signal.reason`. Only a runtime that stores no reason at
  * all gets a synthesized AbortError.
  * @param signal - the signal, or null
- * @category Plugin helpers
+ * @category Writing a format
  */
 export function throwIfAborted(signal: AbortSignal | null | undefined): void {
     if (signal === null || signal === undefined || !signal.aborted) {
@@ -1151,6 +1151,7 @@ function reportTextEncoding(report: ImportReportBuilder, encoding: string | null
  * @param options - cancellation, progress and the encoding
  * @yields decoded text; leading BOMs and a trailing Ctrl-Z removed
  * @returns nothing
+ * @category Writing a format
  */
 export async function* textChunks(
     rawInput: ImportInput,
@@ -1388,6 +1389,7 @@ export function tooLarge(report: ImportReportBuilder, message: string, line?: nu
  * @param report - the report the decode error is recorded in
  * @param options - cancellation and progress
  * @returns the decoded text without a leading BOM or a trailing Ctrl-Z
+ * @category Writing a format
  */
 export async function readText(
     rawInput: ImportInput,
@@ -1428,7 +1430,7 @@ export async function readText(
  * `\n`, `\r\n` and lone `\r` all end a line; the terminator is not part of the text; a final
  * line without a terminator is yielded when non-empty, and every line in between is yielded even
  * when empty (the importer decides what a blank line means).
- * @category Plugin helpers
+ * @category Writing a format
  */
 export class LineReader implements AsyncIterable<string> {
     private readonly input: ImportInput;

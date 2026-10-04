@@ -1,5 +1,5 @@
 import { useUncontrolled } from "@mantine/hooks";
-import React, { forwardRef, useRef, useState } from "react";
+import React, { forwardRef, useEffect, useRef, useState } from "react";
 
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import { InlineRename } from "./InlineRename";
@@ -161,7 +161,8 @@ export interface PageListProps {
  * A page list (design/figma-spec.md 10.2): Figma's own accessible model, a one-column grid with
  * one Tab stop. ArrowUp / ArrowDown / Home / End move focus without switching; Enter, Space or a
  * click switches; F2 or a double-click renames when `onRename` is given. A row can carry a second
- * line, a trailing value and a row menu (see PageListItem); ArrowRight moves into the menu.
+ * line, a trailing value and a row menu (see PageListItem); ArrowRight moves into the menu. The
+ * menu's controls are taken out of the Tab order, so the list stays one Tab stop.
  * @param props - Component props
  * @param props.items - The items or pages
  * @param props.current - The current page (controlled)
@@ -213,6 +214,19 @@ export function PageList({
     const [focusedId, setFocusedId] = useState<string | null>(null);
     const [renaming, setRenaming] = useState<string | null>(null);
     const cells = useRef(new Map<string, HTMLDivElement>());
+    const grid = useRef<HTMLDivElement>(null);
+    // A row menu is reached with ArrowRight, never with Tab: keep its controls out of the Tab
+    // order so the whole list is one Tab stop. Runs after every render, since a caller's menu
+    // can re-render its own button.
+    useEffect(() => {
+        grid.current
+            ?.querySelectorAll<HTMLElement>(
+                ".cm-page-menu :is(button, a[href], input, select, textarea, [tabindex])",
+            )
+            .forEach((el) => {
+                el.tabIndex = -1;
+            });
+    });
     const pages = items.filter((item) => item.divider !== true);
     const tabId =
         (focusedId !== null && pages.some((p) => p.id === focusedId) ? focusedId : null) ??
@@ -286,6 +300,7 @@ export function PageList({
 
     return (
         <div
+            ref={grid}
             role="grid"
             aria-label={label}
             className="cm-page-list"

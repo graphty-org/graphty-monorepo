@@ -508,6 +508,25 @@ describe("PageList: second line, value and row menu", () => {
         await userEvent.click(more);
         expect(onCurrentChange).not.toHaveBeenCalled();
     });
+
+    it("stays one Tab stop: Tab from the focused row leaves the list, past every row menu", async () => {
+        const items = [
+            ...RECENT,
+            { id: "two", name: "Second", menu: <button type="button">More for Second</button> },
+        ];
+        await renderThemed(
+            <>
+                <PageList label="Recent projects" items={items} />
+                <button type="button">after</button>
+            </>,
+        );
+        await tabIn();
+        expect(document.activeElement).toBe(screen.getByRole("gridcell", { name: /^Les Miserables/ }));
+        await userEvent.tab();
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }));
+        await userEvent.tab({ shift: true });
+        expect(document.activeElement).toBe(screen.getByRole("gridcell", { name: /^Les Miserables/ }));
+    });
 });
 
 describe("InlineRename", () => {

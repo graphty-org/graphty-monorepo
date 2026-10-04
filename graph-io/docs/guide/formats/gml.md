@@ -69,6 +69,10 @@ names back as the ids. Saving the graph to GML again needs the same option, and 
   as the file wrote it is kept in `snapshot.meta.extra.gml.directed` (absent when the file has
   none), so you can tell `directed 0` from a file that relies on the default.
 - An edge's `value` key is its weight (the `weightFrom` option changes the key).
+- The graph block's own keys become graph attributes (`snapshot.graph`). Its `name` key is also the
+  graph's name, `snapshot.meta.name`, which `graphName` matches in a file with several graphs.
+- An integer beyond 2^53 is stored as the nearest JavaScript number, with a `W_PRECISION` warning.
+  Pass `long: "string"` to keep every digit: that key's values are then stored as text.
 - A node's `graphics [ x y z ]` becomes its position; the other `graphics` keys are kept as JSON.
   Pass `positions: false` to keep the whole `graphics` record as JSON.
 - The GML specification makes node ids integers. NetworkX and Gephi also write text ids; graph-io
@@ -78,6 +82,8 @@ names back as the ids. Saving the graph to GML again needs the same option, and 
   name their ends by it: a node without one is skipped with `E_MISSING_ID`.
 - `#` comments, `+INF`, `-INF` and `NAN` are read. A file can hold several `graph [ ]` blocks; see
   [Files that hold several graphs](../loading.md#files-that-hold-several-graphs).
+- Under `nodeIdFrom: "label"` or `"index"` the integer `id` keys are not kept, and
+  `report.lossy` holds a `W_GML_ID_DROPPED` note that says so.
 - Text columns with many repeated values are stored as dictionaries to save memory; pass
   `dictionaries: false` to store them as plain text.
 
@@ -94,6 +100,8 @@ What does not survive:
 - Inside a JSON record, GML cannot tell integers from reals, writes booleans as 1 and 0, and has no
   null (`W_GML_RECORD_NUMBER_TYPE` and related notes).
 - Edge ids are kept; time columns, visual columns other than the position, and nesting are not.
+- The graph's name is written only from a `name` graph attribute, which a GML import has. A name
+  from another format (`snapshot.meta.name` of a DOT graph, say) is not written.
 
 <!-- generated:begin capabilities:gml -->
 
@@ -129,21 +137,23 @@ A file can hold several graphs: pick one with the `graphIndex` or `graphName` op
 
 | Option                                 | Type      | Default | Meaning                                                                                                                                                        |
 | -------------------------------------- | --------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `positions`                            | `boolean` | `true`  | Read a node's `graphics [ x y z ]` record as its position; false keeps the whole record as a JSON attribute named `graphics`.                                  |
+| [`positions`](#import-positions)       | `boolean` | `true`  | Read a node's `graphics [ x y z ]` record as its position; false keeps the whole record as a JSON attribute named `graphics`.                                  |
 | [`dictionaries`](#import-dictionaries) | `boolean` | `true`  | Store a text attribute whose values repeat a lot (fewer distinct values than half the rows) as a dictionary column, which uses less memory and reads the same. |
 
+- <a id="import-positions"></a>`positions`: Read a node's `graphics [ x y z ]` record as its position; false keeps the whole record as a JSON attribute named `graphics`.
 - <a id="import-dictionaries"></a>`dictionaries`: Store a text attribute whose values repeat a lot (fewer distinct values than half the rows) as a dictionary column, which uses less memory and reads the same. Such a column reports `meta.dtype` "dict" instead of "string". A column with a role, such as the `label` column, always stays "string".
 
 ## Export options
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                           | Type                  | Default               | Meaning                                                                                                                                                                                                                                                                                                                     |
-| -------------------------------- | --------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`weightKey`](#export-weightkey) | `string`              | as read, else "value" | The edge key the weights are written under.                                                                                                                                                                                                                                                                                 |
-| `sanitizeKeys`                   | `"error" \| "mangle"` | `"error"`             | What to do with an attribute name or record key that GML cannot write (GML keys are `[A-Za-z][0-9A-Za-z_]*`, and `id`, `source`, `target` and the like are taken): "error" makes the save fail, "mangle" rewrites it (`.` and other characters become `_`, a clash gets a `_2` suffix) and checkExport() lists each rename. |
+| Option                                 | Type                  | Default               | Meaning                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------- | --------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`weightKey`](#export-weightkey)       | `string`              | as read, else "value" | The edge key the weights are written under.                                                                                                                                                                                                                                                                                 |
+| [`sanitizeKeys`](#export-sanitizekeys) | `"error" \| "mangle"` | `"error"`             | What to do with an attribute name or record key that GML cannot write (GML keys are `[A-Za-z][0-9A-Za-z_]*`, and `id`, `source`, `target` and the like are taken): "error" makes the save fail, "mangle" rewrites it (`.` and other characters become `_`, a clash gets a `_2` suffix) and checkExport() lists each rename. |
 
 - <a id="export-weightkey"></a>`weightKey`: The edge key the weights are written under. The default is the key a GML import read them from, else `value`.
+- <a id="export-sanitizekeys"></a>`sanitizeKeys`: What to do with an attribute name or record key that GML cannot write (GML keys are `[A-Za-z][0-9A-Za-z_]*`, and `id`, `source`, `target` and the like are taken): "error" makes the save fail, "mangle" rewrites it (`.` and other characters become `_`, a clash gets a `_2` suffix) and checkExport() lists each rename.
 
 ## Import issue codes
 
@@ -156,6 +166,8 @@ The codes this format's import report can hold. They are also exported as `GML_I
 - `W_UNKNOWN_ENCODING` (warning): A declared encoding the platform cannot decode was ignored.
 - `E_NO_GRAPH` (error): There is no `graph [` block. The import stops.
 - `W_MULTIPLE_GRAPHS` (warning): The file holds more than one `graph` block and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph.
+- `E_GRAPH_NOT_FOUND` (error): `graphIndex` or `graphName` names no graph of the file; the message lists the graphs it holds. The import stops.
+- `E_AMBIGUOUS_GRAPH_NAME` (error): `graphName` matches more than one graph; pass `graphIndex`. The import stops.
 - `E_MISSING_ID` (error): A node without an `id`.
 - `E_GML_MISSING_LABEL` (error): A node without a `label` under nodeIdFrom "label".
 - `E_MISSING_ENDPOINT` (error): An edge without `source` or `target`.
@@ -180,7 +192,7 @@ The codes this format's import report can hold. They are also exported as `GML_I
 - `W_DIRECTION_REFUSED` (warning): You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.
 - `W_DIRECTION_FORCED` (warning): Edges of the other direction were read with the direction `onMixedDirection` chose.
 - `E_MIXED_DIRECTION` (error): The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a format that holds one direction per file fails with `E_DIRECTED`. Pass "directed" or "undirected" to read or write it anyway.
-- `W_GML_ID_DROPPED` (warning): Under nodeIdFrom "label" / "index" the integer ids are not kept (a loss note).
+- `W_GML_ID_DROPPED` (warning): Under `nodeIdFrom: "label"` or `"index"` the file's integer ids are not kept. It is listed in `report.lossy`, not in `report.issues`.
 
 Like every format, it can also record the codes for unreadable input and for elements the graph refuses: [`E_EMPTY_INPUT`](../codes.md#E_EMPTY_INPUT), [`E_TOO_LARGE`](../codes.md#E_TOO_LARGE), [`W_ENCODING_CONFLICT`](../codes.md#W_ENCODING_CONFLICT), [`W_CONTROL_CHARACTER`](../codes.md#W_CONTROL_CHARACTER), [`E_FOREIGN_FORMAT`](../codes.md#E_FOREIGN_FORMAT), [`W_ISSUES_SUPPRESSED`](../codes.md#W_ISSUES_SUPPRESSED), [`E_INVALID_ID`](../codes.md#E_INVALID_ID), [`E_UNKNOWN_NODE`](../codes.md#E_UNKNOWN_NODE), [`E_INVALID_WEIGHT`](../codes.md#E_INVALID_WEIGHT), [`E_DUPLICATE_EDGE`](../codes.md#E_DUPLICATE_EDGE), [`E_SELF_LOOP`](../codes.md#E_SELF_LOOP), [`E_DUPLICATE_EDGE_ID`](../codes.md#E_DUPLICATE_EDGE_ID).
 

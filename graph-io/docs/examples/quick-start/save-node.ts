@@ -1,8 +1,10 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 
-import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
+import { checkExport, exportGraphToBytes, loadFromUrl } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("got-network.graphml"), { filename: "got-network.graphml" });
+const { snapshot } = await loadFromUrl(
+    "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml",
+);
 
 for (const note of checkExport(snapshot, "csv")) {
     // `column` names the attribute a note is about (null for the graph as a whole)

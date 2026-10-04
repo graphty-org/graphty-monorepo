@@ -142,9 +142,11 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 These come on top of the [options every importer takes](../options.md#every-importer).
 A file can hold several graphs: pick one with the `graphIndex` or `graphName` option of [importGraph()](../options.md#importgraph-and-importallgraphs), as [Files that hold several graphs](../loading.md#files-that-hold-several-graphs) shows.
 
-| Option | Type                     | Default    | Meaning                                                                                                                                                                     |
-| ------ | ------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `zAs`  | `"column" \| "position"` | `"column"` | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
+| Option               | Type                     | Default    | Meaning                                                                                                                                                                     |
+| -------------------- | ------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`zAs`](#import-zas) | `"column" \| "position"` | `"column"` | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
+
+- <a id="import-zas"></a>`zAs`: Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position.
 
 ## Export options
 
@@ -173,8 +175,8 @@ The codes this format's import report can hold. They are also exported as `CX_IS
 - `W_CX_GROUP_NODE_ADDED` (warning): A cyGroups group whose id is not a node: the group node is added.
 - `W_CX_ROOT_ONLY` (warning): Nodes or edges of the root network that no subnetwork holds: Cytoscape shows them in no network; not read.
 - `E_STATUS_FAILED` (error): The program that wrote the file marked it as failed, so it is incomplete. The import stops.
-- `W_STATUS_WARNING` (warning): The producer marked the document as successful with an error text.
-- `E_BAD_ASPECT_BLOCK` (error): A member of the array that is not a one-key aspect block, or an element that is not an object.
+- `W_STATUS_WARNING` (warning): The program that wrote the file marked it as successful but added an error message; the message is shown.
+- `E_BAD_ASPECT_BLOCK` (error): A member of the file's top-level array that is not a block with one key (`{"nodes": [...]}`), or an element of a block that is not an object. It is skipped; the rest of the file is read.
 - `W_ASPECT_ORDER` (warning): An aspect after the post-metadata or after the status, a third metaData.
 - `W_COUNT_MISMATCH` (warning): A metaData element count disagrees with what was read.
 - `E_BAD_VALUE` (error): A value that does not parse as its data type; the cell is unset.
@@ -185,7 +187,7 @@ The codes this format's import report can hold. They are also exported as `CX_IS
 - `E_UNKNOWN_PARENT` (error): A group member naming no node.
 - `E_PARENT_CYCLE` (error): A group membership that would close a parent cycle; dropped.
 - `W_STYLES_NOT_IMPORTED` (warning): The style rules of cyVisualProperties are not applied; they are kept so a CX export writes them back.
-- `E_MISSING_ID` (error): A node without an
+- `E_MISSING_ID` (error): A node without an id (its `@id` key). The node is skipped.
 - `E_MISSING_ENDPOINT` (error): An edge without s or t.
 - `W_DUPLICATE_NODE` (warning): A node id declared twice; the second merges into the first.
 - `W_UNKNOWN_ELEMENT` (warning): A node or edge key CX does not define, an aspect graph-io keeps for writing back, or a table CX does not define; it is skipped.

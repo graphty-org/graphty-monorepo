@@ -6,7 +6,8 @@
  * cannot read a file a reader cannot download, with `fetch` answering any URL from those files by its last path
  * segment (a URL ending in `/export`, which has no file name, gets simple.graphml). The browser
  * examples get a small stand-in `document`: after the example's top level has run, every element it looked up
- * receives the event it listens for (a file input gets `got.gexf` and a "change", anything else a
+ * receives the event it listens for (a file input gets `got.gexf`, or both GoT CSV tables when it is
+ * `multiple`, and a "change", anything else a
  * "click"), and every download it starts is recorded. What an example prints, the files it writes and the
  * downloads it starts are compared with a snapshot.
  */
@@ -33,6 +34,8 @@ const EXAMPLES = join(DOCS, "examples");
 const CORPUS = fileURLToPath(new URL("corpus/", import.meta.url));
 const SAMPLES = join(DOCS, "samples");
 const PICKED_FILE = "got.gexf";
+/** What an `<input type="file" multiple>` gets: the two tables of a CSV graph. */
+const PICKED_FILES = ["got-edges.csv", "got-nodes.csv"];
 const EXPORT_FILE = "simple.graphml";
 
 /**
@@ -54,6 +57,7 @@ class FakeElement {
     readonly listeners = new Map<string, Listener[]>();
     files: File[] = [];
     accept = "";
+    multiple = false;
     href = "";
     download = "";
     textContent = "";
@@ -171,8 +175,9 @@ async function runExample(file: string): Promise<Run> {
         await import(file);
         for (const el of elements.values()) {
             if (el.listeners.has("change")) {
-                const bytes = readFileSync(join(dir, PICKED_FILE));
-                el.files = [new File([bytes], PICKED_FILE)];
+                el.files = (el.multiple ? PICKED_FILES : [PICKED_FILE]).map(
+                    (name) => new File([readFileSync(join(dir, name))], name),
+                );
                 await el.fire("change");
             }
             await el.fire("click");

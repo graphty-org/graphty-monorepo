@@ -607,7 +607,7 @@ function capabilityCell(v: unknown): string {
  * @returns the markdown lines
  */
 function fidelityTable(ctx: Context): string[] {
-    const fields = [...ctx.capabilityDocs.keys()];
+    const fields = varyingCapabilities(ctx);
     const rows: string[][] = [];
     for (const f of ctx.formats) {
         if (f.exporter === undefined) {
@@ -638,6 +638,27 @@ function fidelityTable(ctx: Context): string[] {
  */
 function capabilityLegend(ctx: Context): string[] {
     return [...ctx.capabilityDocs].flatMap(([k, doc]) => [`#### ${k}`, "", prose(doc), ""]);
+}
+
+/**
+ * The capabilities on which the built-in writers differ. One every writer has the same value for (no format
+ * writes connected components, say) tells a reader nothing when choosing a format, so the matrix leaves its
+ * column out; the legend still explains it, since each format page lists every capability.
+ * @param ctx - the context
+ * @returns the capability names, in declaration order
+ */
+function varyingCapabilities(ctx: Context): string[] {
+    const all = ctx.formats.flatMap((f): ExportCapabilities[] => {
+        if (f.exporter === undefined) {
+            return [];
+        }
+        return f.name === "json" && ctx.jsonDialects.length > 0
+            ? ctx.jsonDialects.map((d) => d.caps)
+            : [f.exporter.capabilities];
+    });
+    return [...ctx.capabilityDocs.keys()].filter(
+        (k) => new Set(all.map((caps) => capabilityCell(caps[k as keyof ExportCapabilities]))).size > 1,
+    );
 }
 
 /**
@@ -775,7 +796,8 @@ function optionsTable(rows: readonly OptionRow[], anchor: string, usedBy?: (name
             .join(" ");
     };
     const short = (o: OptionRow): string => prose(firstSentence(o.doc.replace(/\s+/g, " ")));
-    const detailed = rows.filter((o) => full(o) !== short(o));
+    // every option gets its own entry, so a page can link to any of them
+    const detailed = rows;
     const out = table(
         ["Option", "Type", "Default", "Meaning"],
         rows.map((o) => [
@@ -934,6 +956,8 @@ function optionsBlock(ctx: Context): string[] {
         "## Every importer",
         "",
         "`CommonImportOptions`: every importer accepts these next to its own options. An option a format does not read is reported in the import report as `W_OPTION_IGNORED` when you set it.",
+        "",
+        "An option whose default is the same in every format (`duplicateEdges: \"keep\"`, `long: \"f64\"`, `restoreMangledIds: true` and the like) is not reported when you set it to that default, so an options object you share between formats can spell those out. `ids`, `defaultDirected`, `weightFrom` and `addMissingNodes` have a default per format, and are reported whenever you set them for a format that does not read them: leave them out of a shared object, or skip `W_OPTION_IGNORED` when you show the report.",
         "",
         ...optionsTable(commonImport, "import", (n) => (builderPolicies.has(n) ? "every format" : usedBy(n))),
         "",

@@ -94,8 +94,12 @@ typedefs and unknown frames it kept are written back. For a graph from another f
   (`W_RELATION_ASSUMED`); the `relation` option chooses another value for all of them. Ontology
   tools read `is_a` as "is a subclass of". A graph from Cytoscape (CX, CX2, XGMML, a session) keeps
   the relation in an `interaction` column: rename it before saving with
-  `snapshot.edges.rename("interaction", "relation")`. Spaces in a relation are written as `_`
-  (`W_OBO_RELATION_RENAMED`).
+  `snapshot.edges.rename("interaction", "relation")` (on a copy from `snapshot.withColumns()` when
+  other code holds the snapshot). `checkExport()` then returns `W_ROLE_ASSUMED` for `relation`: the
+  renamed column carries no mark that it holds relations, so graph-io takes it as the relation
+  because of its name, writes each value as the line's relation, and reads it back as the relation
+  column. Nothing is lost; the note tells you a column was used for its name. Spaces in a relation
+  are written as `_` (`W_OBO_RELATION_RENAMED`).
 - The ontology name in the header is the `ontology` option, else the name the graph was read with
   (see [Naming the graph](../reading.md#naming-the-graph)).
 - Node columns outside the OBO vocabulary become `property_value` lines
@@ -139,10 +143,13 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option     | Type                    | Default      | Meaning                                                                                                                                                      |
-| ---------- | ----------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `obsolete` | `"keep" \| "drop"`      | `"keep"`     | "keep" reads obsolete terms as nodes with `is_obsolete` set to true; "drop" leaves them and their edges out.                                                 |
-| `typedefs` | `"metadata" \| "nodes"` | `"metadata"` | "metadata" keeps the `[Typedef]` frames (relation definitions) in `snapshot.meta.extra.obo.typedefs`; "nodes" makes them nodes too, with their `is_a` edges. |
+| Option                         | Type                    | Default      | Meaning                                                                                                                                                      |
+| ------------------------------ | ----------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`obsolete`](#import-obsolete) | `"keep" \| "drop"`      | `"keep"`     | "keep" reads obsolete terms as nodes with `is_obsolete` set to true; "drop" leaves them and their edges out.                                                 |
+| [`typedefs`](#import-typedefs) | `"metadata" \| "nodes"` | `"metadata"` | "metadata" keeps the `[Typedef]` frames (relation definitions) in `snapshot.meta.extra.obo.typedefs`; "nodes" makes them nodes too, with their `is_a` edges. |
+
+- <a id="import-obsolete"></a>`obsolete`: "keep" reads obsolete terms as nodes with `is_obsolete` set to true; "drop" leaves them and their edges out.
+- <a id="import-typedefs"></a>`typedefs`: "metadata" keeps the `[Typedef]` frames (relation definitions) in `snapshot.meta.extra.obo.typedefs`; "nodes" makes them nodes too, with their `is_a` edges.
 
 ## Export options
 

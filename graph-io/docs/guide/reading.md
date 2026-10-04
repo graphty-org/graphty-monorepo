@@ -4,6 +4,12 @@ Every load function returns the graph as a `snapshot`, a `GraphSnapshot` from
 [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format). This page shows the
 parts of it you need to use a graph you loaded. The graph-format README documents the rest.
 
+In TypeScript, import the type from graph-io, which re-exports it:
+`import type { GraphSnapshot } from "@graphty/graph-io"`. You do not need `@graphty/graph-format`
+in your own dependencies for that. If you do add it (for `GraphBuilder`, say), keep it at the
+version graph-io uses, or your package manager may install a second copy whose `GraphSnapshot` type
+does not match graph-io's.
+
 ## Nodes and ids
 
 Nodes are numbered `0` to `snapshot.nodeCount - 1` in the order they are first seen in the file.
@@ -28,7 +34,8 @@ name:
 - `names()` lists the attribute names.
 - `value(name, i)` reads one value. It returns `undefined` for a node or edge that has no value
   for that attribute, and throws `E_UNKNOWN_COLUMN` for a name the table does not have.
-- `has(name)` checks a name; `get(name)` returns the column, or `null`.
+- `has(name)` checks a name; `get(name)` returns the column, or `null` (not `undefined`) when the
+  table has no such column.
 - `byRole(role)` returns the column that has a role, or `null`. Importers mark the columns a file
   gives a meaning: `"label"` for the node or edge label, `"weight"`, `"position"`, `"color"`, `"id"`
   for edge ids, and so on. Its name is `column.meta.name`, its type `column.meta.dtype`.
@@ -276,10 +283,13 @@ can write the file back the same way. For a JSON file, `jsonShapeOf(snapshot)` f
 ## Naming the graph
 
 DOT, GEXF, GML and Pajek files can name their graph, and an import keeps the name in
-`snapshot.meta.name`. A graph read from a format without one, such as CSV, has the name `null`.
-The snapshot cannot be changed, so to name it, copy it into a `GraphBuilder` (from
-`@graphty/graph-format`, which you add to your own dependencies for this), set the name and
-freeze a new snapshot:
+`snapshot.meta.name`. In GML the name is the `name` key of the `graph [ ]` block, which is also
+kept as a graph attribute, and a GML save writes a name only from that attribute. A graph read from
+a format without a name, such as CSV, has the name `null`.
+
+`snapshot.meta` cannot be changed, so to name a graph, copy it into a `GraphBuilder` (from
+`@graphty/graph-format`, which you add to your own dependencies for this), set the name and freeze
+a new snapshot:
 
 <!-- generated:begin example:reading/name -->
 
@@ -319,11 +329,21 @@ got
 To name only the saved file, pass the name to the save instead: `name` for DOT and Pajek, and
 `ontology` for OBO.
 
-## Renaming an attribute before you save
+## Changing attributes
 
-The attribute tables of a loaded snapshot can be changed: `rename(from, to)`, `remove(name)`, and
-`set(name, values)` to add a column. Renaming is how you put a value where another tool looks for
-it. vis.js, for example, shows each node's `label`:
+A snapshot's nodes, edges, ids and `meta` never change. Its attribute tables (`snapshot.nodes`,
+`snapshot.edges` and `snapshot.graph`) can: `rename(from, to)`, `remove(name)`, and
+`set(name, values)` to add a column change the table in place.
+
+A change in place reaches everything that holds the same snapshot: every component and store it
+was handed to. React does not notice, because the object is the same. So change a copy:
+`snapshot.withColumns()` returns a new snapshot with its own attribute tables. It shares the nodes,
+edges and ids with the original, so it costs little memory. Put the copy in state, and React
+renders it. To stop code you hand a snapshot to from changing its tables, call `snapshot.seal()`:
+`rename()`, `remove()` and `set()` then throw `E_FROZEN`.
+
+Renaming is how you put a value where another tool looks for it. vis.js, for example, shows each
+node's `label`:
 
 <!-- generated:begin example:reading/rename -->
 
@@ -334,9 +354,15 @@ import { exportGraphToString, importGraph } from "@graphty/graph-io";
 
 const { snapshot } = await importGraph(await readFile("got-nodes.csv"), { filename: "got-nodes.csv" });
 
+// A copy with its own attribute tables; it shares the nodes, edges and ids, so it is cheap.
+// Code that holds `snapshot` still sees "Label".
+const forVis = snapshot.withColumns();
+
 // vis.js shows a node's `label`; this file calls it `Label`
-snapshot.nodes.rename("Label", "label");
-const json = await exportGraphToString(snapshot, "json", { dialect: "vis", indent: 2 });
+forVis.nodes.rename("Label", "label");
+console.log(snapshot.nodes.names(), forVis.nodes.names());
+
+const json = await exportGraphToString(forVis, "json", { dialect: "vis", indent: 2 });
 console.log(json.slice(0, json.indexOf("},") + 2));
 ```
 
@@ -345,6 +371,7 @@ console.log(json.slice(0, json.indexOf("},") + 2));
 <!-- generated:begin output:reading/rename -->
 
 ```text
+[ 'Label' ] [ 'label' ]
 {
   "nodes": [
     {

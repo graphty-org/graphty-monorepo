@@ -37,7 +37,11 @@ exports[`documentation examples > formats/csv runs 1`] = `
 ]
 `;
 
+exports[`documentation examples > formats/csv-adjacency runs 1`] = `[]`;
+
 exports[`documentation examples > formats/csv-decimal-comma runs 1`] = `[]`;
+
+exports[`documentation examples > formats/csv-two-files runs 1`] = `[]`;
 
 exports[`documentation examples > formats/cx runs 1`] = `
 [

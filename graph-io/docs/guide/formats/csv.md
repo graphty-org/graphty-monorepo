@@ -60,6 +60,94 @@ The default export is the edge table, which has no room for node attributes (`W_
 `table: "nodes"` writes the node table. To read the pair back, pass the edge table as the input
 and the node table as the `nodes` option, as the example does when loading.
 
+### Two files the user picks
+
+In a browser, let the user pick both tables in one `<input type="file" multiple>` and pass the node
+table's `File` as `nodes`. The `nodes` option takes a `File` or `Blob` as well as a string, bytes or
+a stream.
+
+<!-- generated:begin example:formats/csv-two-files -->
+
+```js
+import { GraphFormatError, loadFromFile } from "@graphty/graph-io";
+
+// <input type="file" id="tables" accept=".csv" multiple>: the user picks the edge and node tables together
+const input = document.querySelector("#tables");
+input.multiple = true;
+
+input.addEventListener("change", async () => {
+    const files = [...input.files];
+    // tell the tables apart by name; a node table has no source and target columns
+    const nodes = files.find((f) => /node/i.test(f.name));
+    const edges = files.find((f) => f !== nodes);
+    if (!edges) {
+        console.error("pick the edge table");
+        return;
+    }
+    try {
+        // the node table goes in the `nodes` option, as a File like the edge table
+        const { snapshot } = await loadFromFile(edges, { nodes, defaultDirected: false });
+        const label = snapshot.nodes.byRole("label");
+        console.log(`${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges, first label ${label?.value(0)}`);
+    } catch (err) {
+        if (err instanceof GraphFormatError) {
+            console.error(`Could not read the tables: ${err.message}`);
+        } else {
+            throw err;
+        }
+    }
+});
+```
+
+<!-- generated:end -->
+
+### Adjacency tables
+
+`table: "adjacency"` writes each node with its neighbors on one line, `node,neighbor,neighbor`,
+with `neighbor:2.5` for a weighted edge. The table keeps every node and the node order: when the
+lines with neighbors would bring the nodes in a different order, lines that hold only a node id
+come first, in the graph's order, and a node with no edges gets a line of its own. Nothing in the
+file says that it is an adjacency table or whether it is directed, so read it back with
+`table: "adjacency"` and, for an undirected graph, `defaultDirected: false`. Without
+`table: "adjacency"`, each line longer than the first is an `E_CSV_FIELD_COUNT` error, and the
+first error's message suggests the option.
+
+<!-- generated:begin example:formats/csv-adjacency -->
+
+```ts
+import { checkExport, exportGraphToString, importGraph } from "@graphty/graph-io";
+
+// Four people, declared in this order; Cleo knows Ana and Ben, and Dev knows nobody
+const { snapshot } = await importGraph("graph { Ana; Ben; Cleo; Dev; Cleo -- Ana; Cleo -- Ben }", { format: "dot" });
+
+// An adjacency table: each line is a node and its neighbors
+const options = { table: "adjacency" } as const;
+console.log(checkExport(snapshot, "csv", options).map((n) => n.code));
+const text = await exportGraphToString(snapshot, "csv", options);
+console.log(text);
+
+// The file says neither that it is an adjacency table nor that it is undirected: pass both
+const back = await importGraph(text, { format: "csv", table: "adjacency", defaultDirected: false });
+console.log(back.snapshot.ids.toArray(), `${back.snapshot.edgeCount} edges, directed: ${back.snapshot.directed}`);
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/csv-adjacency -->
+
+```text
+[ 'W_CSV_DIRECTION_DROPPED' ]
+Ana
+Ben
+Cleo
+Cleo,Ana,Ben
+Dev
+
+[ 'Ana', 'Ben', 'Cleo', 'Dev' ] 2 edges, directed: false
+```
+
+<!-- generated:end -->
+
 ## How graph-io reads it
 
 - The delimiter is detected from the first rows (`,`, tab, `;`, `|` or space) unless you pass
@@ -85,9 +173,9 @@ and the node table as the `nodes` option, as the example does when loading.
   as two edges, and the edges get the `graphty.directed` and `graphty.pair` columns
   ([Columns graph-io adds](../reading.md#columns-graph-io-adds)).
 - Lines starting with `#` or `%` before the first row are comments.
-- The `nodes` option takes a node table to read alongside the edge list; its ids become nodes and
-  its other columns node attributes. A node table on its own is read when the header has an id
-  column but no source and target.
+- The `nodes` option takes a node table to read alongside the edge list (a string, bytes, a stream,
+  or a `File` or `Blob`); its ids become nodes and its other columns node attributes. A node table
+  on its own is read when the header has an id column but no source and target.
 - `header` and `delimiter` apply to both tables, the input and the `nodes` table. A node table whose
   shape differs (an edge list without a header next to a node table with one) cannot be read in one
   call: load the node table yourself, or add the missing header line to the edge list first. With
@@ -124,7 +212,7 @@ Float32Array(2) [ 2.5, 1.25 ] 0
   save writes no weight for it.
 - `table: "adjacency"` reads an adjacency list: each row is a node followed by its neighbors, and
   `neighbor:2.5` gives that edge a weight. graph-io never guesses this table, because its rows look
-  like an edge list.
+  like an edge list; see [Adjacency tables](#adjacency-tables).
 - A file that is really XML, JSON, GML, DOT or Pajek is refused (`E_CSV_OTHER_FORMAT`) rather than
   read as a table of nonsense.
 - Guesses graph-io had to make are reported once each: a stray quote, an id with spaces around it,
@@ -211,19 +299,19 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option                                 | Type                                                                                        | Default         | Meaning                                                                                                                                                                                                                                                                                                                |
-| -------------------------------------- | ------------------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`delimiter`](#import-delimiter)       | `string`                                                                                    | detected        | The field delimiter.                                                                                                                                                                                                                                                                                                   |
-| [`decimal`](#import-decimal)           | `"." \| ","`                                                                                | `"."`           | The decimal separator of numbers.                                                                                                                                                                                                                                                                                      |
-| [`header`](#import-header)             | `boolean \| "auto"`                                                                         | `"auto"`        | Whether the first row is a header; "auto" decides from its content (a header names columns, a data row holds ids and numbers).                                                                                                                                                                                         |
-| [`table`](#import-table)               | `"adjacency" \| "auto" \| "nodes" \| "edges"`                                               | `"auto"`        | What the input is: "edges" (one edge per row), "nodes" (one node per row), "adjacency" (a node and its neighbors per row, `node,neighbor[:weight],...`, with no header unless you pass `header: true`), or "auto": an edge table when source and target columns can be found, a node table when only an id column can. |
-| [`sourceColumn`](#import-sourcecolumn) | `string \| number`                                                                          | from the header | The source column, by name or 0-based position.                                                                                                                                                                                                                                                                        |
-| [`targetColumn`](#import-targetcolumn) | `string \| number`                                                                          | from the header | The target column, by name or 0-based position.                                                                                                                                                                                                                                                                        |
-| [`typeColumn`](#import-typecolumn)     | `null \| string \| number`                                                                  | Gephi's Type    | The column that gives each edge's direction (Directed / Undirected / Mutual), by name or position.                                                                                                                                                                                                                     |
-| [`idColumn`](#import-idcolumn)         | `string \| number`                                                                          | from the header | The id column of a node table, by name or position.                                                                                                                                                                                                                                                                    |
-| [`labelColumn`](#import-labelcolumn)   | `string \| number`                                                                          | from the header | The label column of a node table, by name or position.                                                                                                                                                                                                                                                                 |
-| `nodes`                                | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array>` |                 | A node table to read before the edges, as a string, bytes or a stream: its ids become nodes and its other columns node attributes.                                                                                                                                                                                     |
-| [`rowNumberIds`](#import-rownumberids) | `boolean`                                                                                   | `false`         | Give the nodes of a node table without an id column the row number as id (0 for the first data row, turned into an id by `ids`), instead of failing with `E_CSV_NO_ID_COLUMN`.                                                                                                                                         |
+| Option                                 | Type                                                                                                | Default         | Meaning                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`delimiter`](#import-delimiter)       | `string`                                                                                            | detected        | The field delimiter.                                                                                                                                                                                                                                                                                                   |
+| [`decimal`](#import-decimal)           | `"." \| ","`                                                                                        | `"."`           | The decimal separator of numbers.                                                                                                                                                                                                                                                                                      |
+| [`header`](#import-header)             | `boolean \| "auto"`                                                                                 | `"auto"`        | Whether the first row is a header; "auto" decides from its content (a header names columns, a data row holds ids and numbers).                                                                                                                                                                                         |
+| [`table`](#import-table)               | `"adjacency" \| "auto" \| "nodes" \| "edges"`                                                       | `"auto"`        | What the input is: "edges" (one edge per row), "nodes" (one node per row), "adjacency" (a node and its neighbors per row, `node,neighbor[:weight],...`, with no header unless you pass `header: true`), or "auto": an edge table when source and target columns can be found, a node table when only an id column can. |
+| [`sourceColumn`](#import-sourcecolumn) | `string \| number`                                                                                  | from the header | The source column, by name or 0-based position.                                                                                                                                                                                                                                                                        |
+| [`targetColumn`](#import-targetcolumn) | `string \| number`                                                                                  | from the header | The target column, by name or 0-based position.                                                                                                                                                                                                                                                                        |
+| [`typeColumn`](#import-typecolumn)     | `null \| string \| number`                                                                          | Gephi's Type    | The column that gives each edge's direction (Directed / Undirected / Mutual), by name or position.                                                                                                                                                                                                                     |
+| [`idColumn`](#import-idcolumn)         | `string \| number`                                                                                  | from the header | The id column of a node table, by name or position.                                                                                                                                                                                                                                                                    |
+| [`labelColumn`](#import-labelcolumn)   | `string \| number`                                                                                  | from the header | The label column of a node table, by name or position.                                                                                                                                                                                                                                                                 |
+| [`nodes`](#import-nodes)               | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| Blob` |                 | A node table to read before the edges: its ids become nodes and its other columns node attributes.                                                                                                                                                                                                                     |
+| [`rowNumberIds`](#import-rownumberids) | `boolean`                                                                                           | `false`         | Give the nodes of a node table without an id column the row number as id (0 for the first data row, turned into an id by `ids`), instead of failing with `E_CSV_NO_ID_COLUMN`.                                                                                                                                         |
 
 - <a id="import-delimiter"></a>`delimiter`: The field delimiter. The default is to detect it from the first rows: `,`, tab, `;`, `|` or space. It applies to the `nodes` table too.
 - <a id="import-decimal"></a>`decimal`: The decimal separator of numbers. With ",", a cell such as `2,5` (digits, a comma, digits) is read as the number 2.5, for weights and attributes alike, and the delimiter is detected among the others (`;`, tab, `|`, space), so a spreadsheet saved in a locale that writes decimal commas reads as it is. A thousands separator is not read.
@@ -234,21 +322,25 @@ These come on top of the [options every importer takes](../options.md#every-impo
 - <a id="import-typecolumn"></a>`typeColumn`: The column that gives each edge's direction (Directed / Undirected / Mutual), by name or position. The default is the `Type` column of a Gephi table (one whose header has exactly `Source` and `Target`); null reads no such column.
 - <a id="import-idcolumn"></a>`idColumn`: The id column of a node table, by name or position. The default is the column the header names `id` (or `node`, `name`, `key`).
 - <a id="import-labelcolumn"></a>`labelColumn`: The label column of a node table, by name or position. The default is the column the header names `label` (in any case). With `nodeIdFrom: "label"`, the node ids come from this column, and the edge table must name its nodes by these labels too.
+- <a id="import-nodes"></a>`nodes`: A node table to read before the edges: its ids become nodes and its other columns node attributes. Pass it as a string, bytes, a stream, or a `File` or `Blob` (the second file a user picked, say).
 - <a id="import-rownumberids"></a>`rowNumberIds`: Give the nodes of a node table without an id column the row number as id (0 for the first data row, turned into an id by `ids`), instead of failing with `E_CSV_NO_ID_COLUMN`. It applies to the `nodes` table when you pass one, else to the input. Under `header: "auto"` that table's first row is then read as a header; under `header: false` the option is ignored with a warning, because a table without a header takes its ids from its first column.
 
 ## Export options
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                     | Type                                | Default   | Meaning                                                                                                                                                                         |
-| -------------------------- | ----------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dialect`                  | `"gephi" \| "generic"`              | `"gephi"` | The header spelling: "gephi" writes `Source,Target,Type,...,Weight`, with each edge's direction in `Type`; "generic" writes `source,target,...,weight` and no direction column. |
-| [`table`](#export-table)   | `"adjacency" \| "nodes" \| "edges"` | `"edges"` | Which table to write.                                                                                                                                                           |
-| `delimiter`                | `string`                            | `","`     | The field delimiter.                                                                                                                                                            |
-| `newline`                  | `"\n" \| "\r\n"`                    | `"\n"`    | The line terminator.                                                                                                                                                            |
-| [`header`](#export-header) | `boolean`                           | `true`    | Whether to write the header row (an adjacency table never has one).                                                                                                             |
+| Option                           | Type                                | Default   | Meaning                                                                                                                                                                         |
+| -------------------------------- | ----------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`dialect`](#export-dialect)     | `"gephi" \| "generic"`              | `"gephi"` | The header spelling: "gephi" writes `Source,Target,Type,...,Weight`, with each edge's direction in `Type`; "generic" writes `source,target,...,weight` and no direction column. |
+| [`table`](#export-table)         | `"adjacency" \| "nodes" \| "edges"` | `"edges"` | Which table to write.                                                                                                                                                           |
+| [`delimiter`](#export-delimiter) | `string`                            | `","`     | The field delimiter.                                                                                                                                                            |
+| [`newline`](#export-newline)     | `"\n" \| "\r\n"`                    | `"\n"`    | The line terminator.                                                                                                                                                            |
+| [`header`](#export-header)       | `boolean`                           | `true`    | Whether to write the header row (an adjacency table never has one).                                                                                                             |
 
+- <a id="export-dialect"></a>`dialect`: The header spelling: "gephi" writes `Source,Target,Type,...,Weight`, with each edge's direction in `Type`; "generic" writes `source,target,...,weight` and no direction column.
 - <a id="export-table"></a>`table`: Which table to write. "edges": one edge per row, with the edge attributes; isolated nodes and node attributes are not in it. "nodes": one node per row, with the node attributes and no edges. "adjacency": a node and its neighbors per row, which keeps every node and the node order but no attributes (read it back with `table: "adjacency"`). To keep both nodes and edges, write the node table and the edge table to two files and read them back with the `nodes` import option.
+- <a id="export-delimiter"></a>`delimiter`: The field delimiter.
+- <a id="export-newline"></a>`newline`: The line terminator.
 - <a id="export-header"></a>`header`: Whether to write the header row (an adjacency table never has one). A file without a header is read back by position: source, target, weight, then unnamed columns. checkExport() returns `W_CSV_HEADERLESS` when the table has other columns; for a plain headerless edge list, pass `dialect: "generic"` and write a graph whose edges have only weights.
 
 ## Import issue codes
@@ -264,7 +356,7 @@ The codes this format's import report can hold. They are also exported as `CSV_I
 - `W_UNKNOWN_ENCODING` (warning): A declared encoding the platform cannot decode was ignored.
 - `E_CSV_NO_ENDPOINT_COLUMNS` (error): The header names no source and target columns and no id column. Pass `sourceColumn` and `targetColumn` to name the columns. The import stops.
 - `E_CSV_NO_ID_COLUMN` (error): The node table has no id column. Pass `idColumn` to name it, or `rowNumberIds: true` to number the rows. The import stops.
-- `E_CSV_FIELD_COUNT` (error): A row with a different field count than the header.
+- `E_CSV_FIELD_COUNT` (error): A row with a different number of fields than the header; the row is skipped. An adjacency list read without `table: "adjacency"` gives one per long row, and the first one's message suggests the option.
 - `E_MISSING_ENDPOINT` (error): An edge row with a blank source or target.
 - `E_MISSING_ID` (error): A node row with a blank id.
 - `E_CSV_BAD_TYPE` (error): A Type cell outside Directed / Undirected / Mutual.

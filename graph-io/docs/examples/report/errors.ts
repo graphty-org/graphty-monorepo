@@ -8,7 +8,7 @@ try {
     if (err instanceof ImportError) {
         console.log(`${err.code}: ${err.message}`);
         console.log(`stopped by ${err.issue?.code} on line ${err.issue?.line}`);
-        console.log(`${err.report.counts.edges} edges had been read`);
+        console.log(`edges read before it stopped: ${err.report.counts.edges}`);
     } else if (err instanceof GraphFormatError) {
         console.log(`a problem with the call: ${err.code}`);
     } else {

@@ -129,9 +129,11 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option | Type                     | Default    | Meaning                                                                                                                                                                     |
-| ------ | ------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `zAs`  | `"column" \| "position"` | `"column"` | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
+| Option               | Type                     | Default    | Meaning                                                                                                                                                                     |
+| -------------------- | ------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`zAs`](#import-zas) | `"column" \| "position"` | `"column"` | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
+
+- <a id="import-zas"></a>`zAs`: Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position.
 
 ## Export options
 
@@ -174,7 +176,7 @@ The codes this format's import report can hold. They are also exported as `CX2_I
 - `W_MULTI_ASPECT_FRAGMENT` (warning): A member holding several aspects; each array-valued key is read as its own block.
 - `W_JSON_NONSTANDARD_NUMBER` (warning): The bare tokens NaN / Infinity / -Infinity (Python's json writes them), read as numbers.
 - `W_STYLES_NOT_IMPORTED` (warning): The file's style rules are not applied; they are kept so a CX2 export writes them back.
-- `E_BAD_ASPECT_BLOCK` (error): A member of the top-level array that is not a one-key aspect block, or an element that is not an object.
+- `E_BAD_ASPECT_BLOCK` (error): A member of the file's top-level array that is not a block with one key (`{"nodes": [...]}`), or an element of a block that is not an object. It is skipped; the rest of the file is read.
 - `W_ASPECT_ORDER` (warning): An aspect out of its place (after the post-metadata or the status, a third metaData, late declarations).
 - `W_COUNT_MISMATCH` (warning): A metaData element count disagrees with what was read.
 - `E_BAD_VALUE` (error): A value that does not match its declared type; the cell is unset.

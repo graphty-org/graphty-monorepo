@@ -1,6 +1,7 @@
 import {
     chooseGraph,
     type CommonImportOptions,
+    graphChosen,
     type GraphChoiceOptions,
     type GraphImporter,
     type GraphSink,
@@ -111,11 +112,12 @@ export const sectionsImporter: GraphImporter<GraphChoiceOptions> = {
             options,
             report,
         );
-        if (sections.length > 1) {
+        if (sections.length > 1 && !graphChosen(options)) {
+            // the caller did not choose, so say that the other graphs were skipped
             report.warning(
                 "unsupported",
                 MULTIPLE_GRAPHS_CODE,
-                `the file holds ${sections.length} graphs; read "${sections[index].name}"`,
+                `the file holds ${sections.length} graphs; read the first, "${sections[index].name}" (graphIndex or graphName chooses another)`,
             );
         }
         return fill(sections[index], sink, report, opts.signal);

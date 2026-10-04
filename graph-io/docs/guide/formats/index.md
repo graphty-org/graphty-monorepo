@@ -1,8 +1,32 @@
 # Formats
 
+## Which format should I use
+
+- Between desktop tools: GEXF with Gephi, GraphML with most others (yEd, igraph, NetworkX). Both
+  keep typed attributes, mixed direction and parallel edges.
+- In a web page: JSON. The `node-link` dialect suits NetworkX and d3, `cytoscape` Cytoscape.js, and
+  `graphology` graphology and sigma.js.
+- In a spreadsheet, a database or a script: CSV, with the node table and the edge table written as
+  two files.
+- In Cytoscape: CX2 or XGMML to add a network to an open session, a Cytoscape session to hand over
+  a whole session, and CX2 for NDEx. CX, CX2 and session node ids are integers, so pass
+  `sanitizeIds: "mangle"` when you save a graph with text ids, including one you read from a
+  session or a CX file, whose ids come back as the original names.
+- In Neo4j: Neo4j CSV, written with `exportNeo4jFiles()` and loaded with
+  `neo4j-admin database import`; see [Files for neo4j-admin](./neo4j.md#files-for-neo4j-admin).
+- Ontologies: OBO, or the `obographs` dialect of JSON.
+- For a picture: DOT, which Graphviz lays out and draws.
+- For Pajek, UCINET or igraph: Pajek `.net` or GML. Both number their nodes, so `checkExport()`
+  tells you how your ids will be written.
+
+## Every format
+
 graph-io reads and writes every format below. The first table lists them; the second shows what a
-saved file of each format can hold, with one row per JSON dialect. When a graph holds something a
-format cannot, `checkExport()` tells you before you save; see [Saving graphs](../saving.md).
+saved file of each format can hold, with one row per JSON dialect. A capability every format has
+the same value for (none of them writes connected components, say) has no column there; each
+format page lists all of them. When a graph holds
+something a format cannot, `checkExport()` tells you before you save; see
+[Saving graphs](../saving.md).
 
 In the `dtypes` column, `i32` and `u32` are 32-bit integers (signed and unsigned), `u8` a byte,
 `f32` and `f64` 32- and 64-bit floating-point numbers (`f64` is a JavaScript number), `bool` true or
@@ -33,27 +57,27 @@ file they name is there.
 
 ### What each writer keeps
 
-| Format                         | `mixedDirection` | `multiEdges` | `selfLoops` | `edgeIds` | `idCharset`   | `dtypes`                                         | `components` | `lists` | `json` | `defaults` | `options` | `hierarchy` | `temporal`     | `graphAttributes` | `positions` | `viz` |
-| ------------------------------ | ---------------- | ------------ | ----------- | --------- | ------------- | ------------------------------------------------ | ------------ | ------- | ------ | ---------- | --------- | ----------- | -------------- | ----------------- | ----------- | ----- |
-| [json](./json.md) (node-link)  | no               | yes          | yes         | none      | any           | f64, i32, bool, string                           | no           | no      | yes    | no         | no        | no          | none           | yes               | no          | no    |
-| [json](./json.md) (d3)         | no               | yes          | yes         | none      | any           | f64, i32, bool, string                           | no           | no      | yes    | no         | no        | no          | none           | no                | no          | no    |
-| [json](./json.md) (jgf)        | yes              | yes          | yes         | optional  | any           | f64, i32, bool, string                           | no           | no      | yes    | no         | no        | no          | none           | yes               | no          | no    |
-| [json](./json.md) (cytoscape)  | no               | yes          | yes         | required  | any           | f64, i32, bool, string                           | no           | no      | yes    | no         | no        | yes         | none           | yes               | yes         | no    |
-| [json](./json.md) (graphology) | yes              | yes          | yes         | optional  | any           | f64, i32, bool, string                           | no           | no      | yes    | no         | no        | no          | none           | yes               | no          | no    |
-| [json](./json.md) (vis)        | no               | yes          | yes         | optional  | any           | f64, i32, bool, string                           | no           | no      | yes    | no         | no        | no          | none           | no                | no          | no    |
-| [json](./json.md) (obographs)  | no               | yes          | yes         | none      | any           | none                                             | no           | no      | no     | no         | no        | no          | none           | no                | no          | no    |
-| [graphml](./graphml.md)        | yes              | yes          | yes         | optional  | nmtoken       | bool, i32, f32, f64, string                      | no           | no      | no     | yes        | no        | yes         | none           | yes               | no          | no    |
-| [gexf](./gexf.md)              | yes              | yes          | yes         | optional  | any           | f32, f64, i32, bool, dict, string                | no           | yes     | no     | yes        | yes       | yes         | dynamic-values | no                | yes         | yes   |
-| [csv](./csv.md)                | yes              | yes          | yes         | optional  | any           | bool, i32, f64, string, dict                     | no           | no      | no     | no         | no        | no          | none           | no                | no          | no    |
-| [gml](./gml.md)                | no               | yes          | yes         | optional  | integer       | i32, f64, string, dict, json                     | no           | yes     | yes    | no         | no        | no          | none           | yes               | yes         | no    |
-| [dot](./dot.md)                | no               | yes          | yes         | optional  | any           | bool, i32, f64, string                           | no           | no      | no     | no         | no        | yes         | none           | yes               | yes         | no    |
-| [pajek](./pajek.md)            | yes              | yes          | yes         | none      | dense-1-based | f64, i32, bool, string                           | no           | no      | no     | no         | no        | no          | spells         | no                | yes         | no    |
-| [neo4j](./neo4j.md)            | no               | yes          | yes         | none      | any           | f32, f64, i32, bool, string                      | no           | yes     | no     | no         | no        | no          | none           | no                | no          | no    |
-| [xgmml](./xgmml.md)            | yes              | yes          | yes         | optional  | any           | string, dict, f64, f32, i32, u32, u8, bool, list | no           | yes     | no     | no         | no        | yes         | none           | yes               | yes         | no    |
-| [cx2](./cx2.md)                | no               | yes          | yes         | required  | integer       | string, f64, i32, bool                           | no           | yes     | no     | yes        | no        | no          | none           | yes               | yes         | no    |
-| [cx](./cx.md)                  | no               | yes          | yes         | required  | integer       | string, f64, i32, bool                           | no           | yes     | no     | no         | no        | yes         | none           | yes               | yes         | no    |
-| [obo](./obo.md)                | no               | yes          | yes         | none      | any           | none                                             | no           | no      | no     | no         | no        | no          | none           | no                | no          | no    |
-| [cys](./cys.md)                | yes              | yes          | yes         | required  | integer       | string, dict, f64, i32, bool, list               | no           | yes     | no     | no         | no        | no          | none           | yes               | yes         | no    |
+| Format                         | `mixedDirection` | `edgeIds` | `idCharset`   | `dtypes`                                         | `lists` | `json` | `defaults` | `options` | `hierarchy` | `temporal`     | `graphAttributes` | `positions` | `viz` |
+| ------------------------------ | ---------------- | --------- | ------------- | ------------------------------------------------ | ------- | ------ | ---------- | --------- | ----------- | -------------- | ----------------- | ----------- | ----- |
+| [json](./json.md) (node-link)  | no               | none      | any           | f64, i32, bool, string                           | no      | yes    | no         | no        | no          | none           | yes               | no          | no    |
+| [json](./json.md) (d3)         | no               | none      | any           | f64, i32, bool, string                           | no      | yes    | no         | no        | no          | none           | no                | no          | no    |
+| [json](./json.md) (jgf)        | yes              | optional  | any           | f64, i32, bool, string                           | no      | yes    | no         | no        | no          | none           | yes               | no          | no    |
+| [json](./json.md) (cytoscape)  | no               | required  | any           | f64, i32, bool, string                           | no      | yes    | no         | no        | yes         | none           | yes               | yes         | no    |
+| [json](./json.md) (graphology) | yes              | optional  | any           | f64, i32, bool, string                           | no      | yes    | no         | no        | no          | none           | yes               | no          | no    |
+| [json](./json.md) (vis)        | no               | optional  | any           | f64, i32, bool, string                           | no      | yes    | no         | no        | no          | none           | no                | no          | no    |
+| [json](./json.md) (obographs)  | no               | none      | any           | none                                             | no      | no     | no         | no        | no          | none           | no                | no          | no    |
+| [graphml](./graphml.md)        | yes              | optional  | nmtoken       | bool, i32, f32, f64, string                      | no      | no     | yes        | no        | yes         | none           | yes               | no          | no    |
+| [gexf](./gexf.md)              | yes              | optional  | any           | f32, f64, i32, bool, dict, string                | yes     | no     | yes        | yes       | yes         | dynamic-values | no                | yes         | yes   |
+| [csv](./csv.md)                | yes              | optional  | any           | bool, i32, f64, string, dict                     | no      | no     | no         | no        | no          | none           | no                | no          | no    |
+| [gml](./gml.md)                | no               | optional  | integer       | i32, f64, string, dict, json                     | yes     | yes    | no         | no        | no          | none           | yes               | yes         | no    |
+| [dot](./dot.md)                | no               | optional  | any           | bool, i32, f64, string                           | no      | no     | no         | no        | yes         | none           | yes               | yes         | no    |
+| [pajek](./pajek.md)            | yes              | none      | dense-1-based | f64, i32, bool, string                           | no      | no     | no         | no        | no          | spells         | no                | yes         | no    |
+| [neo4j](./neo4j.md)            | no               | none      | any           | f32, f64, i32, bool, string                      | yes     | no     | no         | no        | no          | none           | no                | no          | no    |
+| [xgmml](./xgmml.md)            | yes              | optional  | any           | string, dict, f64, f32, i32, u32, u8, bool, list | yes     | no     | no         | no        | yes         | none           | yes               | yes         | no    |
+| [cx2](./cx2.md)                | no               | required  | integer       | string, f64, i32, bool                           | yes     | no     | yes        | no        | no          | none           | yes               | yes         | no    |
+| [cx](./cx.md)                  | no               | required  | integer       | string, f64, i32, bool                           | yes     | no     | no         | no        | yes         | none           | yes               | yes         | no    |
+| [obo](./obo.md)                | no               | none      | any           | none                                             | no      | no     | no         | no        | no          | none           | no                | no          | no    |
+| [cys](./cys.md)                | yes              | required  | integer       | string, dict, f64, i32, bool, list               | yes     | no     | no         | no        | no          | none           | yes               | yes         | no    |
 
 ### What the capabilities mean
 
@@ -122,21 +146,3 @@ Whether the file can hold node positions. When false, the layout is lost.
 Whether the file can hold node and edge color, size, shape and thickness. When false, they are lost.
 
 <!-- generated:end -->
-
-## Which format should I use
-
-- Between desktop tools: GEXF with Gephi, GraphML with most others (yEd, igraph, NetworkX). Both
-  keep typed attributes, mixed direction and parallel edges.
-- In a web page: JSON. The `node-link` dialect suits NetworkX and d3, `cytoscape` Cytoscape.js, and
-  `graphology` graphology and sigma.js.
-- In a spreadsheet, a database or a script: CSV, with the node table and the edge table written as
-  two files.
-- In Cytoscape: CX2 or XGMML to add a network to an open session, a Cytoscape session to hand over
-  a whole session, and CX2 for NDEx. CX, CX2 and session node ids are integers, so pass
-  `sanitizeIds: "mangle"` when you save a graph with text ids, including one you read from a
-  session or a CX file, whose ids come back as the original names.
-- In Neo4j: Neo4j CSV, written with `exportNeo4jFiles()` and loaded with `neo4j-admin database import`; see [Files for neo4j-admin](./neo4j.md#files-for-neo4j-admin).
-- Ontologies: OBO, or the `obographs` dialect of JSON.
-- For a picture: DOT, which Graphviz lays out and draws.
-- For Pajek, UCINET or igraph: Pajek `.net` or GML. Both number
-  their nodes, so `checkExport()` tells you how your ids will be written.

@@ -139,9 +139,11 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 These come on top of the [options every importer takes](../options.md#every-importer).
 A file can hold several graphs: pick one with the `graphIndex` or `graphName` option of [importGraph()](../options.md#importgraph-and-importallgraphs), as [Files that hold several graphs](../loading.md#files-that-hold-several-graphs) shows.
 
-| Option        | Type               | Default  | Meaning                                                                                                                                                        |
-| ------------- | ------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `firstVertex` | `0 \| "auto" \| 1` | `"auto"` | The number of the first vertex: 1 (Pajek's rule), 0 (files written by zero-based scripts), or "auto": 0 when the first vertex line is numbered 0, 1 otherwise. |
+| Option                               | Type               | Default  | Meaning                                                                                                                                                        |
+| ------------------------------------ | ------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`firstVertex`](#import-firstvertex) | `0 \| "auto" \| 1` | `"auto"` | The number of the first vertex: 1 (Pajek's rule), 0 (files written by zero-based scripts), or "auto": 0 when the first vertex line is numbered 0, 1 otherwise. |
+
+- <a id="import-firstvertex"></a>`firstVertex`: The number of the first vertex: 1 (Pajek's rule), 0 (files written by zero-based scripts), or "auto": 0 when the first vertex line is numbered 0, 1 otherwise.
 
 ## Export options
 
@@ -152,8 +154,8 @@ These come on top of the [options every exporter takes](../options.md#every-expo
 | [`networkHeader`](#export-networkheader) | `boolean` | false, or true when `name` is given | Write a `*Network <name>` line first, as Pajek project files (.paj) have. |
 | [`name`](#export-name)                   | `string`  | the graph's name                    | The network name written on the `*Network` line.                          |
 
-- <a id="export-networkheader"></a>`networkHeader`: Write a `*Network <name>` line first, as Pajek project files (.paj) have. The name is the `name` option, else the graph's name (`snapshot.meta.name`); a graph with neither gets a bare `*Network` line. Plain .net readers do not expect the line.
-- <a id="export-name"></a>`name`: The network name written on the `*Network` line. Giving one writes the line. The default is the graph's name (`snapshot.meta.name`), which a Pajek, DOT, GML or GEXF import keeps; a graph read from CSV has none.
+- <a id="export-networkheader"></a>`networkHeader`: Write a `*Network <name>` line first, as Pajek project files (.paj) have. The name is the `name` option, else the graph's name (`snapshot.meta.name`); a graph with neither gets a bare `*Network` line. Plain .net readers do not expect the line. An explicit `false` wins over `name`: `{ networkHeader: false, name: "x" }` writes no line.
+- <a id="export-name"></a>`name`: The network name written on the `*Network` line. Giving one writes the line, unless `networkHeader` is `false`. The default is the graph's name (`snapshot.meta.name`), which a Pajek, DOT, GML or GEXF import keeps; a graph read from CSV has none.
 
 ## Import issue codes
 
@@ -167,6 +169,8 @@ The codes this format's import report can hold. They are also exported as `PAJEK
 - `E_PAJEK_NO_VERTICES` (error): There is no `*Vertices` section: the file is empty or not a Pajek network. The import stops.
 - `E_PAJEK_VERTICES_COUNT` (error): `*Vertices` without a vertex count, with a count too large to hold, or with a first-mode count outside 0 to N; the import stops.
 - `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph. `importAllGraphs()` reads every one.
+- `E_GRAPH_NOT_FOUND` (error): `graphIndex` or `graphName` names no graph of the file; the message lists the graphs it holds. The import stops.
+- `E_AMBIGUOUS_GRAPH_NAME` (error): `graphName` matches more than one graph; pass `graphIndex`. The import stops.
 - `E_PAJEK_OUTSIDE_SECTION` (error): A data line before the first section header.
 - `E_SYNTAX` (error): A section header the importer cannot parse.
 - `E_PAJEK_UNTERMINATED_QUOTE` (error): A double quote not closed before the end of the line.

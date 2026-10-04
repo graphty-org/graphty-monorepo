@@ -4,7 +4,7 @@ import { sectionsImporter } from "./sections-format.js";
 
 registry.registerImporter(sectionsImporter);
 
-const file = "== first\na b\n== second\nx y\ny z\n";
+const file = "== first\na b\nb c\n== second\nx y\ny z\nz x\n";
 const options = { filename: "two.sections" };
 
 console.log(await listGraphs(file, options));

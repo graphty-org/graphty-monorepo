@@ -17,7 +17,9 @@ import {
     resolveExportOptions,
 } from "@graphty/graph-io";
 
-// What the file can hold: no direction marker, no attributes, no weights, any id without a space
+// What the file can hold: no direction marker, no attributes, no weights. idCharset "any" refuses no id,
+// so this first version writes an id with a space as it is (it reads back as an edge line); the
+// complete plugin refuses such ids with a note of its own
 const CAPABILITIES = capabilities({ multiEdges: true, selfLoops: true, edgeIds: "none", idCharset: "any" });
 
 function check(snapshot: GraphSnapshot, options?: CommonExportOptions): LossNote[] {

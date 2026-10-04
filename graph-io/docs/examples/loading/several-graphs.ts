@@ -12,7 +12,7 @@ const alpha = await importGraph(session, { filename: "networks.cys", graphName: 
 console.log(`Alpha: ${alpha.snapshot.nodeCount} nodes, ${alpha.snapshot.edgeCount} edges`);
 
 // DOT cannot list its graphs, but graphIndex and graphName still choose one
-const dot = "digraph first { a -> b }\ndigraph second { x -> y; y -> z }";
+const dot = "digraph first { a -> b; b -> c }\ndigraph second { x -> y; y -> z; z -> x }";
 const second = await importGraph(dot, { format: "dot", graphIndex: 1 });
 console.log(`${second.snapshot.meta.name}: ${second.snapshot.edgeCount} edges`);
 

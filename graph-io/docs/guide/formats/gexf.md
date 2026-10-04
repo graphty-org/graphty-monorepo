@@ -126,17 +126,21 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option | Type      | Default | Meaning                                                                                                                                                                                          |
-| ------ | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `viz`  | `boolean` | `true`  | Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape, thickness) into node and edge attributes; false skips them, with one `W_GEXF_VIZ_SKIPPED` warning. |
+| Option               | Type      | Default | Meaning                                                                                                                                                                                          |
+| -------------------- | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`viz`](#import-viz) | `boolean` | `true`  | Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape, thickness) into node and edge attributes; false skips them, with one `W_GEXF_VIZ_SKIPPED` warning. |
+
+- <a id="import-viz"></a>`viz`: Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape, thickness) into node and edge attributes; false skips them, with one `W_GEXF_VIZ_SKIPPED` warning.
 
 ## Export options
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option    | Type             | Default | Meaning                    |
-| --------- | ---------------- | ------- | -------------------------- |
-| `version` | `"1.2" \| "1.3"` | `"1.3"` | The GEXF version to write. |
+| Option                       | Type             | Default | Meaning                    |
+| ---------------------------- | ---------------- | ------- | -------------------------- |
+| [`version`](#export-version) | `"1.2" \| "1.3"` | `"1.3"` | The GEXF version to write. |
+
+- <a id="export-version"></a>`version`: The GEXF version to write.
 
 ## Import issue codes
 
@@ -146,6 +150,7 @@ The codes this format's import report can hold. They are also exported as `GEXF_
 - `W_ENCODING_CONFLICT` (warning): A declared encoding the byte order mark contradicts (the mark wins).
 - `E_UNKNOWN_NODE` (error): An edge endpoint that names no declared node (addMissingNodes false, the GEXF default).
 - `E_DUPLICATE_EDGE_ID` (error): An edge id declared twice (the second edge is skipped).
+- `E_COLUMN_TYPE` (error): A value that does not parse as the type its attribute declares ("x" in an integer attribute). The value is left unset; the node or edge is kept.
 - `E_XML_SYNTAX` (error): The XML is not well-formed. The import stops.
 - `E_INVALID_UTF8` (error): The input is not valid UTF-8. The import stops.
 - `E_INVALID_ENCODING` (error): Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the `encoding` option). The import stops.

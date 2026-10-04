@@ -22,11 +22,17 @@ So:
 
 Some formats can only guess from the content. Text whose first lines split into the same number of
 fields on a comma, tab, semicolon or pipe, or into two or three words on spaces, could be a CSV edge
-list, so CSV claims it with low confidence. That includes a sentence with one comma in it. Such a
-weak guess never beats the extension of another format: a file named `session.cys` that holds a
-sentence is read as a Cytoscape session, and fails because it is not a zip archive, rather than
-being read as a one-edge CSV graph. Text that no format claims, such as a sentence of more than
-three words without a comma, fails with `E_UNKNOWN_FORMAT`.
+list, so CSV claims it with low confidence. CSV also claims any input whose MIME type is
+`text/plain` or whose file name ends in `.csv`, `.tsv`, `.edges` or `.edgelist`. So a note saying
+"Dear team, the meeting is on Monday." loads as a CSV graph with 2 nodes and 1 edge, and a `.txt`
+file a user picks can load as an empty graph. A load that does not throw can still hold a
+meaningless graph: when you know the format, pass it, and check `snapshot.nodeCount` and
+`report.issues` after the load.
+
+Such a weak guess never beats the extension of another format: a file named `session.cys` that
+holds a sentence is read as a Cytoscape session, and fails because it is not a zip archive, rather
+than being read as a one-edge CSV graph. Text that no format claims, such as a sentence of more
+than three words without a comma, fails with `E_UNKNOWN_FORMAT`.
 
 When the content is not recognized, the extension and the MIME type decide on their own. A MIME
 type alone is a weak hint, weaker than CSV's guess from the content: a file served as
@@ -46,8 +52,10 @@ says what they are; a Cytoscape session is the one zip file it reads.
 - `head`: the first bytes (a `Uint8Array`) or characters (a string) of the file. Detection reads at
   most `SNIFF_HEAD_BYTES` (8192) of it, so slice a large buffer first.
 
-It returns the best match, or `null` when no format matches. It knows every format of the default
-registry, including the ones you registered.
+It returns the best match, or `null` when no format matches. It knows the formats of the default
+`registry`: the built-in ones and any you added with `registry.registerImporter()`. A registry of
+your own (`createRegistry()` or `new FormatRegistry()`) is not consulted; call its own `sniff()` or
+`sniffAll()` method.
 
 <!-- generated:begin example:detection/sniff -->
 
@@ -97,8 +105,9 @@ cytoscape
 The result has:
 
 - `format`: the format name
-- `confidence`: from 0 to 1, combined from the other fields as described in
-  [How the score is computed](#how-the-score-is-computed).
+- `confidence`: from 0 to 1, combined from the other fields. A format that recognizes the content
+  scores 0.5 or more, and one that only matches the name or the MIME type scores at most 0.4, so
+  the content always wins.
 - `content`: how sure the format was about the content, from 0 to 1; 0 when no content was given
   or the format did not recognize it
 - `extension` and `mimeType`: whether the file name and the MIME type matched
@@ -106,27 +115,11 @@ The result has:
   `"jgf"`, `"cytoscape"`, `"graphology"`, `"vis"`, `"adjacency"`, `"tree"` or `"obographs"`); `null`
   for every other format, and for a JSON head that does not settle it
 
-## How the score is computed
-
-Each format's `sniff()` rates the first bytes from 0 to 1 (`content`). The confidence combines that
-rating with the name and the MIME type:
-
-- Content recognized (`content` 0.5 or more, or any `content` when the file name does not belong
-  to another format): `0.5 + 0.35 * content`, plus 0.1 when the extension matches and 0.05 when the
-  MIME type matches. This is always 0.5 or more.
-- A weak content guess (`content` below 0.5) when the extension belongs to another format:
-  `0.25 * content`, plus 0.05 for a matching MIME type, so the other format's extension wins.
-- Content not recognized: 0.3 for a matching extension plus 0.1 for a matching MIME type, at most
-  0.4.
-
-So a format that recognizes the content always beats one that only matches the name, and between
-two formats that both recognize it, the extension adds 0.1. Formats with equal scores rank in the
-order they were registered. `registry.sniffAll(hints)` shows every candidate's score.
-
 ## Offering a choice
 
 To offer the user a choice, `registry.sniffAll(hints)` takes the same hints and returns every
-candidate, best first:
+candidate, best first. Formats with the same score keep the order they were registered in, which
+puts the common format first (`.csv` is CSV before Neo4j CSV):
 
 <!-- generated:begin example:detection/rank -->
 

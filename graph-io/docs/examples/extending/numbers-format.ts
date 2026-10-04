@@ -85,20 +85,23 @@ export const numbersImporter: GraphImporter = {
         reportUnusedOptions(options, report, new Set(["restoreMangledIds"]));
         const nodeOf = new Map<string, string | number>(); // the id written in the file -> the node's id
         const lines = new LineReader(input, report, opts);
-        for await (const text of lines) {
+        for await (const raw of lines) {
             const { line } = lines;
             if (line % 64 === 0) {
                 throwIfAborted(opts.signal);
             }
-            const [kind, a, ...rest] = text.trim().split(" ");
+            const text = raw.trim();
+            // "node <number>", then the original id as JSON when there is one (it can hold spaces)
+            const node = /^node (-?\d+)(?: (.+))?$/.exec(text);
+            const edge = /^edge (-?\d+) (-?\d+)$/.exec(text);
             try {
-                if (kind === "directed" || kind === "undirected") {
-                    sink.setDirected(kind === "directed");
-                } else if (kind === "node" && /^-?\d+$/.test(a ?? "")) {
-                    const original = rest.length > 0 ? (JSON.parse(rest.join(" ")) as string | number) : null;
+                if (text === "directed" || text === "undirected") {
+                    sink.setDirected(text === "directed");
+                } else if (node !== null) {
+                    const original = node[2] === undefined ? null : (JSON.parse(node[2]) as string | number);
                     // restoreMangledIds (on by default) gives the node its original id back
-                    const id = original !== null && opts.restoreMangledIds ? original : Number(a);
-                    nodeOf.set(a, id);
+                    const id = original !== null && opts.restoreMangledIds ? original : Number(node[1]);
+                    nodeOf.set(node[1], id);
                     const index = sink.addNode(id);
                     if (original !== null && !opts.restoreMangledIds) {
                         // keep the original where every format keeps it, so nothing is lost
@@ -110,11 +113,20 @@ export const numbersImporter: GraphImporter = {
                         sink.setNodeValue(column, index, String(original));
                     }
                     report.counts.nodes++;
-                } else if (kind === "edge" && rest.length === 1 && nodeOf.has(a) && nodeOf.has(rest[0])) {
+                } else if (edge !== null) {
                     // an edge names nodes by their written ids: look up the id each node was given
-                    sink.addEdge(nodeOf.get(a) ?? a, nodeOf.get(rest[0]) ?? rest[0]);
-                    report.counts.edges++;
-                } else if (text.trim() !== "") {
+                    const source = nodeOf.get(edge[1]);
+                    const target = nodeOf.get(edge[2]);
+                    if (source === undefined || target === undefined) {
+                        report.error("missing-value", "E_UNKNOWN_NODE", "the edge names a node no node line declares", {
+                            line,
+                        });
+                        report.counts.skippedEdges++;
+                    } else {
+                        sink.addEdge(source, target);
+                        report.counts.edges++;
+                    }
+                } else if (text !== "") {
                     report.error("parse-error", "E_NUMBERS_BAD_LINE", "expected a node line or an edge between two nodes", {
                         line,
                     });

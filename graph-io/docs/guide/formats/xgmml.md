@@ -122,24 +122,29 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 These come on top of the [options every importer takes](../options.md#every-importer).
 A file can hold several graphs: pick one with the `graphIndex` or `graphName` option of [importGraph()](../options.md#importgraph-and-importallgraphs), as [Files that hold several graphs](../loading.md#files-that-hold-several-graphs) shows.
 
-| Option                                         | Type                     | Default                | Meaning                                                                                                                                                                     |
-| ---------------------------------------------- | ------------------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`labelAliases`](#import-labelaliases)         | `boolean`                | on for Cytoscape files | Find an edge end that is missing, or names no node, from Cytoscape's `"source (interaction) target"` edge label, and fill a missing interaction from it.                    |
-| [`cytoscapeEscapes`](#import-cytoscapeescapes) | `boolean`                | on for Cytoscape files | Decode Cytoscape's two-character `\n` and `\t` escapes in text values.                                                                                                      |
-| `repairBareAmpersands`                         | `boolean`                | `false`                | Read an `&` that is not followed by `;` within 7 characters as `&amp;`, with a warning for each, instead of failing on the invalid XML.                                     |
-| `pairSurrogateReferences`                      | `boolean`                | `false`                | Join two character references that each hold half of a character (`&#xD83D;&#xDE00;`) into that character, with a warning for each pair, instead of failing.                |
-| `zAs`                                          | `"column" \| "position"` | `"column"`             | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
+| Option                                                       | Type                     | Default                | Meaning                                                                                                                                                                     |
+| ------------------------------------------------------------ | ------------------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`labelAliases`](#import-labelaliases)                       | `boolean`                | on for Cytoscape files | Find an edge end that is missing, or names no node, from Cytoscape's `"source (interaction) target"` edge label, and fill a missing interaction from it.                    |
+| [`cytoscapeEscapes`](#import-cytoscapeescapes)               | `boolean`                | on for Cytoscape files | Decode Cytoscape's two-character `\n` and `\t` escapes in text values.                                                                                                      |
+| [`repairBareAmpersands`](#import-repairbareampersands)       | `boolean`                | `false`                | Read an `&` that is not followed by `;` within 7 characters as `&amp;`, with a warning for each, instead of failing on the invalid XML.                                     |
+| [`pairSurrogateReferences`](#import-pairsurrogatereferences) | `boolean`                | `false`                | Join two character references that each hold half of a character (`&#xD83D;&#xDE00;`) into that character, with a warning for each pair, instead of failing.                |
+| [`zAs`](#import-zas)                                         | `"column" \| "position"` | `"column"`             | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
 
 - <a id="import-labelaliases"></a>`labelAliases`: Find an edge end that is missing, or names no node, from Cytoscape's `"source (interaction) target"` edge label, and fill a missing interaction from it. The default is on for files that use Cytoscape's (`cy`) namespace, off for others.
 - <a id="import-cytoscapeescapes"></a>`cytoscapeEscapes`: Decode Cytoscape's two-character `\n` and `\t` escapes in text values. The default is on for files that use Cytoscape's namespace, off for others.
+- <a id="import-repairbareampersands"></a>`repairBareAmpersands`: Read an `&` that is not followed by `;` within 7 characters as `&amp;`, with a warning for each, instead of failing on the invalid XML.
+- <a id="import-pairsurrogatereferences"></a>`pairSurrogateReferences`: Join two character references that each hold half of a character (`&#xD83D;&#xDE00;`) into that character, with a warning for each pair, instead of failing.
+- <a id="import-zas"></a>`zAs`: Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position.
 
 ## Export options
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option             | Type      | Default | Meaning                                                                                                                                                              |
-| ------------------ | --------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cytoscapeEscapes` | `boolean` | `false` | Write line breaks and tabs in text values as Cytoscape's two-character `\n` and `\t`, as Cytoscape does, instead of the XML character references `&#10;` and `&#9;`. |
+| Option                                         | Type      | Default | Meaning                                                                                                                                                              |
+| ---------------------------------------------- | --------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`cytoscapeEscapes`](#export-cytoscapeescapes) | `boolean` | `false` | Write line breaks and tabs in text values as Cytoscape's two-character `\n` and `\t`, as Cytoscape does, instead of the XML character references `&#10;` and `&#9;`. |
+
+- <a id="export-cytoscapeescapes"></a>`cytoscapeEscapes`: Write line breaks and tabs in text values as Cytoscape's two-character `\n` and `\t`, as Cytoscape does, instead of the XML character references `&#10;` and `&#9;`.
 
 ## Import issue codes
 
@@ -162,7 +167,7 @@ The codes this format's import report can hold. They are also exported as `XGMML
 - `E_MISSING_ENDPOINT` (error): An edge without a source or a target that no label alias resolves.
 - `W_XGMML_LABEL_ALIAS` (warning): Endpoints resolved through Cytoscape's `"a (pp) b"` label aliases; interactions filled from labels.
 - `W_DUPLICATE_NODE` (warning): A node id declared twice; the declarations are merged.
-- `W_XGMML_GROUP_DUPLICATE_EDGE` (warning): A meta-edge the 2.x writer repeats inside a group; the copy is dropped.
+- `W_XGMML_GROUP_DUPLICATE_EDGE` (warning): Cytoscape 2.x writes each edge of a group a second time, inside the group. The repeats are dropped, so every edge is read once; nothing is lost.
 - `W_XGMML_BAD_DIRECTED` (warning): A `directed` or `cy:directed` value other than 0 / 1.
 - `W_XGMML_DOCUMENT_VERSION` (warning): A `documentVersion` that does not parse; the dialect is chosen from the content.
 - `W_XGMML_NO_NAMESPACE` (warning): A root `<graph>` with neither the XGMML namespace nor an XGMML DOCTYPE.
@@ -170,10 +175,10 @@ The codes this format's import report can hold. They are also exported as `XGMML
 - `W_XGMML_AMPERSAND_REPAIRED` (warning): A bare `&` read as `&amp;` under repairBareAmpersands.
 - `W_XGMML_SURROGATE_PAIRED` (warning): Two surrogate character references joined under pairSurrogateReferences.
 - `W_XGMML_EMPTY_LIST_TYPE` (warning): An empty list whose element type nothing states; a list of strings is assumed.
-- `W_XGMML_RECORD_LIST` (warning): A record list, a list of lists, a 2.x map or foreign XML in an att, kept as json.
+- `W_XGMML_RECORD_LIST` (warning): An attribute holds a structure a single column cannot (a list of records, a list of lists, a Cytoscape 2.x map or XML from another tool). Its value is kept as a JSON value, which a save as XGMML writes back.
 - `W_XGMML_CROSS_FILE_REFERENCE` (warning): A pointer into another file (`file.xgmml#id`); kept as text.
 - `W_XGMML_EDGE_NESTED_GRAPH` (warning): A graph nested in an edge's att; there is no model for it.
-- `W_XGMML_ROOT_ONLY_ELEMENTS` (warning): Elements of a session network declared outside every registered subnetwork.
+- `W_XGMML_ROOT_ONLY_ELEMENTS` (warning): Some nodes or edges of a Cytoscape session belong to none of its networks (Cytoscape keeps group meta-edges and the members of collapsed groups this way). They are not read; the message counts them.
 - `E_BAD_VALUE` (error): A value that does not parse as its declared type; the cell is unset.
 - `W_WIDENED` (warning): An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column, or two declared types for one attribute.
 - `W_PRECISION` (warning): An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.

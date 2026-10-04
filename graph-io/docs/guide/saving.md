@@ -11,7 +11,8 @@ Every function that saves a graph takes the snapshot, a format name and an optio
 | `exportGraph(snapshot, format, options)`         | `AsyncIterable<Uint8Array>`: the file in chunks, for streaming          |
 | `checkExport(snapshot, format, options)`         | `readonly LossNote[]`: what the file would not keep, without writing it |
 
-All of them write the same bytes for the same arguments. Text formats are written as UTF-8.
+All the save functions write the same bytes for the same arguments. Text formats are written as
+UTF-8.
 
 ## Check before you save
 
@@ -276,7 +277,9 @@ with the option's name in `err.details.option`.
 The same holds for import options shared across formats, with one trap: `weightFrom` names the
 attribute that holds the weights, and an attribute no edge has is not an error. GML and Pajek keep
 their weights in `value`, so a shared object with `weightFrom: "weight"` reads their files without
-weights. Leave `weightFrom` out of a shared object, so each format reads its own default.
+weights. Leave `weightFrom` out of a shared object, so each format reads its own default. A shared
+import object can spell out the other defaults; [Options](./options.md#every-importer) says which
+options still add a `W_OPTION_IGNORED` warning for a format that does not read them.
 
 ## Large graphs: stream to a file
 
@@ -349,8 +352,9 @@ network.xyz: no format writes .xyz files
 
 An extension picks the format, not its options. `.tsv` is the `csv` format, which writes commas
 unless you pass `delimiter: "\t"`, as the example does. Some extensions belong to more than one
-format: `.csv` is CSV and Neo4j CSV, and `.xml` is GraphML and XGMML. `listFormats()` returns the formats in a fixed order (JSON, GraphML, GEXF, CSV, GML, DOT,
-Pajek, Neo4j, XGMML, CX2, CX, OBO, Cytoscape session), so `find()` picks the more common one.
+format: `.csv` is CSV and Neo4j CSV, and `.xml` is GraphML and XGMML. `listFormats()` returns the
+formats in a fixed order (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j, XGMML, CX2, CX, OBO,
+Cytoscape session), so `find()` picks the more common one.
 
 ## Uploads and downloads
 

@@ -12,6 +12,7 @@ import {
     type GraphSnapshot,
     IdCoercer,
     ImportReportBuilder,
+    INVALID_INDEX,
     joinText,
     LineReader,
     type LossNote,
@@ -96,6 +97,13 @@ export const pairsImporter: GraphImporter<PairsOptions> = {
         const edges = new DirectionResolver(sink, report, opts.onMixedDirection);
         const lines = new LineReader(input, report, opts);
         let kind: "directed" | "undirected" = opts.defaultDirected ? "directed" : "undirected";
+        // add a node and count it if it is new; the count includes the nodes edge lines bring in
+        const addNode = (id: string | number): number => {
+            if (sink.indexOf(id) === INVALID_INDEX) {
+                report.counts.nodes++;
+            }
+            return sink.addNode(id);
+        };
 
         for await (const raw of lines) {
             const line = lines.line;
@@ -119,16 +127,18 @@ export const pairsImporter: GraphImporter<PairsOptions> = {
                 const fields = separator === null ? text.split(/\s+/) : text.split(separator).map((f) => f.trim());
                 if (node !== null && (fields.length === 1 || node[2] !== undefined)) {
                     // a node line: an id, and an optional label after "="
-                    const index = sink.addNode(ids.text(node[1])); // the node's index, new or existing
+                    const index = addNode(ids.text(node[1])); // the node's index, new or existing
                     if (node[2] !== undefined) {
                         // declaring the same column again returns the same column
                         const label = sink.declareNodeColumn({ name: "label", dtype: "string", role: "label" });
                         sink.setNodeValue(label, index, node[2]);
                     }
-                    report.counts.nodes++;
                 } else if (fields.length === 2 || fields.length === 3) {
                     const weight = fields.length === 3 ? parseWeightText(fields[2]) : undefined;
-                    edges.addEdge(ids.text(fields[0]), ids.text(fields[1]), kind, weight, { line });
+                    const [source, target] = [ids.text(fields[0]), ids.text(fields[1])];
+                    addNode(source);
+                    addNode(target);
+                    edges.addEdge(source, target, kind, weight, { line });
                     report.counts.edges++;
                 } else {
                     // also a line written with another separator than the one passed ("a b 2" under ",")

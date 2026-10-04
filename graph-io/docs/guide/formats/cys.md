@@ -65,7 +65,9 @@ Alpha: 4 nodes; node columns: graphics, name, position, z, selected, score, coun
 <!-- generated:end -->
 
 A session usually holds several networks. `listGraphs()` names them, and `graphName` or
-`graphIndex` picks one; `importAllGraphs()` reads them all.
+`graphIndex` picks one; `importAllGraphs()` reads them all. The example's networks.cys holds two,
+Alpha and Beta. It is one of the [sample files](../quick-start.md#sample-files), and is also in the
+graph-io repository under `graph-io/docs/samples/` for working offline.
 
 ## How graph-io reads it
 
@@ -157,9 +159,10 @@ A file can hold several graphs: pick one with the `graphIndex` or `graphName` op
 
 | Option                                                 | Type                     | Default      | Meaning                                                                                                                                                                     |
 | ------------------------------------------------------ | ------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `zAs`                                                  | `"column" \| "position"` | `"column"`   | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
+| [`zAs`](#import-zas)                                   | `"column" \| "position"` | `"column"`   | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position. |
 | [`maxUncompressedBytes`](#import-maxuncompressedbytes) | `number`                 | `2147483648` | The most bytes one import may unpack from the session archive, in total (2 GiB).                                                                                            |
 
+- <a id="import-zas"></a>`zAs`: Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position.
 - <a id="import-maxuncompressedbytes"></a>`maxUncompressedBytes`: The most bytes one import may unpack from the session archive, in total (2 GiB). A file that would unpack to more, or one compressed more than 1000 to 1, fails with `E_TOO_LARGE`.
 
 ## Export options
@@ -187,7 +190,7 @@ The codes this format's import report can hold. They are also exported as `CYS_I
 - `E_MISSING_ENDPOINT` (error): An edge has no source or no target.
 - `W_XGMML_LABEL_ALIAS` (warning): Endpoints resolved through Cytoscape's `"a (pp) b"` label aliases; interactions filled from labels.
 - `W_DUPLICATE_NODE` (warning): A node id declared twice; the second declaration merges into the first.
-- `W_XGMML_GROUP_DUPLICATE_EDGE` (warning): A meta-edge the 2.x writer repeats inside a group; the copy is dropped.
+- `W_XGMML_GROUP_DUPLICATE_EDGE` (warning): Cytoscape 2.x writes each edge of a group a second time, inside the group. The repeats are dropped, so every edge is read once; nothing is lost.
 - `W_XGMML_BAD_DIRECTED` (warning): A `directed` or `cy:directed` value other than 0 / 1.
 - `W_XGMML_DOCUMENT_VERSION` (warning): A `documentVersion` that does not parse; the dialect is chosen from the content.
 - `W_XGMML_NO_NAMESPACE` (warning): A root `<graph>` with neither the XGMML namespace nor an XGMML DOCTYPE.
@@ -195,10 +198,10 @@ The codes this format's import report can hold. They are also exported as `CYS_I
 - `W_XGMML_AMPERSAND_REPAIRED` (warning): A bare `&` read as `&amp;` under repairBareAmpersands.
 - `W_XGMML_SURROGATE_PAIRED` (warning): Two surrogate character references joined under pairSurrogateReferences.
 - `W_XGMML_EMPTY_LIST_TYPE` (warning): An empty list whose element type nothing states; a list of strings is assumed.
-- `W_XGMML_RECORD_LIST` (warning): A record list, a list of lists, a 2.x map or foreign XML in an att, kept as json.
+- `W_XGMML_RECORD_LIST` (warning): An attribute holds a structure a single column cannot (a list of records, a list of lists, a Cytoscape 2.x map or XML from another tool). Its value is kept as a JSON value, which a save as XGMML writes back.
 - `W_XGMML_CROSS_FILE_REFERENCE` (warning): A pointer into another file (`file.xgmml#id`); kept as text.
 - `W_XGMML_EDGE_NESTED_GRAPH` (warning): A graph nested in an edge's att; there is no model for it.
-- `W_XGMML_ROOT_ONLY_ELEMENTS` (warning): Elements of a session network declared outside every registered subnetwork.
+- `W_XGMML_ROOT_ONLY_ELEMENTS` (warning): Some nodes or edges of a Cytoscape session belong to none of its networks (Cytoscape keeps group meta-edges and the members of collapsed groups this way). They are not read; the message counts them.
 - `E_BAD_VALUE` (error): A value does not parse as its declared type; the cell is left unset.
 - `W_WIDENED` (warning): An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column, or two declared types for one attribute.
 - `W_PRECISION` (warning): An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.

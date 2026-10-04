@@ -5,11 +5,6 @@ to a node that does not exist. When graph-io meets one, it skips the element it 
 going, and lists the problem in the import report. Anything it changes on the way, such as a value
 it rounds or two edges it merges, is listed too.
 
-An edge to a node the file never declares is not always a problem. Most formats create that node
-without a word, because their files often leave nodes undeclared: the `addMissingNodes` option is
-on by default for every format except GEXF, XGMML, CX, CX2 and Cytoscape sessions. Pass
-`addMissingNodes: false` to have such edges skipped and reported as `E_UNKNOWN_NODE` errors.
-
 ## Reading the report
 
 Every load returns a `report` next to the snapshot:
@@ -91,10 +86,18 @@ Each issue has:
 - `line`: the 1-based line in the file, or `null` when the format has no lines (a zip file) or the
   line is not known.
 - `element`: the node id, edge id or attribute name involved, or `null`.
-- `category`: a broad grouping of the code. `parse-error` means the syntax was wrong,
-  `missing-value` that something required was absent, `validation-error` that a value was invalid,
-  `unsupported` that the file uses something graph-io does not represent, `precision` that a number
-  lost precision, `coercion` that a value changed type, and `merged` that two elements became one.
+- `category`: what the issue is about, for errors and warnings alike. `parse-error` means the
+  syntax was wrong, `missing-value` that something required was absent, `validation-error` that a
+  value breaks a rule of the format or of an option (an error skips it; a warning keeps it as
+  written, like an id with spaces around it), `unsupported` that the file uses something graph-io
+  does not represent, `precision` that a number lost precision, `coercion` that a value changed
+  type, and `merged` that two elements became one. To decide what to show a user, sort by
+  `severity`; the category does not say how serious an issue is.
+
+An edge to a node the file never declares is not an issue in most formats: they create the node,
+because their files often leave nodes undeclared. GEXF, XGMML, CX, CX2 and Cytoscape sessions
+must declare every node, and skip such an edge with an `E_UNKNOWN_NODE` error. The
+[`addMissingNodes`](./options.md#import-addmissingnodes) option changes this for any format.
 
 A report keeps at most 1000 warnings of one code. The rest are counted in a single
 `W_ISSUES_SUPPRESSED` warning, so a file with a million bad rows does not build a million-entry
@@ -102,10 +105,14 @@ list.
 
 ## The error limit
 
-`errorLimit` (100 by default) is the number of errors an import tolerates. One more error than that
-stops the import with an `ImportError`, and `err.report.truncated` is `true`. Pass `errorLimit: 0`
-to stop at the first error, for input that must be exactly right. Pass `Infinity` to read as much
-as possible whatever the file holds.
+`errorLimit` (100 by default, exported as `DEFAULT_ERROR_LIMIT`) is the number of errors an import
+tolerates. One more error than that stops the import with an `ImportError`, and
+`err.report.truncated` is `true`. Pass `errorLimit: 0` to stop at the first error, for input that
+must be exactly right. Pass `Infinity` to read as much as possible whatever the file holds.
+
+`err.report.counts` stops one element short: the node or edge whose error went over the limit is
+`err.issue` and is in `err.report.issues`, but not in `counts.skippedNodes` or
+`counts.skippedEdges`. Count `err.report.errorCount` when you report how many elements failed.
 
 Some problems stop an import at once, whatever the limit: a file that is not valid in its own
 syntax (unbalanced XML, an unterminated quote in CSV, a JSON syntax error), invalid bytes in the
@@ -114,9 +121,9 @@ recorded as the last issue of the report, with an `E_` code, and thrown as an `I
 
 ## Checking text a user typed or pasted
 
-Detection does not insist on a perfect file, so text a user pasted can be read as the closest
-format: a few comma-separated lines become a small CSV graph. To accept only input that is clearly
-a graph, check the result as well as catching the error:
+Text a user pasted can be read as the closest format, often CSV
+([Format detection](./detection.md#content-beats-names) explains why). To accept only input that is
+clearly a graph, check the result as well as catching the error:
 
 <!-- generated:begin example:report/pasted -->
 
@@ -189,7 +196,7 @@ try {
     if (err instanceof ImportError) {
         console.log(`${err.code}: ${err.message}`);
         console.log(`stopped by ${err.issue?.code} on line ${err.issue?.line}`);
-        console.log(`${err.report.counts.edges} edges had been read`);
+        console.log(`edges read before it stopped: ${err.report.counts.edges}`);
     } else if (err instanceof GraphFormatError) {
         console.log(`a problem with the call: ${err.code}`);
     } else {
@@ -224,7 +231,7 @@ try {
 ```text
 E_IMPORT: error limit of 0 exceeded: line 3: 1 field, expected 2
 stopped by E_CSV_FIELD_COUNT on line 3
-1 edges had been read
+edges read before it stopped: 1
 not a graph file: the input is not in a graph format graph-io recognizes (filename "graph.graphml"): it is an HTML document (likely an error page saved in place of the file); if you know its format, pass it as the format option
 ```
 
@@ -238,6 +245,10 @@ A `GraphFormatError` that is not an `ImportError` comes from the call itself:
 | `E_INVALID_ID`  | A save, when the format cannot write the node ids (`checkExport()` returned `E_ID_CHARSET` or `E_ID_TEXT_COLLISION`).                                                                                                 |
 | `E_DIRECTED`    | A save, when the graph has both edge directions and the format holds one (`E_MIXED_DIRECTION`).                                                                                                                       |
 | `E_COLUMN_TYPE` | A save, when an attribute value cannot be written in the format (the `E_` note names the attribute).                                                                                                                  |
+
+`E_COLUMN_TYPE` also comes from imports, as an issue code: a GraphML, GEXF or Neo4j CSV value that
+does not parse as the type the file declares for it, such as `"x"` in an integer attribute. It is
+in `report.issues`, and when such errors go over the limit it is `err.issue.code`.
 
 An aborted `signal` rejects with the signal's own reason, which is not a `GraphFormatError`;
 `isAbortError(err)` recognizes it.

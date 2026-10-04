@@ -19,7 +19,8 @@ Each returns a promise of `{ snapshot, format, report, sniff, freeze }`:
 - `freeze`: most programs never read it. It records what the last step of the import changed,
   such as edges merged by `duplicateEdges` (also reported as warnings), and it holds one entry per
   edge read, so log `snapshot` and `report` rather than the whole result. The
-  [`ImportGraphResult` reference](../api/generated/@graphty/graph-io/interfaces/ImportGraphResult.md) lists its fields.
+  [`ImportGraphResult` reference](https://graphty.app/docs/graph-io/api/generated/@graphty/graph-io/interfaces/ImportGraphResult.html)
+  lists its fields.
 
 ## What you can pass in
 
@@ -72,9 +73,9 @@ Anything else is refused with a message that says what to pass instead. For an `
 it as `new Uint8Array(buffer)`. For a `Blob` or a `File`, call `loadFromFile()`. For a `fetch()`
 `Response`, call `loadFromUrl()` instead of `fetch()`, or pass `response.body`.
 
-A Blob from `fs.openAsBlob()` has no file name, so pass `filename` as the example does. Without it
-graph-io can only detect the format from the content, which a format without a content check (a
-plugin of your own, for example) cannot match.
+`fs.openAsBlob()` needs Node 20 or later. A Blob from it has no file name, so pass `filename` as the
+example does. Without it graph-io can only detect the format from the content, which a format
+without a content check (a plugin of your own, for example) cannot match.
 
 Streams are read as they arrive, and most formats are parsed as they stream in. JSON, DOT and GML
 documents are decoded whole before they are parsed, so a file in one of those formats is held in
@@ -104,7 +105,9 @@ console.log(`${format}: ${snapshot.nodeCount} nodes`);
 
 A failed download throws an `ImportError` whose `err.issue?.code` is `"E_FETCH"`.
 `err.details.status` holds the HTTP status, or `null` when the request never got a response (a
-network failure or a CORS refusal).
+network failure, a CORS refusal, or a URL `fetch()` cannot use). `err.message` says which, for
+example `GET got.gml failed: a relative URL needs a web page to resolve against; ...` for a relative
+URL in Node. Show `err.message` to the user rather than telling these cases apart in code.
 
 A missing file does not always fail as `E_FETCH`. Many development servers, Vite's among them,
 answer a request for a file they do not have with the app's `index.html` and status 200. graph-io
@@ -112,9 +115,9 @@ then gets a web page instead of a graph, and the error is `E_UNKNOWN_FORMAT`, wi
 says the input is an HTML document. If you see that during development, check the URL first.
 
 A relative URL works in a browser, where it is resolved against the page. In Node, pass an absolute
-`http:` or `https:` URL (`data:` URLs work too); a relative URL fails with a message that says so.
-Node's `fetch()` cannot read `file:` URLs, so for a local file use
-`loadFromFile(await openAsBlob(path), { filename: path })`.
+`http:` or `https:` URL (`data:` URLs work too); a relative URL fails with `E_FETCH` and a status
+of `null`. Node's `fetch()` cannot read `file:` URLs, so for a local file use
+`importGraph(await readFile(path), { filename: path })`.
 
 ## Choosing the format
 
@@ -125,20 +128,13 @@ read as GraphML or GEXF by its root element, and a `.csv` file with a `neo4j-adm
 as Neo4j CSV. [Format detection](./detection.md) explains the ranking.
 
 An input that no format recognizes fails with an `ImportError` whose `err.issue?.code` is
-`"E_UNKNOWN_FORMAT"`. CSV accepts the most: it claims any text whose first lines split into the
-same number of fields on a comma, tab, semicolon or pipe, or into two or three words on spaces, and
-any input whose MIME type is `text/plain` or whose file name ends in `.csv`, `.tsv`, `.edges` or
-`.edgelist`. So
-`Dear team, the meeting is on Monday.` reads as a one-edge CSV graph, and a `.txt` file the user
-picks can read as an empty one. Only text that fits none of these, such as a sentence of more than
-three words without a comma, is refused.
+`"E_UNKNOWN_FORMAT"`. CSV accepts almost any text with commas, so for input you do not control,
+pass `format` and check `snapshot.nodeCount` and `report.issues` after the load;
+[Format detection](./detection.md#content-beats-names) explains what CSV claims.
 
-For input you do not control, pass `format`, so a file in any other format is refused, and check
-`snapshot.nodeCount` and `report.issues` after the load.
-
-A CSV edge list without a direction column is read as a directed graph, so pasted text such as
-`from;to;weight` lines gives a directed graph unless you pass `defaultDirected: false`. The
-[`defaultDirected`](./options.md#every-importer) option lists the default of every format.
+A file that does not say whether it is directed gets its format's default:
+[`defaultDirected`](./options.md#import-defaultdirected) lists them. A CSV edge list without a
+`Type` column is read as directed, so this example passes `defaultDirected: false`.
 
 <!-- generated:begin example:loading/options -->
 
@@ -181,7 +177,9 @@ The format names are `json`, `graphml`, `gexf`, `csv`, `gml`, `dot`, `pajek`, `n
 `E_UNSUPPORTED`. `listFormats()` returns one entry per format, including formats you
 [registered yourself](./extending/new-format.md); the name is the entry's `format` field
 (`listFormats().map((f) => f.format)`), next to `extensions`, `mimeTypes`, `canImport` and
-`canExport`.
+`canExport`. In TypeScript, type a format name as `FormatName`: it offers the built-in names in
+your editor and accepts the name of a format you registered. `GRAPH_FORMATS` is the array of the
+built-in names, and `GraphFormatName` their type.
 
 ## Options
 
@@ -191,7 +189,8 @@ Every function takes one options object, which holds three kinds of option:
   (`ids`), which attribute is the edge weight (`weightFrom`), the direction of a file that does not
   say (`defaultDirected`), the error limit, cancelling, progress and the text encoding.
 - The [options of the load functions](./options.md#importgraph-and-importallgraphs) themselves:
-  `format`, `filename`, `mimeType`, `graphIndex`, `graphName` and `maxEmptyCells`.
+  `format`, `filename`, `mimeType`, `builder`, `freeze` and `maxEmptyCells`, and `graphIndex` and
+  `graphName` for [files that hold several graphs](#files-that-hold-several-graphs).
 - The format's own options, such as `delimiter` for CSV or `dialect` for JSON. Each
   [format page](./formats/index.md) lists them. They go in the same object and reach the
   format's importer unchanged.
@@ -288,9 +287,11 @@ document with a `graphs` array, a CX collection, an XGMML session file, and a Cy
 
 - `importGraph()` reads the first graph and adds the warning `W_MULTIPLE_GRAPHS`, which says how
   many it skipped.
-- `graphIndex` (0-based) or `graphName` chooses another graph, in every one of these formats. One
-  that names no graph fails with `E_GRAPH_NOT_FOUND`. A graph you choose this way gets no
-  `W_MULTIPLE_GRAPHS` warning.
+- `graphIndex` (0-based) or `graphName` chooses another graph, in every one of these formats.
+  `graphName` matches the graph's name: the name after `graph` or `digraph` in DOT, the `name` key
+  of a GML `graph [ ]` block, the `*Network` name in Pajek, and the network's name in the others.
+  One that names no graph fails with `E_GRAPH_NOT_FOUND`, and the message lists the index and name
+  of each graph in the file. A graph you choose this way gets no `W_MULTIPLE_GRAPHS` warning.
 - `importAllGraphs(input, options)` reads every graph and returns one result per graph.
 - `listGraphs(input, options)` lists the graphs without reading them: each entry has an `index`, a
   `name`, and node and edge counts when the file states them. JSON, CX, XGMML and Cytoscape
@@ -314,7 +315,7 @@ const alpha = await importGraph(session, { filename: "networks.cys", graphName: 
 console.log(`Alpha: ${alpha.snapshot.nodeCount} nodes, ${alpha.snapshot.edgeCount} edges`);
 
 // DOT cannot list its graphs, but graphIndex and graphName still choose one
-const dot = "digraph first { a -> b }\ndigraph second { x -> y; y -> z }";
+const dot = "digraph first { a -> b; b -> c }\ndigraph second { x -> y; y -> z; z -> x }";
 const second = await importGraph(dot, { format: "dot", graphIndex: 1 });
 console.log(`${second.snapshot.meta.name}: ${second.snapshot.edgeCount} edges`);
 
@@ -332,9 +333,9 @@ for (const { snapshot } of await importAllGraphs(dot, { format: "dot" })) {
 #0 Beta: 3 nodes, 2 edges
 #1 Alpha: 4 nodes, 2 edges
 Alpha: 4 nodes, 3 edges
-second: 2 edges
-first: 1 edges
-second: 2 edges
+second: 3 edges
+first: 2 edges
+second: 3 edges
 ```
 
 <!-- generated:end -->
@@ -402,8 +403,12 @@ cancelled
 
 ## Loading in a React component
 
-A snapshot never changes once it is made, so you can keep it in React state and pass it to child
-components. Start the load in an effect and cancel it in the effect's cleanup, so a component that
+A snapshot's nodes, edges and ids never change, so you can keep it in React state and pass it to
+child components. Type the state as `useState<GraphSnapshot | null>(null)`, with
+`import type { GraphSnapshot } from "@graphty/graph-io"`. If a component renames or adds an
+attribute, copy the snapshot first, as [Changing attributes](./reading.md#changing-attributes)
+shows: the change would otherwise reach every component that holds it, without React noticing.
+Start the load in an effect and cancel it in the effect's cleanup, so a component that
 unmounts or gets a new URL stops the old load instead of setting stale state. This function has
 the shape an effect needs: it starts the load and returns the function that cancels it.
 
@@ -555,5 +560,8 @@ node columns: Label
 <!-- generated:end -->
 
 An importer called directly takes the same options as `importGraph()`, minus the ones that belong
-to the load functions (`format`, `filename`, `mimeType`, `builder`, `freeze`, `maxEmptyCells`). It
-returns the import report, and you call `builder.freeze()` when you are done adding to the builder.
+to the load functions (`format`, `filename`, `mimeType`, `builder`, `freeze`, `maxEmptyCells`).
+`graphIndex` and `graphName` reach it, and an importer of a format that holds several graphs
+(JSON, XGMML, CX, Cytoscape sessions) reads them; DOT, GML and Pajek importers read the first graph
+whatever you pass, so call `importGraph()` with `builder` for those. It returns the import report,
+and you call `builder.freeze()` when you are done adding to the builder.

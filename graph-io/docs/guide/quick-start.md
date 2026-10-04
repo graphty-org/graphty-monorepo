@@ -10,8 +10,7 @@ npm install @graphty/graph-io
 ```
 
 graph-io is an ES module: import it with `import`, not `require`. It runs in browsers and in Node
-18.19 or later. The Node examples on these pages also use `fs.openAsBlob()`, which needs Node 20 or
-later.
+18.19 or later.
 
 In a page or a notebook without a bundler (a plain `<script type="module">`, Observable,
 JupyterLite), import it from a CDN instead:
@@ -24,6 +23,8 @@ import { loadFromUrl } from "https://esm.sh/@graphty/graph-io";
 
 const { snapshot, format, report } = await loadFromUrl(
     "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-edges.csv",
+    // a CSV edge table without a Type column does not say; without this the graph is directed
+    { defaultDirected: false },
 );
 console.log(`${format}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges, directed: ${snapshot.directed}`);
 for (const issue of report.issues) {
@@ -36,7 +37,7 @@ for (const issue of report.issues) {
 <!-- generated:begin output:quick-start/notebook -->
 
 ```text
-csv: 107 nodes, 352 edges, directed: true
+csv: 107 nodes, 352 edges, directed: false
 ```
 
 <!-- generated:end -->
@@ -88,10 +89,12 @@ Read graphml: 107 nodes, 352 edges
 
 The result has three parts:
 
-- `snapshot` is the graph. Its type comes from
-  [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format), which is installed
-  with graph-io. A snapshot never changes once it is made, so you can keep it in application state
-  (React state, a store) and share it between components.
+- `snapshot` is the graph, a `GraphSnapshot`. In TypeScript, import its type from graph-io:
+  `import type { GraphSnapshot } from "@graphty/graph-io"`, then
+  `useState<GraphSnapshot | null>(null)`. Its nodes, edges and ids never change, so you can keep it
+  in application state and share it between components. Its attribute tables can change; see
+  [Changing attributes](./reading.md#changing-attributes) before you rename one in a snapshot that
+  other code holds.
 - `format` is the format the file was read as, such as `"graphml"`.
 - `report` says what happened while reading. `report.issues` lists every element that was skipped
   or changed, with a code, a message and a line number. This file reads cleanly, so it prints none.
@@ -193,34 +196,33 @@ input.addEventListener("change", async () => {
 
 <!-- generated:end -->
 
-A load that does not throw can still hold an empty or meaningless graph. The example's
-`snapshot.nodeCount` check catches only the empty case. Any text whose lines contain commas reads as
-a CSV edge list: a note saying "Dear team, the meeting is on Monday." loads as a graph with 2 nodes
-and 1 edge. When you know which format the user should pick, pass it as `format` (for example
+A load that does not throw can still hold a meaningless graph, because almost any text with commas
+reads as a CSV edge list ([Format detection](./detection.md#content-beats-names) explains why). When
+you know which format the user should pick, pass it as `format` (for example
 `loadFromFile(file, { format: "graphml" })`), and any other file is refused with an `ImportError`
 whose message says the file could not be read as that format.
 
-A CSV edge list without a direction column, such as one pasted into a text box, is read as a
-directed graph. Pass `defaultDirected: false` to read it as undirected.
-
-In Node, the same function reads a file from disk. A Blob from `fs.openAsBlob(path)` has no file
-name, so pass one: `loadFromFile(await openAsBlob(path), { filename: path })`. You can also pass
-the file's bytes to `importGraph()`, as the next example does.
+In Node 20 or later, the same function reads a file from disk. A Blob from `fs.openAsBlob(path)`
+has no file name, so pass one: `loadFromFile(await openAsBlob(path), { filename: path })`. In any
+Node version you can pass the file's bytes to `importGraph()`:
+`importGraph(await readFile(path), { filename: path })`.
 
 ## Save it in another format
 
-`exportGraphToBytes()` writes the graph in any format and returns the file's bytes. Before you
-save, `checkExport()` tells you what the file will not keep. It returns a list of notes, and each
-note's `column` names the attribute it is about.
+`exportGraphToBytes()` writes the graph in any format and returns the file's bytes, which Node's
+`writeFile()` saves. Before you save, `checkExport()` tells you what the file will not keep. It
+returns a list of notes, and each note's `column` names the attribute it is about.
 
 <!-- generated:begin example:quick-start/save-node -->
 
 ```ts
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 
-import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
+import { checkExport, exportGraphToBytes, loadFromUrl } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("got-network.graphml"), { filename: "got-network.graphml" });
+const { snapshot } = await loadFromUrl(
+    "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml",
+);
 
 for (const note of checkExport(snapshot, "csv")) {
     // `column` names the attribute a note is about (null for the graph as a whole)
@@ -294,6 +296,13 @@ document.querySelector("#save").addEventListener("click", async () => {
 ```
 
 <!-- generated:end -->
+
+Saving in the format a file came from can need the same option. Two ids in got-network.graphml,
+"Jon Arryn" and "Robert Arryn", contain a space, which graph-io does not write in a GraphML id. So
+`downloadGraph(snapshot, "graphml")` is refused with `E_INVALID_ID`, and
+`downloadGraph(snapshot, "graphml", { sanitizeIds: "mangle" })` writes the file with the original ids
+kept in it. A "save as" button that offers every format should pass `sanitizeIds: "mangle"`; see
+[Ids the format cannot hold](./saving.md#ids-the-format-cannot-hold).
 
 To upload a graph instead, use `exportGraphToBlob()` and put the blob in a `FormData`. To get the
 file as text, for example to show it in a page, use `exportGraphToString()`:

@@ -286,12 +286,29 @@ describe("owner items on GitHub", () => {
         await postItems({ api, repo: REPO, state, acting: true, now: at(2 * MIN) });
         expect(state.ownerItems[VISUAL.id].github.unlabeled).toBe(true);
 
+        // A label that fails is tried again alone: the comment is never posted twice, and the
+        // failure is ledgered with the item.
         const failing = fakeRepo({ failLabels: true });
         const f = client(failing.gh, "acting");
         const s2 = {};
+        const errors = [];
         raiseItem(s2, DOOR, at(0));
-        await postItems({ api: f.api, repo: REPO, state: s2, acting: true, now: at(0) });
-        expect(s2.ownerItems[DOOR.id].github).toBeUndefined();
+        for (const t of [0, MIN, 2 * MIN]) {
+            await postItems({
+                api: f.api,
+                repo: REPO,
+                state: s2,
+                acting: true,
+                now: at(t),
+                ledger: (e) => errors.push(e),
+            });
+        }
+        expect(s2.ownerItems[DOOR.id].github).toMatchObject({ performed: true, labeled: false });
+        expect(failing.comments[9]).toHaveLength(1);
+        const labelPosts = failing.gh.writes().filter((w) => w.args.some((a) => a.endsWith("/labels")));
+        expect(labelPosts).toHaveLength(3);
+        expect(errors).toHaveLength(3);
+        expect(errors[0]).toMatchObject({ kind: "error", where: "owner-items", item: DOOR.id });
     });
 
     it("ends an item on the owner's own comment or a removed label, never on githerd's or a stranger's", async () => {

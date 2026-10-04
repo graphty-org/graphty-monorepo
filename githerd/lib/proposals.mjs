@@ -267,6 +267,7 @@ async function step(state, p, ctx) {
     const res = await gitHub.write("PATCH", `repos/${repo}/${type === "pr" ? "pulls" : "issues"}/${n}`, close, {
         group: GROUP,
         check: { path: `repos/${repo}/issues/${n}`, expect: { state: "closed" } },
+        retry: true,
         fields: { situation: `close ${p.kind}`, target: p.target },
     });
     Object.assign(p, { status: "closed", closedAt: at, dryRun: Boolean(p.dryRun) || !res.performed });

@@ -46,6 +46,11 @@ function fakeRepo(init = {}) {
                     ? ok({ id: Number(m[1]), run_attempt: s.runs[m[1]], status: "completed" })
                     : ok({}, 404);
             }
+            if ((m = /^actions\/runs\/(\d+)\/attempts\/(\d+)$/.exec(p))) {
+                return (s.runs[m[1]] ?? 0) >= Number(m[2])
+                    ? ok({ id: Number(m[1]), run_attempt: Number(m[2]) })
+                    : ok({ message: "Not Found" }, 404);
+            }
             if ((m = /^actions\/runs\/(\d+)\/attempts\/(\d+)\/jobs$/.exec(p))) {
                 const jobs = s.jobs[`${m[1]}/${m[2]}`];
                 return jobs ? ok({ jobs }) : ok({ message: "Not Found" }, 404);
@@ -98,11 +103,16 @@ function fakeRepo(init = {}) {
 /**
  * The actions over a fake repository.
  * @param {ReturnType<typeof fakeRepo>} repo the fake
- * @param {string} mode the incidents group's mode
+ * @param {string | ((group: string) => string)} mode the incidents group's mode
  * @param {number} [start] the clock's start
+ * @param {{spent?: any, persist?: () => unknown}} [saved] the spent record to start from, and the
+ *   client's save hook
+ * @param {any} [saved.spent] the spent record to start from
+ * @param {() => unknown} [saved.persist] the client's save hook
  * @returns the actions, the ledger, the persisted record and a clock setter
  */
-function setup(repo, mode = "acting", start = T0) {
+function setup(repo, mode = "acting", start = T0, saved = {}) {
+    const { spent = {}, persist } = saved;
     const ledger = [];
     let t = start;
     const github = createGitHub({
@@ -112,8 +122,8 @@ function setup(repo, mode = "acting", start = T0) {
         ledger: (e) => ledger.push(e),
         env: {},
         now: () => t,
+        persist,
     });
-    const spent = {};
     const actions = createIncidentActions({ github, repo: REPO, spent, now: () => t });
     return { actions, ledger, spent, set: (/** @type {number} */ ms) => (t = ms) };
 }
@@ -303,14 +313,14 @@ describe("codeRed: the incident procedure's daemon steps", () => {
         const red = { "2/2": done("success") };
         const repo = fakeRepo({ runs: { 1: 1, 2: 1 }, jobs: red });
         const { actions, ledger } = setup(repo, "dry-run");
-        expect(await actions.codeRed(incident())).toMatchObject({ outcome: "intermittent", issue: 0 });
+        expect(await actions.codeRed(incident())).toMatchObject({ outcome: "intermittent", issue: null });
         const revert = fakeRepo({
             runs: { 1: 1, 2: 1 },
             jobs: { "2/2": done("failure"), "1/2": done("success") },
             pulls: [{ number: 701, title: "t", state: "closed", base: { ref: "master" }, node_id: "PR701" }],
         });
         const second = setup(revert, "dry-run");
-        expect(await second.actions.codeRed(incident())).toMatchObject({ outcome: "revert", revertPr: 0 });
+        expect(await second.actions.codeRed(incident())).toMatchObject({ outcome: "revert", revertPr: null });
         expect([...repo.gh.writes(), ...revert.gh.writes()]).toEqual([]);
         const ops = [...ledger, ...second.ledger].filter((e) => e.kind === "would-do").map((e) => e.op);
         expect(ops).toEqual([
@@ -321,6 +331,98 @@ describe("codeRed: the incident procedure's daemon steps", () => {
             "POST actions/jobs/10/rerun",
             "graphql mutation RevertPullRequest",
         ]);
+    });
+});
+
+describe("dry-run spends nothing, and a crash never doubles a write", () => {
+    it("a would-do is ledgered once, and the same steps go out for real once the group acts", async () => {
+        const repo = fakeRepo({ runs: { 1: 1, 2: 1 } });
+        let mode = "dry-run";
+        const { actions, ledger, spent } = setup(repo, () => mode);
+        await actions.codeRed(incident());
+        await actions.codeRed(incident());
+        expect(repo.gh.writes()).toEqual([]);
+        expect(ledger.filter((e) => e.kind === "would-do")).toHaveLength(2);
+        expect(spent.reruns).toEqual({});
+        mode = "acting";
+        await actions.codeRed(incident());
+        expect(repo.gh.writes().map((c) => c.args[4])).toEqual([
+            `${R}actions/jobs/20/rerun`,
+            `${R}actions/jobs/10/rerun`,
+        ]);
+        expect(Object.keys(spent.reruns)).toHaveLength(2);
+    });
+
+    it("a write GitHub refused is taken off the record and tried again", async () => {
+        let refuse = true;
+        const repo = fakeRepo({ runs: { 2: 1 } });
+        const exec = repo.gh.exec;
+        repo.gh.exec = async (args, options) =>
+            refuse && args.includes("-X")
+                ? httpOutput({ status: 403, body: { message: "Must have admin rights" } })
+                : exec(args, options);
+        const { actions, spent } = setup(repo);
+        await expect(actions.rerun(job(2, 1), "abc", KEY, "outside")).rejects.toMatchObject({ kind: "credential" });
+        expect(spent.reruns).toEqual({});
+        refuse = false;
+        expect(await actions.rerun(job(2, 1), "abc", KEY, "outside")).toMatchObject({ performed: true, stuck: true });
+    });
+
+    it("files the intermittent issue on the next reconcile when the first try failed", async () => {
+        let fail = true;
+        const repo = fakeRepo();
+        const exec = repo.gh.exec;
+        repo.gh.exec = async (args, options) =>
+            fail && args.at(-1).includes("issues?")
+                ? httpOutput({ status: 502, body: "bad gateway" })
+                : exec(args, options);
+        const { actions, spent } = setup(repo);
+        await expect(actions.intermittentIssue(KEY, "c2", "x")).rejects.toMatchObject({ kind: "server" });
+        expect(spent.intermittent).toEqual({});
+        fail = false;
+        expect(await actions.intermittentIssue(KEY, "c2", "x")).toBe(800);
+        expect(repo.s.issues).toHaveLength(1);
+    });
+
+    it("saves the spent record before each re-run, so a crash before the reconcile's save re-runs nothing twice", async () => {
+        const repo = fakeRepo({ runs: { 1: 1, 2: 1 } });
+        /** @type {string[]} */
+        const order = [];
+        let disk = "{}";
+        const exec = repo.gh.exec;
+        repo.gh.exec = async (args, options) => {
+            if (args.includes("-X")) order.push(`send ${args[4].split("/").slice(-2).join("/")}`);
+            return exec(args, options);
+        };
+        const spent = {};
+        const persist = () => {
+            disk = JSON.stringify(spent);
+            order.push(`save ${Object.keys(spent.reruns ?? {}).length}`);
+        };
+        await setup(repo, "acting", T0, { spent, persist }).actions.codeRed(incident());
+        expect(order).toEqual(["save 1", "send 20/rerun", "save 2", "send 10/rerun"]);
+        // The process dies here, before its own save: the restart reads what the gate saved.
+        const restarted = setup(repo, "acting", T0, { spent: JSON.parse(disk), persist });
+        await restarted.actions.codeRed(incident());
+        expect(repo.gh.writes()).toHaveLength(2);
+    });
+
+    it("finds a revert opened before a crash by its title instead of opening a second", async () => {
+        const repo = fakeRepo({
+            runs: { 1: 1, 2: 1 },
+            jobs: { "2/2": done("failure"), "1/2": done("success") },
+            pulls: [
+                { number: 701, title: "fix(tools): x", state: "closed", base: { ref: "master" }, node_id: "PR701" },
+            ],
+        });
+        const first = setup(repo);
+        expect(await first.actions.codeRed(incident())).toMatchObject({ revertPr: 901 });
+        // The record of it is lost with the crash; the revert pull request is on GitHub.
+        const spent = JSON.parse(JSON.stringify(first.spent));
+        delete spent.reverts;
+        const again = setup(repo, "acting", T0, { spent });
+        expect(await again.actions.codeRed(incident())).toMatchObject({ outcome: "revert", revertPr: 901 });
+        expect(repo.gh.calls.filter((c) => c.args.includes("graphql"))).toHaveLength(1);
     });
 });
 

@@ -4,10 +4,13 @@
  * ETag and body per path in a record the caller persists (`etags.json`), so a restart costs 304s.
  * Every write goes through one gate (`write()` for REST, `mutate()` for GraphQL, design 10.2): the
  * write names its write group, and unless that group is `acting` it records a `would-do` ledger
- * line and never calls `gh`. A write that is sent is read back at once and again by the next poll
- * (`confirm()`); one that does not stick is sent once more, and if it still does not hold it stays
- * in the persisted `writes` record marked as a mismatch, for the board (design 3.6). Every call is
- * checked against the shared rate budget first.
+ * line and never calls `gh`. Before a write is sent the caller's state is saved (`persist`), so what
+ * the caller recorded about the write survives a crash between the send and its own save. A write
+ * that is sent is read back at once and again by the next poll (`confirm()`); only a write declared
+ * `retry` (it sets a state, so a second send does no harm) is sent once more when it does not hold,
+ * and a write that still does not hold stays in the persisted `writes` record marked as a mismatch,
+ * for the board, for 24 hours (design 3.6). Every call is checked against the shared rate budget
+ * first.
  */
 import { execFile } from "node:child_process";
 
@@ -42,6 +45,8 @@ const SECONDARY_MAX_MS = 15 * 60_000;
 /** Counters the poll pace follows; search has its own small budget, paced by re-triage. */
 const PACED_RESOURCES = ["core", "graphql"];
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+/** How long a write that did not stick stays on the board. */
+const MISMATCH_KEPT_MS = 24 * 3_600_000;
 
 /**
  * @typedef {{code: number, stdout: string, stderr: string, timedOut?: boolean}} ExecResult
@@ -59,13 +64,15 @@ const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
  *   answer names in its `url`, expecting its `id`
  * @typedef {{method: string, path: string, body?: unknown} | {query: string, variables: Record<string, unknown>}} Request
  * @typedef {{op: string, group: string, purpose: Purpose, request: Request, spec: CheckSpec,
- *   check: Check | null, at: string, retried: boolean, mismatch?: string}} SentWrite a write
- *   waiting for the next poll's confirmation; `mismatch` is when it was found not to stick after
- *   its one retry
+ *   check: Check | null, at: string, retry: boolean, retried: boolean, held?: boolean,
+ *   retryHeld?: boolean, mismatch?: string}} SentWrite a write waiting for the next poll's
+ *   confirmation; `held` is whether it held when it was sent, `retryHeld` that a retry waits for its
+ *   group to act again, `mismatch` when it was found not to stick
  * @typedef {{pending?: SentWrite[]}} WriteRecord the persisted record of sent writes
- * @typedef {{group: string, check: CheckSpec, fields?: Record<string, unknown>}} WriteOptions the
- *   write group whose mode gates the write, how to read it back, and extra ledger fields (such as
- *   `situation`, which `githerd mode` counts)
+ * @typedef {{group: string, check: CheckSpec, retry?: boolean, fields?: Record<string, unknown>}}
+ *   WriteOptions the write group whose mode gates the write, how to read it back, whether it may be
+ *   sent again when the read-back misses (only a write that sets a state), and extra ledger fields
+ *   (such as `situation`, which `githerd mode` counts)
  * @typedef {{performed: boolean, op: string, status?: number, body?: any, stuck?: boolean | null}} WriteResult
  *   whether it was sent, GitHub's answer, and whether the read-back saw it (null: unknown yet)
  */
@@ -206,13 +213,15 @@ function resolveCheck(spec, answer) {
  *   writes?: WriteRecord,
  *   env?: Record<string, string | undefined>,
  *   now?: () => number,
+ *   persist?: () => unknown,
  * }} options `repo` is `owner/name`; `mode` is one mode for every write group or a function
  *   answering a group's mode (anything but `acting` records instead of writing); `ledger` appends
  *   one ledger entry; `rate` is the persisted rate record, mutated in place so `downSince`
  *   survives a restart; `etags` is the persisted ETag record (`etags.json`), mutated in place;
  *   `writes` is the persisted record of sent writes awaiting confirmation, mutated in place;
- *   `env` is the environment whose secret values `checkOutgoing` refuses.
- * @returns the client: `get`, `login`, `graphql`, `write`, `mutate`, `confirm`, `pace`, and the
+ *   `env` is the environment whose secret values `checkOutgoing` refuses; `persist` saves the
+ *   caller's state, awaited before every write that is sent.
+ * @returns the client: `get`, `login`, `graphql`, `write`, `mutate`, `confirm`, `acting`, `pace`, and the
  *   `rate`, `etags` and `writes` records
  */
 export function createGitHub({
@@ -225,6 +234,7 @@ export function createGitHub({
     writes = {},
     env = process.env,
     now = Date.now,
+    persist = () => {},
 }) {
     /** @type {RateState} */
     const r = /** @type {RateState} */ (rate);
@@ -477,35 +487,45 @@ export function createGitHub({
     }
 
     /**
-     * Reads a write back and, the first time it does not hold, sends it once more and reads again.
-     * A write that still does not hold is marked a mismatch, once.
+     * Sends a retryable write once more, unless its group no longer acts: then a `would-do` line
+     * (once) stands for the retry and the write stays pending.
      * @param {SentWrite} entry the write
-     * @param {boolean} fresh true to skip the ETag on the first read
-     * @returns {Promise<boolean | null>} whether it holds; null when the read failed
+     * @returns {Promise<boolean | null>} whether it holds after the retry; null when not sent
      */
-    async function verify(entry, fresh) {
-        let ok = await readBack(entry, fresh);
-        if (ok === false && !entry.retried) {
-            entry.retried = true;
-            await ledger({ kind: "write-retry", op: entry.op, group: entry.group });
-            try {
-                await send(entry);
-                ok = await readBack(entry, true);
-            } catch {
-                ok = false;
-            }
+    async function resend(entry) {
+        if (modeOf(entry.group) !== "acting") {
+            if (!entry.retryHeld) await ledger({ kind: "would-do", op: entry.op, group: entry.group, retry: true });
+            entry.retryHeld = true;
+            return null;
         }
-        if (ok === false && !entry.mismatch) {
-            entry.mismatch = new Date(now()).toISOString();
-            await ledger({ kind: "write-mismatch", op: entry.op, group: entry.group, check: entry.check });
+        entry.retried = true;
+        await ledger({ kind: "write-retry", op: entry.op, group: entry.group });
+        try {
+            await send(entry);
+            return await readBack(entry, true);
+        } catch {
+            return false;
         }
-        return ok;
+    }
+
+    /**
+     * Marks a write that did not hold as a mismatch, once, for the board.
+     * @param {SentWrite} entry the write
+     */
+    async function mismatch(entry) {
+        if (entry.mismatch) return;
+        entry.mismatch = new Date(now()).toISOString();
+        await ledger({ kind: "write-mismatch", op: entry.op, group: entry.group, check: entry.check });
     }
 
     /**
      * The write gate (design 10.2): refuses what must not reach GitHub, records a `would-do` unless
-     * the write's group is `acting`, and otherwise sends the write, reads it back, and keeps it for
-     * the next poll's confirmation. A newer write read back at the same path replaces an older one.
+     * the write's group is `acting`, and otherwise saves the caller's state (`persist`), sends the
+     * write, reads it back, and keeps it for the next poll's confirmation. Only a write declared
+     * `retry` (one that sets a state, so sending it twice does no harm) is sent again when the
+     * read-back misses; any other write (a create, a re-run, an asynchronous update) is left for the
+     * next poll, because GitHub's reads lag its writes. A newer write of the same op read back at the
+     * same path replaces an older one.
      * @param {string} op the ledger label
      * @param {Purpose} purpose how far down the rate budget it may go
      * @param {Request} request what to send
@@ -514,7 +534,7 @@ export function createGitHub({
      * @returns {Promise<WriteResult>} whether it was sent, the answer, and whether it stuck
      */
     async function gate(op, purpose, request, body, options) {
-        const { group, check, fields = {} } = options ?? /** @type {Partial<WriteOptions>} */ ({});
+        const { group, check, retry = false, fields = {} } = options ?? /** @type {Partial<WriteOptions>} */ ({});
         if (typeof group !== "string" || group === "") throw new GitHubError("refused", `${op}: no write group`);
         if (check !== "created" && typeof check?.path !== "string") {
             throw new GitHubError("refused", `${op}: no read-back check`);
@@ -533,14 +553,54 @@ export function createGitHub({
             spec: check,
             check: null,
             at: new Date(now()).toISOString(),
+            retry,
             retried: false,
         };
+        await persist();
         const res = await send(entry);
-        const ok = await verify(entry, true);
-        const old = sent.findIndex((w) => w.check?.path === entry.check?.path);
+        let ok = await readBack(entry, true);
+        if (ok === false && retry) {
+            ok = await resend(entry);
+            if (ok === false) await mismatch(entry);
+        }
+        entry.held = ok === true;
+        const old = sent.findIndex((w) => w.op === entry.op && w.check?.path === entry.check?.path);
         if (old !== -1 && entry.check) sent.splice(old, 1);
         sent.push(entry);
         return { performed: true, op, status: res.status, body: res.body, stuck: ok };
+    }
+
+    /**
+     * Removes a sent write from the pending list, if it is still there.
+     * @param {SentWrite} entry the write
+     */
+    function drop(entry) {
+        const i = sent.indexOf(entry);
+        if (i !== -1) sent.splice(i, 1);
+    }
+
+    /**
+     * The next poll's look at one pending write (see `confirm`).
+     * @param {SentWrite} entry the write
+     */
+    async function confirmOne(entry) {
+        if (entry.mismatch) {
+            if (now() - Date.parse(entry.mismatch) < MISMATCH_KEPT_MS) return;
+            drop(entry);
+            await ledger({ kind: "write-mismatch-expired", op: entry.op, group: entry.group });
+            return;
+        }
+        let ok = await readBack(entry, false);
+        if (ok === false && entry.held) {
+            drop(entry);
+            await ledger({ kind: "write-overridden", op: entry.op, group: entry.group, check: entry.check });
+            return;
+        }
+        if (ok === false && entry.retry && !entry.retried) ok = await resend(entry);
+        if (ok === false) await mismatch(entry);
+        if (ok !== true) return;
+        drop(entry);
+        await ledger({ kind: "write-confirmed", op: entry.op, group: entry.group, after: "sent" });
     }
 
     const api = {
@@ -638,23 +698,24 @@ export function createGitHub({
 
         /**
          * The next poll's confirmation: reads back every sent write (with its ETag, so an unchanged
-         * answer is a free 304). One that holds is done; one that no longer holds is sent once
-         * more if it has not been retried, and is a mismatch otherwise. A read that fails leaves
-         * the write for the poll after.
+         * answer is a free 304). One that holds is done. One that held when it was sent and no
+         * longer holds was changed by someone else since: logged as `write-overridden` and dropped,
+         * never sent again. One that never held is sent once more when it is retryable and not yet
+         * retried, and is a mismatch otherwise. A read that fails leaves the write for the poll
+         * after. A mismatch is not read again: it stays on the board for 24 hours, then expires.
          * @returns {Promise<void>}
          */
         async confirm() {
-            for (const entry of sent.slice()) {
-                const ok = await verify(entry, false);
-                if (ok !== true) continue;
-                sent.splice(sent.indexOf(entry), 1);
-                await ledger({
-                    kind: "write-confirmed",
-                    op: entry.op,
-                    group: entry.group,
-                    after: entry.mismatch ? "mismatch" : "sent",
-                });
-            }
+            for (const entry of sent.slice()) await confirmOne(entry);
+        },
+
+        /**
+         * Whether a write group's writes go out now.
+         * @param {string} group the write group
+         * @returns {boolean} true when the group is `acting`
+         */
+        acting(group) {
+            return modeOf(group) === "acting";
         },
 
         /**

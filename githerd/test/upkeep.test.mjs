@@ -5,7 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { createGitHub } from "../lib/github.mjs";
-import { mergeTree, updatePr, upkeepStacks } from "../lib/upkeep.mjs";
+import { mergeTree, nextStackRecord, updatePr, upkeepStacks } from "../lib/upkeep.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
@@ -348,7 +348,9 @@ describe("upkeepStacks", () => {
         const fake = fakeGitHub();
         const poll = { prs, lastHeads: { 1: before }, mergedHeads: [] };
         const out = await upkeepStacks(context(fake, "acting"), poll);
-        expect(out).toEqual([{ pr: 2, action: "update", result: { path: "update-branch", result: "updated" } }]);
+        expect(out).toEqual([
+            { pr: 2, action: "update", base: 1, result: { path: "update-branch", result: "updated" } },
+        ]);
         expect(fake.writes().map((c) => c.args[4])).toEqual([`repos/${REPO}/pulls/2/update-branch`]);
 
         ledger = [];
@@ -373,6 +375,42 @@ describe("upkeepStacks", () => {
         expect(acted[0].result).toMatchObject({ performed: true, stuck: true });
         expect(fake.writes().map((c) => c.args.slice(2, 5))).toEqual([["-X", "PATCH", `repos/${REPO}/pulls/2`]]);
         expect(JSON.parse(fake.writes()[0].input ?? "")).toEqual({ base: "master" });
+    });
+
+    it("updates the child on the next reconcile when update-branch refused it once", async () => {
+        const { prs, before } = stack();
+        let refuse = 1;
+        const fake = createFakeGh(({ args }) => {
+            const path = args.at(-1) === "-" ? args.at(-3) : args.at(-1);
+            if (path?.endsWith("/update-branch")) {
+                if (refuse-- > 0) return httpOutput({ status: 422, body: { message: "expected head sha differed" } });
+                return httpOutput({ status: 202, body: { message: "Updating" } });
+            }
+            return httpOutput({ status: 200, body: { head: { sha: "moved" } } });
+        });
+        let poll = { prs, lastHeads: { 1: before, 2: prs[1].head }, mergedHeads: [] };
+        const first = await upkeepStacks(context(fake, "acting"), poll);
+        expect(first[0].result).toMatchObject({ result: "stale" });
+        poll = { prs, ...nextStackRecord(poll, first) };
+        expect(poll.lastHeads[1]).toBe(before);
+
+        const second = await upkeepStacks(context(fake, "acting"), poll);
+        expect(second[0].result).toEqual({ path: "update-branch", result: "updated" });
+        poll = { prs, ...nextStackRecord(poll, second) };
+        expect(poll.lastHeads[1]).toBe(prs[0].head);
+        expect(await upkeepStacks(context(fake, "acting"), poll)).toEqual([]);
+        expect(fake.writes().filter((c) => c.args.some((a) => a.endsWith("/update-branch")))).toHaveLength(2);
+    });
+
+    it("keeps going after a step that throws, and keeps the merged branch of a retarget that threw", async () => {
+        const { prs } = stack();
+        const fake = createFakeGh(() => httpOutput({ status: 500, body: "boom" }));
+        const poll = { prs: [prs[1]], lastHeads: {}, mergedHeads: ["a"] };
+        const out = await upkeepStacks(context(fake, "acting"), poll);
+        expect(out).toEqual([{ pr: 2, action: "retarget", error: expect.stringContaining("500") }]);
+        expect(ledger.at(-1)).toMatchObject({ kind: "error", where: "stacks", target: "pr:2" });
+        expect(nextStackRecord(poll, out).mergedHeads).toEqual(["a"]);
+        expect(nextStackRecord(poll, []).mergedHeads).toEqual([]);
     });
 
     it("does nothing when no base moved or merged", async () => {

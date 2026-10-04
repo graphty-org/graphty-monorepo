@@ -284,6 +284,45 @@ describe("native auto-merge", () => {
     });
 });
 
+describe("from dry-run to acting", () => {
+    it("posts one real status per open head and disarms again once the group acts", async () => {
+        const fake = fakeGitHub();
+        let mode = "dry-run";
+        const ledger = [];
+        const github = createGitHub({
+            repo: REPO,
+            exec: fake.gh.exec,
+            mode: (group) => (group === "statuses" ? mode : "dry-run"),
+            ledger: (e) => ledger.push(e),
+            env: {},
+            now: () => NOW,
+        });
+        const record = {};
+        const prs = [pr(1, { autoMergeAt: "2026-10-03T10:00:00Z" }), pr(2)];
+        await reconcile(github, prs, record);
+        await reconcile(github, prs, record);
+        expect(fake.gh.writes()).toEqual([]);
+        expect(ledger.filter((e) => e.kind === "would-do")).toHaveLength(3);
+        // While dry-run, a would-do covers its head; once acting, it does not.
+        expect(mergeGateChecks({ prs: [pr(2)], branch: "master", record, mergify: null }).faults).toEqual([]);
+        expect(mergeGateChecks({ prs: [pr(2)], branch: "master", record, mergify: null, acting: true }).faults).toEqual(
+            [{ record: "pr 2", problem: "no current githerd/merge status on its head" }],
+        );
+
+        mode = "acting";
+        await reconcile(github, prs, record);
+        expect(fake.posts().map((p) => p.sha)).toEqual(["h1a", "h2a"]);
+        expect(fake.mutations()).toHaveLength(1);
+        expect(record.posted[2]).toMatchObject({ performed: true });
+        expect(mergeGateChecks({ prs: [pr(2)], branch: "master", record, mergify: null, acting: true }).faults).toEqual(
+            [],
+        );
+        await reconcile(github, prs, record);
+        expect(fake.posts()).toHaveLength(2);
+        expect(fake.mutations()).toHaveLength(1);
+    });
+});
+
 describe("head facts", () => {
     const patch = [
         "@@ -10,6 +10,8 @@",

@@ -54,7 +54,8 @@ const REVIEW_TOOL = ["node", "visual-review/trusted/cli.mjs", "update"];
  * @typedef {{path: "review-tool" | "update-branch" | "local" | "none",
  *   result: "updated" | "would-do" | "current" | "conflict" | "stale" | "wait" | "failed",
  *   conflicts?: string[], why?: string}} UpdateResult which path was taken and how it ended:
- *   `conflict` needs a `pr` job, `stale` and `wait` are judged again on the next reconcile
+ *   `conflict` needs a `pr` job; for a stacked child, every result but `updated`, `current` and
+ *   `would-do` is judged again on the next reconcile
  */
 
 // ponytail: no queue until the daemon's push queue exists; pass it as `queue` then.
@@ -271,33 +272,72 @@ async function retarget(ctx, number) {
         {
             group: GROUP,
             check: { path, expect: { base: { ref: branch } } },
+            retry: true,
             fields: { situation: "stack base merged", target: `pr:${number}` },
         },
     );
 }
 
+/** The update results after which a child needs nothing more until its base moves again. */
+export const SETTLED = new Set(["updated", "current", "would-do"]);
+
 /**
  * The stack upkeep of one reconcile: retargets and child updates from `stackSteps`, parents
  * first. A child is updated from its base pull request's head, which is also its base branch's
  * tip, so it takes GitHub's update, never a local merge; a conflict with its base is a `pr` job's.
+ * A step that throws is recorded with its error and the next step still runs.
  * @param {Context} ctx the context
  * @param {{prs: StackPr[], lastHeads: Record<string, string>, mergedHeads: string[]}} poll the
  *   open pull requests, each one's head at the previous poll, and the head branches merged since
- * @returns {Promise<{pr: number, action: string, result: UpdateResult | {performed: boolean}}[]>}
- *   what each step did
+ * @returns {Promise<{pr: number, action: string, base?: number,
+ *   result?: UpdateResult | {performed: boolean}, error?: string}[]>} what each step did; `base` is
+ *   an updated child's base pull request
  */
 export async function upkeepStacks(ctx, { prs, lastHeads, mergedHeads }) {
     const byNumber = new Map(prs.map((p) => [p.number, p]));
     const out = [];
     for (const step of stackSteps(prs, lastHeads, mergedHeads, ctx.branch ?? "master")) {
         const pr = /** @type {StackPr} */ (byNumber.get(step.pr));
-        if (step.action === "retarget") {
-            out.push({ pr: step.pr, action: "retarget", result: await retarget(ctx, step.pr) });
-            continue;
+        try {
+            if (step.action === "retarget") {
+                out.push({ pr: step.pr, action: "retarget", result: await retarget(ctx, step.pr) });
+                continue;
+            }
+            const parent = /** @type {StackPr} */ (byNumber.get(step.base));
+            const result = await updatePr(ctx, { pr, onto: parent.head, tip: parent.head, reason: "stack base moved" });
+            out.push({ pr: step.pr, action: "update", base: step.base, result });
+        } catch (err) {
+            const error = /** @type {Error} */ (err).message;
+            await ctx.ledger({ kind: "error", where: "stacks", target: `pr:${step.pr}`, error });
+            out.push({ pr: step.pr, action: step.action, ...("base" in step ? { base: step.base } : {}), error });
         }
-        const parent = /** @type {StackPr} */ (byNumber.get(step.base));
-        const result = await updatePr(ctx, { pr, onto: parent.head, tip: parent.head, reason: "stack base moved" });
-        out.push({ pr: step.pr, action: "update", result });
     }
     return out;
+}
+
+/**
+ * The stack record for the next reconcile: each open pull request's head, except that a base whose
+ * child's update did not settle keeps its previous head, so `stackSteps` asks for the update again;
+ * and the merged branches whose child's retarget threw, kept for the same reason.
+ * @param {{prs: StackPr[], lastHeads: Record<string, string>, mergedHeads: string[]}} poll what
+ *   `upkeepStacks` was given
+ * @param {Awaited<ReturnType<typeof upkeepStacks>>} steps what it did
+ * @returns {{lastHeads: Record<string, string>, mergedHeads: string[]}} the record to keep
+ */
+export function nextStackRecord({ prs, lastHeads, mergedHeads }, steps) {
+    const unsettled = new Set();
+    const keep = new Set();
+    for (const s of steps) {
+        if (s.action === "retarget") {
+            if (s.error) keep.add(prs.find((p) => p.number === s.pr)?.base);
+        } else if (!SETTLED.has(/** @type {UpdateResult | undefined} */ (s.result)?.result ?? "")) {
+            unsettled.add(s.base);
+        }
+    }
+    return {
+        lastHeads: Object.fromEntries(
+            prs.map((p) => [p.number, unsettled.has(p.number) && lastHeads[p.number] ? lastHeads[p.number] : p.head]),
+        ),
+        mergedHeads: mergedHeads.filter((h) => keep.has(h)),
+    };
 }

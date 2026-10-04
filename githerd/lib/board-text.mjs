@@ -108,7 +108,9 @@ function bannerLines(v) {
     for (const b of [...(v.banners ?? []), ...(gate?.banners ?? [])]) lines.push(`BANNER: ${b}`);
     for (const w of v.state?.writes?.pending ?? []) {
         if (w.mismatch)
-            lines.push(`WRITE DID NOT STICK: ${w.op} (${w.group}), sent twice, wrong since ${when(w.mismatch)}`);
+            lines.push(
+                `WRITE DID NOT STICK: ${w.op} (${w.group}), sent ${w.retried ? "twice" : "once"}, wrong since ${when(w.mismatch)}`,
+            );
     }
     for (const f of [...(v.faults ?? []), ...(gate?.faults ?? [])])
         lines.push(`FAULT ${f.record}: ${f.problem} (githerd why ${f.record.split(" ").at(-1)})`);

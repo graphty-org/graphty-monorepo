@@ -813,6 +813,36 @@ describe("the poll loop", () => {
         expect(gate.posted).toEqual({});
     });
 
+    it("lets the incident's revert pull request through the red-lane hold while the lane is still red", async () => {
+        const daemon = await start();
+        await poll(daemon);
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/x"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["2026-10-02T12:03:00Z", "2026-10-02T12:06:00Z"]) {
+            clock = new Date(at);
+            await poll(daemon);
+        }
+        const incident = Object.values(daemon.state.incidents)[0];
+        incident.keys = { "ci / Build / ": { seen: 3, outcome: "revert", revertPr: 50 } };
+        const revert = {
+            ...gatedPr(),
+            id: "PR_50",
+            number: 50,
+            title: 'Revert "fix(x): a fix"',
+            headRefName: "revert-2",
+            headRefOid: D,
+            autoMergeRequest: null,
+        };
+        scene.prs = [{ ...gatedPr(), id: "PR_7", autoMergeRequest: null }, revert];
+        clock = new Date("2026-10-02T12:09:00Z");
+        await poll(daemon);
+        expect(daemon.state.master.verdict).toBe("red");
+        const posted = daemon.state.mergeGate.posted;
+        expect(posted["50"]).toMatchObject({ sha: D, state: "success" });
+        expect(posted["7"]).toMatchObject({ sha: B, state: "failure", description: expect.stringMatching(/^held: /) });
+    });
+
     it("posts open owner items as would-dos and counts the owner's CLI as presence", async () => {
         const daemon = await start();
         daemon.state.ownerItems = {

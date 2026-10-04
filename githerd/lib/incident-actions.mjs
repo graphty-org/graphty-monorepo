@@ -6,14 +6,20 @@
  * goes through the client's write gate, so while the group is not `acting` each one is a `would-do`
  * ledger line and nothing is sent.
  *
- * Spending on paid lanes is bounded by one persisted record, `spent`, which is written BEFORE each
- * write, so a crash between the two loses a re-run rather than doubling it:
+ * Spending on paid lanes is bounded by one persisted record, `spent`. Each one-shot write is
+ * recorded there before it is sent, and the write gate saves the daemon's state before it sends
+ * anything, so a crash between the send and the end of the reconcile loses a re-run rather than
+ * doubling it. A write GitHub surely did not take (refused, rate-limited, a 4xx) is taken back off
+ * the record, so it is tried again. While the group is not acting nothing is recorded as spent: the
+ * would-do is ledgered once (`spent.wouldDo`), and the real write goes out once the group acts.
  *
  * - a job is re-run at most once per (head commit, failure key), whoever asks and why [PF 9.7];
  * - a lane out of balance is re-run once per backoff slot (30 minutes, 2 hours, then every 6 hours
  *   after its owner item opened), and never while one of its runs is in progress or no runner picks
  *   its jobs up. A balance-rejected job fails about 5 seconds after it is created and is not
- *   charged [PF 9.6].
+ *   charged [PF 9.6];
+ * - the creates (the revert pull request, the `intermittent` issue) look on GitHub first for the
+ *   one an earlier attempt made, so they are never made twice.
  */
 import { incidentOutcome } from "./incident.mjs";
 import { expiredArtifacts } from "./release.mjs";
@@ -48,9 +54,11 @@ const REVERT = `mutation RevertPullRequest($id: ID!, $title: String!, $body: Str
  *   backoff?: Record<string, number>,
  *   reverts?: Record<string, number>,
  *   intermittent?: Record<string, number>,
+ *   wouldDo?: Record<string, string>,
  * }} Spent the persisted record of what was already done: re-runs by `<sha> <key>`, the last
- *   backoff slot used per paid-lane item, revert pull requests by the reverted number, and the
- *   `intermittent` issue per `<sha> <key>` (0 when not sent: dry-run)
+ *   backoff slot used per paid-lane item, revert pull requests by the reverted number, the
+ *   `intermittent` issue per `<sha> <key>`, and when each would-do of a group that did not act was
+ *   ledgered
  * @typedef {{
  *   key: string, redSha: string, redJob: JobRef, parentSha: string | null, parentJob: JobRef | null,
  *   suspects: import("./incident.mjs").Suspect[], confirmed: boolean, excerpt: string,
@@ -64,6 +72,15 @@ const REVERT = `mutation RevertPullRequest($id: ID!, $title: String!, $body: Str
  * }} PaidLane a lane parked for paid capacity: when its owner item opened, its newest red run,
  *   whether any of its runs is in progress, and whether a job sits queued past its pickup bound
  */
+
+/**
+ * Whether an error says GitHub never took the write: githerd refused it, the rate budget held it
+ * back, or GitHub answered with a 4xx. A timeout, a network error or a 5xx may have been taken.
+ * @param {unknown} err what the write threw
+ * @returns {boolean} true when the write surely did not happen
+ */
+const notSent = (err) =>
+    ["refused", "rate", "secondary", "http", "credential"].includes(/** @type {{kind?: string}} */ (err)?.kind ?? "");
 
 /**
  * The backoff slot a paid lane's item is in: 0 for its first 30 minutes, 1 until 2 hours, then one
@@ -130,12 +147,48 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
     const backoffs = (spent.backoff ??= {});
     const reverts = (spent.reverts ??= {});
     const issues = (spent.intermittent ??= {});
+    const wouldDo = (spent.wouldDo ??= {});
     const r = `repos/${repo}/`;
     const iso = () => new Date(now()).toISOString();
 
     /**
+     * A one-shot write. While the group does not act, its would-do is ledgered once per `wd` and
+     * nothing is spent. Acting, `record[id]` is set to `mark` before the write, which the gate saves
+     * before sending, and taken back when GitHub surely did not take the write.
+     * @param {string} wd the would-do's key
+     * @param {Record<string, any>} record the spent record
+     * @param {string} id the entry
+     * @param {unknown} mark what the entry holds once spent
+     * @param {() => Promise<import("./github.mjs").WriteResult>} write the write
+     * @returns {Promise<import("./github.mjs").WriteResult | null>} the write, or null when its
+     *   would-do was already ledgered
+     */
+    async function once(wd, record, id, mark, write) {
+        if (!github.acting(GROUP)) {
+            if (wouldDo[wd]) return null;
+            wouldDo[wd] = iso();
+            return write();
+        }
+        const before = record[id];
+        const restore = () => {
+            if (before === undefined) delete record[id];
+            else record[id] = before;
+        };
+        record[id] = mark;
+        try {
+            const res = await write();
+            if (!res.performed) restore();
+            return res;
+        } catch (err) {
+            if (notSent(err)) restore();
+            throw err;
+        }
+    }
+
+    /**
      * Re-runs one job, at most once per (head commit, failure key) [PF 9.7]: the same job id names
-     * its run, and the run keeps its head commit, so an old run re-tests the old commit.
+     * its run, and the run keeps its head commit, so an old run re-tests the old commit. Read back
+     * at the run's next attempt, which exists once the re-run (or anyone's) started.
      * @param {JobRef} job the job
      * @param {string} sha its run's head commit
      * @param {string} key the failure key
@@ -147,12 +200,15 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
         const id = `${sha} ${key}`;
         const done = reruns[id];
         if (done) return { refused: `${key} was already re-run on ${sha.slice(0, 8)} (${done.why}, ${done.at})` };
-        reruns[id] = { why, at: iso() };
-        return github.write("POST", `${r}actions/jobs/${job.id}/rerun`, undefined, {
-            group: GROUP,
-            check: { path: `${r}actions/runs/${job.runId}`, expect: { run_attempt: job.attempt + 1 } },
-            fields: { situation: why, key, sha },
-        });
+        const next = job.attempt + 1;
+        const res = await once(`rerun ${id}`, reruns, id, { why, at: iso() }, () =>
+            github.write("POST", `${r}actions/jobs/${job.id}/rerun`, undefined, {
+                group: GROUP,
+                check: { path: `${r}actions/runs/${job.runId}/attempts/${next}`, expect: { run_attempt: next } },
+                fields: { situation: why, key, sha },
+            }),
+        );
+        return res ?? { refused: `the would-do of re-running ${key} on ${sha.slice(0, 8)} is already recorded` };
     }
 
     /**
@@ -177,15 +233,19 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
     /**
      * Files, reopens or updates the one `intermittent` issue of a key, once per (commit, key). An
      * earlier occurrence means this one is on another commit, which makes it critical (design 3.1).
+     * The issue is found by its marker line before one is filed, so a filing that a crash or an
+     * error interrupted is never repeated; a failure before the comment went out is tried again on
+     * the next reconcile.
      * @param {string} key the failure key
      * @param {string} sha the commit it failed and then passed on
      * @param {string} excerpt log lines of the failure
-     * @returns {Promise<number>} the issue's number; 0 when nothing was sent (dry-run)
+     * @returns {Promise<number | null>} the issue's number; null while the group does not act
      */
     async function intermittentIssue(key, sha, excerpt) {
         const id = `${sha} ${key}`;
-        if (id in issues) return issues[id];
-        issues[id] = 0;
+        if (issues[id]) return issues[id];
+        const acting = github.acting(GROUP);
+        if (!acting && wouldDo[`issue ${id}`]) return null;
         const list = (await github.get(`${r}issues?labels=intermittent&state=all&per_page=100`)).body ?? [];
         const found = list.find(
             (/** @type {any} */ i) => !i.pull_request && (i.body ?? "").split("\n").includes(`${MARKER}${key}`),
@@ -205,17 +265,40 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
                 },
                 { group: GROUP, check: "created", fields },
             );
-            issues[id] = res.performed ? Number(res.body?.number ?? 0) : 0;
-            return issues[id];
+            if (!res.performed) wouldDo[`issue ${id}`] = iso();
+            const n = Number(res.body?.number ?? 0);
+            if (n) issues[id] = n;
+            return n || null;
         }
         const n = found.number;
-        const path = `${r}issues/${n}`;
+        if (acting) issues[id] = n;
+        let commented = false;
+        try {
+            await updateIssue(found, text, fields);
+            commented = true;
+            await raisePriority(found, fields);
+        } catch (err) {
+            if (!commented) delete issues[id];
+            throw err;
+        }
+        if (!acting) wouldDo[`issue ${id}`] = iso();
+        return acting ? n : null;
+    }
+
+    /**
+     * Reopens an `intermittent` issue if it was closed, and comments on it.
+     * @param {any} found the issue
+     * @param {string} text the comment's text
+     * @param {Record<string, unknown>} fields ledger fields
+     */
+    async function updateIssue(found, text, fields) {
+        const path = `${r}issues/${found.number}`;
         if (found.state === "closed") {
             await github.write(
                 "PATCH",
                 path,
                 { state: "open" },
-                { group: GROUP, check: { path, expect: { state: "open" } }, fields },
+                { group: GROUP, check: { path, expect: { state: "open" } }, retry: true, fields },
             );
         }
         await github.write(
@@ -224,40 +307,53 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
             { body: `Again: ${text}` },
             { group: GROUP, check: "created", fields },
         );
+    }
+
+    /**
+     * Makes an `intermittent` issue critical, dropping its other priority labels.
+     * @param {any} found the issue
+     * @param {Record<string, unknown>} fields ledger fields
+     */
+    async function raisePriority(found, fields) {
         const labels = (found.labels ?? []).map((/** @type {any} */ l) => (typeof l === "string" ? l : l.name));
-        if (!labels.includes(CRITICAL)) {
-            const at = `${path}/labels`;
-            await github.write(
-                "POST",
-                at,
-                { labels: [CRITICAL] },
-                { group: GROUP, check: { path: at, expect: [{ name: CRITICAL }] }, fields },
-            );
-            for (const l of labels.filter((x) => x.startsWith("priority:"))) {
-                await github.write("DELETE", `${at}/${encodeURIComponent(l)}`, undefined, {
-                    group: GROUP,
-                    check: { path: at, lacks: [{ name: l }] },
-                    fields,
-                });
-            }
+        if (labels.includes(CRITICAL)) return;
+        const at = `${r}issues/${found.number}/labels`;
+        await github.write(
+            "POST",
+            at,
+            { labels: [CRITICAL] },
+            { group: GROUP, check: { path: at, expect: [{ name: CRITICAL }] }, retry: true, fields },
+        );
+        for (const l of labels.filter((x) => x.startsWith("priority:"))) {
+            await github.write("DELETE", `${at}/${encodeURIComponent(l)}`, undefined, {
+                group: GROUP,
+                check: { path: at, lacks: [{ name: l }] },
+                retry: true,
+                fields,
+            });
         }
-        issues[id] = n;
-        return n;
     }
 
     /**
      * Opens the revert pull request of the one merge between green and red (GraphQL
      * `revertPullRequest`), once per reverted pull request. Its title is GitHub's own revert form,
-     * which commitlint ignores.
+     * which commitlint ignores. An open pull request with that title (one a crash kept githerd from
+     * recording, or one the owner opened) is taken as the revert instead of opening another.
      * @param {number} pr the pull request to revert
      * @param {CodeRed} inc the incident, for the body
-     * @returns {Promise<number>} the revert pull request's number; 0 when nothing was sent (dry-run)
+     * @returns {Promise<number | null>} the revert pull request's number; null while the group does
+     *   not act, or when GitHub's answer named none (the next reconcile finds it by its title)
      */
     async function openRevert(pr, inc) {
-        if (pr in reverts) return reverts[pr];
-        reverts[pr] = 0;
+        if (reverts[pr]) return reverts[pr];
+        if (!github.acting(GROUP) && wouldDo[`revert ${pr}`]) return null;
         const p = (await github.get(`${r}pulls/${pr}`, { fresh: true })).body;
         const title = `Revert "${p.title}"`;
+        const list = `${r}pulls?state=open&base=${p.base.ref}&per_page=100`;
+        const existing = ((await github.get(list, { fresh: true })).body ?? []).find(
+            (/** @type {any} */ x) => x.title === title,
+        );
+        if (existing) return (reverts[pr] = existing.number);
         const body =
             `Reverts #${pr}. \`${inc.key}\` went red on master at ${inc.redSha}. Re-run on that commit it failed ` +
             `again; the same job of the last green commit ${inc.parentSha} passed when re-run today; and #${pr} is the ` +
@@ -267,12 +363,14 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
             { id: p.node_id, title, body },
             {
                 group: GROUP,
-                check: { path: `${r}pulls?state=open&base=${p.base.ref}&per_page=100`, expect: [{ title }] },
+                check: { path: list, expect: [{ title }] },
                 fields: { situation: "revert", pr, key: inc.key, sha: inc.redSha },
             },
         );
-        reverts[pr] = res.performed ? Number(res.body?.data?.revertPullRequest?.revertPullRequest?.number ?? 0) : 0;
-        return reverts[pr];
+        if (!res.performed) wouldDo[`revert ${pr}`] = iso();
+        const n = Number(res.body?.data?.revertPullRequest?.revertPullRequest?.number ?? 0);
+        if (n) reverts[pr] = n;
+        return n || null;
     }
 
     /**
@@ -283,8 +381,8 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
      * worker's.
      * @param {CodeRed} inc the key
      * @returns {Promise<import("./incident.mjs").Outcome | {outcome: "waiting", waitingFor: "confirmation"}
-     *   | (import("./incident.mjs").Outcome & {issue?: number, revertPr?: number})>} the outcome, with the
-     *   issue or revert pull request it led to
+     *   | (import("./incident.mjs").Outcome & {issue?: number | null, revertPr?: number | null})>} the
+     *   outcome, with the issue or revert pull request it led to (null: not made yet)
      */
     async function codeRed(inc) {
         if (!inc.confirmed) return { outcome: "waiting", waitingFor: "confirmation" };
@@ -311,12 +409,14 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
         const id = `${item.lane} ${new Date(item.openedAt).toISOString()}`;
         const slot = backoffSlot(item.openedAt, now());
         if (item.running || item.notProgressing || slot <= (backoffs[id] ?? 0)) return null;
-        backoffs[id] = slot;
-        return github.write("POST", `${r}actions/runs/${item.run.id}/rerun-failed-jobs`, undefined, {
-            group: GROUP,
-            check: { path: `${r}actions/runs/${item.run.id}`, expect: { run_attempt: item.run.attempt + 1 } },
-            fields: { situation: "paid-capacity-backoff", lane: item.lane, slot },
-        });
+        const next = item.run.attempt + 1;
+        return once(`backoff ${id} ${slot}`, backoffs, id, slot, () =>
+            github.write("POST", `${r}actions/runs/${item.run.id}/rerun-failed-jobs`, undefined, {
+                group: GROUP,
+                check: { path: `${r}actions/runs/${item.run.id}/attempts/${next}`, expect: { run_attempt: next } },
+                fields: { situation: "paid-capacity-backoff", lane: item.lane, slot },
+            }),
+        );
     }
 
     /**
@@ -333,12 +433,14 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
         const run = (await github.get(path, { fresh: true })).body;
         const id = `${hit.sha} release-artifacts ${run.run_attempt}`;
         if (reruns[id] || run.status !== "completed") return null;
-        reruns[id] = { why: "expired-artifacts", at: iso() };
-        return github.write("POST", `${path}/rerun`, undefined, {
-            group: GROUP,
-            check: { path, expect: { run_attempt: run.run_attempt + 1 } },
-            fields: { situation: "expired-artifacts", sha: hit.sha },
-        });
+        const next = run.run_attempt + 1;
+        return once(`rerun ${id}`, reruns, id, { why: "expired-artifacts", at: iso() }, () =>
+            github.write("POST", `${path}/rerun`, undefined, {
+                group: GROUP,
+                check: { path: `${path}/attempts/${next}`, expect: { run_attempt: next } },
+                fields: { situation: "expired-artifacts", sha: hit.sha },
+            }),
+        );
     }
 
     return { rerun, rerunResult, codeRed, intermittentIssue, openRevert, backoff, recreateArtifacts };

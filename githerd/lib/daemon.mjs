@@ -59,7 +59,7 @@ import { pushRunBranch } from "./actor/push.mjs";
 import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
 import { effectiveMode, resolveConfig } from "./config.mjs";
-import { createGitHub } from "./github.mjs";
+import { createGitHub, GitHubError } from "./github.mjs";
 import { pollIssues } from "./issues.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
 import { servherd as servherdData } from "./launcher.mjs";
@@ -69,13 +69,13 @@ import { failureKey } from "./lanes.mjs";
 import { createMcpServer } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
-import { createNotifier, notePresence, ownerItemsPoll, presentDays } from "./notify.mjs";
+import { createNotifier, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
 import { pagesFor } from "./paging.mjs";
 import { containerStart, identify } from "./proc.mjs";
 import { buildPrompt } from "./prompts.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
 import { updatePrs, whyStuck } from "./prs.mjs";
-import { upkeepStacks } from "./upkeep.mjs";
+import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
 import { NEXT, SKIP } from "./queue.mjs";
 import { createRetriage } from "./retriage.mjs";
 import { authenticate, runTools } from "./run-tools.mjs";
@@ -280,6 +280,20 @@ function noteLaneName(lane, runName, ms) {
     if (runName) lane.workflowName = runName;
     if (lane.verdict !== "red") delete lane.redSince;
     else lane.redSince ??= lane.updatedAt ?? new Date(ms).toISOString();
+}
+
+/**
+ * Whether a code-red key's procedure is done for the daemon: an outcome other than waiting, with
+ * the issue or revert pull request it calls for already made (a would-do or a failed try leaves it
+ * to be made on a later reconcile).
+ * @param {{outcome?: string, issue?: number | null, revertPr?: number | null}} rec the key's record
+ * @returns {boolean} true when nothing is left to do
+ */
+function settled(rec) {
+    if (!rec.outcome || rec.outcome === "waiting") return false;
+    if (rec.outcome === "intermittent") return Boolean(rec.issue);
+    if (rec.outcome === "revert") return Boolean(rec.revertPr);
+    return true;
 }
 
 /**
@@ -622,6 +636,11 @@ export async function startDaemon({
             writes: state.writes,
             env: secrets,
             now: () => now().getTime(),
+            // What a caller recorded about a write is on disk before GitHub sees the write.
+            persist: async () => {
+                if (!mayWrite()) throw new GitHubError("refused", "another daemon owns the state directory");
+                await save();
+            },
         }));
 
     /**
@@ -813,7 +832,7 @@ export async function startDaemon({
                 const key = failureKey(workflow, job.name, job.step);
                 const rec = (keys[key] ??= { seen: 0 });
                 rec.seen++;
-                if (rec.outcome && rec.outcome !== "waiting") continue;
+                if (settled(rec)) continue;
                 const out = await actions.codeRed({
                     key,
                     redSha: lane.sha,
@@ -1149,7 +1168,10 @@ export async function startDaemon({
     /**
      * Keeps stacked pull requests moving (design 4.6, "Stacks"): a child whose base merged is
      * retargeted to the default branch, and a child whose base's head moved is updated from it.
-     * A merged branch is forgotten once a step on it went through (or was recorded as a would-do).
+     * A base's new head is remembered only once its child's update settled (`SETTLED`), so an
+     * update that was refused, failed or threw is tried again next reconcile; a merged branch is
+     * forgotten once its child's retarget went through (or was recorded as a would-do). A conflict
+     * with the base is an owner item on the child until a `pr` job can take it.
      * @param {any[]} nodes the open pull requests
      * @param {string} branch the default branch
      */
@@ -1161,24 +1183,34 @@ export async function startDaemon({
             headRef: n.headRefName,
             head: n.headRefOid,
         }));
-        try {
-            await upkeepStacks(
+        const poll = { prs, lastHeads: upkeep.lastHeads, mergedHeads: upkeep.mergedHeads };
+        const steps = await upkeepStacks(
+            {
+                gh: github(),
+                repo: config.repo,
+                root,
+                mode: writeMode,
+                ledger,
+                env: { ...env, GIT_TERMINAL_PROMPT: "0" },
+                branch,
+            },
+            poll,
+        );
+        for (const s of steps) {
+            const r = /** @type {any} */ (s.result);
+            if (r?.result !== "conflict") continue;
+            raiseItem(
+                state,
                 {
-                    gh: github(),
-                    repo: config.repo,
-                    root,
-                    mode: writeMode,
-                    ledger,
-                    env: { ...env, GIT_TERMINAL_PROMPT: "0" },
-                    branch,
+                    id: `stack-conflict:${s.pr}`,
+                    kind: "conflict",
+                    question: `#${s.pr} conflicts with its base #${s.base} in ${(r.conflicts ?? []).join(", ")}; merge #${s.base} into it by hand`,
+                    target: `pr:${s.pr}`,
                 },
-                { prs, lastHeads: upkeep.lastHeads, mergedHeads: upkeep.mergedHeads },
+                now(),
             );
-            upkeep.mergedHeads = [];
-        } catch (err) {
-            void ledger({ kind: "error", where: "stacks", error: /** @type {Error} */ (err).message });
         }
-        upkeep.lastHeads = Object.fromEntries(prs.map((p) => [p.number, p.head]));
+        Object.assign(upkeep, nextStackRecord(poll, steps));
     }
 
     /**
@@ -1201,7 +1233,7 @@ export async function startDaemon({
             const ownerItemOpen = items.some((i) => i.target === `pr:${node.number}`);
             prs.push(openPr(node, gate.heads[node.number], { ownerItemOpen }));
         }
-        const fixPr = state.claims?.master?.fixPr;
+        const fixPrs = incidentFixPrs();
         // ponytail: every red gating lane counts as code red until the classifier is wired in;
         // a paid-capacity or outside red holds too, which fails closed.
         const redLanes = Object.entries(m.lanes)
@@ -1209,7 +1241,7 @@ export async function startDaemon({
             .map(([name, l]) => ({
                 workflow: l.workflowName ?? name,
                 since: l.redSince ?? l.updatedAt,
-                fixPrs: fixPr ? [Number(fixPr)] : [],
+                fixPrs,
             }));
         const ctx = {
             login: state.trust.login,
@@ -1223,7 +1255,26 @@ export async function startDaemon({
         const posted = await postMergeStatuses({ github: gh, repo: config.repo, branch, prs, ctx, record: gate });
         for (const error of posted.errors) void ledger({ kind: "error", where: "githerd/merge", error });
         for (const p of prs) if (state.prs?.[p.number]) state.prs[p.number].mergeStatus = gate.posted[p.number];
-        gate.checks = mergeGateChecks({ prs, branch, record: gate, mergify: mergify ?? null });
+        gate.checks = mergeGateChecks({
+            prs,
+            branch,
+            record: gate,
+            mergify: mergify ?? null,
+            acting: gh.acting("statuses"),
+        });
+    }
+
+    /**
+     * The pull requests that are a red master's fix, exempt from its merge hold (design 4.6, line
+     * 2): the one a session claimed `master` with, and every revert pull request the open
+     * incident's procedure opened.
+     * @returns {number[]} their numbers
+     */
+    function incidentFixPrs() {
+        const claimed = Number(state.claims?.master?.fixPr ?? 0);
+        const open = Object.values(state.incidents).find((i) => i.status === "open");
+        const reverts = Object.values(open?.keys ?? {}).map((k) => Number(/** @type {any} */ (k).revertPr ?? 0));
+        return [...new Set([claimed, ...reverts].filter((n) => n > 0))];
     }
 
     /**

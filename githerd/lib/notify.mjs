@@ -298,7 +298,7 @@ const DAYS_KEPT = 60;
  * @typedef {ItemInput & {options: ItemOption[], target: string | null, blocks: "workers" | "release" | null,
  *   raisedAt: string, updatedAt: string, endedAt?: string, endedBy?: string,
  *   paged?: {text: string, at: string, via: "page" | "digest"},
- *   github?: {text: string, performed: boolean, at: string, unlabeled?: boolean}}} OwnerItem
+ *   github?: {text: string, performed: boolean, at: string, labeled?: boolean, unlabeled?: boolean}}} OwnerItem
  */
 
 /**
@@ -528,14 +528,17 @@ function commentBody(item) {
 /**
  * Puts open items on the issue or pull request they concern (a comment and the `needs-decision`
  * label, through the `owner-items` write group) when their text changed since the last post, or
- * when the last post was only a would-do and the group now acts. Takes the label off an ended item
- * unless another open item on the same target still needs it. A failed write is left for the next
- * poll.
- * @param {{api: any, repo: string, state: any, acting: boolean, now: Date}} options the GitHub
- *   client, `owner/name`, the daemon state (mutated), whether the `owner-items` group acts
+ * when the last post was only a would-do and the group now acts. The comment and the label are
+ * tracked apart, so a label that failed is tried again alone and the comment is never posted twice.
+ * Takes the label off an ended item unless another open item on the same target still needs it. A
+ * failed write is ledgered with the item's id and left for the next poll.
+ * @param {{api: any, repo: string, state: any, acting: boolean, now: Date,
+ *   ledger?: (entry: {kind: string} & Record<string, unknown>) => unknown}} options the GitHub
+ *   client, `owner/name`, the daemon state (mutated), whether the `owner-items` group acts, the
+ *   time and the ledger
  * @returns {Promise<void>}
  */
-export async function postItems({ api, repo, state, acting, now }) {
+export async function postItems({ api, repo, state, acting, now, ledger }) {
     /** @type {OwnerItem[]} */
     const items = Object.values(state.ownerItems ?? {});
     for (const item of items) {
@@ -550,6 +553,7 @@ export async function postItems({ api, repo, state, acting, now }) {
             api.write(method, `repos/${repo}/issues/${n}/${path}`, body, {
                 group: "owner-items",
                 check,
+                retry: check !== "created",
                 fields: { situation: `owner-item:${item.kind}`, item: item.id, target: item.target },
             });
         const labels = `repos/${repo}/issues/${n}/labels`;
@@ -562,12 +566,27 @@ export async function postItems({ api, repo, state, acting, now }) {
                 continue;
             }
             const text = itemText(item);
-            if (item.github?.text === text && (item.github.performed || !acting)) continue;
-            const res = await write("POST", "comments", { body: commentBody(item) }, "created");
-            await write("POST", "labels", { labels: [LABEL] }, { path: labels, expect: [{ name: LABEL }] });
-            item.github = { text, performed: res.performed, at: now.toISOString() };
-        } catch {
-            // the gate has ledgered the failure; the next poll tries again
+            if (item.github?.text !== text || (!item.github.performed && acting)) {
+                const res = await write("POST", "comments", { body: commentBody(item) }, "created");
+                item.github = { text, performed: res.performed, at: now.toISOString(), labeled: false };
+            }
+            const github = /** @type {NonNullable<OwnerItem["github"]>} */ (item.github);
+            if (!github.labeled) {
+                const res = await write(
+                    "POST",
+                    "labels",
+                    { labels: [LABEL] },
+                    { path: labels, expect: [{ name: LABEL }] },
+                );
+                github.labeled = res.performed || !acting;
+            }
+        } catch (err) {
+            await ledger?.({
+                kind: "error",
+                where: "owner-items",
+                item: item.id,
+                error: /** @type {Error} */ (err).message,
+            });
         }
     }
 }
@@ -647,7 +666,7 @@ export async function ownerItemsPoll({ api, repo, state, notifier, acting, login
         ended = await readAnswers({ api, repo, state, login, now });
         for (const id of ended)
             await ledger?.({ kind: "owner-item", item: id, event: "ended", by: state.ownerItems[id].endedBy });
-        await postItems({ api, repo, state, acting, now });
+        await postItems({ api, repo, state, acting, now, ledger });
     }
     const pages = planPages(state, now, { digestHourUtc });
     for (const page of pages) notifier.send(page);

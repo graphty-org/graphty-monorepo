@@ -15,7 +15,9 @@
  * `statuses`, so in dry-run each is a `would-do` ledger line.
  *
  * The posted record (`record.posted`, by pull request number) is kept in dry-run too, so the ledger
- * shows one would-do per change, as acting mode would write it.
+ * shows one would-do per change, as acting mode would write it. Each entry says whether its write
+ * was `performed`; once the group acts, an entry that was only a would-do counts as not posted, so
+ * the real status goes out on the next reconcile. The disarm record works the same way.
  */
 
 import { GitHubError } from "./github.mjs";
@@ -47,11 +49,15 @@ const DISARM = `mutation DisarmAutoMerge($id: ID!) {
  * @typedef {MergeFacts & {head: string, base: string, nodeId: string | null, autoMergeAt: string | null}}
  *   OpenPr an open pull request: the decision's facts, its head commit, its base branch, its
  *   GraphQL node id, and when native auto-merge was armed on it (null when it is not)
- * @typedef {{sha: string, state: string, description: string, line: number | null, evaluated: boolean}}
- *   Posted the status last posted (or recorded as a would-do) on a pull request; `evaluated` is
- *   set once a reconcile has posted `pending` on this head
- * @typedef {{posted?: Record<string, Posted>, disarmed?: Record<string, string>}} StatusRecord the
- *   persisted record: what was posted, and the auto-merge arming each disarm answered
+ * @typedef {{sha: string, state: string, description: string, line: number | null, evaluated: boolean,
+ *   performed?: boolean}} Posted the status last posted (or recorded as a would-do) on a pull
+ *   request; `evaluated` is set once a reconcile has posted `pending` on this head, `performed` when
+ *   the write was sent rather than recorded
+ * @typedef {{at: string, performed: boolean}} Disarmed the auto-merge arming a disarm answered, and
+ *   whether it was sent
+ * @typedef {{posted?: Record<string, Posted>, disarmed?: Record<string, Disarmed | string>}}
+ *   StatusRecord the persisted record: what was posted, and the disarms (a bare string is an entry
+ *   from before `performed` was kept, read as not sent)
  * @typedef {(name: string) => Promise<boolean | null>} NpmLookup whether npm knows a package:
  *   true, false (404), or null when the registry did not answer
  */
@@ -261,19 +267,29 @@ export async function postMergeStatuses({ github, repo, branch, prs, ctx, record
         }
     };
 
+    const acting = github.acting(GROUP);
+    /**
+     * Whether a record entry stands for a write that needs no repeat: one that was sent, or any
+     * entry while the group does not act.
+     * @param {{performed?: boolean} | undefined} entry the entry
+     * @returns {boolean} true when it counts as done
+     */
+    const done = (entry) => Boolean(entry) && (entry?.performed === true || !acting);
     for (const p of prs) {
-        if (!p.autoMergeAt || !p.nodeId || disarmed[p.number] === p.autoMergeAt) continue;
+        const d = disarmed[p.number];
+        if (!p.autoMergeAt || !p.nodeId || (typeof d === "object" && d.at === p.autoMergeAt && done(d))) continue;
         await attempt(async () => {
-            await github.mutate(
+            const res = await github.mutate(
                 DISARM,
                 { id: p.nodeId },
                 {
                     group: GROUP,
                     check: { path: `repos/${repo}/pulls/${p.number}`, expect: { auto_merge: null } },
+                    retry: true,
                     fields: { situation: "native auto-merge armed", pr: p.number },
                 },
             );
-            disarmed[p.number] = /** @type {string} */ (p.autoMergeAt);
+            disarmed[p.number] = { at: /** @type {string} */ (p.autoMergeAt), performed: res.performed };
         });
     }
 
@@ -282,6 +298,7 @@ export async function postMergeStatuses({ github, repo, branch, prs, ctx, record
         .map((p) => ({ p, status: statusFor(p, ctx, posted[p.number], p.head) }))
         .filter(({ p, status }) => {
             const prev = posted[p.number];
+            if (!done(prev)) return true;
             return prev?.sha !== p.head || prev.state !== status.state || prev.description !== status.description;
         })
         .sort((a, b) => ORDER[a.status.state] - ORDER[b.status.state] || a.p.number - b.p.number);
@@ -289,17 +306,18 @@ export async function postMergeStatuses({ github, repo, branch, prs, ctx, record
     for (const { p, status } of due) {
         await attempt(async () => {
             const body = { state: status.state, description: status.description, context: CONTEXT };
-            await github.write("POST", `repos/${repo}/statuses/${p.head}`, body, {
+            const res = await github.write("POST", `repos/${repo}/statuses/${p.head}`, body, {
                 group: GROUP,
                 check: {
                     path: `repos/${repo}/commits/${p.head}/status?per_page=100`,
                     expect: { statuses: [{ context: CONTEXT, state: status.state, description: status.description }] },
                 },
+                retry: true,
                 fields: { situation: status.line ? `${status.state} line ${status.line}` : status.state, pr: p.number },
             });
             const prev = posted[p.number];
             const evaluated = status.state === "pending" || (prev?.sha === p.head && prev.evaluated);
-            posted[p.number] = { sha: p.head, ...status, evaluated };
+            posted[p.number] = { sha: p.head, ...status, evaluated, performed: res.performed };
             written++;
         });
     }
@@ -323,16 +341,18 @@ export function mergifyRequires(text) {
 /**
  * The merge gate's part of the invariant check (design 9.5): every open pull request into the
  * default branch has a current `githerd/merge`, and no native auto-merge is armed (faults); and
- * the banner while master's `.mergify.yml` does not wait for `githerd/merge`.
- * @param {{prs: OpenPr[], branch: string, record: StatusRecord, mergify: string | null}} options
- *   every open pull request, the default branch, the persisted record, and `.mergify.yml` on the
- *   default branch
+ * the banner while master's `.mergify.yml` does not wait for `githerd/merge`. While the `statuses`
+ * group acts, only a status that was sent covers a head; a would-do does not.
+ * @param {{prs: OpenPr[], branch: string, record: StatusRecord, mergify: string | null,
+ *   acting?: boolean}} options every open pull request, the default branch, the persisted record,
+ *   `.mergify.yml` on the default branch, and whether the `statuses` group acts
  * @returns {{faults: {record: string, problem: string}[], banners: string[]}} the violations
  */
-export function mergeGateChecks({ prs, branch, record, mergify }) {
+export function mergeGateChecks({ prs, branch, record, mergify, acting = false }) {
     const faults = [];
     for (const p of prs) {
-        if (p.base === branch && record.posted?.[p.number]?.sha !== p.head) {
+        const posted = record.posted?.[p.number];
+        if (p.base === branch && (posted?.sha !== p.head || (acting && !posted.performed))) {
             faults.push({ record: `pr ${p.number}`, problem: `no current ${CONTEXT} status on its head` });
         }
         if (p.autoMergeAt) {

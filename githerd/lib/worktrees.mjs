@@ -397,7 +397,7 @@ export async function referenceDryRun(options) {
 /**
  * The pre-push gate on the green commit, every package (`PREPUSH_ALL=1`), once per green commit:
  * a gate step that fails here fails for every job, so a job's failure of the same step is shared
- * (the classifier's `failsOnGreen`). The gate takes the machine's gate lock like any other.
+ * (the classifier's `failsOnGreen`). The gate waits in the machine's push queue like any other.
  * @param {RefOptions & {timeoutMs?: number}} options the options
  * @returns {Promise<{verdict: "pass", sha: string} | {verdict: "fail", sha: string, steps: string[]} |
  *   Fault>} the verdict, with the gate's failed steps
@@ -407,7 +407,10 @@ export async function referenceGate(options) {
     if ("verdict" in at) return at;
     const cached = options.state.reference.gate;
     if (cached?.sha === at.sha) return cached;
-    const r = await run("bash", ["tools/prepush.sh"], {
+    // Through the machine's push queue, like every session's gate, when the repository has one.
+    const queue = join(options.root, "tools", "push-queue.sh");
+    const gate = existsSync(queue) ? [queue, "bash", "tools/prepush.sh"] : ["tools/prepush.sh"];
+    const r = await run("bash", gate, {
         cwd: at.dir,
         timeoutMs: options.timeoutMs ?? GATE_TIMEOUT_MS,
         env: { ...refEnv(options.env), PREPUSH_ALL: "1" },

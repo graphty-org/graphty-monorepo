@@ -250,7 +250,7 @@ adversarial review added (section 3.10). Columns:
 | Two sessions planning majors for the same package | The group comes from open pull requests, not from sessions | A second breaking pull request joins the group | D | One major per package per group |
 | Title or commit message fails commitlint | The daemon runs the repository's commitlint on the title in the reference worktree when a pull request opens or its title changes; commit messages are checked locally by `.husky/commit-msg` [INC2 6] | Lowercase-first-letter fix by the daemon. Otherwise: if the session that made the pull request is open, it is rung with the output; else a `title` job, which needs no worktree. `pr-title.yml` re-runs on `edited` [R10] | D; W `title` | `Lint PR Title` green |
 | Pre-push gate failure or a push misread as success | Pushes are run by the daemon (section 4.8), so the result is known; `githerd_done` compares the reported head with `git ls-remote` | A gate failure is classified like a CI failure, with a local failure key; a key that fails in two jobs or on the green commit is a shared local incident, and does not count as an attempt for a job that did not touch the failing file | D | GitHub's head equals the pushed commit |
-| Push queue backs up | The daemon's own queue and the shared push lock's waiters [S24] | Priority (incident fixes, then finished work, then the rest); sessions waiting to push count as waiting, not working; while the queue is deep, only work that needs no push is dispatched | D | Queue under its limit |
+| Push queue backs up | The daemon's own queue and the machine's push queue's tickets (4.8) | Priority (incident fixes, then finished work, then the rest); sessions waiting to push count as waiting, not working; while the queue is deep, only work that needs no push is dispatched | D | Queue under its limit |
 | Commits pushed but checks never start | No check suite on a head 10 minutes after it appeared, 1 call; unless "Actions degraded" holds (3.10) | A workflow that did not trigger is an incident; conflicts go to the conflict row | D; W `incident` | Checks running |
 | Green but not merging | Required checks green, mergeable, `githerd/merge` success, not merged after Mergify's queue ahead of it drained | The board shows the first failing decision line, or Mergify's queue position from its check run; a pull request stuck with `success` at the front of an empty queue for an hour is an incident for the Mergify configuration | D | Merged, or the reason is an owner item |
 | Native auto-merge armed | `auto_merge` in the pull request list | Disarmed everywhere: it would merge on the ruleset's checks alone and bypass `githerd/merge`; Mergify is the merger | D | No native auto-merge armed |
@@ -711,7 +711,7 @@ Workers never run `git push` (the guard refuses it). They call `githerd_push`. T
    default branch's came in with a merge of it and is not a change), refuses a worktree with
    uncommitted changes to those paths, and runs
    `git -C <worktree> -c core.hooksPath=<main checkout>/.husky/_ push origin <expectHead>:refs/heads/<branch>`
-   as its own tracked child process, with the normal hooks (never `--no-verify`), so the pre-push
+   through the machine's push queue (below) as its own tracked child process, with the normal hooks (never `--no-verify`), so the pre-push
    gate runs exactly as for a person. The guard refuses Edit and Write to the gate's files but not
    a Bash command that rewrites them, so these checks, and hooks taken from the main checkout
    rather than the worktree's ignored `.husky/_`, are what keep a worker from gating its own push.
@@ -724,24 +724,25 @@ Workers never run `git push` (the guard refuses it). They call `githerd_push`. T
 5. sets the job's wait to `push` while queued and running, so the worker is idle, not working;
 6. rings the worker with the result.
 
-The pre-push gate takes a `flock` itself (plan task 4.1 changed `tools/prepush.sh`, which took
-none [R11], [R12]) on `prepush.lock` in the git common directory, which every worktree of the
-repository shares, so owner sessions and the daemon's pushes wait on the same lock. It is not
-`tmp/prepush.lock`: sessions take that one around `git push` by convention [R12], and a gate inside
-such a push would wait for its own parent. The kernel
-releases it only when every process holding its descriptor is gone, and every step a shell starts
-inherits it, so the gate runs its background SonarQube step (its own process group) with the
-descriptor closed, and the daemon starts each push in its own process group and kills the group
-[S24]. Holder and waiters are read from `/proc/<pid>/fdinfo` of the processes that have the lock
-file open (the holder's have a `lock:` line; each waiting gate is one blocked `flock` process,
-open without one, beside its shell), with the holder's sidecar file `prepush.lock.holder` for its
-name; `/proc/locks` is not used, because it hides a lock whose `flock` process has exited,
-which is how a script takes it [S24]. Every worktree already shares the main checkout's Nx cache:
+Every session on the machine pushes through one queue, `tools/push-queue.sh` (the owner's, since
+2026-10-03): first come first served, three gates at once (`PUSH_QUEUE_SLOTS`), a push with
+`PUSH_QUEUE_PRIORITY=critical` ahead of every normal one, and a ticket whose process died dropped,
+so a killed push never blocks it. Its tickets live in the main checkout's `tmp/push-queue/`, which
+every worktree shares. The daemon's pushes take the same queue, never a lock of their own:
+`tools/push-queue.sh git -c core.hooksPath=<main checkout>/.husky/_ push origin <head>:refs/heads/<branch>`
+from the job's worktree, an incident's fix as `critical`, while githerd keeps its own priority
+order among its pushes, one at a time. The board reads the running and waiting pushes from the
+tickets. `tools/prepush.sh` takes no lock: a lock there would make the three slots one gate at a
+time for every session. The daemon starts each push in its own process group and kills the group,
+which ends the gate; the gate's exit trap ends its background SonarQube step.
+
+Every worktree already shares the main checkout's Nx cache:
 Nx 22.7 resolves the cache directory to the main worktree's `.nx/cache` on its own, so a fresh
 worktree's first gate is not a cold build [S23]. `NX_CACHE_DIRECTORY` is never set: with it, Nx
 reported cache hits and restored no output [S23]. A push is bounded at twice the longest of the
 last 5 successful gates' durations and 30 minutes, so a gate the Nx cache made fast never cuts the
-next, cold one short.
+next, cold one short. The bound starts when the gate prints its "Pre-push validation" banner, not
+when the push is queued: time spent behind other sessions' gates is not charged to it.
 
 Because the daemon runs the push, the permission classifier never judges it, a worker's death does
 not kill it, and its queue position is real. The queue is saved with the state. A push that was
@@ -1748,7 +1749,7 @@ Each finding below is resolved in this design, or the reason it is not adopted i
 | Mergify updates and status interplay untested | Mergify is adopted; the coordination change and its verification steps are in 4.6 |
 | `githerd_done` refused a head Mergify or the review tool extended | Ancestor rule (6) |
 | Mergify merges without consulting githerd | The `githerd/merge` conditions of the coordination change; until they land, a banner (4.6, 9.5) |
-| The push lock was a convention, not a component | The push queue plus a flock inside `tools/prepush.sh` [R11], [R12] (4.8) |
+| The push lock was a convention, not a component | The machine's push queue, `tools/push-queue.sh`, which githerd's pushes also take (4.8) |
 | Queued pushes die at the tool timeout and livelock with recycling | The daemon runs pushes; jobs wait on `push` (4.8) |
 | Urgent fixes queued behind routine pushes | Priority in the push queue (4.8) |
 | A local gate failure looped every job | Local failure keys, shared local incidents, gate on the green commit (4.4, 4.9) |
@@ -1783,7 +1784,7 @@ Each finding below is resolved in this design, or the reason it is not adopted i
 | Unbuilt worktrees fooled workers | Nx build and smoke test before start (7.1) |
 | Hooks restarted a slow daemon in a storm | Liveness split from progress; restart lock (9.4) |
 | Load caused false start failures and a false page | Deadlines and fault counts pause above the load limit (5.3) |
-| Three gates at once; the browser lock was a design-kit script | The push queue and flock; Chromium counted per worker (4.8, 8.1) |
+| Three gates at once; the browser lock was a design-kit script | The push queue's three slots; Chromium counted per worker (4.8, 8.1) |
 | Orphans after a crash mid-push | `/proc/<pid>/cwd` sweep; the daemon owns pushes; death count (7.7) |
 | Doorbells into dialogs; suppressed doorbells stalled jobs | Positive match and verification; 30-minute fallback (7.5) |
 | Subagent and browser fan-out | Subagent transcripts as progress; Workflow denied; Agent and browser caps (7.2, 10.1) |
@@ -1812,5 +1813,5 @@ Each finding below is resolved in this design, or the reason it is not adopted i
 | A five-day absence: page floods, stalls, churn, lapses | Presence, digest, Storybook-only review hold, no updates while absent, grace counted in present days, only githerd pull requests taken, worker-hours cap (3.7, 11.3) |
 | Worker writes looked like owner input | Guard refusals and write attribution (10.1) |
 | Version skew between daemon and sessions | Protocol versions and pinned client copies (9.8) |
-| A dead push-lock holder blocked every push | Kernel `flock` (4.8) |
+| A dead push-lock holder blocked every push | The push queue drops a dead process's ticket (4.8) |
 | A usage stop with no reset time never ended | Probe backoff (8.3) |

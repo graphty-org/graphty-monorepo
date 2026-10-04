@@ -84,7 +84,7 @@ describe("renderBoard", () => {
                         propagating: [{ name: "b", version: "2.0.0" }],
                     },
                     prs: [],
-                    pushQueue: { holder: "pid 12 (prepush.sh)", waiters: 2 },
+                    pushQueue: { holder: "pid 12 (githerd-issue-7)", waiters: 2 },
                     health: {},
                 },
             ),
@@ -95,7 +95,7 @@ describe("renderBoard", () => {
             "RELEASE:\n  half-state: tagged but not on npm: a@1.0.0\n  waiting for npm to serve b@2.0.0",
         );
         expect(text).toContain("PULL REQUESTS: none open");
-        expect(text).toContain("PUSH QUEUE: held by pid 12 (prepush.sh), 2 waiting");
+        expect(text).toContain("PUSH QUEUE: running pid 12 (githerd-issue-7), 2 waiting");
         expect(text).toContain("worker hours today 0; phone alerts unknown");
     });
 

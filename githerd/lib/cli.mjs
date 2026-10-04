@@ -34,7 +34,7 @@ import {
 import { UNCHECKED_STOPS } from "./hook.mjs";
 import { TOOL_PROTOCOL } from "./mcp.mjs";
 import { createNotifier } from "./notify.mjs";
-import { gateLock, sameProcess } from "./proc.mjs";
+import { pushQueueTickets, sameProcess } from "./proc.mjs";
 import { runSelftest, selftestText } from "./selftest.mjs";
 import { defaultStateDir, readLedger, readLiveness, replayLedger, STATE_SCHEMA } from "./store.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
@@ -815,7 +815,7 @@ async function boardText(stateDir, { root, section, json = false, now, headers =
     const view = {
         state,
         liveness: readLiveness(stateDir),
-        pushQueue: gateLock(root),
+        pushQueue: pushQueueTickets(root),
         down: `${error}; state.json written ${written}`,
         health: {
             stopGatesFailedOpen: (readText(join(stateDir, UNCHECKED_STOPS)) ?? "").split("\n").filter(Boolean).length,

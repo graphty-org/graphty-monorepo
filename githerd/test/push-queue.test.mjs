@@ -390,6 +390,48 @@ describe("gate failures", () => {
     });
 });
 
+describe("the machine's push queue", () => {
+    /**
+     * A fake `tools/push-queue.sh`: logs the priority and the command, waits behind other sessions'
+     * gates for 300 ms, prints the gate's banner, then runs the command.
+     * @returns {string} the script's path
+     */
+    function fakeQueue() {
+        const script = join(repo.tmp, "push-queue.sh");
+        put(
+            script,
+            `echo "\${PUSH_QUEUE_PRIORITY:-normal} $*" >> "${repo.tmp}/queue-log"\nsleep 0.3\necho "Pre-push validation"\nexec "$@"\n`,
+        );
+        return script;
+    }
+
+    it("pushes through it like every session, an incident's fix as critical", async () => {
+        queue = makeQueue({ queueScript: fakeQueue() });
+        const fix = workingJob("fix", { kind: "incident" });
+        const other = workingJob("other");
+        await queue.request({ job: "fix", branch: "githerd/fix", expectHead: fix.head }, "s-fix");
+        await queue.request({ job: "other", branch: "githerd/other", expectHead: other.head }, "s-other");
+        await queue.drain();
+        expect(remoteHead("githerd/fix")).toBe(fix.head);
+        expect(remoteHead("githerd/other")).toBe(other.head);
+        const log = readFileSync(join(repo.tmp, "queue-log"), "utf8").trim().split("\n");
+        expect(log.map((l) => l.split(" ").slice(0, 5).join(" "))).toEqual([
+            `critical git -c core.hooksPath=${join(repo.tmp, "hooks")} push`,
+            `normal git -c core.hooksPath=${join(repo.tmp, "hooks")} push`,
+        ]);
+    });
+
+    it("charges no time waiting behind other sessions' gates to the push's bound", async () => {
+        queue = makeQueue({ queueScript: fakeQueue(), defaultGateMs: 50 });
+        state.pushQueue.gateRuns = [10];
+        const a = workingJob("a");
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        await queue.drain();
+        // 300 ms in the queue against a 100 ms bound for the gate: it still pushed.
+        expect(remoteHead("githerd/a")).toBe(a.head);
+    });
+});
+
 describe("the gate runs as for a person", () => {
     it("refuses a new commit that changes a path the gate runs, without running the gate", async () => {
         const { job, dir } = workingJob("a");

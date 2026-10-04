@@ -294,6 +294,7 @@ The `tools/` directory contains build scripts:
 | `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
+| `push-queue.sh` | Runs a command (normally `git push`) in the machine's push queue: three at once, first come first served, `PUSH_QUEUE_PRIORITY=critical` first; tickets in the main checkout's `tmp/push-queue/`. githerd's pushes use it too |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |

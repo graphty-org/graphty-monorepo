@@ -52,7 +52,8 @@ const DAY = 24 * HOUR;
  * @property {import("./lanes.mjs").LaneFacts | null} [lanes] the lane facts
  * @property {ReleaseView | null} [release] release truth
  * @property {PrView[] | null} [prs] each open pull request's `githerd/merge` decision
- * @property {{holder: string | null, waiters: number} | null} [pushQueue] the push lock
+ * @property {{holder: string | null, waiters: number} | null} [pushQueue] the push queue
+ *   (`tools/push-queue.sh`): the pushes running, and how many wait
  * @property {Record<string, {used: number, max: number, measured: string}> | null} [limits] the
  *   machine limits and the measurement that set each
  * @property {{rate?: string, workerHoursToday?: number, phone?: string, hidden?: number,
@@ -193,7 +194,7 @@ const RENDER = {
     push(v) {
         if (!v.pushQueue) return ["PUSH QUEUE: unknown"];
         const { holder, waiters } = v.pushQueue;
-        const who = holder ? "held by " + holder : "free";
+        const who = holder ? "running " + holder : "free";
         return [`PUSH QUEUE: ${who}, ${waiters} waiting`];
     },
 

@@ -8,7 +8,7 @@
  * pid and tmux pane it recorded is void.
  */
 
-import { readdirSync, readFileSync, readlinkSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 /** @typedef {{pid: number, startTime: string, bootId: string}} ProcessIdentity */
@@ -75,69 +75,52 @@ export function containerStart() {
     }
 }
 
-/**
- * Reads a file under `/proc`, or null when the process or file is gone or not ours.
- * @param {string} path the path
- * @returns {string | null} the text
- */
-function readProc(path) {
-    try {
-        return readFileSync(path, "utf8");
-    } catch {
-        return null;
-    }
-}
+/** Pushes `tools/push-queue.sh` lets run at once unless `PUSH_QUEUE_SLOTS` says otherwise. */
+const PUSH_QUEUE_SLOTS = 3;
 
 /**
- * The open descriptor of `pid` on `target`, or null.
- * @param {string} pid the process id
- * @param {string} target the file's absolute path
- * @returns {string | null} the descriptor number
- */
-function fdOn(pid, target) {
-    let fds;
-    try {
-        fds = readdirSync(`/proc/${pid}/fd`);
-    } catch {
-        return null;
-    }
-    for (const fd of fds) {
-        try {
-            if (readlinkSync(`/proc/${pid}/fd/${fd}`) === target) return fd;
-        } catch {
-            // closed while we looked
-        }
-    }
-    return null;
-}
-
-/**
- * Who holds the pre-push gate's lock (`tools/prepush.sh`, design section 4.8) and how many gates
- * wait for it. The lock is `prepush.lock` in the git common directory. `/proc/locks` cannot be
- * used: it hides a lock whose `flock` command has exited, which is how a script takes it
- * (evidence/platform-facts.md section 8.2). So every process with the file open is looked at:
- * its `fdinfo` has a `lock:` line when it holds the lock, and a gate waiting for it is a `flock`
- * process with the file open and no such line. The holder's name comes from the `.holder` file
- * the gate writes, trusted only when its pid is one of the holding processes.
+ * The push queue every session pushes through (`tools/push-queue.sh`, design section 4.8): its
+ * tickets in `tmp/push-queue/` of the main checkout, each named `<rank>-<arrival ns>-<pid>` and
+ * holding `<cwd> :: <command>`. A ticket whose process is gone is dropped, as the script drops it;
+ * the first three live ones, critical first, then by arrival, are running.
  * @param {string} root the main checkout
- * @returns {{holder: string | null, waiters: number}} `pid <n> (<worktree> <branch>)`, or null
- *   when the lock is free; and the number of waiting gates
+ * @returns {{holder: string | null, waiters: number}} the running pushes' worktrees (null when none
+ *   runs), and the number waiting behind them
  */
-export function gateLock(root) {
-    const file = join(root, ".git", "prepush.lock");
-    /** @type {string[]} */
-    const holders = [];
-    let waiters = 0;
-    for (const pid of readdirSync("/proc").filter((n) => /^\d+$/.test(n))) {
-        const fd = fdOn(pid, file);
-        if (fd === null) continue;
-        const info = readProc(`/proc/${pid}/fdinfo/${fd}`);
-        if (info === null) continue;
-        if (/^lock:/m.test(info)) holders.push(pid);
-        else if (readProc(`/proc/${pid}/comm`)?.trim() === "flock") waiters++;
+export function pushQueueTickets(root) {
+    const dir = join(root, "tmp", "push-queue");
+    let names;
+    try {
+        names = readdirSync(dir);
+    } catch {
+        return { holder: null, waiters: 0 };
     }
-    if (holders.length === 0) return { holder: null, waiters };
-    const [pid, dir, branch] = (readProc(`${file}.holder`) ?? "").trim().split(" ");
-    const holder = holders.includes(pid) ? `pid ${pid} (${basename(dir)} ${branch})` : `pid ${holders[0]}`;
-    return { holder, waiters };
+    const live = names
+        .map((name) => {
+            const parts = name.split("-");
+            // A ticket from before ranks existed is `<ns>-<pid>`, a normal push.
+            const [rank, at, pid] = parts.length === 2 ? ["1", ...parts] : parts;
+            return { name, rank: Number(rank), at: BigInt(at), pid: Number(pid) };
+        })
+        .filter((t) => Number.isInteger(t.pid) && alive(t.pid))
+        .sort((a, b) => a.rank - b.rank || (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+    const running = live.slice(0, PUSH_QUEUE_SLOTS).map((t) => {
+        const cwd = (readFileSync(join(dir, t.name), "utf8").split(" :: ")[0] ?? "").trim();
+        return `pid ${t.pid} (${basename(cwd)})`;
+    });
+    return { holder: running.length ? running.join(", ") : null, waiters: Math.max(0, live.length - PUSH_QUEUE_SLOTS) };
+}
+
+/**
+ * Whether a process exists.
+ * @param {number} pid the process id
+ * @returns {boolean} true while it runs
+ */
+function alive(pid) {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (err) {
+        return /** @type {NodeJS.ErrnoException} */ (err).code === "EPERM";
+    }
 }

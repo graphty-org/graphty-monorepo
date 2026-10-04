@@ -79,6 +79,8 @@ async function commitReasons(dir, sha, greenSha, env) {
  * made fast never cuts the next, cold one short.
  */
 const DEFAULT_GATE_MS = 30 * 60_000;
+/** The longest a push waits in the machine's push queue before its gate starts. */
+const QUEUE_WAIT_MS = 4 * 3_600_000;
 /** How many recent successful gate durations are kept. */
 const GATE_RUNS = 5;
 
@@ -192,6 +194,7 @@ const rank = (job) => {
  *   env: Record<string, string>,
  *   secrets?: Record<string, string | undefined>,
  *   hooksPath?: string,
+ *   queueScript?: string,
  *   protectedPaths?: () => string[],
  *   defaultGateMs?: number,
  *   now?: () => Date,
@@ -201,8 +204,10 @@ const rank = (job) => {
  *   environment of the push and its gate, which run the branch's code: an allow-list
  *   (`codeEnv` in worker-settings.mjs), never the daemon's own, which holds the notify keys;
  *   `secrets` are the values the outgoing check refuses; `hooksPath` the hooks the push runs, the
- *   main checkout's `.husky/_` by default, never the worktree's; `protectedPaths` reads the
- *   config's list, refused like the gate's own paths
+ *   main checkout's `.husky/_` by default, never the worktree's; `queueScript` the machine's push
+ *   queue that every session pushes through, the main checkout's `tools/push-queue.sh` by default
+ *   (a repository without it pushes directly); `protectedPaths` reads the config's list, refused
+ *   like the gate's own paths
  * @returns {{
  *   request: (args: {job: string, branch: string, expectHead: string}, session: string | null) =>
  *     Promise<{queued: true, position: number, estimateMinutes: number} | {ok: false, reason: string}>,
@@ -225,6 +230,7 @@ export function createPushQueue({
     env,
     secrets = {},
     hooksPath = join(root, ".husky", "_"),
+    queueScript = join(root, "tools", "push-queue.sh"),
     protectedPaths = () => [],
     defaultGateMs = DEFAULT_GATE_MS,
     now = () => new Date(),
@@ -432,9 +438,12 @@ export function createPushQueue({
 
     /**
      * Runs `git push` in the job's worktree with the main checkout's hooks (never the worktree's,
-     * which the worker can write), as a child of the daemon leading its own process group, so a
-     * worker's death never touches it and a timeout or `stop` kills the gate with every child it
-     * started. Bounded at twice the longest recent gate, never less than twice the default.
+     * which the worker can write), through the machine's push queue like every session's push
+     * (an incident's fix as `critical`, ahead of the rest), as a child of the daemon leading its
+     * own process group, so a worker's death never touches it and a timeout or `stop` kills the
+     * gate with every child it started. The gate is bounded at twice the longest recent gate,
+     * never less than twice the default, counted from its "Pre-push validation" banner, so time
+     * spent behind other sessions' gates is not charged to it.
      * @param {PushEntry} e the entry
      * @returns {Promise<{code: number, out: string, timedOut: boolean}>} the exit code and output
      */
@@ -442,18 +451,44 @@ export function createPushQueue({
         return new Promise((resolve) => {
             let out = "";
             let timedOut = false;
+            const push = [
+                "git",
+                "-c",
+                `core.hooksPath=${hooksPath}`,
+                "push",
+                remote,
+                `${e.head}:refs/heads/${e.branch}`,
+            ];
+            const queued = existsSync(queueScript);
+            const critical = state.jobs?.[e.job]?.kind === "incident";
             const child = spawn(
-                "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
-                ["-c", `core.hooksPath=${hooksPath}`, "push", remote, `${e.head}:refs/heads/${e.branch}`],
-                { cwd: e.worktree, env, detached: true, stdio: ["ignore", "pipe", "pipe"] },
+                queued ? "bash" : "git", // NOSONAR(S4036): the owner's bash and git from his own PATH, as tools/ runs them
+                queued ? [queueScript, ...push] : push.slice(1),
+                {
+                    cwd: e.worktree,
+                    env: { ...env, ...(critical ? { PUSH_QUEUE_PRIORITY: "critical" } : {}) },
+                    detached: true,
+                    stdio: ["ignore", "pipe", "pipe"],
+                },
             );
             e.pid = child.pid ?? null;
             e.startTime = e.pid ? (identify(e.pid)?.startTime ?? null) : null;
-            const timer = setTimeout(() => {
+            const expire = () => {
                 timedOut = true;
                 kill(e.pid);
-            }, 2 * gateMs());
-            child.stdout.on("data", (d) => (out += d));
+            };
+            // ponytail: a push waits behind other sessions' gates for at most 4 hours; read the
+            // queue's tickets if a longer wait must be told apart from a stuck queue.
+            let timer = setTimeout(expire, queued ? QUEUE_WAIT_MS : 2 * gateMs());
+            let gating = !queued;
+            child.stdout.on("data", (d) => {
+                out += d;
+                if (!gating && out.includes("Pre-push validation")) {
+                    gating = true;
+                    clearTimeout(timer);
+                    timer = setTimeout(expire, 2 * gateMs());
+                }
+            });
             child.stderr.on("data", (d) => (out += d));
             const done = (/** @type {number} */ code) => {
                 clearTimeout(timer);

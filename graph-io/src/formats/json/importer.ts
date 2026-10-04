@@ -655,6 +655,9 @@ class AttributeWriter {
 
     private readonly report: ImportReportBuilder;
 
+    /** Column names written only with null so far (NetworkX writes None as null). */
+    private readonly nullOnly = new Set<string>();
+
     /**
      * Create a writer.
      * @param sink - the sink
@@ -708,10 +711,14 @@ class AttributeWriter {
      * @param element - the element name for an issue
      */
     write(row: number, key: string, value: unknown, suffix: string, element: string): void {
-        if (value === undefined || value === null) {
+        if (value === undefined) {
             return;
         }
         const name = this.reservedNames.has(key) ? `${key}${suffix}` : key;
+        if (value === null) {
+            this.nullOnly.add(name);
+            return;
+        }
         try {
             const cached = this.handles.get(name);
             if (cached !== undefined) {
@@ -729,6 +736,22 @@ class AttributeWriter {
         const handle = this.lookup(name);
         if (handle !== INVALID_INDEX) {
             this.handles.set(name, handle);
+        }
+    }
+
+    /**
+     * Report the keys that were null on every element that had them: they made no column, so a
+     * round trip loses them (W_EMPTY_COLUMN_DROPPED, one warning per table).
+     */
+    reportNullOnly(): void {
+        const names = [...this.nullOnly].filter((name) => this.lookup(name) === INVALID_INDEX);
+        if (names.length > 0) {
+            this.report.warning(
+                "missing-value",
+                EMPTY_COLUMN_DROPPED_CODE,
+                `${this.domain} key(s) ${names.map((n) => JSON.stringify(n)).join(", ")} are null wherever they appear; no column is made for them`,
+                { element: names[0] },
+            );
         }
     }
 
@@ -3166,14 +3189,26 @@ function readGraph(
     // the obographs reader refuses missing endpoints itself, so addMissingNodes false holds on any sink
     reportSinkOptions(sink, options, report, dialect === "obographs");
     reportUnusedOptions(options, report, USED_OPTIONS);
+    readDialect(ctx, root, dialect);
+    ctx.nodes.reportNullOnly();
+    ctx.edges.reportNullOnly();
+    throwIfAborted(resolved.signal);
+}
+
+/**
+ * Read one graph with the reader of its dialect.
+ * @param ctx - the import context
+ * @param root - the parsed document
+ * @param dialect - its dialect
+ */
+function readDialect(ctx: ImportContext, root: unknown, dialect: JsonImportDialect): void {
     if (dialect === "cytoscape") {
         importCytoscape(ctx, root);
-        throwIfAborted(resolved.signal);
         return;
     }
     const doc = isJsonObject(root)
         ? root
-        : report.fail(JSON_ISSUE.SHAPE, `a ${dialect} document must be a JSON object, found ${describe(root)}`);
+        : ctx.report.fail(JSON_ISSUE.SHAPE, `a ${dialect} document must be a JSON object, found ${describe(root)}`);
     switch (dialect) {
         case "node-link":
         case "d3":
@@ -3205,5 +3240,4 @@ function readGraph(
             });
         }
     }
-    throwIfAborted(resolved.signal);
 }

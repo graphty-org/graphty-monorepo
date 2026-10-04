@@ -434,23 +434,18 @@ describe("head facts", () => {
 
 describe("the merge gate's invariants", () => {
     const mergify = readFileSync(new URL("../../.mergify.yml", import.meta.url), "utf8");
-    // The coordination change: the merge condition, and a failure treated as the hold label is, in
-    // the queue conditions and in the auto-merge conditions that end the file.
-    const withC1 = `${mergify
-        .replace(
-            "- check-success=Lint PR Title",
-            "- check-success=Lint PR Title\n          - check-success=githerd/merge",
-        )
-        .replace("      merge_conditions:", "          - -check-failure=githerd/merge\n      merge_conditions:")
-        .trimEnd()}\n        - -check-failure=githerd/merge\n`;
+    // The coordination change: both conditions in the queue conditions (the queue is single-step,
+    // with no merge_conditions), and a failure treated as the hold label is in the auto-merge
+    // conditions that end the file.
+    const queued = (/** @type {string} */ lines) =>
+        mergify.replace(/(queue_conditions:\n(?:\s+- .*\n)+)/, `$1${lines}`);
+    const withC1 = `${queued("          - -check-failure=githerd/merge\n          - check-success=githerd/merge\n").trimEnd()}\n        - -check-failure=githerd/merge\n`;
 
     it("shows the banner until master's .mergify.yml requires githerd/merge both ways", () => {
         expect(mergifyRequires(mergify)).toBe(false);
-        expect(withC1).not.toBe(mergify);
+        expect(queued("          - check-success=githerd/merge\n")).not.toBe(mergify);
         expect(mergifyRequires(withC1)).toBe(true);
-        expect(mergifyRequires(mergify.replace("- check-success=Lint PR Title", "- check-success=githerd/merge"))).toBe(
-            false,
-        );
+        expect(mergifyRequires(queued("          - check-success=githerd/merge\n"))).toBe(false);
         expect(mergifyRequires(null)).toBe(false);
     });
 

@@ -614,8 +614,8 @@ date with master can still merge onto a master that turned red meanwhile (sectio
 can always merge by hand, because `githerd/merge` is not in the ruleset.
 
 **Coordination change to `.mergify.yml`** (owned by another session; githerd's plan carries it as
-a coordination task and never edits the file). Add one merge condition, and treat a `failure`
-exactly as the file treats the `hold` label, in both places it names that label:
+a coordination task and never edits the file). Require a `success` in the queue conditions, and
+treat a `failure` exactly as the file treats the `hold` label, in both places it names that label:
 
 ```yaml
 queue_rules:
@@ -627,9 +627,6 @@ queue_rules:
           - label!=hold
           - "-title~=^[a-z]+(\\([^)]*\\))?!:"
           - -check-failure=githerd/merge         # new: a held pull request leaves the queue
-      merge_conditions:
-          - check-success=All Checks Pass
-          - check-success=Lint PR Title
           - check-success=githerd/merge          # new: githerd says it is safe on this head
 
 merge_protections_settings:
@@ -642,16 +639,19 @@ merge_protections_settings:
         - -check-failure=githerd/merge           # new: a held pull request is not queued
 ```
 
-Why: `check-success` in the merge conditions makes "no status yet" and `pending` wait instead
-of merging; `-check-failure` in the queue and auto-merge conditions (rather than `check-success`)
-lets a freshly updated head with no status stay queued, so Mergify's own update does not dequeue
-it, while a hold removes it from the queue and keeps it out. (Master moved queueing from
-`pull_request_rules` to `merge_protections_settings` on 2026-10-03; the change follows the file's
-current shape.) The change lands only after githerd's `statuses` write group has posted on
+Why: the queue has no `merge_conditions` (master removed them on 2026-10-03, because Mergify
+checks a pull request in place on its own branch only when the queue is single-step, and the
+visual-review gate needs the pull request's own number), so the `check-success` goes in the queue
+conditions, where Mergify already adds the ruleset's two required checks and waits on them while
+they are pending or not yet reported. It makes "no status yet" and `pending` wait instead of merging;
+`-check-failure` names the hold explicitly, and in the auto-merge conditions (rather than
+`check-success`) it lets a pull request with no status yet be queued, while a hold keeps it out.
+(Master moved queueing from `pull_request_rules` to `merge_protections_settings` on 2026-10-03; the
+change follows the file's current shape.) The change lands only after githerd's `statuses` write group has posted on
 every open pull request for a day (milestone 8), and its pull request description says how to
 undo it: delete the three lines. Verify after it lands, with a docs-only pull request: a `failure`
 removes it from Mergify's queue, a later `success` re-queues it, and a head with no status is not
-merged. Until it lands, the invariant check shows the banner "Mergify does not wait for
+merged and not dropped from the queue. Until it lands, the invariant check shows the banner "Mergify does not wait for
 githerd/merge".
 
 **Updates** githerd still makes, each with the expected head, in order of preference:

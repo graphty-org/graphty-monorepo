@@ -325,8 +325,8 @@ export async function postMergeStatuses({ github, repo, branch, prs, ctx, record
 }
 
 /**
- * Whether a `.mergify.yml` makes Mergify wait for `githerd/merge`: a `check-success` merge
- * condition and a `-check-failure` queue condition on it (design 4.6, coordination task C1).
+ * Whether a `.mergify.yml` makes Mergify wait for `githerd/merge`: a `check-success` and a
+ * `-check-failure` condition on it (design 4.6, coordination task C1).
  * ponytail: looks for the two list lines anywhere in the file, not under their exact keys.
  * @param {string | null} text the file on the default branch, or null when it could not be read
  * @returns {boolean} true when both lines are there

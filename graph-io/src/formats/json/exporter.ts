@@ -23,6 +23,7 @@ import { type Column, GraphFormatError, type GraphSnapshot, INVALID_INDEX, type 
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { checkCapabilities, countMixedEdges, LOSS } from "../../common/export.js";
 import { formatF32, formatF64 } from "../../common/format.js";
+import { flipY } from "../../common/json-elements.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
@@ -1520,7 +1521,8 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
                 w.key("position");
                 w.open("{");
                 w.member("x", numberText(value[0], f32, c.nonfinite));
-                w.member("y", numberText(value[1], f32, c.nonfinite));
+                // stored y-up; Cytoscape's y grows downward
+                w.member("y", numberText(flipY(value[1]), f32, c.nonfinite));
                 w.close("}");
             }
         }

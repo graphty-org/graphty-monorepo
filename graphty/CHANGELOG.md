@@ -1,3 +1,72 @@
+## 0.8.46 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty:** the tier 1 workspace frame at ?next ([f6dd286d2](https://github.com/graphty-org/graphty-monorepo/commit/f6dd286d2))
+- **graphty:** stamp each build with its commit and release tag ([dc6bc6802](https://github.com/graphty-org/graphty-monorepo/commit/dc6bc6802))
+
+### 🩹 Fixes
+
+- **graphty:** clear the SonarQube findings on the tier 1 frame ([5fcc46ed8](https://github.com/graphty-org/graphty-monorepo/commit/5fcc46ed8))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.13.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.45 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty:** re-scan test dependencies every run so a stale Vite cache cannot reload a test ([#885](https://github.com/graphty-org/graphty-monorepo/issues/885))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.12.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.44 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty-element:** pre-bundle the per-function lodash imports in the browser tests ([d11555da9](https://github.com/graphty-org/graphty-monorepo/commit/d11555da9))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.11.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.43 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty:** pick the network of a file that holds several before loading it ([6edb0d70d](https://github.com/graphty-org/graphty-monorepo/commit/6edb0d70d))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.30
+- Updated compact-mantine to 0.9.1
+- Updated graphty-element to 3.11.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.42 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.10.0
+
 ## 0.8.41 (2026-10-04)
 
 ### 🧱 Updated Dependencies

@@ -158,7 +158,7 @@ export function workflowName(root, file) {
         const name = line
             ?.slice("name:".length)
             .trim()
-            .replaceAll(/^["']|["']$/g, "");
+            .replaceAll(/(^["'])|(["']$)/g, "");
         return name || null;
     } catch {
         return null;

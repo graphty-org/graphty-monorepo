@@ -1026,9 +1026,10 @@ describe("gexfImporter: less common constructs", () => {
         expect(snapshot.nodes.get("b")).toBeNull();
     });
 
+    // the malformed interval is escaped: a literal "<" in an attribute value is not well-formed XML
     it("reads 1.3 intervals attributes and edge spells, and rejects a malformed interval", async () => {
         const doc = `<gexf version="1.3"><graph defaultedgetype="directed" timeformat="double">
-            <nodes><node id="a" intervals="&lt;[1, 2]; [3.5, 4]&gt;"/><node id="b" intervals="<[1]>"/></nodes>
+            <nodes><node id="a" intervals="&lt;[1, 2]; [3.5, 4]&gt;"/><node id="b" intervals="&lt;[1]&gt;"/></nodes>
             <edges><edge source="a" target="b"><spells><spell start="1" end="2"/></spells><viz:color r="1" g="2" b="3"/><viz:shape value="dashed"/></edge></edges></graph></gexf>`;
         const { snapshot, report } = await load(doc);
         expect(values(snapshot.nodes.get("spells"))).toEqual([

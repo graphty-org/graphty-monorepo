@@ -8,7 +8,9 @@
  * instead of re-reading the token from its `<`, and line numbers are counted from a cached next
  * line-break position, so a document without line breaks costs the same as one with them.
  *
- * What it handles: the XML declaration and processing instructions (skipped), comments (skipped),
+ * What it handles: the XML declaration and processing instructions (skipped), comments (skipped;
+ * a `--` inside one, which XML 1.0 forbids, is accepted: a comment carries no data and banner
+ * comments such as `<!-- ----- -->` are common in hand-written files),
  * CDATA sections (text), a DOCTYPE with an internal subset (skipped; entity declarations are not
  * expanded, so an unknown entity reference is a syntax error), the five predefined entities and
  * numeric character references (decimal and hexadecimal) in text and attribute values, attribute
@@ -53,6 +55,12 @@ export interface XmlHandler {
      * @param line - the 1-based line where the run starts
      */
     text(text: string, line: number): void;
+    /**
+     * A DOCTYPE declaration (optional; its internal subset is never expanded).
+     * @param text - the declaration as written, from `<!DOCTYPE` to its `>`
+     * @param line - the 1-based line of the `<`
+     */
+    doctype?(text: string, line: number): void;
 }
 
 /** A well-formedness or syntax error, with the line it was found on. */
@@ -258,7 +266,10 @@ function countIllegalRows(column: Column): number {
     return bad;
 }
 
-/** The encoding pseudo-attribute of an XML declaration at the very start of a document. */
+/**
+ * The encoding pseudo-attribute of an XML declaration at the very start of a document (one
+ * anywhere else is a syntax error of the tokenizer).
+ */
 const XML_DECLARED_ENCODING = /^<\?xml\s[^>]*?\bencoding\s*=\s*["']([A-Za-z][A-Za-z0-9._-]*)["']/;
 
 /**
@@ -344,7 +355,8 @@ export function decodeEntities(raw: string, line: number, repairs?: XmlRepairs):
         if (name.startsWith("#")) {
             const hex = name.startsWith("#x") || name.startsWith("#X");
             const digits = name.slice(hex ? 2 : 1);
-            const ok = hex ? /^[0-9a-fA-F]{1,6}$/.test(digits) : /^[0-9]{1,7}$/.test(digits);
+            // any number of leading zeros is well-formed; the code point range is checked below
+            const ok = hex ? /^[0-9a-fA-F]+$/.test(digits) : /^[0-9]+$/.test(digits);
             const cp = ok ? Number.parseInt(digits, hex ? 16 : 10) : -1;
             const low = cp >= 0xd800 && cp <= 0xdbff ? lowSurrogateAfter(raw, semi + 1, repairs) : null;
             if (low !== null) {
@@ -447,10 +459,20 @@ export async function tokenizeXml(
     repairs?: XmlRepairs,
 ): Promise<void> {
     const tokenizer = new XmlTokenizer(handler, repairs);
-    for await (const chunk of chunks) {
-        tokenizer.push(chunk);
+    try {
+        for await (const chunk of chunks) {
+            tokenizer.push(chunk);
+        }
+        tokenizer.finish();
+    } catch (err) {
+        if (err instanceof XmlSyntaxError && tokenizer.declaresXml11) {
+            throw new XmlSyntaxError(
+                `${err.message}; the document declares XML 1.1, which graph-io does not read (it reads XML 1.0)`,
+                err.line,
+            );
+        }
+        throw err;
     }
-    tokenizer.finish();
 }
 
 /** The result of parsing one start tag out of the buffer. */
@@ -534,6 +556,11 @@ export class XmlTokenizer {
 
     private readonly repairs: XmlRepairs | undefined;
 
+    private xml11 = false;
+
+    /** Whether anything (text or markup) was consumed: an XML declaration must come first. */
+    private started = false;
+
     /**
      * Create a tokenizer.
      * @param handler - the event sink
@@ -542,6 +569,15 @@ export class XmlTokenizer {
     constructor(handler: XmlHandler, repairs?: XmlRepairs) {
         this.handler = handler;
         this.repairs = repairs;
+    }
+
+    /**
+     * Whether the document's XML declaration says version 1.1 (read by the XML 1.0 rules all the
+     * same; the syntax error of a 1.1-only construct then says why).
+     * @returns true after a `<?xml version="1.1"?>` declaration
+     */
+    get declaresXml11(): boolean {
+        return this.xml11;
     }
 
     /**
@@ -796,6 +832,7 @@ export class XmlTokenizer {
                 break;
             }
             pos = next;
+            this.started = true;
         }
         if (incomplete) {
             this.pending = this.startPending(buffer, pos);
@@ -912,6 +949,7 @@ export class XmlTokenizer {
             if (end < 0) {
                 return -1;
             }
+            this.handler.doctype?.(buffer.slice(pos, end), this.line);
             this.advanceLine(pos, end);
             return end;
         }
@@ -919,6 +957,15 @@ export class XmlTokenizer {
             const end = buffer.indexOf("?>", pos + 2);
             if (end < 0) {
                 return -1;
+            }
+            if (/^<\?xml(\s|$)/i.test(buffer.slice(pos, Math.min(end, pos + 6)))) {
+                if (this.started) {
+                    throw new XmlSyntaxError(
+                        "the XML declaration must be at the very start of the document",
+                        this.line,
+                    );
+                }
+                this.xml11 = /\bversion\s*=\s*["']1\.1["']/.test(buffer.slice(pos, end));
             }
             this.advanceLine(pos, end + 2);
             return end + 2;
@@ -1026,6 +1073,9 @@ export class XmlTokenizer {
                 throw new XmlSyntaxError(`duplicate attribute ${attrName} in <${name}>`, this.line);
             }
             const raw = buffer.slice(i + 1, close);
+            if (raw.includes("<")) {
+                throw new XmlSyntaxError(`a "<" appears in the value of attribute ${attrName} of <${name}>`, this.line);
+            }
             if (hasIllegalXmlChar(raw)) {
                 throw new XmlSyntaxError(
                     `a character XML 1.0 forbids appears in attribute ${attrName} of <${name}>`,
@@ -1096,6 +1146,7 @@ export class XmlTokenizer {
             this.textLine = this.line;
         }
         const raw = this.buffer.slice(start, end);
+        this.started = true;
         if (hasIllegalXmlChar(raw)) {
             throw new XmlSyntaxError("a character XML 1.0 forbids appears in character data", this.line);
         }

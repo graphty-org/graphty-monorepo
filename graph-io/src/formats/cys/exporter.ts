@@ -1221,7 +1221,7 @@ function* entries(snapshot: GraphSnapshot, p: Plan): Generator<ZipWriteEntry, vo
  */
 async function* write(
     snapshot: GraphSnapshot,
-    options: (CysExportOptions) | undefined,
+    options: CysExportOptions | undefined,
 ): AsyncGenerator<Uint8Array, void, undefined> {
     const p = plan(snapshot, resolveExportOptions(options));
     await Promise.resolve();

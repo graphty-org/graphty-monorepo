@@ -94,7 +94,9 @@ describe("dot exporter: capabilities and shape", () => {
             expect(() => dotExporter.check(snapshot, options)).toThrow(
                 expect.objectContaining({ code: "E_UNSUPPORTED", details: expect.objectContaining({ option }) }),
             );
-            await expect(dotExporter.exportToString(snapshot, options)).rejects.toMatchObject({ code: "E_UNSUPPORTED" });
+            await expect(dotExporter.exportToString(snapshot, options)).rejects.toMatchObject({
+                code: "E_UNSUPPORTED",
+            });
         }
     });
 

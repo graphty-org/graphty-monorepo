@@ -320,10 +320,14 @@ function isTextualDtype(column: Column): boolean {
  * @returns the error
  */
 function badOption(option: string, found: unknown, expected: string): GraphFormatError {
-    return new GraphFormatError("E_UNSUPPORTED", `option ${option} of the DOT exporter: expected ${expected}, got ${JSON.stringify(found)}`, {
-        option,
-        found,
-    });
+    return new GraphFormatError(
+        "E_UNSUPPORTED",
+        `option ${option} of the DOT exporter: expected ${expected}, got ${JSON.stringify(found)}`,
+        {
+            option,
+            found,
+        },
+    );
 }
 
 /**

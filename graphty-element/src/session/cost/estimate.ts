@@ -950,7 +950,9 @@ function modelFromRates(
 
     const own = OWN_COST_MODELS[descriptor.key];
     const seconds =
-        own === undefined || ownUnits ? units / rate : own.seconds(nodes, edges, rates, iterations, statistics) * sampleFactor;
+        own === undefined || ownUnits
+            ? units / rate
+            : own.seconds(nodes, edges, rates, iterations, statistics) * sampleFactor;
 
     if (probed) {
         return {

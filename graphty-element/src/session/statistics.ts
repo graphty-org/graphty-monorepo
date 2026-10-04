@@ -222,7 +222,8 @@ export function sampledTransitivity(snapshot: GraphSnapshot): number {
     // A directed snapshot's in-arcs are in its reverse view; an undirected one stores both ends.
     const reverse = snapshot.directed ? snapshot.reverse() : undefined;
     const out = (u: number): number => rowPtr[u + 1] - rowPtr[u];
-    const degree = (u: number): number => out(u) + (reverse === undefined ? 0 : reverse.rowPtr[u + 1] - reverse.rowPtr[u]);
+    const degree = (u: number): number =>
+        out(u) + (reverse === undefined ? 0 : reverse.rowPtr[u + 1] - reverse.rowPtr[u]);
     const neighbour = (u: number, slot: number): number =>
         slot < out(u) || reverse === undefined
             ? colIdx[rowPtr[u] + slot]

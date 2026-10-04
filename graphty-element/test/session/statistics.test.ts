@@ -21,7 +21,10 @@ function graph(count: number, edges: readonly (readonly [number, number])[]): { 
 describe("the shape of the graph", () => {
     it("counts what is there", () => {
         const harness = makeSession();
-        const { nodes, edges } = graph(4, [[0, 1], [1, 2]]);
+        const { nodes, edges } = graph(4, [
+            [0, 1],
+            [1, 2],
+        ]);
         harness.add(nodes, edges);
 
         const stats = harness.session.data.statistics();
@@ -43,7 +46,11 @@ describe("the shape of the graph", () => {
 
     it("measures density against the pairs that could carry an edge, self-loops excluded", () => {
         const harness = makeSession({ directed: true });
-        const { nodes, edges } = graph(4, [[0, 1], [1, 2], [2, 2]]);
+        const { nodes, edges } = graph(4, [
+            [0, 1],
+            [1, 2],
+            [2, 2],
+        ]);
         harness.add(nodes, edges);
 
         // 12 ordered pairs of distinct nodes; two of them carry an edge, and the self-loop is
@@ -135,7 +142,11 @@ describe("the shape of the graph", () => {
 
     it("reports the degree range over the whole graph", () => {
         const harness = makeSession({ directed: true });
-        const { nodes, edges } = graph(4, [[0, 1], [0, 2], [0, 3]]);
+        const { nodes, edges } = graph(4, [
+            [0, 1],
+            [0, 2],
+            [0, 3],
+        ]);
         harness.add(nodes, edges);
 
         assert.deepEqual(harness.session.data.statistics().degreeRange, [1, 3]);
@@ -148,7 +159,11 @@ describe("the mean degree", () => {
         const harness = makeSession();
         // Degrees over four nodes: n0 has 2, n1 has 2, n2 has 1, n3 has 1. Six edge ends, four
         // nodes, so the mean is 1.5 and it sits inside the range printed beside it.
-        const { nodes, edges } = graph(4, [[0, 1], [1, 2], [0, 3]]);
+        const { nodes, edges } = graph(4, [
+            [0, 1],
+            [1, 2],
+            [0, 3],
+        ]);
         harness.add(nodes, edges);
 
         const stats = harness.session.data.statistics();
@@ -178,7 +193,10 @@ describe("the mean degree", () => {
 
     it("does not double-count a directed edge the way 2m / n does", () => {
         const harness = makeSession({ directed: true });
-        const { nodes, edges } = graph(3, [[0, 1], [1, 2]]);
+        const { nodes, edges } = graph(3, [
+            [0, 1],
+            [1, 2],
+        ]);
         harness.add(nodes, edges);
 
         const stats = harness.session.data.statistics();
@@ -211,18 +229,44 @@ describe("the transitivity", () => {
     }
 
     it("is 1 on a triangle and 0 on a graph with no triangle", () => {
-        assert.strictEqual(transitivityOf(false, 3, [[0, 1], [1, 2], [2, 0]]), 1);
-        assert.strictEqual(transitivityOf(false, 4, [[0, 1], [0, 2], [0, 3]]), 0);
+        assert.strictEqual(
+            transitivityOf(false, 3, [
+                [0, 1],
+                [1, 2],
+                [2, 0],
+            ]),
+            1,
+        );
+        assert.strictEqual(
+            transitivityOf(false, 4, [
+                [0, 1],
+                [0, 2],
+                [0, 3],
+            ]),
+            0,
+        );
         assert.strictEqual(transitivityOf(false, 2, []), 0);
     });
 
     it("ignores arc direction, as the undirected view Louvain runs on does", () => {
-        assert.strictEqual(transitivityOf(true, 3, [[0, 1], [1, 2], [0, 2]]), 1);
+        assert.strictEqual(
+            transitivityOf(true, 3, [
+                [0, 1],
+                [1, 2],
+                [0, 2],
+            ]),
+            1,
+        );
     });
 
     it("reads a triangle with a pendant edge near the exact 3/5", () => {
         // Wedges: 1 at node 1, 1 at node 2, 3 at node 0 (one of them closed). Closed: 3 of 5.
-        const value = transitivityOf(false, 4, [[0, 1], [1, 2], [2, 0], [0, 3]]);
+        const value = transitivityOf(false, 4, [
+            [0, 1],
+            [1, 2],
+            [2, 0],
+            [0, 3],
+        ]);
         assert.approximately(value, 0.6, 0.03);
     });
 });
@@ -254,7 +298,10 @@ describe("where the direction came from", () => {
 
     it("stays unsettled when records arrive that carry no header to read", () => {
         const harness = makeSession();
-        const { nodes, edges } = graph(3, [[0, 1], [1, 2]]);
+        const { nodes, edges } = graph(3, [
+            [0, 1],
+            [1, 2],
+        ]);
         harness.add(nodes, edges);
 
         // Records pushed straight in have no file around them, so nothing has stated a direction
@@ -268,7 +315,11 @@ describe("where the direction came from", () => {
 describe("the connected components", () => {
     it("finds the pieces and orders their sizes largest first", () => {
         const harness = makeSession();
-        const { nodes, edges } = graph(6, [[0, 1], [1, 2], [3, 4]]);
+        const { nodes, edges } = graph(6, [
+            [0, 1],
+            [1, 2],
+            [3, 4],
+        ]);
         harness.add(nodes, edges);
 
         const { components } = harness.session.data.statistics();
@@ -282,7 +333,10 @@ describe("the connected components", () => {
 
     it("ignores arc direction, because a reader looking at the picture sees one piece", () => {
         const harness = makeSession({ directed: true });
-        const { nodes, edges } = graph(3, [[0, 1], [2, 1]]);
+        const { nodes, edges } = graph(3, [
+            [0, 1],
+            [2, 1],
+        ]);
         harness.add(nodes, edges);
 
         assert.strictEqual(harness.session.data.statistics().components.count, 1);
@@ -291,7 +345,10 @@ describe("the connected components", () => {
 
     it("says which component a node is in, and nothing at all for a node it does not have", () => {
         const harness = makeSession();
-        const { nodes, edges } = graph(4, [[0, 1], [2, 3]]);
+        const { nodes, edges } = graph(4, [
+            [0, 1],
+            [2, 3],
+        ]);
         harness.add(nodes, edges);
 
         const { components } = harness.session.data.statistics();

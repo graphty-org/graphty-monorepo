@@ -407,6 +407,71 @@ describe("session.data.prepare", () => {
         session.dispose();
     });
 
+    it("recognizes which file of a pair holds the edges, in either order (#911)", async () => {
+        const session = createGraphSession();
+        const swapped = await session.data.prepare({
+            config: { nodeFile: new File([TIES], "ties.csv"), edgeFile: new File([PEOPLE], "people.csv") },
+        });
+
+        assert.strictEqual(swapped.mapping.tables.nodes.rowsAre, "edges");
+        assert.strictEqual(swapped.mapping.tables.edges.rowsAre, "nodes");
+        assert.strictEqual(swapped.mapping.tables.edges.key, "id");
+        const report = await swapped.report();
+        assert.strictEqual(report.counts.nodes, 4);
+        assert.strictEqual(report.counts.edges, 3);
+
+        const twoNodeLists = await session.data.prepare({
+            config: { nodeFile: new File([PEOPLE], "a.csv"), edgeFile: new File([PEOPLE], "b.csv") },
+        });
+        assert.deepEqual(
+            Object.values(twoNodeLists.mapping.tables).map((table) => table.rowsAre),
+            ["nodes", "edges"],
+            "files whose columns say the same thing are read in the order handed over",
+        );
+        session.dispose();
+    });
+
+    it("resolves the roles a set of choices reads, without loading (#911)", async () => {
+        const session = createGraphSession();
+        const draft = await session.data.prepare({ type: "csv", config: { data: PEOPLE } });
+
+        const asEdges = draft.resolve({ mapping: { rowsAre: "edges", source: "id", target: "team" } });
+        assert.deepInclude(asEdges.tables.rows, {
+            rowsAre: "edges",
+            source: { column: "id" },
+            target: { column: "team" },
+        });
+        assert.deepEqual(draft.resolve(), draft.mapping);
+        assertUntouched(session);
+        session.dispose();
+    });
+
+    it("says which separator a CSV file was read with, and whether it was detected (#911)", async () => {
+        const session = createGraphSession();
+        const detected = await session.data.prepare({ type: "csv", config: { data: "id;name\na;A\n" } });
+        assert.deepEqual(detected.tables[0].delimiter, { value: ";", detected: true });
+        assert.strictEqual(detected.tables[0].columns.length, 2);
+
+        const given = await session.data.prepare({ type: "csv", config: { data: "id|name\na|A\n", delimiter: "|" } });
+        assert.deepEqual(given.tables[0].delimiter, { value: "|", detected: false });
+
+        const graph = await session.data.prepare({ type: "graphml", config: { data: GRAPHML } });
+        assert.isUndefined(graph.tables[0].delimiter);
+        session.dispose();
+    });
+
+    it("names a graph file's label column, and the load labels the nodes with it (#911)", async () => {
+        const session = createGraphSession();
+        const gml = 'graph [ node [ id 1 label "Ann" ] node [ id 2 label "Bo" ] edge [ source 1 target 2 ] ]';
+        const draft = await session.data.prepare({ type: "gml", config: { data: gml } });
+
+        assert.strictEqual(draft.mapping.tables.nodes.label, "label");
+        assert.strictEqual(draft.tables[0].columns.find((column) => column.name === "label")?.suggested, "label");
+        await draft.load();
+        assert.strictEqual(session.config.data.knownFields.nodeLabelPath, "label");
+        session.dispose();
+    });
+
     it("reads a graph file as two tables whose roles the format sets", async () => {
         const session = createGraphSession();
         const draft = await session.data.prepare({ type: "graphml", config: { data: GRAPHML } });

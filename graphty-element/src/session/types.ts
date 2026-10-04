@@ -848,6 +848,15 @@ export interface LoadDraft {
     /** The element's own reading: every table, with every role it found written out. */
     readonly mapping: LoadMappingRead;
     /**
+     * Every table's roles as a load with these choices reads them: the reader's mapping over the
+     * element's own reading, in the full form `mapping` has. After a table's `rowsAre` changes,
+     * this is where the key, the endpoints and the rest the element now reads are found.
+     * @param choices - The same choices `load` takes.
+     * @returns The roles.
+     * @throws `E_BAD_COMMAND` or `E_UNKNOWN_ATTRIBUTE` for a mapping the draft cannot carry out.
+     */
+    resolve(choices?: LoadChoices): LoadMappingRead;
+    /**
      * The roles each table needs and does not have under a set of choices, for a per-table
      * "ready" check: `LOAD_ROLES[rowsAre].requires` less the roles the choices and the element's
      * own reading set. An edge table needs `source` and `target`; a node table needs nothing.
@@ -903,6 +912,12 @@ export interface DraftTable {
      * a mapping applies it. Absent for a table whose format sets its roles.
      */
     readonly weightCandidate?: string;
+    /**
+     * How a CSV table's file was split into columns: the separator (`","`, `";"`, `"\t"` or `"|"`)
+     * and whether the element detected it (`true`) or the source's `delimiter` option named it.
+     * Absent for any other format.
+     */
+    readonly delimiter?: { readonly value: string; readonly detected: boolean };
 }
 
 /** One column of a draft table, described as `data.attributes()` describes it after a load. */

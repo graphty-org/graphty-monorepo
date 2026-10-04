@@ -102,6 +102,9 @@ const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
 /** The header names that make a single CSV file a node list, and name its key. */
 const NODE_ID_COLUMNS: readonly string[] = ["id", "Id", "ID"];
 
+/** The record key every graph file format's reader gives a node's label. */
+const FORMAT_LABEL = "label";
+
 /** The id a row-numbered node is given, as the CSV reader numbers them. */
 const ROW_ID = "id";
 
@@ -156,6 +159,7 @@ export function isPair(config: Readonly<Record<string, unknown>>): boolean {
  * @param rows - Its rows.
  * @param lines - Each row's line, or null.
  * @param order - Its header.
+ * @param delimiter - A CSV file's column separator, and whether it was detected.
  * @returns The table.
  */
 function heldTable(
@@ -165,6 +169,7 @@ function heldTable(
     rows: readonly Record<string, unknown>[],
     lines: readonly number[] | null,
     order: readonly string[] = [],
+    delimiter?: DraftTable["delimiter"],
 ): HeldTable {
     for (const row of rows) {
         Object.freeze(row);
@@ -180,7 +185,14 @@ function heldTable(
         }),
     );
     return {
-        table: { id, name, rowCount: rows.length, fixed, columns },
+        table: {
+            id,
+            name,
+            rowCount: rows.length,
+            fixed,
+            columns,
+            ...(delimiter === undefined ? {} : { delimiter: Object.freeze({ ...delimiter }) }),
+        },
         rows,
         lines,
         order: columns.map((column) => column.name),
@@ -226,7 +238,7 @@ export async function readSource(
             edges: fileName(config.edgeFile ?? config.edgeURL),
         };
         const tables = Object.entries(rowTables).map(([id, read]) =>
-            heldTable(id, pairNames[id] ?? named, false, read.rows, read.lines, read.columns),
+            heldTable(id, pairNames[id] ?? named, false, read.rows, read.lines, read.columns, read.delimiter),
         );
         progress(tables.reduce((sum, held) => sum + held.rows.length, 0));
         return { source, tables, declaredDirection: null, ...errorsOf(reader) };
@@ -295,11 +307,14 @@ function guessTable(
     const idColumn = has(source.idColumn) ? source.idColumn : NODE_ID_COLUMNS.find(has);
     const readsAsNodes = source.variant === "node-list" || (pair === undefined && idColumn !== undefined);
     const ownKind: "nodes" | "edges" = readsAsNodes ? "nodes" : "edges";
-    const kind = rowsAre ?? (held.table.id === "rows" ? ownKind : (held.table.id as "nodes" | "edges"));
+    // One file of a pair says what it holds by its columns, whichever half it was handed over as;
+    // only a file whose columns say nothing is read as the half it was handed over as.
+    const decided = held.table.id === "rows" || pair !== undefined || idColumn !== undefined;
+    const kind = rowsAre ?? (decided ? ownKind : (held.table.id as "nodes" | "edges"));
 
     if (kind === "nodes") {
         // A pair's node file falls back to its first column, as the CSV reader does.
-        const key = idColumn ?? (held.table.id === "nodes" ? held.order[0] : undefined) ?? null;
+        const key = idColumn ?? (held.table.id === "rows" ? undefined : held.order[0]) ?? null;
         return {
             rowsAre: "nodes",
             key,
@@ -331,7 +346,8 @@ function guessFixed(held: HeldTable, config: SessionDataConfig): TableMappingRea
         return {
             rowsAre: "nodes",
             key: knownFields.nodeIdPath,
-            label: present(knownFields.nodeLabelPath),
+            // Every graph format's reader names a node's label `label`; a configured path wins.
+            label: present(knownFields.nodeLabelPath ?? FORMAT_LABEL),
             time: present(knownFields.nodeTimePath),
         };
     }
@@ -382,12 +398,14 @@ export class Draft implements LoadDraft {
         this.type = read.source.type ?? "";
         this.tables = Object.freeze(read.tables.map((held) => Object.freeze(held.table)));
         const config = host.config();
-        const tables = Object.fromEntries(
-            read.tables.map((held) => [
-                held.table.id,
-                Object.freeze(guessTable(held, undefined, read.source.config ?? {}, config)),
-            ]),
-        );
+        const options = read.source.config ?? {};
+        let guesses = read.tables.map((held) => guessTable(held, undefined, options, config));
+        if (guesses.length === 2 && guesses[0].rowsAre === guesses[1].rowsAre) {
+            // Both files of a pair read as the same kind: the order they were handed over in decides.
+            guesses = read.tables.map((held) => guessTable(held, held.table.id as "nodes" | "edges", options, config));
+        }
+
+        const tables = Object.fromEntries(read.tables.map((held, at) => [held.table.id, Object.freeze(guesses[at])]));
         this.mapping = Object.freeze({ tables: Object.freeze(tables) });
         this.tables = Object.freeze(
             read.tables.map((held) => {
@@ -409,6 +427,15 @@ export class Draft implements LoadDraft {
                 });
             }),
         );
+    }
+
+    /**
+     * Every table's roles as a load with these choices reads them.
+     * @param choices - The same choices `report` and `load` take.
+     * @returns The roles.
+     */
+    resolve(choices: LoadChoices = {}): LoadMappingRead {
+        return this.effective(this.live("resolve"), choices.mapping);
     }
 
     /**
@@ -628,7 +655,14 @@ export class Draft implements LoadDraft {
             });
         }
 
-        const knownFields = knownFieldsOf(mapping, choices.mapping, read);
+        const named = knownFieldsOf(mapping, choices.mapping, read);
+        // A graph file's label column, which the element reads by itself, labels the nodes as the
+        // draft's mapping says it will, unless a label path is configured already.
+        const label = read.tables[0].table.fixed ? (mapping.tables.nodes?.label ?? null) : null;
+        const knownFields =
+            label === null || this.host.config().knownFields.nodeLabelPath !== null
+                ? named
+                : { ...named, nodeLabelPath: label };
         if (read.tables.every((held) => held.table.fixed)) {
             const [nodes, edges] = read.tables;
             return {

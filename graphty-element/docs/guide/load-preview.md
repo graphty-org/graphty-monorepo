@@ -52,6 +52,7 @@ await element.session.data.import({ config: { file } }, { mapping: { source: "fr
 | `type`             | The format that read the file (`"csv"`, `"graphml"`, ...)                      |
 | `tables`           | The file's tables: an `id`, the file `name`, `rowCount`, `fixed` and `columns` |
 | `mapping`          | The element's own reading of every table's roles                               |
+| `resolve(choices)` | Every table's roles as a load with those choices reads them                    |
 | `missing(choices)` | The roles each table still needs under those choices                           |
 | `report(choices)`  | What `load(choices)` would do to the graph as it is now                        |
 | `rows(id, page)`   | The rows of one table as the file holds them, a page at a time                 |
@@ -63,9 +64,22 @@ Table ids are assigned by the element and are the same for every file of the sam
 then `"edges"`, in that order, for a pair of CSV files (`config: { nodeFile, edgeFile }`) and for
 every other format. A single CSV file is therefore always `draft.tables[0]`.
 
+The two files of a CSV pair can arrive in either order -- a browser hands over a multi-file pick
+or drop in no particular order. The element reads each file's columns and decides which holds the
+edges (it has an endpoint pair such as `source` and `target`) and which the nodes (an `id`
+column), whichever of `nodeFile` and `edgeFile` it came as; the table ids stay positional and
+`draft.mapping.tables[id].rowsAre` says what each holds. Only when the columns say nothing either
+way does the order handed over decide.
+
+A CSV table also carries `delimiter: { value, detected }`: the column separator it was split on
+(`","`, `";"`, `"\t"` or `"|"`) and whether the element detected it rather than being given it as
+the source's `delimiter` option.
+
 `fixed: true` means the format, not the reader, decides each column's role: a GraphML, GEXF, GML,
 DOT, Pajek or JSON file says which fields are node ids and edge endpoints, so a mapping for its
-tables is refused. Only CSV tables have `fixed: false`.
+tables is refused. Only CSV tables have `fixed: false`. A graph file's `label` field is its label
+column (`suggested: "label"`), and a load from the draft labels the nodes with it, unless
+`data.knownFields.nodeLabelPath` names another column already.
 
 Each column is described the way `session.data.attributes()` will describe it after the load:
 `name`, `type`, `completeness` (the fraction of rows with a value), `uniqueCount` and
@@ -127,7 +141,10 @@ uses the column the reader chose. You do not write those settings yourself.
 
 `draft.mapping` always reads back in the full form: every table by id, `rowsAre` set, and `source`
 and `target` as `{ column }`. It and each column's `suggested` are the same reading seen from two
-sides, so they always agree, and a role your mapping leaves out falls back to it. To find the
+sides, so they always agree, and a role your mapping leaves out falls back to it. For the roles
+under a mapping of your own -- after a table's `rowsAre` flips, the element reads its key or its
+endpoints anew -- call `draft.resolve(choices)`, which returns the same full form without loading
+anything. To find the
 column the element picked for a role, read either:
 
 ```ts

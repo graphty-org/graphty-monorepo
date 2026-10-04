@@ -135,6 +135,8 @@ interface CsvRows {
     readonly rows: Record<string, unknown>[];
     /** The line each row starts on, the header being line 1. */
     readonly lines: readonly number[];
+    /** The column separator the file was read with, and whether it was detected rather than given. */
+    readonly delimiter: { readonly value: string; readonly detected: boolean };
 }
 
 /**
@@ -144,7 +146,7 @@ interface CsvRows {
  * @param given - the delimiter the caller named, if any
  * @returns the header's fields and the start line of every record after it
  */
-function csvRecordLines(text: string, given?: string): { header: string[]; lines: number[] } {
+function csvRecordLines(text: string, given?: string): { header: string[]; lines: number[]; delimiter: string } {
     const delimiter = given ?? guessDelimiter(text.split(/\r\n|\n|\r/, 1)[0] ?? "");
     const header: string[] = [];
     const lines: number[] = [];
@@ -182,7 +184,7 @@ function csvRecordLines(text: string, given?: string): { header: string[]; lines
         header.push(field);
     }
 
-    return { header: header.map((name) => name.trim()), lines };
+    return { header: header.map((name) => name.trim()), lines, delimiter };
 }
 
 /** A quoted cell (its closing quote optional at the end of the text), a line break, or other text. */
@@ -519,8 +521,14 @@ export class CSVDataSource extends DataSource {
      * @returns the rows
      */
     private async rowsOf(content: string): Promise<CsvRows> {
+        const { delimiter: given } = this.config;
         if (content.trim() === "") {
-            return { columns: [], rows: [], lines: [] };
+            return {
+                columns: [],
+                rows: [],
+                lines: [],
+                delimiter: { value: given ?? ",", detected: given === undefined },
+            };
         }
 
         // Read as a node table numbered by row, so no column is taken as an id and every one is kept.
@@ -535,8 +543,13 @@ export class CSVDataSource extends DataSource {
             }),
         );
         aggregateErrors(read.report, this.errorAggregator, true);
-        const { header, lines } = csvRecordLines(content, this.config.delimiter);
-        return { columns: header, rows: read.nodes.map(({ data }) => data), lines };
+        const { header, lines, delimiter } = csvRecordLines(content, given);
+        return {
+            columns: header,
+            rows: read.nodes.map(({ data }) => data),
+            lines,
+            delimiter: { value: delimiter, detected: given === undefined },
+        };
     }
 
     private async *parsePairedFiles(): AsyncGenerator<DataSourceChunk, void, unknown> {

@@ -66,7 +66,13 @@ import type {
     WeightMeaning,
 } from "./runs";
 import type { ScopeApi } from "./scope/index";
-import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget } from "./selection";
+import type {
+    SelectionApi,
+    SelectionDelta,
+    SelectionOwner,
+    SelectionTarget,
+    SelectionTextMode,
+} from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
 import type { ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
@@ -178,6 +184,18 @@ export interface RecordPageOptions {
      * same order. The records themselves are unchanged.
      */
     readonly columns?: readonly ResultColumn[];
+    /**
+     * Only the records that match a text, as `selection.apply({ text, mode })` matches it: a
+     * node by its id and its attribute values, an edge by its id, its two endpoints' ids and its
+     * attribute values. With no `mode` the text may carry one as a prefix (`exact:`, `regex:`,
+     * `<attribute>:`); otherwise it is found anywhere, ignoring case. Combines with `scope`,
+     * `sort` and `columns`; `total` counts the matches. Selects nothing.
+     *
+     * ```ts
+     * session.data.nodePage({ matching: { text: "jav" }, limit: 30 }); // Javert, ...
+     * ```
+     */
+    readonly matching?: { readonly text: string; readonly mode?: SelectionTextMode };
 }
 
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */

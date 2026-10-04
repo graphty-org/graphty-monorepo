@@ -169,6 +169,10 @@ session.data.nodePage({ scope: "selection" });
 // The edges at one node:
 session.data.edgePage({ touching: "alice", limit: Infinity });
 
+// Only the records matching typed text, as a table's search box narrows it (selects nothing):
+session.data.nodePage({ matching: { text: "jav" }, sort: { key: "name" } });
+session.data.edgePage({ matching: { text: "kind:robs" } }); // the same modes as selection.apply({ text })
+
 // The nodes joined to one node, one row each, strongest first (see the Neighbors guide):
 session.data.neighbors("alice");
 
@@ -187,7 +191,10 @@ session.on("run:changed", reread);
 ```
 
 Every option is optional: `offset` defaults to 0, `limit` to 100 (`Infinity` reads to the end),
-`scope` to `"graph"`. Without `sort`, records come in the order they were added, and an edit
+`scope` to `"graph"`. `matching` keeps the records whose id or a value contains the text, ignoring
+case -- an edge also matches by its endpoints' ids -- or, with a `mode` or an `exact:`, `regex:` or
+`<attribute>:` prefix, matches it the way `selection.apply({ text, mode })` does; `total` then
+counts the matches. Without `sort`, records come in the order they were added, and an edit
 never reorders them: an updated record stays where it was, a removed one leaves a gap that
 closes, an added one goes last. With `sort`, numbers come before text, text sorts naturally
 ("2" before "10"), a record without the key comes last either way, and records that sort equal

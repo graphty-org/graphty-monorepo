@@ -50,6 +50,8 @@ import type { HistogramOptions } from "./results/types";
 import { RevisionCache } from "./revision";
 import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
+import type { SelectionTextMode } from "./selection";
+import { searchOf } from "./selection/targets";
 import type { ColumnRef } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type {
@@ -118,6 +120,14 @@ interface PageSources {
      * @returns the hits
      */
     search(text: string, request: SearchRequest): SearchAnswer;
+    /**
+     * Whether one record matches a text, by row: a page's `matching`, over the query engine.
+     * @param text - What was typed, its mode prefix already read
+     * @param mode - How to match it
+     * @param target - Nodes or edges
+     * @returns The test
+     */
+    textTest(text: string, mode: SelectionTextMode, target: "node" | "edge"): (index: number) => boolean;
     /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
@@ -263,6 +273,21 @@ function pageWindow(
     }
 
     return { offset, limit };
+}
+
+/**
+ * A page's `matching`, its mode settled: the text's prefix read when no mode was given.
+ * @param matching - the option
+ * @returns the text and the mode, or undefined when the page is not narrowed
+ */
+function matchingOf(
+    matching: RecordPageOptions["matching"],
+): { readonly text: string; readonly mode: SelectionTextMode } | undefined {
+    if (matching === undefined) {
+        return undefined;
+    }
+
+    return matching.mode === undefined ? searchOf(matching.text) : { text: matching.text, mode: matching.mode };
 }
 
 /**
@@ -930,7 +955,8 @@ export class SessionData implements SessionDataApi {
         const scope = options.scope === "graph" ? undefined : options.scope;
         const touching = target === "edge" ? options.touching : undefined;
         const { sort } = options;
-        if (scope === undefined && touching === undefined && sort === undefined) {
+        const matching = matchingOf(options.matching);
+        if (scope === undefined && touching === undefined && sort === undefined && matching === undefined) {
             return null;
         }
 
@@ -939,7 +965,7 @@ export class SessionData implements SessionDataApi {
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching]);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching]);
         return this.orders.get(key, () => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -955,7 +981,8 @@ export class SessionData implements SessionDataApi {
                                         )
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
-            return this.computeOrder(snapshot, target, scope, touching, order);
+            const matches = matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target);
+            return this.computeOrder(snapshot, target, scope, touching, order, matches);
         });
     }
 
@@ -966,6 +993,7 @@ export class SessionData implements SessionDataApi {
      * @param scope - the scope, or undefined for the whole graph
      * @param touching - for edges, the node one end must be
      * @param sort - the direction and what a row sorts by, or undefined for graph order
+     * @param matches - keeps only the rows matching a page's text, or null for every row
      * @returns the rows
      */
     private computeOrder(
@@ -974,6 +1002,7 @@ export class SessionData implements SessionDataApi {
         scope: ScopeInput | undefined,
         touching: NodeId | undefined,
         sort: { readonly descending: boolean; value(index: number): unknown } | undefined,
+        matches: ((index: number) => boolean) | null,
     ): Uint32Array {
         const space = edgeSpaceOf(snapshot);
         const members = scope === undefined ? null : this.pages.resolve(scope);
@@ -987,6 +1016,10 @@ export class SessionData implements SessionDataApi {
                 touching !== undefined &&
                 (end === INVALID_INDEX || (snapshot.edgeSource(index) !== end && snapshot.edgeTarget(index) !== end))
             ) {
+                continue;
+            }
+
+            if (matches !== null && !matches(index)) {
                 continue;
             }
 

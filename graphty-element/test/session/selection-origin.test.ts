@@ -71,12 +71,8 @@ describe("session.selection.origin", () => {
         session.dispose();
     });
 
-    it("is null after a click or an undo, which select a plain list nobody passed", async () => {
+    it("is null after an undo, which reselects a plain list nobody passed", async () => {
         const session = await star();
-        await session.selection.apply({ neighborsOf: ["Javert"] });
-        session.selection.applyNow({ nodes: ["Valjean"] }, "replace", "user");
-        assert.isNull(session.selection.origin);
-
         await session.data.addNodes([{ id: "Late" }]);
         await session.selection.apply({ nodes: ["Late"] });
         await session.undo();

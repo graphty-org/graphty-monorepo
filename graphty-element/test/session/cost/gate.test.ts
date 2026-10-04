@@ -13,10 +13,10 @@ import {
     resultBytes,
     type ScopeCandidate,
 } from "../../../src/session/cost";
-import type { GraphShapeStatistics } from "../../../src/session/types";
+import type { GraphStatistics } from "../../../src/session/types";
 
 /** A graph of a stated size, in one connected piece unless a test says otherwise. */
-function statistics(over: Partial<GraphShapeStatistics> = {}): GraphShapeStatistics {
+function statistics(over: Partial<GraphStatistics> = {}): GraphStatistics {
     const nodeCount = over.nodeCount ?? 1000;
 
     return {
@@ -84,7 +84,7 @@ function refusal(decision: CostGateDecision): {
 }
 
 /** A graph big enough that an n * m sweep over it is hours. */
-const BIG: Partial<GraphShapeStatistics> = { nodeCount: 70000, edgeCount: 350000 };
+const BIG: Partial<GraphStatistics> = { nodeCount: 70000, edgeCount: 350000 };
 
 describe("gateRun: at or below the cap", () => {
     it("runs exactly", () => {

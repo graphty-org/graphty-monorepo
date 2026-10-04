@@ -122,6 +122,7 @@ describe("the shape of the graph", () => {
 
         const stats = harness.session.data.statistics();
         const { degreeHistogram } = stats;
+        assert.isDefined(degreeHistogram);
         assert.strictEqual(degreeHistogram.binning, "per-value");
         assert.deepStrictEqual(
             degreeHistogram.bins.map((bin) => [bin.from, bin.to, bin.count]),
@@ -151,6 +152,7 @@ describe("the shape of the graph", () => {
         harness.add(nodes, edges);
 
         const { degreeHistogram, nodeCount } = harness.session.data.statistics();
+        assert.isDefined(degreeHistogram);
         assert.strictEqual(degreeHistogram.binning, "banded");
         assert.strictEqual(
             degreeHistogram.bins.reduce((sum, bin) => sum + bin.count, 0),

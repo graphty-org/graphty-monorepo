@@ -10,7 +10,7 @@ import { assert, describe, it } from "vitest";
 
 import { LAYOUT_DESCRIPTORS } from "../../src/catalog/layouts";
 import { DEFAULT_LIMITS, type LayoutRecommendation, recommendLayout } from "../../src/session";
-import type { GraphShapeStatistics } from "../../src/session/types";
+import type { GraphStatistics } from "../../src/session/types";
 import { type Harness, loadGexfCorpus, makeSession } from "./helpers";
 
 /** The corpus file the connected cases load: 77 characters, 254 weighted co-appearances. */
@@ -36,7 +36,7 @@ async function lesMiserables(): Promise<Harness> {
  * @param advice - What was recommended.
  * @param statistics - The graph it was recommended for.
  */
-function assertServable(advice: LayoutRecommendation | undefined, statistics: GraphShapeStatistics): void {
+function assertServable(advice: LayoutRecommendation | undefined, statistics: GraphStatistics): void {
     assert.isDefined(advice, "the shipped catalogue always serves something");
 
     const published = LAYOUT_DESCRIPTORS.find((descriptor) => descriptor.id === advice?.layout.id);
@@ -62,7 +62,7 @@ function assertServable(advice: LayoutRecommendation | undefined, statistics: Gr
  * @param edgeCount - Edges.
  * @returns The statistics.
  */
-function sizeOnly(nodeCount: number, edgeCount: number): GraphShapeStatistics {
+function sizeOnly(nodeCount: number, edgeCount: number): GraphStatistics {
     return {
         nodeCount,
         edgeCount,

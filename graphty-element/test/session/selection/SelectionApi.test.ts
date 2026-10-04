@@ -489,6 +489,20 @@ describe("the cap", () => {
         harness.session.dispose();
     });
 
+    it("records no origin for a replace the user or the history made", () => {
+        const harness = line();
+        const selection = selectionOf(harness);
+
+        selection.applyNow({ nodes: ["a"] });
+        assert.deepStrictEqual(selection.origin, { nodes: ["a"] });
+        selection.applyNow({ nodes: ["b"] }, "replace", "user");
+        assert.isNull(selection.origin, "a click");
+        selection.applyNow({ nodes: ["a"] });
+        selection.applyNow({ nodes: ["c"] }, "replace", "history");
+        assert.isNull(selection.origin, "an undo or redo");
+        harness.session.dispose();
+    });
+
     it("keeps the nodes before the edges, and the same ones every time", () => {
         const harness = line();
         const first = selectionOf(harness, { cap: () => 3 });

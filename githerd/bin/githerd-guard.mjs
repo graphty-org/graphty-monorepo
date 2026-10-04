@@ -395,6 +395,8 @@ function checkGit(cmd, args, ctx) {
     if (sub === undefined) return;
     const rest = args.slice(k + 1);
     if (GIT_REFUSED[sub]) refuse(`git ${sub}: ${GIT_REFUSED[sub]}`);
+    // Any word "push": `-P <prefix>` puts a word before the subcommand.
+    if (sub === "subtree" && rest.includes("push")) refuse(`git subtree push: ${GIT_REFUSED.push}`);
     checkGitSubcommand(sub, rest);
     if (isGitRead(sub, rest)) return;
     if (elsewhere) refuse(`git ${sub} with --git-dir or --work-tree: run git writes in the job's worktree`);
@@ -412,10 +414,6 @@ function checkGit(cmd, args, ctx) {
  */
 function checkGitSubcommand(sub, rest) {
     if (sub.startsWith("credential")) refuse("git credential: workers never handle credentials");
-    // Any word "push": `-P <prefix>` puts a word before the subcommand.
-    if (sub === "subtree" && rest.includes("push")) {
-        refuse(`git subtree push: ${GIT_REFUSED.push}`);
-    }
     if (rest.includes("--no-verify") || (sub === "commit" && rest.some((r) => /^-[^-mFcCt]*n/.test(r)))) {
         refuse(`git ${sub} --no-verify: the hooks always run; fix what they report`);
     }

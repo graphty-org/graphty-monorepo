@@ -794,16 +794,8 @@ export async function prepareJobWorktree({
         const held = await heldBy({ root, job, branch, env, ledger });
         if (held) return held;
     }
-    if (existsSync(dir)) {
-        const left = prepared !== dir && (await lockReason(root, dir, env)) === `githerd job ${job}`;
-        const removed = left
-            ? await removeJobWorktree({ root, job, dir, base: sha, salvage: true, env, ledger })
-            : null;
-        if (!removed?.ok) {
-            const why = removed && "reason" in removed ? `; not removed: ${removed.reason}` : "";
-            return jobFault(ledger, job, "worktree add", dir, `${dir} already exists${why}`);
-        }
-    }
+    const leftover = await clearLeftover({ root, job, dir, sha, prepared, env, ledger });
+    if (leftover) return leftover;
     const fetched = await haveCommit(root, sha, remote, ref, env);
     if (fetched.code !== 0) return jobFault(ledger, job, "fetch", null, fetched);
     const add = await run("git", ["worktree", "add", "--detach", dir, sha], { cwd: root, env });
@@ -818,6 +810,23 @@ export async function prepareJobWorktree({
     }
     await ledger({ kind: "job-worktree-ready", job, dir, sha });
     return { verdict: "ready", dir, sha };
+}
+
+/**
+ * Removes the directory a preparation left when githerd stopped halfway: one locked for this job
+ * that is not the job's prepared worktree. Its unpushed commits are salvaged.
+ * @param {{root: string, job: string, dir: string, sha: string, prepared: string | null,
+ *   env: Record<string, string | undefined>, ledger: Ledger}} options where, for which job, and the
+ *   job record's worktree
+ * @returns {Promise<JobFault | null>} the fault when the directory stays, null when it is free
+ */
+async function clearLeftover({ root, job, dir, sha, prepared, env, ledger }) {
+    if (!existsSync(dir)) return null;
+    const left = prepared !== dir && (await lockReason(root, dir, env)) === `githerd job ${job}`;
+    const removed = left ? await removeJobWorktree({ root, job, dir, base: sha, salvage: true, env, ledger }) : null;
+    if (removed?.ok) return null;
+    const why = removed && "reason" in removed ? `; not removed: ${removed.reason}` : "";
+    return jobFault(ledger, job, "worktree add", dir, `${dir} already exists${why}`);
 }
 
 /**

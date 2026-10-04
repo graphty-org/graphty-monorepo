@@ -336,6 +336,19 @@ export function livePushGroups(state, job) {
 }
 
 /**
+ * Kills a process group, ignoring one that is already gone.
+ * @param {number | null} pid the group's leader
+ */
+function kill(pid) {
+    if (!pid) return;
+    try {
+        process.kill(-pid, "SIGKILL");
+    } catch {
+        // Already gone.
+    }
+}
+
+/**
  * Whether an entry's recorded push process still runs.
  * @param {PushEntry} e the entry
  * @returns {boolean} true when its pid has its recorded start time
@@ -697,19 +710,6 @@ export function createPushQueue({
     }
 
     /**
-     * Kills a process group, ignoring one that is already gone.
-     * @param {number | null} pid the group's leader
-     */
-    function kill(pid) {
-        if (!pid) return;
-        try {
-            process.kill(-pid, "SIGKILL");
-        } catch {
-            // Already gone.
-        }
-    }
-
-    /**
      * Resolves once no push runs and none is queued behind it.
      * @returns {Promise<void>} when the queue is empty
      */
@@ -731,7 +731,7 @@ export function createPushQueue({
             if (livePush(e)) kill(e.pid);
             q.entries = q.entries.filter((/** @type {PushEntry} */ x) => x !== e);
             const job = state.jobs?.[e.job];
-            void ledger({ kind: "push-interrupted", job: e.job, branch: e.branch, head: e.head });
+            ledger({ kind: "push-interrupted", job: e.job, branch: e.branch, head: e.head });
             if (!job) continue;
             job.news.push({
                 at: t.toISOString(),
@@ -744,7 +744,7 @@ export function createPushQueue({
         }
         for (const e of q.entries) Object.assign(e, { pid: null, startTime: null });
         // Saved only when something changed; a pump that starts a push saves on its own.
-        if (interrupted.length) void save();
+        if (interrupted.length) save().catch(() => {}); // the next save writes it all the same
         pump();
     }
     recover();

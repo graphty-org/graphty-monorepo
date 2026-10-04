@@ -1,3 +1,58 @@
+## 3.12.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** legend blocks state what a higher value means and the bound range ([#912](https://github.com/graphty-org/graphty-monorepo/pull/912))
+- **graphty-element:** a yes/no switch for framing after a load ([#900](https://github.com/graphty-org/graphty-monorepo/pull/900))
+
+### 🩹 Fixes
+
+- **graphty-element:** legend reading and range only where they hold; keep an explicit fit ([e58419396](https://github.com/graphty-org/graphty-monorepo/commit/e58419396))
+- **graphty-element:** give label declutter a view door of its own ([#903](https://github.com/graphty-org/graphty-monorepo/pull/903))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.11.1 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty-element:** price louvain by the graph's transitivity, not one flat rate ([72ec48a6a](https://github.com/graphty-org/graphty-monorepo/commit/72ec48a6a))
+- **graphty-element:** pre-bundle the per-function lodash imports in the browser tests ([d11555da9](https://github.com/graphty-org/graphty-monorepo/commit/d11555da9))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.11.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** report node label counts on the element, not the session ([76778d4f3](https://github.com/graphty-org/graphty-monorepo/commit/76778d4f3))
+- **graphty-element:** count the labels the overlap rule hid, and which ([#787](https://github.com/graphty-org/graphty-monorepo/issues/787))
+- **graphty-element:** read XGMML, CX, CX2, Cytoscape sessions and OBO with no wiring ([6ec8b8aa4](https://github.com/graphty-org/graphty-monorepo/commit/6ec8b8aa4))
+
+### 🩹 Fixes
+
+- **graphty-element:** type graphty-label-change's detail and complete the labels guide ([521736a5e](https://github.com/graphty-org/graphty-monorepo/commit/521736a5e))
+- **graphty-element:** export the label count types from the session entry ([8b5886343](https://github.com/graphty-org/graphty-monorepo/commit/8b5886343))
+- **graphty-element:** tx.labels.setDeclutter joins the transaction ([cce1b13c6](https://github.com/graphty-org/graphty-monorepo/commit/cce1b13c6))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.30
+- Updated @graphty/remote-logger to 2.0.2
+- Updated graph-samples to 0.1.16
+- Updated graph-format to 1.3.1
+- Updated algorithms to 3.3.1
+- Updated graph-io to 0.3.21
+- Updated layout to 2.2.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.10.0 (2026-10-04)
 
 ### 🚀 Features

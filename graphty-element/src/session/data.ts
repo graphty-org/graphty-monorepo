@@ -448,7 +448,12 @@ export class SessionData implements SessionDataApi {
         // synchronously, and detecting the format may have to read the file or fetch the URL.
         const send = this.writes.importer();
         this.draft?.dispose();
-        if (options.mapping !== undefined || options.unmatched !== undefined || options.directed !== undefined) {
+        if (
+            options.mapping !== undefined ||
+            options.unmatched !== undefined ||
+            options.directed !== undefined ||
+            options.duplicateIds !== undefined
+        ) {
             const draft = await this.prepare(source);
             try {
                 await draft.loadVia(send, options);

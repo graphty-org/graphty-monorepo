@@ -398,6 +398,7 @@ export class Draft implements LoadDraft {
                 mode: merging ? "merge" : "replace",
                 held: plan.held,
                 ...(choices.unmatched === undefined ? {} : { unmatched: choices.unmatched }),
+                ...(choices.duplicateIds === undefined ? {} : { duplicateIds: choices.duplicateIds }),
                 measure: merging ? this.host.graph() : { nodes: new Set(), edges: 0 },
             },
             {
@@ -465,6 +466,7 @@ export class Draft implements LoadDraft {
             ...(choices.layout === undefined ? {} : { layout: choices.layout }),
             held: plan.held,
             ...(choices.unmatched === undefined ? {} : { unmatched: choices.unmatched }),
+            ...(choices.duplicateIds === undefined ? {} : { duplicateIds: choices.duplicateIds }),
         };
         const data = {
             ...(choices.directed === undefined ? {} : { directed: choices.directed }),
@@ -639,9 +641,14 @@ export class Draft implements LoadDraft {
         if (roles.rowsAre === "nodes") {
             if (only !== "unmatched") {
                 const idPath = rows.idPath ?? this.host.config().knownFields.nodeIdPath;
+                const seen = new Set<unknown>();
                 held.rows.forEach((row, index) => {
-                    const rejected = roles.key !== null && !isStorableId(value(row, idPath));
-                    if (rejected === (only === "rejected")) {
+                    const id = roles.key === null ? index : value(row, idPath);
+                    const rejected = !isStorableId(id);
+                    // A row repeating an earlier row's id makes no node of its own.
+                    const loaded = !rejected && !seen.has(id);
+                    seen.add(id);
+                    if (only === "rejected" ? rejected : loaded) {
                         picked.push(index);
                     }
                 });

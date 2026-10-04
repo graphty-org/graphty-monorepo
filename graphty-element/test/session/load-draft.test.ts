@@ -321,6 +321,54 @@ describe("session.data.prepare", () => {
         session.dispose();
     });
 
+    it("counts a node row with no id as rejected and lists it (#929)", async () => {
+        const session = createGraphSession();
+        const draft = await session.data.prepare({ type: "csv", config: { data: "id,name\n,A\nb,B\n" } });
+
+        const report = await draft.report();
+        const rejected = await draft.rows("rows", { only: "rejected" });
+        await draft.load();
+
+        assert.strictEqual(report.counts.nodes, 1);
+        assert.strictEqual(report.counts.rejected, 1);
+        assert.deepEqual(
+            rejected.records.map((row) => row.line),
+            [2],
+        );
+        assert.strictEqual(session.data.lastImport()?.counts.rejected, 1);
+        session.dispose();
+    });
+
+    it("reports duplicate node ids, and keeps, merges or refuses them as asked (#929)", async () => {
+        const data = "id,name,team\na,A,red\na,B,\nb,C,blue\n";
+        for (const duplicateIds of [undefined, "first", "merge", "refuse"] as const) {
+            const session = createGraphSession();
+            const draft = await session.data.prepare({ type: "csv", config: { data } });
+            const choices = duplicateIds === undefined ? {} : { duplicateIds };
+
+            const report = await draft.report(choices);
+            const loaded = await draft.rows("rows", { only: "loaded", choices });
+            const outcome = await refusal(draft.load(choices));
+
+            assert.deepEqual(report.duplicates, { rows: 1, ids: ["a"] }, duplicateIds);
+            assert.strictEqual(report.counts.nodes, 2, duplicateIds);
+            assert.strictEqual(loaded.total, 2, duplicateIds);
+            if (duplicateIds === "refuse") {
+                assert.strictEqual(outcome?.code, "E_DUPLICATE_ID");
+                assert.strictEqual(outcome?.details?.id, "a");
+                assertUntouched(session);
+            } else {
+                assert.isNull(outcome, duplicateIds);
+                const node = session.data.node("a");
+                assert.strictEqual(node?.name, duplicateIds === "merge" ? "B" : "A", duplicateIds);
+                assert.strictEqual(node?.team, "red", duplicateIds);
+                assert.deepEqual(session.data.lastImport()?.duplicates, { rows: 1, ids: ["a"] });
+            }
+
+            session.dispose();
+        }
+    });
+
     it("reads a graph file as two tables whose roles the format sets", async () => {
         const session = createGraphSession();
         const draft = await session.data.prepare({ type: "graphml", config: { data: GRAPHML } });

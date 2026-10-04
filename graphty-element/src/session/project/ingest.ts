@@ -287,6 +287,9 @@ export class Ingest<K extends KnownEdge> {
     /** The load in progress drops an edge naming a node no node record holds. */
     private leaveOutUnmatched = false;
 
+    /** What the load in progress does with a node record repeating an id an earlier one gave. */
+    private duplicateIds: NonNullable<DataImportCommand["duplicateIds"]> = "first";
+
     /** The graph held nodes when the load in progress began, so its edges can name them. */
     private loadBeganWithNodes = false;
 
@@ -394,6 +397,7 @@ export class Ingest<K extends KnownEdge> {
         }
 
         this.leaveOutUnmatched = command.unmatched === "leave-out";
+        this.duplicateIds = command.duplicateIds ?? "first";
         // A replacing load is measured against an empty graph, which is what it leaves. Set before
         // the graph is counted, so a measured merge matches its edges against the graph it counts
         // as there, as the real merge does (#935).
@@ -403,6 +407,7 @@ export class Ingest<K extends KnownEdge> {
             await this.addDataFromSource(type, config, writer, signal, command.mode !== "merge", command.held);
         } finally {
             this.leaveOutUnmatched = false;
+            this.duplicateIds = "first";
             this.measure = null;
         }
     }
@@ -449,6 +454,9 @@ export class Ingest<K extends KnownEdge> {
 
         for (const [i, node] of nodes.entries()) {
             const nodeId = ids[i];
+            if (this.loadTally !== null && this.loadRowSkipped(nodeId, node, writer, this.loadTally)) {
+                continue;
+            }
 
             if (this.hasNode(nodeId)) {
                 continue;
@@ -465,6 +473,52 @@ export class Ingest<K extends KnownEdge> {
         if (nodes.length > 0) {
             this.host.nodesArrived(nodes.length);
         }
+    }
+
+    /**
+     * Count one node record of a load against the load's tally, and say whether it adds no node:
+     * a record with no usable id is rejected, and one repeating an id an earlier record of the
+     * same load gave is a duplicate, kept out (`"first"`), folded into the first (`"merge"`) or
+     * refused (`"refuse"`, `E_DUPLICATE_ID`; a measured load counts it instead).
+     * @param id - The id the record gave.
+     * @param record - The record.
+     * @param writer - The graph primitives to write through.
+     * @param tally - The load's tally.
+     * @returns True when the record adds no node.
+     * @throws A `GraphtyError` with `E_DUPLICATE_ID` under `"refuse"`.
+     */
+    private loadRowSkipped(
+        id: NodeIdType,
+        record: Record<string | number, unknown>,
+        writer: GraphWriter,
+        tally: ImportTally,
+    ): boolean {
+        if (!isStorableId(id)) {
+            tally.rejected++;
+            return true;
+        }
+
+        if (!tally.nodeIds.has(id)) {
+            tally.nodeIds.add(id);
+            return false;
+        }
+
+        tally.duplicateRows++;
+        tally.duplicateIds.add(id);
+        if (this.duplicateIds === "refuse" && this.measure === null) {
+            throw new GraphtyError({
+                code: "E_DUPLICATE_ID",
+                source: "data",
+                message: `Two node rows give the id ${JSON.stringify(id)}, and the load refuses duplicate ids.`,
+                details: { id },
+            });
+        }
+
+        if (this.duplicateIds === "merge" && this.measure === null) {
+            writer.setAttributes("node", id, frozenRecord(record));
+        }
+
+        return true;
     }
 
     /**

@@ -50,7 +50,11 @@ export interface ImportReport {
         readonly nodeRecords: number;
         /** Edge records handed over, however many of them became edges. */
         readonly edgeRecords: number;
-        /** Records whose endpoint ids the store would not take, so they became no edge at all. */
+        /**
+         * Records that became nothing: an edge record whose endpoint ids the store would not
+         * take, and a node record with no usable id (absent, null, or not a string or a finite
+         * number). `LoadDraft.rows(id, { only: "rejected" })` lists them before a load.
+         */
         readonly rejected: number;
     };
     /** What happened to the records that named a pair the graph already held. */
@@ -101,6 +105,13 @@ export interface LoadReport extends ImportReport {
     readonly unmatched: { readonly rows: number; readonly values: number };
     /** The details `E_TOO_LARGE` would carry; null when the load fits. Always null after a real load, which refuses instead. */
     readonly tooLarge: TooLargeDetails | null;
+    /**
+     * Node rows whose id an earlier node row of the same load already gave: `rows` is how many
+     * such rows there are, and `ids` the distinct ids, in the order they first repeated. What
+     * became of them is `LoadChoices.duplicateIds`; under `"refuse"` a load refuses with
+     * `E_DUPLICATE_ID` and a report counts them here.
+     */
+    readonly duplicates: { readonly rows: number; readonly ids: readonly (string | number)[] };
 }
 
 /**
@@ -138,6 +149,12 @@ export interface ImportTally {
     readonly unmatchedValues: Set<unknown>;
     /** The first limit a measured load passed. */
     tooLarge: TooLargeDetails | null;
+    /** The node ids this load's node records have given so far. */
+    readonly nodeIds: Set<unknown>;
+    /** Node records repeating an id an earlier one gave. */
+    duplicateRows: number;
+    /** The distinct ids they repeated. */
+    readonly duplicateIds: Set<string | number>;
 }
 
 /**
@@ -160,6 +177,9 @@ export function newImportTally(): ImportTally {
         unmatchedRows: 0,
         unmatchedValues: new Set(),
         tooLarge: null,
+        nodeIds: new Set(),
+        duplicateRows: 0,
+        duplicateIds: new Set(),
     };
 }
 
@@ -214,5 +234,6 @@ export function sealImportReport(tally: ImportTally, context: ImportReportContex
         }),
         unmatched: Object.freeze({ rows: tally.unmatchedRows, values: tally.unmatchedValues.size }),
         tooLarge: tally.tooLarge,
+        duplicates: Object.freeze({ rows: tally.duplicateRows, ids: Object.freeze([...tally.duplicateIds]) }),
     });
 }

@@ -135,6 +135,9 @@ Other choices `report`, `load` and `import` take:
   `replace: true` (see [Data Sources](./data-sources#replacing-the-graph)).
 - `unmatched`: an edge naming a node no node row holds. `"add"` (the default) makes the node;
   `"leave-out"` drops the edge.
+- `duplicateIds`: a node row repeating an id an earlier node row gave. `"first"` (the default)
+  keeps the first row's node; `"merge"` also writes the later row's values onto it, later rows
+  winning; `"refuse"` refuses the load with `E_DUPLICATE_ID`, whose `details.id` names the id.
 - `directed`: writes `data.directed` in the same undoable step as the load.
 - `layout`: `"recommended"` also picks a layout for what was loaded.
 
@@ -149,6 +152,12 @@ after the load, so the numbers before and after cannot disagree. Beside the impo
   name -- the nodes `unmatched: "add"` would create. A load with no node rows into an empty
   graph has none: every node comes from the edges.
   `draft.rows("edges", { only: "unmatched", choices })` lists those rows.
+- `duplicates`: `{ rows, ids }`: how many node rows repeat an id an earlier node row gave, and
+  the distinct ids. A report counts them under every `duplicateIds` choice, `"refuse"` included,
+  so you can say "2 rows repeat an id" before the load refuses.
+- `counts.rejected`: rows that become nothing -- a node row with no usable id (an empty or
+  missing id cell) and an edge row whose ends cannot be node ids. A load never refuses for
+  them; `draft.rows(id, { only: "rejected" })` lists them.
 - `tooLarge`: `null` when the load fits; otherwise the `details` the load would refuse with as
   `E_TOO_LARGE`: `{ limit, count, of, graph }` -- the limit, the count that passed it, whether
   that count is of `"nodes"` or `"edges"`, and the nodes and edges the graph held when the batch
@@ -197,16 +206,17 @@ try {
 }
 ```
 
-| Code                          | When                                                                     |
-| ----------------------------- | ------------------------------------------------------------------------ |
-| `E_UNKNOWN_FORMAT`            | `prepare` cannot tell what the file is                                   |
-| `E_UNKNOWN_ATTRIBUTE`         | A mapping names a column the table does not have; `details.candidates`   |
-| `E_BAD_COMMAND`               | A role the table's rows cannot have, an unknown table, a `fixed` table   |
-| `E_EDGE_ENDPOINTS_UNRESOLVED` | `report` or `load` finds no endpoint columns; name `source` and `target` |
-| `E_PARSE_FAILED`              | The file cannot be read as its format; `details.format`, `details.line`  |
-| `E_EMPTY_LOAD`                | The file was read and holds nothing to load (empty, or a header only)    |
-| `E_TOO_LARGE`                 | `load` passes the element's limit; `report` puts it in `tooLarge`        |
-| `E_DISPOSED`                  | The draft was loaded or disposed                                         |
+| Code                          | When                                                                        |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| `E_UNKNOWN_FORMAT`            | `prepare` cannot tell what the file is                                      |
+| `E_UNKNOWN_ATTRIBUTE`         | A mapping names a column the table does not have; `details.candidates`      |
+| `E_BAD_COMMAND`               | A role the table's rows cannot have, an unknown table, a `fixed` table      |
+| `E_EDGE_ENDPOINTS_UNRESOLVED` | `report` or `load` finds no endpoint columns; name `source` and `target`    |
+| `E_PARSE_FAILED`              | The file cannot be read as its format; `details.format`, `details.line`     |
+| `E_EMPTY_LOAD`                | The file was read and holds nothing to load (empty, or a header only)       |
+| `E_TOO_LARGE`                 | `load` passes the element's limit; `report` puts it in `tooLarge`           |
+| `E_DUPLICATE_ID`              | `load` with `duplicateIds: "refuse"` meets a repeated node id; `details.id` |
+| `E_DISPOSED`                  | The draft was loaded or disposed                                            |
 
 `details` is typed `Readonly<Record<string, unknown>>` for every code, so check a value's type
 before using it (`Array.isArray(error.details.candidates)`).

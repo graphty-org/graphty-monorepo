@@ -993,6 +993,17 @@ export interface LoadChoices extends ImportOptions {
      * drops the edge.
      */
     readonly unmatched?: "add" | "leave-out";
+    /**
+     * A node row repeating an id an earlier node row of the same load gave: `"first"` (the
+     * default) keeps the first row's node and leaves the later row out; `"merge"` also writes
+     * the later row's values onto that node, later rows winning; `"refuse"` refuses the load with
+     * `E_DUPLICATE_ID` (`details.id`). Every case is counted in `LoadReport.duplicates`, which a
+     * `report()` fills under `"refuse"` instead of refusing. A row with no usable id is never a
+     * duplicate: it is rejected and counted in `counts.rejected`.
+     *
+     * OPEN UNION: later releases may add policies.
+     */
+    readonly duplicateIds?: "first" | "merge" | "refuse";
     /** Writes `data.directed` in the same step. */
     readonly directed?: boolean | "auto";
 }

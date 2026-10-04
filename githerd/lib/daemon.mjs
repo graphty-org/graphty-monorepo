@@ -1700,7 +1700,8 @@ export async function startDaemon({
                 env: { ...env, GIT_TERMINAL_PROMPT: "0" },
                 branch,
                 own: (sha) => {
-                    (state.pushedByGitherd ??= {})[sha] = "upkeep";
+                    state.pushedByGitherd ??= {};
+                    state.pushedByGitherd[sha] = "upkeep";
                 },
             },
             poll,

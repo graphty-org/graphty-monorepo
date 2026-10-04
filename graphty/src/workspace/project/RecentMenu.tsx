@@ -1,11 +1,55 @@
+import { Menu } from "@mantine/core";
+import React from "react";
+
+import { useWorkspace } from "../state/WorkspaceContext";
+import { locateRecent, openRecent } from "./actions";
+import { useRecentProjects } from "./recent";
+import { sizeWords } from "./words";
+
 /**
  * The main menu's "Open recent" submenu (tier1-design.md section 2.1), one row per recent
- * project. Rendered inside the main menu's dropdown as a `Menu.Sub`.
- *
- * A stub until the Project package replaces this file: there are no recent projects yet, so it
- * draws nothing.
- * @returns Nothing
+ * project, newest first. Opening one over unsaved changes asks first; a file the browser can no
+ * longer read says so, with Locate... on the notice. Not drawn while the list is empty.
+ * @returns The submenu, or nothing
  */
-export function RecentMenu(): null {
-    return null;
+export function RecentMenu(): React.JSX.Element | null {
+    const workspace = useWorkspace();
+    const entries = useRecentProjects();
+    if (entries.length === 0) {
+        return null;
+    }
+    return (
+        <Menu.Sub>
+            <Menu.Sub.Target>
+                <Menu.Sub.Item>Open recent</Menu.Sub.Item>
+            </Menu.Sub.Target>
+            <Menu.Sub.Dropdown>
+                {entries.map((entry) => (
+                    <Menu.Item
+                        key={entry.id}
+                        rightSection={sizeWords(entry.nodes)}
+                        onClick={() => {
+                            void openRecent(workspace, entry).then((outcome) => {
+                                if (outcome === "missing") {
+                                    workspace.store.set({
+                                        notice: {
+                                            message: `${entry.name} can no longer be read.`,
+                                            action: {
+                                                label: "Locate...",
+                                                run: () => {
+                                                    void locateRecent(workspace, entry);
+                                                },
+                                            },
+                                        },
+                                    });
+                                }
+                            });
+                        }}
+                    >
+                        {entry.name}
+                    </Menu.Item>
+                ))}
+            </Menu.Sub.Dropdown>
+        </Menu.Sub>
+    );
 }

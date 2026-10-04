@@ -115,6 +115,16 @@ export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from ".
 // fact (graphty-element reports facts, never sentences) and a progress report
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
 
+// What a find box lists without selecting: `element.session.find(text)`
+export type {
+    FindEnd,
+    FindHit,
+    FindHitBase,
+    FindKind,
+    FindOptions,
+    FindResult,
+    FindValueRow,
+} from "./src/session/types";
 // What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
 export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
 

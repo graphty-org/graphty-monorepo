@@ -365,7 +365,7 @@ function admitted(resolver: ScopeResolver, scope: ScopeInput): Scope {
  * @param text - What was typed.
  * @returns The text to search for and how.
  */
-function searchOf(text: string): { text: string; mode: SelectionTextMode } {
+export function searchOf(text: string): { text: string; mode: SelectionTextMode } {
     const prefix = /^([A-Za-z_][\w.]*):/.exec(text);
 
     if (prefix === null) {

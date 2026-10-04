@@ -36,6 +36,7 @@ import type {
     EdgeId,
     LayoutId,
     MeasurementDeclaration,
+    Path,
     RunId,
     Scope,
     ScopeInput,
@@ -49,7 +50,7 @@ import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration 
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
-import type { ResultsApi } from "./results";
+import type { ResultsApi, RunRef } from "./results";
 import type {
     Caveats,
     EngineVersions,
@@ -62,9 +63,9 @@ import type {
     RunsApi,
 } from "./runs";
 import type { ScopeApi } from "./scope/index";
-import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
+import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
-import type { ColumnRef, ProgressChange } from "./shared";
+import type { ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -101,16 +102,58 @@ export interface EdgeRecord {
 /** The attribute bag one record arrived with, as the session reads it. */
 export type SessionAttributes = Readonly<Record<string, unknown>>;
 
-/** What a page of records is sorted by. */
+/** What a page of records is sorted by: one of the keys its records carry. */
 export interface RecordSort {
     /**
      * The record key to sort by: a top-level attribute, or `id` (and `source` or `target` for an
-     * edge). Numbers (bigints among them) come before text, text sorts in natural order ("2" before "10"), and a record
-     * without the key comes last in either direction.
+     * edge), read literally. Numbers (bigints among them) come before text, text sorts in natural
+     * order ("2" before "10"), and a record without the key comes last in either direction.
      */
     readonly key: string;
     /** Largest first. Default false. */
     readonly descending?: boolean;
+}
+
+/**
+ * A run's result as a page column: the run itself (its primary field), or `{ run, field? }`.
+ *
+ * A bare string is a run id, never a path or an expression.
+ */
+export type ResultColumn = RunRef | ResultRef;
+
+/**
+ * A page sorted by a run's result: the run, optionally one of its fields, and the direction.
+ *
+ * Elements the run measured come first, in value order, and ties keep the graph's order; elements
+ * it has no value for come last in either direction. A grouping field (a partition's `group`, a
+ * hierarchy's `level`) sorts by group size instead of by the group's id, so `descending` puts the
+ * largest group first.
+ */
+export interface ResultSort extends ResultRef {
+    /** Largest first. Default false. */
+    readonly descending?: boolean;
+}
+
+/** One cell of a {@link PageColumn}: `undefined` when the run has no value for that record. */
+export type ResultCell = number | string | boolean | undefined;
+
+/** One result column of a page, in the order `columns` asked for it. */
+export interface PageColumn {
+    /** The run's id, whichever form (handle, result or id) `columns` named it in. */
+    readonly run: RunId;
+    /** The field, after the primary-field default was applied. */
+    readonly field: string;
+    /** The published path of the field, as a style selector or a filter reads it. */
+    readonly path: Path;
+    /** The field's declared type. */
+    readonly type: "number" | "integer" | "boolean" | "string";
+    /**
+     * The run has no result yet (queued, or running for the first time): every cell is undefined.
+     * A rerun keeps showing the previous values until the new ones publish.
+     */
+    readonly pending: boolean;
+    /** One cell per record, aligned with `records`. */
+    readonly values: readonly ResultCell[];
 }
 
 /** Which records a page holds, and from where in their order. */
@@ -126,7 +169,12 @@ export interface RecordPageOptions {
      * an edit never changes -- a removed record leaves a gap that closes, an added one goes last.
      * Records that sort equal keep that order too.
      */
-    readonly sort?: RecordSort;
+    readonly sort?: RecordSort | ResultSort;
+    /**
+     * Run results to read for the page's records, returned as {@link RecordPage.columns} in the
+     * same order. The records themselves are unchanged.
+     */
+    readonly columns?: readonly ResultColumn[];
 }
 
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */
@@ -147,9 +195,120 @@ export interface RecordPage<TRecord> {
      * Changes whenever anything a page could show may have changed: a record added, removed or
      * edited, an undo, a load, the selection or a set's members. A page held under one revision
      * is stale once {@link SessionDataApi.nodePage} answers another. Opaque: compare it, do not
-     * parse it.
+     * parse it. A run publishing or clearing its result, or being removed, moves it too. It is the
+     * session's, not the page's: every page read at the same moment carries the same revision,
+     * whatever its options, so `nodePage({ limit: 0 })` asks cheaply whether anything changed.
      */
     readonly revision: string;
+    /**
+     * The result columns, in the order asked for; present exactly when `columns` was given, and
+     * typed as present then, so a page read with `columns` needs no `?? []`.
+     */
+    readonly columns?: readonly PageColumn[];
+}
+
+/** What {@link GraphSession.find} lists. An open set: later releases add kinds. */
+export type FindKind = "node" | "edge";
+
+/** What {@link GraphSession.find} reads beside the text. Every field is optional. */
+export interface FindOptions {
+    /** The most hits it returns. Default 20; `Infinity` for all. */
+    readonly limit?: number;
+    /** How many hits to skip, for paging. Default 0. */
+    readonly offset?: number;
+    /** What to list. Default `["node", "edge"]`. */
+    readonly kinds?: readonly FindKind[];
+    /**
+     * Where to search. Default the whole graph: a hit the visibility filter hides is still
+     * listed, and carries `excludedBy`.
+     */
+    readonly scope?: ScopeInput;
+}
+
+/** One end of an edge hit. */
+export interface FindEnd {
+    /** The node's id. */
+    readonly id: NodeId;
+    /** The node's name: its label column's value, else its id as text. */
+    readonly name: string;
+}
+
+/** What every {@link FindHit} carries. */
+export interface FindHitBase {
+    /**
+     * Where the text was found. `path` is `"id"` for a node's id, else the attribute's literal
+     * column key (`AttributeDescriptor.path`, such as `"data.name"`). When several values match,
+     * this is the best-ranked one, ties going to the first in `data.attributes()` order.
+     */
+    readonly match: { readonly path: Path; readonly value: string | number | boolean };
+    /**
+     * Present when the element is in the graph but `session.visibility` hides it (the time window
+     * is part of that filter). Never present under `scope: "visible"`, which leaves hidden
+     * elements out.
+     */
+    readonly excludedBy?: { readonly kind: "filter" };
+    /**
+     * A selection target naming exactly this element, for `selection.apply`. Not the edge's end:
+     * that is `ends.target` on an edge hit.
+     */
+    readonly target: SelectionTarget;
+}
+
+/**
+ * One element the text found. `kind` narrows the rest.
+ *
+ * OPEN UNION: later releases add kinds (runs, layers, notes), so switch on `kind` with a default
+ * branch. The type lists today's kinds, so the default branch sees `never`: skip the hit there.
+ */
+export type FindHit =
+    | (FindHitBase & {
+          /** A node. */
+          readonly kind: "node";
+          /** Its id. */
+          readonly id: NodeId;
+          /** Its label column's value (`data.knownFields.nodeLabelPath`), else its id as text. */
+          readonly name: string;
+      })
+    | (FindHitBase & {
+          /** An edge, found by its own attribute values only, never by its id or its ends. */
+          readonly kind: "edge";
+          /** Its element-assigned id. */
+          readonly id: EdgeId;
+          /** The nodes it joins: `source` is the one it leaves on a directed graph. */
+          readonly ends: { readonly source: FindEnd; readonly target: FindEnd };
+      });
+
+/** One attribute value the text matched, with how many elements in scope carry it. */
+export interface FindValueRow {
+    /** Whether nodes or edges carry it. */
+    readonly kind: FindKind;
+    /** The attribute's literal column key, such as `"data.group"`. */
+    readonly path: Path;
+    /** The value. */
+    readonly value: string | number | boolean;
+    /** How many elements `target` selects: every one in scope carrying exactly this value. */
+    readonly count: number;
+    /** A selection target naming exactly those elements, for `selection.apply`. */
+    readonly target: SelectionTarget;
+}
+
+/** What {@link GraphSession.find} answers: a page of hits, in the `RecordPage` shape, and value rows. */
+export interface FindResult {
+    /** The hits in this window, best first. */
+    readonly records: readonly FindHit[];
+    /** Where the window starts. */
+    readonly offset: number;
+    /** How many hits there are in all. */
+    readonly total: number;
+    /** The input revision the answer was read at; a different one means it is stale. */
+    readonly revision: string;
+    /** At most three matched attribute values, commonest first. */
+    readonly values: readonly FindValueRow[];
+    /**
+     * Set when the text is a pattern to run on commit, not text to find: a `regex:` or `=`
+     * query. Find does not run it and lists nothing; `selection.apply({ text })` runs it.
+     */
+    readonly notSearchable?: "regex" | "expression";
 }
 
 /**
@@ -376,9 +535,8 @@ export interface SessionRecordSource {
  *
  * Every verb here is synchronous, because every verb here is either an O(1) lookup or a walk
  * whose answer is cached against the snapshot it was computed from, except {@link nodes} and
- * {@link edges}, which list every record and walk the graph to do it. The verbs that walk a part
- * of the graph -- id listings over a scope, neighbour pages, search -- are asynchronous by
- * construction and are not part of this surface yet.
+ * {@link edges}, which list every record and walk the graph to do it. Finding by text is
+ * `session.find`, synchronous too: it reads an index built once per revision.
  */
 export interface SessionDataApi {
     /** The store this session reads, read-only: its snapshot is the one {@link snapshot} returns. */
@@ -428,8 +586,13 @@ export interface SessionDataApi {
      * @param options - the window, the scope and the order; every field optional
      * @returns the page, with the total and the revision it was read at
      * @throws A `GraphtyError` with `E_OPTION_RANGE` when `offset` or `limit` is not a whole
-     *     number of zero or more.
+     *     number of zero or more; `E_UNKNOWN_RUN` for a column or sort naming a run this session
+     *     does not hold; `E_UNKNOWN_ATTRIBUTE` for a field the run does not publish; `E_BAD_COMMAND`
+     *     for a field that has no value per record of this kind.
      */
+    nodePage(
+        options: RecordPageOptions & { readonly columns: readonly ResultColumn[] },
+    ): RecordPage<NodeRecord> & { readonly columns: readonly PageColumn[] };
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     /**
      * One page of edge records, without reading the rest: {@link nodePage}, for edges, and
@@ -437,8 +600,13 @@ export interface SessionDataApi {
      * @param options - the window, the scope, the order and the node; every field optional
      * @returns the page, with the total and the revision it was read at
      * @throws A `GraphtyError` with `E_OPTION_RANGE` when `offset` or `limit` is not a whole
-     *     number of zero or more.
+     *     number of zero or more; `E_UNKNOWN_RUN` for a column or sort naming a run this session
+     *     does not hold; `E_UNKNOWN_ATTRIBUTE` for a field the run does not publish; `E_BAD_COMMAND`
+     *     for a field that has no value per record of this kind.
      */
+    edgePage(
+        options: EdgePageOptions & { readonly columns: readonly ResultColumn[] },
+    ): RecordPage<EdgeRecord> & { readonly columns: readonly PageColumn[] };
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     /**
      * What the last load did: which endpoint spelling the element resolved, how many repeated
@@ -1460,6 +1628,30 @@ export interface GraphSession {
      * @returns the fingerprint
      */
     fingerprint(): string;
+    /**
+     * What a find box lists as the reader types: the nodes and edges whose values contain the
+     * text, best first, and the commonest matched values. Selects nothing and records no step;
+     * hand a hit's or a row's `target` to `selection.apply` for that.
+     *
+     * Matching ignores case and accents and reads the text box grammar of
+     * `selection.apply({ text })`: plain text matches anywhere in a value, `exact:` only a whole
+     * value, and `<attribute>:` (`id:`, `type:`) only that attribute. `regex:` and a leading `=`
+     * are not run while typing; they set `notSearchable` and list nothing.
+     *
+     * A node is found by its id, its name and its attribute values; an edge by its own attribute
+     * values only. A number or boolean value matches only whole. Ranking promises only this: an
+     * exact name or id first, name and id matches before attribute values, ties in graph order.
+     *
+     * Synchronous: the first call after a change builds an index in one walk of the graph, and
+     * every later call in the same revision reads it. At the load limit (50,000 nodes with 20
+     * attributes each, 100,000 edges) the build takes about half a second and a later call 2 to
+     * 9 ms.
+     * @param text - What was typed. Blank text finds nothing.
+     * @param options - The window, the kinds and the scope.
+     * @returns A page of hits and at most three value rows.
+     * @throws A `GraphtyError` coded `E_OPTION_RANGE` for a bad `limit`, `offset` or kind.
+     */
+    find(text: string, options?: FindOptions): FindResult;
     /**
      * Do one thing, as a command.
      *

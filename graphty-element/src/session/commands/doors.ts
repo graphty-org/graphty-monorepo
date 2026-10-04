@@ -396,6 +396,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     // Its coordinate and pin columns are copies, so a write there moves nothing.
     snapshot: READ,
     fingerprint: READ,
+    // What a find box lists; selects nothing.
+    find: READ,
     run: calls([{ op: "algo.run", algorithm: "degree" }], [RUN_DEGREE]),
     execute: EXECUTE,
     undo: HISTORY,

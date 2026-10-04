@@ -142,6 +142,8 @@ import type {
     CommandOutcome,
     CreateGraphSessionOptions,
     ElementSession,
+    FindOptions,
+    FindResult,
     GraphSession,
     HistoryOutcome,
     PositionEntry,
@@ -782,6 +784,17 @@ class Session implements ElementSession {
      */
     fingerprint(): string {
         return this.sessionData.fingerprint();
+    }
+
+    /**
+     * What a find box lists, without selecting anything.
+     * @param text - What was typed.
+     * @param options - The window, the kinds and the scope.
+     * @returns A page of hits and at most three value rows.
+     * @throws A `GraphtyError` coded `E_OPTION_RANGE` for a bad window or kind.
+     */
+    find(text: string, options?: FindOptions): FindResult {
+        return this.sessionData.find(text, options);
     }
 
     /**
@@ -1858,6 +1871,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             revision: () => inputs.tick.value,
             // Read through a call: the resolver is built below.
             resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
+            // And the query engine, below that.
+            search: (text, request) => requireQuery(query).search(text, request),
         },
     );
     // A session that holds a store of its own kind writes it through its own ingest; the element
@@ -2291,6 +2306,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const paths = pathDirectoryOf(data, runs);
     query = createQueryEngine({
         snapshot,
+        revision: () => inputs.tick.value,
         elements,
         answers: (path, target) => paths.answers(path, target),
         searchPaths: () =>
@@ -2298,6 +2314,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 .attributes()
                 .filter((attribute) => attribute.kind === "node")
                 .map((attribute) => attribute.path),
+        edgeSearchPaths: () =>
+            data
+                .attributes()
+                .filter((attribute) => attribute.kind === "edge")
+                .map((attribute) => attribute.path),
+        labelPath: () => {
+            const key = readData().knownFields.nodeLabelPath;
+            return key === null ? null : `data.${key}`;
+        },
+        idPath: () => `data.${readData().knownFields.nodeIdPath}`,
+        excluded: (target, index) =>
+            !(target === "node" ? visibility.masks.nodes() : visibility.masks.edges()).has(index),
     });
     const engine = query;
 

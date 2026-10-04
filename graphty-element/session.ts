@@ -357,6 +357,7 @@ export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
     AttributeDescriptor,
     AttributeRole,
+    AttributeUse,
     Binding,
     BindingOverflow,
     Channel,

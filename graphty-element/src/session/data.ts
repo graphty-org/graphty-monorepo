@@ -17,6 +17,7 @@ import { detectFormat, undetectedFormat } from "../catalog/detect";
 import type {
     AttributeDescriptor,
     AttributeRole,
+    AttributeUse,
     EdgeId,
     MeasurementDeclaration,
     RunId,
@@ -42,7 +43,7 @@ import {
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
-import type { GraphSlice } from "./project/state";
+import type { GraphSlice, RunEntry } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
 import { type ResolvedResult, resolveResult, resultCell, resultSortValue } from "./results/pageColumns";
 import { buildHistogram, resolveBinCount } from "./results/statistics";
@@ -54,6 +55,7 @@ import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { ColumnRef } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
+import type { CompiledLayer } from "./styles/Layer";
 import type {
     ColumnHistogram,
     DataSourceDescriptor,
@@ -101,6 +103,11 @@ interface DataWrites {
     setSource(source: DataSourceDescriptor): Promise<unknown>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
+    /** The style stack and the finished runs now: what reads a column. */
+    readers(): {
+        readonly styles: readonly CompiledLayer[];
+        readonly runs: ReadonlyMap<RunId, RunEntry>;
+    };
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -1157,33 +1164,80 @@ export class SessionData implements SessionDataApi {
         const described = this.attributeCache.get("", () => describeAttributes(snapshot, this.records));
         const declarations = this.writes.declarations();
         const roles = this.columnRoles();
+        const uses = this.columnUses(described);
         // The same array back while nothing it was laid from moved, so a consumer can memo on it.
-        const key = JSON.stringify([[...declarations], [...roles]]);
+        const key = JSON.stringify([[...declarations], [...roles], [...uses]]);
         const memo = this.attributeOverlay;
         if (memo?.described === described && memo.key === key) {
             return memo.result;
         }
 
         const result =
-            declarations.size === 0 && roles.size === 0
+            declarations.size === 0 && roles.size === 0 && uses.size === 0
                 ? described
                 : Object.freeze(
                       described.map((each) => {
                           const declared = declarations.get(declarationKey(each));
                           const played = roles.get(declarationKey(each));
-                          return declared === undefined && played === undefined
+                          const used = uses.get(declarationKey(each));
+                          return declared === undefined && played === undefined && used === undefined
                               ? each
                               : Object.freeze({
                                     ...each,
                                     ...(declared === undefined
                                         ? {}
-                                        : { measurement: declared.measurement, measurementSource: "declared" as const }),
+                                        : {
+                                              measurement: declared.measurement,
+                                              measurementSource: "declared" as const,
+                                          }),
                                     ...(played === undefined ? {} : { roles: Object.freeze(played) }),
+                                    ...(used === undefined ? {} : { usedBy: Object.freeze(used) }),
                                 });
                       }),
                   );
         this.attributeOverlay = { described, key, result };
         return result;
+    }
+
+    /**
+     * What reads each column, by `<kind>:<name>`: the layers whose selector or bindings read a
+     * `data.` path under it, in stack order, then the runs that weighed their edges by it.
+     * @param described - the columns
+     * @returns the readers
+     */
+    private columnUses(described: readonly AttributeDescriptor[]): Map<string, AttributeUse[]> {
+        const { styles, runs } = this.writes.readers();
+        const out = new Map<string, AttributeUse[]>();
+        const add = (at: string, use: AttributeUse): void => {
+            const list = out.get(at) ?? [];
+            if (!list.some((each) => each.kind === use.kind && each.id === use.id)) {
+                list.push(use);
+                out.set(at, list);
+            }
+        };
+
+        // A column `address` is read by `data.address` and by `data.address.city`; matched against
+        // the columns themselves, because a column's own name may hold a dot.
+        // ponytail: columns x paths per call; index the paths by first segment if a file has
+        // thousands of columns and dozens of layers.
+        for (const { layer, reads } of styles) {
+            for (const path of reads) {
+                for (const column of described) {
+                    if (column.kind === layer.target && (path === column.path || path.startsWith(`${column.path}.`))) {
+                        add(declarationKey(column), { kind: "layer", id: layer.id });
+                    }
+                }
+            }
+        }
+
+        for (const [id, entry] of runs) {
+            const attribute = entry.record.caveats.weight?.attribute;
+            if (attribute !== undefined) {
+                add(`edge:${attribute}`, { kind: "run", id });
+            }
+        }
+
+        return out;
     }
 
     /**

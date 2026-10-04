@@ -1869,6 +1869,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
             setSource: (source) => dispatcher.dispatch({ op: "data.setSource", source }),
             declarations: () => dispatcher.state.attributes,
+            readers: () => ({ styles: dispatcher.state.styles, runs: dispatcher.state.runs }),
         },
         {
             revision: () => inputs.tick.value,

@@ -860,6 +860,16 @@ export interface FunctionDescriptor {
  */
 export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
 
+/**
+ * One thing that reads a column: a style layer whose selector or bindings read it, or a finished
+ * run that weighed its edges by it.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type AttributeUse =
+    | { readonly kind: "layer"; readonly id: LayerId }
+    | { readonly kind: "run"; readonly id: RunId };
+
 /** One attribute available on this session, whether it was imported, joined or computed. */
 export interface AttributeDescriptor {
     /** The column's key, `data.<name>`, with the name unquoted; see {@link Path}. Quote it with `quotePath` before using it inside an expression. */
@@ -898,6 +908,16 @@ export interface AttributeDescriptor {
      * ```
      */
     roles?: readonly AttributeRole[];
+    /**
+     * What reads the column now: each style layer that selects or paints by it, in stack order,
+     * then each run that weighed its edges by it. Absent when nothing does. Together with `roles`
+     * this is "the attributes in use":
+     *
+     * ```ts
+     * const inUse = session.data.attributes().filter((a) => a.roles !== undefined || a.usedBy !== undefined);
+     * ```
+     */
+    usedBy?: readonly AttributeUse[];
 }
 
 /**

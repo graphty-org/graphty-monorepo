@@ -255,8 +255,17 @@ columns.find((a) => a.roles?.includes("weight")); // edge weights were read from
 
 The roles are `"key"`, `"label"`, `"weight"`, `"source"`, `"target"`, `"time"` and `"edgeId"`, read
 from `data.knownFields` and the last load, and `roles` is absent on a column that plays none.
-`attributes()` hands back the same array until a column, a declaration or a role changes, so it is
-safe to compare by identity.
+`usedBy` says what reads a column now: each style layer whose selector or bindings read it
+(`{ kind: "layer", id }`), then each finished run that weighed its edges by it
+(`{ kind: "run", id }`). It is absent when nothing does. A table that opens on "the attributes in
+use" shows the columns with a role or a use:
+
+```typescript
+const inUse = session.data.attributes().filter((a) => a.roles !== undefined || a.usedBy !== undefined);
+```
+
+`attributes()` hands back the same array until a column, a declaration, a role or a use changes, so
+it is safe to compare by identity.
 
 Which way a column is read follows what it measures (`attributes()`'s `measurement`): declare a
 column of number codes categorical with `session.data.declare` and it is counted by value.

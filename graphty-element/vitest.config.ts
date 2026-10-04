@@ -43,6 +43,25 @@ const BABYLON_SIDE_EFFECTS = [
     "@babylonjs/core/Animations/animatable",
 ];
 
+/**
+ * The lodash functions the element imports one by one (`lodash/cloneDeep.js`, ...). Pre-bundled
+ * in every browser project for the same reason: a dep cache written before an import was added
+ * still matches this config's hash, so Vite skips its scan, finds the import mid-run and
+ * re-optimizes. That re-optimization deletes the pre-bundled Babylon shader chunks
+ * (`default.vertex-<hash>.js`) a running test is about to import, the shader never compiles, and
+ * every test waiting on a drawn frame times out. Add a new lodash import here.
+ */
+const LODASH_FUNCTIONS = [
+    "lodash/cloneDeep.js",
+    "lodash/debounce.js",
+    "lodash/defaultsDeep.js",
+    "lodash/get.js",
+    "lodash/isEqual.js",
+];
+
+/** Everything the browser projects pre-bundle up front. */
+const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS];
+
 /** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
 const XR_BROWSER_TESTS = [
     "test/browser/xr-session.test.ts",
@@ -359,7 +378,7 @@ export default defineConfig({
                         ...OWN_ENTRY_POINTS,
                     },
                 },
-                optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
+                optimizeDeps: { include: PREBUNDLED },
                 test: {
                     // The contract lane: the handful of browser tests that read what the element actually
                     // PAINTED -- pixels in the frame buffer, the order style layers landed in, whether a
@@ -441,7 +460,7 @@ export default defineConfig({
                 // (IWER) and checks the element's XR buttons and UI. About a second of tests plus
                 // the fixed cost of starting a browser project. These files are excluded from
                 // "browser" below, so CI runs them once, through this project, in its browser shards.
-                optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "xr",
                     setupFiles: ["./test/setup.ts"],
@@ -462,7 +481,7 @@ export default defineConfig({
                 // would time the instrumentation. CI runs it in the graphty-element-browser-1 job
                 // with: npx vitest run --project=browser-bench. Not "bench-browser": that is the
                 // sets timing rows' project below, which never runs in CI.
-                optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
+                optimizeDeps: { include: PREBUNDLED },
                 test: {
                     name: "browser-bench",
                     setupFiles: ["./test/setup.ts"],
@@ -492,7 +511,7 @@ export default defineConfig({
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FC_", "GRAPHTY_UPDATE_RENDER_BUDGET"],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
-                optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
@@ -566,7 +585,7 @@ export default defineConfig({
                 },
             },
             {
-                optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",
                     setupFiles: ["./test/setup.ts"],

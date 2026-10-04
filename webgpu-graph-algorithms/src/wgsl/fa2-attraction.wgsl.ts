@@ -21,6 +21,9 @@
  * the low-degree rows, which are most of them, when the tiers are bound. The two folds spell their locals apart
  * (`arc` / `nbr` / `weight` / `total` against `a` / `j` / `w` / `f`) so that each sabotage row names exactly one
  * of them.
+ *
+ * The dense loop counts DOWN (`left` from the row's arc count to 1, `arc = hi - left`) so that Dawn 0.6.x does not
+ * add its infinite-loop guard to it; the reason and the measurement are in `spmv-pull.wgsl.ts`.
  */
 
 /** The K2 body: entry point `attraction`; the tier bodies are functions called under the uniform `TIER` override, so the barriers of `tiered` are reached in uniform control flow and `tier0`'s early return is legal (spec 3.5 rule 1). */
@@ -55,7 +58,8 @@ fn row_force_dense(i: u32) -> vec3f {                          // TIER 0's strid
     let lo = max(rowPtr[i], P.arcBase);
     let hi = min(rowPtr[i + 1u], P.arcEnd);
     var total = vec3f(0.0);
-    for (var arc = lo; arc < hi; arc = arc + 1u) {
+    for (var left = select(0u, hi - lo, hi > lo); left > 0u; left = left - 1u) {   // counts DOWN (see the header)
+        let arc = hi - left;                                   // lo, lo + 1, ..., hi - 1
         let k = arc - P.arcBase;                               // the window-local index; this walk is contiguous
         let nbr = colIdx[k];
         if (nbr == i) { continue; }                            // a self-loop exerts no force

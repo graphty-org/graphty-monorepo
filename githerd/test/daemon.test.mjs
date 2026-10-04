@@ -545,12 +545,16 @@ describe("the poll loop", () => {
         expect(gh.calls.length).toBeGreaterThan(0);
         expect(gh.writes()).toEqual([]);
         expect((await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do")).toEqual([]);
-        // git ran with no prompt, only to fetch the default branch when its head moved
-        expect(gitCalls).toEqual([
+        // git ran with no prompt, only to fetch the default branch when its head moved and to read
+        // its .mergify.yml after each fetch and once per start
+        expect(gitCalls.filter((a) => a[0] === "fetch")).toEqual([
             ["fetch", "origin", "master"],
             ["fetch", "origin", "master"],
             ["fetch", "origin", "master"],
         ]);
+        expect(
+            gitCalls.filter((a) => a[0] !== "fetch").every((a) => a.join(" ") === "show origin/master:.mergify.yml"),
+        ).toBe(true);
     });
 
     it("holds every page in dry-run: written to the ledger as not delivered, the notify command never run", async () => {
@@ -760,6 +764,39 @@ describe("the poll loop", () => {
         expect(again.filter((p) => p.includes("/pulls/7/commits"))).toHaveLength(1);
         expect(again.filter((p) => p.includes("/actions/jobs/555"))).toHaveLength(1);
         expect(gh.writes()).toEqual([]);
+    });
+
+    it("posts githerd/merge on each open pull request's head, as would-dos in dry-run", async () => {
+        scene.prs = [{ ...gatedPr(), id: "PR_7" }];
+        const daemon = await start();
+        await poll(daemon);
+        const gate = daemon.state.mergeGate;
+        expect(gate.posted["7"]).toMatchObject({ sha: B, state: "success" });
+        expect(daemon.state.prs["7"].mergeStatus).toEqual(gate.posted["7"]);
+        // no .mergify.yml was read (the fake git prints nothing), so Mergify ignores the status
+        expect(gate.checks.banners).toEqual(["Mergify does not wait for githerd/merge"]);
+        expect(gate.checks.faults).toEqual([
+            { record: "pr 7", problem: "native auto-merge is armed; it bypasses githerd/merge" },
+        ]);
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        expect(wouldDo.map((e) => [e.group, e.situation])).toEqual([
+            ["statuses", "native auto-merge armed"],
+            ["statuses", "success"],
+        ]);
+
+        // the same head and status are not posted again
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        const again = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        expect(again).toHaveLength(2);
+        expect(gh.writes()).toEqual([]);
+
+        // a closed pull request is forgotten
+        scene.prs = [];
+        clock = new Date("2026-10-02T12:06:00Z");
+        await poll(daemon);
+        expect(gate.heads).toEqual({});
+        expect(gate.posted).toEqual({});
     });
 
     it("takes the reject marker from the owner's comments only", async () => {

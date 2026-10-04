@@ -66,6 +66,7 @@ import { servherd as servherdData } from "./launcher.mjs";
 import { dispatch } from "./dispatch.mjs";
 import { createMcpServer } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
+import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
 import { createNotifier } from "./notify.mjs";
 import { pagesFor } from "./paging.mjs";
 import { containerStart, identify } from "./proc.mjs";
@@ -141,7 +142,7 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
     defaultBranchRef { name target { oid } }
     pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
       nodes {
-        number title isDraft createdAt updatedAt headRefName headRefOid baseRefName
+        id number title isDraft createdAt updatedAt headRefName headRefOid baseRefName
         mergeable mergeStateStatus
         autoMergeRequest { enabledAt }
         labels(first: 20) { nodes { name } }
@@ -295,6 +296,8 @@ function logRecovered(recovered, say) {
  *   check); true by default
  * @param {Partial<Parameters<typeof createRunner>[0]>} [options.runner] overrides for the judgment
  *   runner (`claude`, `servherd`, `packageDir`, ...); tests pass the fakes here
+ * @param {import("./merge-status.mjs").NpmLookup} [options.npm] whether npm knows a package; the
+ *   registry by default
  * @returns {Promise<Daemon>} the running daemon
  */
 export async function startDaemon({
@@ -312,6 +315,7 @@ export async function startDaemon({
     quiet = Boolean(env.GITHERD_DEV) && env.GITHERD_DEV_NOTIFY !== "1",
     runs: runsOn = true,
     runner: runnerOptions = {},
+    npm = npmLookup(),
 }) {
     const startedAtDate = now();
     // The values every outgoing text is checked against: under env -i the daemon's own environment
@@ -417,6 +421,8 @@ export async function startDaemon({
     const raised = [];
     /** @type {any[]} the default branch's recent commits, head first; memory only */
     let commits = [];
+    /** @type {string | null | undefined} `.mergify.yml` on the default branch; undefined until read */
+    let mergify;
     let busy = false;
     /** @type {string | null} */
     let loopTickAt = null;
@@ -677,9 +683,13 @@ export async function startDaemon({
         if (prev?.breakingCheckedFor !== node.headRefOid) {
             const list = await pages(`repos/${repo}/pulls/${n}/commits?per_page=100`, 3);
             detail.commits = { messages: list.items.map((c) => c.commit.message), truncated: list.items.length >= 250 };
-            detail.files = (await pages(`repos/${repo}/pulls/${n}/files?per_page=100`, 30)).items.map(
-                (f) => f.filename,
-            );
+            const files = (await pages(`repos/${repo}/pulls/${n}/files?per_page=100`, 30)).items;
+            detail.files = files.map((f) => f.filename);
+            // GitHub lists at most 3000 files; past that an unseen file may touch anything.
+            detail.filesTruncated = files.length >= 3000;
+            detail.packagePatches = files
+                .filter((f) => f.filename === "package.json" || f.filename.endsWith("/package.json"))
+                .map((f) => f.patch ?? null);
         }
         if (config.ownerGate) {
             const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
@@ -873,6 +883,8 @@ export async function startDaemon({
         await track(m, reds, previousGreen, iso);
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);
         if (pace.level === "normal") await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
+        // Holds post at every rate tier; the client's budget refuses a success below its floor.
+        await mergeGate(gh, prList.repository.pullRequests.nodes, branch);
 
         // No owner, no runs: every run kind acts only on the owner's items.
         if (runner && state.trust.login) await runs(t);
@@ -903,6 +915,11 @@ export async function startDaemon({
             );
             const updated = updateLane(lane, m.lanes[lane], res.body?.workflow_runs ?? [], config, ms);
             m.lanes[lane] = updated.lane;
+            // The workflow's own name (CI, GPU, Hosts) is what the merge decision knows a lane by.
+            const runName = res.body?.workflow_runs?.[0]?.name;
+            if (runName) m.lanes[lane].workflowName = runName;
+            if (m.lanes[lane].verdict !== "red") delete m.lanes[lane].redSince;
+            else m.lanes[lane].redSince ??= m.lanes[lane].updatedAt ?? new Date(ms).toISOString();
             for (const e of updated.events) {
                 const { event: kind, ...fields } = e;
                 event(kind, fields);
@@ -946,10 +963,61 @@ export async function startDaemon({
         }
         if (m.configPending) {
             const fetched = await runGit(["fetch", "origin", branch]);
-            if (fetched.code === 0) m.configPending = false;
-            else say("error", `git fetch origin ${branch}: ${fetched.stderr.trim() || "exit " + fetched.code}`);
+            if (fetched.code === 0) {
+                m.configPending = false;
+                mergify = undefined;
+            } else say("error", `git fetch origin ${branch}: ${fetched.stderr.trim() || "exit " + fetched.code}`);
             readConfig();
         }
+        if (mergify === undefined) {
+            const shown = await runGit(["show", `origin/${branch}:.mergify.yml`]);
+            mergify = shown.code === 0 ? shown.stdout : null;
+        }
+    }
+
+    /**
+     * Posts `githerd/merge` on every open pull request into the default branch (design 4.6) and
+     * keeps the merge gate's invariant faults and banner in `state.mergeGate.checks`.
+     * @param {ReturnType<typeof createGitHub>} gh the client
+     * @param {any[]} nodes the open pull requests, with `detail` when this poll read it
+     * @param {string} branch the default branch
+     */
+    async function mergeGate(gh, nodes, branch) {
+        const m = state.master;
+        const gate = (state.mergeGate ??= { heads: {}, posted: {}, disarmed: {} });
+        const open = new Set(nodes.map((n) => String(n.number)));
+        for (const n of Object.keys(gate.heads)) if (!open.has(n)) delete gate.heads[n];
+        const items = Object.values(state.ownerItems ?? {}).filter((i) => !i.endedAt);
+        const prs = [];
+        for (const node of nodes) {
+            gate.heads[node.number] = foldHead(gate.heads[node.number], node);
+            await readDependencies(gate.heads[node.number], npm);
+            const ownerItemOpen = items.some((i) => i.target === `pr:${node.number}`);
+            prs.push(openPr(node, gate.heads[node.number], { ownerItemOpen }));
+        }
+        const fixPr = state.claims?.master?.fixPr;
+        // ponytail: every red gating lane counts as code red until the classifier is wired in;
+        // a paid-capacity or outside red holds too, which fails closed.
+        const redLanes = Object.entries(m.lanes)
+            .filter(([name, l]) => config.lanes[name] && config.lanes[name].gating !== "watch" && l.verdict === "red")
+            .map(([name, l]) => ({
+                workflow: l.workflowName ?? name,
+                since: l.redSince ?? l.updatedAt,
+                fixPrs: fixPr ? [Number(fixPr)] : [],
+            }));
+        const ctx = {
+            login: state.trust.login,
+            redLanes,
+            releaseRunning: Object.keys(m.lanes.release?.inFlight ?? {}).length > 0,
+            freezeMerges: (state.policies ?? []).some(
+                (/** @type {any} */ p) => !p.endedAt && p.switch === "freeze-merges",
+            ),
+            starvation: null,
+        };
+        const posted = await postMergeStatuses({ github: gh, repo: config.repo, branch, prs, ctx, record: gate });
+        for (const error of posted.errors) void ledger({ kind: "error", where: "githerd/merge", error });
+        for (const p of prs) if (state.prs?.[p.number]) state.prs[p.number].mergeStatus = gate.posted[p.number];
+        gate.checks = mergeGateChecks({ prs, branch, record: gate, mergify: mergify ?? null });
     }
 
     /**

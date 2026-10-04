@@ -103,12 +103,14 @@ function bannerLines(v) {
     const lines = [];
     if (v.liveness.fatal) lines.push(`githerd is DOWN: ${v.liveness.fatal}`);
     if (v.down) lines.push(`DAEMON DOWN: ${v.down}; read from state.json, GitHub facts unknown`);
-    for (const b of v.banners ?? []) lines.push(`BANNER: ${b}`);
+    // The merge gate's checks are kept in the state by each reconcile (design 9.5).
+    const gate = v.state?.mergeGate?.checks;
+    for (const b of [...(v.banners ?? []), ...(gate?.banners ?? [])]) lines.push(`BANNER: ${b}`);
     for (const w of v.state?.writes?.pending ?? []) {
         if (w.mismatch)
             lines.push(`WRITE DID NOT STICK: ${w.op} (${w.group}), sent twice, wrong since ${when(w.mismatch)}`);
     }
-    for (const f of v.faults ?? [])
+    for (const f of [...(v.faults ?? []), ...(gate?.faults ?? [])])
         lines.push(`FAULT ${f.record}: ${f.problem} (githerd why ${f.record.split(" ").at(-1)})`);
     return lines;
 }

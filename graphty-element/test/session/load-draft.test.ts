@@ -259,6 +259,29 @@ describe("session.data.prepare", () => {
         session.dispose();
     });
 
+    it("reports a merge of an edge table alone as the load does it (#935)", async () => {
+        for (const unmatched of ["leave-out", "add"] as const) {
+            const session = createGraphSession();
+            await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+            const draft = await session.data.prepare({ type: "csv", config: { data: TIES } });
+            const choices = { mode: "merge", unmatched } as const;
+
+            const report = await draft.report(choices);
+            const unmatchedRows = await draft.rows("rows", { only: "unmatched" });
+            await draft.load(choices);
+            const loaded = session.data.lastImport();
+
+            assert.deepEqual(report.unmatched, { rows: 2, values: 2 }, unmatched);
+            assert.deepEqual(report.counts, loaded?.counts, unmatched);
+            assert.deepEqual(report.unmatched, loaded?.unmatched, unmatched);
+            assert.deepEqual(
+                unmatchedRows.records.map((row) => row.line),
+                [3, 4],
+            );
+            session.dispose();
+        }
+    });
+
     it("reads a graph file as two tables whose roles the format sets", async () => {
         const session = createGraphSession();
         const draft = await session.data.prepare({ type: "graphml", config: { data: GRAPHML } });

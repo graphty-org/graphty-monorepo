@@ -394,9 +394,11 @@ export class Ingest<K extends KnownEdge> {
         }
 
         this.leaveOutUnmatched = command.unmatched === "leave-out";
-        this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
-        // A replacing load is measured against an empty graph, which is what it leaves.
+        // A replacing load is measured against an empty graph, which is what it leaves. Set before
+        // the graph is counted, so a measured merge matches its edges against the graph it counts
+        // as there, as the real merge does (#935).
         this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
+        this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
         try {
             await this.addDataFromSource(type, config, writer, signal, command.mode !== "merge", command.held);
         } finally {

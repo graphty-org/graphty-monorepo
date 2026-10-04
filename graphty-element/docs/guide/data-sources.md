@@ -96,8 +96,9 @@ await element.session.data.import({ config: { file, graphIndex: 1 } });
 
 `listGraphs` takes the same source `session.data.import` does -- an optional `type` and a `config`
 with `data`, a `file` or a `url` -- and detects the format the same way. It answers `null` for a
-format whose file holds one graph, which is every format in the table below today; a format
-registered with `DataSource.fromImporter` answers it when its importer has `listGraphs`.
+format whose file holds one graph. Cytoscape sessions, CX files, XGMML files (which can nest networks)
+and JSON documents with a `graphs` array (JGF, OBO Graphs) list their graphs; a format registered with
+`DataSource.fromImporter` answers it when its importer has `listGraphs`.
 
 Without a choice the first graph is loaded. A `graphIndex` that is not a non-negative integer, a
 `graphName` that is not a string, both at once, or a choice other than `graphIndex: 0` for a
@@ -192,15 +193,75 @@ If that pair's load failed, assigning it again retries it.
 
 ## Supported Formats
 
-| Format  | Extensions                                    | Description                                              |
-| ------- | --------------------------------------------- | -------------------------------------------------------- |
-| JSON    | `.json`                                       | Native format with nodes/edges arrays                    |
-| GraphML | `.graphml`, `.xml`                            | XML-based graph format                                   |
-| GEXF    | `.gexf`, `.xml`                               | Gephi exchange format                                    |
-| GML     | `.gml`                                        | Graph Modeling Language                                  |
-| DOT     | `.dot`, `.gv`                                 | Graphviz format                                          |
-| CSV     | `.csv`, `.tsv`, `.tab`, `.edges`, `.edgelist` | Delimited edge or node list, including neo4j-admin files |
-| Pajek   | `.net`, `.paj`                                | Pajek network format                                     |
+| Format            | Extensions                                    | Description                                              |
+| ----------------- | --------------------------------------------- | -------------------------------------------------------- |
+| JSON              | `.json`                                       | Native format with nodes/edges arrays                    |
+| GraphML           | `.graphml`, `.xml`                            | XML-based graph format                                   |
+| GEXF              | `.gexf`, `.xml`                               | Gephi exchange format                                    |
+| GML               | `.gml`                                        | Graph Modeling Language                                  |
+| DOT               | `.dot`, `.gv`                                 | Graphviz format                                          |
+| CSV               | `.csv`, `.tsv`, `.tab`, `.edges`, `.edgelist` | Delimited edge or node list, including neo4j-admin files |
+| Pajek             | `.net`, `.paj`                                | Pajek network format                                     |
+| XGMML             | `.xgmml`, `.xml`                              | Cytoscape's XML network format                           |
+| CX2               | `.cx2`                                        | The NDEx / Cytoscape exchange format                     |
+| CX                | `.cx`                                         | Version 1 of CX, read only                               |
+| Cytoscape Session | `.cys`                                        | A saved Cytoscape session, read only                     |
+| OBO               | `.obo`                                        | The Gene Ontology's ontology format, read only           |
+
+An OBO Graphs document (the JSON form of an ontology, such as `go-basic.json`) is JSON: it is
+recognised by its content and read with the `json` format.
+
+### Cytoscape and ontology files
+
+XGMML, CX, CX2, Cytoscape sessions and OBO are read by `@graphty/graph-io` with nothing to wire
+up: hand the element the file and it loads. The format is recognised from the file name or, failing
+that, from the bytes:
+
+```typescript
+const element = document.querySelector("graphty-element");
+
+// A Cytoscape session, drawn where Cytoscape saved it. Cytoscape's coordinates are pixels, so
+// positionScale shrinks them to scene units (one unit per fifty pixels suits nodes of size one).
+element.layout = "fixed";
+element.positionScale = 0.02;
+await element.loadFromUrl("https://example.org/sessions/galFiltered.cys");
+
+// The Gene Ontology: about 48,000 terms and 71,000 is_a and part_of relations. The file has no
+// saved drawing, so pick a layout that computes one.
+element.layout = "ngraph";
+await element.loadFromUrl("https://release.geneontology.org/2026-08-05/ontology/go-basic.obo", {
+    replace: true,
+});
+```
+
+`loadFromFile(file)` and `dataSourceConfig = { data: bytes }` load the same files the same way. Every column of the file arrives on the node and edge
+records under the name the file gave it (`name`, `shared name`, `interaction`, an OBO term's
+`name`, `namespace`, `def`, `is_obsolete`, ...).
+
+- **Positions.** A node's saved position arrives as `position` on its record and seeds the layout;
+  choose the `fixed` layout to draw a session or a CX2 network exactly as it was saved. Cytoscape
+  writes screen coordinates, whose y grows downward; they are stored with y growing upward, like
+  every other format's, so the drawing is not upside down. Cytoscape's z is a drawing order, kept
+  as a `z` value on the record; the `zAs: "position"` option makes it the z coordinate instead.
+- **Styles are not imported yet.** A file's visual style rules (mappings, defaults) are reported
+  in the load report and not applied; the per-node and per-edge visual values a file holds arrive
+  as ordinary values on the records. Exporting to XGMML or CX2 writes the graph and its values,
+  never the element's style layers.
+- **Several networks.** A session and a CX collection can hold several networks: list them with
+  `listGraphs` and load one with `graphIndex` or `graphName` (see "Files That Hold Several Graphs").
+  So can a JGF or OBO Graphs document with a `graphs` array.
+- **Bytes.** A session is a zip archive: load it from a file, a URL or a `Uint8Array`, never as text.
+
+| Format  | Options                                                                                      |
+| ------- | -------------------------------------------------------------------------------------------- |
+| XGMML   | `labelAliases`, `repairBareAmpersands`, `graphName`, `zAs`                                   |
+| CX2     | `zAs`                                                                                        |
+| CX      | `graphName`, `zAs`                                                                           |
+| Session | `graphName`, `zAs`                                                                           |
+| OBO     | `obsolete` (`"keep"` or `"drop"`), `typedefs` (`"metadata"` or `"nodes"`), `addMissingNodes` |
+| JSON    | `oboIds` (`"curie"` or `"iri"`), for an OBO Graphs document                                  |
+
+`session.catalog.formats()` describes each option for a settings form.
 
 ### How the format is chosen
 
@@ -235,6 +296,10 @@ formats define that omission as undirected, and so does graphty-element.
 | Pajek   | `*Arcs` are directed, `*Edges` are not; an empty section still counts | A file with no edge section states nothing                                                         |
 | CSV     | Gephi's `Type` column: `Directed` or `Undirected`                     | Every other dialect states nothing                                                                 |
 | JSON    | a top-level `"directed"` boolean, as node-link JSON writes it         | Any document without that key states nothing                                                       |
+| XGMML   | `directed` on `<graph>`, and Cytoscape's `cy:directed` per edge       | An absent attribute means undirected, unless every edge says otherwise                             |
+| CX, CX2 | every edge points from `s` to `t`                                     | Always directed                                                                                    |
+| Session | each edge's `cy:directed`                                             | Directed                                                                                           |
+| OBO     | a relation points from a term to its parent                           | Always directed                                                                                    |
 
 Read it back from the session:
 

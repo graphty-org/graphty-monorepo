@@ -41,6 +41,8 @@ export const JsonDataSourceConfig = z.object({
     graphIndex: z.unknown().optional(),
     graphName: z.unknown().optional(),
     nodeIdPath: z.string().optional(),
+    // An OBO Graphs document's ids: short prefixed ids (the default) or the IRIs the file holds.
+    oboIds: z.enum(["curie", "iri"]).optional(),
     edgeSrcIdPath: z.string().optional(),
     edgeDstIdPath: z.string().optional(),
     node: JsonNodeConfig,
@@ -301,7 +303,11 @@ export class JsonDataSource extends DataSource {
         const imported = await importWhole(
             jsonImporter,
             text,
-            { ...choice, ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }) },
+            {
+                ...choice,
+                ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }),
+                ...(this.opts.oboIds === undefined ? {} : { oboIds: this.opts.oboIds }),
+            },
             this.errorAggregator,
             { firstDeclarationWins: true },
         );

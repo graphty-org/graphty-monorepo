@@ -190,4 +190,3 @@ export function findRow(rows: readonly PaintRow[], id: string): PaintRow | undef
     }
     return undefined;
 }
-

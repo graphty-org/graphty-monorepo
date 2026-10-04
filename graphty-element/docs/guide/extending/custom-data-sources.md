@@ -1,8 +1,8 @@
 # Custom file formats
 
-The element reads JSON, GraphML, GEXF, CSV, GML, DOT and Pajek. A format it does not ship is a
-class extending `DataSource`, and registering it puts the format everywhere the built-in seven
-are: in the catalogue an import dialog reads, in extension and content detection, and in every
+The element reads JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, XGMML, CX, CX2, Cytoscape sessions
+and OBO. A format it does not ship is a class extending `DataSource`, and registering it puts the
+format everywhere the built-in ones are: in the catalogue an import dialog reads, in extension and content detection, and in every
 call that names a format by string.
 
 There are two ways to write one:

@@ -20,6 +20,14 @@
  * the tiers it still folds the low-degree rows, which are most of them; the shared fold cost 38 per cent more GPU
  * time at 100k nodes and 1M arcs on an RTX 4070 SUPER and about twice the time on a Tesla T4. The two folds spell
  * their locals apart (`lo` / `hi` / `k` against `a0` / `a1`) so that each sabotage row names exactly one of them.
+ *
+ * The dense loop counts DOWN -- `left` from the row's arc count to 1, `arc = hi - left` -- rather than up from `lo` to
+ * `hi`. From `webgpu` 0.5 Dawn's shader compiler (Tint's PreventInfiniteLoops) gives every loop it cannot prove
+ * finite a 64-bit `tint_loop_idx` countdown with an exit test per iteration, and the 0.6.1 build proves a
+ * `left > 0u; left = left - 1u` count-down finite but no longer an up-count to a runtime bound, which 0.4.0 did. The
+ * guard sits in the loop the twin exists to keep simple, and under 0.6.1 PageRank on the Tesla T4 fell back to the
+ * speed it had before the twin existed (G-ENV finding ENV-F8). The walk is the same arcs in the same order;
+ * `test/kernel/dense-loop-guard.test.ts` reads the generated SPIR-V and fails if any of the three twins is guarded.
  */
 
 /** Entry point `spmv_pull`; overrides HAS_PERSONALIZATION, USE_DANGLING and TIER (0 / 1 / 2) plus the standard USE_PERM / HAS_WEIGHTS. */
@@ -53,7 +61,8 @@ fn row_sum_dense(v: u32) -> f32 {                                // TIER 0's str
     var acc = 0.0;
     var chunk = 0.0;
     var inChunk = 0u;
-    for (var arc = lo; arc < hi; arc = arc + 1u) {
+    for (var left = select(0u, hi - lo, hi > lo); left > 0u; left = left - 1u) {   // counts DOWN (see the header)
+        let arc = hi - left;                             // lo, lo + 1, ..., hi - 1
         let k = arc - P.arcBase;                         // the window-local index; this walk is contiguous
         let nbr = colIdx[k];                             // \`target\` is a WGSL reserved word (spec 16.2)
         var weight = 1.0;

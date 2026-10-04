@@ -396,6 +396,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     // Its coordinate and pin columns are copies, so a write there moves nothing.
     snapshot: READ,
     fingerprint: READ,
+    // What a find box lists; selects nothing.
+    find: READ,
     run: calls([{ op: "algo.run", algorithm: "degree" }], [RUN_DEGREE]),
     execute: EXECUTE,
     undo: HISTORY,
@@ -511,6 +513,10 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],
     ),
+    setValueHidden: calls(
+        ["no-such-layer", "node.color", 0, true],
+        [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
+    ),
     applyTemplate: calls(
         [{ version: 1, layers: [] }],
         [{ op: "style.template", document: { version: 1, layers: [] } }],
@@ -537,6 +543,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "renderer",
         doors: {
             session: READ,
+            nodeLabelCounts: READ,
             setDefaultPalettes: PALETTE_DEFAULTS,
             run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
@@ -598,6 +605,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             layoutBehavior: assigns({ layout: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } }, [
                 { op: "config.set", values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } } },
             ]),
+            labelDeclutter: VIEW_SETTING,
             selectionStyle: assigns({ color: "#ff0000" }, [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
             ]),
@@ -608,6 +616,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 { op: "config.set", values: { background: { backgroundType: "color", color: "#101010" } } },
             ]),
             startingCameraDistance: CAMERA,
+            autoFrame: CAMERA,
             runAlgorithmsOnLoad: assigns(true, [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
             historyKeys: INPUT,
             enableDetailedProfiling: PROFILING,
@@ -753,6 +762,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             rendererRequest: READ,
             rendererStatus: READ,
             eventManager: READ,
+            nodeLabelCounts: READ,
+            onNodeLabelCounts: READ,
             shutdown: LIFECYCLE,
             runAlgorithmsFromTemplate: {
                 kind: "dispatches",
@@ -861,6 +872,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             is2D: READ,
             getViewMode: READ,
             setStartingCameraDistance: CAMERA,
+            getAutoFrame: READ,
+            setAutoFrame: CAMERA,
             setViewMode: calls(["2d"], [DIMENSION_2D]),
             needsRayUpdate: READ,
             getConfig: READ,
@@ -1318,6 +1331,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getSelectionManager: READ,
             getEventManager: READ,
             getAcceleration: READ,
+            onNodeLabelCounts: READ,
         },
     },
     {
@@ -1364,8 +1378,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
+            resultColumns: READ,
+            neighbors: READ,
             lastImport: READ,
             source: READ,
+            // Reads and holds a source; the draft it returns loads through data.import.
+            prepare: READ,
             attributes: READ,
             declare: {
                 kind: "dispatches",
@@ -1404,6 +1422,38 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ type: "json", config: { data: TINY_JSON } }],
                 [imports("replace", { type: "json", config: { data: TINY_JSON } })],
             ),
+        },
+    },
+    {
+        name: "LoadDraft",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            type: READ,
+            tables: READ,
+            mapping: READ,
+            // Measured in a scratch session; this one is untouched.
+            report: READ,
+            rows: READ,
+            // A draft of TINY_JSON: the rows it held, loaded without reading the source again.
+            load: calls(
+                [],
+                [
+                    {
+                        op: "data.import",
+                        source: { type: "json", config: { data: TINY_JSON } },
+                        mode: "replace",
+                        held: {
+                            nodes: [{ id: "j1" }, { id: "j2" }],
+                            edges: [{ src: "j1", dst: "j2" }],
+                            declaredDirection: null,
+                            errors: [],
+                            errorLimit: 100,
+                        },
+                    },
+                ],
+            ),
+            dispose: exempt("Lets go of the rows a draft holds; nothing a project saves changes."),
         },
     },
     {
@@ -1590,6 +1640,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 expect: [{ op: "config.set", values: { name: "Fixture project" } }],
             },
             save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
+            markSaved: exempt("Moves the save point that dirty is measured from; it changes nothing a project saves."),
             open: exempt(
                 "Opens a file as one transaction: every write goes through the session's own doors, " +
                     "which have rows of their own.",

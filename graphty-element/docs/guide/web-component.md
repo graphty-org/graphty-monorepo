@@ -144,6 +144,9 @@ label's. It is off by default, so every label a style asks for is drawn; see
 element.layoutBehavior = { labels: { declutter: true } };
 ```
 
+Assigning `layoutBehavior` is merged over what is already set, section by section, so this line
+leaves `layout`, `node` and the two fetch functions as they were.
+
 ## Basic Usage
 
 ### Minimal Example

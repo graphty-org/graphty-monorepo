@@ -1452,10 +1452,11 @@ async function listCysGraphs(
 /**
  * A session's marker or folder name in the head of the archive, or an entry only a session has
  * (Cytoscape's app state, a network, view or table file), for a session whose folder was renamed.
+ * The head is decoded whole, so a name can sit anywhere in it.
  */
 const SESSION_NAMES: readonly RegExp[] = [
     /CytoscapeSession|cysession\.xml/,
-    /\d+\.\d+\.\d+\.version/,
+    /(?<!\d)\d+\.\d+\.\d+\.version/,
     /(?:^|\/)apps\/org\.cytoscape\./,
     /(?:^|\/)(?:networks|views)\/\d+-[^/]*\.xgmml/,
     /(?:^|\/)tables\/\d+-[^/]*\/[^/]+\.cytable/,

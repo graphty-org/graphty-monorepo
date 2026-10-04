@@ -49,6 +49,9 @@ import {
 } from "./constants.js";
 import { aliasesOf } from "./emit.js";
 
+/** The two escapes Cytoscape reads back as a newline and a tab, as a message writes them. */
+const LITERAL_ESCAPES = String.raw`\n or \t`;
+
 /**
  * The format-specific options of the XGMML exporter.
  * @category Built-in formats
@@ -486,7 +489,7 @@ function attNotes(column: Column, domain: string, note: NoteFn): void {
         if (escapes > 0) {
             note(
                 XGMML_LOSS.BACKSLASH_ESCAPE,
-                `${label}: ${escapes} value${plural(escapes)} ${agree(escapes, "holds", "hold")} a literal ${String.raw`\n`} or ${String.raw`\t`}, which Cytoscape's escape convention reads back as a newline or tab`,
+                `${label}: ${escapes} value${plural(escapes)} ${agree(escapes, "holds", "hold")} a literal ${LITERAL_ESCAPES}, which Cytoscape's escape convention reads back as a newline or tab`,
                 meta.name,
                 escapes,
             );

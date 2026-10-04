@@ -539,6 +539,9 @@ function parseNonstandard(
 }
 
 /** A lone surrogate code unit: a high one not followed by a low one, or a low one not after a high one. */
+/** The escapes of the surrogate range, as a message writes them. */
+const SURROGATE_ESCAPES = String.raw`\uD800-\uDFFF`;
+
 const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
 
 /** Text that may hold a surrogate: an escaped one, or a raw one (string input). */
@@ -692,7 +695,7 @@ function checkParsed(text: string, parsed: unknown, line: number, report: Import
             report.error(
                 "validation-error",
                 BAD_VALUE_CODE,
-                `${fixed.count} string${plural(fixed.count)} ${agree(fixed.count, "holds", "hold")} a lone surrogate (an unpaired ${String.raw`\uD800-\uDFFF`} escape); each is read with U+FFFD in its place`,
+                `${fixed.count} string${plural(fixed.count)} ${agree(fixed.count, "holds", "hold")} a lone surrogate (an unpaired ${SURROGATE_ESCAPES} escape); each is read with U+FFFD in its place`,
                 { line },
             );
         }

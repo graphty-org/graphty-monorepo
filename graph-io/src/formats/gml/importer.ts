@@ -325,13 +325,16 @@ interface IssueWhere {
     readonly element: string;
 }
 
+/** The table a GML key belongs to. */
+type GmlDomain = "node" | "edge" | "graph";
+
 /**
  * Whether a key is the label of a node or edge (text, never a NetworkX list marker).
  * @param domain - the table
  * @param key - the key
  * @returns true for a node or edge label
  */
-function isLabel(domain: "node" | "edge" | "graph", key: string): boolean {
+function isLabel(domain: GmlDomain, key: string): boolean {
     return roleOf(domain, key) === "label";
 }
 
@@ -350,7 +353,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @param key - the key
  * @returns the role, or null
  */
-function roleOf(domain: "node" | "edge" | "graph", key: string): ColumnRole | null {
+function roleOf(domain: GmlDomain, key: string): ColumnRole | null {
     if (key === "label" && domain !== "graph") {
         return "label";
     }
@@ -613,13 +616,7 @@ class GmlImport {
      * @param v - the value token
      * @param seq - the element sequence number
      */
-    private observe(
-        schema: Map<string, KeySchema>,
-        domain: "node" | "edge" | "graph",
-        key: string,
-        v: number,
-        seq: number,
-    ): void {
+    private observe(schema: Map<string, KeySchema>, domain: GmlDomain, key: string, v: number, seq: number): void {
         const t = this.requireTokens();
         this.noteStructure(domain, key, v);
         let entry = schema.get(key);
@@ -704,7 +701,7 @@ class GmlImport {
      * @param key - the key
      * @param v - the value token
      */
-    private noteStructure(domain: "node" | "edge" | "graph", key: string, v: number): void {
+    private noteStructure(domain: GmlDomain, key: string, v: number): void {
         const t = this.requireTokens();
         if (domain === "graph") {
             return;
@@ -809,7 +806,7 @@ class GmlImport {
      * @param top - whether the key is a top-level one (graph table)
      * @returns the plan
      */
-    private planOf(domain: "node" | "edge" | "graph", entry: KeySchema, top = false): ColumnPlan {
+    private planOf(domain: GmlDomain, entry: KeySchema, top = false): ColumnPlan {
         // long: "string" keeps every digit of an integer key that holds values beyond 2^53, as text
         const asText = entry.unsafe && this.options.long === "string" && kindOf(entry) === "int";
         const kind = asText ? "string" : kindOf(entry);

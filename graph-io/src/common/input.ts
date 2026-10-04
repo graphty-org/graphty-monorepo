@@ -1175,8 +1175,8 @@ export async function* textChunks(
         while (start < input.length) {
             throwIfAborted(signal);
             let end = Math.min(start + DECODE_SLICE, input.length);
-            if (end < input.length && (input.charCodeAt(end - 1) & 0xfc00) === 0xd800) {
-                // NOSONAR(S7758): reads UTF-16 code units on purpose
+            const highSurrogate = (input.charCodeAt(end - 1) & 0xfc00) === 0xd800; // NOSONAR(S7758): reads UTF-16 code units on purpose
+            if (end < input.length && highSurrogate) {
                 end++; // never split a surrogate pair
             }
             const piece = start === 0 && end === input.length ? input : input.slice(start, end);

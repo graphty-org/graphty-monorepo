@@ -284,8 +284,11 @@ const COUNT_TEXT = /^\d+$/;
 /** An xs:date / xs:dateTime text (`lastmodifieddate`). */
 const DATE_TEXT = /^-?\d{4,}-\d{2}-\d{2}(.*)$/s;
 
-/** What may follow the date of an xs:dateTime: a time, a zone, or both. */
-const TIME_TEXT = /^(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?(?:Z|[+-]\d{2}:\d{2})?$/;
+/** The time of an xs:dateTime, after its date. */
+const TIME_TEXT = /^T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?/;
+
+/** The zone that may end an xs:date or xs:dateTime. */
+const ZONE_TEXT = /^(?:Z|[+-]\d{2}:\d{2})?$/;
 
 /**
  * Whether a text is an xs:date or xs:dateTime.
@@ -294,7 +297,11 @@ const TIME_TEXT = /^(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?(?:Z|[+-]\d{2}:\d{2})?
  */
 function isDateText(text: string): boolean {
     const m = DATE_TEXT.exec(text);
-    return m !== null && TIME_TEXT.test(m[1]);
+    if (m === null) {
+        return false;
+    }
+    const time = TIME_TEXT.exec(m[1])?.[0] ?? "";
+    return ZONE_TEXT.test(m[1].slice(time.length));
 }
 
 const EDGE_TYPES: ReadonlySet<string> = new Set(["directed", "undirected", "mutual"]);

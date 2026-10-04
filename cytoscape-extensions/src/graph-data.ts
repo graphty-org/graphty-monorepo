@@ -9,6 +9,7 @@ import type { FetchDatasetOptions } from "@graphty/graph-samples";
 import type { Collection, CollectionReturnValue, Core, ElementDefinition } from "cytoscape";
 
 import type { ExportFormat, ExportOptions, ImportFormat, ImportOptions } from "./io.js";
+import { loadPart } from "./lazy.js";
 import type { GeneratorName, GeneratorOptions } from "./samples.js";
 
 /** What graphtyGenerate and graphtyDataset add to the core. */
@@ -45,8 +46,10 @@ export interface GraphtyGraphData {
      */
     graphtyDataset(name: string, options?: FetchDatasetOptions): Promise<AddedGraph>;
     /**
-     * Adds the graph in a file: GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j, CX2, CX or OBO. Every attribute
-     * becomes a data field, and positions in the file become node positions. Throws, adding nothing, when the core already holds one of the graph's node ids.
+     * Adds the graph in a file: GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j, XGMML, CX2, CX, OBO or a
+     * Cytoscape session (`.cys`, as bytes). Every attribute becomes a data field, and positions in the file become
+     * node positions (y negated for the formats whose y grows upward: GEXF, GML, DOT, Pajek). Throws, adding
+     * nothing, when the core already holds one of the graph's node ids.
      */
     graphtyImport(input: ImportInput, format?: ImportFormat, options?: ImportOptions): Promise<ImportedGraph>;
     /**
@@ -69,6 +72,30 @@ declare module "cytoscape" {
 type Register = (type: string, name: string, registrant: unknown) => void;
 
 /**
+ * Rejected by graphtyGenerate, graphtyDataset and graphtyImport when a node id of the new graph is already in the
+ * core; nothing is added. `name` is "IdTakenError", `code` is "E_ID_TAKEN" and `id` is the first clashing id.
+ */
+export class IdTakenError extends Error {
+    /** Always "E_ID_TAKEN". */
+    readonly code = "E_ID_TAKEN";
+    /** The first node id of the new graph that the core already holds. */
+    readonly id: string;
+
+    /**
+     * Creates the error.
+     * @param id - the clashing id
+     */
+    constructor(id: string) {
+        super(
+            `graphty: the core already has an element with id "${id}", so the new graph would merge into it; ` +
+                "remove the existing elements (cy.elements().remove()) or add the graph to an empty core",
+        );
+        this.name = "IdTakenError";
+        this.id = id;
+    }
+}
+
+/**
  * Adds element definitions to a core. An edge whose id the core already holds loses it and gets one from
  * Cytoscape, so a second import into the same core does not fail on edge ids the file chose. A node id the core
  * already holds is refused: Cytoscape would skip that node and attach the new edges to the old one, merging the
@@ -76,15 +103,12 @@ type Register = (type: string, name: string, registrant: unknown) => void;
  * @param cy - the core
  * @param elements - the definitions; edge data may be changed
  * @returns the added elements
- * @throws Error naming the first node id the core already holds; nothing is added
+ * @throws IdTakenError naming the first node id the core already holds; nothing is added
  */
 function addTo(cy: Core, elements: ElementDefinition[]): CollectionReturnValue {
     for (const el of elements) {
         if (el.group === "nodes" && el.data.id !== undefined && cy.getElementById(el.data.id).nonempty()) {
-            throw new Error(
-                `graphty: the core already has an element with id "${el.data.id}", so the new graph would merge ` +
-                    "into it; remove the existing elements (cy.elements().remove()) or add the graph to an empty core",
-            );
+            throw new IdTakenError(el.data.id);
         }
     }
     for (const el of elements) {
@@ -101,12 +125,12 @@ function addTo(cy: Core, elements: ElementDefinition[]): CollectionReturnValue {
  */
 export function registerGraphData(cytoscape: Register): void {
     cytoscape("core", "graphtyGenerate", async function (this: Core, name: GeneratorName, options: unknown) {
-        const { generateElements } = await import("./samples.js");
+        const { generateElements } = await loadPart(import("./samples.js"), "graphtyGenerate");
         const r = generateElements(name, options as never);
         return { elements: addTo(this, r.elements), directed: r.directed };
     });
     cytoscape("core", "graphtyDataset", async function (this: Core, name: string, options?: FetchDatasetOptions) {
-        const { datasetElements } = await import("./samples.js");
+        const { datasetElements } = await loadPart(import("./samples.js"), "graphtyDataset");
         const r = await datasetElements(name, options);
         options?.signal?.throwIfAborted();
         return { elements: addTo(this, r.elements), directed: r.directed };
@@ -115,13 +139,13 @@ export function registerGraphData(cytoscape: Register): void {
         "core",
         "graphtyImport",
         async function (this: Core, input: ImportInput, format?: ImportFormat, options?: ImportOptions) {
-            const { importElements } = await import("./io.js");
+            const { importElements } = await loadPart(import("./io.js"), "graphtyImport");
             const r = await importElements(input, format, options);
             return { elements: addTo(this, r.elements), directed: r.directed, format: r.format, report: r.report };
         },
     );
     const exportFn = async (eles: Collection, format: ExportFormat, options?: ExportOptions): Promise<string> => {
-        const { exportElements } = await import("./io.js");
+        const { exportElements } = await loadPart(import("./io.js"), "graphtyExport");
         return exportElements(eles, format, options);
     };
     cytoscape("core", "graphtyExport", function (this: Core, format: ExportFormat, options?: ExportOptions) {

@@ -343,10 +343,37 @@ describe("positions on import", () => {
         { data: { id: "ab", source: "a", target: "b" } },
     ];
 
-    it.each(["gexf", "gml", "dot", "pajek", "cx2", "json"] as const)("reads node positions from %s", async (format) => {
-        const back = await roundTrip(core(placed()), format);
-        expect(back.$("#a").position()).toEqual({ x: 10, y: 20 });
-        expect(back.$("#b").position()).toEqual({ x: -5, y: 7.25 });
+    it.each(["gexf", "gml", "dot", "pajek", "xgmml", "cx2", "json"] as const)(
+        "reads node positions from %s",
+        async (format) => {
+            const back = await roundTrip(core(placed()), format);
+            expect(back.$("#a").position()).toEqual({ x: 10, y: 20 });
+            expect(back.$("#b").position()).toEqual({ x: -5, y: 7.25 });
+        },
+    );
+
+    it("keeps the y of the Cytoscape-family formats and negates the y of the y-up ones", async () => {
+        // CX, CX2, XGMML and Cytoscape JSON hold Cytoscape's own screen coordinates (y grows downward)
+        const cx = JSON.stringify([
+            { numberVerification: [{ longNumber: 281474976710655 }] },
+            { nodes: [{ "@id": 1, n: "a" }] },
+            { cartesianLayout: [{ node: 1, x: 10, y: 20 }] },
+            { status: [{ error: "", success: true }] },
+        ]);
+        const fromCx = core();
+        await fromCx.graphtyImport(cx, "cx");
+        expect(fromCx.nodes()[0].position()).toEqual({ x: 10, y: 20 });
+        const cyjs = JSON.stringify({ elements: { nodes: [{ data: { id: "a" }, position: { x: 10, y: 20 } }] } });
+        const fromJson = core();
+        await fromJson.graphtyImport(cyjs, "json");
+        expect(fromJson.$("#a").position()).toEqual({ x: 10, y: 20 });
+        // GEXF, like Gephi, has y growing upward
+        const gexf = `<?xml version="1.0"?><gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3"><graph><nodes><node id="a"><viz:position x="10" y="20" z="0"/></node></nodes></graph></gexf>`;
+        const fromGexf = core();
+        await fromGexf.graphtyImport(gexf, "gexf");
+        expect(fromGexf.$("#a").position()).toEqual({ x: 10, y: -20 });
+        const written = await core(placed()).graphtyExport("cx2");
+        expect(written).toContain('"x":10,"y":20');
     });
 
     it("drops z, and leaves a node without a position (or with a non-finite one) unplaced", () => {

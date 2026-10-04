@@ -23,6 +23,16 @@ function plain(v: unknown): unknown {
     return ArrayBuffer.isView(v) ? Array.from(v as unknown as ArrayLike<number>) : v;
 }
 
+/**
+ * A y coordinate between Cytoscape (y grows downward) and graph-io (y grows upward, so a Cytoscape-family file's
+ * screen y is negated on import and negated back on export). Never yields -0.
+ * @param y - the coordinate
+ * @returns the negated coordinate
+ */
+export function flipY(y: number): number {
+    return y === 0 ? 0 : -y;
+}
+
 /** A column that arrives under another data field name, because Cytoscape reserves its own. */
 export interface RenamedColumn {
     readonly domain: "node" | "edge";
@@ -245,8 +255,8 @@ function columns(records: readonly Record<string, unknown>[]): Record<string, Co
 }
 
 /**
- * A snapshot of a collection with every data field as a column and every node's position as a "position" column,
- * for an exporter. Edges whose endpoints are not both in the collection are left out. A numeric edge field named
+ * A snapshot of a collection with every data field as a column and every node's position as a "position" column
+ * (y negated: graph-io's y grows upward), for an exporter. Edges whose endpoints are not both in the collection are left out. A numeric edge field named
  * `weight` becomes the snapshot's edge weights when every edge has one. Edge ids become an "id" column, and a
  * compound node's parent a "parent" column when the parent is in the collection too (a parent outside it is left
  * out, so the node is written as a top-level node). Hidden elements are written like any other: pass
@@ -254,13 +264,18 @@ function columns(records: readonly Record<string, unknown>[]): Record<string, Co
  * @param eles - the collection
  * @param options - the direction and the id type
  * @param options.directed - write a directed graph (default false)
+ * @param options.screenY - keep Cytoscape's y as it is instead of negating it (default false)
  * @param options.integerIds - when every node id is a non-negative integer written plainly ("0", "17"), give the
  * snapshot number ids, so a format that holds only integer ids (GML, CX2) writes them as they are (default false)
  * @returns the snapshot
  */
 export function elementsToSnapshot(
     eles: Collection,
-    options: { readonly directed?: boolean | undefined; readonly integerIds?: boolean | undefined } = {},
+    options: {
+        readonly directed?: boolean | undefined;
+        readonly integerIds?: boolean | undefined;
+        readonly screenY?: boolean | undefined;
+    } = {},
 ): GraphSnapshot {
     const nodes = eles.nodes();
     const index = new Map<string, number>();
@@ -281,7 +296,7 @@ export function elementsToSnapshot(
     nodes.forEach((n, i) => {
         const p = n.position();
         xy[2 * i] = p.x;
-        xy[2 * i + 1] = p.y;
+        xy[2 * i + 1] = options.screenY === true ? p.y : flipY(p.y);
     });
     const parents = nodes.map((n) => index.get(n.parent().first().id()) ?? null);
     const edgeColumns = columns(edges.map((e) => e.data() as Record<string, unknown>));

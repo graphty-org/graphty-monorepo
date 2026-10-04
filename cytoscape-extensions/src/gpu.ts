@@ -17,6 +17,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import type { LayoutAccelerator } from "@graphty/layout";
 import type { Core } from "cytoscape";
 
+import { loadPart } from "./lazy.js";
 import { onSnapshotsDropped } from "./snapshot.js";
 
 /** The accelerator a provider hands over: both CPU packages' injection seams, plus snapshot release and disposal. */
@@ -66,6 +67,24 @@ export interface GpuProvider {
  * "require" throws when no GPU is available instead of running the CPU.
  */
 export type GpuMode = "auto" | "off" | "require";
+
+const GPU_MODES: readonly unknown[] = ["auto", "off", "require"] satisfies GpuMode[];
+
+/**
+ * Throws when a `gpu` option is not one of the modes, so a misspelled "require" cannot quietly run on the CPU.
+ * @param name - the method or layout, for the message
+ * @param mode - the caller's `gpu` option
+ * @throws TypeError when the option is set to anything but "auto", "off" or "require"
+ */
+export function checkGpuMode(name: string, mode: unknown): void {
+    if (mode !== undefined && !GPU_MODES.includes(mode)) {
+        // a string quoted, so "require " shows its space; anything else by its value or its type
+        const plain = mode === null || typeof mode === "number" || typeof mode === "boolean";
+        const shown = plain ? String(mode) : `a value of type ${typeof mode}`;
+        const got = typeof mode === "string" ? JSON.stringify(mode) : shown;
+        throw new TypeError(`${name}: gpu must be "auto", "off" or "require"; got ${got}`);
+    }
+}
 
 /** Which implementation ran, and why the CPU when it was the CPU. */
 export interface Backend {
@@ -166,7 +185,10 @@ function source(): Promise<Source> {
             loaded = override ?? { reason: none ?? "WebGPU was disabled", fix: null };
             loading = Promise.resolve(loaded);
         } else {
-            const p: Promise<Source> = import("#gpu-platform").then(
+            const p: Promise<Source> = loadPart(
+                import("#gpu-platform"),
+                "an ...Async method or a simulation layout",
+            ).then(
                 (m) => m.gpuProvider(options),
                 (e: unknown) => ({
                     reason: `@graphty/webgpu-graph-algorithms did not load: ${messageOf(e)}`,

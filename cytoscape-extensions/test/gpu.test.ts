@@ -103,6 +103,21 @@ describe("the CPU path (WebGPU disabled)", () => {
         await expect(cy.graphtyPageRankAsync({ gpu: "require" })).rejects.toThrow(/require.*disabled/);
     });
 
+    it("rejects a gpu value that is not a mode, so a typo of require cannot run on the CPU", async () => {
+        const cy = mainGraph();
+        expect(() => cy.graphtyPageRank({ gpu: "requre" } as never)).toThrow(
+            'graphtyPageRank: gpu must be "auto", "off" or "require"; got "requre"',
+        );
+        await expect(cy.graphtyPageRankAsync({ gpu: 42 } as never)).rejects.toThrow(
+            'graphtyPageRankAsync: gpu must be "auto", "off" or "require"; got 42',
+        );
+        expect(() =>
+            cy
+                .layout({ name: "graphty-forceatlas2", boundingBox: BOX, gpu: "bogus" } as unknown as LayoutOptions)
+                .run(),
+        ).toThrow('graphty-forceatlas2: gpu must be "auto", "off" or "require"; got "bogus"');
+    });
+
     it('a synchronous method rejects gpu: "require"', () => {
         expect(() => mainGraph().graphtyPageRank({ gpu: "require" })).toThrow(/graphtyPageRankAsync/);
         // a method with no Async twin does not send the caller to one

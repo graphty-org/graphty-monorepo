@@ -39,9 +39,15 @@ export {
     type SearchResult,
 } from "./algorithms.js";
 export { type Backend, configureWebGpu, GPU_SIZE_FLOOR, type GpuMode, type WebGpuOptions } from "./gpu.js";
-export { type AddedGraph, type GraphtyGraphData, type ImportedGraph } from "./graph-data.js";
+export { type AddedGraph, type GraphtyGraphData, IdTakenError, type ImportedGraph } from "./graph-data.js";
 export type { ExportFormat, ExportOptions, ImportFormat, ImportOptions, LossNote } from "./io.js";
-export { type GraphtyLayoutOptions, type GraphtyLayouts, LAYOUT_NAMES } from "./layouts.js";
+export {
+    type GraphtyLayoutName,
+    type GraphtyLayoutOptions,
+    type GraphtyLayoutOptionsByName,
+    type GraphtyLayouts,
+    LAYOUT_NAMES,
+} from "./layouts.js";
 export type { GeneratorName, GeneratorOptions } from "./samples.js";
 export { type CytoscapeSnapshot, type NodeSelection, type SnapshotOptions, toSnapshot, writeData } from "./snapshot.js";
 

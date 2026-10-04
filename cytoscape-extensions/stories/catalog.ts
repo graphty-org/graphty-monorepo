@@ -238,5 +238,6 @@ export const FORMATS = Object.keys({
     csv: 0,
     json: 0,
     neo4j: 0,
+    xgmml: 0,
     cx2: 0,
 } satisfies Record<ExportFormat, 0>) as ExportFormat[];

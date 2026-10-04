@@ -46,8 +46,8 @@ choice first, and drops the `graphty` prefix from each name.
 | Task                             | Methods                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Important nodes                  | [PageRank](#graphtypagerank), [Degree](#graphtydegreecentrality), [Betweenness](#graphtybetweennesscentrality), [Closeness](#graphtyclosenesscentrality), [Eigenvector](#graphtyeigenvectorcentrality), [Katz](#graphtykatzcentrality), [HITS](#graphtyhits), [PersonalizedPageRank](#graphtypersonalizedpagerank), [DeltaPageRank](#graphtydeltapagerank), [EdgeBetweenness](#graphtyedgebetweennesscentrality), [KCoreDecomposition](#graphtykcoredecomposition), [TriangleCount](#graphtytrianglecount) |
-| Communities, any number          | [Louvain](#graphtylouvain), [Leiden](#graphtyleiden), [LabelPropagation](#graphtylabelpropagation), [MarkovClustering](#graphtymarkovclustering), [GirvanNewman](#graphtygirvannewman) (slow; keeps every level), [TeraHAC](#graphtyterahac), [Grsbm](#graphtygrsbm)                                                                                                                                                                                                                                       |
-| Communities, a number you choose | [SpectralClustering](#graphtyspectralclustering), [HierarchicalClustering](#graphtyhierarchicalclustering) with `cut(height)`, [SyncClustering](#graphtysyncclustering)                                                                                                                                                                                                                                                                                                                                    |
+| Communities, any number          | [Louvain](#graphtylouvain), [Leiden](#graphtyleiden), [LabelPropagation](#graphtylabelpropagation), [MarkovClustering](#graphtymarkovclustering), [GirvanNewman](#graphtygirvannewman) (slow; keeps every level), [Grsbm](#graphtygrsbm) (check its modularity)                                                                                                                                                                                                                                            |
+| Communities, a number you choose | [SpectralClustering](#graphtyspectralclustering), [HierarchicalClustering](#graphtyhierarchicalclustering) with `cut(height)`, [SyncClustering](#graphtysyncclustering), [TeraHAC](#graphtyterahac) (set `numClusters` or `distanceThreshold`; with neither it returns one cluster)                                                                                                                                                                                                                        |
 | Spread known labels              | [LabelPropagationSemiSupervised](#graphtylabelpropagationsemisupervised)                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Connected pieces                 | [ConnectedComponents](#graphtyconnectedcomponents), [StronglyConnectedComponents](#graphtystronglyconnectedcomponents), [WeaklyConnectedComponents](#graphtyweaklyconnectedcomponents), [Condensation](#graphtycondensation)                                                                                                                                                                                                                                                                               |
 | Routes and walks                 | [Dijkstra](#graphtydijkstra), [AStar](#graphtyastar), [BidirectionalDijkstra](#graphtybidirectionaldijkstra), [BellmanFord](#graphtybellmanford) (negative weights), [AllPairsShortestPath](#graphtyallpairsshortestpath), [BreadthFirstSearch](#graphtybreadthfirstsearch), [DepthFirstSearch](#graphtydepthfirstsearch)                                                                                                                                                                                  |
@@ -64,12 +64,12 @@ of the link-prediction methods, `graphtyDegrees`, `graphtyDirectionOptimizedBfs`
 
 ## Options every algorithm takes
 
-| Option     | Type                                         | Default             | Meaning                                                                                                                                                                                                                                                                           |
-| ---------- | -------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `directed` | `boolean`                                    | `false`             | Read the edges as directed (source to target). Default false, except where an algorithm says otherwise.                                                                                                                                                                           |
-| `weight`   | `string \| ((edge: EdgeSingular) => number)` | every edge weighs 1 | Edge data field holding the weight, or a function of the edge. Each method below says whether it reads weights; one that does not throws when you pass `weight`.                                                                                                                  |
-| `field`    | `string`                                     |                     | Write each element's value into `data(field)`, so a stylesheet can map it: the score, the cluster number, the distance from `root` (`Infinity` when unreachable) or the search depth (`NaN` when not visited). A method marked "Takes no `field`" below throws when you pass it.  |
-| `gpu`      | `"auto" \| "off" \| "require"`               | `"auto"`            | The `...Async` methods only: "auto" (default) runs on the GPU when the runtime has a usable WebGPU device, "off" runs on the CPU, "require" throws instead of running on the CPU when no device is available. The synchronous methods always run on the CPU and reject "require". |
+| Option     | Type                                         | Default             | Meaning                                                                                                                                                                                                                                                                                                               |
+| ---------- | -------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `directed` | `boolean`                                    | `false`             | Read the edges as directed (source to target). Default false, except where an algorithm says otherwise.                                                                                                                                                                                                               |
+| `weight`   | `string \| ((edge: EdgeSingular) => number)` | every edge weighs 1 | Edge data field holding the weight, or a function of the edge. Each method below says whether it reads weights; one that does not throws when you pass `weight`.                                                                                                                                                      |
+| `field`    | `string`                                     |                     | Write each element's value into `data(field)`, so a stylesheet can map it: the score, the cluster number, the distance from `root` (`Infinity` when unreachable) or the search depth (`NaN` when not visited). A method marked "Takes no `field`" below throws when you pass it.                                      |
+| `gpu`      | `"auto" \| "off" \| "require"`               | `"auto"`            | The `...Async` methods only: "auto" (default) runs on the GPU when the runtime has a usable WebGPU device, "off" runs on the CPU, "require" throws instead of running on the CPU when no device is available. The synchronous methods always run on the CPU and reject "require". Any other value throws a TypeError. |
 
 The algorithms defined only for directed graphs (`graphtyTopologicalSort`, `graphtyStronglyConnectedComponents`, `graphtyCondensation`, `graphtyDeltaPageRank`) default `directed` to `true`.
 
@@ -93,26 +93,32 @@ The Adamic-Adar score of each given node pair.
 
 Returns `number[]`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
 
+With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
+
 | Option  | Type                  | Default  | Meaning                                                             |
 | ------- | --------------------- | -------- | ------------------------------------------------------------------- |
 | `pairs` | `readonly NodePair[]` | required | The node pairs to score, each `[a, b]` of selectors or collections. |
 
 ### `graphtyAdamicAdarPrediction`
 
-The unlinked node pairs most likely to be linked, ranked by Adamic-Adar score.
+The node pairs (u, v) with no edge u -> v, ranked by Adamic-Adar score. With `directed: true` a pair joined only by v -> u is listed, but each pair is scored in one order only, with the node that comes first in the collection as u: a predicted arc from a later node to an earlier one is missed. For a complete directed list from one node, use `graphtyTopCandidatesForNode`.
 
 Returns `PredictedLink[]`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
 
-| Option            | Type      | Default            | Meaning                                                                                                                                                                                                   |
-| ----------------- | --------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                         |
-| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order. |
+With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
+
+| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                         |
+| ----------------- | --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                               |
+| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above). |
 
 ### `graphtyAdamicAdarScore`
 
 The Adamic-Adar score of one node pair: its shared neighbors, each counted as 1 / log(degree), so a rare shared neighbor counts more. With `directed: true` the degree is the out-degree, and a shared neighbor of out-degree 1 counts 1.
 
 Returns `number`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
+
+With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
 
 | Option   | Type            | Default  | Meaning                     |
 | -------- | --------------- | -------- | --------------------------- |
@@ -150,12 +156,12 @@ Returns `ScoreResult & { betweenness(node: ElementRef): number | undefined; betw
 
 `score` is NetworkX's value (divided as `normalized` says). `betweenness` is always the raw count over ordered pairs, as Cytoscape's built-in gives it (twice `score` on an undirected graph), and `betweennessNormalized` is that divided by its largest value.
 
-| Option       | Type            | Default    | Meaning                                                                                                                                                                                                                                                           |
-| ------------ | --------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `normalized` | `boolean`       | `false`    | Divide by the number of ordered pairs a node can sit between: `(n - 1)(n - 2)` directed, half that undirected; with `endpoints`, `n (n - 1)` and half that.                                                                                                       |
-| `k`          | `number`        |            | Draw this many source nodes instead of using every node; the same node count and `k` draw the same nodes every time. With `sources` it must equal the number of sources. The result is not rescaled (see `sources`).                                              |
-| `endpoints`  | `boolean`       | `false`    | Count a path's two ends as lying on it, as NetworkX's `endpoints=True` does.                                                                                                                                                                                      |
-| `sources`    | `NodeSelection` | every node | The nodes to run from, a selector or a collection. A sample is not rescaled: each value sums over these sources only (closeness is 1 / the sum of the distances from them), where NetworkX multiplies a k-source betweenness by n / k to estimate the full value. |
+| Option       | Type            | Default    | Meaning                                                                                                                                                                                              |
+| ------------ | --------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `normalized` | `boolean`       | `false`    | Divide by the number of ordered pairs a node can sit between: `(n - 1)(n - 2)` directed, half that undirected; with `endpoints`, `n (n - 1)` and half that.                                          |
+| `k`          | `number`        |            | Draw this many source nodes instead of using every node; the same node count and `k` draw the same nodes every time. With `sources` it must equal the number of sources. The result is not rescaled. |
+| `endpoints`  | `boolean`       | `false`    | Count a path's two ends as lying on it, as NetworkX's `endpoints=True` does.                                                                                                                         |
+| `sources`    | `NodeSelection` | every node | The nodes to run from, a selector or a collection; default every node. Sums only the shortest paths that start at these nodes, and is not rescaled by n / k as NetworkX does.                        |
 
 ### `graphtyBidirectionalDijkstra`
 
@@ -174,11 +180,11 @@ Walks outward from `root` one hop at a time, recording each node's depth and par
 
 Returns `SearchResult`. Reads no edge weights. Async twin, which can run on the GPU: `graphtyBreadthFirstSearchAsync`.
 
-| Option     | Type            | Default  | Meaning                                                                                                                                                                                                  |
-| ---------- | --------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `goal`     | `NodeSelection` |          | Stop once this node is reached; it is then `found`. The node that discovered the goal is still fully expanded, so the goal's siblings are listed in `path` and given a depth; nothing deeper is visited. |
-| `maxDepth` | `number`        |          | Stop expanding at this many hops from the root; unbounded when absent.                                                                                                                                   |
-| `root`     | `NodeSelection` | required | The start node: a selector or a collection (its first node).                                                                                                                                             |
+| Option     | Type            | Default  | Meaning                                                                                                                                                                                                                                                           |
+| ---------- | --------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `goal`     | `NodeSelection` |          | Stop when this node comes off the queue; it is then `found`. Every node queued before it is still expanded, so `path` can list nodes one hop deeper than the goal, with a depth: on a-b, a-c, b-d, c-e with `root` a and `goal` c, `path` ends with d at depth 2. |
+| `maxDepth` | `number`        |          | Stop expanding at this many hops from the root; unbounded when absent.                                                                                                                                                                                            |
+| `root`     | `NodeSelection` | required | The start node: a selector or a collection (its first node).                                                                                                                                                                                                      |
 
 ### `graphtyClosenessCentrality`
 
@@ -186,13 +192,13 @@ How near each node is to all others: 1 / the sum of its shortest-path distances.
 
 Returns `ScoreResult & { closeness(node: ElementRef): number | undefined; }`. Reads edge weights from `weight`. Async twin, which can run on the GPU: `graphtyClosenessCentralityAsync`.
 
-| Option       | Type            | Default              | Meaning                                                                                                                                                                                                                                                                                    |
-| ------------ | --------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `normalized` | `boolean`       | `false`              | Multiply by the share of the other nodes that are reached, reached / (n - 1), which changes nothing on a connected graph; with `harmonic`, divide by `n - 1` instead. For NetworkX's `closeness_centrality`, multiply the value without `normalized` by the number of other nodes reached. |
-| `harmonic`   | `boolean`       | `false`              | Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs.                                                                                                                                                                                                   |
-| `cutoff`     | `number`        | every reachable node | Stop searching from nodes this far away or farther. A node past the cutoff is still counted when an edge reaches it from a node closer than the cutoff.                                                                                                                                    |
-| `k`          | `number`        |                      | Draw this many source nodes instead of using every node; the same node count and `k` draw the same nodes every time. With `sources` it must equal the number of sources. The result is not rescaled (see `sources`).                                                                       |
-| `sources`    | `NodeSelection` | every node           | The nodes to run from, a selector or a collection. A sample is not rescaled: each value sums over these sources only (closeness is 1 / the sum of the distances from them), where NetworkX multiplies a k-source betweenness by n / k to estimate the full value.                          |
+| Option       | Type            | Default              | Meaning                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------ | --------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `normalized` | `boolean`       | `false`              | Multiply by the share of the other nodes that are reached, reached / (n - 1), which changes nothing on a connected graph; with `harmonic`, divide by `n - 1` instead. For NetworkX's `closeness_centrality` (its default `wf_improved=True`), multiply the value with `normalized: true` by the number of other nodes reached; the value without `normalized` times that number is NetworkX's `wf_improved=False`. |
+| `harmonic`   | `boolean`       | `false`              | Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs.                                                                                                                                                                                                                                                                                                                           |
+| `cutoff`     | `number`        | every reachable node | Stop searching from nodes this far away or farther. A node past the cutoff is still counted when an edge reaches it from a node closer than the cutoff.                                                                                                                                                                                                                                                            |
+| `k`          | `number`        |                      | Draw this many source nodes instead of using every node; the same node count and `k` draw the same nodes every time. With `sources` it must equal the number of sources. The result is not rescaled.                                                                                                                                                                                                               |
+| `sources`    | `NodeSelection` | every node           | The nodes to run from, a selector or a collection; default every node. Each node's value is 1 / the sum of its distances from these sources, so with source `#a` on the path a - b - d, b scores 1 and d 0.5. A node no source reaches scores 0, and so does a source no other source reaches. For one node's own closeness, use `graphtyNodeClosenessCentrality`.                                                 |
 
 ### `graphtyCommonNeighborsForPairs`
 
@@ -200,26 +206,32 @@ The number of neighbors each given node pair shares.
 
 Returns `number[]`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
 
+With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
+
 | Option  | Type                  | Default  | Meaning                                                             |
 | ------- | --------------------- | -------- | ------------------------------------------------------------------- |
 | `pairs` | `readonly NodePair[]` | required | The node pairs to score, each `[a, b]` of selectors or collections. |
 
 ### `graphtyCommonNeighborsPrediction`
 
-The unlinked node pairs most likely to be linked, ranked by how many neighbors they share.
+The node pairs (u, v) with no edge u -> v, ranked by how many neighbors they share. With `directed: true` a pair joined only by v -> u is listed, but each pair is scored in one order only, with the node that comes first in the collection as u: a predicted arc from a later node to an earlier one is missed. For a complete directed list from one node, use `graphtyTopCandidatesForNode`.
 
 Returns `PredictedLink[]`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
 
-| Option            | Type      | Default            | Meaning                                                                                                                                                                                                   |
-| ----------------- | --------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                         |
-| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order. |
+With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
+
+| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                         |
+| ----------------- | --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                               |
+| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above). |
 
 ### `graphtyCommonNeighborsScore`
 
 The number of neighbors two nodes share.
 
 Returns `number`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
+
+With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
 
 | Option   | Type            | Default  | Meaning                     |
 | -------- | --------------- | -------- | --------------------------- |
@@ -232,7 +244,7 @@ Both Evaluate methods on the same held-out edges, to compare the two scores.
 
 Returns `{ adamicAdar: LinkPredictionMetrics; commonNeighbors: LinkPredictionMetrics; }`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
 
-A held-out edge and a non-edge with the same score count as the edge ranked higher, so a score with many ties reads better than it is: when every pair scores 0, every metric is 1. Common-neighbor counts tie often, which also favors them in the comparison.
+A held-out edge and a non-edge with the same score count as the edge ranked higher, so a score with many ties reads better than it is: when every pair scores 0, every metric is 1. Common-neighbor counts tie often, which also favors them in the comparison. With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates. A held-out arc u -> v scores above 0 only while some path u -> w -> v is left in the graph.
 
 | Option     | Type                  | Default  | Meaning                                                                           |
 | ---------- | --------------------- | -------- | --------------------------------------------------------------------------------- |
@@ -263,10 +275,10 @@ Each node's number of neighbors.
 
 Returns `ScoreResult & { degree(node: ElementRef): number | undefined; }`. Reads no edge weights. No Async twin: it runs on the CPU only.
 
-| Option       | Type                       | Default   | Meaning                                                                 |
-| ------------ | -------------------------- | --------- | ----------------------------------------------------------------------- |
-| `mode`       | `"in" \| "out" \| "total"` | `"total"` | On a directed graph, which neighbors to count; ignored when undirected. |
-| `normalized` | `boolean`                  | `false`   | Divide by `n - 1`, the most neighbors a node can have.                  |
+| Option       | Type                       | Default   | Meaning                                                                                                                |
+| ------------ | -------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `mode`       | `"in" \| "out" \| "total"` | `"total"` | Which neighbors to count: `"in"`, `"out"` or `"total"`. `"in"` and `"out"` need `directed: true` and throw without it. |
+| `normalized` | `boolean`                  | `false`   | Divide by `n - 1`, the most neighbors a node can have.                                                                 |
 
 ### `graphtyDegrees`
 
@@ -282,14 +294,16 @@ PageRank computed by passing on only the changes in rank; pass `priority: true` 
 
 Returns `ScoreResult & { rank(node: ElementRef): number | undefined; }`. Reads edge weights from `weight`. No Async twin: it runs on the CPU only.
 
-| Option            | Type                                                | Default                         | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ----------------- | --------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dampingFactor`   | `number`                                            | `0.85`                          | Probability of following a link.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `maxIterations`   | `number`                                            | `100`; no limit with `priority` | Rounds, or with `priority` the number of nodes processed. With `priority` and no `maxIterations`, the run goes on until no pending delta is left, so it always converges.                                                                                                                                                                                                                                                                                                                                                                             |
-| `tolerance`       | `number`                                            | `0.000001`                      | Stop when every pending delta is below this.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `deltaThreshold`  | `number`                                            | `tolerance / 10`                | A delta below this is dropped rather than propagated.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `priority`        | `boolean`                                           |                                 | Process the largest pending delta first (`personalization` is then ignored). With no `maxIterations` of your own, the ranks match `graphtyPageRank({ directed: true })` to within 1e-7. A `maxIterations` you pass counts processed nodes, and a run it stops early is not reported: at 100 on a 200-node graph the ranks are off by a third. Without `priority` the ranks can differ from PageRank's (by up to 0.07 on the karate club), the run usually goes on until `maxIterations`, and a `maxIterations` in the thousands overflows and throws. |
-| `personalization` | `NodeSelection \| ((node: NodeSingular) => number)` |                                 | The teleport set: a selection (uniform over it) or a weight per node.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+For ranks that match `graphtyPageRank({ directed: true })`, pass `priority: true` and leave out `maxIterations`: the ranks then match a fully converged PageRank to within about 1e-8, so they differ from a default `graphtyPageRank` by up to its `tolerance` of 1e-6. With `priority`, a `maxIterations` you pass counts processed nodes and can stop the run early without saying so: at 100 on a 200-node graph the ranks are off by a third. Without `priority` the ranks can differ from PageRank's by up to 0.07 (on the karate club), and a `maxIterations` in the thousands overflows and throws.
+
+| Option            | Type                                                | Default                         | Meaning                                                                                                                                                                   |
+| ----------------- | --------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dampingFactor`   | `number`                                            | `0.85`                          | Probability of following a link.                                                                                                                                          |
+| `maxIterations`   | `number`                                            | `100`; no limit with `priority` | Rounds, or with `priority` the number of nodes processed. With `priority` and no `maxIterations`, the run goes on until no pending delta is left, so it always converges. |
+| `tolerance`       | `number`                                            | `0.000001`                      | Stop when every pending delta is below this.                                                                                                                              |
+| `deltaThreshold`  | `number`                                            | `tolerance / 10`                | A delta below this is dropped rather than propagated.                                                                                                                     |
+| `priority`        | `boolean`                                           |                                 | Process the largest pending delta first; ignores `personalization`.                                                                                                       |
+| `personalization` | `NodeSelection \| ((node: NodeSingular) => number)` |                                 | The teleport set: a selection (uniform over it) or a weight per node.                                                                                                     |
 
 ### `graphtyDepthFirstSearch`
 
@@ -297,11 +311,11 @@ Walks from `root` as deep as it can before backtracking, recording each node's d
 
 Returns `SearchResult`. Reads no edge weights. No Async twin: it runs on the CPU only.
 
-| Option  | Type              | Default  | Meaning                                                                                                                                                                                                                                              |
-| ------- | ----------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `goal`  | `NodeSelection`   |          | Stop when this node is reached; it is then `found`. With `order: "pre"` nothing after it is visited. With `order: "post"` the nodes below it are still visited and listed before it, and the nodes on the way from `root` to it are listed after it. |
-| `root`  | `NodeSelection`   | required | The start node: a selector or a collection (its first node).                                                                                                                                                                                         |
-| `order` | `"pre" \| "post"` | `"pre"`  | "pre" (default) lists a node when it is first reached, "post" when everything below it is finished.                                                                                                                                                  |
+| Option  | Type              | Default  | Meaning                                                                                                                                                            |
+| ------- | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `goal`  | `NodeSelection`   |          | Stop when this node is reached; it is then `found`. Nothing after it is visited. Only a pre-order walk can stop early: with `order: "post"` passing `goal` throws. |
+| `root`  | `NodeSelection`   | required | The start node: a selector or a collection (its first node).                                                                                                       |
+| `order` | `"pre" \| "post"` | `"pre"`  | "pre" (default) lists a node when it is first reached, "post" when everything below it is finished.                                                                |
 
 ### `graphtyDijkstra`
 
@@ -332,11 +346,11 @@ How often each edge lies on shortest paths: high values mark the bridges between
 
 Returns `ScoreResult`. Reads no edge weights. Async twin, which can run on the GPU: `graphtyEdgeBetweennessCentralityAsync`.
 
-| Option       | Type            | Default    | Meaning                                                                                                                                                                                                                                                           |
-| ------------ | --------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sources`    | `NodeSelection` | every node | The nodes to run from, a selector or a collection. A sample is not rescaled: each value sums over these sources only (closeness is 1 / the sum of the distances from them), where NetworkX multiplies a k-source betweenness by n / k to estimate the full value. |
-| `normalized` | `boolean`       | `false`    | Divide by `(n - 1)(n - 2)` on a directed graph, half that on an undirected one.                                                                                                                                                                                   |
-| `k`          | `number`        |            | Draw this many source nodes instead of using every node; the same count draws the same nodes. Not rescaled (see `sources`).                                                                                                                                       |
+| Option       | Type            | Default    | Meaning                                                                                                                                                                       |
+| ------------ | --------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sources`    | `NodeSelection` | every node | The nodes to run from, a selector or a collection; default every node. Sums only the shortest paths that start at these nodes, and is not rescaled by n / k as NetworkX does. |
+| `normalized` | `boolean`       | `false`    | Divide by `(n - 1)(n - 2)` on a directed graph, half that on an undirected one.                                                                                               |
+| `k`          | `number`        |            | Draw this many source nodes instead of using every node; the same count draws the same nodes. Not rescaled (see `sources`).                                                   |
 
 ### `graphtyEigenvectorCentrality`
 
@@ -346,13 +360,13 @@ Returns `ScoreResult & { iterations: number; converged: boolean; }`. Reads no ed
 
 When `maxIterations` passes do not meet `tolerance` it throws an error whose `code` is `"E_NOT_CONVERGED"`, where PageRank, Katz and HITS return `converged: false`. So `converged` is always `true`.
 
-| Option          | Type                             | Default    | Meaning                                                                                                                                                                              |
-| --------------- | -------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `maxIterations` | `number`                         | `100`      | Iteration cap.                                                                                                                                                                       |
-| `tolerance`     | `number`                         | `0.000001` | Per-node tolerance: the run stops when the L1 change is below `n * tolerance`.                                                                                                       |
-| `normalized`    | `boolean`                        | `true`     | Rescale the unit-length vector to [0, 1] by min-max.                                                                                                                                 |
-| `mode`          | `"in" \| "out" \| "total"`       | `"in"`     | On a directed graph, which arcs feed a node: `"in"` (default, as networkx) the nodes pointing at it, `"out"` the nodes it points at, `"total"` both. Ignored on an undirected graph. |
-| `startVector`   | `(node: NodeSingular) => number` | uniform    | Starting value of each node.                                                                                                                                                         |
+| Option          | Type                             | Default    | Meaning                                                                                                                                                                               |
+| --------------- | -------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxIterations` | `number`                         | `100`      | Iteration cap.                                                                                                                                                                        |
+| `tolerance`     | `number`                         | `0.000001` | Per-node tolerance: the run stops when the L1 change is below `n * tolerance`.                                                                                                        |
+| `normalized`    | `boolean`                        | `true`     | Rescale the unit-length vector to [0, 1] by min-max.                                                                                                                                  |
+| `mode`          | `"in" \| "out" \| "total"`       | `"in"`     | Which arcs feed a node: `"in"` (as networkx) the nodes pointing at it, `"out"` the nodes it points at, `"total"` both. `"in"` and `"out"` need `directed: true` and throw without it. |
+| `startVector`   | `(node: NodeSingular) => number` | uniform    | Starting value of each node.                                                                                                                                                          |
 
 ### `graphtyEvaluateAdamicAdar`
 
@@ -360,7 +374,7 @@ How well the Adamic-Adar score ranks held-out edges above non-edges.
 
 Returns `LinkPredictionMetrics`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
 
-A held-out edge and a non-edge with the same score count as the edge ranked higher, so a score with many ties reads better than it is: when every pair scores 0, every metric is 1. Common-neighbor counts tie often, which also favors them in the comparison.
+A held-out edge and a non-edge with the same score count as the edge ranked higher, so a score with many ties reads better than it is: when every pair scores 0, every metric is 1. Common-neighbor counts tie often, which also favors them in the comparison. With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates. A held-out arc u -> v scores above 0 only while some path u -> w -> v is left in the graph.
 
 | Option     | Type                  | Default  | Meaning                                                                           |
 | ---------- | --------------------- | -------- | --------------------------------------------------------------------------------- |
@@ -373,7 +387,7 @@ How well the common-neighbor count ranks held-out edges above non-edges.
 
 Returns `LinkPredictionMetrics`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
 
-A held-out edge and a non-edge with the same score count as the edge ranked higher, so a score with many ties reads better than it is: when every pair scores 0, every metric is 1. Common-neighbor counts tie often, which also favors them in the comparison.
+A held-out edge and a non-edge with the same score count as the edge ranked higher, so a score with many ties reads better than it is: when every pair scores 0, every metric is 1. Common-neighbor counts tie often, which also favors them in the comparison. With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates. A held-out arc u -> v scores above 0 only while some path u -> w -> v is left in the graph.
 
 | Option     | Type                  | Default  | Meaning                                                                           |
 | ---------- | --------------------- | -------- | --------------------------------------------------------------------------------- |
@@ -386,17 +400,17 @@ Every way to map this graph's nodes onto `other` so that the edges match.
 
 Returns `((node: ElementRef) => NodeSingular | undefined)[]`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
 
-| Option      | Type                                            | Default     | Meaning                                                                      |
-| ----------- | ----------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
-| `other`     | `Collection`                                    | required    | The collection to compare with, read with the same `directed`.               |
-| `nodeMatch` | `(a: NodeSingular, b: NodeSingular) => boolean` | any two may | Two nodes may be paired only when this returns true; by default any two may. |
-| `edgeMatch` | `(a: EdgeSingular, b: EdgeSingular) => boolean` | any two may | Two edges may be paired only when this returns true; by default any two may. |
+| Option      | Type                                                                | Default     | Meaning                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------- | ------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `other`     | `string \| Collection \| readonly (EdgeSingular \| NodeSingular)[]` | required    | The graph to compare with, read with the same `directed` and like the calling collection: its nodes, and the edges in it whose ends are both in it. A collection of nodes alone has no edges, so include them: `other: part.union(part.edgesWith(part))`. Also takes an array of elements, or a selector over the whole core (for example ".second", matching that graph's nodes and edges). |
+| `nodeMatch` | `(a: NodeSingular, b: NodeSingular) => boolean`                     | any two may | Two nodes may be paired only when this returns true; by default any two may.                                                                                                                                                                                                                                                                                                                 |
+| `edgeMatch` | `(a: EdgeSingular, b: EdgeSingular) => boolean`                     | any two may | Two edges may be paired only when this returns true; by default any two may.                                                                                                                                                                                                                                                                                                                 |
 
 ### `graphtyGirvanNewman`
 
 Communities found by removing the edge with the highest betweenness, round after round.
 
-Returns `Partition<{ modularity: number; levels: number; level(k: number): NodeCollection[]; modularities: number[]; }>`. Reads edge weights from `weight`. No Async twin: it runs on the CPU only.
+Returns `Partition<{ modularity: number; levels: number; level(k: number): Partition<object>; modularities: number[]; }>`. Reads edge weights from `weight`. No Async twin: it runs on the CPU only.
 
 `level(k)` is the partition after k rounds of edge removal, for k from 0 (no edge removed) to `levels - 1`; past the end it returns an empty array. `modularities[k]` is the modularity of `level(k)`. The result itself, with its `modularity`, is the level with the highest modularity.
 
@@ -420,17 +434,17 @@ Returns `{ readonly size: number; mate(node: ElementRef): NodeSingular | undefin
 
 ### `graphtyGrsbm`
 
-Communities found by splitting groups in two along the graph's Fiedler vector, the eigenvector that best separates loosely joined parts. A split is kept unless it lowers modularity by more than 0.01.
+Communities found by splitting groups in two by a spectral split. A split is kept unless it lowers modularity by more than 0.01. Its results are currently unreliable: the split does not follow the eigenvector that best separates the graph.
 
 Returns `Partition<object>`. Reads edge weights from `weight`. No Async twin: it runs on the CPU only.
 
-Check the result with `graphtyModularity`: on the karate club it returns 2 clusters with modularity 0.04, where `graphtyLouvain` finds 4 with 0.42.
+Check the result with `graphtyModularity` before you use it; for communities you can rely on, use `graphtyLouvain` or `graphtyLeiden`.
 
 | Option           | Type     | Default | Meaning                                                               |
 | ---------------- | -------- | ------- | --------------------------------------------------------------------- |
 | `maxDepth`       | `number` | `10`    | Clusters at this depth are not split.                                 |
-| `maxIterations`  | `number` | `100`   | Iteration cap of the Fiedler-vector iteration.                        |
-| `tolerance`      | `number` | `1e-6`  | Convergence tolerance of the Fiedler-vector iteration.                |
+| `maxIterations`  | `number` | `100`   | Iteration cap of the eigenvector iteration.                           |
+| `tolerance`      | `number` | `1e-6`  | Convergence tolerance of the eigenvector iteration.                   |
 | `seed`           | `number` | `42`    | Seed of the iteration's start vectors.                                |
 | `minClusterSize` | `number` | `2`     | A cluster is split only when it has at least twice this many members. |
 
@@ -448,7 +462,7 @@ No options of its own.
 
 A merge tree of clusters: every node starts alone, and the two closest clusters by hop distance merge until no pair can.
 
-Returns `{ cut(height: number): NodeCollection[]; readonly merges: number; }`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
+Returns `{ cut(height: number): Partition<object>; readonly merges: number; }`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
 
 Distances are hop counts: weights are not read, and nodes with no path between them never merge. `cut(height)` returns the clusters of the merge tree whose height is `height` or less, where a node has height 0 and a merge is one more than its taller part. So `cut(0)` gives every node alone, and a large height gives one cluster per connected component. `merges` is the number of merges made.
 
@@ -482,15 +496,17 @@ Returns `{ bipartite: boolean; partitionFirst: NodeCollection; partitionSecond: 
 
 ### `graphtyIsGraphIsomorphic`
 
-Whether this graph and `other` have the same shape, and a mapping between their nodes.
+Whether this graph and `other` have the same shape, and how their nodes pair up.
 
 Returns `{ isomorphic: boolean; mapping(node: ElementRef): NodeSingular | undefined; }`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
 
-| Option      | Type                                            | Default     | Meaning                                                                      |
-| ----------- | ----------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
-| `other`     | `Collection`                                    | required    | The collection to compare with, read with the same `directed`.               |
-| `nodeMatch` | `(a: NodeSingular, b: NodeSingular) => boolean` | any two may | Two nodes may be paired only when this returns true; by default any two may. |
-| `edgeMatch` | `(a: EdgeSingular, b: EdgeSingular) => boolean` | any two may | Two edges may be paired only when this returns true; by default any two may. |
+`mapping(node)` takes a node of this collection and returns the node of `other` it is paired with. A node of `other`, or any node when `isomorphic` is false, returns undefined.
+
+| Option      | Type                                                                | Default     | Meaning                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------- | ------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `other`     | `string \| Collection \| readonly (EdgeSingular \| NodeSingular)[]` | required    | The graph to compare with, read with the same `directed` and like the calling collection: its nodes, and the edges in it whose ends are both in it. A collection of nodes alone has no edges, so include them: `other: part.union(part.edgesWith(part))`. Also takes an array of elements, or a selector over the whole core (for example ".second", matching that graph's nodes and edges). |
+| `nodeMatch` | `(a: NodeSingular, b: NodeSingular) => boolean`                     | any two may | Two nodes may be paired only when this returns true; by default any two may.                                                                                                                                                                                                                                                                                                                 |
+| `edgeMatch` | `(a: EdgeSingular, b: EdgeSingular) => boolean`                     | any two may | Two edges may be paired only when this returns true; by default any two may.                                                                                                                                                                                                                                                                                                                 |
 
 ### `graphtyKCoreDecomposition`
 
@@ -541,6 +557,8 @@ Communities found by letting each node take the most common label among its neig
 
 Returns `Partition<{ iterations: number | undefined; converged: boolean | undefined }>`. Reads edge weights from `weight`. Async twin, which can run on the GPU: `graphtyLabelPropagationAsync`.
 
+`iterations` and `converged` are undefined only when the `...Async` twin ran on the GPU, which does not report them; this method always fills them in.
+
 | Option          | Type     | Default | Meaning                                                     |
 | --------------- | -------- | ------- | ----------------------------------------------------------- |
 | `maxIterations` | `number` | `100`   | Work cap, in node visits per node (full-sweep equivalents). |
@@ -551,6 +569,8 @@ Returns `Partition<{ iterations: number | undefined; converged: boolean | undefi
 Spreads the labels of a few seed nodes to the rest of the graph.
 
 Returns `Partition<{ iterations: number; converged: boolean; }>`. Reads edge weights from `weight`. No Async twin: it runs on the CPU only.
+
+Cluster numbers are not seed labels: they follow node order, not the order of `seeds` or the values in the seed field, and `field` writes those numbers. To find the cluster a label spread to, ask one of its seed nodes: with `seeds: ["#33", "#0"]`, `result.cluster("#33")` is the cluster of the first label.
 
 | Option          | Type                                 | Default  | Meaning                                                                                                                                                                                                                                                                                          |
 | --------------- | ------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -563,6 +583,8 @@ Returns `Partition<{ iterations: number; converged: boolean; }>`. Reads edge wei
 Label propagation in which every node updates at once, each round.
 
 Returns `Partition<{ iterations: number | undefined; converged: boolean | undefined }>`. Reads edge weights from `weight`. Async twin, which can run on the GPU: `graphtyLabelPropagationSynchronousAsync`.
+
+`iterations` and `converged` are undefined only when the `...Async` twin ran on the GPU, which does not report them; this method always fills them in.
 
 | Option          | Type     | Default | Meaning        |
 | --------------- | -------- | ------- | -------------- |
@@ -669,12 +691,12 @@ The closeness of one node, without computing every node's.
 
 Returns `number`. Reads edge weights from `weight`. Takes no `field`. No Async twin: it runs on the CPU only.
 
-| Option       | Type            | Default              | Meaning                                                                                                                                                                                                                                                                                    |
-| ------------ | --------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `root`       | `NodeSelection` | required             | The start node: a selector or a collection (its first node).                                                                                                                                                                                                                               |
-| `normalized` | `boolean`       | `false`              | Multiply by the share of the other nodes that are reached, reached / (n - 1), which changes nothing on a connected graph; with `harmonic`, divide by `n - 1` instead. For NetworkX's `closeness_centrality`, multiply the value without `normalized` by the number of other nodes reached. |
-| `harmonic`   | `boolean`       | `false`              | Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs.                                                                                                                                                                                                   |
-| `cutoff`     | `number`        | every reachable node | Stop searching from nodes this far away or farther. A node past the cutoff is still counted when an edge reaches it from a node closer than the cutoff.                                                                                                                                    |
+| Option       | Type            | Default              | Meaning                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------ | --------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `root`       | `NodeSelection` | required             | The start node: a selector or a collection (its first node).                                                                                                                                                                                                                                                                                                                                                       |
+| `normalized` | `boolean`       | `false`              | Multiply by the share of the other nodes that are reached, reached / (n - 1), which changes nothing on a connected graph; with `harmonic`, divide by `n - 1` instead. For NetworkX's `closeness_centrality` (its default `wf_improved=True`), multiply the value with `normalized: true` by the number of other nodes reached; the value without `normalized` times that number is NetworkX's `wf_improved=False`. |
+| `harmonic`   | `boolean`       | `false`              | Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs.                                                                                                                                                                                                                                                                                                                           |
+| `cutoff`     | `number`        | every reachable node | Stop searching from nodes this far away or farther. A node past the cutoff is still counted when an edge reaches it from a node closer than the cutoff.                                                                                                                                                                                                                                                            |
 
 ### `graphtyPageRank`
 
@@ -754,7 +776,7 @@ No options of its own.
 
 Returns `Partition<{ loss: number; iterations: number; converged: boolean; }>`. Reads no edge weights. No Async twin: it runs on the CPU only.
 
-On an 80-node graph the defaults (`maxIterations: 100`, `learningRate: 0.01`) end with `converged: false` and mixed clusters. Check `converged`; there, `maxIterations: 2000, learningRate: 0.05` converges in about 750 iterations.
+On an 80-node graph the defaults (`maxIterations: 100`, `learningRate: 0.01`) end with `converged: false` and mixed clusters. Check `converged`; there, `maxIterations: 2000, learningRate: 0.05` converges in about 750 iterations. `converged: true` does not mean the clusters are right: each isolated node or extra component takes one of the `numClusters` centers, so add 3 isolated nodes to that graph and, with the same settings, it converges with three of the four groups merged. Run it on the component you want to cluster, or raise `numClusters` by the number of extra components.
 
 | Option          | Type     | Default  | Meaning                                                          |
 | --------------- | -------- | -------- | ---------------------------------------------------------------- |
@@ -786,6 +808,8 @@ The nodes `root` is most likely to link to next, ranked by Adamic-Adar score.
 
 Returns `PredictedLink[]`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
 
+With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
+
 | Option            | Type            | Default    | Meaning                                                                                                                                                   |
 | ----------------- | --------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `root`            | `NodeSelection` | required   | The start node: a selector or a collection (its first node).                                                                                              |
@@ -798,6 +822,8 @@ Returns `PredictedLink[]`. Reads no edge weights. Takes no `field`. No Async twi
 The nodes `root` is most likely to link to next, ranked by shared neighbors.
 
 Returns `PredictedLink[]`. Reads no edge weights. Takes no `field`. No Async twin: it runs on the CPU only.
+
+With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
 
 | Option            | Type            | Default    | Meaning                                                                                                                                                   |
 | ----------------- | --------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -864,12 +890,12 @@ Paths from one root, in the shape of Cytoscape's `dijkstra`.
 
 A walk from one root, in the shape of Cytoscape's `bfs` / `dfs`.
 
-| Member   | Type                                              | Meaning                                                                         |
-| -------- | ------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `path`   | `CollectionReturnValue`                           | The visited nodes in visit order, each after the tree edge that reached it.     |
-| `found`  | `CollectionReturnValue`                           | The `goal` node when it was reached, else empty.                                |
-| `depth`  | `(node: ElementRef) => number \| undefined`       | Hops from the root; undefined when not visited.                                 |
-| `parent` | `(node: ElementRef) => NodeSingular \| undefined` | The node this one was reached from; undefined for the root and unvisited nodes. |
+| Member   | Type                                              | Meaning                                                                                                                                                                                                    |
+| -------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `path`   | `CollectionReturnValue`                           | The visited nodes in visit order, each after the tree edge that reached it.                                                                                                                                |
+| `found`  | `CollectionReturnValue`                           | The `goal` node when it was reached, else empty.                                                                                                                                                           |
+| `depth`  | `(node: ElementRef) => number \| undefined`       | Edges from the root along the walk's tree (the parent links): the shortest hop count for a breadth-first search, the tree depth for a depth-first search, which can be larger. Undefined when not visited. |
+| `parent` | `(node: ElementRef) => NodeSingular \| undefined` | The node this one was reached from; undefined for the root and unvisited nodes.                                                                                                                            |
 
 ### `PointPathResult`
 
@@ -883,7 +909,8 @@ One path between two nodes, in the shape of Cytoscape's `aStar`.
 
 ### `CutResult`
 
-A cut, in the shape of Cytoscape's `kargerStein`.
+A cut, like the result of Cytoscape's `kargerStein` with `partition1` and `partition2` named `partitionFirst` and
+`partitionSecond`, plus `value` and without `components`.
 
 | Member            | Type             | Meaning                                                                                                                                                                                   |
 | ----------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

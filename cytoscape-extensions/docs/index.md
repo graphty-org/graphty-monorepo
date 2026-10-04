@@ -18,7 +18,7 @@ hero:
 
 features:
     - title: Getting started
-      details: Install the package and draw a graph with a graphty layout and a PageRank result in about 15 lines.
+      details: Install the package and draw a graph with a graphty layout and a PageRank result.
       link: ./guide/getting-started
       linkText: Start here
     - title: Installation
@@ -38,7 +38,7 @@ features:
       link: ./guide/webgpu
       linkText: Use the GPU
     - title: Graphs in and out
-      details: Seeded generators, sample datasets, and import and export of GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j and CX2. CX and OBO import too.
+      details: Seeded generators, sample datasets, and import and export of GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j, XGMML and CX2. CX, OBO and Cytoscape session files import too.
       link: ./guide/graphs-in-and-out
       linkText: Load a graph
     - title: Recipes
@@ -53,7 +53,7 @@ features:
 
 ## Size nodes by PageRank
 
-This page loads the karate club sample graph, scores every node with PageRank and draws it with ForceAtlas2. It needs an element with the id `cy` and a height.
+This script loads the karate club sample graph, scores every node with PageRank and draws it with ForceAtlas2. Your page needs a `<div id="cy">` with a height.
 
 ```js
 import cytoscape from "cytoscape";
@@ -66,7 +66,7 @@ async function main() {
         container: document.getElementById("cy"),
         style: [
             {
-                selector: "node",
+                selector: "node[rank]",
                 style: {
                     width: "mapData(rank, 0, 0.1, 10, 50)",
                     height: "mapData(rank, 0, 0.1, 10, 50)",
@@ -82,7 +82,7 @@ async function main() {
 main();
 ```
 
-`graphtyPageRank` writes each node's score to `data("rank")`, and the `mapData()` style turns scores from 0 to 0.1 into sizes from 10 to 50 pixels. The code runs inside `main()` because, in a Vite production build, a top-level `await` on `graphtyDataset()` hangs the page with no error. The [getting started guide](./guide/getting-started) builds this into a full page.
+`graphtyPageRank` writes each node's score to `data("rank")`, and the `mapData()` style turns scores from 0 to 0.1 into sizes from 10 to 50 pixels. The `node[rank]` selector applies the sizing only to nodes that have a score, so Cytoscape does not warn about nodes added before PageRank runs. The [getting started guide](./guide/getting-started) builds this into a full page.
 
 ## Status
 

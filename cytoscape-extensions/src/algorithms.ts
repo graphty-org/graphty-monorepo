@@ -136,7 +136,7 @@ import type {
 } from "cytoscape";
 
 import { OPTION_NAMES } from "./algorithm-options.js";
-import { type Backend, backendOf, gpuFor, type GpuMode, recording, warnIfFixable } from "./gpu.js";
+import { type Backend, backendOf, checkGpuMode, gpuFor, type GpuMode, recording, warnIfFixable } from "./gpu.js";
 import {
     coreOf,
     type CytoscapeSnapshot,
@@ -165,7 +165,7 @@ export interface AlgorithmOptions {
     readonly field?: string;
     /**
      * The `...Async` methods only: "auto" (default) runs on the GPU when the runtime has a usable WebGPU device,
-     * "off" runs on the CPU, "require" throws instead of running on the CPU when no device is available. The synchronous methods always run on the CPU and reject "require".
+     * "off" runs on the CPU, "require" throws instead of running on the CPU when no device is available. The synchronous methods always run on the CPU and reject "require". Any other value throws a TypeError.
      */
     readonly gpu?: GpuMode;
 }
@@ -197,7 +197,10 @@ export interface SearchResult {
     readonly path: CollectionReturnValue;
     /** The `goal` node when it was reached, else empty. */
     readonly found: CollectionReturnValue;
-    /** Hops from the root; undefined when not visited. */
+    /**
+     * Edges from the root along the walk's tree (the parent links): the shortest hop count for a breadth-first
+     * search, the tree depth for a depth-first search, which can be larger. Undefined when not visited.
+     */
     depth(node: ElementRef): number | undefined;
     /** The node this one was reached from; undefined for the root and unvisited nodes. */
     parent(node: ElementRef): NodeSingular | undefined;
@@ -213,7 +216,10 @@ export interface PointPathResult {
     readonly path: CollectionReturnValue;
 }
 
-/** A cut, in the shape of Cytoscape's `kargerStein`. */
+/**
+ * A cut, like the result of Cytoscape's `kargerStein` with `partition1` and `partition2` named `partitionFirst` and
+ * `partitionSecond`, plus `value` and without `components`.
+ */
 export interface CutResult {
     /** The total weight (capacity) of the cut edges. */
     readonly value: number;
@@ -809,11 +815,25 @@ function isoOptions(c: Ctx, other: CytoscapeSnapshot, o: IsomorphismOptions): Re
  * @returns its snapshot
  */
 function otherOf(c: Ctx, o: IsomorphismOptions): CytoscapeSnapshot {
+    const other = o.other as unknown;
     // required by the type, checked for callers without types
-    if ((o.other as Collection | undefined) === undefined) {
+    if (other === undefined) {
         throw new Error(`${c.name}: the other option (the collection to compare with) is required`);
     }
-    return toSnapshot(o.other, { directed: c.s.directed });
+    // a selector (over the whole core) or an array of elements names the other graph too
+    let eles = other;
+    if (typeof other === "string") {
+        eles = c.cy.$(other);
+    } else if (Array.isArray(other)) {
+        // Cytoscape takes an array of elements here; its typings list only definitions
+        eles = c.cy.collection(other as unknown as CollectionArgument);
+    }
+    if (typeof (eles as Partial<Collection> | null)?.nodes !== "function") {
+        throw new TypeError(
+            `${c.name}: the other option must be a Cytoscape collection, a selector or an array of elements`,
+        );
+    }
+    return toSnapshot(eles as Collection, { directed: c.s.directed });
 }
 
 /**
@@ -881,6 +901,14 @@ function labelsOf(c: Ctx, clusters: string | readonly NodeSelection[] | undefine
             }
         });
     }
+    // a misspelled field or selector would otherwise give a plausible result (modularity 0, an unseeded partition)
+    if (labels.every((l) => l === INVALID_INDEX)) {
+        throw new Error(
+            typeof clusters === "string"
+                ? `${c.name}: ${what} names the data field "${clusters}", which no node has`
+                : `${c.name}: ${what} matches no node`,
+        );
+    }
     return labels;
 }
 
@@ -919,7 +947,8 @@ function apsp(
         path: (a, b) => {
             const { pathTo, pathEdges } = r;
             if (pathTo === undefined || pathEdges === undefined) {
-                throw new Error(`${c.name}: path() needs the paths: true option (the default)`);
+                // the same text the CPU result throws, so the message does not depend on the backend
+                throw new Error("allPairsShortestPath: pass paths: true to walk shortest paths");
             }
             const p = pair(a, b);
             return p === undefined ? c.cy.collection() : pathOf(c, pathTo(p[0], p[1]), pathEdges(p[0], p[1]));
@@ -991,8 +1020,11 @@ interface FlowOptions extends AlgorithmOptions, Omit<MaxFlowOptions, "weights"> 
 }
 
 interface IsomorphismOptions extends AlgorithmOptions {
-    /** The collection to compare with, read with the same `directed`. */
-    readonly other: Collection;
+    /**
+     * The graph to compare with, read with the same `directed`: a collection, an array of elements, or a selector
+     * over the whole core (for example ".second", matching that graph's nodes and edges).
+     */
+    readonly other: Collection | readonly (NodeSingular | EdgeSingular)[] | string;
     /** Two nodes may be paired only when this returns true; by default any two may. */
     readonly nodeMatch?: (a: NodeSingular, b: NodeSingular) => boolean;
     /** Two edges may be paired only when this returns true; by default any two may. */
@@ -1016,11 +1048,7 @@ interface Cutoff {
 
 /** Sampled centrality. */
 interface Sampled {
-    /**
-     * The nodes to run from, a selector or a collection; default every node. A sample is not rescaled: each value
-     * sums over these sources only (closeness is 1 / the sum of the distances from them), where NetworkX multiplies
-     * a k-source betweenness by n / k to estimate the full value.
-     */
+    /** The nodes to run from, a selector or a collection; default every node. */
     readonly sources?: NodeSelection;
 }
 
@@ -1124,6 +1152,10 @@ const IMPLS = {
         },
     ): SearchResult => {
         const target = indexOf(c.cs, o.goal, `${c.name}: goal`);
+        // a post-order walk cannot stop at the goal, so it would silently visit every node
+        if (target !== undefined && o.order === "post") {
+            throw new Error(`${c.name}: goal stops only a pre-order walk; leave it out with order "post"`);
+        }
         return search(c, depthFirstSearch(c.s, req(c, o.root, "root"), { ...c.rest, target }), target);
     },
     hasCycle: (c: Ctx, _o: AlgorithmOptions = {}): boolean => hasCycle(c.s),
@@ -1467,12 +1499,12 @@ const IMPLS = {
     ): Partition<{
         modularity: number;
         levels: number;
-        level(k: number): NodeCollection[];
+        level(k: number): Partition;
         modularities: number[];
     }> => {
         const r = girvanNewman(c.s, c.rest);
         const quiet: Ctx = { ...c, field: undefined };
-        const level = (k: number): NodeCollection[] => [...partition(quiet, r.levels[k] ?? [], {})];
+        const level = (k: number): Partition => partition(quiet, r.levels[k] ?? [], {});
         const best = bestLevel(r.modularity);
         return partition(c, r.levels[best] ?? [], {
             modularity: r.modularity[best] ?? Number.NaN,
@@ -1490,17 +1522,31 @@ const IMPLS = {
     },
     spectralClustering: (
         c: Ctx,
-        _o: AlgorithmOptions & Omit<SpectralOptions, "weights">,
+        o: AlgorithmOptions & Omit<SpectralOptions, "weights">,
     ): Partition<{ converged: boolean; eigenvalues: Float64Array }> => {
+        // required by the type, checked for callers without types
+        if ((o.k as number | undefined) === undefined) {
+            throw new Error(`${c.name}: the k option is required`);
+        }
         const r = spectralClustering(c.s, c.rest as unknown as SpectralOptions);
         return partition(c, r.labels, { converged: r.converged, eigenvalues: r.eigenvalues });
     },
     hierarchicalClustering: (
         c: Ctx,
         _o: AlgorithmOptions & HierarchicalOptions = {},
-    ): { cut(height: number): NodeCollection[]; readonly merges: number } => {
+    ): { cut(height: number): Partition; readonly merges: number } => {
         const r = hierarchicalClustering(c.s, c.rest);
-        return { merges: r.left.length, cut: (h) => r.cut(h).map((g) => nodesAt(c, g)) };
+        const quiet: Ctx = { ...c, field: undefined };
+        const cut = (h: number): Partition => {
+            const labels = new Uint32Array(c.s.nodeCount).fill(INVALID_INDEX);
+            r.cut(h).forEach((group, k) => {
+                for (const i of group) {
+                    labels[i] = k;
+                }
+            });
+            return partition(quiet, labels, {});
+        };
+        return { merges: r.left.length, cut };
     },
     teraHAC: (c: Ctx, _o: AlgorithmOptions & TeraHacOptions = {}): Partition<{ merges: number }> => {
         const r = teraHAC(c.s, c.rest);
@@ -1724,7 +1770,13 @@ function run(
             throw new Error(`${name}: unknown option ${k}; the options are ${known.join(", ")}`);
         }
     }
-    const cs = toSnapshot(eles, { directed: options.directed ?? DIRECTED.has(key), weight: options.weight });
+    const directed = options.directed ?? DIRECTED.has(key);
+    // degree and eigenvector centrality read mode only on a directed graph; ignored, it would give total degree
+    const { mode } = options as { mode?: unknown };
+    if ((mode === "in" || mode === "out") && !directed) {
+        throw new Error(`${name}: mode: "${mode}" needs directed: true`);
+    }
+    const cs = toSnapshot(eles, { directed, weight: options.weight });
     const rest = {
         ...DEFAULTS[key],
         ...Object.fromEntries(Object.entries(options).filter(([k, v]) => !ADAPTER_KEYS.has(k) && v !== undefined)),
@@ -1784,6 +1836,7 @@ function named(error: unknown, key: keyof Impls): unknown {
  * @returns the result
  */
 function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): unknown {
+    checkGpuMode(methodName(key), options?.gpu);
     if (options.gpu === "require") {
         const name = methodName(key);
         throw new Error(
@@ -1804,6 +1857,7 @@ function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions =
  * @returns the result with `backend`
  */
 async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): Promise<unknown> {
+    checkGpuMode(`${methodName(key)}Async`, options?.gpu);
     const d = await gpuFor(coreOf(eles), options.gpu);
     const rec = d.gpu === null ? null : recording(d.gpu.accelerator);
     warnIfFixable(d, eles.nodes().length);

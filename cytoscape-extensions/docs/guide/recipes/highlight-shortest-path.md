@@ -2,7 +2,7 @@
 
 Click one city, then another, and the page paints the shortest road route between them with `graphtyDijkstra`, `pathTo` and a `.path` class.
 
-The `knuth-miles` dataset holds 128 North American cities, with the road miles between every pair in each edge's `weight`. The page drops edges over 300 miles, so a trip crosses several cities and some pairs have no route. It needs a `<div id="cy">` with a height, a `<p id="status">` and a bundler such as Vite. The dataset loads in `.then()` rather than with a top-level `await`, because a top-level `await` in a bundled entry module can hang the page; [Getting started](../getting-started) explains when.
+The `knuth-miles` dataset holds 128 North American cities, with the road miles between every pair in each edge's `weight`. The page drops edges over 300 miles, so a trip crosses several cities and some pairs have no route. It needs a `<div id="cy">` with a height, a `<p id="status">` and a bundler such as Vite.
 
 ```js
 import cytoscape from "cytoscape";
@@ -59,31 +59,7 @@ Youngstown, OH to Savannah, GA prints "829 miles, 4 legs". Seattle, WA to Tampa,
 
 ## One route at a time with A\*
 
-`graphtyAStar({ root, goal, weight, heuristic })` returns `{ found, distance, path }` for one goal. `heuristic` estimates the distance left from a node to `goal` and must never overestimate it. Straight-line miles qualify, since no road is shorter:
-
-```js
-const goal = cy.getElementById("Savannah, GA");
-const rad = Math.PI / 180;
-function crowMiles(a, b) {
-    const dLat = (b.data("latitude") - a.data("latitude")) * rad;
-    const dLon = (b.data("longitude") - a.data("longitude")) * rad;
-    const h =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(a.data("latitude") * rad) * Math.cos(b.data("latitude") * rad) * Math.sin(dLon / 2) ** 2;
-    return 2 * 3959 * Math.asin(Math.sqrt(h));
-}
-const route = cy.elements().graphtyAStar({
-    root: cy.getElementById("Youngstown, OH"),
-    goal,
-    weight: "weight",
-    heuristic: (node) => crowMiles(node, goal),
-});
-if (route.found) {
-    route.path.addClass("path");
-}
-```
-
-With no route, `found` is `false`, `distance` is `Infinity` and `path` is empty. Without a `heuristic`, A\* searches like Dijkstra.
+For a single goal, `graphtyAStar({ root, goal, weight, heuristic })` returns `{ found, distance, path }`. `heuristic(node)` estimates the distance left to `goal` and must never overestimate it; straight-line miles from each city's `latitude` and `longitude` qualify. Without a `heuristic`, A\* searches like Dijkstra. See [`graphtyAStar`](../../reference/algorithms#graphtyastar) in the algorithm reference.
 
 ## Try it
 

@@ -14,12 +14,18 @@
 import { type GraphSnapshot, makeMask, maskSet, maskTest, type U32 } from "@graphty/graph-format";
 import {
     arf,
+    type ArfOptions,
     bfs,
     bipartite,
+    type BipartiteLayoutOptions,
     circular,
     createSimulation,
+    type ForceAtlas2Options,
+    type FruchtermanReingoldOptions,
     grid,
+    type GridLayoutOptions,
     kamadaKawai,
+    type KamadaKawaiOptions,
     type LayoutAccelerator,
     type LayoutResult,
     type LayoutSimulation,
@@ -33,6 +39,8 @@ import {
     type SimulationType,
     spectral,
     spiral,
+    type SpiralLayoutOptions,
+    type SpringElectricalOptions,
 } from "@graphty/layout";
 import type {
     BoundingBox12,
@@ -47,12 +55,15 @@ import type {
     Position,
 } from "cytoscape";
 
-import { type Backend, backendOf, cpuWithoutAsking, gpuFor, type GpuMode, warnIfFixable } from "./gpu.js";
+import { type Backend, backendOf, checkGpuMode, cpuWithoutAsking, gpuFor, type GpuMode, warnIfFixable } from "./gpu.js";
 import { type CytoscapeSnapshot, hold, indexOf, indicesOf, type NodeSelection, toSnapshot } from "./snapshot.js";
 
-/** Options of every "graphty-*" layout. Options not listed here go to the @graphty/layout function unchanged. */
-export interface GraphtyLayoutOptions {
-    readonly name: string;
+/**
+ * Every option this package defines for the "graphty-*" layouts, shared and per layout. A layout takes the shared ones
+ * and its own (see GraphtyLayoutOptionsByName); its other options go to the @graphty/layout function unchanged.
+ */
+export interface LayoutOptionFields {
+    readonly name: GraphtyLayoutName;
     /** Set by `cy.layout()` / `eles.layout()`. */
     readonly eles?: Collection;
     /** false: jump; "end" or any truthy value on a static layout: tween to the result; true on a simulation: draw every frame. */
@@ -85,23 +96,35 @@ export interface GraphtyLayoutOptions {
     readonly ready?: LayoutHandler;
     /** Called on layoutstop. */
     readonly stop?: LayoutHandler;
-    /** 2 (default) or 3; a 3D result is projected onto x-y. */
+    /**
+     * 2 (default) or 3. With 3, graphty-circular puts the nodes on a sphere, and graphty-random, graphty-kamada-kawai,
+     * graphty-arf and the simulations place them in 3D; z is then dropped, so the drawing is that 3D result seen from
+     * above and no longer looks like the 2D layout (circular is no longer a circle). The other layouts ignore it.
+     * Cytoscape draws in 2D, so 3 only gives a different flattened drawing; it is there because the underlying layout
+     * functions take it.
+     */
     readonly dim?: 2 | 3;
     /**
      * Seed of the layouts that draw random numbers: graphty-random, graphty-spectral, graphty-planar, graphty-arf and
-     * the three simulations. The same seed gives the same positions; without one each run differs. The other layouts
-     * ignore it.
+     * the three simulations. The same seed gives the same positions; without one, positions that depend on random
+     * numbers differ from run to run. The other layouts ignore it.
      */
     readonly seed?: number;
-    /** Edge data field holding the weight (forceatlas2, kamada-kawai, the simulations). Default: unweighted. */
+    /**
+     * Edge data field holding the weight; a function of the edge also works at runtime. An edge without a number
+     * counts as 1. Only graphty-forceatlas2 and graphty-kamada-kawai read it, in opposite directions: forceatlas2
+     * treats it as attraction (higher pulls the ends closer), kamada-kawai as edge length (higher pushes them
+     * apart). Default: unweighted.
+     */
     readonly weight?: string;
     /** Simulations: start from random positions (true, default) or from the current ones. Locked nodes never move. */
     readonly randomize?: boolean;
     /** Simulations with `animate: true`: iterations per frame. Default 1. */
     readonly refresh?: number;
     /**
-     * Simulations: "auto" (default) runs on the core's GPU when the runtime has a usable WebGPU device (the run may
-     * then be asynchronous: listen for layoutstop); "off" runs on the CPU, synchronously when `animate` is false; "require" emits layouterror instead of running on the CPU. `layout.backend` says which ran.
+     * Simulations: "auto" (default) runs on the core's GPU when the runtime has a usable WebGPU device, else on the
+     * CPU. In Node or a browser with `navigator.gpu`, a run that has to look for a device finishes after `run()`
+     * returns, whichever it picks, so listen for layoutstop. "off" runs on the CPU, synchronously when `animate` is false; "require" emits layouterror instead of running on the CPU. `layout.backend` says which ran. Any other value makes `run()` throw a TypeError.
      */
     readonly gpu?: GpuMode;
     /**
@@ -123,11 +146,81 @@ export interface GraphtyLayoutOptions {
      */
     readonly top?: NodeSelection;
     /**
+     * multipartite, bipartite and bfs: "vertical" (default) puts each layer in a column, its nodes sharing one x;
+     * "horizontal" puts each layer in a row, its nodes sharing one y.
+     */
+    readonly align?: "vertical" | "horizontal";
+    /**
      * bfs: the start node, default the first node; radial: the center node, default the node with the most neighbors.
      */
     readonly root?: NodeSelection;
-    readonly [option: string]: unknown;
+    /**
+     * forceatlas2: each node's mass. The name of a node data field (a node without a number there gets the default),
+     * an object keyed by node id, or one number per node in node order (an array or a typed array; see Per-node
+     * arrays). Default: the node's degree + 1.
+     */
+    readonly nodeMass?: string | ArrayLike<number> | Readonly<Record<string, number>>;
+    /** forceatlas2: accepted in the same forms as `nodeMass` and not used yet: nodes are treated as points. */
+    readonly nodeSize?: string | ArrayLike<number> | Readonly<Record<string, number>>;
 }
+
+/** The options of LayoutOptionFields that only some layouts take. */
+type PerLayoutField = "nlist" | "subsets" | "top" | "align" | "root" | "nodeMass" | "nodeSize";
+/** The options every layout takes. */
+type Shared = Omit<LayoutOptionFields, "name" | PerLayoutField>;
+/** Some of the per-layout options. */
+type Own<K extends PerLayoutField> = Pick<LayoutOptionFields, K>;
+/**
+ * A @graphty/layout options type without what this package sets itself (the frame and the stepping, `fixed` from
+ * locked nodes) or spells its own way (bfs `start` is `root` here).
+ */
+type Library<T, Drop extends string = never> = Omit<
+    T,
+    | keyof LayoutOptionFields
+    | "scale"
+    | "center"
+    | "iterationsPerStep"
+    | "fixed"
+    | "start"
+    | "weights"
+    | "weighted"
+    | Drop
+>;
+
+/**
+ * The options of each "graphty-*" layout, by name. A simulation's `pos` is the nodes' current positions, so only the
+ * static layouts that take a start (arf, kamada-kawai) list it.
+ */
+export interface GraphtyLayoutOptionsByName {
+    "graphty-random": Shared;
+    "graphty-circular": Shared;
+    "graphty-spiral": Shared & Library<SpiralLayoutOptions>;
+    "graphty-grid": Shared & Library<GridLayoutOptions>;
+    "graphty-spectral": Shared;
+    "graphty-planar": Shared;
+    "graphty-arf": Shared & Library<ArfOptions>;
+    "graphty-kamada-kawai": Shared & Library<KamadaKawaiOptions>;
+    "graphty-shell": Shared & Own<"nlist">;
+    "graphty-multipartite": Shared & Own<"subsets" | "align">;
+    "graphty-bipartite": Shared & Own<"top" | "align"> & Library<BipartiteLayoutOptions>;
+    "graphty-bfs": Shared & Own<"root" | "align">;
+    "graphty-radial": Shared & Own<"root">;
+    "graphty-forceatlas2": Shared & Own<"nodeMass" | "nodeSize"> & Library<ForceAtlas2Options>;
+    "graphty-fruchterman-reingold": Shared & Library<FruchtermanReingoldOptions, "pos">;
+    "graphty-spring-electrical": Shared & Library<SpringElectricalOptions, "pos">;
+}
+
+/** Every layout this package registers, by its registered name. */
+export type GraphtyLayoutName = keyof GraphtyLayoutOptionsByName;
+
+/**
+ * The options of a "graphty-*" layout: a union over the layout names, so a variable annotated with it keeps its
+ * layout's options type, and a misspelled name or option does not compile. `GraphtyLayoutOptions<"graphty-bfs">` is
+ * one layout's.
+ */
+export type GraphtyLayoutOptions<N extends GraphtyLayoutName = GraphtyLayoutName> = N extends GraphtyLayoutName
+    ? GraphtyLayoutOptionsByName[N] & { readonly name: N }
+    : never;
 
 /**
  * The layout a "graphty-*" layout name gives. `backend` is set on a simulation (forceatlas2, fruchterman-reingold,
@@ -135,29 +228,28 @@ export interface GraphtyLayoutOptions {
  */
 export type GraphtyLayouts = CytoscapeLayouts & { readonly backend?: Backend };
 
-/** A "graphty-*" layout's options as `layout()`, `makeLayout()` and `createLayout()` take them. */
-type NamedGraphtyLayoutOptions = GraphtyLayoutOptions & { readonly name: `graphty-${string}` };
-
 // Cytoscape types layout() over a closed union whose catch-all, BaseLayoutOptions, rejects every option it does not
 // list, so `cy.layout({ name: "graphty-circular", boundingBox })` written inline would not compile. These overloads
 // take a "graphty-*" layout's own options; any other layout name still resolves to Cytoscape's signature.
 declare module "cytoscape" {
     interface CoreLayout {
-        layout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
-        makeLayout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
-        createLayout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
+        layout(options: GraphtyLayoutOptions): GraphtyLayouts;
+        makeLayout(options: GraphtyLayoutOptions): GraphtyLayouts;
+        createLayout(options: GraphtyLayoutOptions): GraphtyLayouts;
     }
     interface CollectionLayout {
-        layout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
-        makeLayout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
-        createLayout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
+        layout(options: GraphtyLayoutOptions): GraphtyLayouts;
+        makeLayout(options: GraphtyLayoutOptions): GraphtyLayouts;
+        createLayout(options: GraphtyLayoutOptions): GraphtyLayouts;
     }
 }
 
-/** The registry hands the constructor the options plus `cy`. */
-interface ConstructorOptions extends GraphtyLayoutOptions {
+/** The registry hands the constructor the options plus `cy`; options this package does not define pass through. */
+interface ConstructorOptions extends Omit<LayoutOptionFields, "name"> {
+    readonly name: string;
     readonly cy: Core;
     readonly eles: Collection;
+    readonly [option: string]: unknown;
 }
 
 /** The layout object the Cytoscape registry builds around a registrant (its emitter methods are added by Cytoscape). */
@@ -358,17 +450,24 @@ function fitAroundLocked(pos: ArrayLike<number>, locked: U32, n: number, b: Boun
 }
 
 /**
- * The per-node options given as a node data field (`nodeMass: "mass"`), as the id-keyed records @graphty/layout
- * takes; a node whose field is missing or not a finite number gets the layout's default.
+ * The per-node options as @graphty/layout takes them: a node data field (`nodeMass: "mass"`) becomes an id-keyed
+ * record, where a node whose field is missing or not a finite number gets the layout's default; an array or a typed
+ * array other than a Float32Array becomes a Float32Array in node order (@graphty/layout would read a plain array as
+ * an object keyed by id, so `[2, 5]` would set nodes "0" and "1").
  * @param cs - the layout's snapshot
  * @param o - the layout options
  * @returns the converted options
  */
-function nodeFields(cs: CytoscapeSnapshot, o: ConstructorOptions): Record<string, Record<string, number>> {
-    const out: Record<string, Record<string, number>> = {};
-    for (const key of ["nodeMass", "nodeSize"]) {
+function nodeFields(
+    cs: CytoscapeSnapshot,
+    o: ConstructorOptions,
+): Record<string, Record<string, number> | Float32Array> {
+    const out: Record<string, Record<string, number> | Float32Array> = {};
+    for (const key of ["nodeMass", "nodeSize"] as const) {
         const field = o[key];
-        if (typeof field === "string") {
+        if (Array.isArray(field) || (ArrayBuffer.isView(field) && !(field instanceof Float32Array))) {
+            out[key] = Float32Array.from(field as ArrayLike<number>);
+        } else if (typeof field === "string") {
             const values: Record<string, number> = {};
             cs.nodes.forEach((node) => {
                 const v: unknown = node.data(field);
@@ -485,6 +584,7 @@ function stepToEnd(sim: LayoutSimulation, layout: LayoutThis): void | Promise<vo
 function runSimulation(layout: LayoutThis, type: SimulationType): void {
     const o = layout.options;
     checkTween(o, true);
+    checkGpuMode(o.name, o.gpu);
     layout.stopped = false;
     if (o.accelerator !== undefined) {
         layout.backend =
@@ -552,9 +652,17 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
         const reason = layout.backend?.reason ?? "none was available";
         // nothing ran, so no backend: "cpu" would say the layout ran there (as with gpu: "require")
         layout.backend = undefined;
-        throw new Error(
+        const error = new Error(
             `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because ${reason}`,
         );
+        // reported as gpu: "require" reports it, after run() returns, whether or not the GPU was asked for
+        layout.looping = true;
+        void Promise.resolve().then(() => {
+            layout.looping = false;
+            layout.emit("layouterror", [error]);
+            layout.emit({ type: "layoutstop", layout });
+        });
+        return;
     }
     const cs = layoutSnapshot(o);
     const s = cs.snapshot;

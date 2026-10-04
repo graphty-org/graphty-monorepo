@@ -248,11 +248,27 @@ describe("simulations", () => {
         expectPlaced(cy);
     });
 
-    it("spring-electrical needs an accelerator and says so", () => {
-        const cy = makeCy();
-        const layout = cy.layout({ name: "graphty-spring-electrical", boundingBox: BOX } as unknown as LayoutOptions);
-        expect(() => layout.run()).toThrow(/no CPU simulation/);
-        expect((layout as unknown as { backend?: unknown }).backend).toBeUndefined();
+    it("spring-electrical with no GPU reports layouterror then layoutstop, never a throw from run()", async () => {
+        for (const extra of [{}, { gpu: "off" }, { accelerator: null }]) {
+            const cy = makeCy();
+            const layout = cy.layout({
+                name: "graphty-spring-electrical",
+                boundingBox: BOX,
+                ...extra,
+            } as unknown as LayoutOptions);
+            const seen: string[] = [];
+            const errors: unknown[] = [];
+            layout.on("layouterror", (_e: EventObject, error: unknown) => {
+                seen.push("layouterror");
+                errors.push(error);
+            });
+            const stop = layout.promiseOn("layoutstop").then(() => seen.push("layoutstop"));
+            expect(() => layout.run()).not.toThrow();
+            await stop;
+            expect(seen).toEqual(["layouterror", "layoutstop"]);
+            expect((errors[0] as Error).message).toMatch(/no CPU simulation/);
+            expect((layout as unknown as { backend?: unknown }).backend).toBeUndefined();
+        }
     });
 
     /**
@@ -349,6 +365,19 @@ describe("simulations with locked nodes and per-node data", () => {
         const plain = makeCy();
         await run(plain, { name: "graphty-forceatlas2" });
         expect([...positions(byField).values()]).not.toEqual([...positions(plain).values()]);
+    });
+
+    it("graphty-forceatlas2 reads a plain nodeMass array in node order, like a Float32Array", async () => {
+        const masses = Array.from({ length: 12 }, (_, i) => (i === 3 ? 50 : 1 + i));
+        const byArray = makeCy();
+        await run(byArray, { name: "graphty-forceatlas2", nodeMass: masses });
+        const byTyped = makeCy();
+        await run(byTyped, { name: "graphty-forceatlas2", nodeMass: Float32Array.from(masses) });
+        expect([...positions(byArray).values()]).toEqual([...positions(byTyped).values()]);
+        // not read as an object keyed by id: these ids are "n0".."n11", so that would drop every mass
+        const plain = makeCy();
+        await run(plain, { name: "graphty-forceatlas2" });
+        expect([...positions(byArray).values()]).not.toEqual([...positions(plain).values()]);
     });
 });
 

@@ -1,25 +1,13 @@
 # Load a GraphML file
 
-The HTML below opens a GraphML file from disk, draws it, and saves it back. Save it as an `.html` file and open it in a browser.
+This HTML page opens a GraphML file from disk, draws it, and saves it back. Save it as an `.html` file and open it in a browser.
 
-No GraphML file to try it with? This Node script writes the 34-node karate club network to `karate.graphml`. Run it after `npm install cytoscape @graphty/cytoscape-extensions`:
-
-```js
-// make-sample.mjs
-import { writeFile } from "node:fs/promises";
-import cytoscape from "cytoscape";
-import graphtyCytoscape from "@graphty/cytoscape-extensions";
-
-cytoscape.use(graphtyCytoscape);
-const cy = cytoscape({ headless: true });
-await cy.graphtyDataset("karate");
-await writeFile("karate.graphml", await cy.graphtyExport("graphml"));
-```
+`@graphty/cytoscape-extensions` has not had its first release yet, so until then the jsDelivr URL below returns 404 ([Installation](../installation)).
 
 ```html
 <!doctype html>
 <meta charset="utf-8" />
-<input type="file" id="file" />
+<input type="file" id="file" accept=".graphml,.gexf,.gml,.dot" />
 <button id="save" disabled>Save as GraphML</button>
 <p id="status"></p>
 <div id="cy" style="width: 800px; height: 600px"></div>
@@ -40,7 +28,12 @@ await writeFile("karate.graphml", await cy.graphtyExport("graphml"));
         }
         cy.elements().remove();
         try {
-            const { elements, report } = await cy.graphtyImport(await file.text(), "auto", { filename: file.name });
+            const { elements, format, report } = await cy.graphtyImport(await file.text(), "auto");
+            if (format === "csv" || elements.length === 0) {
+                elements.remove();
+                status.textContent = `${file.name} is not a graph file (read as ${format})`;
+                return;
+            }
             for (const issue of report.issues) {
                 console.warn(`${issue.severity} ${issue.code} (line ${issue.line}): ${issue.message}`);
             }
@@ -51,7 +44,7 @@ await writeFile("karate.graphml", await cy.graphtyExport("graphml"));
             } else {
                 cy.layout({ name: "graphty-forceatlas2" }).run();
             }
-            fileName = file.name;
+            fileName = file.name.replace(/\.[^.]*$/, "") + ".graphml";
             save.disabled = false;
         } catch (err) {
             status.textContent = `Could not read ${file.name}: ${err.message}`;
@@ -71,21 +64,12 @@ await writeFile("karate.graphml", await cy.graphtyExport("graphml"));
 
 ## How it works
 
-`file.text()` reads the file as a string. With `"auto"`, `cy.graphtyImport` detects the format from the content and the `filename` option, so GEXF and DOT files open too.
+With `"auto"`, `cy.graphtyImport` detects the format from the content, so GEXF, GML and DOT files open too. Most text that is not a graph file still reads as CSV, so the page drops any `"csv"` or empty result. Pass `"graphml"` instead of `"auto"` to reject non-GraphML files.
 
-`cy.elements().remove()` empties the core first: import refuses, adding nothing, when a node id in the file is already in the core.
+The page empties the core first because import adds nothing when a node id in the file is already there. `report.issues` lists what the parser objected to; an error on one element drops that value and the import goes on. Broken markup rejects with an `ImportError`, which the `catch` block reports.
 
-`report.issues` lists what the parser objected to, each with `severity`, `code`, `message` and `line`. An error on one element does not stop the import: a `<data>` with an undeclared key logs `E_GRAPHML_UNKNOWN_KEY` and the value is dropped. `report.warningCount` leaves those errors out, so count `report.issues`. A file that cannot be parsed rejects with an `ImportError` and adds nothing.
-
-GraphML holds no positions, so every node arrives at (0, 0) and the page runs `graphty-forceatlas2`, which fits the result to the viewport. A file with positions (GEXF, GML, DOT, Cytoscape JSON) keeps them.
-
-`cy.graphtyExport("graphml")` returns the file's text with every data field and edge id. GraphML drops positions; pass `onLoss: (notes) => console.warn(notes)` to hear about it, or export `"gexf"` to keep them.
-
-## Try it
-
-The [export and import demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-graphs--export-and-import) round-trips a graph through every format.
+GraphML holds no positions, so every node arrives at (0, 0) and the page runs `graphty-forceatlas2`. For the same reason, the saved file loses positions; export `"gexf"` to keep them.
 
 ## See also
 
-- [Graphs in and out](../graphs-in-and-out): every format and how data fields map.
-- [Layouts](../layouts): the other graphty layouts.
+- [Graphs in and out](../graphs-in-and-out): every format, the import report, and how data fields map.

@@ -1,6 +1,6 @@
 # Getting started
 
-graphty is a family of graph libraries, including @graphty/algorithms and @graphty/layout. @graphty/cytoscape-extensions adds their layouts and algorithms to Cytoscape.js with one `cytoscape.use()` call. Install it, register it once, and you can run a ForceAtlas2 layout and size nodes by PageRank in about 15 lines.
+graphty is a family of graph libraries, including @graphty/algorithms and @graphty/layout. @graphty/cytoscape-extensions adds their layouts and algorithms to Cytoscape.js with one `cytoscape.use()` call.
 
 `@graphty/cytoscape-extensions` has not had its first release yet. Until it does, `npm install` fetches `0.0.0-placeholder.0`, a package that holds only a README, so the imports below fail to resolve, and the jsDelivr URLs used on other pages return 404. Everything on this page describes the package as it will be released.
 
@@ -10,7 +10,7 @@ graphty is a family of graph libraries, including @graphty/algorithms and @graph
 npm install cytoscape @graphty/cytoscape-extensions @graphty/algorithms @graphty/layout @graphty/graph-format
 ```
 
-@graphty/algorithms, @graphty/layout and @graphty/graph-format are peer dependencies. The package calls them but does not ship its own copy, so your app holds one copy of each. That matters when you later call those packages yourself on the same graph: the extension and your code then share the same graph types. Cytoscape.js 3.31.0 or later is required.
+@graphty/algorithms, @graphty/layout and @graphty/graph-format are peer dependencies, so you install them yourself. Cytoscape.js 3.31.0 or later is required.
 
 ## A first page
 
@@ -57,7 +57,8 @@ const cy = cytoscape({
 async function draw() {
     await cy.graphtyGenerate("barabasi-albert", { n: 300, m: 2, seed: 1 });
     cy.elements().graphtyPageRank({ field: "rank" });
-    cy.layout({ name: "graphty-forceatlas2", animate: true }).run();
+    const layout = cy.layout({ name: "graphty-forceatlas2", animate: true });
+    layout.run();
 }
 
 draw();
@@ -85,13 +86,23 @@ cy.add([
 ]);
 ```
 
-`graphtyGenerate` adds to whatever the core already holds. If one of its node ids is already there, the promise rejects and nothing is added, so a second call with the same generator fails. To replace the graph, call `cy.elements().remove()` first.
+`graphtyGenerate` adds to whatever the core already holds. If one of its node ids is already there, the promise rejects and nothing is added, so a second call with the same generator fails. To replace the graph, call `cy.elements().remove()` first. If a simulation is still running, keep its layout object where your code can reach it and call `layout.stop()` before you remove anything, or its remaining frames keep fitting the viewport to the removed nodes and emit a late `layoutstop`. [Layouts](./layouts#animating-a-simulation) covers `stop()`.
 
 `cy.elements().graphtyPageRank({ field: "rank" })` runs PageRank over the collection it is called on. The `field` option writes each node's score into `data("rank")`. It also returns the result: `rank(node)` gives one node's score, and `iterations` and `converged` say how the run went. On this graph the scores run from about 0.002 to 0.034, which is why the stylesheet maps `rank` from 0 to 0.035 onto a size of 8 to 48 pixels. Cytoscape restyles the nodes as soon as the data changes.
 
-`cy.layout({ name: "graphty-forceatlas2", animate: true }).run()` runs ForceAtlas2, a force simulation. With `animate: true` it draws one iteration per frame (the `refresh` option, default 1) for up to 100 iterations (the `maxIter` option, default 100), and fits the viewport to the graph on every frame. Listen for `layoutstop` to know when it has finished.
+`cy.layout({ name: "graphty-forceatlas2", animate: true })` creates a ForceAtlas2 layout and `layout.run()` starts it. ForceAtlas2 is a force simulation. With `animate: true` it draws one iteration per frame (the `refresh` option, default 1) for up to 100 iterations (the `maxIter` option, default 100), and fits the viewport to the graph on every frame. Listen for `layoutstop` to know when it has finished.
 
-The calls sit inside an `async` function, and yours should too. `graphtyGenerate`, `graphtyDataset`, `graphtyImport` and `graphtyExport` load part of the package the first time you call them. In a Vite 6 or 7 production build, awaiting one of them at the top level of your entry module hangs the page with no error: the loaded part imports your entry module, which is still waiting for it. Vite 6 refuses top-level `await` at build time unless you set `build.target` to `"esnext"`. The Vite dev server and Vite 8 builds do not hang. Inside an `async` function the calls work with every version.
+A static layout such as `graphty-circular` computes its positions in one step. With `animate: "end"` (or `true`) it tweens the nodes from where they are to where they go, over `animationDuration` milliseconds (default 500). On a simulation, `animate: "end"` runs every iteration first and then tweens once:
+
+```js
+cy.layout({ name: "graphty-circular", animate: "end", animationDuration: 800 }).run();
+```
+
+[Layouts](./layouts) covers the other layout options and events.
+
+### Keep `await` out of the top level
+
+Do not `await` a graphty promise at the top level of a module your bundler builds. In a Vite 6 or 7 production build that `await` never finishes. Put the code in an `async` function and call it, as `draw()` does above. [Troubleshooting](./troubleshooting#a-top-level-await-never-finishes) lists the affected calls and setups.
 
 ## The names
 

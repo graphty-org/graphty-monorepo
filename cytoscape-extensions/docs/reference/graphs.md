@@ -50,6 +50,8 @@ generators also take the two options in the first table. `weights` is one of `{ 
 (a real number from `min` up to `max`, default 0 to 1), `{ kind: "integer", min, max }` (both ends included),
 `{ kind: "exponential", mean }` (default mean 1), `{ kind: "euclidean" }` (the distance between the two ends, for the
 generators that place nodes) or `{ kind: "column", column, combine }` (from a numeric node field of the generator).
+`integer` needs both `min` and `max`. `combine` turns the two ends' values into the weight: `"sum"` (the default),
+`"mean"`, `"product"`, `"min"`, `"max"`, `"difference"` (the absolute difference), `"source"` or `"target"`.
 The weights land in each edge's `data("weight")`.
 
 Each node's id is `"0"`, `"1"`, ..., and edge k's id is `"e<k>"`, so the same options and seed give the same
@@ -67,7 +69,7 @@ or run another layout.
 
 ### `ak`
 
-The AK network of B. V. Cherkassky and A. V. Goldberg.
+The AK network of B. V. Cherkassky and A. V. Goldberg, a max-flow test graph.
 
 | Option | Type     | Default  | Meaning                                                           |
 | ------ | -------- | -------- | ----------------------------------------------------------------- |
@@ -75,7 +77,7 @@ The AK network of B. V. Cherkassky and A. V. Goldberg.
 
 ### `balanced-tree`
 
-The balanced r-ary tree of height h, numbered breadth first. Also takes `weights` and `seed`.
+A tree in which every node above the bottom level has `branching` children, `height` levels below the root. Also takes `seed` and `weights`.
 
 | Option      | Type     | Default  | Meaning                |
 | ----------- | -------- | -------- | ---------------------- |
@@ -84,7 +86,7 @@ The balanced r-ary tree of height h, numbered breadth first. Also takes `weights
 
 ### `barabasi-albert`
 
-Barabasi-Albert preferential attachment. Also takes `seed` and `weights`.
+A scale-free graph grown one node at a time: each new node links to `m` existing nodes, preferring those of high degree. Also takes `seed` and `weights`.
 
 | Option             | Type     | Default  | Meaning                                                                                                                                                                                                 |
 | ------------------ | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -94,7 +96,7 @@ Barabasi-Albert preferential attachment. Also takes `seed` and `weights`.
 
 ### `barbell`
 
-The barbell. Also takes `weights` and `seed`.
+Two cliques of `cliqueSize` nodes joined by a path of `pathLength` nodes. Also takes `seed` and `weights`.
 
 | Option       | Type     | Default  | Meaning                                |
 | ------------ | -------- | -------- | -------------------------------------- |
@@ -103,17 +105,17 @@ The barbell. Also takes `weights` and `seed`.
 
 ### `bianconi-barabasi`
 
-The Bianconi-Barabasi fitness model. Also takes `seed` and `weights`.
+Like `barabasi-albert`, but a new node prefers existing nodes of high degree times `fitness`, so a fit late node can overtake early ones. Also takes `seed` and `weights`.
 
-| Option    | Type                | Default                                                                                    | Meaning                                         |
-| --------- | ------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------- |
-| `n`       | `number`            | required                                                                                   | The node count, > m.                            |
-| `m`       | `number`            | required                                                                                   | The number of edges each new node brings, >= 1. |
-| `fitness` | `ArrayLike<number>` | uniform in (0, 1], node i's drawn as 1 - nextFloat() from the stream (seed, "fitness", i). | Each node's fitness, n finite positive values.  |
+| Option    | Type                | Default                                    | Meaning                                         |
+| --------- | ------------------- | ------------------------------------------ | ----------------------------------------------- |
+| `n`       | `number`            | required                                   | The node count, > m.                            |
+| `m`       | `number`            | required                                   | The number of edges each new node brings, >= 1. |
+| `fitness` | `ArrayLike<number>` | random, uniform in (0, 1], fixed by `seed` | Each node's fitness, n finite positive values.  |
 
 ### `bipartite-configuration-model`
 
-The bipartite configuration model. Also takes `seed` and `weights`.
+A random bipartite graph whose two sides have the degrees in `leftDegrees` and `rightDegrees`. Also takes `seed` and `weights`.
 
 | Option         | Type                | Default   | Meaning                                                                         |
 | -------------- | ------------------- | --------- | ------------------------------------------------------------------------------- |
@@ -123,7 +125,7 @@ The bipartite configuration model. Also takes `seed` and `weights`.
 
 ### `caveman`
 
-The caveman graph. Also takes `weights` and `seed`.
+`cliques` separate cliques of `size` nodes, with no edges between them. Also takes `seed` and `weights`.
 
 | Option    | Type     | Default  | Meaning                                    |
 | --------- | -------- | -------- | ------------------------------------------ |
@@ -132,7 +134,7 @@ The caveman graph. Also takes `weights` and `seed`.
 
 ### `chung-lu`
 
-The Chung-Lu expected-degree graph. Also takes `seed` and `weights`.
+A random graph in which each node's expected degree is its entry in `expectedDegrees`. Also takes `seed` and `weights`.
 
 | Option            | Type                | Default  | Meaning                                                      |
 | ----------------- | ------------------- | -------- | ------------------------------------------------------------ |
@@ -140,7 +142,7 @@ The Chung-Lu expected-degree graph. Also takes `seed` and `weights`.
 
 ### `circular-ladder`
 
-The circular ladder CL_n (the n-prism). Also takes `weights` and `seed`.
+The circular ladder CL_n (the n-prism). Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                        |
 | ------ | -------- | -------- | ------------------------------ |
@@ -148,7 +150,7 @@ The circular ladder CL_n (the n-prism). Also takes `weights` and `seed`.
 
 ### `complete`
 
-The complete graph K_n. Also takes `weights` and `seed`.
+The complete graph K_n. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning |
 | ------ | -------- | -------- | ------- |
@@ -156,7 +158,7 @@ The complete graph K_n. Also takes `weights` and `seed`.
 
 ### `complete-bipartite`
 
-The complete bipartite graph K\_{a,b}. Also takes `weights` and `seed`.
+The complete bipartite graph K\_{a,b}. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                                            |
 | ------ | -------- | -------- | -------------------------------------------------- |
@@ -165,7 +167,7 @@ The complete bipartite graph K\_{a,b}. Also takes `weights` and `seed`.
 
 ### `complete-multipartite`
 
-The complete multipartite graph K\_{s0, s1, ...}. Also takes `weights` and `seed`.
+The complete multipartite graph K\_{s0, s1, ...}. Also takes `seed` and `weights`.
 
 | Option  | Type                | Default  | Meaning                                                 |
 | ------- | ------------------- | -------- | ------------------------------------------------------- |
@@ -173,7 +175,7 @@ The complete multipartite graph K\_{s0, s1, ...}. Also takes `weights` and `seed
 
 ### `configuration-model`
 
-The configuration model. Also takes `seed` and `weights`.
+A random graph whose nodes have the degrees in `degrees`, before any self-loops and repeated edges are erased. Also takes `seed` and `weights`.
 
 | Option       | Type                | Default   | Meaning                                                                  |
 | ------------ | ------------------- | --------- | ------------------------------------------------------------------------ |
@@ -183,7 +185,7 @@ The configuration model. Also takes `seed` and `weights`.
 
 ### `connected-caveman`
 
-The connected caveman graph. Also takes `weights` and `seed`.
+`cliques` cliques of `size` nodes joined into a ring: in each clique one edge is moved to reach the previous clique. Also takes `seed` and `weights`.
 
 | Option    | Type     | Default  | Meaning                              |
 | --------- | -------- | -------- | ------------------------------------ |
@@ -192,7 +194,7 @@ The connected caveman graph. Also takes `weights` and `seed`.
 
 ### `cycle`
 
-The cycle C_n. Also takes `weights` and `seed`.
+The cycle C_n. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning |
 | ------ | -------- | -------- | ------- |
@@ -200,7 +202,7 @@ The cycle C_n. Also takes `weights` and `seed`.
 
 ### `degree-corrected-sbm`
 
-The degree-corrected stochastic block model. Also takes `seed` and `weights`.
+Blocks of nodes (`sizes`) whose degrees follow `expectedDegrees`, with a `mixing` share of each node's edges leaving its block. Also takes `seed` and `weights`.
 
 | Option            | Type                | Default  | Meaning                                                                                 |
 | ----------------- | ------------------- | -------- | --------------------------------------------------------------------------------------- |
@@ -210,7 +212,7 @@ The degree-corrected stochastic block model. Also takes `seed` and `weights`.
 
 ### `directed-configuration-model`
 
-The directed configuration model. Also takes `seed` and `weights`.
+A random directed graph whose nodes have the out- and in-degrees in `outDegrees` and `inDegrees`. Also takes `seed` and `weights`.
 
 | Option       | Type                | Default   | Meaning                                                              |
 | ------------ | ------------------- | --------- | -------------------------------------------------------------------- |
@@ -221,7 +223,7 @@ The directed configuration model. Also takes `seed` and `weights`.
 
 ### `duplication-divergence`
 
-The duplication-divergence model. Also takes `seed` and `weights`.
+A graph grown by copying a random node and keeping each of its edges with probability `retention`, a model of protein interaction networks. Also takes `seed` and `weights`.
 
 | Option      | Type     | Default  | Meaning                                                                         |
 | ----------- | -------- | -------- | ------------------------------------------------------------------------------- |
@@ -230,7 +232,7 @@ The duplication-divergence model. Also takes `seed` and `weights`.
 
 ### `empty`
 
-The empty graph. Also takes `weights` and `seed`.
+`n` nodes and no edges. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning |
 | ------ | -------- | -------- | ------- |
@@ -238,7 +240,7 @@ The empty graph. Also takes `weights` and `seed`.
 
 ### `erdos-renyi`
 
-Gilbert's G(n, p) in O(n + m) by geometric skipping. Also takes `seed` and `weights`.
+`n` nodes, each of the possible edges present with probability `p`, independently. Also takes `seed` and `weights`.
 
 | Option     | Type      | Default                 | Meaning                                                                                  |
 | ---------- | --------- | ----------------------- | ---------------------------------------------------------------------------------------- |
@@ -248,7 +250,7 @@ Gilbert's G(n, p) in O(n + m) by geometric skipping. Also takes `seed` and `weig
 
 ### `erdos-renyi-gnm`
 
-Erdos-Renyi's G(n, m). Also takes `seed` and `weights`.
+`n` nodes and exactly `m` edges, chosen uniformly at random. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                                |
 | ------ | -------- | -------- | -------------------------------------- |
@@ -257,7 +259,7 @@ Erdos-Renyi's G(n, m). Also takes `seed` and `weights`.
 
 ### `forest-fire`
 
-The forest fire model. Also takes `seed` and `weights`.
+A directed graph grown one node at a time: each new node picks a random node, spreads from it through its neighbors as a fire would, and links to every node reached. Also takes `seed` and `weights`.
 
 | Option     | Type     | Default  | Meaning                                                                                  |
 | ---------- | -------- | -------- | ---------------------------------------------------------------------------------------- |
@@ -279,7 +281,7 @@ GENRMF, the max-flow family of D. Goldfarb and M. D. Grigoriadis. Also takes `se
 
 ### `grid`
 
-The rows x cols grid. Also takes `weights` and `seed`.
+The rows x cols grid. Also takes `seed` and `weights`.
 
 | Option      | Type      | Default  | Meaning                                                                                                                                                                        |
 | ----------- | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -293,7 +295,7 @@ The rows x cols grid. Also takes `weights` and `seed`.
 
 ### `grid-3d`
 
-The rows x cols x layers grid. Also takes `weights` and `seed`.
+The rows x cols x layers grid. Also takes `seed` and `weights`.
 
 | Option      | Type      | Default  | Meaning                                                                                                                                                                        |
 | ----------- | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -319,7 +321,7 @@ A grid flow network, the shape of graph-cut image segmentation. Also takes `seed
 
 ### `hexagonal-lattice`
 
-The hexagonal (honeycomb) lattice in its brick-wall form. Also takes `weights` and `seed`.
+The hexagonal (honeycomb) lattice in its brick-wall form. Also takes `seed` and `weights`.
 
 | Option      | Type      | Default  | Meaning                                                                                                                                 |
 | ----------- | --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -329,18 +331,18 @@ The hexagonal (honeycomb) lattice in its brick-wall form. Also takes `weights` a
 
 ### `hyperbolic`
 
-A random hyperbolic graph. Also takes `seed` and `weights`.
+Random points in a hyperbolic disk, joined when close: degrees follow a power law (`exponent`) and neighbors share many neighbors. Also takes `seed` and `weights`.
 
-| Option          | Type     | Default  | Meaning                                                                                      |
-| --------------- | -------- | -------- | -------------------------------------------------------------------------------------------- |
-| `n`             | `number` | required | The node count, in [0, 20000].                                                               |
-| `averageDegree` | `number` | required | The target mean degree, a finite number > 0 (approximate: see `hyperbolicGraph`).            |
-| `exponent`      | `number` | required | The power-law exponent gamma of the degree distribution, a finite number > 2.                |
-| `temperature`   | `number` | `0`      | The temperature T in [0, 1); 0 (default) is the threshold model, higher T lowers clustering. |
+| Option          | Type     | Default  | Meaning                                                                                         |
+| --------------- | -------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `n`             | `number` | required | The node count, in [0, 20000].                                                                  |
+| `averageDegree` | `number` | required | The target mean degree, a finite number > 0; the mean degree you get is close to it, not equal. |
+| `exponent`      | `number` | required | The power-law exponent gamma of the degree distribution, a finite number > 2.                   |
+| `temperature`   | `number` | `0`      | The temperature T in [0, 1); 0 (default) is the threshold model, higher T lowers clustering.    |
 
 ### `hypercube`
 
-The hypercube Q_d. Also takes `weights` and `seed`.
+The hypercube Q_d. Also takes `seed` and `weights`.
 
 | Option      | Type     | Default  | Meaning                                   |
 | ----------- | -------- | -------- | ----------------------------------------- |
@@ -361,7 +363,7 @@ The k-nearest-neighbor graph of random points, the standard input of spectral cl
 
 ### `kronecker`
 
-A stochastic Kronecker graph. Also takes `seed` and `weights`.
+A random graph of k^`power` nodes drawn by nesting the k x k `initiator` matrix inside itself, with heavy-tailed degrees. Also takes `seed` and `weights`.
 
 | Option       | Type                             | Default                             | Meaning                                                                                                                                                  |
 | ------------ | -------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -375,7 +377,7 @@ A stochastic Kronecker graph. Also takes `seed` and `weights`.
 
 ### `ladder`
 
-The ladder L_n. Also takes `weights` and `seed`.
+The ladder L_n. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                        |
 | ------ | -------- | -------- | ------------------------------ |
@@ -394,7 +396,7 @@ A random layered flow network. Also takes `seed`.
 
 ### `lfr`
 
-The LFR benchmark. Also takes `seed` and `weights`.
+A graph with planted communities whose degrees and community sizes follow power laws, used to test community detection; `mixing` is the share of each node's edges that leave its community. Also takes `seed` and `weights`.
 
 | Option              | Type     | Default  | Meaning                                                                                     |
 | ------------------- | -------- | -------- | ------------------------------------------------------------------------------------------- |
@@ -409,7 +411,7 @@ The LFR benchmark. Also takes `seed` and `weights`.
 
 ### `lollipop`
 
-The lollipop. Also takes `weights` and `seed`.
+A clique of `cliqueSize` nodes with a path of `pathLength` nodes hanging off it. Also takes `seed` and `weights`.
 
 | Option       | Type     | Default  | Meaning              |
 | ------------ | -------- | -------- | -------------------- |
@@ -418,7 +420,7 @@ The lollipop. Also takes `weights` and `seed`.
 
 ### `mobius-ladder`
 
-The Moebius ladder M\_{2n}. Also takes `weights` and `seed`.
+The Moebius ladder M\_{2n}. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                        |
 | ------ | -------- | -------- | ------------------------------ |
@@ -426,7 +428,7 @@ The Moebius ladder M\_{2n}. Also takes `weights` and `seed`.
 
 ### `named`
 
-A named graph from the literature, chosen by `name`. Also takes `weights` and `seed`.
+A named graph from the literature, chosen by `name`. Also takes `seed` and `weights`.
 
 | Option | Type                                                                                                                                                                                                                                                                                                                                          | Default  | Meaning      |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------ |
@@ -434,7 +436,7 @@ A named graph from the literature, chosen by `name`. Also takes `weights` and `s
 
 ### `newman-watts`
 
-The Newman-Watts small world. Also takes `seed` and `weights`.
+A ring in which each node links to its `k` nearest neighbors, plus random shortcuts, one per ring edge with probability `p`. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                                                 |
 | ------ | -------- | -------- | ------------------------------------------------------- |
@@ -444,7 +446,7 @@ The Newman-Watts small world. Also takes `seed` and `weights`.
 
 ### `path`
 
-The path P_n. Also takes `weights` and `seed`.
+The path P_n. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning |
 | ------ | -------- | -------- | ------- |
@@ -452,13 +454,13 @@ The path P_n. Also takes `weights` and `seed`.
 
 ### `petersen`
 
-The Petersen graph. Also takes `weights` and `seed`.
+The Petersen graph: 10 nodes and 15 edges, every node of degree 3. Also takes `seed` and `weights`.
 
 No options of its own.
 
 ### `planted-partition`
 
-The planted partition model. Also takes `seed` and `weights`.
+`groups` groups of `groupSize` nodes: two nodes are joined with probability `pIn` inside a group and `pOut` across groups. Also takes `seed` and `weights`.
 
 | Option      | Type     | Default  | Meaning                              |
 | ----------- | -------- | -------- | ------------------------------------ |
@@ -469,7 +471,7 @@ The planted partition model. Also takes `seed` and `weights`.
 
 ### `price`
 
-Price's citation network. Also takes `seed` and `weights`.
+A directed citation network: each new node cites `citations` earlier nodes, preferring those already cited often. Also takes `seed` and `weights`.
 
 | Option           | Type     | Default  | Meaning                                                                          |
 | ---------------- | -------- | -------- | -------------------------------------------------------------------------------- |
@@ -479,7 +481,7 @@ Price's citation network. Also takes `seed` and `weights`.
 
 ### `random-apollonian`
 
-The random Apollonian network. Also takes `seed` and `weights`.
+A planar graph built by placing each new node inside a random triangle and joining it to the triangle's three corners. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning               |
 | ------ | -------- | -------- | --------------------- |
@@ -487,7 +489,7 @@ The random Apollonian network. Also takes `seed` and `weights`.
 
 ### `random-bipartite`
 
-The random bipartite graph G(n1, n2, p) in O(n + m). Also takes `seed` and `weights`.
+Two sides of `n1` and `n2` nodes, each pair across the sides joined with probability `p`. Also takes `seed` and `weights`.
 
 | Option            | Type      | Default  | Meaning                                                                                                                                                                     |
 | ----------------- | --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -498,7 +500,7 @@ The random bipartite graph G(n1, n2, p) in O(n + m). Also takes `seed` and `weig
 
 ### `random-dag`
 
-A random layered DAG. Also takes `seed` and `weights`.
+A directed acyclic graph in `layers`: each node links to each node of the next layer with probability `p`. Also takes `seed` and `weights`.
 
 | Option   | Type                | Default  | Meaning                                                                                   |
 | -------- | ------------------- | -------- | ----------------------------------------------------------------------------------------- |
@@ -507,7 +509,7 @@ A random layered DAG. Also takes `seed` and `weights`.
 
 ### `random-geometric`
 
-The random geometric graph. Also takes `seed` and `weights`.
+`n` random points in the unit square (or cube), joined when they are at most `radius` apart. Also takes `seed` and `weights`.
 
 | Option      | Type      | Default  | Meaning                                                                                          |
 | ----------- | --------- | -------- | ------------------------------------------------------------------------------------------------ |
@@ -518,7 +520,7 @@ The random geometric graph. Also takes `seed` and `weights`.
 
 ### `random-order-dag`
 
-The random-order DAG. Also takes `seed` and `weights`.
+A directed acyclic graph on `n` nodes: each arc i -> j with i < j is present with probability `p`. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                                               |
 | ------ | -------- | -------- | ----------------------------------------------------- |
@@ -527,7 +529,7 @@ The random-order DAG. Also takes `seed` and `weights`.
 
 ### `random-recursive-tree`
 
-The random recursive tree. Also takes `seed` and `weights`.
+A tree grown one node at a time, each new node joined to an earlier node chosen at random. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning               |
 | ------ | -------- | -------- | --------------------- |
@@ -552,7 +554,7 @@ A uniformly random labelled tree. Also takes `seed` and `weights`.
 
 ### `ring-of-cliques`
 
-The ring of cliques, as networkx's `ring_of_cliques`. Also takes `weights` and `seed`.
+`cliques` cliques of `size` nodes joined in a ring, one edge between each clique and the next. Also takes `seed` and `weights`.
 
 | Option    | Type     | Default  | Meaning                                               |
 | --------- | -------- | -------- | ----------------------------------------------------- |
@@ -561,7 +563,7 @@ The ring of cliques, as networkx's `ring_of_cliques`. Also takes `weights` and `
 
 ### `rmat`
 
-R-MAT. Also takes `seed` and `weights`.
+A random directed graph of 2^`scale` nodes with heavy-tailed degrees, the Graph500 benchmark generator. Also takes `seed` and `weights`.
 
 | Option       | Type                | Default         | Meaning                                                                                                                                                  |
 | ------------ | ------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -578,7 +580,7 @@ R-MAT. Also takes `seed` and `weights`.
 
 ### `star`
 
-The star. Also takes `weights` and `seed`.
+A hub joined to `n - 1` leaves. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                  |
 | ------ | -------- | -------- | ------------------------ |
@@ -586,7 +588,7 @@ The star. Also takes `weights` and `seed`.
 
 ### `stochastic-block-model`
 
-The stochastic block model in O(n B + m). Also takes `seed` and `weights`.
+Blocks of nodes (`sizes`): two nodes are joined with the probability `probabilities` gives for their two blocks. Also takes `seed` and `weights`.
 
 | Option          | Type                             | Default  | Meaning                                                                  |
 | --------------- | -------------------------------- | -------- | ------------------------------------------------------------------------ |
@@ -595,7 +597,7 @@ The stochastic block model in O(n B + m). Also takes `seed` and `weights`.
 
 ### `triangular-lattice`
 
-The triangular lattice as a triangulated rows x cols grid. Also takes `weights` and `seed`.
+The triangular lattice as a triangulated rows x cols grid. Also takes `seed` and `weights`.
 
 | Option      | Type      | Default  | Meaning                                                                                                                                 |
 | ----------- | --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -605,7 +607,7 @@ The triangular lattice as a triangulated rows x cols grid. Also takes `weights` 
 
 ### `watts-strogatz`
 
-The Watts-Strogatz small world. Also takes `seed` and `weights`.
+A small world: a ring in which each node links to its `k` nearest neighbors, each edge then moved to a random node with probability `beta`. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                                                 |
 | ------ | -------- | -------- | ------------------------------------------------------- |
@@ -615,7 +617,7 @@ The Watts-Strogatz small world. Also takes `seed` and `weights`.
 
 ### `waxman`
 
-The Waxman graph. Also takes `seed` and `weights`.
+`n` random points in the unit square, each pair joined with probability `beta` at distance 0, falling as they get farther apart. Also takes `seed` and `weights`.
 
 | Option  | Type     | Default  | Meaning                                                                          |
 | ------- | -------- | -------- | -------------------------------------------------------------------------------- |
@@ -625,7 +627,7 @@ The Waxman graph. Also takes `seed` and `weights`.
 
 ### `wheel`
 
-The wheel W_n. Also takes `weights` and `seed`.
+A cycle of `n - 1` nodes, each also joined to a hub. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                  |
 | ------ | -------- | -------- | ------------------------ |
@@ -646,14 +648,17 @@ A uniform spanning tree of the rows x cols grid, a perfect maze, by Wilson's alg
 
 `cy.graphtyDataset(name, options)` adds one of these. A bundled dataset comes with the package as a file of its own. In
 Node it is read from disk. In a browser it is fetched on first use from the same place as the package (your server,
-your bundle or the CDN), so a page opened from `file://` cannot load it. A hosted dataset is downloaded from
-`<baseUrl>/<name>.gsnp.gz` on first use.
+your bundle or the CDN). With the package from a CDN, a page opened from `file://` works; with the package on your
+own disk, serve the page over HTTP. A hosted dataset is downloaded from `<baseUrl>/<name>.gsnp.gz` on first use.
+When the server answers with an error status, the call rejects with a plain `Error` (no `name` or `code` of its
+own) whose message is `fetching <url> failed: HTTP <status>`, for example `HTTP 404`. A network failure rejects with
+the error `fetch` threw.
 
-| Option    | Type           | Default                                        | Meaning                                                                                                                 |
-| --------- | -------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `baseUrl` | `string`       | `"https://graphty.app/data/graph-samples/v1/"` | Where hosted datasets are fetched from, for a mirror of your own. A trailing slash is optional.                         |
-| `fetch`   | `typeof fetch` | the global `fetch`                             | The fetch function hosted datasets are downloaded with.                                                                 |
-| `signal`  | `AbortSignal`  |                                                | Cancels the load: once it is aborted the call rejects with an `AbortError` and adds nothing, for a bundled dataset too. |
+| Option    | Type           | Default                                        | Meaning                                                                                                                                                                                                                                                      |
+| --------- | -------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `baseUrl` | `string`       | `"https://graphty.app/data/graph-samples/v1/"` | Where hosted datasets are fetched from, for a mirror of your own. A trailing slash is optional. Without a `baseUrl` of your own, a name that is not in the list below rejects with a `RangeError` naming the closest dataset; with one, any name is fetched. |
+| `fetch`   | `typeof fetch` | the global `fetch`                             | The fetch function hosted datasets are downloaded with.                                                                                                                                                                                                      |
+| `signal`  | `AbortSignal`  |                                                | Cancels the load: once it is aborted the call rejects with an `AbortError` and adds nothing, for a bundled dataset too.                                                                                                                                      |
 
 Each dataset's fields are node data fields, and `weight` is an edge data field. Nodes have no position: the
 latitude and longitude of the geographic datasets are data fields, so place the nodes with a `preset` layout or run
@@ -704,9 +709,11 @@ explains them.
 | `csv`     | yes    | yes    | Delimited text. By default an edge table with a header row naming the source and target columns; its other columns become edge data. `table: "nodes"` reads a node table, and `nodes` takes a node table to read with the edges.                                                                       |
 | `json`    | yes    | yes    | JSON graphs: Cytoscape JSON (what `cy.json()` writes, and the export default), NetworkX node-link, d3, JSON Graph Format, graphology and vis.js. An import detects the dialect.                                                                                                                        |
 | `neo4j`   | yes    | yes    | The CSV files of `neo4j-admin import`: a node file with an `:ID` column as the input, and relationship files with `:START_ID` and `:END_ID` columns in `relationships`. The text `graphtyExport` writes holds both, and one `graphtyImport` call reads it back; `relationships` is for separate files. |
+| `xgmml`   | yes    | yes    | The XML network format of Cytoscape desktop (2.x and 3.x). Cytoscape desktop opens the XGMML `graphtyExport` writes, so it is the way back into Cytoscape desktop.                                                                                                                                     |
 | `cx2`     | yes    | yes    | Cytoscape Exchange 2 JSON, what Cytoscape desktop and NDEx write.                                                                                                                                                                                                                                      |
 | `cx`      | yes    | no     | Cytoscape Exchange version 1 JSON.                                                                                                                                                                                                                                                                     |
 | `obo`     | yes    | no     | An ontology in OBO flat file form, such as the Gene Ontology: each `[Term]` is a node, and its `is_a` and `relationship` lines are edges.                                                                                                                                                              |
+| `cys`     | yes    | no     | A Cytoscape desktop session file (`.cys`), passed as bytes (an `ArrayBuffer` or `Uint8Array`), not text. It reads the session's first network; `graphIndex` or `graphName` picks another.                                                                                                              |
 
 ### `gexf`
 
@@ -826,8 +833,8 @@ explains them.
 | `typedefs`   | `"nodes" \| "metadata"`                                                                                                  | `"metadata"`                                           | obographs: "metadata" (default) keeps PROPERTY nodes and their subPropertyOf / inverseOf edges in `meta.extra.obographs`, as the OBO importer keeps `[Typedef]` frames; "nodes" makes them nodes and edges.                                                                                                                                                  |
 | `nodesPath`  | `string`                                                                                                                 |                                                        | node-link / d3 / vis / graphology: where the node array is, as a dotted path of object keys from the document root (`"data.nodes"`); the object holding it is read as the graph record (its `directed`, `multigraph`, `graph` and edge keys). "nodes" by default. A path that names nothing is an E_MISSING_SECTION issue and the graph has no node records. |
 | `edgesPath`  | `string`                                                                                                                 | the edges or links key of the object holding the nodes | node-link / d3 / vis / graphology: where the edge array is, as a dotted path of object keys from the document root (`"data.links"`); by default the edges or links key of the object holding the nodes. A path that names nothing is an E_MISSING_SECTION issue and the graph has no edge records.                                                           |
-| `graphIndex` | `number`                                                                                                                 |                                                        | The 0-based position of the graph, as `GraphListing.index` gives it.                                                                                                                                                                                                                                                                                         |
-| `graphName`  | `string`                                                                                                                 |                                                        | The name of the graph, as `GraphListing.name` gives it; a name two graphs share is refused.                                                                                                                                                                                                                                                                  |
+| `graphIndex` | `number`                                                                                                                 |                                                        | Which graph of the file to read, 0-based in file order. When a file holds more than one graph, `report.issues` has a `W_MULTIPLE_GRAPHS` issue whose message gives the count.                                                                                                                                                                                |
+| `graphName`  | `string`                                                                                                                 |                                                        | Which graph of the file to read, by the name the file gives it; a name two graphs share is refused.                                                                                                                                                                                                                                                          |
 
 `graphtyExport` options:
 
@@ -865,6 +872,26 @@ explains them.
 | `weightColumn`   | `string`                              | `"weight"`     | The property that receives the edge weights (`<name>:double`); null writes no weights.                                                        |
 | `idColumn`       | `string`                              | `null`         | The property name of the `:ID` column for nodes that have no stored-id column of their own (`<name>:ID`); null (default) writes a bare `:ID`. |
 
+### `xgmml`
+
+`graphtyImport` options:
+
+| Option                    | Type                     | Default                                              | Meaning                                                                                                                                                                                                                                         |
+| ------------------------- | ------------------------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `labelAliases`            | `boolean`                | on for files that use the Cytoscape (`cy`) namespace | Resolve an edge endpoint that is missing or names no node through Cytoscape's `"source (interaction) target"` edge label, and fill a missing interaction from it. Default: on for files that use the Cytoscape (`cy`) namespace, off otherwise. |
+| `cytoscapeEscapes`        | `boolean`                | on for files that use the Cytoscape namespace        | Decode Cytoscape's two-character `\n` and `\t` escapes in string values. Default: on for files that use the Cytoscape namespace, off otherwise.                                                                                                 |
+| `repairBareAmpersands`    | `boolean`                | `false`                                              | Read an `&` not followed by `;` within 7 characters as `&amp;` (warned per occurrence).                                                                                                                                                         |
+| `pairSurrogateReferences` | `boolean`                | `false`                                              | Join two surrogate character references into one character (warned per pair).                                                                                                                                                                   |
+| `zAs`                     | `"column" \| "position"` | `"column"`                                           | Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position.                                                                                                                                                          |
+| `graphIndex`              | `number`                 |                                                      | Which graph of the file to read, 0-based in file order. When a file holds more than one graph, `report.issues` has a `W_MULTIPLE_GRAPHS` issue whose message gives the count.                                                                   |
+| `graphName`               | `string`                 |                                                      | Which graph of the file to read, by the name the file gives it; a name two graphs share is refused.                                                                                                                                             |
+
+`graphtyExport` options:
+
+| Option             | Type      | Default | Meaning                                                                                                                                                                              |
+| ------------------ | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cytoscapeEscapes` | `boolean` | `false` | Write newline and tab in string values as Cytoscape's two-character `\n` and `\t` (what the Cytoscape writer does) instead of the character references `&#10;` and `&#9;` (default). |
+
 ### `cx2`
 
 `graphtyImport` options:
@@ -884,8 +911,8 @@ None of its own.
 | Option       | Type                     | Default    | Meaning                                                                                                                                                                                                            |
 | ------------ | ------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `zAs`        | `"column" \| "position"` | `"column"` | `"column"` keeps a node's `z` as the data field `z`, where Cytoscape stores a stacking order. `"position"` reads it as a third coordinate, and since a Cytoscape position has no z, it is dropped with no warning. |
-| `graphIndex` | `number`                 |            | The 0-based position of the graph, as `GraphListing.index` gives it.                                                                                                                                               |
-| `graphName`  | `string`                 |            | The name of the graph, as `GraphListing.name` gives it; a name two graphs share is refused.                                                                                                                        |
+| `graphIndex` | `number`                 |            | Which graph of the file to read, 0-based in file order. When a file holds more than one graph, `report.issues` has a `W_MULTIPLE_GRAPHS` issue whose message gives the count.                                      |
+| `graphName`  | `string`                 |            | Which graph of the file to read, by the name the file gives it; a name two graphs share is refused.                                                                                                                |
 
 ### `obo`
 
@@ -895,6 +922,17 @@ None of its own.
 | ---------- | ----------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------- |
 | `obsolete` | `"keep" \| "drop"`      | `"keep"`     | "keep" (default): obsolete terms are nodes with `is_obsolete` true; "drop": they and their edges are left out.                  |
 | `typedefs` | `"nodes" \| "metadata"` | `"metadata"` | "metadata" (default): `[Typedef]` frames go to `meta.extra.obo.typedefs`; "nodes": they are nodes too, with their `is_a` edges. |
+
+### `cys`
+
+`graphtyImport` options:
+
+| Option                 | Type                     | Default    | Meaning                                                                                                                                                                       |
+| ---------------------- | ------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `zAs`                  | `"column" \| "position"` | `"column"` | Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position.                                                                                        |
+| `maxUncompressedBytes` | `number`                 | 2 GiB      | The most bytes one import may inflate, in total; an entry beyond it, or one whose compression ratio is above 1000:1, is E_TOO_LARGE.                                          |
+| `graphIndex`           | `number`                 |            | Which graph of the file to read, 0-based in file order. When a file holds more than one graph, `report.issues` has a `W_MULTIPLE_GRAPHS` issue whose message gives the count. |
+| `graphName`            | `string`                 |            | Which graph of the file to read, by the name the file gives it; a name two graphs share is refused.                                                                           |
 
 <!-- generated:formats:end -->
 

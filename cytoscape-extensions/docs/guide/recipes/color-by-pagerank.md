@@ -3,10 +3,11 @@
 Run `graphtyPageRank` with a `field` option and every node gets its score in `data(field)`. A
 `mapData()` style then shades each node from pale (low rank) to dark (high rank).
 
+`@graphty/cytoscape-extensions` has not had its first release yet, so the jsDelivr URL below returns 404 until it does.
+
 ## The page
 
-This page colors Zachary's karate club (34 nodes) by PageRank and recolors it when you remove the
-top-ranked node.
+This page colors Zachary's karate club (34 nodes) and recolors it when you remove the top node.
 
 ```html
 <button id="remove">Remove the top-ranked node</button>
@@ -50,9 +51,7 @@ top-ranked node.
 </script>
 ```
 
-The page uses `.then()` because with Vite 7 or earlier, a production build that awaits
-`graphtyDataset()` at the top level of the entry module hangs with no error
-([why](../getting-started#what-each-step-does)).
+In a bundled app, import from `"cytoscape"` and `"@graphty/cytoscape-extensions"` instead.
 
 Nodes 33 and 0, the club's two leaders, come out darkest (about 0.101 and 0.097); the least
 connected members score about 0.010.
@@ -60,16 +59,14 @@ connected members score about 0.010.
 ## Direction
 
 `graphtyPageRank` reads every edge both ways unless you pass `directed: true`; then rank flows
-only along edge direction. `cy.graphtyDataset()`, `cy.graphtyGenerate()` and `cy.graphtyImport()`
-each return `directed` for the graph they added, so pass it through as the page does. The karate
-club is undirected. The other defaults are `dampingFactor` `0.85` and `maxIterations` `100`.
+only along edge direction. `cy.graphtyDataset()` returns `directed` for the graph it added, so
+pass it through as the page does.
 
 ## Use the observed range
 
 `mapData(rank, min, max, color1, color2)` maps `min` to the first color and `max` to the second.
-PageRank scores sum to 1, so they shrink as the graph grows: the average is 1 / n. A fixed range
-such as `0, 1` paints almost every node pale. Read the smallest and largest score after each run
-and build the style from them.
+PageRank scores sum to 1, so the average is 1 / n and a fixed range such as `0, 1` paints almost
+every node pale. Build the style from the smallest and largest score of each run.
 
 ## Rerun after the graph changes
 
@@ -78,8 +75,8 @@ other rank, and a node you add has no `rank`, so Cytoscape skips the mapping and
 default color. Call `colorByRank(directed)` again after the change. After the page removes node 33, node
 0 rises to about 0.112.
 
-Cytoscape fires one `remove` event per element: removing node 33 and its 17 edges fires 18.
-Rerun once after the whole change, not from an event handler.
+Rerun once after the whole change, not from a `remove` handler: Cytoscape fires one event per
+element, 18 for node 33 and its 17 edges.
 
 ## Try it
 

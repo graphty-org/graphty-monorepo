@@ -8,6 +8,7 @@ import {
     checkExport,
     type ExportGraphOptions,
     exportGraphToString,
+    ImportError,
     importGraph,
     type ImportGraphOptions,
     type ImportInput,
@@ -17,12 +18,15 @@ import {
 } from "@graphty/graph-io";
 import type { Collection, ElementDefinition } from "cytoscape";
 
-import { elementsToSnapshot, snapshotToElements } from "./elements.js";
+import { elementsToSnapshot, flipY, snapshotToElements } from "./elements.js";
 
 /** One thing graphtyExport's format cannot hold: `code`, `message`, the data field (`column`) and how many values. */
 export type { LossNote } from "@graphty/graph-io";
 
-/** The formats graphtyImport reads; "auto" sniffs the format from the content (and `filename` when given). */
+/**
+ * The formats graphtyImport reads; "auto" sniffs the format from the content (and `filename` when given). "cys" is a
+ * Cytoscape desktop session file, which must be passed as bytes.
+ */
 export type ImportFormat =
     | "auto"
     | "gexf"
@@ -33,12 +37,14 @@ export type ImportFormat =
     | "csv"
     | "json"
     | "neo4j"
+    | "xgmml"
     | "cx2"
     | "cx"
-    | "obo";
+    | "obo"
+    | "cys";
 
-/** The formats graphtyExport writes. */
-export type ExportFormat = "gexf" | "graphml" | "gml" | "dot" | "pajek" | "csv" | "json" | "neo4j" | "cx2";
+/** The formats graphtyExport writes. XGMML is the one Cytoscape desktop opens as a network file. */
+export type ExportFormat = "gexf" | "graphml" | "gml" | "dot" | "pajek" | "csv" | "json" | "neo4j" | "xgmml" | "cx2";
 
 /** Options of graphtyImport: graph-io's import options (`filename`, `graphIndex`, format-specific ones, ...). */
 export type ImportOptions = Omit<ImportGraphOptions, "format">;
@@ -75,12 +81,19 @@ export interface ImportedElements {
 }
 
 /**
+ * The formats whose positions graph-io keeps in Cytoscape's screen coordinates instead of negating y.
+ * ponytail: graph-io's JSON importer and exporter do not negate the y of Cytoscape JSON, unlike its other
+ * Cytoscape-family formats (CX, CX2, XGMML, CYS), whose positions it stores y-up; drop this set once graph-io does.
+ */
+const SCREEN_Y_FORMATS: ReadonlySet<string> = new Set(["json"]);
+
+/**
  * Reads a graph file into Cytoscape element definitions.
  * @param input - the file as text, bytes, a stream or chunks
  * @param format - the format, or "auto" to sniff it
  * @param options - graph-io's import options
  * @returns the elements, the direction, the format and graph-io's report
- * @throws ImportError (from graph-io) when the file cannot be read
+ * @throws ImportError (from graph-io) when the file cannot be read, or when it yields no node and reports an error
  */
 export async function importElements(
     input: ImportInput,
@@ -88,6 +101,15 @@ export async function importElements(
     options: ImportOptions = {},
 ): Promise<ImportedElements> {
     const r = await importGraph(input, { ...options, format });
+    // most text sniffs as CSV, so a file that is not a graph at all reads as an empty one with errors
+    if (r.snapshot.nodeCount === 0 && r.report.errorCount > 0) {
+        const first = r.report.issues.find((i) => i.severity === "error");
+        throw new ImportError(
+            `nothing could be read from the input as ${r.format}: ${first?.code ?? "E_IMPORT"}: ${first?.message ?? ""}`,
+            r.report,
+            { format: r.format },
+        );
+    }
     const renamed: ImportIssue[] = [];
     const elements = snapshotToElements(r.snapshot, ({ domain, from, to }) =>
         renamed.push({
@@ -99,6 +121,14 @@ export async function importElements(
             element: from,
         }),
     );
+    // graph-io stores positions with y growing upward; Cytoscape's y grows downward
+    if (!SCREEN_Y_FORMATS.has(r.format)) {
+        for (const el of elements) {
+            if (el.position !== undefined) {
+                el.position.y = flipY(el.position.y);
+            }
+        }
+    }
     const report =
         renamed.length === 0
             ? r.report
@@ -153,7 +183,11 @@ export async function exportElements(
         );
     }
     const { directed, onLoss, ...rest } = options;
-    const snapshot = elementsToSnapshot(eles, { directed, integerIds: INTEGER_ID_FORMATS.has(format) });
+    const snapshot = elementsToSnapshot(eles, {
+        directed,
+        integerIds: INTEGER_ID_FORMATS.has(format),
+        screenY: SCREEN_Y_FORMATS.has(format),
+    });
     const graphOptions = {
         sanitizeIds: "mangle" as const,
         ...(format === "json" ? { dialect: "cytoscape" } : {}),

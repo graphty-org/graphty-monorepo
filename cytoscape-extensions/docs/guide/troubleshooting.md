@@ -1,15 +1,13 @@
 # Troubleshooting
 
-Each heading below is a symptom or the start of an error message.
+Search this page for the first words of your error message.
 
 ## Layouts
 
 ### Positions have not changed right after `run()`
 
-The simulations (`graphty-forceatlas2`, `graphty-fruchterman-reingold`, `graphty-spring-electrical`)
-first decide whether to run on the GPU, and with the default `gpu: "auto"` that decision is
-asynchronous. `run()` returns before any node has moved. Wait for `layoutstop` before you read
-positions:
+With the default `gpu: "auto"`, a simulation layout first decides asynchronously whether to run on
+the GPU, so `run()` returns before any node has moved. Wait for `layoutstop`:
 
 ```js
 import cytoscape from "cytoscape";
@@ -32,43 +30,39 @@ await stopped;
 console.log(cy.$id("0").position(), layout.backend.ran);
 ```
 
-With `gpu: "off"` and `animate: false`, a simulation runs synchronously. Static layouts such as
-`graphty-circular` always finish inside `run()`.
+With `gpu: "off"` and `animate: false`, a simulation runs synchronously, as static layouts such as
+`graphty-circular` always do.
 
 ### Every node is in the same spot in a headless core
 
-A headless core has a 1 x 1 pixel viewport, and a layout fits the graph into the viewport unless
-you give it a box. Pass `boundingBox: { x1: 0, y1: 0, w: 800, h: 600 }` (any size you want).
+A headless core has a 1 x 1 pixel viewport, and a layout fits the graph into it. Pass a
+`boundingBox`, such as `{ x1: 0, y1: 0, w: 800, h: 600 }`.
 
 ### "animate needs a core that renders"
 
 A tween (`animate: "end"`, or any truthy `animate` on a static layout) needs Cytoscape's animation
-support, which a headless core has only when created with `styleEnabled: true`. Create the core
-with `cytoscape({ headless: true, styleEnabled: true })`, or pass `animate: false`.
+support, which a headless core has only with `styleEnabled: true`. Create it with
+`cytoscape({ headless: true, styleEnabled: true })`, or pass `animate: false`. Such a core keeps a
+timer running, so in Node call `cy.destroy()` when done or the process never exits.
 
 ### `graphty-spring-electrical` emits `layouterror`
 
-This layout has no CPU version. When no GPU is available it emits `layouterror` with "has no CPU
-simulation and runs only on the GPU; no GPU ran because ..." and then `layoutstop`. The error is the
-second argument of the handler: `layout.on("layouterror", (event, error) => ...)`. `layout.backend`
-stays undefined, because nothing ran. Use
-`graphty-forceatlas2` or `graphty-fruchterman-reingold` where there is no GPU.
+This layout has no CPU version. Without a usable GPU (or with `gpu: "off"`) it emits `layouterror`
+(`graphty-spring-electrical has no CPU simulation`), then `layoutstop`, and no node moves. Handle it
+as [Layouts](./layouts#events) shows, or use `graphty-forceatlas2`.
 
 ## Algorithms
 
 ### "this algorithm reads no edge weights; remove the weight option"
 
 You passed `weight` to an algorithm that ignores edge weights, such as
-`graphtyBreadthFirstSearch`, `graphtyDegreeCentrality` or `graphtyBetweennessCentrality`. The
-package throws instead of silently computing an unweighted answer. Remove the option.
+`graphtyBreadthFirstSearch` or `graphtyDegreeCentrality`. Remove the option.
 
 ### "... matches no node of the collection" or "the ... option is required"
 
-A node option (`root`, `goal`, `source`, `sink`, `target`) was a selector or collection that
-matched nothing, or it was missing. `graphtyDijkstra({ root: "#nope" })` throws "graphtyDijkstra:
-root matches no node of the collection". Check the id, and check that the node is inside the
-collection you called the method on: `cy.nodes("[weight > 1]").graphtyDijkstra(...)` sees only
-those nodes.
+A node option such as `root`, `target`, `clusters` or `seeds` matched nothing, or was missing.
+Check the id, and check that the node is inside the collection you called the method on:
+`cy.nodes("[weight > 1]").graphtyDijkstra(...)` sees only those nodes.
 
 ### "a weight is negative; use graphtyBellmanFord"
 
@@ -83,90 +77,90 @@ method takes one options object: write `graphtyKruskalMST({ weight: weightFn })`
 
 ### "unknown option ..."
 
-You passed an option the method does not take, often a misspelling: `graphtyLouvain({ resoluton: 2 })`
-throws "graphtyLouvain: unknown option resoluton; the options are directed, field, gpu, maxIterations,
-resolution, tolerance, weight". The message lists the options the method takes; the
-[algorithm reference](../reference/algorithms) describes each.
+You passed an option the method does not take, often a misspelling such as `resoluton`. The message
+lists the options it does take; the [algorithm reference](../reference/algorithms) describes each.
 
 ### "needs an undirected graph" or "needs a directed graph"
 
-The algorithm is defined for one kind of graph only. `graphtyLouvain({ directed: true })` throws
-"graphtyLouvain: needs an undirected graph; leave out directed: true". For components of a directed
-graph, call `graphtyWeaklyConnectedComponents` or `graphtyStronglyConnectedComponents`.
+Add or remove `directed: true` as the message says. For components of a directed graph, call
+`graphtyWeaklyConnectedComponents` or `graphtyStronglyConnectedComponents`.
 
 ### "runs on the CPU; call ...Async for the GPU" or "has no GPU implementation"
 
-The plain methods (`graphtyPageRank`) are synchronous and always run on the CPU, so they reject
-`gpu: "require"`. Call the `...Async` twin (`graphtyPageRankAsync`) and `await` it. Only the 17
-methods in `ASYNC_ALGORITHM_NAMES` have a twin. The others, such as `graphtyDegrees`, cannot run on
-the GPU, and their error says "has no GPU implementation": leave out `gpu`.
+Plain methods such as `graphtyPageRank` always run on the CPU, so they reject `gpu: "require"`.
+`await` the `...Async` twin (`graphtyPageRankAsync`) instead. Only the methods in `ASYNC_ALGORITHM_NAMES`
+have one; for the others ("has no GPU implementation"), leave out `gpu`.
 
 ### `graphtyTopologicalSort` returns `null`
 
-The graph has a cycle, so no order exists. The sort reads each edge from `source` to `target`.
-To test for that kind of cycle first, call `graphtyHasCycle({ directed: true })`. Plain
-`graphtyHasCycle()` treats the graph as undirected, so it returns `true` for a diamond (edges `a` to `b`, `a` to
-`c`, `b` to `d`, `c` to `d`) even though the sort finds an order.
+The graph has a cycle with edges read from `source` to `target`, so no order exists. Test first with
+`graphtyHasCycle({ directed: true })`; plain `graphtyHasCycle()` reads edges as undirected and finds
+cycles the sort does not care about.
 
 ### `path()` throws "pass paths: true to walk shortest paths"
 
-`graphtyAllPairsShortestPath({ paths: false })` keeps only the distances, so `distance()` works and
-`path()` throws. Leave `paths` at its default, `true`, when you need the paths.
+`graphtyAllPairsShortestPath({ paths: false })` keeps only distances. Leave `paths` at its default,
+`true`, to call `path()`.
 
 ## Loading graphs
+
+### A top-level `await` never finishes
+
+In a Vite 6 or 7 production build, a top-level `await` of `graphtyGenerate`, `graphtyDataset`,
+`graphtyImport`, `graphtyExport`, an `...Async` method or (with WebGPU) a simulation layout never
+finishes: these calls download part of the package on first use, and that build holds the download
+until your module finishes. After 5 seconds the console shows `graphty: graphtyDataset has waited
+5 s for part of @graphty/cytoscape-extensions to load...`. Move the code into an `async` function:
+
+```js
+async function main() {
+    await cy.graphtyDataset("karate");
+    cy.layout({ name: "graphty-circular" }).run();
+}
+main();
+```
+
+The Vite dev server, Vite 8, Node and the CDN build are not affected.
 
 ### "the core already has an element with id ..."
 
 `graphtyGenerate`, `graphtyDataset` and `graphtyImport` refuse to add a node whose id is already in
-the core, because Cytoscape would merge the two graphs. Nothing is added. Remove the old graph
-first with `cy.elements().remove()`, or use a new core.
+the core. The promise rejects with an `IdTakenError` (`code` `"E_ID_TAKEN"`, `id` the clashing id)
+and nothing is added. Remove the old graph with `cy.elements().remove()`, or use a new core.
 
-### `graphtyDataset` fails with "HTTP 404"
+### `graphtyDataset` fails with "unknown dataset" or "HTTP 404"
 
-A name that is not in the [dataset list](../reference/graphs) is fetched from graphty.app, so a typo such as
-`"karatee"` shows up as a network error: "fetching
-https://graphty.app/data/graph-samples/v1/karatee.gsnp.gz failed: HTTP 404". Check the spelling.
+A name not in the [dataset list](../reference/graphs#datasets) rejects with a `RangeError` naming
+the closest match. With your own `baseUrl`, any other name is fetched from
+`<baseUrl>/<name>.gsnp.gz` and fails with HTTP 404 if your server lacks it.
 
 ### Script tag: `graphtyImport` or `graphtyDataset` rejects naming `dist/cdn/cytoscape-extensions.js`
 
-The classic script `dist/cytoscape-extensions.bundle.js` loads the file formats and the datasets
-from `dist/cdn/` next to itself, and finds that folder through its own `<script src>` URL. Loaded
-any other way (inlined, injected without `src`, evaluated), it cannot, and those calls reject. Load
-it with `<script src="...">`, or switch to the ES module build at
-`https://cdn.jsdelivr.net/npm/@graphty/cytoscape-extensions/dist/cdn/cytoscape-extensions.js`. See
-[Installation](./installation).
+`dist/cytoscape-extensions.bundle.js` finds `dist/cdn/` through its own `<script src>` URL, so it
+cannot be inlined. Load it with `<script src>`, as [Installation](./installation#script-tag) shows.
 
 ## GPU and backends
 
 ### The CPU ran when you expected the GPU
 
-Every `...Async` result has `backend`, and so does a simulation layout once it starts. When
-`backend.ran` is `"cpu"`, `backend.reason` says why. The
-[table in the WebGPU guide](./webgpu#which-backend-ran) lists every reason with its cause and fix.
-In Node the usual cause is the missing optional package: `npm install webgpu`.
+Every `...Async` result and every started simulation layout has `backend`. When `backend.ran` is
+`"cpu"`, `backend.reason` says why; the
+[WebGPU guide](./webgpu#which-backend-ran) lists every reason and its fix. In Node the usual cause
+is the missing optional package: `npm install webgpu`. Graphs of 5,000 nodes or more also log a
+console warning when the cause is one you can fix; see [Console messages](./webgpu#console-messages).
 
-### A console warning about a 5,000-node graph on the CPU
+### "gpu must be ..." or `gpu: "require"` throws
 
-A graph of 5,000 nodes or more that runs on the CPU for a reason you can fix logs one warning:
-"graphty: a 12,000-node graph ran on the CPU because ... To use the GPU: ...". Follow the fix it
-names, or pass `gpu: "off"` to choose the CPU and silence it. Smaller graphs never warn.
-
-### `gpu: "require"` throws
-
-`gpu: "require"` turns "no GPU" into an error instead of a CPU run: an `...Async` method rejects
-with `graphty: gpu: "require" but no usable WebGPU device: ...`, and a simulation emits
-`layouterror`. The text after "but" is the same `reason` as above.
+`gpu` takes only `"auto"`, `"off"` or `"require"`. With `"require"` and no usable device, an
+`...Async` method rejects with `graphty: gpu: "require" but no usable WebGPU device: ` and the same
+reason, and a simulation emits `layouterror`. See [Requiring or refusing the GPU](./webgpu#requiring-or-refusing-the-gpu).
 
 ## TypeScript
 
-Errors inside `@graphty/layout`'s typings, or "has no exported member 'LayoutAccelerator'", mean
-your `moduleResolution` is `node16` or `nodenext`. Use `"moduleResolution": "bundler"`.
-
-"Cannot find name 'AbortSignal'" or "'HTMLElement'" means your `lib` has no `DOM`. Add `"DOM"`,
-even in a Node project: Cytoscape's typings and the file-format typings need it.
-
-Errors about Cytoscape's types with a Cytoscape older than 3.31.0: the package extends the typings
-Cytoscape ships with itself, and 3.31.0 is the first release that has them. Upgrade Cytoscape.
+Errors inside `@graphty/layout`'s typings mean your `moduleResolution` is `node16` or `nodenext`:
+use `"bundler"`. "Cannot find name 'HTMLElement'" means your `lib` lacks `"DOM"`, which you need
+even in Node. Errors in Cytoscape's types mean a Cytoscape older than 3.31.0. See
+[Installation](./installation#typescript).
 
 ## See also
 

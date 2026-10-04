@@ -5,10 +5,11 @@
  */
 
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
-import { fetchDataset, type FetchDatasetOptions, type SampleGraph } from "@graphty/graph-samples";
+import { DATASETS, fetchDataset, type FetchDatasetOptions, type SampleGraph } from "@graphty/graph-samples";
 import * as g from "@graphty/graph-samples/generators";
 import type { ElementDefinition } from "cytoscape";
 
+import { GENERATOR_OPTION_NAMES } from "./algorithm-options.js";
 import { snapshotToElements } from "./elements.js";
 
 /**
@@ -53,7 +54,13 @@ export const GENERATORS = {
     lfr: g.lfrGraph,
     lollipop: g.lollipopGraph,
     "mobius-ladder": g.mobiusLadderGraph,
-    named: (o: { name: g.NamedGraphName } & g.WeightOptions) => g.namedGraph(o.name, o),
+    named: (o: { name: g.NamedGraphName } & g.WeightOptions) => {
+        // checked here: graph-samples' own error points at a list this package's readers cannot see
+        if (!(g.NAMED_GRAPH_NAMES as readonly string[]).includes(o.name)) {
+            throw unknownName("named graph", o.name, g.NAMED_GRAPH_NAMES);
+        }
+        return g.namedGraph(o.name, o);
+    },
     "newman-watts": g.newmanWattsGraph,
     path: g.pathGraph,
     petersen: g.petersenGraph,
@@ -81,6 +88,9 @@ export const GENERATORS = {
 /** A generator name. */
 export type GeneratorName = keyof typeof GENERATORS;
 
+/** The graphs the "named" generator knows, for `graphtyGenerate("named", { name })`. */
+export { NAMED_GRAPH_NAMES } from "@graphty/graph-samples/generators";
+
 /** The options of a generator. */
 export type GeneratorOptions<N extends GeneratorName> = Parameters<(typeof GENERATORS)[N]>[0];
 
@@ -102,8 +112,47 @@ const BUNDLED: Record<string, () => Promise<SampleGraph>> = {
     openflights: () => import("@graphty/graph-samples/datasets/openflights").then((m) => m.openflights()),
 };
 
-/** The datasets that ship inside @graphty/graph-samples; any other name is fetched from graphty.app. */
+/** The datasets that ship inside @graphty/graph-samples; the hosted ones (graph-samples' DATASETS) are fetched. */
 export const BUNDLED_DATASET_NAMES: readonly string[] = Object.keys(BUNDLED);
+
+/**
+ * The number of single-character edits that turn one string into the other.
+ * @param a - one string
+ * @param b - the other
+ * @returns the Levenshtein distance
+ */
+function editDistance(a: string, b: string): number {
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+        const row = [i];
+        for (let j = 1; j <= b.length; j++) {
+            row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        }
+        prev = row;
+    }
+    return prev[b.length];
+}
+
+/**
+ * The error for an unknown name, naming the closest known one when one is close and listing them all.
+ * @param kind - what the name names ("dataset", "generator", "named graph")
+ * @param name - the unknown name
+ * @param names - the known names
+ * @returns a RangeError
+ */
+function unknownName(kind: string, name: string, names: readonly string[]): RangeError {
+    let best = "";
+    let bestDistance = Infinity;
+    for (const known of names) {
+        const d = editDistance(name, known);
+        if (d < bestDistance) {
+            best = known;
+            bestDistance = d;
+        }
+    }
+    const hint = bestDistance <= Math.max(2, name.length / 3) ? ` (did you mean ${JSON.stringify(best)}?)` : "";
+    return new RangeError(`unknown ${kind} ${JSON.stringify(name)}${hint}; the ${kind}s are ${names.join(", ")}`);
+}
 
 /** A generated graph or a dataset as Cytoscape element definitions. */
 export interface SampleElements {
@@ -154,12 +203,21 @@ function withPosition(graph: SampleGraph): SampleGraph {
  * @param name - the generator
  * @param options - the generator's options
  * @returns the elements and the direction
- * @throws RangeError for an unknown generator name
+ * @throws RangeError for an unknown generator name, or an option the generator does not take
  */
 export function generateElements<N extends GeneratorName>(name: N, options: GeneratorOptions<N>): SampleElements {
     const make = (GENERATORS as Record<string, ((o: unknown) => SampleGraph) | undefined>)[name];
     if (make === undefined) {
-        throw new RangeError(`unknown generator ${JSON.stringify(name)}; the names are in GENERATORS`);
+        throw unknownName("generator", name, Object.keys(GENERATORS));
+    }
+    // a misspelled option (seeed, position) would otherwise run with the default and give a plausible graph
+    const known = GENERATOR_OPTION_NAMES[name] ?? [];
+    for (const [k, v] of Object.entries((options as object | undefined) ?? {})) {
+        if (v !== undefined && !known.includes(k)) {
+            throw new RangeError(
+                `generator ${JSON.stringify(name)}: unknown option ${k}; the options are ${known.join(", ")}`,
+            );
+        }
     }
     const r = fromSample(withPosition(make(options)));
     let k = 0;
@@ -179,11 +237,20 @@ export function generateElements<N extends GeneratorName>(name: N, options: Gene
  * @param options - for a hosted dataset: the base URL and fetch implementation; for any dataset, an abort signal
  * @returns the elements and the direction
  * @throws the signal's reason (an AbortError) when it is aborted before the dataset is decoded
+ * @throws RangeError for a name that is not a known dataset, unless `baseUrl` is given
  */
 export async function datasetElements(name: string, options: FetchDatasetOptions = {}): Promise<SampleElements> {
     // checked here too, not only by fetch: a bundled dataset is not fetched, and a custom fetch may ignore the signal
     options.signal?.throwIfAborted();
     const load = BUNDLED[name];
+    // only graphty.app's own list is checked: a custom baseUrl may serve any name
+    if (load === undefined && options.baseUrl === undefined && !DATASETS.some((d) => d.name === name)) {
+        throw unknownName(
+            "dataset",
+            name,
+            DATASETS.map((d) => d.name),
+        );
+    }
     const graph = load === undefined ? await fetchDataset(name, options) : await load();
     options.signal?.throwIfAborted();
     return fromSample(graph);

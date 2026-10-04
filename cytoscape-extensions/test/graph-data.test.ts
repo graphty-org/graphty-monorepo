@@ -4,8 +4,8 @@ import cytoscape from "cytoscape";
 import { describe, expect, it } from "vitest";
 
 import { snapshotToElements } from "../src/elements";
-import graphtyCytoscape from "../src/index";
-import { GENERATORS } from "../src/samples";
+import graphtyCytoscape, { IdTakenError } from "../src/index";
+import { GENERATORS, NAMED_GRAPH_NAMES } from "../src/samples";
 
 cytoscape.use(graphtyCytoscape);
 
@@ -50,6 +50,29 @@ describe("graphtyGenerate", () => {
         await cy.graphtyGenerate("named", { name: "frucht" });
         expect(cy.nodes()).toHaveLength(12);
         expect(cy.edges()).toHaveLength(18);
+    });
+
+    it("names the closest named graph and lists them all for a misspelled name", async () => {
+        expect(NAMED_GRAPH_NAMES).toContain("frucht");
+        await expect(core().graphtyGenerate("named", { name: "fruchtt" } as never)).rejects.toThrow(
+            /^unknown named graph "fruchtt" \(did you mean "frucht"\?\); the named graphs are .*frucht/,
+        );
+        await expect(core().graphtyGenerate("barabasi-albrt" as never, {} as never)).rejects.toThrow(
+            /^unknown generator "barabasi-albrt" \(did you mean "barabasi-albert"\?\); the generators are ak, /,
+        );
+    });
+
+    it("refuses an option the generator does not take, instead of running with the default", async () => {
+        await expect(core().graphtyGenerate("barabasi-albert", { n: 10, m: 2, seeed: 5 } as never)).rejects.toThrow(
+            'generator "barabasi-albert": unknown option seeed; the options are m, n, seed,',
+        );
+        await expect(core().graphtyGenerate("grid", { rows: 2, cols: 2, position: true } as never)).rejects.toThrow(
+            /unknown option position; .*positions/,
+        );
+        // every option a generator's type declares is taken
+        const cy = core();
+        await cy.graphtyGenerate("grid", { rows: 2, cols: 2, positions: true, seed: 1, weights: undefined });
+        expect(cy.nodes()).toHaveLength(4);
     });
 
     it("refuses an unknown generator", async () => {
@@ -118,6 +141,22 @@ describe("graphtyExport and graphtyImport", () => {
         }
     });
 
+    it("rejects text that reads as no node and an error, adding nothing", async () => {
+        for (const text of ["\u0000\u0001 }{ <<<", "lorem ipsum dolor sit amet, consectetur"]) {
+            const cy = core(sample());
+            const err: unknown = await cy.graphtyImport(text).catch((e: unknown) => e);
+            expect(err).toBeInstanceOf(ImportError);
+            expect((err as ImportError).code).toBe("E_IMPORT");
+            expect((err as ImportError).message).toMatch(/^nothing could be read from the input as csv: E_/);
+            expect((err as ImportError).report.errorCount).toBeGreaterThan(0);
+            expect(cy.elements()).toHaveLength(5);
+        }
+        // a file with nodes and a bad row still resolves, with the error in its report
+        const r = await core().graphtyImport("source,target,weight\na,b,1\nb,c,heavy\n", "csv");
+        expect(r.elements.nodes().length).toBeGreaterThan(0);
+        expect(r.report.errorCount).toBeGreaterThan(0);
+    });
+
     it("sniffs the format when none is given", async () => {
         const r = await core().graphtyImport(await core(sample()).graphtyExport("gexf"));
         expect(r.format).toBe("gexf");
@@ -167,6 +206,14 @@ describe("adding to a core that already holds the graph's node ids", () => {
         ]);
         const text = await core([{ data: { id: "n0" } }]).graphtyExport("graphml");
         await expect(cy.graphtyImport(text, "graphml")).rejects.toThrow(/"n0"/);
+    });
+
+    it("rejects with an IdTakenError whose code is E_ID_TAKEN and whose id is the clashing id", async () => {
+        const cy = core([{ data: { id: "b" } }]);
+        const err: unknown = await cy.graphtyImport("a,b\n", "csv").catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(IdTakenError);
+        expect(err).toMatchObject({ name: "IdTakenError", code: "E_ID_TAKEN", id: "b" });
+        expect(cy.elements()).toHaveLength(1);
     });
 });
 
@@ -232,6 +279,30 @@ describe("generated graphs", () => {
                 .toArray()
                 .every((n) => n.position().x > 0 && n.position().x < 1),
         ).toBe(true);
+    });
+});
+
+describe("graphtyDataset with an unknown name", () => {
+    it("rejects at once with the closest name, without fetching", async () => {
+        let fetched = 0;
+        const fetchCounting = (): Promise<Response> => {
+            fetched++;
+            return Promise.resolve(new Response("not a dataset", { status: 404 }));
+        };
+        const cy = core();
+        await expect(cy.graphtyDataset("karatee", { fetch: fetchCounting })).rejects.toThrow(
+            /^unknown dataset "karatee" \(did you mean "karate"\?\); the datasets are karate, /,
+        );
+        await expect(cy.graphtyDataset("zzzzzzzzzzzz", { fetch: fetchCounting })).rejects.toThrow(
+            /^unknown dataset "zzzzzzzzzzzz"; the datasets are /,
+        );
+        expect(fetched).toBe(0);
+        // a custom baseUrl may serve any name, so it is fetched
+        await expect(
+            cy.graphtyDataset("my-graph", { baseUrl: "https://example.test/", fetch: fetchCounting }),
+        ).rejects.toThrow(/HTTP 404/);
+        expect(fetched).toBe(1);
+        expect(cy.elements().length).toBe(0);
     });
 });
 

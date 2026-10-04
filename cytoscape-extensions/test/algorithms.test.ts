@@ -479,6 +479,11 @@ describe("communities and clustering", () => {
         expect(gn.modularity).toBeCloseTo(5 / 14, 12);
         expect(gn.levels).toBe(gn.modularities.length);
         expect(gn.level(0).length).toBeGreaterThan(0);
+        // a level is a partition like the result itself
+        const best = gn.level(gn.modularities.indexOf(gn.modularity));
+        expect(sets(best)).toEqual(halves);
+        expect(best.cluster("#a")).toBe(best.cluster("#c"));
+        expect(best.cluster("#a")).not.toBe(best.cluster("#f"));
         expect(e.graphtyLouvain().modularity).toBeCloseTo(5 / 14, 12);
     });
 
@@ -509,6 +514,15 @@ describe("communities and clustering", () => {
         expect(h.merges).toBe(5);
         expect(sets(h.cut(0))).toEqual(["a", "b", "c", "d", "e", "f"].map((x) => [x]));
         expect(sets(h.cut(Infinity)).length).toBe(1);
+        // a cut is a partition: cluster(node) is the node's place in the array
+        const two = h.cut(2);
+        expect(two.length).toBeGreaterThan(1);
+        for (const n of cy.nodes()) {
+            const k = two.cluster(n);
+            expect(k).toBeDefined();
+            expect(two[k ?? -1].contains(n)).toBe(true);
+        }
+        expect(two.cluster("#nope")).toBeUndefined();
     });
 
     it("modularity of a partition result, of selections and of a data field", () => {
@@ -564,6 +578,13 @@ describe("structure", () => {
         const none = left.graphtyIsGraphIsomorphic({ other: right, nodeMatch: (p, q) => p.id() === q.id() });
         expect(none.isomorphic).toBe(false);
         expect(none.mapping("#a")).toBeUndefined();
+        // the other graph as a selector over the core, or as an array of elements
+        cy.$("#x, #y, #z").closedNeighborhood().addClass("right");
+        expect(left.graphtyIsGraphIsomorphic({ other: ".right" }).mapping("#b")?.id()).toBe("y");
+        expect(left.graphtyIsGraphIsomorphic({ other: right.toArray() }).isomorphic).toBe(true);
+        expect(() => left.graphtyIsGraphIsomorphic({ other: 3 } as never)).toThrow(
+            "graphtyIsGraphIsomorphic: the other option must be a Cytoscape collection, a selector or an array of elements",
+        );
     });
 
     it("maxFlow, with the flow per edge", () => {
@@ -658,6 +679,13 @@ describe("errors", () => {
         expect(() => cy.elements().graphtyCommonNeighborsForPairs({} as never)).toThrow(/pairs option is required/);
         expect(() => cy.elements().graphtyModularity({} as never)).toThrow(/clusters option is required/);
         expect(() => cy.elements().graphtyIsGraphIsomorphic({} as never)).toThrow(/other option/);
+        // mode would be ignored on an undirected graph, giving total degree
+        expect(() => cy.elements().graphtyDegreeCentrality({ mode: "in" })).toThrow(
+            'graphtyDegreeCentrality: mode: "in" needs directed: true',
+        );
+        expect(() => cy.elements().graphtyEigenvectorCentrality({ mode: "out" })).toThrow(/needs directed: true/);
+        expect(cy.elements().graphtyDegreeCentrality({ mode: "total" }).score("#a")).toBeDefined();
+        expect(cy.elements().graphtyDegreeCentrality({ mode: "in", directed: true }).score("#a")).toBeDefined();
         expect(() => cy.elements().graphtyPersonalizedPageRank({} as never)).toThrow(/personalization option/);
         // a teleport set that selects nothing would be plain PageRank, without a word
         expect(() => cy.graphtyPersonalizedPageRank({ personalization: "#nope" })).toThrow(
@@ -836,6 +864,22 @@ describe("library fixes found by the docs review", () => {
         expect(cy.graphtyBellmanFord({ root: "#a", weight: "w", directed: true }).distanceTo("#c")).toBe(0);
     });
 
+    it("names k when SpectralClustering is called without it", () => {
+        const cy = graph(BARBELL);
+        expect(() => cy.graphtySpectralClustering({} as never)).toThrow(
+            "graphtySpectralClustering: the k option is required",
+        );
+        expect(() => cy.graphtySpectralClustering({ k: 0 })).toThrow(/positive integer/);
+    });
+
+    it("refuses a goal on a post-order DepthFirstSearch, which cannot stop at it", () => {
+        const cy = graph(BARBELL);
+        expect(() => cy.graphtyDepthFirstSearch({ root: "#a", goal: "#c", order: "post" })).toThrow(
+            /graphtyDepthFirstSearch: goal stops only a pre-order walk/,
+        );
+        expect(ids(cy.graphtyDepthFirstSearch({ root: "#a", goal: "#c" }).found)).toEqual(["c"]);
+    });
+
     it("names numClusters when SyncClustering is called without it", () => {
         const cy = graph(BARBELL);
         expect(() => cy.graphtySyncClustering({} as never)).toThrow(
@@ -858,5 +902,22 @@ describe("library fixes found by the docs review", () => {
         for (const id of ["n0", "n57", "n199"]) {
             expect(delta.rank(`#${id}`)).toBeCloseTo(pr.rank(`#${id}`) ?? NaN, 5);
         }
+    });
+
+    it("throws when clusters or seeds match no node, instead of a plausible result", () => {
+        const cy = graph(BARBELL);
+        expect(() => cy.graphtyModularity({ clusters: "nosuch" })).toThrow(
+            'graphtyModularity: clusters names the data field "nosuch", which no node has',
+        );
+        expect(() => cy.graphtyModularity({ clusters: ["#zz"] })).toThrow(
+            "graphtyModularity: clusters matches no node",
+        );
+        expect(() => cy.graphtyModularity({ clusters: [] })).toThrow("graphtyModularity: clusters matches no node");
+        expect(() => cy.graphtyLabelPropagationSemiSupervised({ seeds: "nosuch" })).toThrow(
+            'graphtyLabelPropagationSemiSupervised: seeds names the data field "nosuch", which no node has',
+        );
+        expect(() => cy.graphtyLabelPropagationSemiSupervised({ seeds: ["#zz", "#yy"] })).toThrow(
+            "graphtyLabelPropagationSemiSupervised: seeds matches no node",
+        );
     });
 });

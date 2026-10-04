@@ -95,11 +95,12 @@ function upFront(chunks) {
 
 /**
  * The budget name of a part the main entry loads on first use.
- * @param {string} id - the chunk's module id
- * @param {string} fileName - the chunk's file name
+ * @param {import("vite").Rollup.OutputChunk} chunk - the chunk
  * @returns {string} the name
  */
-function lazyPartName(id, fileName) {
+function lazyPartName(chunk) {
+    // the generators chunk has no facade when Rollup merges graph-samples' dataset metadata into it
+    const id = chunk.facadeModuleId ?? chunk.moduleIds.find((m) => /dist\/samples\.js$/.test(m)) ?? chunk.fileName;
     if (/gpu-platform/.test(id)) {
         return "WebGPU code (on the first GPU-eligible call)";
     }
@@ -110,7 +111,7 @@ function lazyPartName(id, fileName) {
         return "file formats, all of them (on the first graphtyImport or graphtyExport)";
     }
     const dataset = /datasets\/([^/.]+)/.exec(id);
-    return dataset ? `dataset ${dataset[1]}` : `other lazy chunk ${fileName}`;
+    return dataset ? `dataset ${dataset[1]}` : `other lazy chunk ${chunk.fileName}`;
 }
 
 /**
@@ -141,10 +142,14 @@ async function measurePackage(compare) {
         for (const c of chunks) {
             for (const f of c.dynamicImports) {
                 const target = byName.get(f);
-                const name = lazyPartName(target.facadeModuleId ?? target.fileName, target.fileName);
+                const name = lazyPartName(target);
                 if (!lazy.has(name)) {
+                    // what is loaded when c imports it: the page and c with its static imports (a dataset loads
+                    // after the generators chunk that imports it)
+                    const loaded = new Set(initial);
+                    closure(c, loaded, initial);
                     const group = new Set();
-                    closure(target, group, initial);
+                    closure(target, group, loaded);
                     lazy.set(name, group);
                 }
             }

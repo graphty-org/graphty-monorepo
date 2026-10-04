@@ -52,13 +52,14 @@ const SET_BY_EXTENSION = new Set([
 const ESCAPED_PIPE = String.raw`\|`;
 // Options of every algorithm, documented once.
 const COMMON_ALGORITHM = new Set(["directed", "weight", "field", "gpu"]);
-// Layout options with a Cytoscape-facing meaning of their own, documented per layout from GraphtyLayoutOptions.
+// Layout options with a Cytoscape-facing meaning of their own, documented per layout from LayoutOptionFields.
 const PER_LAYOUT_EXTENSION: Readonly<Record<string, readonly string[]>> = {
     shell: ["nlist"],
-    multipartite: ["subsets"],
-    bipartite: ["top"],
-    bfs: ["root"],
+    multipartite: ["subsets", "align"],
+    bipartite: ["top", "align"],
+    bfs: ["root", "align"],
     radial: ["root"],
+    forceatlas2: ["nodeMass", "nodeSize"],
 };
 // The @graphty/layout option type each simulation runs with (the static layouts read their function's parameter).
 const SIMULATION_TYPES: Readonly<Record<string, string>> = {
@@ -93,6 +94,22 @@ const FOR_CYTOSCAPE_READERS: readonly (readonly [RegExp, string])[] = [
     [/(initiali|regulari|normali)s(?=ation|e)/g, "$1z"],
 ];
 
+/**
+ * An option's doc comment text. TypeScript reads an "@" inside the text ("there to match @graphty/layout") as the start
+ * of a tag and drops the rest from the text, so a tag it does not know fails the run instead of cutting a cell short.
+ * @param p - the option's symbol
+ * @param checker - the checker
+ * @returns the comment text
+ */
+function docText(p: ts.Symbol, checker: ts.TypeChecker): string {
+    const known = new Set(["default", "defaultValue", "deprecated", "see", "example", "remarks", "internal"]);
+    const stray = p.getJsDocTags(checker).find((t) => !known.has(t.name));
+    if (stray !== undefined) {
+        throw new Error(`the doc comment of ${p.name} has "@${stray.name}" mid-text: put it in backticks or reword it`);
+    }
+    return ts.displayPartsToString(p.getDocumentationComment(checker));
+}
+
 /** What the tables show for one option where the source's own words do not fit a Cytoscape reader. */
 interface Override {
     readonly default?: string;
@@ -100,12 +117,15 @@ interface Override {
 }
 
 const SAMPLED_K =
-    "Draw this many source nodes instead of using every node; the same node count and `k` draw the same nodes every time. With `sources` it must equal the number of sources. The result is not rescaled (see `sources`).";
+    "Draw this many source nodes instead of using every node; the same node count and `k` draw the same nodes every time. With `sources` it must equal the number of sources. The result is not rescaled.";
 const CLOSENESS_NORMALIZED =
-    "Multiply by the share of the other nodes that are reached, reached / (n - 1), which changes nothing on a connected graph; with `harmonic`, divide by `n - 1` instead. For NetworkX's `closeness_centrality`, multiply the value without `normalized` by the number of other nodes reached.";
+    "Multiply by the share of the other nodes that are reached, reached / (n - 1), which changes nothing on a connected graph; with `harmonic`, divide by `n - 1` instead. For NetworkX's `closeness_centrality` (its default `wf_improved=True`), multiply the value with `normalized: true` by the number of other nodes reached; the value without `normalized` times that number is NetworkX's `wf_improved=False`.";
+const BETWEENNESS_SOURCES: Override = {
+    doc: "The nodes to run from, a selector or a collection; default every node. Sums only the shortest paths that start at these nodes, and is not rescaled by n / k as NetworkX does.",
+};
 const PREDICTION_TOP_K: Override = {
     default: "every pair above 0",
-    doc: "Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order.",
+    doc: "Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above).",
 };
 const CANDIDATES_TOP_K: Override = {
     default: "`10`",
@@ -114,9 +134,14 @@ const CANDIDATES_TOP_K: Override = {
 const CANDIDATES: Override = {
     doc: "The nodes to consider linking to `root`. Those that score 0 are left out of the result.",
 };
+const LPA_REPORT =
+    "`iterations` and `converged` are undefined only when the `...Async` twin ran on the GPU, which does not report them; this method always fills them in.";
 const SEARCH_GOAL = "Stop when this node is reached; it is then `found`.";
 const FLOW_ALGORITHM: Override = {
     doc: 'How augmenting paths are found: `"edmonds-karp"` (breadth-first, O(V E^2)) or `"ford-fulkerson"` (depth-first, O(E f)). Both give the same source side and flow value; the per-edge flows can differ where the maximum flow is not unique.',
+};
+const ISO_OTHER: Override = {
+    doc: 'The graph to compare with, read with the same `directed` and like the calling collection: its nodes, and the edges in it whose ends are both in it. A collection of nodes alone has no edges, so include them: `other: part.union(part.edgesWith(part))`. Also takes an array of elements, or a selector over the whole core (for example ".second", matching that graph\'s nodes and edges).',
 };
 const LATTICE_POSITIONS: Override = {
     doc: "Give each node its place on the lattice, in lattice units: x and y become the node's position, and on `grid-3d` z becomes a data field.",
@@ -143,6 +168,13 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     },
     "graphtyBetweennessCentrality.k": { doc: SAMPLED_K },
     "graphtyClosenessCentrality.k": { doc: SAMPLED_K },
+    "graphtyClosenessCentrality.sources": {
+        doc: "The nodes to run from, a selector or a collection; default every node. Each node's value is 1 / the sum of its distances from these sources, so with source `#a` on the path a - b - d, b scores 1 and d 0.5. A node no source reaches scores 0, and so does a source no other source reaches. For one node's own closeness, use `graphtyNodeClosenessCentrality`.",
+    },
+    "graphtyBetweennessCentrality.sources": BETWEENNESS_SOURCES,
+    "graphtyGrsbm.maxIterations": { doc: "Iteration cap of the eigenvector iteration." },
+    "graphtyGrsbm.tolerance": { doc: "Convergence tolerance of the eigenvector iteration." },
+    "graphtyEdgeBetweennessCentrality.sources": BETWEENNESS_SOURCES,
     "graphtyClosenessCentrality.normalized": { doc: CLOSENESS_NORMALIZED },
     "graphtyNodeClosenessCentrality.normalized": { doc: CLOSENESS_NORMALIZED },
     "graphtyCommonNeighborsPrediction.topK": PREDICTION_TOP_K,
@@ -152,24 +184,36 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "graphtyTopCandidatesForNode.candidates": CANDIDATES,
     "graphtyTopAdamicAdarCandidatesForNode.candidates": CANDIDATES,
     "graphtyBreadthFirstSearch.goal": {
-        doc: "Stop once this node is reached; it is then `found`. The node that discovered the goal is still fully expanded, so the goal's siblings are listed in `path` and given a depth; nothing deeper is visited.",
+        doc: "Stop when this node comes off the queue; it is then `found`. Every node queued before it is still expanded, so `path` can list nodes one hop deeper than the goal, with a depth: on a-b, a-c, b-d, c-e with `root` a and `goal` c, `path` ends with d at depth 2.",
     },
     "graphtyDepthFirstSearch.goal": {
-        doc: `${SEARCH_GOAL} With \`order: "pre"\` nothing after it is visited. With \`order: "post"\` the nodes below it are still visited and listed before it, and the nodes on the way from \`root\` to it are listed after it.`,
+        doc: `${SEARCH_GOAL} Nothing after it is visited. Only a pre-order walk can stop early: with \`order: "post"\` passing \`goal\` throws.`,
     },
     "graphtyMaxFlow.algorithm": FLOW_ALGORITHM,
+    "graphtyIsGraphIsomorphic.other": ISO_OTHER,
+    "graphtyFindAllIsomorphisms.other": ISO_OTHER,
+    "bianconi-barabasi.fitness": { default: "random, uniform in (0, 1], fixed by `seed`" },
+    "hyperbolic.averageDegree": {
+        doc: "The target mean degree, a finite number > 0; the mean degree you get is close to it, not equal.",
+    },
     "graphtyMinSTCut.algorithm": FLOW_ALGORITHM,
     "graphtyDeltaPageRank.maxIterations": {
         default: "`100`; no limit with `priority`",
         doc: "Rounds, or with `priority` the number of nodes processed. With `priority` and no `maxIterations`, the run goes on until no pending delta is left, so it always converges.",
     },
     "graphtyDeltaPageRank.priority": {
-        doc: "Process the largest pending delta first (`personalization` is then ignored). With no `maxIterations` of your own, the ranks match `graphtyPageRank({ directed: true })` to within 1e-7. A `maxIterations` you pass counts processed nodes, and a run it stops early is not reported: at 100 on a 200-node graph the ranks are off by a third. Without `priority` the ranks can differ from PageRank's (by up to 0.07 on the karate club), the run usually goes on until `maxIterations`, and a `maxIterations` in the thousands overflows and throws.",
+        doc: "Process the largest pending delta first; ignores `personalization`.",
     },
     "graphtyHits.normalized": {
         doc: "`true`: each vector has length 1 (L2 norm). `false`: each vector is divided by its largest entry, so its top node scores 1.",
     },
-    "graphtyEigenvectorCentrality.mode": { default: '`"in"`' },
+    "graphtyEigenvectorCentrality.mode": {
+        default: '`"in"`',
+        doc: 'Which arcs feed a node: `"in"` (as networkx) the nodes pointing at it, `"out"` the nodes it points at, `"total"` both. `"in"` and `"out"` need `directed: true` and throw without it.',
+    },
+    "graphtyDegreeCentrality.mode": {
+        doc: 'Which neighbors to count: `"in"`, `"out"` or `"total"`. `"in"` and `"out"` need `directed: true` and throw without it.',
+    },
     "graphtyHierarchicalClustering.linkage": {
         default: '`"single"`',
         doc: 'How the distance between two clusters is read from their members\' hop distances: the minimum (`"single"`), the maximum (`"complete"`), the mean (`"average"`) or Ward\'s scaled mean (`"ward"`).',
@@ -188,7 +232,7 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
         doc: "Space consecutive nodes the same distance apart along the spiral, instead of by equal angles.",
     },
     "graphty-shell.nlist": {
-        doc: "The shells, innermost first. They are evenly spaced out to the edge of the fitted result, and a first shell of exactly one node goes on the center. Absent: every node on one circle. A node in no shell is not placed and keeps its position.",
+        doc: "The shells, innermost first. They are evenly spaced out to the edge of the fitted result, and a first shell of exactly one node goes at the center of the drawing. The fit then moves the centroid of all nodes to the center of `boundingBox`, so that node is at the box's center only when the drawing is symmetric. Absent: every node on one circle. A node in no shell is not placed and keeps its position.",
     },
     "graphty-kamada-kawai.pos": {
         doc: "The starting positions, `dim * n` values in node order (see Per-node arrays). The result is fitted to `boundingBox` afterwards. Absent: the layout's own start.",
@@ -215,7 +259,10 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     },
     "graphty-forceatlas2.nodeMass": {
         default: "degree + 1",
-        doc: "Each node's mass: the name of a node data field (a node without a number there gets the default), an object keyed by node id, or a `Float32Array` in node order (see Per-node arrays). Default: the node's degree + 1.",
+        doc: "Each node's mass: the name of a node data field (a node without a number there gets the default), an object keyed by node id, or one number per node in node order, as an array or a typed array (see Per-node arrays). Default: the node's degree + 1.",
+    },
+    "graphty-fruchterman-reingold.cooling": {
+        doc: 'The cooling schedule. "linear": the temperature falls from 0.1 to 0 over `iterations` steps, and the run lasts the whole budget unless it settles first (see `settleThreshold`), which at the default threshold is rare. "adaptive": Yifan Hu\'s step control -- the temperature grows by 1 / 0.9 after five consecutive iterations whose total force energy fell and shrinks by 0.9 whenever it rose, so the run settles on its own, usually in a few hundred iterations whatever the graph size; `iterations` is then only a cap. GPU only; the CPU ignores it.',
     },
     "graphty-forceatlas2.nodeSize": {
         doc: "Accepted for compatibility with Gephi's options and not used yet: nodes are treated as points.",
@@ -223,6 +270,15 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "graphty-fruchterman-reingold.k": {
         default: "`1 / sqrt(n)`",
         doc: "The ideal distance between neighbors, in layout units: the graph spans about 1 unit before it is scaled into `boundingBox`, so a value in pixels does not apply.",
+    },
+    "graphty-radial.root": {
+        doc: "The node the rings are drawn around. The fit moves the centroid of all nodes to the center of `boundingBox`, so `root` is at the box's center only when the drawing is symmetric.",
+    },
+    "*.graphIndex": {
+        doc: "Which graph of the file to read, 0-based in file order. When a file holds more than one graph, `report.issues` has a `W_MULTIPLE_GRAPHS` issue whose message gives the count.",
+    },
+    "*.graphName": {
+        doc: "Which graph of the file to read, by the name the file gives it; a name two graphs share is refused.",
     },
     "*.maxInFlight": {
         doc: "GPU only: how many batches of steps may wait on the GPU before the next step waits for the oldest to finish. A higher value keeps the GPU busier and shows each frame later. The CPU ignores it.",
@@ -259,6 +315,8 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "hexagonal-lattice.positions": LATTICE_POSITIONS,
     "triangular-lattice.positions": LATTICE_POSITIONS,
     // graph-io's format options, where they speak of its internals or of a graph read from the same format
+    // the doc comment marks the character references, not a value, as the default
+    "xgmml-export.cytoscapeEscapes": { default: "`false`" },
     "gexf-import.viz": {
         doc: "Read the `viz` elements: color, position, size, shape and thickness. `false` ignores them, with one warning.",
     },
@@ -328,7 +386,8 @@ const PURPOSE: Readonly<Record<string, string>> = {
     graphtyAStar:
         "The shortest path from `root` to `goal`, guided by an estimate of the distance left; a negative weight throws.",
     graphtyAdamicAdarForPairs: "The Adamic-Adar score of each given node pair.",
-    graphtyAdamicAdarPrediction: "The unlinked node pairs most likely to be linked, ranked by Adamic-Adar score.",
+    graphtyAdamicAdarPrediction:
+        "The node pairs (u, v) with no edge u -> v, ranked by Adamic-Adar score. With `directed: true` a pair joined only by v -> u is listed, but each pair is scored in one order only, with the node that comes first in the collection as u: a predicted arc from a later node to an earlier one is missed. For a complete directed list from one node, use `graphtyTopCandidatesForNode`.",
     graphtyAdamicAdarScore:
         "The Adamic-Adar score of one node pair: its shared neighbors, each counted as 1 / log(degree), so a rare shared neighbor counts more. With `directed: true` the degree is the out-degree, and a shared neighbor of out-degree 1 counts 1.",
     graphtyAllPairsShortestPath: "The shortest distance, and path, between every pair of nodes.",
@@ -342,7 +401,7 @@ const PURPOSE: Readonly<Record<string, string>> = {
     graphtyClosenessCentrality: "How near each node is to all others: 1 / the sum of its shortest-path distances.",
     graphtyCommonNeighborsForPairs: "The number of neighbors each given node pair shares.",
     graphtyCommonNeighborsPrediction:
-        "The unlinked node pairs most likely to be linked, ranked by how many neighbors they share.",
+        "The node pairs (u, v) with no edge u -> v, ranked by how many neighbors they share. With `directed: true` a pair joined only by v -> u is listed, but each pair is scored in one order only, with the node that comes first in the collection as u: a predicted arc from a later node to an earlier one is missed. For a complete directed list from one node, use `graphtyTopCandidatesForNode`.",
     graphtyCommonNeighborsScore: "The number of neighbors two nodes share.",
     graphtyCompareAdamicAdarWithCommonNeighbors:
         "Both Evaluate methods on the same held-out edges, to compare the two scores.",
@@ -369,14 +428,14 @@ const PURPOSE: Readonly<Record<string, string>> = {
     graphtyGreedyBipartiteMatching:
         "A set of edges with no node in common in a bipartite graph, found quickly; not always the largest.",
     graphtyGrsbm:
-        "Communities found by splitting groups in two along the graph's Fiedler vector, the eigenvector that best separates loosely joined parts. A split is kept unless it lowers modularity by more than 0.01.",
+        "Communities found by splitting groups in two by a spectral split. A split is kept unless it lowers modularity by more than 0.01. Its results are currently unreliable: the split does not follow the eigenvector that best separates the graph.",
     graphtyHasCycle: "Whether the graph has a cycle.",
     graphtyHierarchicalClustering:
         "A merge tree of clusters: every node starts alone, and the two closest clusters by hop distance merge until no pair can.",
     graphtyHits:
         "Hubs and authorities: a good hub points to good authorities, and a good authority is pointed to by good hubs.",
     graphtyIsBipartite: "Whether the nodes split into two sides with every edge between the sides, and the two sides.",
-    graphtyIsGraphIsomorphic: "Whether this graph and `other` have the same shape, and a mapping between their nodes.",
+    graphtyIsGraphIsomorphic: "Whether this graph and `other` have the same shape, and how their nodes pair up.",
     graphtyKCoreDecomposition:
         "Each node's core number: the largest k for which the node belongs to a group whose members all have k or more neighbors in the group.",
     graphtyKargerMinCut:
@@ -417,6 +476,11 @@ const PURPOSE: Readonly<Record<string, string>> = {
 const TIES =
     "A held-out edge and a non-edge with the same score count as the edge ranked higher, so a score with many ties reads better than it is: when every pair scores 0, every metric is 1. Common-neighbor counts tie often, which also favors them in the comparison.";
 
+// what a "shared neighbor" is on a directed graph, which the plain wording reads as symmetric
+const DIRECTED_LINKS =
+    "With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.";
+const DIRECTED_HELD_OUT = "A held-out arc u -> v scores above 0 only while some path u -> w -> v is left in the graph.";
+
 const CAPACITY = "Edge capacities come from `weight`; without it every edge has capacity 1.";
 
 // What a method's result means beyond its type, where the type alone leaves the reader guessing.
@@ -424,9 +488,17 @@ const METHOD_NOTES: Readonly<Record<string, string>> = {
     graphtyBetweennessCentrality:
         "`score` is NetworkX's value (divided as `normalized` says). `betweenness` is always the raw count over ordered pairs, as Cytoscape's built-in gives it (twice `score` on an undirected graph), and `betweennessNormalized` is that divided by its largest value.",
     graphtyHits: "`score` is the authority value.",
-    graphtyEvaluateCommonNeighbors: TIES,
-    graphtyEvaluateAdamicAdar: TIES,
-    graphtyCompareAdamicAdarWithCommonNeighbors: TIES,
+    graphtyEvaluateCommonNeighbors: `${TIES} ${DIRECTED_LINKS} ${DIRECTED_HELD_OUT}`,
+    graphtyEvaluateAdamicAdar: `${TIES} ${DIRECTED_LINKS} ${DIRECTED_HELD_OUT}`,
+    graphtyCompareAdamicAdarWithCommonNeighbors: `${TIES} ${DIRECTED_LINKS} ${DIRECTED_HELD_OUT}`,
+    graphtyCommonNeighborsScore: DIRECTED_LINKS,
+    graphtyCommonNeighborsForPairs: DIRECTED_LINKS,
+    graphtyCommonNeighborsPrediction: DIRECTED_LINKS,
+    graphtyTopCandidatesForNode: DIRECTED_LINKS,
+    graphtyAdamicAdarScore: DIRECTED_LINKS,
+    graphtyAdamicAdarForPairs: DIRECTED_LINKS,
+    graphtyAdamicAdarPrediction: DIRECTED_LINKS,
+    graphtyTopAdamicAdarCandidatesForNode: DIRECTED_LINKS,
     graphtyTriangleCount: "`score` is the node's number of triangles.",
     graphtyKCoreDecomposition:
         "`score` is the core number; `core(k)` returns the nodes whose core number is k or more.",
@@ -442,14 +514,22 @@ const METHOD_NOTES: Readonly<Record<string, string>> = {
     graphtySpectralClustering:
         "Every connected component, an isolated node included, takes a cluster of its own before any component is split. On an 80-node graph of 4 communities, `k: 4` finds the communities; add 3 isolated nodes and it returns the 80 nodes as one cluster plus 3 single nodes. Run it on the component you want to cluster, or raise `k` by the number of extra components.",
     graphtySyncClustering:
-        "On an 80-node graph the defaults (`maxIterations: 100`, `learningRate: 0.01`) end with `converged: false` and mixed clusters. Check `converged`; there, `maxIterations: 2000, learningRate: 0.05` converges in about 750 iterations.",
+        "On an 80-node graph the defaults (`maxIterations: 100`, `learningRate: 0.01`) end with `converged: false` and mixed clusters. Check `converged`; there, `maxIterations: 2000, learningRate: 0.05` converges in about 750 iterations. `converged: true` does not mean the clusters are right: each isolated node or extra component takes one of the `numClusters` centers, so add 3 isolated nodes to that graph and, with the same settings, it converges with three of the four groups merged. Run it on the component you want to cluster, or raise `numClusters` by the number of extra components.",
+    graphtyLabelPropagation: LPA_REPORT,
+    graphtyLabelPropagationSemiSupervised:
+        'Cluster numbers are not seed labels: they follow node order, not the order of `seeds` or the values in the seed field, and `field` writes those numbers. To find the cluster a label spread to, ask one of its seed nodes: with `seeds: ["#33", "#0"]`, `result.cluster("#33")` is the cluster of the first label.',
+    graphtyDeltaPageRank:
+        "For ranks that match `graphtyPageRank({ directed: true })`, pass `priority: true` and leave out `maxIterations`: the ranks then match a fully converged PageRank to within about 1e-8, so they differ from a default `graphtyPageRank` by up to its `tolerance` of 1e-6. With `priority`, a `maxIterations` you pass counts processed nodes and can stop the run early without saying so: at 100 on a 200-node graph the ranks are off by a third. Without `priority` the ranks can differ from PageRank's by up to 0.07 (on the karate club), and a `maxIterations` in the thousands overflows and throws.",
+    graphtyIsGraphIsomorphic:
+        "`mapping(node)` takes a node of this collection and returns the node of `other` it is paired with. A node of `other`, or any node when `isomorphic` is false, returns undefined.",
+    graphtyLabelPropagationSynchronous: LPA_REPORT,
     graphtyTeraHAC:
         "With `numClusters`, the clusters returned are not the ones left when merging stopped: the run joins those into one tree and splits it again from the top. So a smaller `numClusters` is not always a coarsening of a larger one, and separate components can share a cluster while connected nodes are split. For clusters that keep separate components apart, use `graphtyHierarchicalClustering` and its `cut(height)`.",
     graphtyMinSTCut: `${CAPACITY} The edges are read as undirected unless you pass \`directed: true\`. \`partitionFirst\` is the source side.`,
     graphtyCondensation:
         "`condensed.snapshot` is the graph of components as a @graphty/graph-format snapshot. Its node i stands for `result[i]`. Its edges run from e = 0 to `edgeCount - 1`, and the snapshot methods `edgeSource(e)` and `edgeTarget(e)` give the components at each end: `for (let e = 0; e < s.edgeCount; e++) console.log(result[s.edgeSource(e)].map((n) => n.id()), result[s.edgeTarget(e)].map((n) => n.id()))`, with `s = result.condensed.snapshot`. The other fields of `condensed` record how @graphty/graph-format derived the graph; you do not need them. [Snapshot](../guide/snapshot) explains snapshots.",
     graphtyGrsbm:
-        "Check the result with `graphtyModularity`: on the karate club it returns 2 clusters with modularity 0.04, where `graphtyLouvain` finds 4 with 0.42.",
+        "Check the result with `graphtyModularity` before you use it; for communities you can rely on, use `graphtyLouvain` or `graphtyLeiden`.",
     graphtyHierarchicalClustering:
         "Distances are hop counts: weights are not read, and nodes with no path between them never merge. `cut(height)` returns the clusters of the merge tree whose height is `height` or less, where a node has height 0 and a merge is one more than its taller part. So `cut(0)` gives every node alone, and a large height gives one cluster per connected component. `merges` is the number of merges made.",
     graphtyGirvanNewman:
@@ -459,7 +539,7 @@ const METHOD_NOTES: Readonly<Record<string, string>> = {
 // What a layout does that its options table cannot say.
 const LAYOUT_NOTES: Readonly<Record<string, string>> = {
     spectral: "Starts its eigenvector solver from random values: pass `seed` for the same positions on every run.",
-    planar: "Draws random numbers: pass `seed` for the same positions on every run. On a graph that is not planar, `run()` throws `G is not planar.` and emits no events ([failures before the run](../guide/layouts#events)).",
+    planar: "Places one cycle of the graph on a circle and every other node at the average position of its already placed neighbors, plus a small random offset. It does not guarantee a drawing without crossings: on a 3 x 3 grid, edges cross and two nodes can land on the same point. Only the nodes off that cycle get the random offset: pass `seed` for the same positions on every run. When the cycle covers every node (a ring), there is nothing random and `seed` has no effect. On a graph that is not planar, `run()` throws `G is not planar.` and emits no events ([failures before the run](../guide/layouts#events)).",
     bfs: "When a node cannot be reached from `root`, `run()` throws `bfs_layout didn't include all nodes. Graph may be disconnected.` and emits no events ([failures before the run](../guide/layouts#events)).",
     radial: "The nodes `root` cannot reach go on one extra ring outside the others.",
     "spring-electrical":
@@ -476,8 +556,10 @@ const FORMAT_SUMMARY: Readonly<Record<string, string>> = {
     csv: 'Delimited text. By default an edge table with a header row naming the source and target columns; its other columns become edge data. `table: "nodes"` reads a node table, and `nodes` takes a node table to read with the edges.',
     json: "JSON graphs: Cytoscape JSON (what `cy.json()` writes, and the export default), NetworkX node-link, d3, JSON Graph Format, graphology and vis.js. An import detects the dialect.",
     neo4j: "The CSV files of `neo4j-admin import`: a node file with an `:ID` column as the input, and relationship files with `:START_ID` and `:END_ID` columns in `relationships`. The text `graphtyExport` writes holds both, and one `graphtyImport` call reads it back; `relationships` is for separate files.",
+    xgmml: "The XML network format of Cytoscape desktop (2.x and 3.x). Cytoscape desktop opens the XGMML `graphtyExport` writes, so it is the way back into Cytoscape desktop.",
     cx2: "Cytoscape Exchange 2 JSON, what Cytoscape desktop and NDEx write.",
     cx: "Cytoscape Exchange version 1 JSON.",
+    cys: "A Cytoscape desktop session file (`.cys`), passed as bytes (an `ArrayBuffer` or `Uint8Array`), not text. It reads the session's first network; `graphIndex` or `graphName` picks another.",
     obo: "An ontology in OBO flat file form, such as the Gene Ontology: each `[Term]` is a node, and its `is_a` and `relationship` lines are edges.",
 };
 
@@ -759,7 +841,7 @@ class Source {
                             ts.TypeFormatFlags.NoTruncation | ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope,
                         ),
                     required: (p.flags & ts.SymbolFlags.Optional) === 0,
-                    doc: ts.displayPartsToString(p.getDocumentationComment(this.checker)),
+                    doc: docText(p, this.checker),
                 };
             });
     }
@@ -984,9 +1066,8 @@ function resultTypes(src: Source): string[] {
  * @returns the markdown lines
  */
 function layouts(src: Source): string[] {
-    const index = src.exportsOf("src/index.ts");
     const lib = src.exportsOf("src/layouts.ts", "@graphty/layout");
-    const all = src.options(src.typeOf(index.get("GraphtyLayoutOptions") as ts.Symbol));
+    const all = src.options(src.typeOf(src.exportsOf("src/layouts.ts").get("LayoutOptionFields") as ts.Symbol));
     const perLayout = new Set(Object.values(PER_LAYOUT_EXTENSION).flat());
     const shared = all.filter((o) => o.name !== "name" && o.name !== "eles" && !perLayout.has(o.name));
     const sharedNames = new Set(shared.map((o) => o.name));
@@ -1090,6 +1171,69 @@ function shortSummary(text: string): string {
     return trimTrailing(summary.slice(0, end));
 }
 
+// What a generator builds, in words a reader without a network-science background can picture; the generators
+// not listed keep the first sentence of their @graphty/graph-samples doc comment.
+const GENERATOR_SUMMARIES: Readonly<Record<string, string>> = {
+    "balanced-tree":
+        "A tree in which every node above the bottom level has `branching` children, `height` levels below the root",
+    "ring-of-cliques": "`cliques` cliques of `size` nodes joined in a ring, one edge between each clique and the next",
+    ak: "The AK network of B. V. Cherkassky and A. V. Goldberg, a max-flow test graph",
+    "barabasi-albert":
+        "A scale-free graph grown one node at a time: each new node links to `m` existing nodes, preferring those of high degree",
+    barbell: "Two cliques of `cliqueSize` nodes joined by a path of `pathLength` nodes",
+    "bianconi-barabasi":
+        "Like `barabasi-albert`, but a new node prefers existing nodes of high degree times `fitness`, so a fit late node can overtake early ones",
+    "bipartite-configuration-model":
+        "A random bipartite graph whose two sides have the degrees in `leftDegrees` and `rightDegrees`",
+    caveman: "`cliques` separate cliques of `size` nodes, with no edges between them",
+    "chung-lu": "A random graph in which each node's expected degree is its entry in `expectedDegrees`",
+    "configuration-model":
+        "A random graph whose nodes have the degrees in `degrees`, before any self-loops and repeated edges are erased",
+    "connected-caveman":
+        "`cliques` cliques of `size` nodes joined into a ring: in each clique one edge is moved to reach the previous clique",
+    "degree-corrected-sbm":
+        "Blocks of nodes (`sizes`) whose degrees follow `expectedDegrees`, with a `mixing` share of each node's edges leaving its block",
+    "directed-configuration-model":
+        "A random directed graph whose nodes have the out- and in-degrees in `outDegrees` and `inDegrees`",
+    "duplication-divergence":
+        "A graph grown by copying a random node and keeping each of its edges with probability `retention`, a model of protein interaction networks",
+    empty: "`n` nodes and no edges",
+    "erdos-renyi": "`n` nodes, each of the possible edges present with probability `p`, independently",
+    "erdos-renyi-gnm": "`n` nodes and exactly `m` edges, chosen uniformly at random",
+    "forest-fire":
+        "A directed graph grown one node at a time: each new node picks a random node, spreads from it through its neighbors as a fire would, and links to every node reached",
+    hyperbolic:
+        "Random points in a hyperbolic disk, joined when close: degrees follow a power law (`exponent`) and neighbors share many neighbors",
+    kronecker:
+        "A random graph of k^`power` nodes drawn by nesting the k x k `initiator` matrix inside itself, with heavy-tailed degrees",
+    lfr: "A graph with planted communities whose degrees and community sizes follow power laws, used to test community detection; `mixing` is the share of each node's edges that leave its community",
+    lollipop: "A clique of `cliqueSize` nodes with a path of `pathLength` nodes hanging off it",
+    "newman-watts":
+        "A ring in which each node links to its `k` nearest neighbors, plus random shortcuts, one per ring edge with probability `p`",
+    petersen: "The Petersen graph: 10 nodes and 15 edges, every node of degree 3",
+    "planted-partition":
+        "`groups` groups of `groupSize` nodes: two nodes are joined with probability `pIn` inside a group and `pOut` across groups",
+    price: "A directed citation network: each new node cites `citations` earlier nodes, preferring those already cited often",
+    "random-apollonian":
+        "A planar graph built by placing each new node inside a random triangle and joining it to the triangle's three corners",
+    "random-bipartite": "Two sides of `n1` and `n2` nodes, each pair across the sides joined with probability `p`",
+    "random-dag":
+        "A directed acyclic graph in `layers`: each node links to each node of the next layer with probability `p`",
+    "random-geometric": "`n` random points in the unit square (or cube), joined when they are at most `radius` apart",
+    "random-order-dag":
+        "A directed acyclic graph on `n` nodes: each arc i -> j with i < j is present with probability `p`",
+    "random-recursive-tree":
+        "A tree grown one node at a time, each new node joined to an earlier node chosen at random",
+    rmat: "A random directed graph of 2^`scale` nodes with heavy-tailed degrees, the Graph500 benchmark generator",
+    star: "A hub joined to `n - 1` leaves",
+    "stochastic-block-model":
+        "Blocks of nodes (`sizes`): two nodes are joined with the probability `probabilities` gives for their two blocks",
+    "watts-strogatz":
+        "A small world: a ring in which each node links to its `k` nearest neighbors, each edge then moved to a random node with probability `beta`",
+    waxman: "`n` random points in the unit square, each pair joined with probability `beta` at distance 0, falling as they get farther apart",
+    wheel: "A cycle of `n - 1` nodes, each also joined to a hub",
+};
+
 /**
  * The generator table of docs/reference/graphs.md.
  * @param src - the checker
@@ -1108,12 +1252,16 @@ function generators(src: Source): string[] {
         const libName = `${name.replaceAll(/-(\w)/g, (_, c: string) => c.toUpperCase())}Graph`;
         const libSym =
             lib.get(libName) ?? lib.get(libName.replace(/Graph$/, "")) ?? lib.get(libName.replace(/Graph$/, "Network"));
-        let what = libSym === undefined ? "" : shortSummary(src.summary(libSym));
+        let what = GENERATOR_SUMMARIES[name] ?? (libSym === undefined ? "" : shortSummary(src.summary(libSym)));
         if (name === "named") {
             what = "A named graph from the literature, chosen by `name`";
         }
         const own = opts.filter((o) => !sharedNames.has(o.name));
-        const also = opts.filter((o) => sharedNames.has(o.name)).map((o) => `\`${o.name}\``);
+        // one fixed order, whatever order the generator's own type lists them in
+        const also = opts
+            .filter((o) => sharedNames.has(o.name))
+            .map((o) => `\`${o.name}\``)
+            .sort();
         const takes = also.length === 0 ? "" : ` Also takes ${also.join(" and ")}.`;
         out.push(
             `### \`${name}\``,
@@ -1212,12 +1360,12 @@ function source(): Source {
     return cached;
 }
 
-/** The generated module that lists each algorithm's options, relative to the package. */
+/** The generated module that lists each algorithm's and each generator's options, relative to the package. */
 export const OPTION_NAMES_FILE = "src/algorithm-options.ts";
 
 /**
- * The text of src/algorithm-options.ts: the option names each algorithm method takes, from the same types the
- * reference tables come from, so an option a caller misspells is refused at run time.
+ * The text of src/algorithm-options.ts: the option names each algorithm method and each generator takes, from the
+ * same types the reference tables come from, so an option a caller misspells is refused at run time.
  * @returns the module's text
  */
 export async function optionNamesModule(): Promise<string> {
@@ -1237,13 +1385,27 @@ export async function optionNamesModule(): Promise<string> {
         );
         return `    ${name}: ${JSON.stringify([...new Set(names)].sort(byCodeUnit))},`;
     });
+    const gens = src.typeOf(src.exportsOf("src/samples.ts").get("GENERATORS") as ts.Symbol);
+    const generatorEntries = Object.keys(GENERATORS)
+        .sort(byCodeUnit)
+        .map((name) => {
+            const fn = gens.getProperty(name);
+            const param = fn === undefined ? undefined : src.param(src.checker.getTypeOfSymbol(fn), 0);
+            const names = param === undefined ? [] : src.options(param).map((o) => o.name);
+            return `    ${JSON.stringify(name)}: ${JSON.stringify([...new Set(names)].sort(byCodeUnit))},`;
+        });
     const text = [
         "// THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT scripts/reference.ts (npm run docs:reference",
-        "// regenerates it from the algorithm option types in src/algorithms.ts).",
+        "// regenerates it from the algorithm option types in src/algorithms.ts and the generator types in src/samples.ts).",
         "",
         "/** The options each algorithm method takes, by method name; any other option is refused. */",
         "export const OPTION_NAMES: Readonly<Record<string, readonly string[]>> = {",
         ...entries,
+        "};",
+        "",
+        "/** The options each generator takes, by generator name; any other option is refused. */",
+        "export const GENERATOR_OPTION_NAMES: Readonly<Record<string, readonly string[]>> = {",
+        ...generatorEntries,
         "};",
         "",
     ].join("\n");

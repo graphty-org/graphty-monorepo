@@ -4,7 +4,7 @@ With `animate: true`, `graphty-forceatlas2` moves the nodes on every frame. `lay
 
 ## Start, stop and continue
 
-Save this as an HTML file and open it. It loads the 34-node karate club graph.
+Save this as an HTML file and open it. It loads the 34-node karate club graph. Until `@graphty/cytoscape-extensions` is first released, the jsDelivr URL returns 404 ([Installation](../installation)).
 
 ```html
 <!doctype html>
@@ -13,7 +13,6 @@ Save this as an HTML file and open it. It loads the 34-node karate club graph.
         <button id="start">Start</button>
         <button id="stop">Stop</button>
         <button id="continue">Continue</button>
-        <span id="status"></span>
         <div id="cy" style="width: 800px; height: 600px"></div>
         <script type="module">
             import cytoscape from "https://cdn.jsdelivr.net/npm/cytoscape@3/dist/cytoscape.esm.min.mjs";
@@ -21,7 +20,6 @@ Save this as an HTML file and open it. It loads the 34-node karate club graph.
 
             cytoscape.use(graphtyCytoscape);
             const cy = cytoscape({ container: document.getElementById("cy") });
-            const status = document.getElementById("status");
             let layout = null;
             let running = false;
 
@@ -30,24 +28,20 @@ Save this as an HTML file and open it. It loads the 34-node karate club graph.
                     return; // two simulations on the same nodes would fight over every frame
                 }
                 running = true;
-                status.textContent = "running";
                 layout = cy.layout({
                     name: "graphty-forceatlas2",
-                    animate: true, // draw every frame instead of jumping to the end
-                    refresh: 2, // iterations per frame
-                    maxIter: 400, // iterations per run
-                    randomize, // false: start from where the nodes are now
+                    animate: true,
+                    refresh: 2,
+                    maxIter: 400,
+                    randomize,
                 });
                 layout.run();
             }
 
-            // layoutstop fires when the run settles, reaches maxIter, or is stopped
             cy.on("layoutstop", () => {
                 running = false;
-                status.textContent = "stopped";
             });
 
-            // .then() rather than top-level await: some bundlers leave a module that awaits at the top never finishing
             cy.graphtyDataset("karate").then(() => {
                 document.getElementById("start").addEventListener("click", () => run(true));
                 document.getElementById("stop").addEventListener("click", () => layout?.stop());
@@ -58,40 +52,29 @@ Save this as an HTML file and open it. It loads the 34-node karate club graph.
 </html>
 ```
 
-Start places the nodes at random and runs up to 400 iterations, 2 per frame. Stop freezes them. Continue runs again from the frozen positions.
+Stop freezes the nodes on the next frame. Continue runs from the frozen positions, including any node you dragged, with a fresh 400-iteration budget. Every run ends with one `layoutstop` event, which clears `running`.
 
-## The options
-
-| Option      | Type      | Default | Meaning                                                            |
-| ----------- | --------- | ------- | ------------------------------------------------------------------ |
-| `animate`   | `boolean` | `false` | `true` draws every frame; `false` moves the nodes once at the end. |
-| `refresh`   | `number`  | `1`     | Iterations per frame.                                              |
-| `maxIter`   | `number`  | `100`   | Iterations per run. A run ends sooner once the nodes stop moving.  |
-| `randomize` | `boolean` | `true`  | `false` starts from the current positions.                         |
-
-## Stopping
-
-`layout.stop()` ends the run on the next frame and leaves the nodes where that frame drew them. Every run ends with one `layoutstop` event, whether it settled, reached `maxIter` or was stopped. Cytoscape emits it on the layout and on the core. The page uses it to clear `running`, so clicking Start or Continue during a run does nothing.
-
-## Continuing
-
-With `randomize: false` each run starts from the nodes' current positions, including any you dragged by hand, and gets a fresh `maxIter` budget. The run reads the positions at the scale the previous run drew them, so its first frame carries on where the last one stopped instead of jumping.
+| Option      | Type      | Default | Meaning                                       |
+| ----------- | --------- | ------- | --------------------------------------------- |
+| `animate`   | `boolean` | `false` | `true` draws every frame.                     |
+| `refresh`   | `number`  | `1`     | Iterations per frame.                         |
+| `maxIter`   | `number`  | `100`   | Iterations per run; ends sooner once settled. |
+| `randomize` | `boolean` | `true`  | `false` starts from the current positions.    |
 
 ## Locking a node
 
-A locked node never moves, and the others arrange themselves around it. Add this to the page to pin node `0` at (400, 300):
+A locked node never moves. To pin node `0` at (400, 300), put these lines at the top of the `.then()` callback:
 
 ```js
 const hub = cy.$id("0");
 hub.position({ x: 400, y: 300 });
 hub.lock();
-cy.layout({ name: "graphty-forceatlas2", animate: true }).run();
 ```
 
-While any node is locked, the layout scales the other nodes about it to fill the viewport and leaves the locked node where it is, so `hub` stays at `{ x: 400, y: 300 }`. Call `hub.unlock()` to free it.
+While a node is locked, every frame rescales the free nodes about it to fill the viewport. So Continue does not resume where Stop left off: the free nodes jump up to about 300px over two frames, then drift back over about 30. No option turns this off. `hub.unlock()` frees the node.
 
 ## See also
 
 - [Force simulations demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-layouts--force-simulations): ForceAtlas2 and Fruchterman-Reingold on larger graphs.
-- [Layouts](../layouts): static layouts, simulations and their events.
+- [Layouts](../layouts): layouts, simulations and their events.
 - [Layout reference](../../reference/layouts): every ForceAtlas2 option.

@@ -17,6 +17,10 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git as gitSync, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { move, newJob } from "../lib/board.mjs";
+import { TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
+
+/** What every session's MCP server says about itself on a call: the tool protocol it speaks. */
+const META = { githerd: { protocol: TOOL_PROTOCOL } };
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
 import { containerStart, identify } from "../lib/proc.mjs";
 import { hashToken } from "../lib/run-tools.mjs";
@@ -394,7 +398,7 @@ describe("HTTP endpoints", () => {
         expect(daemon.url).toBe(`http://127.0.0.1:${daemon.port}`);
     });
 
-    it("lists the seven session tools on /rpc", async () => {
+    it("lists the eleven session tools on /rpc", async () => {
         const daemon = await start();
         const res = await fetch(`${daemon.url}/rpc`, {
             method: "POST",
@@ -402,15 +406,8 @@ describe("HTTP endpoints", () => {
             body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
         });
         const names = (await res.json()).result.tools.map((t) => t.name);
-        expect(names).toEqual([
-            "githerd_status",
-            "githerd_next",
-            "githerd_claim",
-            "githerd_release",
-            "githerd_report",
-            "githerd_escalate",
-            "githerd_resolve",
-        ]);
+        expect(names).toEqual(TOOLS.map((t) => t.name));
+        expect(names).toHaveLength(11);
     });
 
     it("refuses a run's comment quoting a .env secret the daemon's own environment lacks", async () => {
@@ -424,6 +421,7 @@ describe("HTTP endpoints", () => {
                 id: 1,
                 method: "tools/call",
                 params: {
+                    _meta: META,
                     name: "githerd_comment",
                     arguments: { target: "issue:12", body: "token sqp_0123456789abcdef" },
                 },
@@ -445,7 +443,7 @@ describe("HTTP endpoints", () => {
                 jsonrpc: "2.0",
                 id: 1,
                 method: "tools/call",
-                params: { name: "githerd_comment", arguments: { target: "issue:12", body: "hello" } },
+                params: { _meta: META, name: "githerd_comment", arguments: { target: "issue:12", body: "hello" } },
             },
             { run: "run-1" },
         );
@@ -459,22 +457,44 @@ describe("HTTP endpoints", () => {
         expect(scene.posted).toBe(1);
     });
 
-    it("persists a claim before replying, and a notification gets 202", async () => {
+    it("persists a job claim before replying, and a notification gets 202", async () => {
         const daemon = await start();
+        daemon.state.jobs = { "issue-7": newJob({ kind: "issue", target: "#7", id: "issue-7" }, clock) };
         const call = (body) =>
             fetch(`${daemon.url}/rpc`, {
                 method: "POST",
                 headers: { "x-githerd-session": "wt-1" },
                 body: JSON.stringify(body),
             });
-        const res = await call({
-            jsonrpc: "2.0",
-            id: 2,
-            method: "tools/call",
-            params: { name: "githerd_claim", arguments: { target: "pr:7", purpose: "fix it" } },
+        const tool = async (name, args, meta = META) =>
+            (
+                await (
+                    await call({
+                        jsonrpc: "2.0",
+                        id: 2,
+                        method: "tools/call",
+                        params: { _meta: meta, name, arguments: args },
+                    })
+                ).json()
+            ).result;
+        const next = JSON.parse((await tool("githerd_next", {})).content[0].text);
+        expect(next.offered.map((j) => j.id)).toEqual(["issue-7"]);
+        const claim = {
+            job: "issue-7",
+            snapshotVersion: next.snapshot.version,
+            overlap: { decision: "independent", reason: "nothing else touches it" },
+            plan: "fix the bug",
+        };
+        // A client in another tool protocol is refused before anything runs.
+        const refused = await tool("githerd_claim", claim, { githerd: { protocol: TOOL_PROTOCOL + 1 } });
+        expect(refused).toMatchObject({
+            isError: true,
+            content: [{ text: expect.stringMatching(/^protocol mismatch/) }],
         });
-        expect(JSON.parse((await res.json()).result.content[0].text).ok).toBe(true);
-        expect(saved().claims["pr:7"].holder).toBe("wt-1");
+        expect(daemon.state.jobs["issue-7"].state).toBe("queued");
+        const ok = await tool("githerd_claim", claim);
+        expect(JSON.parse(ok.content[0].text)).toEqual({ ok: true, job: { id: "issue-7", state: "working" } });
+        expect(saved().jobs["issue-7"].claim.session).toBe("wt-1");
         expect((await call({ jsonrpc: "2.0", method: "notifications/initialized" })).status).toBe(202);
     });
 
@@ -755,7 +775,7 @@ describe("the poll loop", () => {
             jsonrpc: "2.0",
             id: 1,
             method: "tools/call",
-            params: { name: "githerd_status", arguments: {} },
+            params: { _meta: META, name: "githerd_status", arguments: {} },
         });
         expect(reply.result.content[0].text).toContain("not running a valid config");
         const health = await (await fetch(`${daemon.url}/health`)).json();
@@ -952,7 +972,7 @@ describe("the poll loop", () => {
             jsonrpc: "2.0",
             id: 1,
             method: "tools/call",
-            params: { name: "githerd_status", arguments: {} },
+            params: { _meta: META, name: "githerd_status", arguments: {} },
         };
         // A board's redraw and an agent's command are not the owner.
         for (const headers of [{}, { "x-githerd-caller": "agent" }]) {
@@ -1017,6 +1037,7 @@ describe("the poll loop", () => {
                     id: 1,
                     method: "tools/call",
                     params: {
+                        _meta: META,
                         name: "githerd_propose",
                         arguments: {
                             kind: "close-issue",
@@ -1154,7 +1175,7 @@ describe("the poll loop", () => {
                     jsonrpc: "2.0",
                     id: 1,
                     method: "tools/call",
-                    params: { name: "githerd_status", arguments: { section: "queue", format: "json" } },
+                    params: { _meta: META, name: "githerd_status", arguments: { section: "all", format: "json" } },
                 }),
             });
             const text = (await res.json()).result.content[0].text;
@@ -1399,7 +1420,7 @@ describe("the notify command check", () => {
             jsonrpc: "2.0",
             id: 1,
             method: "tools/call",
-            params: { name: "githerd_status", arguments: {} },
+            params: { _meta: META, name: "githerd_status", arguments: {} },
         });
         expect(reply.result.content[0].text).toMatch(/^PHONE ALERTS BROKEN since/);
     });
@@ -1622,7 +1643,7 @@ describe("code-editing runs", () => {
             jsonrpc: "2.0",
             id: 1,
             method: "tools/call",
-            params: { name: "githerd_status", arguments: { section } },
+            params: { _meta: META, name: "githerd_status", arguments: { section } },
         });
         return reply.result.content[0].text;
     }
@@ -1635,7 +1656,7 @@ describe("code-editing runs", () => {
             expect(daemon.state.runs).toEqual({});
             expect(daemon.state.worktrees ?? {}).toEqual({});
             expect(existsSync(join(repo.root, ".worktrees"))).toBe(false);
-            expect(await status("issues")).toContain("skipped 0 open issues and 1 PRs by other authors");
+            expect(await status("all")).toContain("skipped 0 open issues and 1 PRs by other authors");
             expect(await status("prs")).not.toContain("fix(x): a fix");
         });
     }
@@ -1648,7 +1669,7 @@ describe("code-editing runs", () => {
         expect(gh.calls.some((c) => c.args.at(-1) === "user")).toBe(true);
         // The owner's PR is now another author's: no run.
         expect(daemon.state.runs).toEqual({});
-        expect(await status("issues")).toContain("TRUST: acting only on someone-else's issues and PRs");
+        expect(await status("all")).toContain("TRUST: acting only on someone-else's issues and PRs");
     });
 
     it("starts no run while gh's login is unresolved, escalates, and starts once it resolves", async () => {
@@ -1658,7 +1679,7 @@ describe("code-editing runs", () => {
         expect(daemon.state.runs).toEqual({});
         expect(daemon.state.trust.login).toBeNull();
         expect(daemon.state.escalations["login-unresolved"]).toMatchObject({ kind: "blocked", resolvedAt: null });
-        expect(await status("issues")).toContain(
+        expect(await status("all")).toContain(
             "TRUST: login unresolved, no runs start (GitHub refused the credential (401))",
         );
         scene.login = "owner";
@@ -1777,6 +1798,30 @@ describe("liveness", () => {
             expect.objectContaining({ job: "issue-14", reason: "container restarted" }),
         ]);
         expect(ledger.filter((e) => e.kind === "session-death")).toEqual([]);
+    });
+
+    it("makes the push queue at start and recovers a push the stopped daemon was running", async () => {
+        const stateDir = join(dir, ".githerd");
+        mkdirSync(stateDir);
+        const job = newJob({ kind: "issue", target: "#15", id: "issue-15" }, clock);
+        move(job, "starting", clock);
+        move(job, "working", clock);
+        move(job, "waiting", clock, { waitingFor: { push: "push-1" } });
+        const entry = { id: "push-1", job: "issue-15", branch: "githerd/x", head: "a".repeat(40), worktree: dir };
+        const pushQueue = {
+            next: 2,
+            entries: [{ ...entry, rank: 2, queuedAt: clock.toISOString(), status: "running", pid: 1, startTime: "0" }],
+        };
+        writeFileSync(
+            join(stateDir, "state.json"),
+            JSON.stringify({ schema: 1, jobs: { "issue-15": job }, pushQueue }),
+        );
+        const daemon = await start();
+        expect(daemon.state.pushQueue.entries).toEqual([]);
+        expect(daemon.state.jobs["issue-15"].state).toBe("working");
+        expect(daemon.state.jobs["issue-15"].news.at(-1).text).toMatch(/interrupted by a githerd restart/);
+        await daemon.shutdown();
+        expect((await readLedger(stateDir)).filter((e) => e.kind === "push-interrupted")).toHaveLength(1);
     });
 
     it("sees no container restart when PID 1 is the one alive recorded", async () => {

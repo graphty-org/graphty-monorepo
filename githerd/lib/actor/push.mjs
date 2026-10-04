@@ -384,7 +384,7 @@ const rank = (job) => {
  *   env: Record<string, string>,
  *   secrets?: Record<string, string | undefined>,
  *   hooksPath?: string,
- *   protectedPaths?: string[],
+ *   protectedPaths?: () => string[],
  *   defaultGateMs?: number,
  *   now?: () => Date,
  * }} options `root` is the main checkout, where commits are checked; `mode` answers a write
@@ -393,8 +393,8 @@ const rank = (job) => {
  *   environment of the push and its gate, which run the branch's code: an allow-list
  *   (`codeEnv` in worker-settings.mjs), never the daemon's own, which holds the notify keys;
  *   `secrets` are the values the outgoing check refuses; `hooksPath` the hooks the push runs, the
- *   main checkout's `.husky/_` by default, never the worktree's; `protectedPaths` the config's
- *   list, refused like the gate's own paths
+ *   main checkout's `.husky/_` by default, never the worktree's; `protectedPaths` reads the
+ *   config's list, refused like the gate's own paths
  * @returns {{
  *   request: (args: {job: string, branch: string, expectHead: string}, session: string | null) =>
  *     Promise<{queued: true, position: number, estimateMinutes: number} | {ok: false, reason: string}>,
@@ -417,7 +417,7 @@ export function createPushQueue({
     env,
     secrets = {},
     hooksPath = join(root, ".husky", "_"),
-    protectedPaths = [],
+    protectedPaths = () => [],
     defaultGateMs = DEFAULT_GATE_MS,
     now = () => new Date(),
 }) {
@@ -589,7 +589,7 @@ export function createPushQueue({
      * @returns {Promise<string[]>} the reasons
      */
     async function gateReasons(e, shas) {
-        const guarded = [...GATE_PATHS, ...protectedPaths];
+        const guarded = [...GATE_PATHS, ...protectedPaths()];
         const changed = new Set();
         for (const sha of shas) {
             const out = await git(root, [
@@ -726,7 +726,8 @@ export function createPushQueue({
      */
     function recover() {
         const t = now();
-        for (const e of q.entries.filter((/** @type {PushEntry} */ x) => x.status === "running")) {
+        const interrupted = q.entries.filter((/** @type {PushEntry} */ x) => x.status === "running");
+        for (const e of interrupted) {
             if (livePush(e)) kill(e.pid);
             q.entries = q.entries.filter((/** @type {PushEntry} */ x) => x !== e);
             const job = state.jobs?.[e.job];
@@ -742,7 +743,8 @@ export function createPushQueue({
             if (job.state === "waiting" && job.waitingFor?.push === e.id) move(job, "working", t);
         }
         for (const e of q.entries) Object.assign(e, { pid: null, startTime: null });
-        void save();
+        // Saved only when something changed; a pump that starts a push saves on its own.
+        if (interrupted.length) void save();
         pump();
     }
     recover();

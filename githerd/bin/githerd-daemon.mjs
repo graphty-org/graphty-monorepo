@@ -20,6 +20,7 @@
 import { repoRoot } from "../lib/config.mjs";
 import { startDaemon } from "../lib/daemon.mjs";
 import { loadDaemonEnv } from "../lib/launcher.mjs";
+import { TOOL_PROTOCOL } from "../lib/mcp.mjs";
 
 if (process.env.GITHERD_STATE_DIR) loadDaemonEnv(process.env.GITHERD_STATE_DIR, process.env);
 
@@ -56,7 +57,7 @@ if (once) {
         jsonrpc: "2.0",
         id: 1,
         method: "tools/call",
-        params: { name: "githerd_status", arguments: {} },
+        params: { name: "githerd_status", arguments: {}, _meta: { githerd: { protocol: TOOL_PROTOCOL } } },
     });
     console.log(reply.result?.content?.[0]?.text ?? JSON.stringify(reply));
     await daemon.shutdown();

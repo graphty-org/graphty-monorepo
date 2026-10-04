@@ -403,7 +403,7 @@ describe("the gate runs as for a person", () => {
     });
 
     it("refuses a config-protected path and uncommitted changes to the gate's files", async () => {
-        queue = makeQueue({ protectedPaths: ["visual-baselines/"] });
+        queue = makeQueue({ protectedPaths: () => ["visual-baselines/"] });
         const a = workingJob("a");
         put(join(a.dir, "visual-baselines", "x.png"), "x");
         const head = commitAll(a.dir, "test: new baseline");

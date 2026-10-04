@@ -513,7 +513,7 @@ function trustLine(t) {
  * @param {Date} now the current time
  * @returns {string} the status text
  */
-function statusText(data, now) {
+export function statusText(data, now) {
     const g = data.githerd;
     const polled = g.polledAt ? `polled ${span(now.getTime() - Date.parse(g.polledAt))} ago` : "not polled yet";
     const next = g.nextPollAt ? `, next in ${span(Date.parse(g.nextPollAt) - now.getTime())}` : "";

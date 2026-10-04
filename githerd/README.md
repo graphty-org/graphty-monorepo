@@ -49,9 +49,14 @@ into smaller issues itself; size is never a question for the owner. The owner ca
 labels: `githerd:next` puts an issue or PR first in its kind, `githerd:skip` takes it out. Both
 count only when the owner added them.
 
-A session picks up work with `githerd_next`, which returns the top free item with its reason and
-claims it in the same call, so two sessions never take the same item. The rules are in design
-section 10.2.
+Every session gets the eleven tools of design section 6 from the MCP server in `.mcp.json`:
+`githerd_status`, `githerd_next`, `githerd_claim`, `githerd_wait`, `githerd_expect`, `githerd_push`,
+`githerd_rerun`, `githerd_read`, `githerd_done`, `githerd_ask_owner` and `githerd_record`. A
+session calls `githerd_next` for its job (a worker) or the queued jobs it could take (an owner
+session), and `githerd_claim` with its overlap judgment before any edit. Pushes go through
+`githerd_push`, which runs the pre-push gate in githerd's queue. `githerd_done`,
+`githerd_ask_owner` and `githerd_record` answer "not available yet" until the job kinds and the
+owner layer land.
 
 ## Commands
 

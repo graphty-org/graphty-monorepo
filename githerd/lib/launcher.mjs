@@ -1,8 +1,9 @@
 /**
  * The launcher (design section 3.1): the stdio MCP server Claude Code starts from `.mcp.json`. It
- * answers `initialize` and `tools/list` at once from a static tool list, finds or starts the one
- * daemon of the repository in the background (`ensureDaemon`), and forwards every `tools/call` to
- * that daemon over HTTP. stdout carries JSON-RPC lines only; anything else goes to stderr.
+ * answers `initialize` and `tools/list` at once with the eleven tools of design section 6, finds or
+ * starts the one daemon of the repository in the background (`ensureDaemon`), and forwards every
+ * `tools/call` to that daemon over HTTP, after checking its arguments, with the session it serves
+ * (`identifySession`) and the tool protocol in `params._meta.githerd`. stdout carries JSON-RPC lines only; anything else goes to stderr.
  *
  * The daemon always runs the default branch's copy of the package, archived into
  * `~/.githerd/<checkout name>/versions/<version>-<hash8>/` with `current` pointing at it, so a
@@ -44,11 +45,10 @@ import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
 
 import { DEFAULTS, defaultBranch, repoRoot, resolveConfig } from "./config.mjs";
-import { createMcpServer } from "./mcp.mjs";
+import { createMcpServer, forwardingTools, identifySession } from "./mcp.mjs";
 import { createNotifier, lastTypedAt } from "./notify.mjs";
 import { identify, sameProcess } from "./proc.mjs";
 import { defaultStateDir, readLiveness } from "./store.mjs";
-import { sessionTools } from "./tools.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 
 /** The /health protocol major this launcher speaks (the daemon's `PROTOCOL`). */
@@ -764,20 +764,6 @@ async function startOrUpgrade(ctx, target) {
     return { url: daemonUrl(up), action };
 }
 
-/**
- * The static tools a session sees before the daemon answers: the seven session tools' names,
- * descriptions and schemas. Their calls are forwarded, never run here.
- * @returns {import("./mcp.mjs").Tool[]} the tools
- */
-function staticTools() {
-    return sessionTools(/** @type {any} */ ({ caller: {} })).map((t) => ({
-        ...t,
-        handler: () => {
-            throw new Error("forwarded to the daemon");
-        },
-    }));
-}
-
 /** How much of a transcript's end is read for the owner's last typed message. */
 const TRANSCRIPT_TAIL = 256 * 1024;
 
@@ -914,7 +900,11 @@ export async function runLauncher({
     };
     const ensured = ensure().catch(() => {});
 
-    const local = createMcpServer({ serverInfo, tools: staticTools });
+    // The eleven tools of design section 6, answered at once for `tools/list`. A call is checked
+    // against its schema here, then forwarded with this session's identity and the tool protocol.
+    const home = env.HOME ?? homedir();
+    const tools = forwardingTools(forward, () => identifySession({ ppid, env, home, stateDir: ctx.stateDir }));
+    const local = createMcpServer({ serverInfo, tools: () => tools });
 
     /**
      * Forwards one `tools/call`, waiting up to `callWaitMs` for the daemon.
@@ -982,14 +972,7 @@ export async function runLauncher({
     beat.unref();
 
     await lines(input, async (line) => {
-        let msg;
-        try {
-            msg = JSON.parse(line);
-        } catch {
-            msg = null;
-        }
-        const reply =
-            msg?.method === "tools/call" && Object.hasOwn(msg, "id") ? await forward(msg) : await local.handle(line);
+        const reply = await local.handle(line);
         if (reply) write(JSON.stringify(reply));
     });
     clearInterval(beat);

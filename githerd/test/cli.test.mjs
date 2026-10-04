@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
+import { escalate } from "../lib/board.mjs";
 import { parseSince, runCli } from "../lib/cli.mjs";
 import { repoRoot } from "../lib/config.mjs";
 import { startDaemon } from "../lib/daemon.mjs";
@@ -410,15 +411,7 @@ describe("why", () => {
 describe("ack and veto", () => {
     it("ack clears an escalation once and records the owner in the ledger", async () => {
         const d = await daemon();
-        await d.rpc(
-            {
-                jsonrpc: "2.0",
-                id: 1,
-                method: "tools/call",
-                params: { name: "githerd_escalate", arguments: { key: "decide:x", kind: "decision", summary: "pick" } },
-            },
-            { session: "wt-1" },
-        );
+        escalate(d.state, { key: "decide:x", kind: "decision", summary: "pick" }, { session: "wt-1" }, new Date());
         const r = await cli(["ack", "decide:x"]);
         expect(r).toMatchObject({ code: 0, out: "resolved decide:x" });
         expect(d.state.escalations["decide:x"].resolvedAt).toBeTruthy();

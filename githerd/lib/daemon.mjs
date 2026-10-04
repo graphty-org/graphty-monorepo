@@ -65,7 +65,7 @@ import { basename, delimiter, join } from "node:path";
 import { homedir } from "node:os";
 import { inspect } from "node:util";
 
-import { pushRunBranch } from "./actor/push.mjs";
+import { createPushQueue, pushRunBranch } from "./actor/push.mjs";
 import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
 import { effectiveMode, MODELS, resolveConfig } from "./config.mjs";
@@ -78,7 +78,7 @@ import { dispatch } from "./dispatch.mjs";
 import { classify } from "./classify.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { failureKey, notePickups, queueAges } from "./lanes.mjs";
-import { createMcpServer } from "./mcp.mjs";
+import { createMcpServer, TOOL_PROTOCOL } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
@@ -113,9 +113,12 @@ import {
 import { recoverDeath } from "./session-death.mjs";
 import { resumeVerified } from "./selftest.mjs";
 import { secretValues } from "./text.mjs";
-import { sessionTools, statusData } from "./tools.mjs";
+import { sessionToolSet } from "./session-tools.mjs";
+import { alertBanner, sessionTools, statusData } from "./tools.mjs";
+import { ring as ringWorker } from "./tmux.mjs";
 import { readVersion } from "./version.mjs";
 import { watchPass } from "./watchdog.mjs";
+import { codeEnv, readSigningEnv } from "./worker-settings.mjs";
 import { createWorktree, readTree, removeWorktree, sweepWorktrees } from "./worktrees.mjs";
 
 /** How often the watchdog looks at the workers (design 7.5). */
@@ -551,6 +554,8 @@ export async function startDaemon({
     /** @type {NodeJS.Timeout | null} */
     let timer = null;
     let intervalFactor = 1;
+    /** @type {ReturnType<typeof createPushQueue> | null} the push queue, once made (ensurePushQueue) */
+    let pushQueue = null;
 
     const mode = () => {
         if (!config) return "dry-run";
@@ -1918,6 +1923,7 @@ export async function startDaemon({
         timer = null;
         // Events a hook spooled while this daemon was up but slow land now, not at the next start.
         await drainHooks();
+        ensurePushQueue();
         try {
             await poll();
         } catch (err) {
@@ -1929,19 +1935,68 @@ export async function startDaemon({
         timer = setTimeout(tick, ms);
     }
 
-    const mcp = createMcpServer({
+    /**
+     * The one tool githerd offers without a valid config.
+     * @returns {import("./mcp.mjs").Tool[]} the tool
+     */
+    const unconfigured = () => [
+        {
+            name: "githerd_status",
+            description: "githerd's state for this repository.",
+            inputSchema: { type: "object", properties: {} },
+            handler: () => `githerd is not running a valid config: ${configError}`,
+        },
+    ];
+
+    /**
+     * The eleven tools of design section 6, for every session that is not a judgment run. A call
+     * in a tool protocol this daemon does not serve is refused before anything runs (design 9.8).
+     */
+    const sessionMcp = createMcpServer({
+        serverInfo: { name: "githerd", version },
+        protocols: [TOOL_PROTOCOL],
+        banner: () => alertBanner(state) ?? "",
+        tools: () => {
+            if (!config) return unconfigured();
+            const t = now();
+            return sessionToolSet({
+                state,
+                config,
+                now: t,
+                status: {
+                    config,
+                    now: t,
+                    startedAt: startedAtDate,
+                    version,
+                    mode: mode(),
+                    polledAt: loopTickAt,
+                    nextPollAt,
+                },
+                push: ensurePushQueue(),
+                github: github(),
+                // ponytail: the snapshot lists the live sessions without the files each worktree
+                // changes; read every worktree's diff here once overlap judgments need it.
+                snapshotFacts: () => ({
+                    ownerSessions: Object.entries(state.sessions ?? {}).map(([name, s]) => ({
+                        name,
+                        cwd: /** @type {any} */ (s).cwd,
+                        branch: /** @type {any} */ (s).branch,
+                    })),
+                }),
+                commit: async (entry) => {
+                    await save();
+                    await ledger(entry);
+                },
+                uid: process.getuid?.() ?? 0,
+            });
+        },
+    });
+
+    /** A judgment run's tools: the session tools it may use and the tools of its kind. */
+    const runMcp = createMcpServer({
         serverInfo: { name: "githerd", version },
         tools: (/** @type {any} */ caller) => {
-            if (!config) {
-                return [
-                    {
-                        name: "githerd_status",
-                        description: "githerd's state for this repository.",
-                        inputSchema: { type: "object", properties: {} },
-                        handler: () => `githerd is not running a valid config: ${configError}`,
-                    },
-                ];
-            }
+            if (!config) return unconfigured();
             const session = sessionTools({
                 state,
                 config,
@@ -1957,7 +2012,7 @@ export async function startDaemon({
                     await ledger(/** @type {any} */ (entry));
                 },
             });
-            if (!caller?.run) return session;
+            if (!caller?.run) return [];
             const t = now();
             return [
                 ...session.filter((tool) => RUN_SESSION_TOOLS.has(tool.name)),
@@ -2105,7 +2160,7 @@ export async function startDaemon({
             if (!auth.ok) return [401, { error: /** @type {{error: string}} */ (auth).error }];
             caller = { run: /** @type {{run: string}} */ (auth).run };
         }
-        const reply = await mcp.handle(await body(req), caller);
+        const reply = await (caller.run ? runMcp : sessionMcp).handle(await body(req), caller);
         return reply === null ? [202] : [200, reply];
     }
 
@@ -2421,8 +2476,57 @@ export async function startDaemon({
         }
     }
 
+    /**
+     * The push queue (design 4.8), made once, when githerd may write and has a config: making it
+     * recovers the pushes a stopped githerd left and starts the queued ones. Its pushes run the
+     * branch's code, so they get the allow-listed environment of `codeEnv`, never this one.
+     * @returns {ReturnType<typeof createPushQueue> | null} the queue, or null while it cannot run
+     */
+    function ensurePushQueue() {
+        if (pushQueue || !config || fatal || loaded.readOnly || fenced || stopping) return pushQueue;
+        /** @type {Record<string, string>} */
+        let signing = {};
+        try {
+            signing = readSigningEnv(env.HOME ?? homedir());
+        } catch (err) {
+            say("error", `push queue: no signing variables: ${/** @type {Error} */ (err).message}`);
+        }
+        pushQueue = createPushQueue({
+            root,
+            state,
+            ledger,
+            save,
+            mode: writeMode,
+            ring: ringJob,
+            credentialBlocked: () => (state.apiStop?.kind === "credential" ? state.apiStop.error : null),
+            defaultBranch: state.master.branch ?? "master",
+            env: codeEnv({ env, path: env.PATH ?? "", signing }),
+            secrets,
+            protectedPaths: () => config?.protectedPaths ?? [],
+            now,
+        });
+        return pushQueue;
+    }
+
+    /**
+     * Rings a job's worker with a push result, when it has a window (design 4.8, step 6).
+     * @param {any} job the job
+     * @returns {Promise<void>} once rung or found not ringable
+     */
+    async function ringJob(job) {
+        const h = job.holder;
+        if (!h?.pane || !h.nonce) return;
+        try {
+            const window = { socket: h.socket, window: h.window, pane: h.pane, pid: h.pid, name: h.name };
+            await ringWorker(window, { nonce: h.nonce, job: job.id });
+        } catch (err) {
+            void ledger({ kind: "doorbell-failed", job: job.id, error: /** @type {Error} */ (err).message });
+        }
+    }
+
     if (bootFatal) enterFatal(bootFatal);
     else await drainHooks();
+    ensurePushQueue();
     if (autoPoll) timer = setTimeout(tick, 0);
 
     /**
@@ -2457,6 +2561,9 @@ export async function startDaemon({
         if (timer) clearTimeout(timer);
         timer = null;
         await runner?.shutdown();
+        // A push killed here reaches its job as a failed push; the next start finds nothing running.
+        pushQueue?.stop();
+        await pushQueue?.drain();
         await save();
         await halt({ reason: "shutdown" });
     }
@@ -2474,7 +2581,8 @@ export async function startDaemon({
         watch,
         drainHooks,
         shutdown,
-        rpc: (message, context) => mcp.handle(message, context ?? { session: "local" }),
+        rpc: (message, context) =>
+            (context?.run ? runMcp : sessionMcp).handle(message, context ?? { session: "local" }),
         flushNotifications: () => notifier.flush(),
         runner,
     };

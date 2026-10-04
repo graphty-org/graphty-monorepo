@@ -32,6 +32,7 @@ import {
     writeDaemonEnv,
 } from "./launcher.mjs";
 import { UNCHECKED_STOPS } from "./hook.mjs";
+import { TOOL_PROTOCOL } from "./mcp.mjs";
 import { createNotifier } from "./notify.mjs";
 import { gateLock, sameProcess } from "./proc.mjs";
 import { runSelftest, selftestText } from "./selftest.mjs";
@@ -727,6 +728,7 @@ async function boardText(stateDir, { root, section, json = false, now, headers =
                 params: {
                     name: "githerd_status",
                     arguments: { ...(json ? { format: "json" } : {}), ...(section ? { section } : {}) },
+                    _meta: { githerd: { protocol: TOOL_PROTOCOL } },
                 },
             },
             headers,

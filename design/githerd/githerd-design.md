@@ -1648,7 +1648,7 @@ It predates this design and is reworked by the plan. Most of its fact-finding an
 | `retriage.mjs` | the export query | full passes become triage jobs |
 | `cli.mjs` | the command frame and state-file fallback | the commands of 11.2 |
 | `daemon.mjs` | the poll loop, HTTP endpoint and tool dispatch | the reconcile of 9.3, fatal mode, `alive` and `progress` |
-| `tools.mjs` | tool plumbing | replaced by the eleven tools |
+| `tools.mjs` | tool plumbing; the board's status text | replaced by the eleven tools (`session-tools.mjs`), which every session's MCP server and the daemon serve; judgment runs keep the old tools until runs go |
 | `runner.mjs`, `run-tools.mjs`, `dispatch.mjs`, `paging.mjs`, `prompts.mjs`, the playbooks | nothing | removed: they exist for headless runs, run tokens and dollar budgets |
 
 New code: the classifier; the incident procedure; the `githerd/merge` status and stacks; the push queue;

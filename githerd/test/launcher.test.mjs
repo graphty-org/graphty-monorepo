@@ -33,7 +33,8 @@ import {
     sessionTypedAt,
     writeDaemonEnv,
 } from "../lib/launcher.mjs";
-import { bootId } from "../lib/proc.mjs";
+import { TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
+import { bootId, identify } from "../lib/proc.mjs";
 import { PACKAGE_DIR } from "../lib/version.mjs";
 
 const FAKE_SERVHERD = fileURLToPath(new URL("helpers/fake-servherd.mjs", import.meta.url));
@@ -293,15 +294,7 @@ describe("startup", () => {
         launcher.send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
         expect((await launcher.reply(1)).result.serverInfo.name).toBe("githerd");
         const tools = (await launcher.reply(2)).result.tools.map((/** @type {any} */ t) => t.name);
-        expect(tools).toEqual([
-            "githerd_status",
-            "githerd_next",
-            "githerd_claim",
-            "githerd_release",
-            "githerd_report",
-            "githerd_escalate",
-            "githerd_resolve",
-        ]);
+        expect(tools).toEqual(TOOLS.map((t) => t.name));
         expect(existsSync(join(fake, "registry.json"))).toBe(false);
     });
 
@@ -734,6 +727,69 @@ describe("the session proxy", () => {
         }, "the daemon to come back");
         expect(second).not.toBe(first);
         expect(starts()).toHaveLength(2);
+        input.end();
+        await running;
+    });
+
+    it("serves the eleven tools to the daemon, which refuses another tool protocol with no change", async () => {
+        const input = new PassThrough();
+        /** @type {any[]} */
+        const replies = [];
+        // The SessionStart hook's record for the session's claude process (here, this process).
+        mkdirSync(join(stateDir(), "sessions"), { recursive: true });
+        writeFileSync(
+            join(stateDir(), "sessions", `${process.pid}.json`),
+            JSON.stringify({ pid: process.pid, startTime: identify(process.pid)?.startTime, sessionId: "sess-e2e" }),
+        );
+        const running = runLauncher({
+            input,
+            write: (line) => replies.push(JSON.parse(line)),
+            cwd: root,
+            env,
+            ppid: process.pid,
+            pkgDir: "githerd",
+            heartbeatMs: 60_000,
+            jitterMs: 0,
+            log: () => {},
+        });
+        const reply = (/** @type {number} */ id) =>
+            until(() => replies.find((r) => r.id === id), `reply ${id}`, 30_000);
+        const call = (/** @type {number} */ id, /** @type {string} */ name, /** @type {object} */ args) =>
+            input.write(
+                `${JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } })}\n`,
+            );
+        await until(async () => (await health().catch(() => null))?.pid, "the daemon");
+
+        call(1, "githerd_next", {});
+        const next = JSON.parse((await reply(1)).result.content[0].text);
+        expect(next).toMatchObject({ job: null, offered: [], snapshot: { version: expect.any(Number) } });
+        // Arguments the schema refuses never reach the daemon.
+        call(2, "githerd_expect", { job: "issue-1", minutes: 999, reason: "x" });
+        expect((await reply(2)).result).toMatchObject({ isError: true });
+        expect((await reply(2)).result.content[0].text).toMatch(/^invalid arguments/);
+        // A tool the daemon does not have yet answers so, and is listed all the same.
+        call(3, "githerd_record", { kind: "order", text: "x" });
+        expect((await reply(3)).result.content[0].text).toMatch(/^not available yet/);
+
+        const before = readFileSync(join(stateDir(), "state.json"), "utf8");
+        const res = await fetch(`http://127.0.0.1:${daemonFile().port}/rpc`, {
+            method: "POST",
+            headers: { "x-githerd-session": "sess-e2e" },
+            body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: 4,
+                method: "tools/call",
+                params: {
+                    name: "githerd_expect",
+                    arguments: { job: "issue-1", minutes: 5, reason: "x" },
+                    _meta: { githerd: { protocol: TOOL_PROTOCOL + 1, session: "sess-e2e" } },
+                },
+            }),
+        });
+        const refused = (await res.json()).result;
+        expect(refused.isError).toBe(true);
+        expect(refused.content[0].text).toMatch(/^protocol mismatch: .*nothing was done/);
+        expect(readFileSync(join(stateDir(), "state.json"), "utf8")).toBe(before);
         input.end();
         await running;
     });

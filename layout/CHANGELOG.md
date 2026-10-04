@@ -1,3 +1,21 @@
+## 2.2.2 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.16
+- Updated graph-format to 1.3.1
+- Updated algorithms to 3.3.1
+
+## 2.2.1 (2026-10-04)
+
+### 🩹 Fixes
+
+- **layout:** keep planar from putting two nodes on the same point ([#722](https://github.com/graphty-org/graphty-monorepo/issues/722))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.2.0 (2026-10-03)
 
 ### 🚀 Features

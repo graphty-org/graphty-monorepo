@@ -181,13 +181,27 @@ export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});
  * #306 and #307). A load that names either fails with that reason. Both are removed at the next
  * major release unless a reader lands first.
  */
-export const KNOWN_FORMAT_IDS = ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2"] as const;
+export const KNOWN_FORMAT_IDS = [
+    "json",
+    "csv",
+    "graphml",
+    "gexf",
+    "gml",
+    "dot",
+    "pajek",
+    "sif",
+    "cx2",
+    "xgmml",
+    "cx",
+    "cys",
+    "obo",
+] as const;
 
 /**
  * A format id: a built-in name, or a plugin's.
  *
- * The built-in names "sif" and "cx2" are deprecated and unserved (issues #306 and #307); they are
- * removed at the next major release unless a reader lands first.
+ * The built-in name "sif" is deprecated and unserved (issue #306); it is removed at the next major
+ * release unless a reader lands first.
  */
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
@@ -581,6 +595,14 @@ export type Binding =
            */
           overflow?: BindingOverflow;
           missing?: "skip" | { value: string | number };
+          /**
+           * Values this binding does not paint: an element carrying one is left exactly as the
+           * layers beneath paint it, as an unmeasured element is. Compared as the legend spells a
+           * category, so the group `0` and the text `"0"` are the same value. The legend keeps
+           * the value's row, marked `hidden`, so it can be shown again. Set it per value with
+           * `styles.setValueHidden()`, which is one undoable step.
+           */
+          hidden?: (string | number | boolean)[];
           reverse?: boolean;
           midpoint?: number;
           bins?: number;

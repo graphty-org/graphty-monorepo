@@ -82,6 +82,25 @@ describe("E_TOO_LARGE on a load", () => {
         session.dispose();
     });
 
+    it("counts a node row once when an earlier chunk's edge already created it", async () => {
+        // Every edge comes with the first chunk, so a, b and c are held before the rows for b and
+        // c arrive: three nodes, at the limit, not five past it.
+        const data = JSON.stringify({
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+            edges: [
+                { src: "a", dst: "b" },
+                { src: "b", dst: "c" },
+            ],
+        });
+        const source = { type: "json", config: { data, chunkSize: 1 } };
+        const session = createGraphSession();
+
+        assert.isNull((await (await session.data.prepare(source)).report()).tooLarge);
+        await session.data.import(source);
+        assert.strictEqual(session.data.statistics().nodeCount, 3);
+        session.dispose();
+    });
+
     it("counts the nodes edges create, and fits once those edges are left out", async () => {
         const session = createGraphSession();
         const draft = await session.data.prepare({

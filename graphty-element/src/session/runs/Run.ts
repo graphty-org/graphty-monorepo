@@ -1092,7 +1092,10 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     private finishWork(outcome: RunOutcome<T>, timeBox: AbortSignal | null): void {
         const canceled = this.cancelReason !== null;
         const timedOut = timeBox !== null && timeBox.aborted;
-        const partial = outcome.partial ?? (timedOut || canceled);
+        // A result whose caveats say why it stopped early is partial whatever stopped it -- an
+        // iteration cap as much as a time box -- so `partial` and the caveats never disagree.
+        const statesReason = outcome.partialReason !== undefined || outcome.caveats?.partialReason !== undefined;
+        const partial = (outcome.partial ?? (timedOut || canceled)) || statesReason;
 
         this.resultValue = outcome.result;
         this.resultExecutionValue = this.executionValue ?? undefined;

@@ -59,7 +59,11 @@ import type { ScaleRegistry } from "./scales";
 export interface LegendSwatch {
     /** The value in the words a reader sees. */
     readonly label: string;
-    /** The value itself, for a consumer that wants to filter or select by it. */
+    /**
+     * The value itself, for a consumer that wants to filter or select by it -- spelled as the data
+     * spells it, so a run's group `0` is the number `0` here as it is in the run's summary, its
+     * `sizes` table and its per-node values, never the string `"0"`.
+     */
     readonly value: unknown;
     /** The colour the encoding paints it, as `#rrggbb` or `#rrggbbaa`. */
     readonly color?: string;
@@ -449,9 +453,10 @@ function categorySwatches(prepared: PreparedBinding, order: readonly string[]): 
     };
     // A stable sort, so the categories no order names keep their largest-first order.
     const categories = [...prepared.categories].sort((left, right) => rank(left) - rank(right));
+    const valueOf = (category: string): unknown => prepared.categoryValues.get(category) ?? category;
     const swatches: LegendSwatch[] = categories.map((category, index) => ({
         label: groups ? groupName(index + 1) : category,
-        value: category,
+        value: valueOf(category),
         ...swatchPaint(prepared.paint(category)),
     }));
     const { lumped } = prepared;
@@ -462,7 +467,7 @@ function categorySwatches(prepared: PreparedBinding, order: readonly string[]): 
     if (folded !== undefined) {
         swatches.push({
             label: `other: ${String(lumped.length)} ${lumped.length === 1 ? "group" : "groups"}`,
-            value: lumped,
+            value: lumped.map(valueOf),
             ...swatchPaint(folded),
             count: prepared.counts.other,
             role: "other",

@@ -75,9 +75,21 @@ describe("the names of a partition's groups", () => {
         assert.isDefined(block, "the groups were painted, so the legend has a block for them");
         assert.deepStrictEqual(
             block?.swatches.map((swatch) => [swatch.label, swatch.value]),
-            groups.map((group) => [group.name, String(group.group)]),
-            "each swatch carries the summary's name and keeps the raw id as its value",
+            groups.map((group) => [group.name, group.group]),
+            "each swatch carries the summary's name and the group exactly as the summary spells it",
         );
+        const sizes = result.graph.sizes as readonly { readonly group: unknown }[];
+        assert.deepStrictEqual(
+            sizes.map((row) => row.group),
+            groups.map((group) => group.group),
+            "the sizes table spells each group the same way (#906)",
+        );
+        for (const swatch of block?.swatches ?? []) {
+            assert.isTrue(
+                groups.some((group) => group.group === swatch.value),
+                `the swatch value ${String(swatch.value)} matches a summary group with ===`,
+            );
+        }
         harness.session.dispose();
     });
 });

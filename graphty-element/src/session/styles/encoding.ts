@@ -153,6 +153,11 @@ export interface PreparedBinding {
      * policy -- largest first. Empty when nothing folded.
      */
     readonly lumped: readonly string[];
+    /**
+     * Each category as the data spells it -- the number `0`, not the name `"0"` -- so a legend
+     * hands back the value a result or a column published. Empty when there are no categories.
+     */
+    readonly categoryValues: ReadonlyMap<string, unknown>;
     /** How many distinct values the encoding paints, or 0 when it is a continuous ramp. */
     readonly groups: number;
     /** What the column held. */
@@ -388,6 +393,8 @@ interface ColumnFacts {
     readonly nonPositive: number;
     /** How often each category appeared. */
     readonly categoryCounts: ReadonlyMap<string, number>;
+    /** The first value each category was read from, as the data spells it. */
+    readonly categoryValues: ReadonlyMap<string, unknown>;
 }
 
 /**
@@ -403,6 +410,7 @@ interface ColumnFacts {
 function walkColumn(column: Iterable<unknown> | undefined, numeric: boolean): ColumnFacts {
     const numbers: number[] = [];
     const categoryCounts = new Map<string, number>();
+    const categoryValues = new Map<string, unknown>();
     let seen = 0;
     let unreadable = 0;
     let nonPositive = 0;
@@ -431,12 +439,17 @@ function walkColumn(column: Iterable<unknown> | undefined, numeric: boolean): Co
             continue;
         }
 
-        categoryCounts.set(name, (categoryCounts.get(name) ?? 0) + 1);
+        const count = categoryCounts.get(name);
+        if (count === undefined) {
+            categoryValues.set(name, value);
+        }
+
+        categoryCounts.set(name, (count ?? 0) + 1);
     }
 
     numbers.sort((left, right) => left - right);
 
-    return { seen, unreadable, sorted: numbers, nonPositive, categoryCounts };
+    return { seen, unreadable, sorted: numbers, nonPositive, categoryCounts, categoryValues };
 }
 
 /**
@@ -910,6 +923,7 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
         domain: null,
         categories: [],
         lumped: [],
+        categoryValues: new Map(),
         groups: 0,
         counts: NO_COUNTS,
         departures: [],
@@ -1384,6 +1398,7 @@ function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: As
         domain: parts.numeric ? parts.settled.domain : null,
         categories: parts.categories.categories,
         lumped: parts.categories.lumped,
+        categoryValues: parts.facts.categoryValues,
         groups: painter.groups,
         counts,
         departures: Object.freeze([...parts.settled.departures, ...countDepartures(counts)]),

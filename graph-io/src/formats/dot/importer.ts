@@ -284,7 +284,7 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         const report = new ImportReportBuilder(DOT_FORMAT, resolved.errorLimit);
         reportUnusedOptions(options, report, USED_OPTIONS);
         reportSinkOptions(sink, options, report);
-        const text = await readText(input, report, { ...resolved, declaredEncoding: dotCharset });
+        const text = await readText(input, report, { ...resolved, declaredEncoding: dotCharset, declarationBytes: CHARSET_HEAD_BYTES });
         const reports = { current: report };
         const lexer = dotLexer(text, reports);
         const first = guard(report, () => lexer.next());
@@ -327,7 +327,7 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         const mismatch = mismatchOption(options?.mismatchedEdgeOperator);
         const first = new ImportReportBuilder(DOT_FORMAT, resolved.errorLimit);
         reportUnusedOptions(options, first, USED_OPTIONS);
-        const text = await readText(input, first, { ...resolved, declaredEncoding: dotCharset });
+        const text = await readText(input, first, { ...resolved, declaredEncoding: dotCharset, declarationBytes: CHARSET_HEAD_BYTES });
         const reports = { current: first };
         const lexer = dotLexer(text, reports);
         const done: ImportReport[] = [];
@@ -437,19 +437,45 @@ function countGraphs(lexer: DotTokenizer, first: DotToken): number {
     return count;
 }
 
-/** A `charset` attribute assignment (Graphviz's declaration of the input encoding). */
-const DOT_CHARSET = /\bcharset\s*=\s*"?([A-Za-z][A-Za-z0-9._-]*)/i;
+/** How many leading bytes the `charset` search sees: a license comment may come before the graph. */
+const CHARSET_HEAD_BYTES = 64 * 1024;
 
 /**
  * The encoding a DOT file declares with the graph attribute `charset` (Graphviz reads UTF-8,
  * Latin1 and Big-5), for the shared byte decoder; Graphviz's spellings `latin-1` and `big-5` are
- * mapped to the WHATWG labels.
+ * mapped to the WHATWG labels. Only a graph-level assignment counts (`charset=...` as a statement
+ * or inside `graph [...]`), never one in a comment, a quoted value or a node / edge attribute list.
  * @param head - the start of the file, decoded as windows-1252
  * @returns the declared label, or null
  */
 function dotCharset(head: string): string | null {
-    const match = DOT_CHARSET.exec(head);
-    return match === null ? null : match[1].replace(/^(latin|big)-/i, "$1");
+    const lexer = new DotTokenizer(head);
+    // the attribute list an open `[` belongs to: the graph's (`graph [`) or a node's / an edge's
+    let list: "graph" | "other" | null = null;
+    let previous: DotToken | null = null;
+    try {
+        for (let token = lexer.next(); token.kind !== "eof"; token = lexer.next()) {
+            if (isPunct(token, "[")) {
+                list = previous !== null && isKeyword(previous, "graph") ? "graph" : "other";
+            } else if (isPunct(token, "]")) {
+                list = null;
+            } else if (list !== "other" && isKeyword(token, "charset")) {
+                const equals = lexer.next();
+                const value = isPunct(equals, "=") ? lexer.next() : equals;
+                if (value !== equals && value.kind === "id") {
+                    return value.text.replace(/^(latin|big)-/i, "$1");
+                }
+                token = value;
+            }
+            previous = token;
+        }
+    } catch (err) {
+        // the head ends inside a comment or a string: nothing further is seen
+        if (!(err instanceof DotSyntaxError)) {
+            throw err;
+        }
+    }
+    return null;
 }
 
 /**

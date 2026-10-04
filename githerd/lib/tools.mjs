@@ -441,8 +441,10 @@ function apiCounts(u) {
  */
 function apiLine(api) {
     if (!api?.lastPoll && !api?.hour) return null;
-    const words = (/** @type {any} */ c) =>
-        `${c.core} core, ${c.notModified} not modified (304, free), ${c.graphql} GraphQL${c.search ? `, ${c.search} search` : ""}`;
+    const words = (/** @type {any} */ c) => {
+        const search = c.search ? `, ${c.search} search` : "";
+        return `${c.core} core, ${c.notModified} not modified (304, free), ${c.graphql} GraphQL${search}`;
+    };
     const parts = [];
     if (api.lastPoll) parts.push(`last poll ${words(api.lastPoll)}`);
     if (api.hour) parts.push(`hour ${api.hour.hour.slice(11)}:00 UTC so far ${words(api.hour)}`);

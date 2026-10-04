@@ -279,17 +279,19 @@ export function createGitHub({
      * hour, ledgering the hour that ended.
      * @param {Call} req the request
      * @param {Response} res the answer
+     * @returns {Promise<void>}
      */
-    function count(req, res) {
+    async function count(req, res) {
         const u = r.usage;
         const hour = new Date(now()).toISOString().slice(0, 13);
         if (u.hour !== hour) {
-            if (u.hour !== null) {
-                const { core, notModified, graphql, search } = u;
-                u.lastHour = { hour: u.hour, core, notModified, graphql, search };
-                void ledger({ kind: "api-hour", ...u.lastHour });
-            }
+            const ended = u.hour;
+            const { core, notModified, graphql, search } = u;
             Object.assign(u, { hour, ...zero() });
+            if (ended !== null) {
+                u.lastHour = { hour: ended, core, notModified, graphql, search };
+                await ledger({ kind: "api-hour", ...u.lastHour });
+            }
         }
         const resource = res.headers["x-ratelimit-resource"] ?? (req.path === "graphql" ? "graphql" : "core");
         /** @type {keyof Counts} */
@@ -393,7 +395,7 @@ export function createGitHub({
             body: answer.data === "" ? null : (answer.data ?? null),
         };
         recordCounter(res.headers);
-        count(req, res);
+        await count(req, res);
         if ((res.status >= 200 && res.status < 300) || res.status === 304) {
             r.downSince = null;
             r.secondaryMs = 0;

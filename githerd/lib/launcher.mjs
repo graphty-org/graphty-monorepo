@@ -86,6 +86,11 @@ const HEARTBEAT_JITTER_MS = 10_000;
 const EXEC_TIMEOUT_MS = 60_000;
 /** Version directories kept besides the one in use. */
 const KEEP_VERSIONS = 3;
+/**
+ * The most files and bytes an archived copy may unpack to. The package is under 200 files and
+ * 6 MB; an archive far past that is not the package, and unpacking stops.
+ */
+const ARCHIVE_LIMITS = { files: 5_000, bytes: 200 * 1024 * 1024 };
 
 /**
  * Everything `ensureDaemon` works from.
@@ -307,7 +312,19 @@ async function materialize(ctx, target) {
                 env,
                 stdio: ["ignore", "pipe", "pipe"],
             });
-            const extract = untar({ cwd: tmp, strict: true });
+            let files = 0;
+            let bytes = 0;
+            let tooLarge = false;
+            const extract = untar({
+                cwd: tmp,
+                strict: true,
+                filter: (_path, entry) => {
+                    files++;
+                    bytes += entry.size ?? 0;
+                    tooLarge ||= files > ARCHIVE_LIMITS.files || bytes > ARCHIVE_LIMITS.bytes;
+                    return !tooLarge;
+                },
+            });
             archive.stdout.pipe(extract);
             let stderr = "";
             archive.stderr.on("data", (d) => (stderr += d));
@@ -319,11 +336,11 @@ async function materialize(ctx, target) {
                 extract.on("error", fail);
                 extract.on("finish", done);
             });
-            Promise.all([exited, extracted]).then(
-                ([code]) =>
-                    code === 0 ? resolve(undefined) : reject(new Error(`git archive failed: ${stderr.trim()}`)),
-                reject,
-            );
+            Promise.all([exited, extracted]).then(([code]) => {
+                if (code !== 0) reject(new Error(`git archive failed: ${stderr.trim()}`));
+                else if (tooLarge) reject(new Error(`the archive is past ${ARCHIVE_LIMITS.files} files or 200 MB`));
+                else resolve(undefined);
+            }, reject);
         });
         linkDependencies(ctx, tmp);
         writeFileSync(

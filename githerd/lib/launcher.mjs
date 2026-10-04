@@ -958,6 +958,10 @@ async function page(ctx, message) {
  *   a change of its cause may end fatal mode (design 9.6)
  */
 export async function ensureDaemon(ctx) {
+    // A development daemon (`githerd dev`) runs from a worktree before githerd is on the default
+    // branch; GITHERD_URL points the MCP server at it, so nothing is installed or started here.
+    const devUrl = ctx.env.GITHERD_URL;
+    if (devUrl) return devDaemon(devUrl);
     const target = await targetCode(ctx);
     const up = await upAnswer(ctx, target);
     if (up) return up;
@@ -971,6 +975,25 @@ export async function ensureDaemon(ctx) {
     } finally {
         releaseLock(ctx);
     }
+}
+
+/**
+ * The development daemon GITHERD_URL names, checked through its /health answer.
+ * @param {string} url the daemon's base URL, e.g. http://127.0.0.1:9678
+ * @returns {Promise<{url: string, action: "warm" | "down", fatal?: string}>} the answer
+ */
+async function devDaemon(url) {
+    const base = url.replace(/\/+$/, "");
+    let health;
+    try {
+        const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(5000) });
+        health = res.ok ? await res.json() : null;
+    } catch {
+        health = null;
+    }
+    if (health?.name !== "githerd") throw new Error(`GITHERD_URL ${base} does not answer as a githerd daemon`);
+    if (health.fatal) return { url: base, action: "down", fatal: health.fatal };
+    return { url: base, action: "warm" };
 }
 
 /**

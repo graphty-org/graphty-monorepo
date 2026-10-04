@@ -174,6 +174,28 @@ export interface WorkspaceCommands {
 }
 
 /**
+ * Adds one command and its keys, refusing a duplicate id or a key another command holds.
+ * @param byId - the commands so far, by id.
+ * @param byKey - the command id holding each key so far.
+ * @param command - the command to add.
+ * @param owner - the registration it came from, for the error.
+ */
+function addCommand(byId: Map<string, Command>, byKey: Map<string, string>, command: Command, owner: string): void {
+    if (byId.has(command.id)) {
+        throw new Error(`Command "${command.id}" is registered twice (again by ${owner})`);
+    }
+    byId.set(command.id, command);
+    for (const key of command.keys ?? []) {
+        assertAppKey(key, command.id);
+        const holder = byKey.get(key);
+        if (holder !== undefined) {
+            throw new Error(`Key "${key}" is bound to both "${holder}" and "${command.id}"`);
+        }
+        byKey.set(key, command.id);
+    }
+}
+
+/**
  * Builds the registry, refusing what would break a door: a duplicate id, a key two commands
  * share, or a key graphty-element owns on a focused canvas.
  * @param registrations - every package's registration.
@@ -186,18 +208,7 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
 
     for (const { owner, commands, inspectedKinds = [] } of registrations) {
         for (const command of commands) {
-            if (byId.has(command.id)) {
-                throw new Error(`Command "${command.id}" is registered twice (again by ${owner})`);
-            }
-            byId.set(command.id, command);
-            for (const key of command.keys ?? []) {
-                assertAppKey(key, command.id);
-                const holder = byKey.get(key);
-                if (holder !== undefined) {
-                    throw new Error(`Key "${key}" is bound to both "${holder}" and "${command.id}"`);
-                }
-                byKey.set(key, command.id);
-            }
+            addCommand(byId, byKey, command, owner);
         }
         for (const kind of inspectedKinds) {
             if (kinds.has(kind.kind)) {

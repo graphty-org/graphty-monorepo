@@ -8,9 +8,14 @@
  * - `POST /rpc`: MCP JSON-RPC; `X-Githerd-Session` names the calling session. A judgment run sends
  *   `Authorization: Bearer <run token>` instead; a token that names no running run is refused
  *   with 401, and a valid one gets the run tools of its kind.
- * - `POST /heartbeat`: `{session, cwd, branch}` registers or refreshes a session.
+ * - `POST /heartbeat`: `{session, cwd, branch, typedAt}` registers or refreshes a session;
+ *   `typedAt`, when the owner last typed into a session there, counts as presence.
  * - `POST /owner`: the owner's CLI. `{op: "ack", key}` clears an escalation, `{op: "veto", id}`
  *   vetoes closing an issue or pull request (`issue:<n>` or `pr:<n>`) for good.
+ *
+ * Presence (design 11.3) is recorded only from a request whose `X-Githerd-Caller` is `owner`, which
+ * the CLI sends for an owner command (`status`, `ack`, `veto`) run from a plain terminal and never
+ * from inside Claude Code, and never for the board's redraws.
  *
  * With `GITHERD_DEV` set (the development daemon of `githerd dev`), the mode never rises above
  * dry-run, whatever the config says, and pages go to the ledger only (as `delivered: false`), so
@@ -1812,8 +1817,7 @@ export async function startDaemon({
         const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
         /** @type {import("./board.mjs").Caller} */
         let caller = session ? { session: String(session) } : {};
-        // A call with neither a session nor a run token is the owner's CLI.
-        if (!session && !bearer) notePresence(state, "cli", now().toISOString());
+        if (!session && !bearer) ownerPresent(req);
         if (bearer) {
             const auth = authenticate(state, bearer);
             if (!auth.ok) return [401, { error: /** @type {{error: string}} */ (auth).error }];
@@ -1821,6 +1825,14 @@ export async function startDaemon({
         }
         const reply = await mcp.handle(await body(req), caller);
         return reply === null ? [202] : [200, reply];
+    }
+
+    /**
+     * Records the owner's presence for a CLI request that says it comes from him.
+     * @param {import("node:http").IncomingMessage} req the request
+     */
+    function ownerPresent(req) {
+        if (req.headers["x-githerd-caller"] === "owner") notePresence(state, "cli", now().toISOString());
     }
 
     /**
@@ -1832,6 +1844,8 @@ export async function startDaemon({
         const beat = JSON.parse(await body(req));
         if (typeof beat?.session !== "string" || beat.session === "") return [400, { error: "session is required" }];
         board.heartbeat(state, { session: beat.session, cwd: beat.cwd, branch: beat.branch }, now());
+        const typed = typeof beat.typedAt === "string" ? Date.parse(beat.typedAt) : Number.NaN;
+        if (typed <= now().getTime()) notePresence(state, "session", new Date(typed).toISOString());
         await save();
         return [200, { ok: true }];
     }
@@ -1842,7 +1856,7 @@ export async function startDaemon({
      * @returns {Promise<[number, unknown?]>} the status and the reply
      */
     async function ownerRoute(req) {
-        notePresence(state, "cli", now().toISOString());
+        ownerPresent(req);
         const answer = owner(JSON.parse(await body(req)));
         if (answer.entry) {
             await save();

@@ -844,7 +844,7 @@ describe("the poll loop", () => {
         expect(posted["7"]).toMatchObject({ sha: B, state: "failure", description: expect.stringMatching(/^held: /) });
     });
 
-    it("posts open owner items as would-dos and counts the owner's CLI as presence", async () => {
+    it("posts open owner items as would-dos, and counts only the owner's CLI and typing as presence", async () => {
         const daemon = await start();
         daemon.state.ownerItems = {
             "ask-7": {
@@ -867,12 +867,41 @@ describe("the poll loop", () => {
         expect(gh.writes()).toEqual([]);
 
         expect(daemon.state.presence?.lastAt).toBeUndefined();
+        const status = {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: { name: "githerd_status", arguments: {} },
+        };
+        // A board's redraw and an agent's command are not the owner.
+        for (const headers of [{}, { "x-githerd-caller": "agent" }]) {
+            await fetch(`${daemon.url}/rpc`, { method: "POST", headers, body: JSON.stringify(status) });
+            await fetch(`${daemon.url}/owner`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ op: "ack", key: "x" }),
+            });
+        }
+        expect(daemon.state.presence?.lastAt).toBeUndefined();
         const res = await fetch(`${daemon.url}/owner`, {
             method: "POST",
+            headers: { "x-githerd-caller": "owner" },
             body: JSON.stringify({ op: "ack", key: "x" }),
         });
         expect(res.status).toBe(404);
         expect(daemon.state.presence).toMatchObject({ lastAt: clock.toISOString(), source: "cli" });
+
+        // Typing into a session, as its heartbeat reports it, is presence too; a future time is not.
+        const beat = (/** @type {string} */ typedAt) =>
+            fetch(`${daemon.url}/heartbeat`, {
+                method: "POST",
+                body: JSON.stringify({ session: "main-1", cwd: dir, branch: "master", typedAt }),
+            });
+        clock = new Date("2026-10-02T13:00:00Z");
+        await beat("2026-10-02T14:00:00Z");
+        expect(daemon.state.presence.source).toBe("cli");
+        await beat("2026-10-02T12:59:00Z");
+        expect(daemon.state.presence).toMatchObject({ lastAt: "2026-10-02T12:59:00.000Z", source: "session" });
     });
 
     it("advances a confirmed close proposal: the comment is a would-do in dry-run", async () => {

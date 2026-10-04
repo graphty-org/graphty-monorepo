@@ -30,6 +30,7 @@ import {
     loadDaemonEnv,
     pm2Command,
     runLauncher,
+    sessionTypedAt,
     writeDaemonEnv,
 } from "../lib/launcher.mjs";
 import { bootId } from "../lib/proc.mjs";
@@ -845,5 +846,38 @@ describe("pm2Command", () => {
         expect(pm2Command(["npx", "-y", "servherd"], {})).toEqual(["npx", "-y", "-p", "servherd", "pm2"]);
         expect(pm2Command(["x"], { GITHERD_PM2: '["a","b"]' })).toEqual(["a", "b"]);
         expect(pm2Command(["/nowhere/servherd.js"], {})).toEqual(["pm2"]);
+    });
+});
+
+describe("sessionTypedAt", () => {
+    it("reads the owner's last typed message from the newest transcript of the session's directory", () => {
+        const home = mkdtempSync(join(tmpdir(), "githerd-home-"));
+        try {
+            const cwd = "/work/my.repo";
+            expect(sessionTypedAt(cwd, home)).toBeNull();
+            const projects = join(home, ".claude", "projects", "-work-my-repo");
+            mkdirSync(projects, { recursive: true });
+            const line = (/** @type {object} */ r) => JSON.stringify(r);
+            writeFileSync(
+                join(projects, "old.jsonl"),
+                line({ type: "user", timestamp: "2026-10-03T09:00:00Z", message: { content: "old" } }),
+            );
+            utimesSync(join(projects, "old.jsonl"), 1, 1);
+            writeFileSync(
+                join(projects, "new.jsonl"),
+                [
+                    line({ type: "user", timestamp: "2026-10-03T10:00:00Z", message: { content: "fix it" } }),
+                    line({
+                        type: "user",
+                        timestamp: "2026-10-03T10:05:00Z",
+                        message: { content: "<task-notification>" },
+                    }),
+                    line({ type: "assistant", timestamp: "2026-10-03T10:06:00Z" }),
+                ].join("\n"),
+            );
+            expect(sessionTypedAt(cwd, home)).toBe("2026-10-03T10:00:00Z");
+        } finally {
+            rmSync(home, { recursive: true, force: true });
+        }
     });
 });

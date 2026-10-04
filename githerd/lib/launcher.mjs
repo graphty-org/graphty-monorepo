@@ -26,7 +26,10 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
     appendFileSync,
+    closeSync,
     mkdirSync,
+    openSync,
+    readSync,
     readdirSync,
     readFileSync,
     renameSync,
@@ -42,7 +45,7 @@ import { createInterface } from "node:readline";
 
 import { DEFAULTS, defaultBranch, repoRoot, resolveConfig } from "./config.mjs";
 import { createMcpServer } from "./mcp.mjs";
-import { createNotifier } from "./notify.mjs";
+import { createNotifier, lastTypedAt } from "./notify.mjs";
 import { identify, sameProcess } from "./proc.mjs";
 import { defaultStateDir, readLiveness } from "./store.mjs";
 import { sessionTools } from "./tools.mjs";
@@ -775,6 +778,45 @@ function staticTools() {
     }));
 }
 
+/** How much of a transcript's end is read for the owner's last typed message. */
+const TRANSCRIPT_TAIL = 256 * 1024;
+
+/**
+ * When the owner last typed into a Claude session working in `cwd`: the newest typed user record of
+ * the newest transcript in the project directory Claude Code keeps for that cwd (its path with
+ * every character other than a letter or a digit made `-`). The heartbeat sends it, so typing into
+ * an interactive session counts as presence (design 11.3); a judgment run's launcher sends no
+ * heartbeat.
+ * ponytail: the newest transcript of the cwd, not this session's own (the launcher does not know
+ * its session id); any session the owner types into in that directory is presence all the same.
+ * @param {string} cwd the session's working directory
+ * @param {string} home the home directory holding `.claude/projects`
+ * @returns {string | null} the time, or null when there is no transcript or no typed record
+ */
+export function sessionTypedAt(cwd, home) {
+    const dir = join(home, ".claude", "projects", cwd.replaceAll(/[^A-Za-z0-9]/g, "-"));
+    let newest = null;
+    try {
+        for (const name of readdirSync(dir)) {
+            if (!name.endsWith(".jsonl")) continue;
+            const { mtimeMs, size } = statSync(join(dir, name));
+            if (!newest || mtimeMs > newest.mtimeMs) newest = { path: join(dir, name), mtimeMs, size };
+        }
+        if (!newest) return null;
+        const length = Math.min(newest.size, TRANSCRIPT_TAIL);
+        const buf = Buffer.alloc(length);
+        const fd = openSync(newest.path, "r");
+        try {
+            readSync(fd, buf, 0, length, newest.size - length);
+        } finally {
+            closeSync(fd);
+        }
+        return lastTypedAt(buf.toString("utf8"));
+    } catch {
+        return null;
+    }
+}
+
 /**
  * Runs the launcher on a pair of streams until the input ends.
  * @param {object} options the streams and the context
@@ -925,7 +967,12 @@ export async function runLauncher({
             await fetch(`${target}/heartbeat`, {
                 method: "POST",
                 headers,
-                body: JSON.stringify({ session, cwd, branch: currentBranch(cwd) }),
+                body: JSON.stringify({
+                    session,
+                    cwd,
+                    branch: currentBranch(cwd),
+                    typedAt: sessionTypedAt(cwd, env.HOME ?? homedir()),
+                }),
                 signal: AbortSignal.timeout(5000),
             });
         } catch {

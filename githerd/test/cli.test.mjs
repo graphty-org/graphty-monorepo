@@ -201,8 +201,11 @@ process.stderr.write("fake gh: offline\\n"); process.exit(1);`,
         "GITHERD_RUN_ID",
     ])
         delete env[name];
-    // The owner's notify keys never reach a test daemon's environment file.
-    for (const name of Object.keys(env)) if (name.startsWith("PUSHOVER_")) delete env[name];
+    // The owner's notify keys never reach a test daemon's environment file, and a test's CLI runs as
+    // from a plain terminal, whether or not the test runner was started from Claude Code.
+    for (const name of Object.keys(env)) {
+        if (name.startsWith("PUSHOVER_") || name === "CLAUDECODE" || name.startsWith("CLAUDE_")) delete env[name];
+    }
     writeConfig();
     daemons = [];
     strays = [];
@@ -321,6 +324,30 @@ describe("status", () => {
         expect((await cli(["status", "owner"])).out).toContain("i2 [money] top up");
         writeFileSync(join(stateDir(), "state.json.bak"), JSON.stringify({ schema: 1 }));
         expect((await cli(["status", "owner"])).out).toContain("OWNER: nothing is waiting on you");
+    });
+});
+
+describe("presence", () => {
+    it("status from a plain terminal is the owner's presence; from inside Claude Code it is not", async () => {
+        const d = await daemon();
+        expect((await cli(["status"], { extraEnv: { CLAUDECODE: "1" } })).code).toBe(0);
+        expect((await cli(["status"], { extraEnv: { CLAUDE_CODE_ENTRYPOINT: "cli" } })).code).toBe(0);
+        expect(d.state.presence?.lastAt).toBeUndefined();
+        expect((await cli(["status"])).code).toBe(0);
+        expect(d.state.presence).toMatchObject({ source: "cli" });
+    });
+
+    it("a running board's redraws never count as presence", async () => {
+        const d = await daemon();
+        const out = [];
+        const stop = new AbortController();
+        const done = runCli(["board"], { cwd: root, env, out: (l) => out.push(l), err: () => {}, signal: stop.signal });
+        await expect.poll(() => out.length).toBe(1);
+        await d.poll();
+        await expect.poll(() => out.length).toBeGreaterThan(1);
+        stop.abort();
+        expect(await done).toBe(0);
+        expect(d.state.presence?.lastAt).toBeUndefined();
     });
 });
 

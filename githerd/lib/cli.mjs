@@ -134,16 +134,28 @@ function readJson(path) {
 }
 
 /**
+ * Who runs this command, for the daemon's presence record (design 11.3): `agent` inside Claude
+ * Code (any `CLAUDECODE` or `CLAUDE_*` variable in the environment), else `owner`.
+ * @param {Record<string, string | undefined>} env the environment
+ * @returns {{"x-githerd-caller": string}} the header
+ */
+export function callerHeader(env) {
+    const agent = Object.keys(env).some((k) => k === "CLAUDECODE" || k.startsWith("CLAUDE_"));
+    return { "x-githerd-caller": agent ? "agent" : "owner" };
+}
+
+/**
  * Posts JSON to the daemon.
  * @param {number} port the daemon's port
  * @param {string} path the endpoint
  * @param {unknown} body the request
+ * @param {Record<string, string>} [headers] extra headers: the caller, for an owner command
  * @returns {Promise<any>} the parsed answer
  */
-async function post(port, path, body) {
+async function post(port, path, body, headers = {}) {
     const res = await fetch(`http://127.0.0.1:${port}${path}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...headers },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(EXEC_TIMEOUT_MS),
     });
@@ -299,7 +311,12 @@ async function daemonPort(c) {
  * @returns {Promise<number>} the exit code
  */
 async function cmdStatus(c) {
-    const board = await boardText(c.stateDir, { section: c.positional[0], json: c.flags.json === true, now: c.now() });
+    const board = await boardText(c.stateDir, {
+        section: c.positional[0],
+        json: c.flags.json === true,
+        now: c.now(),
+        headers: callerHeader(c.env),
+    });
     (board.ok ? c.out : c.err)(board.text);
     return board.ok ? 0 : 1;
 }
@@ -354,7 +371,12 @@ async function cmdOwner(c) {
     }
     const port = await daemonPort(c);
     if (port === null) return 1;
-    const answer = await post(port, "/owner", ack ? { op: "ack", key: target } : { op: "veto", id: target });
+    const answer = await post(
+        port,
+        "/owner",
+        ack ? { op: "ack", key: target } : { op: "veto", id: target },
+        callerHeader(c.env),
+    );
     (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
     return answer.ok ? 0 : 1;
 }
@@ -627,21 +649,28 @@ async function offlineState(stateDir) {
  * The board: the daemon's answer when it answers, else rendered from the state directory with a
  * line saying the daemon is down.
  * @param {string} stateDir the state directory
- * @param {{section?: string, json?: boolean, now: Date}} options one section, JSON, the clock
+ * @param {{section?: string, json?: boolean, now: Date, headers?: Record<string, string>}} options one
+ *   section, JSON, the clock, and the caller header (`status` sends it; the board's redraws do not,
+ *   so an open board never counts as the owner's presence)
  * @returns {Promise<{ok: boolean, text: string}>} the text, and whether it is an answer or an error
  */
-async function boardText(stateDir, { section, json = false, now }) {
+async function boardText(stateDir, { section, json = false, now, headers = {} }) {
     const { record, health, error } = await probe(/** @type {any} */ ({ stateDir }));
     if (health) {
-        const reply = await post(record.port, "/rpc", {
-            jsonrpc: "2.0",
-            id: 1,
-            method: "tools/call",
-            params: {
-                name: "githerd_status",
-                arguments: { ...(json ? { format: "json" } : {}), ...(section ? { section } : {}) },
+        const reply = await post(
+            record.port,
+            "/rpc",
+            {
+                jsonrpc: "2.0",
+                id: 1,
+                method: "tools/call",
+                params: {
+                    name: "githerd_status",
+                    arguments: { ...(json ? { format: "json" } : {}), ...(section ? { section } : {}) },
+                },
             },
-        });
+            headers,
+        );
         const failed = Boolean(reply.result?.isError || reply.error);
         return { ok: !failed, text: reply.result?.content?.[0]?.text ?? reply.error?.message ?? JSON.stringify(reply) };
     }

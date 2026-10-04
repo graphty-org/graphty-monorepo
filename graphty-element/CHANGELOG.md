@@ -1,3 +1,24 @@
+## 3.9.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** session.find lists hits and values without selecting ([953fac48](https://github.com/graphty-org/graphty-monorepo/commit/953fac48))
+- **graphty-element:** find nodes, edges and values without selecting them ([#783](https://github.com/graphty-org/graphty-monorepo/issues/783))
+
+### 🩹 Fixes
+
+- **graphty-element:** zoomToSelection frames selected edges by their ends ([c581691b](https://github.com/graphty-org/graphty-monorepo/commit/c581691b))
+- **graphty-element:** find never matches an edge by its assigned id ([ff2dfde9](https://github.com/graphty-org/graphty-monorepo/commit/ff2dfde9))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.29
+- Updated layout to 2.2.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.8.0 (2026-10-04)
 
 ### 🚀 Features

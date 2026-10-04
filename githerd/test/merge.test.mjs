@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
-import { mergeDecision, patchId, stackChains, stackSteps } from "../lib/prs.mjs";
+import { mergeDecision, patchId, releaseSectionChanged, stackChains, stackSteps } from "../lib/prs.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
 const OWNER = "apowers313";
@@ -232,6 +232,38 @@ describe("githerd/merge decision", () => {
             expect(mergeDecision(pr({ releaseBumps: null }), ctx()).state).toBe("success");
             expect(mergeDecision(pr({ releaseBumps: null, files: ["design/x.md"] }), ctx()).state).toBe("success");
             expect(mergeDecision(pr({ releaseBumps: null, commits: null }), ctx()).state).toBe("pending");
+        });
+
+        it("waits for it on an nx.json change only when the release section changed (#1002)", () => {
+            // #1002 at 4cc6846: a CI change that adds an nx input, with no breaking commit.
+            const files = [".github/workflows/ci.yml", "algorithms/vitest.config.ts", "nx.json", "vitest.ci-junit.mjs"];
+            const commits = ["ci: upload every test shard's JUnit results to Mergify Test Insights"];
+            const ci = { files, commits, releaseBumps: null };
+            expect(mergeDecision(pr({ ...ci, nxReleaseChanged: false }), ctx()).state).toBe("success");
+            expect(mergeDecision(pr({ ...ci, nxReleaseChanged: true }), ctx()).state).toBe("pending");
+            // Unread, it counts as changed.
+            expect(mergeDecision(pr({ ...ci, nxReleaseChanged: null }), ctx()).state).toBe("pending");
+            expect(mergeDecision(pr(ci), ctx()).state).toBe("pending");
+            // A breaking commit still waits, whatever nx.json says (#676, #702, #843).
+            const breaking = {
+                ...ci,
+                title: "feat(layout)!: x",
+                commits: ["feat(layout)!: x"],
+                nxReleaseChanged: false,
+            };
+            expect(mergeDecision(pr(breaking), ctx()).state).toBe("pending");
+        });
+
+        it("compares nx.json's release section, not the rest of the file", () => {
+            const nx = (/** @type {Record<string, unknown>} */ o) => JSON.stringify(o, null, 4);
+            const release = { projects: ["layout"], version: { conventionalCommits: true } };
+            const base = nx({ release, namedInputs: { sharedGlobals: [] } });
+            const inputs = nx({ release, namedInputs: { sharedGlobals: ["{workspaceRoot}/vitest.ci-junit.mjs"] } });
+            expect(releaseSectionChanged(inputs, base)).toBe(false);
+            const held = nx({ release: { ...release, projects: [] }, namedInputs: { sharedGlobals: [] } });
+            expect(releaseSectionChanged(held, base)).toBe(true);
+            expect(releaseSectionChanged(null, base)).toBe(true);
+            expect(releaseSectionChanged("{", base)).toBe(true);
         });
     });
 

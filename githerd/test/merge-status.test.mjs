@@ -366,6 +366,16 @@ describe("head facts", () => {
         });
     });
 
+    it("carries whether nx.json's release section changed into the decision's facts", () => {
+        const node = { number: 1002, headRefOid: "a", baseRefName: "master" };
+        const read = (/** @type {any} */ d) =>
+            foldHead(undefined, { headRefOid: "a", detail: { files: ["nx.json"], ...d } });
+        expect(openPr(node, read({ nxReleaseChanged: false })).nxReleaseChanged).toBe(false);
+        expect(openPr(node, read({ nxReleaseChanged: true })).nxReleaseChanged).toBe(true);
+        // Not read (a copy could not be fetched): null, which counts as changed.
+        expect(openPr(node, read({})).nxReleaseChanged).toBeNull();
+    });
+
     it("asks npm once per head and waits while the registry does not answer", async () => {
         const asked = [];
         let answer = null;

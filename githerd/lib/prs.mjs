@@ -400,18 +400,38 @@ const RELEASE_INPUTS = [
 const RELEASE_CONFIG = RELEASE_INPUTS.filter((p) => !p.endsWith("/"));
 
 /**
+ * Whether a change to nx.json changes what `nx release` reads from it: its `release` section.
+ * The rest of nx.json (targets, inputs, plugins) changes builds, not versions.
+ * @param {string | null} head nx.json at the pull request's head; null when it has none
+ * @param {string | null} base nx.json on its base branch; null when it has none
+ * @returns {boolean} true when the sections differ or either file cannot be read as JSON
+ */
+export function releaseSectionChanged(head, base) {
+    try {
+        const section = (/** @type {string | null} */ text) => JSON.stringify(JSON.parse(text ?? "{}").release ?? null);
+        return section(head) !== section(base);
+    } catch {
+        return true;
+    }
+}
+
+/**
  * Whether merging a head needs the release dry-run's answer (decision line 7). Line 7 fails only on
  * a major bump, and nx release makes a major only from a breaking commit or a changed release
  * configuration, so a head that changes package files with no breaking commit never needs it.
  * ponytail: a hand-edited `version` in a package.json is not looked at; read the manifest patches
  * here if a version is ever edited by hand instead of by the release.
  * @param {{files: string[] | null, filesTruncated?: boolean, commits: string[] | null,
- *   commitsTruncated?: boolean}} pr the head's files and commit messages (null while unread)
+ *   commitsTruncated?: boolean, nxReleaseChanged?: boolean | null}} pr the head's files and commit
+ *   messages (null while unread), and whether its nx.json changes the release section
+ *   (`releaseSectionChanged`; absent or null while unread)
  * @returns {boolean | null} true or false, or null while what decides it is unread
  */
 export function needsReleaseDryRun(pr) {
     if (!pr.files) return null;
-    if (pr.filesTruncated || touches(pr.files, RELEASE_CONFIG)) return true;
+    // nx.json counts only when its release section changed; unread, it counts.
+    const config = RELEASE_CONFIG.filter((p) => p !== "nx.json" || pr.nxReleaseChanged !== false);
+    if (pr.filesTruncated || touches(pr.files, config)) return true;
     if (!touches(pr.files, RELEASE_INPUTS)) return false;
     if (pr.commits === null) return null;
     return Boolean(pr.commitsTruncated) || pr.commits.some(isBreakingCommit);
@@ -437,7 +457,7 @@ const DESCRIPTION_MAX = 140;
  *   number: number, author: string | null, title: string, labels: string[],
  *   commits: string[] | null, commitsTruncated?: boolean, files: string[] | null, filesTruncated?: boolean,
  *   dependencies: {added: string[], unknownToNpm: string[]} | null, ownerItemOpen?: boolean,
- *   job?: JobFacts | null, releaseBumps?: Bump[] | null,
+ *   job?: JobFacts | null, releaseBumps?: Bump[] | null, nxReleaseChanged?: boolean | null,
  * }} MergeFacts what githerd knows about one open pull request into master at its current head.
  *   `null` means not read yet for this head: commit messages, changed files, the packages it adds
  *   (with those npm does not know), the release dry-run (needed only when `needsReleaseDryRun`).

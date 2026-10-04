@@ -43,9 +43,10 @@ const DISARM = `mutation DisarmAutoMerge($id: ID!) {
  * @typedef {{
  *   sha: string, commits: string[] | null, commitsTruncated: boolean, files: string[] | null,
  *   filesTruncated: boolean, added: string[] | null,
- *   dependencies: {added: string[], unknownToNpm: string[]} | null,
+ *   dependencies: {added: string[], unknownToNpm: string[]} | null, nxReleaseChanged?: boolean | null,
  * }} HeadFacts what githerd read about one head: its commit messages, its changed files, the
- *   packages its manifests add (null while a manifest's patch is unread), and npm's answer for them
+ *   packages its manifests add (null while a manifest's patch is unread), npm's answer for them,
+ *   and whether its nx.json changes the release section (null while unread)
  * @typedef {MergeFacts & {head: string, base: string, nodeId: string | null, autoMergeAt: string | null}}
  *   OpenPr an open pull request: the decision's facts, its head commit, its base branch, its
  *   GraphQL node id, and when native auto-merge was armed on it (null when it is not)
@@ -111,8 +112,9 @@ export function npmLookup(fetchFn = fetch) {
 /**
  * Folds one poll's read of a pull request into its head's record. A new head starts empty; the
  * same head keeps what was read for it. `node.detail` holds what the poll read for this head:
- * `commits` (`{messages, truncated}`), `files` (paths), `filesTruncated`, and `packagePatches`,
- * the patch of each changed `package.json` in `files` order (null for one GitHub left out).
+ * `commits` (`{messages, truncated}`), `files` (paths), `filesTruncated`, `packagePatches`, the
+ * patch of each changed `package.json` in `files` order (null for one GitHub left out), and
+ * `nxReleaseChanged` when it changes nx.json and both copies were read.
  * @param {HeadFacts | undefined} prev the record from the last poll
  * @param {any} node the GraphQL pull request node, with `detail`
  * @returns {HeadFacts} the record for its current head
@@ -140,6 +142,7 @@ export function foldHead(prev, node) {
         head.files = d.files;
         head.filesTruncated = d.filesTruncated === true;
         head.dependencies = null;
+        head.nxReleaseChanged = typeof d.nxReleaseChanged === "boolean" ? d.nxReleaseChanged : null;
         const manifests = d.files.filter(
             (/** @type {string} */ f) => f === "package.json" || f.endsWith("/package.json"),
         );
@@ -190,6 +193,7 @@ export function openPr(node, head, extra = {}) {
         files: head.files,
         filesTruncated: head.filesTruncated,
         dependencies: head.dependencies,
+        nxReleaseChanged: head.nxReleaseChanged ?? null,
         ownerItemOpen: false,
         job: null,
         releaseBumps: null,

@@ -96,7 +96,7 @@ import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, rai
 import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
 import { containerStart, identify } from "./proc.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
-import { needsReleaseDryRun, patchId, touches, updatePrs, whyStuck } from "./prs.mjs";
+import { needsReleaseDryRun, patchId, releaseSectionChanged, touches, updatePrs, whyStuck } from "./prs.mjs";
 import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
 import { NEXT, SKIP } from "./queue.mjs";
 import {
@@ -912,6 +912,23 @@ export async function startDaemon({
     }
 
     /**
+     * Whether a pull request's nx.json changes the release section against its base branch's.
+     * @param {any} node the GraphQL node
+     * @returns {Promise<boolean | undefined>} the answer; undefined when a copy could not be read
+     */
+    async function nxReleaseChanged(node) {
+        const read = async (/** @type {string} */ ref) => {
+            const body = (await github().get(`repos/${config.repo}/contents/nx.json?ref=${ref}`)).body;
+            return typeof body?.content === "string" ? Buffer.from(body.content, "base64").toString("utf8") : null;
+        };
+        try {
+            return releaseSectionChanged(await read(node.headRefOid), await read(node.baseRefName));
+        } catch {
+            return undefined;
+        }
+    }
+
+    /**
      * Fetches what a PR's verdict needs beyond the GraphQL node (design section 6.2): the commit
      * list and files of a new head, the failed steps of a lone failing required check, and the
      * comments since the head while that check is the only failure.
@@ -923,7 +940,13 @@ export async function startDaemon({
         const n = node.number;
         /** @type {Record<string, any>} */
         const detail = {};
-        if (prev?.breakingCheckedFor !== node.headRefOid) {
+        const gateHead = state.mergeGate?.heads?.[n];
+        // A head read before nx.json's release section was looked at is read once more.
+        const nxUnread =
+            gateHead?.sha === node.headRefOid &&
+            gateHead.files?.includes("nx.json") &&
+            gateHead.nxReleaseChanged === undefined;
+        if (prev?.breakingCheckedFor !== node.headRefOid || nxUnread) {
             const list = await pages(`repos/${repo}/pulls/${n}/commits?per_page=100`, 3);
             detail.commits = { messages: list.items.map((c) => c.commit.message), truncated: list.items.length >= 250 };
             const files = (await pages(`repos/${repo}/pulls/${n}/files?per_page=100`, 30)).items;
@@ -933,6 +956,7 @@ export async function startDaemon({
             detail.packagePatches = files
                 .filter((f) => f.filename === "package.json" || f.filename.endsWith("/package.json"))
                 .map((f) => f.patch ?? null);
+            if (detail.files.includes("nx.json")) detail.nxReleaseChanged = await nxReleaseChanged(node);
         }
         if (config.ownerGate) {
             const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];

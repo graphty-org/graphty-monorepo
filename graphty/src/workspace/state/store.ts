@@ -7,6 +7,7 @@
  * tests each get their own.
  */
 
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
 import type { InspectedKind } from "../commands/registry";
@@ -57,6 +58,11 @@ export interface WorkspaceState {
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
+    /**
+     * What to load once the element of a project that was just opened has come up (a sample or
+     * a file from the start screen), with the name it is known by; run once, then cleared.
+     */
+    readonly opening: { readonly name: string; readonly load: (session: GraphSession) => Promise<void> } | null;
 }
 
 /** Panel sizes: 240 is the design's panel width (PANEL_GRID.WIDTH). */
@@ -80,6 +86,7 @@ const INITIAL: WorkspaceState = {
     legendShown: true,
     singleKeyShortcuts: true,
     notice: null,
+    opening: null,
 };
 
 /** The store. */

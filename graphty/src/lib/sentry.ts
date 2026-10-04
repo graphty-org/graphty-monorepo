@@ -1,6 +1,12 @@
 import * as Sentry from "@sentry/react";
 
 let initialized = false;
+/**
+ * The one replay integration of this page. Sentry throws "Multiple Sentry Session Replay
+ * instances are not supported" on a second replayIntegration(), and a reader can turn usage data
+ * off and on again in one visit, so it is made once and restarted.
+ */
+let replay: ReturnType<typeof Sentry.replayIntegration> | undefined;
 
 interface SentryConfig {
     dsn?: string;
@@ -35,14 +41,36 @@ export function initSentry(config?: SentryConfig): void {
         return;
     }
 
+    const restart = replay !== undefined;
+    replay ??= Sentry.replayIntegration({ maskAllText: true, maskAllInputs: true, blockAllMedia: true });
     Sentry.init({
         dsn,
         environment: effectiveConfig.environment,
         tracesSampleRate: effectiveConfig.isProd ? 0.1 : 1.0,
-        replaysSessionSampleRate: 0, // Privacy-first
-        replaysOnErrorSampleRate: 0,
+        // Started only once the reader has said Share usage data (workspace/privacy/usageData.ts),
+        // whose "What is collected" list promises a replay of each session with every text and
+        // input masked. The canvas is not recorded: replay draws no canvas without its canvas
+        // integration, which is not added.
+        replaysSessionSampleRate: 1.0,
+        replaysOnErrorSampleRate: 1.0,
+        integrations: [replay],
     });
+    if (restart) {
+        // The integration sets itself up once per page; on a later start it records only when asked.
+        replay.start();
+    }
     initialized = true;
+}
+
+/**
+ * Stop sending anything: the reader turned usage data off.
+ */
+export function stopSentry(): void {
+    if (initialized) {
+        void replay?.stop();
+        void Sentry.close();
+    }
+    initialized = false;
 }
 
 /**
@@ -58,6 +86,7 @@ export function isSentryEnabled(): boolean {
  */
 export function resetSentryState(): void {
     initialized = false;
+    replay = undefined;
 }
 
 /**

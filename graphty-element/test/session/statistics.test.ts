@@ -262,6 +262,68 @@ describe("the mean degree", () => {
     });
 });
 
+describe("the transitivity", () => {
+    /**
+     * The transitivity a session reports for a graph.
+     * @param directed - whether the session is directed
+     * @param count - how many nodes
+     * @param edges - the edges between them
+     * @returns the statistic
+     */
+    function transitivityOf(directed: boolean, count: number, edges: readonly (readonly [number, number])[]): number {
+        const harness = makeSession({ directed });
+        const rows = graph(count, edges);
+        harness.add(rows.nodes, rows.edges);
+        const value = harness.session.data.statistics().transitivity;
+        harness.session.dispose();
+        assert.isDefined(value);
+
+        return value;
+    }
+
+    it("is 1 on a triangle and 0 on a graph with no triangle", () => {
+        assert.strictEqual(
+            transitivityOf(false, 3, [
+                [0, 1],
+                [1, 2],
+                [2, 0],
+            ]),
+            1,
+        );
+        assert.strictEqual(
+            transitivityOf(false, 4, [
+                [0, 1],
+                [0, 2],
+                [0, 3],
+            ]),
+            0,
+        );
+        assert.strictEqual(transitivityOf(false, 2, []), 0);
+    });
+
+    it("ignores arc direction, as the undirected view Louvain runs on does", () => {
+        assert.strictEqual(
+            transitivityOf(true, 3, [
+                [0, 1],
+                [1, 2],
+                [0, 2],
+            ]),
+            1,
+        );
+    });
+
+    it("reads a triangle with a pendant edge near the exact 3/5", () => {
+        // Wedges: 1 at node 1, 1 at node 2, 3 at node 0 (one of them closed). Closed: 3 of 5.
+        const value = transitivityOf(false, 4, [
+            [0, 1],
+            [1, 2],
+            [2, 0],
+            [0, 3],
+        ]);
+        assert.approximately(value, 0.6, 0.03);
+    });
+});
+
 describe("where the direction came from", () => {
     it("says nothing settled it on an empty graph under auto", () => {
         const harness = makeSession();

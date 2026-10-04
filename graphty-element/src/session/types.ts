@@ -522,6 +522,20 @@ export interface GraphStatistics {
      * ```
      */
     readonly degreeHistogram?: Histogram;
+    /**
+     * The share of wedges -- two edges meeting at a node -- whose open ends are also joined, so
+     * that the three nodes form a triangle: the global clustering coefficient, read with arc
+     * direction ignored. 0 on a graph with no triangles (a tree, a grid, a sparse random graph),
+     * near 1 on a ring of cliques.
+     *
+     * ESTIMATED from a fixed sample of 4,000 wedges drawn with a fixed seed, so it is the same for
+     * the same graph and within about 0.01 of the exact value. A pair of opposite arcs between two
+     * nodes counts as two edges, which reads such a graph slightly low.
+     *
+     * Optional because the element is not the only thing that builds this struct: a statistics
+     * object written by hand has none, and a reader of the field takes its absence as "unknown".
+     */
+    readonly transitivity?: number;
     /** The connected-component shape. */
     readonly components: ComponentStatistics;
 }

@@ -152,8 +152,6 @@
         "prettier": "^3.4.2",
         "tsx": "^4.20.3",
         "typedoc": "^0.28.15",
-        "typedoc-plugin-markdown": "^4.9.0",
-        "typedoc-vitepress-theme": "^1.1.2",
         "typescript": "^5.9.3",
         "vite": "^7.0.5",
         "vitest": "catalog:"

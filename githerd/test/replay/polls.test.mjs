@@ -87,13 +87,24 @@ describe("sightings over the recorded month", () => {
     });
 });
 
+describe("the first issue poll", () => {
+    it("a fresh state reads the whole history, not an empty epoch answer", async () => {
+        const replay = createReplay();
+        replay.setTime("2026-10-04T00:00:00Z");
+        const { gh, fake } = client(replay);
+        const issues = await pollIssues(gh, REPO, { since: null, byNumber: {} });
+        expect(fake.calls[0].args.join(" ")).not.toContain("since=");
+        expect(Object.keys(issues.byNumber).length).toBeGreaterThan(0);
+        expect(issues.since).not.toBeNull();
+    });
+});
+
 describe("an idle day", () => {
     it("09-12 after a restart costs only 304s, with the ETags persisted the night before", async () => {
         const replay = createReplay();
         const before = client(replay);
         replay.setTime("2026-09-11T23:59:00Z");
-        const start = "2026-09-01T00:00:00Z";
-        let issues = await pollIssues(before.gh, REPO, { since: null, byNumber: {} }, start);
+        let issues = await pollIssues(before.gh, REPO, { since: null, byNumber: {} });
         for (const path of [MASTER, PR_RUNS, PULLS]) await before.gh.get(path, { purpose: "essential" });
         const saved = JSON.parse(JSON.stringify({ rate: before.gh.rate, etags: before.gh.etags }));
 
@@ -101,7 +112,7 @@ describe("an idle day", () => {
         for (let at = Date.parse("2026-09-12T00:00:00Z"); at < Date.parse("2026-09-13T00:00:00Z"); at += MINUTE) {
             replay.setTime(at);
             for (const path of [MASTER, PR_RUNS, PULLS]) await gh.get(path, { purpose: "essential" });
-            issues = await pollIssues(gh, REPO, issues, start);
+            issues = await pollIssues(gh, REPO, issues);
             expect(issues.changed).toEqual([]);
         }
         expect(fake.calls).toHaveLength(4 * 1440);

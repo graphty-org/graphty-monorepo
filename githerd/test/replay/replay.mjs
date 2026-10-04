@@ -255,6 +255,8 @@ export function createReplay() {
         }
         if (rest === "issues") {
             const since = q.get("since") ? Date.parse(q.get("since")) : -Infinity;
+            // GitHub answers a `since` at the Unix epoch with an empty list (seen live 2026-10-04).
+            if (since === 0) return { status: 200, body: [] };
             const list = record.issues
                 .filter((i) => Date.parse(i.createdAt) <= at)
                 .map((i) => {

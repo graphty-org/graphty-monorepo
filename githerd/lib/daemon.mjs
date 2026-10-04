@@ -159,8 +159,6 @@ const OWNER_WORDS = new Set(["answer", "order", "policy", "policy-end", "veto", 
 /** How the news of a refused `githerd_done` starts (board.verifyResult). */
 const NOT_DONE = "not done yet: ";
 const MAX_BODY = 1024 * 1024;
-/** Where the issue poll starts on a fresh state: the whole history, read 10 pages per poll. */
-const ISSUES_START = "1970-01-01T00:00:00Z";
 
 const RED_JOB = new Set(["failure", "timed_out", "startup_failure"]);
 /**
@@ -1910,7 +1908,7 @@ export async function startDaemon({
         for (const [n, rec] of Object.entries(prs)) rec.stuck = whyStuck(Number(n), rec, ctx);
         state.prs = prs;
 
-        const issues = await pollIssues(gh, config.repo, state.issues, ISSUES_START);
+        const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };
         await checkOverrides();
     }

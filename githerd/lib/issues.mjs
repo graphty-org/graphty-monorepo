@@ -8,6 +8,8 @@
  * skip an update; because pages are oldest first, a poll that stops early resumes where it stopped.
  * Each poll asks from 10 minutes before the mark, because GitHub's `since` answers can lag and
  * miss an update stamped just before it (design 4.2); an issue re-read unchanged is not news.
+ * A fresh state sends no `since` at all: GitHub answers `since=1970-01-01T00:00:00Z` with an empty
+ * list (seen live 2026-10-04), so the epoch cannot stand in for "from the beginning".
  */
 
 /** How far before the high-water mark a `since` poll starts. */
@@ -30,11 +32,12 @@ const ISSUE_TEXT_MAX = 2000;
 /**
  * The first poll's path.
  * @param {string} repo `owner/name`
- * @param {string} since ISO time of the high-water mark
+ * @param {string | null} since ISO time to read from, or null for the whole history
  * @returns {string} the REST path
  */
 export function issuesPath(repo, since) {
-    return `repos/${repo}/issues?state=all&since=${encodeURIComponent(since)}&sort=updated&direction=asc&per_page=100`;
+    const from = since ? `&since=${encodeURIComponent(since)}` : "";
+    return `repos/${repo}/issues?state=all${from}&sort=updated&direction=asc&per_page=100`;
 }
 
 /**
@@ -96,15 +99,14 @@ export function applyIssues(saved, items) {
  * @param {{get: (path: string) => Promise<{headers: Record<string, string>, body: any}>}} gitHub the client
  * @param {string} repo `owner/name`
  * @param {{since: string | null, byNumber: Record<string, object>}} saved `state.issues`; a mark
- *   is read from 10 minutes before it, and a null mark starts at `start`
- * @param {string} start ISO time to start from when there is no mark yet
+ *   is read from 10 minutes before it, and a null mark reads the whole history
  * @returns {Promise<{since: string | null, byNumber: Record<string, object>, changed: number[], complete: boolean}>}
  *   the new record; `complete` is false when `MAX_PAGES` stopped the read early
  */
-export async function pollIssues(gitHub, repo, saved, start) {
+export async function pollIssues(gitHub, repo, saved) {
     let record = { ...saved, changed: /** @type {number[]} */ ([]) };
     /** @type {string | null} */
-    let path = issuesPath(repo, saved.since ? overlapped(saved.since) : start);
+    let path = issuesPath(repo, saved.since ? overlapped(saved.since) : null);
     for (let page = 0; path && page < MAX_PAGES; page++) {
         const res = await gitHub.get(path);
         const next = applyIssues(record, res.body);

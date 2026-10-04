@@ -83,6 +83,7 @@ describe("paging", () => {
         expect(issuesPath(REPO, "2026-10-01T00:00:00Z")).toBe(
             `repos/${REPO}/issues?state=all&since=2026-10-01T00%3A00%3A00Z&sort=updated&direction=asc&per_page=100`,
         );
+        expect(issuesPath(REPO, null)).toBe(`repos/${REPO}/issues?state=all&sort=updated&direction=asc&per_page=100`);
         expect(nextPage(NEXT("abc"))).toBe("repositories/1122477634/issues?state=all&per_page=100&after=abc&page=2");
         expect(nextPage(undefined)).toBeNull();
         expect(nextPage('<https://api.github.com/x>; rel="prev"')).toBeNull();
@@ -99,9 +100,9 @@ describe("paging", () => {
             { headers: {}, body: [issue(3, "2026-10-01T03:00:00Z"), issue(1, "2026-10-01T04:00:00Z")] },
         ];
         const gitHub = { get: async (p) => (paths.push(p), pages[paths.length - 1]) };
-        const r = await pollIssues(gitHub, REPO, empty(), "2026-10-01T00:00:00Z");
+        const r = await pollIssues(gitHub, REPO, empty());
         expect(paths).toHaveLength(2);
-        expect(paths[0]).toContain("since=2026-10-01T00%3A00%3A00Z");
+        expect(paths[0]).not.toContain("since=");
         expect(paths[1]).toContain("after=c1");
         expect(r.complete).toBe(true);
         expect(r.since).toBe("2026-10-01T04:00:00Z");
@@ -123,7 +124,7 @@ describe("paging", () => {
             },
         };
         const saved = { since: "2026-09-30T00:00:00Z", byNumber: {} };
-        const r = await pollIssues(gitHub, REPO, saved, "ignored");
+        const r = await pollIssues(gitHub, REPO, saved);
         expect(paths).toHaveLength(MAX_PAGES);
         expect(paths[0]).toContain("since=2026-09-29T23%3A50%3A00.000Z");
         expect(r.complete).toBe(false);
@@ -137,8 +138,8 @@ describe("paging", () => {
             [issue(1, "2026-10-01T00:00:00Z"), issue(2, "2026-10-01T00:01:00Z")],
         ];
         const gitHub = { get: async () => ({ headers: {}, body: answers.shift() }) };
-        const first = await pollIssues(gitHub, REPO, empty(), "2026-09-30T00:00:00Z");
-        const second = await pollIssues(gitHub, REPO, first, "ignored");
+        const first = await pollIssues(gitHub, REPO, empty());
+        const second = await pollIssues(gitHub, REPO, first);
         expect(first.changed).toEqual([1]);
         expect(second.changed).toEqual([2]);
         expect(second.since).toBe("2026-10-01T00:01:00Z");

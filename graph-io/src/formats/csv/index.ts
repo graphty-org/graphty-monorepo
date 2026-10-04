@@ -16,8 +16,11 @@ import {
 } from "../../common/codes.js";
 import { WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import {
+    AMBIGUOUS_COLUMN_CODE,
     BAD_TYPE_CODE,
     COLUMN_MISSING_CODE,
+    COMMENT_DIRECTION_CODE,
+    COMMENT_LIKE_RECORD_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
     EMPTY_INPUT_CODE,
@@ -28,7 +31,14 @@ import {
     NO_DATA_ROWS_CODE,
     NO_ENDPOINT_COLUMNS_CODE,
     NO_ID_COLUMN_CODE,
+    OTHER_FORMAT_CODE,
+    PADDED_ID_CODE,
     ROLE_TAKEN_CODE,
+    SINGLE_COLUMN_CODE,
+    STRAY_BOM_CODE,
+    STRAY_QUOTE_CODE,
+    TRAILING_HEADER_DELIMITER_CODE,
+    TYPE_COLUMN_IGNORED_CODE,
 } from "./importer.js";
 import { BAD_QUOTE_CODE, UNCLOSED_QUOTE_CODE } from "./records.js";
 
@@ -94,4 +104,24 @@ export const CSV_ISSUE = Object.freeze({
     MIXED_DIRECTION: MIXED_DIRECTION_CODE,
     /** A text column the sink could not widen to the dtype its cells imply. */
     WIDENING_UNSUPPORTED: WIDENING_UNSUPPORTED_CODE,
+    /** The input opens like another format (XML / HTML, JSON, GML, DOT, Pajek) (fatal). */
+    OTHER_FORMAT: OTHER_FORMAT_CODE,
+    /** A byte order mark inside the text (two files concatenated); kept in its cell. */
+    STRAY_BOM: STRAY_BOM_CODE,
+    /** A quote inside an unquoted field, kept as text (once per import). */
+    STRAY_QUOTE: STRAY_QUOTE_CODE,
+    /** A leading comment's direction disagrees with defaultDirected or an earlier comment. */
+    COMMENT_DIRECTION: COMMENT_DIRECTION_CODE,
+    /** A column named like Type holds direction words but is a plain attribute (once per import). */
+    TYPE_COLUMN_IGNORED: TYPE_COLUMN_IGNORED_CODE,
+    /** The header ends in a delimiter; rows without the empty last cell are complete. */
+    TRAILING_HEADER_DELIMITER: TRAILING_HEADER_DELIMITER_CODE,
+    /** Every row is one cell another delimiter would split (a likely wrong delimiter option). */
+    SINGLE_COLUMN: SINGLE_COLUMN_CODE,
+    /** Several header columns name one role; the one not chosen is a plain attribute. */
+    AMBIGUOUS_COLUMN: AMBIGUOUS_COLUMN_CODE,
+    /** An unquoted id with leading or trailing whitespace, kept as written (once per import). */
+    PADDED_ID: PADDED_ID_CODE,
+    /** A leading # / % line skipped as a comment has the fields of a record. */
+    COMMENT_LIKE_RECORD: COMMENT_LIKE_RECORD_CODE,
 });

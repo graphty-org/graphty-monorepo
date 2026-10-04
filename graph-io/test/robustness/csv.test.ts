@@ -73,7 +73,14 @@ function column(s: GraphSnapshot, table: "nodes" | "edges", name: string): unkno
     return Array.from({ length: c.length }, (_, r) => (c.isSet(r) ? c.value(r) : undefined));
 }
 
-function bytes(...parts: (string | readonly number[])[]): Uint8Array {
+function sniff(head: Uint8Array): number {
+    if (csvImporter.sniff === undefined) {
+        throw new Error("no sniff");
+    }
+    return csvImporter.sniff(head);
+}
+
+function bytes(...parts: (string | readonly number[] | Uint8Array)[]): Uint8Array {
     const arrays = parts.map((p) => (typeof p === "string" ? encoder.encode(p) : Uint8Array.from(p)));
     const out = new Uint8Array(arrays.reduce((n, a) => n + a.byteLength, 0));
     let at = 0;
@@ -204,8 +211,9 @@ describe("csv robustness: encoding", () => {
 
     it("bom-mid-file: a BOM inside the text (two files concatenated) is reported, the cell kept", async () => {
         const { snapshot, report } = await load(`source,target\n${BOM}a,b\na,c\n`);
-        expect(codes(report)).toEqual(["W_CSV_STRAY_BOM"]);
-        expect(report.issues[0].line).toBe(2);
+        // U+FEFF is whitespace to String.prototype.trim, so the id is also reported as padded
+        expect(codes(report)).toEqual(["W_CSV_PADDED_ID", "W_CSV_STRAY_BOM"]);
+        expect(report.issues.map((i) => i.line)).toEqual([2, 2]);
         expect(edgesOf(snapshot)).toEqual([`${BOM}a->b`, "a->c"]);
     });
 
@@ -237,7 +245,7 @@ describe("csv robustness: wrong format", () => {
         ]) {
             const err = await failure(text);
             expect(codes(err.report), text).toEqual(["E_CSV_OTHER_FORMAT"]);
-            expect(csvImporter.sniff(encoder.encode(text)), text).toBe(0);
+            expect(sniff(encoder.encode(text)), text).toBe(0);
         }
     });
 
@@ -248,9 +256,9 @@ describe("csv robustness: wrong format", () => {
     });
 
     it("registry-sniff-other-format-regex-false-positive: a Creator column and an IRI edge list are CSV", async () => {
-        expect(csvImporter.sniff(encoder.encode("Creator,Source,Target\nx,a,b\n"))).toBe(0.9);
+        expect(sniff(encoder.encode("Creator,Source,Target\nx,a,b\n"))).toBe(0.9);
         const iri = "<http://a>,<http://b>\n<http://b>,<http://c>\n";
-        expect(csvImporter.sniff(encoder.encode(iri))).toBe(0.3);
+        expect(sniff(encoder.encode(iri))).toBe(0.3);
         const { snapshot, report } = await load(iri);
         expect(report.issues).toEqual([]);
         expect(edgesOf(snapshot)).toEqual(["<http://a>-><http://b>", "<http://b>-><http://c>"]);
@@ -259,13 +267,13 @@ describe("csv robustness: wrong format", () => {
     });
 
     it("registry-sniff-quoted-header: quoted header names sniff like unquoted ones", () => {
-        expect(csvImporter.sniff(encoder.encode('"source","target"\na,b\n'))).toBe(0.9);
-        expect(csvImporter.sniff(encoder.encode('"id","name"\n1,a\n'))).toBe(0.6);
+        expect(sniff(encoder.encode('"source","target"\na,b\n'))).toBe(0.9);
+        expect(sniff(encoder.encode('"id","name"\n1,a\n'))).toBe(0.6);
     });
 
     it("registry-sniff-utf16-bom: the sniff decodes by the BOM", () => {
         const head = bytes([0xff, 0xfe], utf16le("source,target\na,b\n"));
-        expect(csvImporter.sniff(head)).toBe(0.9);
+        expect(sniff(head)).toBe(0.9);
     });
 
     it("forced-wrong-delimiter-node-list: a one-column parse whose cells all hold another delimiter warns", async () => {
@@ -398,7 +406,9 @@ describe("csv robustness: delimiters and dialects", () => {
         const { snapshot, report } = await load("\n# Directed graph\n# FromNodeId\tToNodeId\n1\t2\n3\t4\n", {
             defaultDirected: false,
         });
-        expect(report.issues).toEqual([]);
+        // the comment overrides the explicit option, which is reported
+        expect(codes(report)).toEqual(["W_CSV_COMMENT_DIRECTION"]);
+        expect(report.issues[0].line).toBe(2);
         expect(edgesOf(snapshot)).toEqual(["1->2", "3->4"]);
         expect(snapshot.directed).toBe(true);
     });

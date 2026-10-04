@@ -61,7 +61,7 @@ type Status =
  * @param props.onDone - Closes the dialog with a notice
  * @returns The output's body and footer
  */
-export function ImageOutput({ choices, onChange, onCancel, onDone }: ImageOutputProps): React.JSX.Element {
+export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<ImageOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
     const legendShown = useWorkspaceState((state) => state.legendShown);

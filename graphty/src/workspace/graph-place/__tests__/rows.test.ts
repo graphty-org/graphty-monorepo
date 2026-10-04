@@ -17,7 +17,7 @@ interface RunStub {
     shape: string;
     partial?: boolean;
     error?: { message: string };
-    record: { summary?: { measured?: number; groups?: { group: string | number; size: number; name?: string }[] } };
+    record: { summary?: { measured?: number; groups?: { group: string | number; size: number; rank?: number }[] } };
     result?: { graph: Record<string, unknown> };
 }
 
@@ -163,7 +163,7 @@ describe("paintRows", () => {
                     record: {
                         summary: {
                             groups: [
-                                { group: 0, size: 40, name: "Group 1" },
+                                { group: 0, size: 40, rank: 1 },
                                 { group: 1, size: 37 },
                             ],
                         },

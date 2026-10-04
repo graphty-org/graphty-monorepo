@@ -89,7 +89,7 @@ export function paintRows(session: GraphSession): PaintRow[] {
                     return {
                         id: JSON.stringify([run.id, group.group]),
                         kind: "group-row",
-                        name: group.name ?? String(group.group),
+                        name: group.rank === undefined ? String(group.group) : `Group ${String(group.rank)}`,
                         state: "ready",
                         swatch: swatch === undefined ? undefined : { color: swatch },
                         count: group.size,

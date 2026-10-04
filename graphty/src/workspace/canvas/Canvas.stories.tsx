@@ -1,61 +1,16 @@
 // Storybook does not run src/main.tsx, so the story defines the real <graphty-element> itself.
 import "@graphty/graphty-element";
 
-import {
-    type AdHocData,
-    DataSource,
-    type DataSourceChunk,
-    type FormatDescriptor,
-    registeredFormatDescriptors,
-} from "@graphty/graphty-element/extend";
 import type { Meta, StoryObj } from "@storybook/react";
 import { within } from "storybook/test";
 
 import { Workspace } from "../Workspace";
+import { LoadingCard } from "./CanvasOverlays";
 import KARATE from "./fixtures/karate.json";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 
 const OPEN = { project: { name: "Karate Club", id: 1 } } as const;
-
-/**
- * A reader that hands over the karate club in one chunk and then waits forever, so a story can
- * hold a real load in progress: the element publishes the load's progress after the first chunk
- * and never its end.
- */
-class HeldLoad extends DataSource {
-    static override type = "story-held-load";
-    static override descriptor: FormatDescriptor = {
-        id: "story-held-load",
-        plainName: "Held load",
-        extensions: [".held"],
-        mimeTypes: ["application/json"],
-        canImport: true,
-        canExport: false,
-        options: [],
-    };
-
-    /**
-     * @param _opts - What the load passed; nothing here reads it.
-     */
-    constructor(_opts: object) {
-        super();
-    }
-
-    /**
-     * The whole graph, then a wait that never ends.
-     * @yields The karate club's nodes and edges.
-     */
-    override async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        // A plain record needs a cast to the element's branded record type (#914).
-        yield { nodes: KARATE.nodes as unknown as AdHocData[], edges: KARATE.edges as unknown as AdHocData[] };
-        await new Promise<never>(() => undefined);
-    }
-
-    protected override getConfig(): object {
-        return {};
-    }
-}
 
 /**
  * The story's element, once it has upgraded.
@@ -116,21 +71,23 @@ export const Empty: Story = {
     },
 };
 
-/** `#/canvas-and-states/loading`: a load in progress, with the element's node and edge counts. */
+/**
+ * `#/canvas-and-states/loading`: a load in progress, with the node and edge counts read so far.
+ *
+ * Drawn from fixed values, not a live element: a load held open keeps an element operation
+ * pending, so the element never reaches a stable frame to capture. CanvasOverlays.test.tsx checks
+ * that the canvas shows this card while the element reports a load.
+ */
 export const Loading: Story = {
-    args: { initialState: OPEN },
+    render: () => (
+        <div className="ws-canvas-overlays" style={{ position: "relative", height: "100vh" }}>
+            <div className="ws-state-card-slot">
+                <LoadingCard projectName={OPEN.project.name} nodeCount={34} edgeCount={78} fraction={0.4} />
+            </div>
+        </div>
+    ),
     play: async ({ canvasElement }) => {
-        const element = await elementOf(canvasElement);
-        // Once per page: a story rerun finds the reader already registered.
-        if (!registeredFormatDescriptors().some((descriptor) => descriptor.id === HeldLoad.type)) {
-            DataSource.register(HeldLoad);
-        }
-        await element.session.layout.setDimension("2d");
-        await element.session.layout.set("fixed");
-        // Never settles: the reader holds the load open.
-        void element.session.data.import({ type: HeldLoad.type, config: {}, name: "karate.held" });
-        // No waitForStableFrame: the open load keeps the graph changing, so it would never return.
-        await within(canvasElement).findByRole("region", { name: "Reading Karate Club" }, { timeout: 30_000 });
+        await within(canvasElement).findByRole("region", { name: "Reading Karate Club" });
     },
 };
 

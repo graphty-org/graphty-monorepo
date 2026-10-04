@@ -82,6 +82,38 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
     return reading;
 }
 
+/** Props for LoadingCard. */
+interface LoadingCardProps {
+    /** The project being read. */
+    projectName: string;
+    /** Nodes read so far. */
+    nodeCount: number;
+    /** Edges read so far. */
+    edgeCount: number;
+    /** How far the load has got, from 0 to 1, or null when the element cannot say. */
+    fraction: number | null;
+}
+
+/**
+ * The state card the canvas shows while the element reports a load.
+ * @param props - Component props
+ * @param props.projectName - The project being read
+ * @param props.nodeCount - Nodes read so far
+ * @param props.edgeCount - Edges read so far
+ * @param props.fraction - How far the load has got
+ * @returns The card
+ */
+export function LoadingCard({ projectName, nodeCount, edgeCount, fraction }: LoadingCardProps): React.JSX.Element {
+    return (
+        <StateCard
+            icon={<LoaderCircle size={20} />}
+            title={`Reading ${projectName}`}
+            sentence={`${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges...`}
+            progress={fraction}
+        />
+    );
+}
+
 /**
  * What the canvas draws over the element (tier1-design.md section 2.4): the legend card at its
  * top left, and one state card at its center -- loading while the element reports a load, empty
@@ -107,11 +139,11 @@ export function CanvasOverlays(): React.JSX.Element | null {
     let card: React.ReactNode = null;
     if (load !== null) {
         card = (
-            <StateCard
-                icon={<LoaderCircle size={20} />}
-                title={`Reading ${projectName}`}
-                sentence={`${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges...`}
-                progress={load.fraction}
+            <LoadingCard
+                projectName={projectName}
+                nodeCount={nodeCount}
+                edgeCount={edgeCount}
+                fraction={load.fraction}
             />
         );
     } else if (nodeCount === 0) {

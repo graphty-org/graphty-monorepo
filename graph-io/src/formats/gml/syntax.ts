@@ -112,6 +112,7 @@ export class GmlTokens {
     /** The number of tokens. */
     count = 0;
 
+
     /** Called by stringOf() with each named entity it cannot decode and the token's line, when set. */
     onUnknownEntity: ((entity: string, line: number) => void) | null = null;
 
@@ -162,7 +163,11 @@ export class GmlTokens {
      * @returns the body with character references decoded
      */
     stringOf(i: number): string {
-        const text = this.textOf(i);
+        let text = this.textOf(i);
+        if (text.indexOf("\r") >= 0) {
+            // a line break inside a string is part of it, as LF whatever the file's line ends
+            text = text.replace(/\r\n?/g, "\n");
+        }
         if (text.indexOf("&") < 0) {
             return text;
         }
@@ -211,8 +216,9 @@ export class GmlTokens {
  * Lex and structurally validate a whole GML text.
  *
  * Lexical rules (NetworkX): whitespace separates tokens; `#` outside a string starts a comment
- * that runs to the end of the line; a string is delimited by double quotes and must close on its
- * line (there is no escape mechanism; `&#NN;` references are decoded later); `[` and `]` are
+ * that runs to the end of the line; a string is delimited by double quotes and may span lines (a
+ * line break inside is part of it, GML draft 3.2.5; there is no escape mechanism; `&#NN;`
+ * references are decoded later); a U+FEFF between tokens is whitespace; `[` and `]` are
  * single-character tokens; every other run of characters is a key (`[A-Za-z_][0-9A-Za-z_]*`),
  * an integer (`[+-]?[0-9]+`), a real (with a decimal point or an exponent, or `INF` / `NAN` in
  * any case with an optional sign) or an error.
@@ -227,6 +233,8 @@ export function tokenizeGml(text: string): GmlTokens {
     const n = text.length;
     let i = 0;
     let line = 1;
+    // the opening line of the first string that spans lines: where a missing quote most likely is
+    let spanningLine = 0;
     while (i < n) {
         const c = text.charCodeAt(i);
         if (c === 10) {
@@ -240,6 +248,9 @@ export function tokenizeGml(text: string): GmlTokens {
             }
         } else if (c === 32 || c === 9 || c === 11 || c === 12) {
             i++;
+        } else if (c === 0xfeff) {
+            // a BOM left inside by concatenated files is whitespace; the shared text check reports it
+            i++;
         } else if (c === 35) {
             i = endOfLine(text, i);
         } else if (c === 91) {
@@ -250,11 +261,24 @@ export function tokenizeGml(text: string): GmlTokens {
             i++;
         } else if (c === 34) {
             const close = text.indexOf('"', i + 1);
-            const eol = endOfLine(text, i + 1);
-            if (close < 0 || close > eol) {
-                throw new GmlSyntaxError(SYNTAX_STRING_CODE, `unclosed string at line ${line}`, line);
+            if (close < 0) {
+                const hint =
+                    spanningLine === 0
+                        ? ""
+                        : `; the string opened at line ${spanningLine} spans lines, so a quote may be missing there`;
+                throw new GmlSyntaxError(SYNTAX_STRING_CODE, `unclosed string opened at line ${line}${hint}`, line);
             }
             tokens.push(TOKEN_STRING, i + 1, close, line);
+            const opened = line;
+            for (let k = i + 1; k < close; k++) {
+                const d = text.charCodeAt(k);
+                if (d === 10 || (d === 13 && text.charCodeAt(k + 1) !== 10)) {
+                    line++;
+                }
+            }
+            if (line !== opened && spanningLine === 0) {
+                spanningLine = opened;
+            }
             i = close + 1;
         } else {
             let j = i + 1;
@@ -325,8 +349,14 @@ function classifyBare(text: string, start: number, end: number, line: number): T
     if (REAL_TEXT.test(token) || NON_FINITE_TEXT.test(token)) {
         return TOKEN_REAL;
     }
-    const shown = token.length > 20 ? `${token.slice(0, 20)}...` : token;
-    throw new GmlSyntaxError(SYNTAX_TOKEN_CODE, `cannot tokenize "${shown}" at line ${line}`, line);
+    // the message is ASCII: a character outside it is shown as \uXXXX and named, since it may look
+    // like something else (a no-break space pasted from a web page looks like a space)
+    const hex = (c: string): string => (c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0");
+    const head = token.length > 20 ? `${token.slice(0, 20)}...` : token;
+    const shown = head.replace(/[^\x20-\x7e]/gu, (c) => `\\u${hex(c)}`);
+    const odd = /[^\x21-\x7e]/u.exec(token);
+    const note = odd === null ? "" : ` (it holds U+${hex(odd[0])}, which GML allows only inside a string)`;
+    throw new GmlSyntaxError(SYNTAX_TOKEN_CODE, `cannot tokenize "${shown}" at line ${line}${note}`, line);
 }
 
 /**

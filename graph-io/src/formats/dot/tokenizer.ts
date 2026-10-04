@@ -55,16 +55,21 @@ const EOF_TOKEN_TEXT = "";
  * @returns true for an identifier start
  */
 function isIdentifierStart(c: number): boolean {
-    return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c >= 128;
+    return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || (c >= 128 && c !== BOM_CODE);
 }
 
+/** U+FEFF: a byte order mark, which only the decoder strips from the very start of the input. */
+const BOM_CODE = 0xfeff;
+
 /**
- * Whether a UTF-16 code unit may continue a bare DOT identifier.
+ * Whether a UTF-16 code unit may continue a bare DOT identifier. A U+FEFF inside an identifier
+ * run stays part of it, as Graphviz keeps its bytes (in its `\200-\377` range); only a U+FEFF
+ * between tokens is skipped as a stray BOM.
  * @param c - the code unit
  * @returns true for an identifier character
  */
 function isIdentifierPart(c: number): boolean {
-    return isIdentifierStart(c) || isDigit(c);
+    return isIdentifierStart(c) || isDigit(c) || c === BOM_CODE;
 }
 
 /**
@@ -96,7 +101,10 @@ export class DotTokenizer {
      * @param onAmbiguity - called for a badly delimited numeral (`1e3`, which Graphviz splits into
      * `1` and `e3` with a warning), with the numeral text and its line
      */
-    constructor(text: string, onAmbiguity: ((numeral: string, line: number) => void) | null = null) {
+    constructor(
+        text: string,
+        onAmbiguity: ((numeral: string, line: number) => void) | null = null,
+    ) {
         this.text = text;
         this.onAmbiguity = onAmbiguity;
     }
@@ -203,7 +211,9 @@ export class DotTokenizer {
         }
         this.pos = end;
         const numeral = text.slice(start, end);
-        if (end < text.length && isIdentifierStart(text.charCodeAt(end)) && this.onAmbiguity !== null) {
+        const after = text.charCodeAt(end);
+        // a letter (`1e3`) or a second dot (`1.2.3`) right after the numeral: Graphviz splits there
+        if (end < text.length && (isIdentifierStart(after) || after === 0x2e) && this.onAmbiguity !== null) {
             // Graphviz: "syntax ambiguity - badly delimited number '1e' ... splits into two tokens"
             this.onAmbiguity(numeral, line);
         }
@@ -317,6 +327,11 @@ export class DotTokenizer {
                 continue;
             }
             if (c === 0x20 || c === 0x09 || c === 0x0b || c === 0x0c) {
+                this.pos++;
+                continue;
+            }
+            if (c === BOM_CODE) {
+                // a U+FEFF after the start (concatenated files) is whitespace; the shared text check reports it
                 this.pos++;
                 continue;
             }

@@ -114,16 +114,24 @@ const INTEGER_TEXT = /^[+-]?[0-9]+$/;
 const TIME_POINT =
     /^(\*|[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)(?:-(\*|[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?))?$/;
 
+/** What tokenize() noticed in a line beyond its tokens, for the importer to report. */
+export interface TokenNotes {
+    /** A double quote in the middle of a token (`ab"c d"e`, a CSV-style doubled `""`): removed, the parts joined. */
+    oddQuote: boolean;
+}
+
 /**
  * Split one line into tokens: runs of non-whitespace, with double quotes grouping whitespace
  * into one token and removed from it (the shlex rule NetworkX applies; Pajek has no escapes, so a
  * quote never appears inside a token). An empty quoted string `""` is one empty token. A token
  * that starts with `[` runs to the next `]` whatever whitespace it holds (when no other `[` comes
- * first), so a time set written `[ 1, 3 ]` is one token.
+ * first), so a time set written `[ 1, 3 ]` is one token. A `%` mid-line is data (`2 %b` is a
+ * label): Pajek's comments are whole lines, which the caller skips before tokenizing.
  * @param line - the line without its terminator
+ * @param notes - when given, set to what the line held beyond its tokens
  * @returns the tokens, or null when a quote is not closed before the end of the line
  */
-export function tokenize(line: string): string[] | null {
+export function tokenize(line: string, notes?: TokenNotes): string[] | null {
     const tokens: string[] = [];
     let current = "";
     let started = false;
@@ -131,6 +139,12 @@ export function tokenize(line: string): string[] | null {
     for (let i = 0; i < line.length; i++) {
         const c = line.charCodeAt(i);
         if (c === 34) {
+            // a quote that opens inside a token, or closes with more of the token after it
+            const next = line.charCodeAt(i + 1);
+            const joined = quoted ? i + 1 < line.length && !isBlank(next) : started;
+            if (joined && notes !== undefined) {
+                notes.oddQuote = true;
+            }
             quoted = !quoted;
             started = true;
             continue;
@@ -163,6 +177,27 @@ export function tokenize(line: string): string[] | null {
     }
     return tokens;
 }
+
+/**
+ * Whether a character code is the whitespace that separates tokens.
+ * @param c - the char code
+ * @returns true for space, tab, CR, form feed or vertical tab
+ */
+function isBlank(c: number): boolean {
+    return c === 32 || c === 9 || c === 13 || c === 12 || c === 11;
+}
+
+/**
+ * Whether an unsupported section keyword is a project-file object (`*Permutation`, `*Cluster`,
+ * `*Hierarchy`), whose next line is its own `*Vertices N`, never the network's.
+ * @param keyword - the keyword as written
+ * @returns true for a project object
+ */
+export function isProjectObject(keyword: string): boolean {
+    return PROJECT_OBJECTS.has(keyword.toLowerCase());
+}
+
+const PROJECT_OBJECTS: ReadonlySet<string> = new Set(["permutation", "cluster", "hierarchy"]);
 
 /**
  * Whether a line is a Pajek comment (`%` first) or blank.
@@ -308,8 +343,11 @@ export function parseIntervals(token: string): [number, number][] {
         if (match === null) {
             throw new Error(`malformed time interval ${token}: "${part}" is not a-b, a-* or a`);
         }
-        const start = match[1] === "*" ? -Infinity : Number(match[1]);
-        const endText = match[2];
+        const [, startText, endText] = match;
+        if (startText === "*" && endText === undefined) {
+            throw new Error(`malformed time interval ${token}: "*" alone is not a time point`);
+        }
+        const start = startText === "*" ? -Infinity : Number(startText);
         let end: number;
         if (endText === undefined) {
             end = start;
@@ -318,29 +356,39 @@ export function parseIntervals(token: string): [number, number][] {
         } else {
             end = Number(endText);
         }
+        // only `*` means an open end: a numeral beyond the f64 range is not a time
+        if ((startText !== "*" && !Number.isFinite(start)) || (endText !== undefined && endText !== "*" && !Number.isFinite(end))) {
+            throw new Error(`malformed time interval ${token}: "${part}" is beyond the number range`);
+        }
         if (start > end) {
-            throw new Error(`malformed time interval ${token}: ${match[1]} is after ${endText ?? ""}`);
+            throw new Error(`malformed time interval ${token}: ${startText} is after ${endText ?? ""}`);
         }
         spells.push([start, end]);
     }
     return spells;
 }
 
-const CHARACTER_REFERENCE = /&#(?:[xX]([0-9a-fA-F]{1,6})|([0-9]{1,7}));/g;
+// any length, so a reference beyond U+10FFFF is seen (and kept as written with a warning)
+const CHARACTER_REFERENCE = /&#(?:[xX]([0-9a-fA-F]+)|([0-9]+));/g;
 
 /**
  * Decode the `&#dddd;` and `&#xhhhh;` character references of a label, as Pajek does; a reference
- * outside the Unicode range is left as written.
+ * outside the Unicode range is left as written and handed to `onUnknown`.
  * @param text - the label as written
+ * @param onUnknown - called with each reference left as written, when given
  * @returns the decoded label
  */
-export function decodeCharacterReferences(text: string): string {
+export function decodeCharacterReferences(text: string, onUnknown?: (reference: string) => void): string {
     if (!text.includes("&#")) {
         return text;
     }
     return text.replace(CHARACTER_REFERENCE, (whole, hex: string | undefined, dec: string | undefined) => {
         const code = hex === undefined ? Number(dec) : Number.parseInt(hex, 16);
-        return code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+        if (code <= 0x10ffff) {
+            return String.fromCodePoint(code);
+        }
+        onUnknown?.(whole);
+        return whole;
     });
 }
 
@@ -383,11 +431,12 @@ export function formatIntervals(spells: readonly (readonly [number, number])[]):
  * @returns true when the importer reads it back as a key
  */
 export function isParameterKey(text: string): boolean {
-    if (text.length === 0 || /[\s"]/.test(text) || text.startsWith("[") || text.startsWith("*")) {
+    if (text.length === 0 || /[\s"]/.test(text) || text.startsWith("[") || text.startsWith("*") || text.startsWith("%")) {
         return false;
     }
     if (isShapeKeyword(text)) {
         return false;
     }
-    return !/^[+-]?(\.[0-9]|[0-9])/.test(text);
+    // a number, or a non-finite spelling, at that place reads as a coordinate or the line value
+    return !/^[+-]?(\.[0-9]|[0-9])/.test(text) && !/^[+-]?(?:nan|inf|infinity)$/i.test(text);
 }

@@ -46,6 +46,7 @@ import {
     COLUMN_RENAMED_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
+    DUPLICATE_ATTRIBUTE_CODE,
     EMPTY_INPUT_CODE,
     ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
@@ -55,14 +56,16 @@ import {
     MIXED_DIRECTION_CODE,
     MULTIPLE_GRAPHS_CODE,
     OPTION_IGNORED_CODE,
+    PRECISION_CODE,
     ROLE_TAKEN_CODE,
     SINK_OPTION_CODE,
     SYNTAX_CODE,
     UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
+import { survivesF32 } from "../../common/format.js";
 import { IdCoercer } from "../../common/ids.js";
-import { readText, throwIfAborted } from "../../common/input.js";
+import { canonicalEncoding, readText, throwIfAborted } from "../../common/input.js";
 import {
     reportSinkOptions,
     reportUnusedOptions,
@@ -138,8 +141,19 @@ export const DOT_ISSUE = Object.freeze({
     CLUSTER_NODE_MERGED: "W_DOT_CLUSTER_NODE_MERGED",
     /** A node mentioned in two unrelated clusters keeps the first. */
     CLUSTER_CONFLICT: "W_DOT_CLUSTER_CONFLICT",
-    /** A node `pos` that is not a point; the value was dropped. */
+    /** A node `pos` that is not a point, or one beyond the f32 range of the position column; the value was dropped. */
     BAD_POS: "W_DOT_BAD_POS",
+    /** Node `pos` values mix two and three coordinates; the position column records the first's. */
+    POS_DIMS: "W_DOT_POS_DIMS",
+    /** A `pos` coordinate the f32 position column cannot hold exactly (warned once). */
+    PRECISION: PRECISION_CODE,
+    /** The same attribute twice in one statement's attribute lists; the last value stands, as in Graphviz. */
+    DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
+    /** The second part of a port (`a:p:zz`) is not a compass point; kept as written, as Graphviz warns. */
+    COMPASS_POINT: "W_DOT_COMPASS_POINT",
+    /** A `charset` attribute beyond the head the decoder reads it from; the input was decoded without it. */
+    LATE_CHARSET: "W_DOT_LATE_CHARSET",
+
     /** A parallel edge merged into an earlier one under `strict`. */
     STRICT_MERGED: "W_DOT_STRICT_MERGED",
     /** An edge merged into an earlier one with the same endpoints and `key`. */
@@ -194,6 +208,7 @@ const MAX_ANCESTOR_WALK = 4096;
  */
 const DOT_HEADER = /^\s*(strict\s+)?(di)?graph(?=[\s{"/]|$)(?!\s*\[)/i;
 const TRUE_TEXTS: ReadonlySet<string> = new Set(["true", "yes", "1"]);
+const COMPASS_POINTS: ReadonlySet<string> = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw", "c", "_"]);
 const POINT_TEXT =
     /^\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)(?:\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?))?\s*(!?)\s*$/;
 
@@ -284,16 +299,20 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         const report = new ImportReportBuilder(DOT_FORMAT, resolved.errorLimit);
         reportUnusedOptions(options, report, USED_OPTIONS);
         reportSinkOptions(sink, options, report);
-        const text = await readText(input, report, { ...resolved, declaredEncoding: dotCharset, declarationBytes: CHARSET_HEAD_BYTES });
+        const head: { charset?: string | null } = {};
+        const text = await readText(input, report, {
+            ...resolved,
+            declaredEncoding: (h) => (head.charset = dotCharset(h)),
+            declarationBytes: CHARSET_HEAD_BYTES,
+        });
         const reports = { current: report };
         const lexer = dotLexer(text, reports);
         const first = guard(report, () => lexer.next());
-        const trailing = parseGraph(
-            new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false),
-            report,
-            first,
-        );
+        const parser = new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false);
+        parser.headCharset = head.charset;
+        const trailing = parseGraph(parser, report, first);
         if (trailing.kind !== "eof") {
+            // anything after the graph must be graphs too: Graphviz refuses the file otherwise
             const skipped = guard(report, () => countGraphs(lexer, trailing));
             report.warning(
                 "unsupported",
@@ -327,7 +346,12 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         const mismatch = mismatchOption(options?.mismatchedEdgeOperator);
         const first = new ImportReportBuilder(DOT_FORMAT, resolved.errorLimit);
         reportUnusedOptions(options, first, USED_OPTIONS);
-        const text = await readText(input, first, { ...resolved, declaredEncoding: dotCharset, declarationBytes: CHARSET_HEAD_BYTES });
+        const head: { charset?: string | null } = {};
+        const text = await readText(input, first, {
+            ...resolved,
+            declaredEncoding: (h) => (head.charset = dotCharset(h)),
+            declarationBytes: CHARSET_HEAD_BYTES,
+        });
         const reports = { current: first };
         const lexer = dotLexer(text, reports);
         const done: ImportReport[] = [];
@@ -337,11 +361,9 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
             reports.current = report;
             const sink = sinkFor(done.length);
             reportSinkOptions(sink, options, report);
-            token = parseGraph(
-                new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false),
-                report,
-                token,
-            );
+            const parser = new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false);
+            parser.headCharset = head.charset;
+            token = parseGraph(parser, report, token);
             throwIfAborted(resolved.signal);
             done.push(report.finish());
         } while (token.kind !== "eof");
@@ -358,14 +380,17 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
  * @returns the tokenizer
  */
 function dotLexer(text: string, reports: { current: ImportReportBuilder }): DotTokenizer {
-    return new DotTokenizer(text, (numeral, line) => {
-        reports.current.warning(
-            "validation-error",
-            DOT_ISSUE.NUMERAL_AMBIGUITY,
-            `badly delimited number ${JSON.stringify(numeral)} splits into two tokens (Graphviz warns the same)`,
-            { line, element: numeral },
-        );
-    });
+    return new DotTokenizer(
+        text,
+        (numeral, line) => {
+            reports.current.warning(
+                "validation-error",
+                DOT_ISSUE.NUMERAL_AMBIGUITY,
+                `badly delimited number ${JSON.stringify(numeral)} splits into two tokens (Graphviz warns the same)`,
+                { line, element: numeral },
+            );
+        },
+    );
 }
 
 /**
@@ -409,6 +434,9 @@ function countGraphs(lexer: DotTokenizer, first: DotToken): number {
     while (token.kind !== "eof") {
         if (isKeyword(token, "strict")) {
             token = lexer.next();
+        }
+        if (isPunct(token, "}")) {
+            throw new DotSyntaxError('unexpected "}" after the end of the graph: no "{" is open', token.line);
         }
         if (!isKeyword(token, "graph") && !isKeyword(token, "digraph")) {
             throw new DotSyntaxError(`expected "graph" or "digraph", found ${describeToken(token)}`, token.line);
@@ -640,6 +668,16 @@ class DotParser {
     /** The current subgraph nesting depth. */
     private depth = 0;
 
+    /** The coordinate count of the first `pos`, or 0 before one. */
+    private posDims = 0;
+
+    /**
+     * What the decoder's look at the head found for `charset`: a label, null for none, undefined
+     * when it never looked (text input, a BOM, the encoding option). A `charset` assignment read
+     * when the head had none came too late to decode by.
+     */
+    headCharset: string | null | undefined = undefined;
+
     /** The inferred attribute columns by name, per domain (the 5.1 text grammar per column). */
     private readonly nodeWriters = new Map<string, TextCellWriter>();
 
@@ -861,7 +899,16 @@ class DotParser {
         let { text } = this.identifier();
         if (isPunct(lexer.peek(), ":")) {
             lexer.next();
-            text += `:${this.identifier().text}`;
+            const compass = this.identifier();
+            text += `:${compass.text}`;
+            if (!COMPASS_POINTS.has(compass.text)) {
+                this.report.warning(
+                    "validation-error",
+                    DOT_ISSUE.COMPASS_POINT,
+                    `port ${JSON.stringify(text)}: ${JSON.stringify(compass.text)} is not a compass point (n, ne, e, se, s, sw, w, nw, c, _); the port is kept as written`,
+                    { line: compass.line, element: text },
+                );
+            }
         }
         return text;
     }
@@ -1110,6 +1157,7 @@ class DotParser {
     private attributeList(): DotAttribute[] {
         const { lexer } = this;
         const out: DotAttribute[] = [];
+        const names = new Set<string>();
         while (isPunct(lexer.peek(), "[")) {
             lexer.next();
             for (;;) {
@@ -1131,6 +1179,15 @@ class DotParser {
                     );
                 }
                 const value = this.identifier();
+                if (names.has(name.text)) {
+                    this.report.warning(
+                        "merged",
+                        DOT_ISSUE.DUPLICATE_ATTRIBUTE,
+                        `attribute ${JSON.stringify(name.text)} is set twice in one statement; the last value ${JSON.stringify(value.text)} stands`,
+                        { line: name.line, element: name.text },
+                    );
+                }
+                names.add(name.text);
                 out.push({ name: name.text, value: value.text, line: name.line });
             }
         }
@@ -1498,6 +1555,17 @@ class DotParser {
      * @param attribute - the attribute
      */
     private setGraphAttribute(attribute: DotAttribute): void {
+        if (attribute.name.toLowerCase() === "charset" && this.headCharset === null) {
+            const canonical = canonicalEncoding(attribute.value);
+            if (canonical !== "utf-8") {
+                this.report.warning(
+                    "unsupported",
+                    DOT_ISSUE.LATE_CHARSET,
+                    `charset ${JSON.stringify(attribute.value)} is declared beyond the first 1024 bytes, after the input was decoded without it; pass the encoding option to decode it as declared`,
+                    { line: attribute.line, element: attribute.name },
+                );
+            }
+        }
         try {
             if (attribute.name === LABEL_ATTRIBUTE) {
                 this.sink.setGraphValue(attribute.name, attribute.value, { dtype: "string", origin: DOT_ORIGIN });
@@ -1535,7 +1603,37 @@ class DotParser {
         const y = Number(match[2]);
         const z = match[3] === undefined ? 0 : Number(match[3]);
         const dims = match[3] === undefined ? 2 : 3;
-        this.sink.setNodeValue(this.positionColumn(dims), index, [x, y, z]);
+        const point = [x, y, z];
+        if (point.some((v) => !Number.isFinite(Math.fround(v)))) {
+            // the position column is f32: a half-infinite point would be a half-valid position
+            this.report.warning(
+                "validation-error",
+                DOT_ISSUE.BAD_POS,
+                `pos ${JSON.stringify(text)} is beyond the f32 range of the position column; dropped`,
+                { line, element },
+            );
+            return;
+        }
+        if (!point.every(survivesF32)) {
+            this.report.warnOnce(
+                "precision",
+                DOT_ISSUE.PRECISION,
+                `pos ${JSON.stringify(text)} has a coordinate the f32 position column rounds (warned once; positions=false keeps pos as written)`,
+                { line, element },
+                `${DOT_ISSUE.PRECISION}:pos`,
+            );
+        }
+        if (this.posDims === 0) {
+            this.posDims = dims;
+        } else if (dims !== this.posDims) {
+            this.report.warnOnce(
+                "validation-error",
+                DOT_ISSUE.POS_DIMS,
+                `pos values mix ${this.posDims} and ${dims} coordinates; the position column records sourceDims ${this.posDims}`,
+                { line, element },
+            );
+        }
+        this.sink.setNodeValue(this.positionColumn(dims), index, point);
         if (match[4] === "!") {
             this.sink.setNodeValue(PIN_ATTRIBUTE, index, true);
         }

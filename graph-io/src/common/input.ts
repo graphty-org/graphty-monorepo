@@ -250,6 +250,9 @@ class ByteDecoder {
     /** The offset of a Ctrl-Z that ended the previous chunk: control data if more bytes follow. */
     private subAt = -1;
 
+    /** Set while flushing because a text chunk follows: a sequence cut there is not windows-1252. */
+    private textFollows = false;
+
     /**
      * Create the decoder of one import.
      * @param report - where warnings and the fatal decode error go
@@ -414,6 +417,21 @@ class ByteDecoder {
     }
 
     /**
+     * Flush the bytes held back because a text chunk follows (the input switches from bytes to
+     * strings): a multi-byte sequence cut there is invalid UTF-8, never windows-1252 text.
+     * @param flush - the flush to run (the decoder's own, or the head's)
+     * @returns the text of the held-back bytes
+     */
+    flushBeforeText(flush: () => string): string {
+        this.textFollows = true;
+        try {
+            return flush();
+        } finally {
+            this.textFollows = false;
+        }
+    }
+
+    /**
      * A decode failed: switch to windows-1252 when allowed, else fail the import with the position
      * of the first byte that is not valid.
      * @param bytes - the bytes that failed
@@ -431,6 +449,14 @@ class ByteDecoder {
             if (this.control !== null) {
                 return this.binary(this.control);
             }
+            if (this.textFollows && bad?.cut === true) {
+                return this.report.fail(
+                    INVALID_UTF8_CODE,
+                    `invalid UTF-8 at byte ${at}: a byte chunk ends inside a multi-byte sequence and a text chunk follows`,
+                    undefined,
+                    { byteOffset: at },
+                );
+            }
             if (!stream && bad?.truncated === true) {
                 return this.report.fail(
                     INVALID_UTF8_CODE,
@@ -443,7 +469,7 @@ class ByteDecoder {
                 this.report.warning(
                     "coercion",
                     ENCODING_FALLBACK_CODE,
-                    `the input is not valid UTF-8 (at byte ${at}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
+                    `the input is not valid UTF-8 (at byte ${at}${!stream && bad?.cut === true ? ": it ends inside a multi-byte UTF-8 sequence, so it may be truncated" : ""}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
                 );
                 this.use("windows-1252", false);
                 this.fellBack = true;
@@ -550,10 +576,15 @@ function startsWithUtf8(bytes: Uint8Array): boolean {
  * The first invalid UTF-8 sequence of a chunk (the WHATWG decoder's rules: no overlong forms, no
  * surrogates, nothing above U+10FFFF).
  * @param bytes - the bytes
- * @returns its index, and whether it is a valid sequence cut by the end of the bytes after at least
- * one continuation byte (truncation rather than a stray windows-1252 byte); index 0 when none is found
+ * @returns its index, whether it is a valid sequence cut by the end of the bytes (`cut`), and whether
+ * that cut sequence holds at least one continuation byte (truncation rather than a stray windows-1252
+ * byte); index 0 when none is found
  */
-function invalidUtf8(bytes: Uint8Array): { readonly index: number; readonly truncated: boolean } {
+function invalidUtf8(bytes: Uint8Array): {
+    readonly index: number;
+    readonly truncated: boolean;
+    readonly cut: boolean;
+} {
     let i = 0;
     while (i < bytes.byteLength) {
         const lead = bytes[i];
@@ -575,20 +606,20 @@ function invalidUtf8(bytes: Uint8Array): { readonly index: number; readonly trun
             low = lead === 0xf0 ? 0x90 : 0x80;
             high = lead === 0xf4 ? 0x8f : 0xbf;
         } else {
-            return { index: i, truncated: false };
+            return { index: i, truncated: false, cut: false };
         }
         for (let k = 1; k <= need; k++) {
             if (i + k >= bytes.byteLength) {
-                return { index: i, truncated: k > 1 };
+                return { index: i, truncated: k > 1, cut: true };
             }
             const next = bytes[i + k];
             if (next < (k === 1 ? low : 0x80) || next > (k === 1 ? high : 0xbf)) {
-                return { index: i, truncated: false };
+                return { index: i, truncated: false, cut: false };
             }
         }
         i += need + 1;
     }
-    return { index: 0, truncated: false };
+    return { index: 0, truncated: false, cut: false };
 }
 
 /**
@@ -1083,9 +1114,9 @@ export async function* textChunks(
             // are never taken for a BOM
             let pending = "";
             if (headLength > 0) {
-                pending = flushHead(false);
+                pending = decoder.flushBeforeText(() => flushHead(false));
             } else if (decoder.started) {
-                pending = decoder.decode(new Uint8Array(0), false);
+                pending = decoder.flushBeforeText(() => decoder.decode(new Uint8Array(0), false));
             } else {
                 decoder.start(new Uint8Array(0));
             }

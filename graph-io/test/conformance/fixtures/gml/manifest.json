@@ -1187,8 +1187,7 @@
           "first line\nsecond line",
           "crlf\ninside"
         ]
-      },
-      "knownFailure": "multi-line strings are a fatal syntax error (sources.md 4.4)"
+      }
     },
     {
       "file": "authored/html-named-entities.gml",
@@ -1260,8 +1259,7 @@
         "labels": [
           "bad &#99999999; ref"
         ]
-      },
-      "knownFailure": "&#99999999; escapes as a raw RangeError instead of an ImportError or warning (sources.md 0.4)"
+      }
     },
     {
       "file": "authored/string-ids.gml",

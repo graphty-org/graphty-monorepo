@@ -44,6 +44,7 @@ import {
     NO_GRAPH_CODE as SHARED_NO_GRAPH_CODE,
     PRECISION_CODE as SHARED_PRECISION_CODE,
     ROLE_TAKEN_CODE as SHARED_ROLE_TAKEN_CODE,
+    WIDENED_CODE as SHARED_WIDENED_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
@@ -114,8 +115,23 @@ export const FLAG_VALUE_CODE = "W_GML_FLAG_VALUE";
 
 /** A flag written as a quoted integer, surrounding spaces allowed. */
 const QUOTED_INT = /^\s*[+-]?[0-9]+\s*$/;
-/** Issue code: a named entity in a string that is neither an XML nor an ISO-8859-1 HTML entity; it is kept as written. */
+/**
+ * Issue code: a named entity in a string that is neither an XML nor an ISO-8859-1 HTML entity, or a
+ * numeric reference beyond U+10FFFF; it is kept as written.
+ */
 export const UNKNOWN_ENTITY_CODE = "W_GML_UNKNOWN_ENTITY";
+/**
+ * Issue code: a node's `graphics` value cannot give a position as written (not a record, repeated
+ * in the node, or with an x / y / z that is not one number); the value is kept in the graphics
+ * json column. Warned once per kind of problem, naming the first node.
+ */
+export const GRAPHICS_CODE = "W_GML_GRAPHICS";
+/** Issue code: a `graph`, `node` or `edge` record inside a node or edge; kept as a json column, not read as structure. */
+export const NESTED_ELEMENT_CODE = "W_GML_NESTED_ELEMENT";
+/** Issue code: yEd's group keys (`isGroup`, `gid`); kept as plain node columns, the hierarchy is not read as containment. */
+export const GROUPS_CODE = "W_GML_GROUPS";
+/** Issue code: a key whose values mix numbers and strings; the column is string, the numbers kept as written. */
+export const WIDENED_CODE = SHARED_WIDENED_CODE;
 /** Issue code: an integer beyond 2^53 stored as the nearest f64 (design section 5.1). */
 export const PRECISION_CODE = SHARED_PRECISION_CODE;
 /** Issue code: the sink already holds a column of the name with another declaration; renamed `<name>#<key>`. */
@@ -220,6 +236,31 @@ interface ColumnPlan {
 /** A table's plans by key. */
 type PlanMap = Map<string, ColumnPlan>;
 
+/** Where a node issue is recorded. */
+interface IssueWhere {
+    readonly line: number;
+    readonly element: string;
+}
+
+/**
+ * Whether a key is the label of a node or edge (text, never a NetworkX list marker).
+ * @param domain - the table
+ * @param key - the key
+ * @returns true for a node or edge label
+ */
+function isLabel(domain: "node" | "edge" | "graph", key: string): boolean {
+    return roleOf(domain, key) === "label";
+}
+
+/**
+ * Whether a parsed value is a GML record.
+ * @param value - the value
+ * @returns true for a record object
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /**
  * Whether a key gets a role in its table (design section 5.6 applied to GML keys).
  * @param domain - the table
@@ -309,6 +350,9 @@ class GmlImport {
     /** The sink id every file id maps to when they differ (label / index / restored ids), else null. */
     private idMap: Map<NodeId, NodeId> | null = null;
 
+    /** The file ids of node blocks that were skipped: an edge naming one is skipped too, never given a new node. */
+    private readonly skippedIds = new Set<NodeId>();
+
     /** Node indices declared by a node block of this import, for duplicate detection. */
     private declared = new Uint32Array(64);
 
@@ -354,7 +398,7 @@ class GmlImport {
             this.report.warnOnce(
                 "parse-error",
                 UNKNOWN_ENTITY_CODE,
-                `unknown character entity ${entity} is kept as written`,
+                `character entity ${entity} cannot be decoded; it is kept as written`,
                 { line, element: entity },
                 `${UNKNOWN_ENTITY_CODE}:${entity}`,
             );
@@ -371,10 +415,14 @@ class GmlImport {
      */
     private scan(): void {
         const t = this.requireTokens();
+        let scalarGraph = -1;
         for (let p = 0; p < t.count; p = t.nextPair(p)) {
             const key = t.textOf(p);
             const v = p + 1;
             const record = t.kind[v] === TOKEN_OPEN;
+            if (key === "graph" && !record && scalarGraph < 0) {
+                scalarGraph = v;
+            }
             if (key === "graph" && record) {
                 if (this.graphCount++ === this.which) {
                     this.graphOpen = v;
@@ -389,6 +437,13 @@ class GmlImport {
             }
         }
         if (this.graphOpen < 0) {
+            if (scalarGraph >= 0) {
+                this.report.fail(
+                    NO_GRAPH_CODE,
+                    `the graph key at line ${t.line[scalarGraph]} holds ${describeValue(t, scalarGraph)}, not a [ ... ] block; the input contains no graph block`,
+                    { line: t.line[scalarGraph] },
+                );
+            }
             this.report.fail(NO_GRAPH_CODE, "the input contains no graph [ ... ] block", { line: null });
         }
     }
@@ -483,7 +538,9 @@ class GmlImport {
         seq: number,
     ): void {
         const t = this.requireTokens();
+        this.noteStructure(domain, key, v);
         let entry = schema.get(key);
+        const graphics = domain === "node" && key === "graphics" && this.positions;
         if (entry === undefined) {
             entry = {
                 key,
@@ -499,13 +556,19 @@ class GmlImport {
             schema.set(key, entry);
         } else if (entry.lastSeq === seq) {
             entry.list = true;
+            // a repeated graphics record: the extra records go to the json column
+            entry.rest ||= graphics;
         } else {
             entry.lastSeq = seq;
+        }
+        if (graphics && t.kind[v] !== TOKEN_OPEN) {
+            entry.rest = true;
         }
         switch (t.kind[v]) {
             case TOKEN_STRING: {
                 const raw = t.textOf(v);
-                if (raw === LIST_START_MARKER || raw === EMPTY_LIST_TEXT || raw === EMPTY_TUPLE_TEXT) {
+                // a label is text: "[]" there is a label, never NetworkX's empty list
+                if (raw === LIST_START_MARKER || (!isLabel(domain, key) && (raw === EMPTY_LIST_TEXT || raw === EMPTY_TUPLE_TEXT))) {
                     entry.list = true;
                     return;
                 }
@@ -532,8 +595,49 @@ class GmlImport {
                     this.inspectGraphics(entry, v);
                 }
                 return;
-            default:
+            default: {
                 entry.kinds |= KIND_REAL;
+                const text = t.textOf(v);
+                if (/[0-9]/.test(text) && !Number.isFinite(Number(text))) {
+                    this.report.warnOnce(
+                        "precision",
+                        PRECISION_CODE,
+                        `${domain} key "${key}" holds the real ${text}, beyond the f64 range; it is stored as ${numberOfText(text) > 0 ? "" : "-"}Infinity`,
+                        { line: t.line[v], element: key },
+                        `${PRECISION_CODE}:overflow:${domain}:${key}`,
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Warn about keys of a node or edge whose meaning GML readers give but this import does not:
+     * a nested graph / node / edge record, and yEd's group hierarchy.
+     * @param domain - the table
+     * @param key - the key
+     * @param v - the value token
+     */
+    private noteStructure(domain: "node" | "edge" | "graph", key: string, v: number): void {
+        const t = this.requireTokens();
+        if (domain === "graph") {
+            return;
+        }
+        if ((key === "graph" || key === "node" || key === "edge") && t.kind[v] === TOKEN_OPEN) {
+            this.report.warnOnce(
+                "unsupported",
+                NESTED_ELEMENT_CODE,
+                `a nested ${key} record inside a ${domain} is kept as the json column "${key}"; it is not read as structure`,
+                { line: t.line[v], element: key },
+                `${NESTED_ELEMENT_CODE}:${domain}:${key}`,
+            );
+        } else if (domain === "node" && (key === "isGroup" || key === "gid")) {
+            this.report.warnOnce(
+                "unsupported",
+                GROUPS_CODE,
+                "yEd group keys (isGroup, gid) are kept as plain node columns; the group hierarchy is not read as containment",
+                { line: t.line[v], element: key },
+            );
         }
     }
 
@@ -631,6 +735,15 @@ class GmlImport {
         ) {
             scalar = "dict";
         }
+        if ((entry.kinds & KIND_STRING) !== 0 && (entry.kinds & (KIND_INT | KIND_REAL)) !== 0 && (entry.kinds & KIND_RECORD) === 0) {
+            this.report.warnOnce(
+                "coercion",
+                WIDENED_CODE,
+                `${domain} key "${entry.key}" mixes numbers and strings; the column is string and the numbers are kept as written`,
+                { element: entry.key },
+                `${WIDENED_CODE}:${domain}:${entry.key}`,
+            );
+        }
         if (entry.unsafe) {
             this.report.warnOnce(
                 "precision",
@@ -661,13 +774,7 @@ class GmlImport {
             items: null,
             seq: Number.NEGATIVE_INFINITY,
         };
-        if (
-            domain === "node" &&
-            entry.key === "graphics" &&
-            entry.position &&
-            entry.kinds === KIND_RECORD &&
-            !entry.list
-        ) {
+        if (domain === "node" && entry.key === "graphics" && this.positions && (entry.kinds & KIND_RECORD) !== 0) {
             const taken = (candidate: string): boolean =>
                 this.nodeSchema.has(candidate) || this.sink.nodeColumn(candidate) !== INVALID_INDEX;
             const position: ColumnPlan = {
@@ -676,9 +783,12 @@ class GmlImport {
                 dtype: "f64",
                 itemDtype: null,
                 kind: "real",
+                list: false,
                 role: "position",
             };
-            const rest: ColumnPlan | null = entry.rest ? { ...plan } : null;
+            const rest: ColumnPlan | null = entry.rest
+                ? { ...plan, dtype: "json", itemDtype: null, kind: "record", list: false }
+                : null;
             return { ...plan, position, rest };
         }
         return plan;
@@ -692,6 +802,14 @@ class GmlImport {
     private uniqueGraphName(key: string): string {
         const name = uniqueColumnName(key, key, (candidate) => this.graphNames.has(candidate));
         this.graphNames.add(name);
+        if (name !== key) {
+            this.report.warning(
+                "coercion",
+                COLUMN_RENAMED_CODE_GML,
+                `the top-level key "${key}" and a key of the graph block share the graph column name; the top-level value is stored as "${name}"`,
+                { element: key },
+            );
+        }
         return name;
     }
 
@@ -867,6 +985,7 @@ class GmlImport {
         this.checkAbort();
         let index: number;
         let sinkId: NodeId;
+        let fileId: NodeId | undefined;
         try {
             let idTok = -1;
             let labelTok = -1;
@@ -886,7 +1005,7 @@ class GmlImport {
             }
             // the file id under the ids rule, so `id 1` and `source "1"` meet in idMap (except under
             // "keep", where the integer 1 and the string "1" are different ids by design)
-            const fileId = this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
+            fileId = this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
             if (originalTok >= 0) {
                 sinkId = this.restoredId(originalTok);
             } else {
@@ -906,13 +1025,25 @@ class GmlImport {
                         sinkId = fileId;
                 }
             }
+            index = sink.addNode(sinkId);
             if (this.idMap !== null) {
+                const before = this.idMap.get(fileId);
+                if (before !== undefined && before !== sinkId) {
+                    report.warning(
+                        "merged",
+                        DUPLICATE_NODE_CODE,
+                        `file id ${JSON.stringify(fileId)} is declared twice (nodes ${JSON.stringify(before)} and ${JSON.stringify(sinkId)}); edges to it resolve to the later`,
+                        { line, element: String(fileId) },
+                    );
+                }
                 this.idMap.set(fileId, sinkId);
             }
-            index = sink.addNode(sinkId);
         } catch (err) {
             this.recordNodeError(err, line);
             report.counts.skippedNodes++;
+            if (fileId !== undefined) {
+                this.skippedIds.add(fileId);
+            }
             return;
         }
         if (this.isDeclared(index)) {
@@ -928,15 +1059,23 @@ class GmlImport {
         }
         this.beginElement(this.seq++);
         try {
+            const graphics: number[] = [];
+            let graphicsPlan: ColumnPlan | null = null;
             for (let p = open + 1; p < close; p = t.nextPair(p)) {
                 const key = t.textOf(p);
                 if (key === "id" || (key === ORIGINAL_ID_KEY && options.restoreMangledIds)) {
                     continue;
                 }
                 const plan = this.nodePlans.get(key);
-                if (plan !== undefined) {
+                if (plan !== undefined && plan.position !== null) {
+                    graphicsPlan = plan;
+                    graphics.push(p + 1);
+                } else if (plan !== undefined) {
                     this.writeNode(plan, index, p + 1);
                 }
+            }
+            if (graphicsPlan !== null) {
+                this.writeGraphics(graphicsPlan, index, graphics, { line: t.line[graphics[0]], element: String(sinkId) });
             }
             this.flushLists("node", index);
         } catch (err) {
@@ -1144,7 +1283,20 @@ class GmlImport {
      */
     private endpoint(v: number, key: string): NodeId {
         const id = this.coerceFileId(v, this.fileIdOf(v, key));
-        return this.idMap?.get(id) ?? id;
+        const mapped = this.idMap?.get(id);
+        if (mapped !== undefined) {
+            return mapped;
+        }
+        if (this.skippedIds.has(id)) {
+            // the node block was skipped: creating the endpoint would bring the node back under
+            // its raw file id (beside label ids under nodeIdFrom "label")
+            throw new GraphFormatError(
+                "E_UNKNOWN_NODE",
+                `${key} ${JSON.stringify(id)} names a node block that was skipped after an error`,
+                { reason: "skipped node", id },
+            );
+        }
+        return id;
     }
 
     /**
@@ -1228,10 +1380,6 @@ class GmlImport {
      * @param v - the value token
      */
     private writeNode(plan: ColumnPlan, index: number, v: number): void {
-        if (plan.position !== null) {
-            this.writeGraphics(plan, index, v);
-            return;
-        }
         if (plan.list) {
             this.collectItem(plan, v, this.seqNow, this.touched);
             return;
@@ -1268,33 +1416,65 @@ class GmlImport {
     }
 
     /**
-     * Write a node's graphics record: the position column from x / y / z, the remaining keys to
-     * the json column.
+     * Write a node's graphics values: the position column from the x / y / z of the first record,
+     * everything else (the remaining keys, a value that is not a record, a repeated record) to the
+     * json column, with a warning when the value cannot give a position as written.
      * @param plan - the graphics plan
      * @param index - the node index
-     * @param v - the value token (a record)
+     * @param vs - the value tokens of the node's graphics keys, in order
+     * @param where - the line and the node, for issues
      */
-    private writeGraphics(plan: ColumnPlan, index: number, v: number): void {
+    private writeGraphics(plan: ColumnPlan, index: number, vs: readonly number[], where: IssueWhere): void {
         const t = this.requireTokens();
         const { sink } = this;
-        const record = parseRecord(t, v);
-        const { x, y, z } = record;
+        const values = vs.map((v) => (t.kind[v] === TOKEN_OPEN ? parseRecord(t, v) : this.scalarOf(plan, v)));
+        const first = values[0];
         const positionPlan = plan.position;
-        if (positionPlan !== null && typeof x === "number" && typeof y === "number") {
-            sink.setNodeValue(this.handleOf(positionPlan, "node"), index, [x, y, typeof z === "number" ? z : 0]);
-            delete record.x;
-            delete record.y;
-            if (typeof z === "number") {
-                delete record.z;
+        let rest: unknown = first;
+        if (isRecord(first) && positionPlan !== null) {
+            const { x, y, z } = first;
+            if (typeof x === "number" && typeof y === "number") {
+                sink.setNodeValue(this.handleOf(positionPlan, "node"), index, [x, y, typeof z === "number" ? z : 0]);
+                delete first.x;
+                delete first.y;
+                if (typeof z === "number") {
+                    delete first.z;
+                }
+                rest = Object.keys(first).length > 0 ? first : undefined;
             }
-            if (plan.rest !== null && Object.keys(record).length > 0) {
-                sink.setNodeValue(this.handleOf(plan.rest, "node"), index, record);
+            if ("x" in first || "y" in first || "z" in first) {
+                this.graphicsWarning("coordinate", `node ${where.element}'s graphics x / y / z is not one number each`, where);
             }
-            return;
+        } else if (!isRecord(first)) {
+            this.graphicsWarning("scalar", `node ${where.element}'s graphics is not a record`, where);
         }
-        if (plan.rest !== null) {
-            sink.setNodeValue(this.handleOf(plan.rest, "node"), index, record);
+        if (values.length > 1) {
+            this.graphicsWarning(
+                "repeated",
+                `node ${where.element} has ${values.length} graphics records; the position comes from the first`,
+                where,
+            );
+            rest = values;
         }
+        if (rest !== undefined && plan.rest !== null) {
+            sink.setNodeValue(this.handleOf(plan.rest, "node"), index, rest);
+        }
+    }
+
+    /**
+     * Warn once per kind of graphics problem.
+     * @param kind - the problem
+     * @param what - the message start, naming the node
+     * @param where - the line and the node
+     */
+    private graphicsWarning(kind: string, what: string, where: IssueWhere): void {
+        this.report.warnOnce(
+            "validation-error",
+            GRAPHICS_CODE,
+            `${what}; the value is kept in the graphics json column (warned once for every such node)`,
+            where,
+            `${GRAPHICS_CODE}:${kind}`,
+        );
     }
 
     /**

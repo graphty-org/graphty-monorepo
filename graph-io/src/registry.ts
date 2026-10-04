@@ -41,6 +41,7 @@ import {
     type GraphExporter,
     type GraphImporter,
     type GraphListing,
+    ImportError,
     type ImportInput,
     type ImportIssue,
     type ImportReport,
@@ -296,9 +297,15 @@ export class FormatRegistry {
             }
         } catch (err) {
             await chosen.peeked?.close();
-            throw err;
+            throw inGraph(err, builders.length - 1);
         }
-        return reports.map((report, i) => result(chosen, builders[i], report, options));
+        return reports.map((report, i) => {
+            try {
+                return result(chosen, builders[i], report, options);
+            } catch (err) {
+                throw inGraph(err, i);
+            }
+        });
     }
 
     /**
@@ -587,6 +594,21 @@ function seededBuilder(options: ImportGraphOptions, format: string): GraphBuilde
 }
 
 /**
+ * Name the graph an importAllGraphs() failure belongs to: the report is that graph's own, so the
+ * message is prefixed with its index and `details.graphIndex` set, for every graph including the
+ * first. Anything other than an ImportError raised while a graph was being read passes unchanged.
+ * @param err - the error thrown while reading or freezing a graph
+ * @param index - the index of that graph, -1 before the first graph began
+ * @returns the error to throw
+ */
+function inGraph(err: unknown, index: number): unknown {
+    if (!(err instanceof ImportError) || index < 0) {
+        return err;
+    }
+    return new ImportError(`graph ${index}: ${err.message}`, err.report, { ...err.details, graphIndex: index });
+}
+
+/**
  * Freeze an imported builder into an importGraph result.
  * @param chosen - the importer and its sniff
  * @param builder - the filled builder
@@ -600,7 +622,30 @@ function result(
     report: ImportReport,
     options: ImportGraphOptions,
 ): ImportGraphResult {
-    const frozen = builder.freezeWithReport(options.freeze);
+    let frozen: ReturnType<GraphBuilder["freezeWithReport"]>;
+    try {
+        frozen = builder.freezeWithReport(options.freeze);
+    } catch (err) {
+        // a builder policy checked at freeze (selfLoops / duplicateEdges "error"): the import's
+        // ImportError, with the import report and the condition recorded in it
+        if (!(err instanceof GraphFormatError)) {
+            throw err;
+        }
+        const issue = Object.freeze({
+            category: "validation-error" as const,
+            severity: "error" as const,
+            code: err.code,
+            message: err.message,
+            line: null,
+            element: null,
+        });
+        const failed: ImportReport = Object.freeze({
+            ...report,
+            issues: Object.freeze([...report.issues, issue]),
+            errorCount: report.errorCount + 1,
+        });
+        throw new ImportError(err.message, failed, { code: err.code, ...err.details });
+    }
     const { warnings } = chosen;
     return Object.freeze({
         format: chosen.importer.format,

@@ -393,6 +393,25 @@ describe("HTTP endpoints", () => {
         ]);
     });
 
+    it("refuses a run's comment quoting a .env secret the daemon's own environment lacks", async () => {
+        writeFileSync(join(dir, ".env"), "# local secrets\nSONAR_TOKEN=sqp_0123456789abcdef\n");
+        const daemon = await start();
+        await poll(daemon);
+        daemon.state.runs["run-1"] = { status: "running", kind: "triage", target: "issue:12" };
+        const reply = await daemon.rpc(
+            {
+                jsonrpc: "2.0",
+                id: 1,
+                method: "tools/call",
+                params: { name: "githerd_comment", arguments: { target: "issue:12", body: "token sqp_0123456789abcdef" } },
+            },
+            { run: "run-1" },
+        );
+        expect(reply.result.isError).toBe(true);
+        expect(reply.result.content[0].text).toContain("contains the value of environment variable SONAR_TOKEN");
+        expect(reply.result.content[0].text).not.toContain("sqp_0123456789abcdef");
+    });
+
     it("persists a claim before replying, and a notification gets 202", async () => {
         const daemon = await start();
         const call = (body) =>

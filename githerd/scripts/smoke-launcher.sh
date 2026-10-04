@@ -36,16 +36,9 @@ chmod +x "$WORK/bin/gh"
 export PATH=$WORK/bin:$PATH
 
 cp -r "$PKG/bin" "$PKG/lib" "$PKG/package.json" "$REPO/githerd/"
-git -C "$REPO" init -q -b master
-git -C "$REPO" -c user.name=smoke -c user.email=smoke@example.com add -A
-git -C "$REPO" -c user.name=smoke -c user.email=smoke@example.com commit -q -m smoke
-git init -q --bare "$WORK/origin.git"
-git -C "$REPO" remote add origin "$WORK/origin.git"
-git -C "$REPO" push -q origin master
-git -C "$REPO" remote set-head origin master
-
+# The config is committed: the daemon reads the default branch's, never GITHERD_CONFIG.
 servherd_json=$(printf '%s\n' "${SH[@]}" | node -e 'console.log(JSON.stringify(require("fs").readFileSync(0, "utf8").trim().split("\n")))')
-cat >"$WORK/githerd.config.json" <<EOF
+cat >"$REPO/githerd.config.json" <<EOF
 {
   "repo": "smoke/smoke",
   "lanes": { "ci": { "workflow": "ci.yml", "gating": "required" } },
@@ -53,7 +46,14 @@ cat >"$WORK/githerd.config.json" <<EOF
   "notify": { "command": null }
 }
 EOF
-export GITHERD_CONFIG=$WORK/githerd.config.json GITHERD_NAME=$NAME
+git -C "$REPO" init -q -b master
+git -C "$REPO" -c user.name=smoke -c user.email=smoke@example.com add -A
+git -C "$REPO" -c user.name=smoke -c user.email=smoke@example.com commit -q -m smoke
+git init -q --bare "$WORK/origin.git"
+git -C "$REPO" remote add origin "$WORK/origin.git"
+git -C "$REPO" push -q origin master
+git -C "$REPO" remote set-head origin master
+export GITHERD_NAME=$NAME
 
 call='{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"githerd_status"}}'
 for i in 1 2 3 4 5; do
@@ -91,6 +91,22 @@ console.log(list.find((p) => p.name === 'servherd-$NAME')?.pm2_env.autorestart);
 ")
 echo "pm2 autorestart: $autorestart"
 [ "$autorestart" = true ] || failed=1
+
+# A SIGKILLed daemon comes back: pm2 restarts it with a new pid.
+if [ "${#pids[@]}" -eq 1 ]; then
+    kill -9 "${pids[0]}"
+    back=
+    for _ in $(seq 100); do
+        sleep 0.1
+        now=$(pgrep -f "$STATE/current/bin/githerd-daemon.mjs" || true)
+        if [ -n "$now" ] && [ "$now" != "${pids[0]}" ]; then
+            back=$now
+            break
+        fi
+    done
+    echo "after SIGKILL of ${pids[0]}: ${back:-not back}"
+    [ -n "$back" ] || failed=1
+fi
 
 (cd "$REPO" && "${SH[@]}" remove --force "$NAME" >/dev/null)
 for _ in $(seq 50); do

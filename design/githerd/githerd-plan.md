@@ -156,8 +156,32 @@ actually happened.
 The shared daemon runs only master's copy of `githerd/`, and this branch is not on master, so the
 two days run this worktree's code as the development daemon (`githerd dev`: its own servherd name
 `githerd-dev`, its state in `<worktree>/.githerd-dev/`, never above dry-run, pages to the ledger
-only). Nothing in it writes to GitHub; every write is a `would-do` ledger line.
+only). Nothing in it writes to GitHub; every write is a `would-do` ledger line. It starts the way
+the shared daemon does (servherd's `--autorestart`, `env -i`, its environment from
+`.githerd-dev/daemon-env.json`, written from the shell that first starts it), so the two days also
+test that start path: start it from a Claude session of the owner's, which has the `GIT_CONFIG_*`
+signing variables and the Pushover keys.
 
+The development daemon starts runs, code-editing kinds (master-red, pr-fix, pr-conflict, backlog)
+included, within the dry-run budget. Two facts decide which kinds may run in the soak:
+
+- The Bash sandbox does not run on this machine (`githerd/CLAUDE.md`). Unsandboxed code-editing
+  runs are accepted for the soak: the boundary is owner-only input and the actor's checks before a
+  push, and in dry-run nothing is pushed.
+- Manual check 4 of `githerd/CLAUDE.md` (a signed commit from a run spawned under servherd) must
+  pass before any code-editing run. Run on 2026-10-03, it failed: the run's git config has no
+  `gpg.format=ssh` and a run's environment drops the owner's `GIT_CONFIG_*` variables, so the
+  commit goes to gpg, which has no such key. Until it passes, the soak keeps code-editing kinds
+  off (step 0).
+
+0. **Check signing, and keep code-editing runs off until it passes.** Run check 4 the way
+   `githerd/scripts/sign-check.mjs` describes (a one-shot servherd server under `env -i` with the
+   development state directory), record its `sign-check.json` in `githerd/CLAUDE.md` under check
+   4, and remove the servherd entry. While it fails, copy `githerd.config.json` to
+   `tmp/githerd/two-days/githerd.config.json`, set `runs.caps` `budgetUsd` to 999 for
+   `master-red`, `pr-fix`, `pr-conflict`, `backlog` and `backlog-high` (a run whose budget exceeds
+   the day's never starts; read-only kinds still run), and use that file as `GITHERD_CONFIG` in
+   step 2. The ledger then shows those kinds as "never fits the day", which is expected.
 1. **Pick the days.** Two weekdays the owner expects to be busy (at least 40 master commits a day,
    R17). Before starting: `uptime` (load below 16), `gh auth status` logged in as the owner, and
    `gh api rate_limit` with more than 3,000 core calls left.

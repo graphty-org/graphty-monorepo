@@ -142,6 +142,8 @@ function pushPackage(message, change) {
     const pkg = join(root, "githerd");
     for (const part of ["bin", "lib", "package.json"])
         cpSync(join(PACKAGE_DIR, part), join(pkg, part), { recursive: true });
+    // The shared daemon reads the default branch's config, never GITHERD_CONFIG.
+    cpSync(/** @type {string} */ (env.GITHERD_CONFIG), join(root, "githerd.config.json"));
     change?.(pkg);
     git(root, "add", "-A");
     git(root, "commit", "-q", "-m", message);
@@ -322,7 +324,6 @@ describe("startup", () => {
             "-i",
             `GITHERD_ROOT=${root}`,
             `GITHERD_STATE_DIR=${stateDir()}`,
-            `GITHERD_CONFIG=${env.GITHERD_CONFIG}`,
             "PORT={{port}}",
             "node",
             join(stateDir(), "current", "bin", "githerd-daemon.mjs"),
@@ -336,7 +337,7 @@ describe("startup", () => {
         expect(h).toMatchObject({ name: "githerd", root, codeHash: hash, pid: registry().githerd.pid });
         const environ = readFileSync(`/proc/${h.pid}/environ`, "utf8").split("\0").filter(Boolean);
         expect(environ.map((kv) => kv.split("=")[0]).sort()).toEqual(
-            ["GITHERD_CONFIG", "GITHERD_ROOT", "GITHERD_STATE_DIR", "PORT"].sort(),
+            ["GITHERD_ROOT", "GITHERD_STATE_DIR", "PORT"].sort(),
         );
         const file = join(stateDir(), "daemon-env.json");
         expect(statSync(file).mode & 0o777).toBe(0o600);
@@ -396,6 +397,9 @@ describe("startup", () => {
 
     it("answers 'not configured' and starts nothing without a config", async () => {
         delete env.GITHERD_CONFIG;
+        git(root, "rm", "-q", "githerd.config.json");
+        git(root, "commit", "-q", "-m", "no config");
+        git(root, "push", "-q", "origin", "master");
         /** @type {string[]} */
         const written = [];
         const input = new PassThrough();
@@ -489,7 +493,7 @@ describe("install and the daemon's environment", () => {
         const ctx = context();
         expect(installCommand(ctx)).toBe(
             `cd ${stateDir()} && ${process.execPath} ${FAKE_SERVHERD} start -n githerd --autorestart -- env -i ` +
-                `GITHERD_ROOT=${root} GITHERD_STATE_DIR=${stateDir()} GITHERD_CONFIG=${env.GITHERD_CONFIG} ` +
+                `GITHERD_ROOT=${root} GITHERD_STATE_DIR=${stateDir()} ` +
                 `'PORT={{port}}' node ${join(stateDir(), "current", "bin", "githerd-daemon.mjs")}`,
         );
     });
@@ -502,8 +506,17 @@ describe("install and the daemon's environment", () => {
             HOME: "/h",
             PUSHOVER_APP_TOKEN: "t",
         });
-        writeDaemonEnv(sd, { HOME: "/owner" }, { replace: true });
-        expect(JSON.parse(readFileSync(join(sd, "daemon-env.json"), "utf8"))).toEqual({ HOME: "/owner" });
+        // A replacing write from a shell without the notify keys keeps the old ones, and says so.
+        expect(writeDaemonEnv(sd, { HOME: "/owner" }, { replace: true })).toEqual(["PUSHOVER_APP_TOKEN"]);
+        expect(JSON.parse(readFileSync(join(sd, "daemon-env.json"), "utf8"))).toEqual({
+            HOME: "/owner",
+            PUSHOVER_APP_TOKEN: "t",
+        });
+        expect(writeDaemonEnv(sd, { HOME: "/owner", PUSHOVER_USER_KEY: "u" }, { replace: true })).toEqual([]);
+        expect(JSON.parse(readFileSync(join(sd, "daemon-env.json"), "utf8"))).toEqual({
+            HOME: "/owner",
+            PUSHOVER_USER_KEY: "u",
+        });
 
         writeFileSync(join(sd, "daemon-env.json"), JSON.stringify({ HOME: "/owner", PATH: "/p", CLAUDECODE: "1" }));
         /** @type {Record<string, string | undefined>} */
@@ -512,6 +525,38 @@ describe("install and the daemon's environment", () => {
         expect(target).toEqual({ PATH: "/kept", HOME: "/owner" });
         loadDaemonEnv(join(dir, "missing"), target);
         expect(target).toEqual({ PATH: "/kept", HOME: "/owner" });
+    });
+
+    it("keeps the old GIT_CONFIG_* signing group whole when the new environment has none of it", () => {
+        const sd = join(dir, "sd");
+        const signing = { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "gpg.format", GIT_CONFIG_VALUE_0: "ssh" };
+        writeDaemonEnv(sd, { HOME: "/h", ...signing });
+        expect(writeDaemonEnv(sd, { HOME: "/term" }, { replace: true }).sort()).toEqual(Object.keys(signing).sort());
+        expect(JSON.parse(readFileSync(join(sd, "daemon-env.json"), "utf8"))).toEqual({ HOME: "/term", ...signing });
+        // A new group replaces the old one; the two are never mixed.
+        writeDaemonEnv(sd, { HOME: "/term", GIT_CONFIG_COUNT: "0" }, { replace: true });
+        expect(JSON.parse(readFileSync(join(sd, "daemon-env.json"), "utf8"))).toEqual({
+            HOME: "/term",
+            GIT_CONFIG_COUNT: "0",
+        });
+    });
+
+    it("gives servherd the same start command whether or not the caller set GITHERD_CONFIG", async () => {
+        const withConfig = installCommand(context());
+        const saved = env.GITHERD_CONFIG;
+        delete env.GITHERD_CONFIG;
+        const withoutConfig = context();
+        env.GITHERD_CONFIG = saved;
+        expect(installCommand(withoutConfig)).toBe(withConfig);
+
+        await ensureDaemon(context());
+        process.kill(-(await health()).pid, "SIGKILL");
+        const later = () => new Date(Date.now() + 61_000);
+        delete env.GITHERD_CONFIG;
+        expect((await ensureDaemon(context({ now: later }))).action).toBe("started");
+        const [first, second] = starts();
+        expect(second.argv).toEqual(first.argv);
+        expect(second.cwd).toBe(first.cwd);
     });
 
     it("names a servherd without --autorestart", async () => {

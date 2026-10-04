@@ -17,6 +17,7 @@ import { groupModes, modeText, renderBoard, whyText } from "./board-text.mjs";
 import { repoRoot } from "./config.mjs";
 import { notifyCommandProblem } from "./daemon.mjs";
 import {
+    daemonStartArgs,
     ensureDaemon,
     installCommand,
     launcherContext,
@@ -507,6 +508,10 @@ async function showModes(c, file) {
  * @returns {Promise<number>} the exit code
  */
 async function cmdService(c) {
+    if (c.name !== "doctor" && (c.env.GITHERD_RUN_ID || c.env.GITHERD_URL)) {
+        c.err(`githerd ${c.name}: runs never start servers`);
+        return 2;
+    }
     const dev = c.name === "dev";
     if (dev && !c.env.GITHERD_CONFIG) {
         c.err("githerd dev needs GITHERD_CONFIG: the development daemon never reads the default branch's config");
@@ -534,30 +539,28 @@ async function cmdService(c) {
 }
 
 /**
- * Runs this working tree as the `githerd-dev` daemon, with its state in the worktree.
+ * Runs this working tree as the `githerd-dev` daemon, with its state in the worktree. It starts the
+ * way the shared daemon does (`env -i`, the environment from `daemon-env.json`, `--autorestart`,
+ * the state directory as working directory), so a soak of it tests that start path.
  * @param {import("./launcher.mjs").LauncherContext} ctx the launcher's context
  * @param {Command} c the command
  * @param {string} devState the development state directory
  */
 async function startDev(ctx, c, devState) {
     const before = (await probe(ctx)).record;
-    const data = await servherd(ctx, [
-        "start",
-        "-n",
-        DEV_NAME,
-        "-e",
-        "PORT={{port}}",
-        "-e",
-        `GITHERD_CONFIG=${resolve(c.cwd, /** @type {string} */ (c.env.GITHERD_CONFIG))}`,
-        "-e",
-        `GITHERD_STATE_DIR=${devState}`,
-        "-e",
-        "GITHERD_DEV=1",
-        ...(c.env.GITHERD_DEV_NOTIFY === "1" ? ["-e", "GITHERD_DEV_NOTIFY=1"] : []),
-        "--",
-        "node",
-        join(PACKAGE_DIR, "bin", "githerd-daemon.mjs"),
-    ]);
+    writeDaemonEnv(devState, ctx.env);
+    const args = daemonStartArgs({
+        name: DEV_NAME,
+        root: ctx.root,
+        stateDir: devState,
+        script: join(PACKAGE_DIR, "bin", "githerd-daemon.mjs"),
+        extra: [
+            `GITHERD_CONFIG=${resolve(c.cwd, /** @type {string} */ (c.env.GITHERD_CONFIG))}`,
+            "GITHERD_DEV=1",
+            ...(c.env.GITHERD_DEV_NOTIFY === "1" ? ["GITHERD_DEV_NOTIFY=1"] : []),
+        ],
+    });
+    const data = await servherd(ctx, args, devState);
     const { health, error } = await waitFor(
         ctx,
         (h) => ours(ctx, h) && (data.action === "existing" || h.pid !== before?.pid),
@@ -571,7 +574,8 @@ async function startDev(ctx, c, devState) {
 const SERVICE = {
     install: async (ctx, c) => {
         await prepareCode(ctx, await targetCode(ctx));
-        writeDaemonEnv(ctx.stateDir, ctx.env, { replace: true });
+        const carried = writeDaemonEnv(ctx.stateDir, ctx.env, { replace: true });
+        if (carried.length) c.out(`kept from the old daemon-env.json, unset here: ${carried.join(" ")}`);
         c.out(installCommand(ctx));
     },
     ensure: async (ctx, c) => {

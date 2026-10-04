@@ -1,6 +1,10 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { assertAscii, checkOutgoing } from "../lib/text.mjs";
+import { assertAscii, checkOutgoing, secretValues } from "../lib/text.mjs";
 
 describe("assertAscii", () => {
     it("accepts plain ASCII, including tabs and newlines", () => {
@@ -92,5 +96,32 @@ describe("checkOutgoing", () => {
 
     it("reports every match", () => {
         expect(checkOutgoing("ghp_x sk-ant-y Claude-Session: z", env)).toHaveLength(3);
+    });
+});
+
+describe("secretValues", () => {
+    it("takes the secret-named entries of the repository's .env and of the environment", () => {
+        const root = mkdtempSync(join(tmpdir(), "githerd-text-"));
+        writeFileSync(
+            join(root, ".env"),
+            [
+                "# SONAR_TOKEN=commented",
+                "SONAR_TOKEN=sqp_value_1234",
+                'export CHROMATIC_PROJECT_TOKEN="chpt_quoted_99"',
+                "CHROMATIC_SESSION_COOKIE=cookie_value_42",
+                "NODE_ENV=production",
+                "EMPTY_KEY=",
+                "noequals",
+                "",
+            ].join("\n"),
+        );
+        expect(secretValues(root, { NPM_TOKEN: "npm_env_value", PATH: "/bin" })).toEqual({
+            SONAR_TOKEN: "sqp_value_1234",
+            CHROMATIC_PROJECT_TOKEN: "chpt_quoted_99",
+            CHROMATIC_SESSION_COOKIE: "cookie_value_42",
+            NPM_TOKEN: "npm_env_value",
+        });
+        expect(secretValues(join(root, "missing"), {})).toEqual({});
+        rmSync(root, { recursive: true, force: true });
     });
 });

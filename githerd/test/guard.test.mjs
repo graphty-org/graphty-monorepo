@@ -176,6 +176,13 @@ const DENIED = [
     "npx servherd@latest list",
     "pm2 start x",
     "pnpm exec pm2 list",
+    "githerd install",
+    "githerd ensure",
+    "node githerd/bin/githerd.mjs restart",
+    "node --no-warnings /abs/githerd/bin/githerd.mjs dev",
+    "./githerd/bin/githerd.mjs install",
+    "pnpm exec githerd ensure",
+    "npx githerd restart",
     "nohup node server.js",
     "setsid node server.js",
     "node server.js & disown",
@@ -235,6 +242,8 @@ const ALLOWED = [
     "cat <<EOF > notes.txt\ngit push\nnpm publish\nEOF",
     "find . -name '*.ts' -exec grep -l push {} +",
     "timeout 30 git commit -S -m 'fix: y'",
+    "node githerd/bin/githerd.mjs status",
+    "githerd why pr:12",
 ];
 
 describe("guard: Bash commands", () => {

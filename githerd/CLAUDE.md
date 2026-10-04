@@ -73,9 +73,14 @@ runner's `settings.json` and `--setting-sources project,local`, a scratch reposi
    owner's global CLAUDE.md. Both tell sessions to end with "ACTION NEEDED"; the preamble's ban on
    that line is what keeps runs from doing it, and a run's reply is never shown to the owner.
 3. **Pending:** the sandbox checks need bubblewrap and socat (see above).
-4. **Pending:** whether `timeout 30 git commit -S` finishes within 10 seconds from a run spawned by
-   the servherd-managed daemon. It matters only for code-editing kinds; run it before the first
-   code-editing soak.
+4. **Fails (2026-10-03): a run cannot sign a commit.** Whether `timeout 30 git commit -S` finishes
+   within 10 seconds from a run spawned by the servherd-managed daemon; it matters only for
+   code-editing kinds. `scripts/sign-check.mjs`, started as a one-shot servherd server under
+   `env -i` with a `daemon-env.json` written from the owner's Claude session, failed at once:
+   "gpg failed to sign the data ... No secret key". The run's git config
+   (`writeRunGitconfig`) has no `gpg.format=ssh`, and `runEnv` drops the owner's `GIT_CONFIG_*`
+   variables that carry it, so git signs with gpg. Code-editing runs stay off until it passes
+   (plan, "How to run 2.3", step 0).
 5. **No Co-Authored-By line in a run's commit.** Asked to commit with a message of its own, the run
    wrote `docs: add line two to notes.txt` and no trailer. The owner's global CLAUDE.md, which also
    forbids the trailer, was loaded, so this does not isolate the attribution setting; the actor's

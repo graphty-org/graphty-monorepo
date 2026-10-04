@@ -198,8 +198,11 @@ process.stderr.write("fake gh: offline\\n"); process.exit(1);`,
         "GITHERD_NAME",
         "GITHERD_DEV",
         "PM2_HOME",
+        "GITHERD_RUN_ID",
     ])
         delete env[name];
+    // The owner's notify keys never reach a test daemon's environment file.
+    for (const name of Object.keys(env)) if (name.startsWith("PUSHOVER_")) delete env[name];
     writeConfig();
     daemons = [];
     strays = [];
@@ -565,6 +568,27 @@ describe("ensure and restart", () => {
         expect(servherdCalls()).toEqual([]);
     });
 
+    it("install keeps the notify keys of the old environment file when this shell has none, and says so", async () => {
+        mkdirSync(stateDir(), { recursive: true });
+        writeFileSync(join(stateDir(), "daemon-env.json"), JSON.stringify({ PUSHOVER_USER_KEY: "k" }));
+        const r = await cli(["install"]);
+        expect(r.code).toBe(0);
+        expect(r.out).toContain("kept from the old daemon-env.json, unset here: PUSHOVER_USER_KEY");
+        expect(JSON.parse(readFileSync(join(stateDir(), "daemon-env.json"), "utf8")).PUSHOVER_USER_KEY).toBe("k");
+    });
+
+    it("refuses install, ensure, restart and dev inside a run", async () => {
+        for (const extraEnv of [{ GITHERD_RUN_ID: "run-1" }, { GITHERD_URL: "http://127.0.0.1:1" }]) {
+            for (const verb of ["install", "ensure", "restart", "dev"]) {
+                const r = await cli([verb], { extraEnv });
+                expect(r.code, verb).toBe(2);
+                expect(r.err).toBe(`githerd ${verb}: runs never start servers`);
+            }
+        }
+        expect(servherdCalls()).toEqual([]);
+        expect(existsSync(join(stateDir(), "daemon-env.json"))).toBe(false);
+    });
+
     it("ensure exits 1 when githerd is not configured", async () => {
         const r = await cli(["ensure"], { extraEnv: { GITHERD_CONFIG: undefined } });
         expect(r.code).toBe(1);
@@ -583,23 +607,26 @@ describe("dev", () => {
         expect(r.out).toContain(`githerd-dev started at http://127.0.0.1:`);
         expect(r.out).toContain("(dry-run)");
         const start = servherdCalls().find((c) => c.argv.includes("start"));
+        // The shared daemon's start path: env -i, --autorestart, the state directory as cwd.
         expect(start?.argv).toEqual([
             "--json",
             "start",
             "-n",
             "githerd-dev",
-            "-e",
-            "PORT={{port}}",
-            "-e",
-            `GITHERD_CONFIG=${env.GITHERD_CONFIG}`,
-            "-e",
-            `GITHERD_STATE_DIR=${devState}`,
-            "-e",
-            "GITHERD_DEV=1",
+            "--autorestart",
             "--",
+            "env",
+            "-i",
+            `GITHERD_ROOT=${root}`,
+            `GITHERD_STATE_DIR=${devState}`,
+            `GITHERD_CONFIG=${env.GITHERD_CONFIG}`,
+            "GITHERD_DEV=1",
+            "PORT={{port}}",
             "node",
             join(PACKAGE_DIR, "bin", "githerd-daemon.mjs"),
         ]);
+        expect(start?.cwd).toBe(devState);
+        expect(JSON.parse(readFileSync(join(devState, "daemon-env.json"), "utf8"))).toMatchObject({ PATH: env.PATH });
         expect(existsSync(join(devState, "daemon.json"))).toBe(true);
         expect(existsSync(join(stateDir(), "daemon.json"))).toBe(false);
         const status = await cli(["status"], { extraEnv: { GITHERD_STATE_DIR: devState } });

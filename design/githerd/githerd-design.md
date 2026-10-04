@@ -1292,8 +1292,19 @@ allow-list (`HOME`, `USER`, `LANG`, `PATH`, `SSH_AUTH_SOCK`, the `GIT_CONFIG_*` 
 and the notify command's Pushover keys) written owner-only by `githerd install`, or by the first
 start when it is missing. The daemon keeps the Pushover keys because it pages (11.3); workers never
 get them (7.1). They are in a file, not on the command line, because every process on the machine
-can read a command line. An uncaught exception enters fatal mode with its stack instead of
-exiting.
+can read a command line. `githerd install` run from a shell without the Pushover keys, or without
+the `GIT_CONFIG_*` group (it comes from the owner's Claude settings, not his terminal), keeps the
+old file's group and names it, so the daemon never silently loses its pages or its signing. The
+command line never carries `GITHERD_CONFIG`, whatever the caller's environment: the shared daemon
+always reads the default branch's config, and the command, and so servherd's entry, does not
+depend on which shell restarted it. The development daemon (`githerd dev`) starts the same way,
+with its own name, its state directory in the worktree and `GITHERD_CONFIG` and `GITHERD_DEV=1`
+added. Since the daemon's environment no longer holds the repository's `.env`, the outgoing-text
+check (`text.mjs`) compares against the secret-named values (TOKEN, KEY, SECRET, COOKIE,
+PASSWORD) of the daemon's environment and of the repository's `.env`, read at start and never
+exported: a run can read `.env` through Bash. Runs never call `githerd install`, `ensure`,
+`restart` or `dev`: the CLI refuses them when `GITHERD_RUN_ID` or `GITHERD_URL` is set, and the
+guard denies them. An uncaught exception enters fatal mode with its stack instead of exiting.
 
 ### 9.5 The invariant check
 

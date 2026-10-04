@@ -4,6 +4,9 @@
  * or an attribution line (design section 14).
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 /**
  * Credential prefixes and key material, matched anywhere in the text.
  * @type {[string, RegExp][]}
@@ -33,7 +36,7 @@ const ATTRIBUTION_PATTERNS = [
 ];
 
 /** Environment variables whose values are secrets: the name contains one of these words. */
-const SECRET_NAME = /TOKEN|KEY|SECRET/i;
+const SECRET_NAME = /TOKEN|KEY|SECRET|COOKIE|PASSWORD/i;
 
 // ponytail: values shorter than this are not credentials ("1", "true") and would match nearly any
 // text; raise it if a real secret that short ever appears.
@@ -76,4 +79,39 @@ export function checkOutgoing(text, env = process.env) {
         }
     }
     return reasons;
+}
+
+/**
+ * The secret values the outgoing-text check refuses for a daemon started under `env -i`: every
+ * variable of `env` whose name marks a secret (TOKEN, KEY, SECRET, COOKIE, PASSWORD), and every such entry of the
+ * repository's `.env` (KEY=VALUE lines, never exported). A run can read `.env` through Bash, so its
+ * values must be refused even though the daemon's own environment no longer holds them.
+ * @param {string} root the repository's main checkout
+ * @param {Record<string, string | undefined>} env the daemon's environment
+ * @returns {Record<string, string>} variable name to secret value
+ */
+export function secretValues(root, env) {
+    /** @type {Record<string, string>} */
+    const out = {};
+    let text = "";
+    try {
+        text = readFileSync(join(root, ".env"), "utf8");
+    } catch {
+        // no .env: only the environment's secrets
+    }
+    for (const line of text.split("\n")) {
+        const eq = line.indexOf("=");
+        const name = line
+            .slice(0, Math.max(eq, 0))
+            .trim()
+            .replace(/^export\s+/, "");
+        let value = line.slice(eq + 1).trim();
+        const quote = value[0];
+        if (value.length >= 2 && (quote === '"' || quote === "'") && value.at(-1) === quote) value = value.slice(1, -1);
+        if (/^[A-Za-z_]\w*$/.test(name) && SECRET_NAME.test(name) && value) out[name] = value;
+    }
+    for (const [name, value] of Object.entries(env)) {
+        if (SECRET_NAME.test(name) && value) out[name] = value;
+    }
+    return out;
 }

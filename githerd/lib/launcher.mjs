@@ -510,22 +510,42 @@ const DAEMON_ENV_FILE = "daemon-env.json";
  */
 const keptForDaemon = (name) => DAEMON_ENV_NAMES.has(name) || DAEMON_ENV_PREFIX.test(name);
 
+/** Variable groups a replacing write keeps from the old file when the new environment has none of them. */
+const DAEMON_ENV_STICKY = [/^PUSHOVER_/, /^GIT_CONFIG_(COUNT$|KEY_|VALUE_)/];
+
 /**
  * Writes `daemon-env.json` (owner-only) from the allow-listed variables of `env`: when it is
  * missing, or always with `replace` (`githerd install`). A start from a worker, whose environment
- * lacks the notify keys, never overwrites the file the owner's shell wrote.
+ * lacks the notify keys, never overwrites the file the owner's shell wrote. A replacing write from
+ * an environment with no notify keys, or no `GIT_CONFIG_*` signing variables, keeps the old file's
+ * (a terminal lacks the signing variables, which come from the owner's Claude settings), so the
+ * daemon never silently loses its pages or its signing.
  * @param {string} stateDir the state directory
  * @param {Record<string, string | undefined>} env the environment to copy from
  * @param {{replace?: boolean}} [options] overwrite an existing file
+ * @returns {string[]} the variables kept from the old file
  */
 export function writeDaemonEnv(stateDir, env, { replace = false } = {}) {
     const file = join(stateDir, DAEMON_ENV_FILE);
-    if (!replace && readJson(file)) return;
+    const old = readJson(file);
+    if (!replace && old) return [];
+    /** @type {Record<string, string>} */
     const kept = Object.fromEntries(Object.entries(env).filter(([k, v]) => typeof v === "string" && keptForDaemon(k)));
+    const carried = [];
+    for (const group of DAEMON_ENV_STICKY) {
+        if (Object.keys(kept).some((k) => group.test(k))) continue;
+        for (const [k, v] of Object.entries(old ?? {})) {
+            if (group.test(k) && typeof v === "string") {
+                kept[k] = v;
+                carried.push(k);
+            }
+        }
+    }
     mkdirSync(stateDir, { recursive: true });
     const tmp = `${file}.${process.pid}.tmp`;
     writeFileSync(tmp, `${JSON.stringify(kept, null, 2)}\n`, { mode: 0o600 });
     renameSync(tmp, file);
+    return carried;
 }
 
 /**
@@ -542,30 +562,48 @@ export function loadDaemonEnv(stateDir, env) {
 }
 
 /**
- * The servherd arguments that start the daemon. They are the same from every start path, and so is
- * the working directory (`servherd(ctx, startArgs(ctx), ctx.stateDir)`), so servherd always finds
- * its one entry: a second working directory or a changed command would make a second server, or
- * restart the first.
- * @param {LauncherContext} ctx the context
+ * The servherd arguments that start a daemon under `env -i` (design section 9.4): only the root,
+ * the state directory, `extra` and the port on its command line; the rest of its environment comes
+ * from `daemon-env.json` in the state directory.
+ * @param {{name: string, root: string, stateDir: string, script: string, extra?: string[]}} what
+ *   the servherd name, the repository, the state directory, the daemon script, and further
+ *   `NAME=value` words (the development daemon's)
  * @returns {string[]} the arguments after servherd's `--json`
  */
-function startArgs(ctx) {
-    const config = ctx.env.GITHERD_CONFIG ? [`GITHERD_CONFIG=${ctx.env.GITHERD_CONFIG}`] : [];
+export function daemonStartArgs({ name, root, stateDir, script, extra = [] }) {
     return [
         "start",
         "-n",
-        ctx.name,
+        name,
         "--autorestart",
         "--",
         "env",
         "-i",
-        `GITHERD_ROOT=${ctx.root}`,
-        `GITHERD_STATE_DIR=${ctx.stateDir}`,
-        ...config,
+        `GITHERD_ROOT=${root}`,
+        `GITHERD_STATE_DIR=${stateDir}`,
+        ...extra,
         "PORT={{port}}",
         "node",
-        join(ctx.stateDir, "current", "bin", "githerd-daemon.mjs"),
+        script,
     ];
+}
+
+/**
+ * The servherd arguments that start the shared daemon. They are the same from every start path,
+ * whatever the caller's environment (no `GITHERD_CONFIG`: the shared daemon always reads the
+ * default branch's config), and so is the working directory
+ * (`servherd(ctx, startArgs(ctx), ctx.stateDir)`), so servherd always finds its one entry: a
+ * second working directory or a changed command would make a second server, or restart the first.
+ * @param {LauncherContext} ctx the context
+ * @returns {string[]} the arguments after servherd's `--json`
+ */
+function startArgs(ctx) {
+    return daemonStartArgs({
+        name: ctx.name,
+        root: ctx.root,
+        stateDir: ctx.stateDir,
+        script: join(ctx.stateDir, "current", "bin", "githerd-daemon.mjs"),
+    });
 }
 
 /**

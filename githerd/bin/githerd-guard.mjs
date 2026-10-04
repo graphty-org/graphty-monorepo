@@ -44,6 +44,26 @@ const PROGRAM_DENIED = {
     storybook: "runs never start servers",
 };
 
+/** githerd CLI commands that start, restart or reconfigure a daemon through servherd. */
+const GITHERD_SERVICE = new Set(["install", "ensure", "restart", "dev"]);
+
+/**
+ * The githerd CLI command a call runs (`githerd <verb>`, `githerd.mjs <verb>` or
+ * `node [options] .../githerd.mjs <verb>`), or null when it is not the githerd CLI.
+ * @param {string} name the program's base name
+ * @param {string[]} args its arguments
+ * @returns {string | null} the verb
+ */
+function githerdVerb(name, args) {
+    let rest = args;
+    if (name === "node") {
+        const script = args.findIndex((a) => !a.startsWith("-"));
+        if (script === -1 || baseName(args[script]) !== "githerd.mjs") return null;
+        rest = args.slice(script + 1);
+    } else if (name !== "githerd" && name !== "githerd.mjs") return null;
+    return rest.find((a) => !a.startsWith("-")) ?? null;
+}
+
 /** A package script that starts a server or a watcher. */
 const SERVER_SCRIPT = /(^dev)|(storybook)|((^|:)(dev|serve|preview|start|watch)(:|$))/;
 
@@ -110,6 +130,8 @@ function checkCommand(cmd, config, cwd) {
     const name = baseName(cmd.argv[0]).replace(/(.)@[^/]*$/, "$1"); // NOSONAR(S5852): one command word, a few dozen characters
     const args = cmd.argv.slice(1);
     if (PROGRAM_DENIED[name]) deny(`${name}: ${PROGRAM_DENIED[name]}`);
+    const verb = githerdVerb(name, args);
+    if (verb && GITHERD_SERVICE.has(verb)) deny(`githerd ${verb}: runs never start servers`);
     if ((name === "curl" || name === "wget") && args.some((a) => /github\.com/i.test(a))) {
         deny(`${name} to GitHub: runs never call GitHub directly; use the githerd tools`);
     }

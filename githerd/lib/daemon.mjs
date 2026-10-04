@@ -94,6 +94,7 @@ import {
     writeFatal,
     writeProgress,
 } from "./store.mjs";
+import { secretValues } from "./text.mjs";
 import { sessionTools } from "./tools.mjs";
 import { readVersion } from "./version.mjs";
 import { createWorktree, readTree, removeWorktree, sweepWorktrees } from "./worktrees.mjs";
@@ -313,6 +314,9 @@ export async function startDaemon({
     runner: runnerOptions = {},
 }) {
     const startedAtDate = now();
+    // The values every outgoing text is checked against: under env -i the daemon's own environment
+    // no longer holds the repository's .env secrets a run could read and quote.
+    const secrets = secretValues(root, env);
     const startedAt = startedAtDate.toISOString();
     const self = identify(process.pid);
     const { version, codeHash } = readVersion();
@@ -581,7 +585,7 @@ export async function startDaemon({
             ledger,
             rate: state.rate,
             etags: readEtags(),
-            env,
+            env: secrets,
             now: () => now().getTime(),
         }));
 
@@ -1343,7 +1347,7 @@ export async function startDaemon({
                     ledger,
                     save,
                     finishBranch,
-                    env,
+                    env: secrets,
                 }),
             ];
         },
@@ -1370,7 +1374,7 @@ export async function startDaemon({
             run: { id, kind: run.kind, target: run.target },
             state,
             protectedPaths: config.protectedPaths,
-            env,
+            env: secrets,
             mode: mode(),
             runWrites: Boolean(config.actions?.runWrites),
             ledger,

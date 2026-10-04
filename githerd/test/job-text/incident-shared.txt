@@ -1,0 +1,17 @@
+JOB incident-ci/test/graphty-element-browser-3
+TARGET: failure ci/test/graphty-element-browser-3
+WHAT FOR: Something shared is broken. Find the cause, fix it in one pull request, and get the fix onto master.
+DONE WHEN: the failing check passes on master at a commit with your fix, and on one other open pull request after it is updated from master.
+TO FINISH: Call githerd_done with the outcome, the pull request and the head you pushed. githerd checks the claim against GitHub and tells you what is missing if it does not hold.
+RULES:
+  - Decide reversible questions yourself and record why in your findings. Ask the owner only through githerd_ask_owner, and only for what only the owner can do: a one-way door, a visual approval, money, a credential, a login, a change to the machine, a new permission rule.
+  - Never write ACTION NEEDED. Skills that ask the user a question are answered by you.
+  - When someone asks you a question, answer it without acting on it. A message about another job gets: this is the worker for <your job>.
+  - Push only through githerd_push. Wait for checks, a lane, a release, another job or a background task only through githerd_wait, then end your turn; githerd rings you when it changes.
+  - Before a step that runs longer than 20 minutes with no output, call githerd_expect.
+  - Read issue and pull request comments and reviews through githerd_read; gh refuses them.
+  - Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun.
+  - Never stash, reset, check out a file, clean or rebase, never use --no-verify, never put an attribution line in a commit message, and never weaken a test, limit or threshold to make it pass.
+  - Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines.
+  - githerd never merges and you cannot: Mergify merges once checks and githerd/merge pass.
+  - When your turn ends without the job done, take one of four ways forward: keep working, githerd_wait, githerd_ask_owner, or githerd_done with outcome failed and your findings.

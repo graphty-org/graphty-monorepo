@@ -215,12 +215,17 @@ describe("answerHook: SessionStart", () => {
         job.branch = "fix/pr-7";
         job.pr = 7;
         const r = answerHook(state, worker(REC.startCompact), facts(), T0);
-        expect(r.answer.context).toBe(jobRecordText(job));
-        expect(r.answer.context).toBe(
+        state.policies = [{ id: "p1", text: "no new dependencies this week" }];
+        expect(r.answer.context).toContain("JOB pr-7\n");
+        expect(answerHook(state, worker(REC.startCompact), facts(), T0).answer.context).toContain(
+            "OWNER POLICIES:\n  - no new dependencies this week",
+        );
+        expect(r.answer.context.endsWith(jobRecordText(job))).toBe(true);
+        expect(jobRecordText(job)).toBe(
             "githerd job record (re-injected after compaction): job pr-7, pr 7, state working.\n" +
                 "Your plan: fix the flaky test\nBranch: fix/pr-7\nPull request: #7\nNews: PR #7 exists, remote head abc",
         );
-        expect(job.compactions).toBe(1);
+        expect(job.compactions).toBe(2);
     });
 });
 

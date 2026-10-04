@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 
 import { endAttempt, heartbeat, move } from "./board.mjs";
 import { repoRoot } from "./config.mjs";
+import { jobText } from "./job-text.mjs";
 import { daemonDown, launcherContext } from "./launcher.mjs";
 import { raiseItem } from "./notify.mjs";
 import { defaultStateDir, spoolEvent } from "./store.mjs";
@@ -346,13 +347,15 @@ export function asksOwner(text) {
 
 /**
  * SessionStart: registers the session; for a worker links it to its job and checks the model;
- * prints the status line at startup, the news at resume, the job record after compaction.
+ * prints the status line at startup, the news at resume, and after compaction the job text (with
+ * the owner's free-text policies, design 5.7) and the job record.
+ * @param {any} state the daemon state, for the owner's policies
  * @param {any} job the worker's job, or null
  * @param {HookRequest} req the request
  * @param {HookFacts} facts what the daemon knows
  * @returns {{answer: HookAnswer, ledger: any[]}} the answer and ledger lines
  */
-function sessionStart(job, req, facts) {
+function sessionStart(state, job, req, facts) {
     const { session_id: session, source, model } = req.input;
     const line = statusLine(facts.status ?? {});
     if (!job) return { answer: { message: line, context: line }, ledger: [] };
@@ -362,7 +365,7 @@ function sessionStart(job, req, facts) {
     const ledger = [{ kind: "hook-session", job: job.id, session, source }];
     if (source === "compact" || source === "clear") {
         job.compactions = (job.compactions ?? 0) + 1;
-        return { answer: { context: jobRecordText(job) }, ledger };
+        return { answer: { context: `${jobText(job, { policies: state.policies })}${jobRecordText(job)}` }, ledger };
     }
     if (source === "resume") {
         const news = unacked(job);
@@ -523,7 +526,7 @@ export function answerHook(state, req, facts, now) {
     const request = { ...req, input };
     switch (req.event) {
         case "SessionStart":
-            return sessionStart(job, request, facts);
+            return sessionStart(state, job, request, facts);
         case "UserPromptSubmit":
             return job ? userPrompt(job, request, now) : { answer: {}, ledger: [] };
         case "Stop":

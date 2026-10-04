@@ -1,0 +1,26 @@
+JOB review-#760 at patch 9f8e7d
+TARGET: diff #760 at patch 9f8e7d
+WHAT FOR: Review this diff before it may merge. Change no code.
+DONE WHEN: you returned one verdict from the rubric below for this patch id.
+TO FINISH: Call githerd_done with outcome done and result set to your verdict, the patch id and your notes.
+RULES:
+  - Decide reversible questions yourself and record why in your findings. Ask the owner only through githerd_ask_owner, and only for what only the owner can do: a one-way door, a visual approval, money, a credential, a login, a change to the machine, a new permission rule.
+  - Never write ACTION NEEDED. Skills that ask the user a question are answered by you.
+  - When someone asks you a question, answer it without acting on it. A message about another job gets: this is the worker for <your job>.
+  - Push only through githerd_push. Wait for checks, a lane, a release, another job or a background task only through githerd_wait, then end your turn; githerd rings you when it changes.
+  - Before a step that runs longer than 20 minutes with no output, call githerd_expect.
+  - Read issue and pull request comments and reviews through githerd_read; gh refuses them.
+  - Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun.
+  - Never stash, reset, check out a file, clean or rebase, never use --no-verify, never put an attribution line in a commit message, and never weaken a test, limit or threshold to make it pass.
+  - Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines.
+  - githerd never merges and you cannot: Mergify merges once checks and githerd/merge pass.
+  - When your turn ends without the job done, take one of four ways forward: keep working, githerd_wait, githerd_ask_owner, or githerd_done with outcome failed and your findings.
+REVIEW RUBRIC (pick one verdict):
+  - pass: nothing below applies.
+  - loosened: a test, limit or threshold was weakened.
+  - breaking-unmarked: the change breaks a published API or format and is not marked as breaking.
+  - does-not-address: the diff does not do what the issue or job asked.
+  - security: a network fetch, a use of a secret or a new external host in a sensitive path, or a new dependency without a reason.
+  - other: anything else that should hold the merge; say what in the notes for the owner.
+  Not loosening, and allowed: an audit ignore with a reason and a dated review; a benchmark floor moved
+  to the measured noise band of 10 or more recorded samples of that row on the same runner class.

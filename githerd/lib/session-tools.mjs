@@ -14,6 +14,7 @@ import { availableParallelism, loadavg } from "node:os";
 
 import * as board from "./board.mjs";
 import { taskOutputPath } from "./hook.mjs";
+import { jobText } from "./job-text.mjs";
 import { TOOLS } from "./mcp.mjs";
 import { statusData, statusText } from "./tools.mjs";
 
@@ -129,9 +130,10 @@ export function sessionToolSet(ctx) {
                 if (job.holder?.session === session) job.steeredAt = null;
                 await ctx.commit({ kind: "next", job: job.id, session, news: news.length });
                 const instructions =
-                    job.state === "starting"
+                    jobText(job, { policies: state.policies }) +
+                    (job.state === "starting"
                         ? "Judge overlap against the snapshot, then call githerd_claim before any edit."
-                        : "Continue your job; your news is above.";
+                        : "Continue your job; your news is above.");
                 return JSON.stringify({ job, snapshot: snap, news, load, instructions });
             }
             const offered = Object.values(state.jobs ?? {}).filter((/** @type {any} */ j) => j.state === "queued");

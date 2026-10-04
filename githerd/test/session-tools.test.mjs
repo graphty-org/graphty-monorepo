@@ -112,6 +112,7 @@ describe("sessionToolSet", () => {
         const first = JSON.parse((await call(ctx, "githerd_next", {})).text);
         expect(first).toMatchObject({ job: { id: "pr-7" }, news: ["CI went green"], snapshot: { version: 1 } });
         expect(first.load.cores).toBeGreaterThan(0);
+        expect(first.instructions).toMatch(/^JOB pr-7\n[\s\S]*\nContinue your job; your news is above\.$/);
         expect(job.news[0].acked).toBe(true);
         expect(job.steeredAt).toBeNull();
         expect(JSON.parse((await call(ctx, "githerd_next", {})).text).news).toEqual([]);

@@ -852,6 +852,8 @@ class Session implements ElementSession {
         }
 
         this.disposed = true;
+        // A pass still queued would repaint from a store disposed below.
+        this.dispatcher.lane.close();
         // The store may be the renderer's, and gone: nothing is captured on the way out.
         this.dispatcher.arrangement.bind(null);
         this.dispatcher.clear();
@@ -1858,6 +1860,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             revision: () => inputs.tick.value,
             // Read through a call: the resolver is built below.
             resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
+            // Read through calls: the runs are built below.
+            run: (id: RunId) => runs.get(id),
+            runIds: () => runs.list().map((run) => run.id),
         },
     );
     // A session that holds a store of its own kind writes it through its own ingest; the element

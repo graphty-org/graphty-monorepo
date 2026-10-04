@@ -14,6 +14,15 @@
 merge_queue:
     max_parallel_checks: 1
 
+# A fix for a red master goes first: label it "priority:critical". It jumps the queue and, since the
+# queue checks one pull request at a time, interrupts the one being checked, which re-queues behind it.
+priority_rules:
+    - name: fix for a red master
+      conditions:
+          - label=priority:critical
+      priority: high
+      allow_checks_interruption: true
+
 queue_rules:
     - name: default
       # One pull request at a time, checked in place on its own branch: the visual-review gate is
@@ -26,9 +35,11 @@ queue_rules:
       queue_conditions:
           - label!=hold
           - "-title~=^[a-z]+(\\([^)]*\\))?!:"
-      merge_conditions:
-          - check-success=All Checks Pass
-          - check-success=Lint PR Title
+      # No merge_conditions: Mergify checks a pull request in place only when the queue is
+      # single-step (merge_conditions empty or equal to queue_conditions). With them it tested a
+      # temporary draft pull request instead, whose title fails Lint PR Title and whose number the
+      # visual-review gate does not know. The ruleset's required checks (All Checks Pass, Lint PR
+      # Title) are added to the queue conditions by Mergify on its own.
 
 # Merge Protections' auto-merge puts a pull request into the queue once it matches these conditions;
 # the queue's own queue_conditions still gate it. (pull_request_rules would need Mergify's Workflow

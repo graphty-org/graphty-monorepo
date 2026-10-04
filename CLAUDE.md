@@ -884,6 +884,34 @@ Several agents often work in this repository at once. They share one disk and on
   explicitly a whole-repository audit.
 - Report regressions and failures first, then everything else.
 
+### The GitHub API budget
+
+Every agent, watcher and session shares one GitHub account, and so one limit of 5,000 REST
+requests an hour. On 2026-10-04 it ran out twice in one hour: status sweeps that made a few REST
+calls per open pull request (35 pull requests, about 100 calls a sweep), run again and again by
+two sessions. Until the limit resets, every `gh` call fails with HTTP 403 and merging stalls.
+
+- **Ask about many pull requests in one GraphQL query, never in a loop of per-pull-request REST
+  calls** (`gh pr view`, `gh pr checks`, `gh pr diff` or `gh api .../pulls/<n>` once per pull
+  request). One query returns every open pull request's state, labels, merge status and checks:
+
+  ```bash
+  gh api graphql -f query='{ repository(owner: "graphty-org", name: "graphty-monorepo") {
+    pullRequests(states: OPEN, first: 100) { nodes {
+      number title baseRefName isDraft mergeable labels(first: 10) { nodes { name } }
+      commits(last: 1) { nodes { commit { statusCheckRollup { state
+        contexts(first: 100) { nodes { ... on CheckRun { name status conclusion } } } } } } }
+    } } } }'
+  ```
+
+- **Poll every 5 minutes or slower.** A loop that waits for a pull request or a run to finish
+  sleeps at least 300 seconds between calls.
+- **On a 403 "rate limit exceeded", wait; do not retry quickly.** `gh api rate_limit` costs nothing
+  and shows the reset time. GitHub also has a secondary limit on bursts and concurrent requests,
+  which `rate_limit` does not show: when calls fail while it reports requests left, retry every
+  10 minutes.
+- A prompt that starts an agent which talks to GitHub carries these rules.
+
 ## Claude Session History
 
 - Past Claude Code sessions for this project (transcripts, subagent logs, workflows, memory) are archived in ./.claudehistory/. Look there for context from earlier work. Synced by claude-history-sync.sh.

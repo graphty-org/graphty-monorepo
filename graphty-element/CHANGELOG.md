@@ -1,3 +1,20 @@
+## 3.10.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** export NodeId from the root; neighbors guide states types and limits ([35904f75](https://github.com/graphty-org/graphty-monorepo/commit/35904f75))
+- **graphty-element:** export WeightMeaning from the root; document neighbor counts ([4442c4af](https://github.com/graphty-org/graphty-monorepo/commit/4442c4af))
+- **graphty-element:** neighbors takes the run's weight, direction, scope and sort ([8954ca7d](https://github.com/graphty-org/graphty-monorepo/commit/8954ca7d))
+- **graphty-element:** list a node's neighbors with tie strength ([#784](https://github.com/graphty-org/graphty-monorepo/issues/784))
+
+### 🩹 Fixes
+
+- **graphty-element:** re-pin the louvain cost model over its slowest random graphs ([8057ee9c](https://github.com/graphty-org/graphty-monorepo/commit/8057ee9c))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.9.0 (2026-10-04)
 
 ### 🚀 Features

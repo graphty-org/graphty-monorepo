@@ -190,14 +190,14 @@ const FALSE_CLAIMS = [
     ["split child is a pr", "issue", "5", {}, { outcome: "split", children: [11] }, {}, {}, "not an issue"],
     ["split child is the parent", "issue", "5", {}, { outcome: "split", children: [5] }, {}, {}, "the parent itself"],
     [
-        "not-needed pr still open",
+        "not-needed pr still open without a proposal",
         "pr",
         "7",
         {},
         { outcome: "not-needed" },
         {},
         { pull: async () => ({ state: "open" }) },
-        "still open",
+        "no open proposal",
     ],
     ["not-needed issue without proposal", "issue", "9", {}, { outcome: "not-needed" }, {}, {}, "no open proposal"],
     ["not-needed review", "review", "7", {}, { outcome: "not-needed" }, {}, {}, "is for issue and pr jobs"],
@@ -600,6 +600,16 @@ describe("githerdDone", () => {
         const ok = await githerdDone(ctx, job, report({ outcome: "not-needed", evidence: "done in #12" }), "w1");
         expect(ok.text).toBe('{"verified":true}');
         expect(s.proposals["issue:9"]).toMatchObject({ kind: "not-needed", status: "unconfirmed", proposedBy: "w1" });
+    });
+
+    it("records a pull request's not-needed as a proposal, which holds it while the pull request is open", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx } = setup(s, fakeIo({ pull: async () => ({ state: "open" }) }));
+        const ok = await githerdDone(ctx, job, report({ outcome: "not-needed", evidence: "landed in #12" }), "w1");
+        expect(ok.text).toBe('{"verified":true}');
+        expect(job.state).toBe("done");
+        expect(s.proposals["pr:7"]).toMatchObject({ kind: "not-needed-pr", status: "unconfirmed", proposedBy: "w1" });
     });
 
     it("records a verified triage batch's verdicts and a split's children", async () => {

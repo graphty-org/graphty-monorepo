@@ -39,6 +39,8 @@ const TITLE_CHECK = "Lint PR Title";
 const TRIAGE_VERDICTS = new Set(["keep", "duplicate", "obsolete", "fixed"]);
 const REVIEW_VERDICTS = new Set(["pass", "loosened", "breaking-unmarked", "does-not-address", "security", "other"]);
 const SHA = /^[0-9a-f]{7,40}$/;
+/** The job kinds whose `not-needed` is a proposal to close their issue or pull request. */
+const NOT_NEEDED_KINDS = new Set(["issue", "pr"]);
 
 /**
  * @typedef {{holds: true} | {ciPending: string} | {missing: string[]} | null} Answer what a check
@@ -373,26 +375,21 @@ async function splitAnswer(job, report, view) {
 }
 
 /**
- * `not-needed`: an issue's goes through the proposal path (the proposal is the record that holds
- * it); a pull request's holds once GitHub shows it closed.
+ * `not-needed`: an issue's and a pull request's go through the proposal path (the proposal is the
+ * record that holds it), or hold once GitHub shows the item closed.
  * @param {any} job the job
  * @param {View} view what the check reads
  * @returns {Promise<Answer>} the answer
  */
 async function notNeededAnswer(job, view) {
+    if (!NOT_NEEDED_KINDS.has(job.kind)) {
+        return { missing: [`not-needed is for issue and pr jobs; report a ${job.kind} job done or failed`] };
+    }
     const n = numberOf(job.target);
-    if (job.kind === "issue") {
-        const p = view.state.proposals?.[`issue:${n}`];
-        const issue = await view.io.issue(n);
-        if (issue?.state === "closed" || (p && !["dropped", "vetoed", "voided"].includes(p.status)))
-            return { holds: true };
-        return { missing: [`#${n} has no open proposal to close it: give evidence from current master`] };
-    }
-    if (job.kind === "pr") {
-        const pr = await view.io.pull(n);
-        return pr?.state === "closed" ? { holds: true } : { missing: [`#${n} is still open`] };
-    }
-    return { missing: [`not-needed is for issue and pr jobs; report a ${job.kind} job done or failed`] };
+    const p = view.state.proposals?.[`${job.kind}:${n}`];
+    const item = await (job.kind === "issue" ? view.io.issue(n) : view.io.pull(n));
+    if (item?.state === "closed" || (p && !["dropped", "vetoed", "voided"].includes(p.status))) return { holds: true };
+    return { missing: [`#${n} has no open proposal to close it: give evidence from current master`] };
 }
 
 /**
@@ -470,7 +467,7 @@ function toolAnswer(answer, after, error) {
 }
 
 /**
- * Records a triage batch's verdicts and an issue's `not-needed` as proposals, once verified.
+ * Records a triage batch's verdicts and an issue's or pull request's `not-needed` as proposals.
  * @param {any} job the job
  * @param {any} report the report
  * @param {View} view what the check reads
@@ -483,7 +480,8 @@ function recordVerdicts(job, report, view, now) {
     /** @type {any[]} */
     let verdicts = [];
     if (report.outcome === "not-needed") {
-        verdicts = [{ verdict: "not-needed", number: numberOf(job.target), evidence: report.evidence }];
+        const verdict = job.kind === "pr" ? "not-needed-pr" : "not-needed";
+        verdicts = [{ verdict, number: numberOf(job.target), evidence: report.evidence }];
     } else if (job.kind === "triage" && Array.isArray(report.result)) {
         verdicts = report.result.map((/** @type {any} */ r) => ({
             verdict: r.verdict,
@@ -515,9 +513,10 @@ export async function githerdDone(ctx, job, report, session) {
     if (job.state !== "working")
         throw new Error(`${job.id} is ${job.state}; githerd_done is for a job you are working on`);
     const view = { state: ctx.state, config: ctx.config, io: ctx.io, session };
-    // An issue's not-needed is a proposal; it is recorded only for a report whose defects are filed.
+    // An issue's or pull request's not-needed is a proposal; it is recorded only for a report whose
+    // defects are filed.
     const filed = async () => (await defectGaps(report.defects, ctx.io).catch(() => ["unread"])).length === 0;
-    if (report.outcome === "not-needed" && job.kind === "issue" && (await filed())) {
+    if (report.outcome === "not-needed" && NOT_NEEDED_KINDS.has(job.kind) && (await filed())) {
         const refused = recordVerdicts(job, report, view, now);
         if (refused.length) return reply({ verified: false, missing: refused });
     }

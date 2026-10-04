@@ -4,7 +4,8 @@
  *
  * Kinds, and what each needs:
  * - `duplicate` (an issue duplicating issue `of`), `obsolete` and `fixed` (evidence from current
- *   master), `not-needed` (an `issue` job's outcome, with evidence): Claude's judgment, so one
+ *   master), `not-needed` (an `issue` job's outcome, with evidence) and `not-needed-pr` (the same
+ *   for a `pr` job's pull request): Claude's judgment, so one
  *   verdict only makes an `unconfirmed` proposal. A second verdict from a different session that
  *   agrees (same kind, same `of`) confirms it; one that disagrees, or a `keep`, drops it.
  * - `already-merged` (a pull request whose every commit is on master, merged through `of`) and
@@ -45,6 +46,7 @@ const KINDS = {
     obsolete: "issue",
     fixed: "issue",
     "not-needed": "issue",
+    "not-needed-pr": "pr",
     "already-merged": "pr",
     "duplicate-pr": "pr",
 };
@@ -60,7 +62,8 @@ const EVIDENCE_CHARS = 1000;
 const OWN_MARK = "<!-- githerd";
 
 /**
- * @typedef {"duplicate" | "obsolete" | "fixed" | "not-needed" | "already-merged" | "duplicate-pr"} Kind
+ * @typedef {"duplicate" | "obsolete" | "fixed" | "not-needed" | "not-needed-pr" | "already-merged"
+ *   | "duplicate-pr"} Kind
  * @typedef {{verdict: Kind | "keep", number: number, of?: number, evidence?: string, session: string,
  *   at: string}} Verdict one verdict on an issue or pull request; `session` is who judged it
  * @typedef {{id: string, target: string, kind: Kind, of: number | null, evidence: string | null,
@@ -197,6 +200,7 @@ export function proposalComment(p) {
         obsolete: `This issue looks obsolete on current master; two separate sessions agreed. Evidence: ${p.evidence}`,
         fixed: `This issue looks fixed on current master; two separate sessions agreed. Evidence: ${p.evidence}`,
         "not-needed": `The work this issue asks for looks not needed; two separate sessions agreed. Evidence: ${p.evidence}`,
+        "not-needed-pr": `The change this pull request makes looks not needed; two separate sessions agreed. Evidence: ${p.evidence}`,
         "already-merged": `Every commit of this pull request is already on master, merged through #${p.of}.`,
         "duplicate-pr": `This pull request duplicates #${p.of}, which is older and is kept.`,
     }[p.kind];

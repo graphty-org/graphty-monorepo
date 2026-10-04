@@ -972,9 +972,7 @@ describe("ControlSection", () => {
             await user.click(screen.getByRole("button", { name: "Expand Attributes" }));
 
             expect(screen.queryByTestId("control-section-summary")).not.toBeInTheDocument();
-            expect(screen.getByRole("button", { name: "Collapse Attributes" })).not.toHaveAttribute(
-                "aria-describedby",
-            );
+            expect(screen.getByRole("button", { name: "Collapse Attributes" })).not.toHaveAttribute("aria-describedby");
         });
 
         it("draws no summary on a section that cannot collapse", () => {

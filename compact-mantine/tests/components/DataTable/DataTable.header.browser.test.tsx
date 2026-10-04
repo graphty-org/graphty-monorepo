@@ -3,7 +3,7 @@
  * edge while the others scroll sideways, a header glyph, a header tooltip, and a header menu
  * opened by its caret or from the keyboard.
  */
-import { MantineProvider,Menu } from "@mantine/core";
+import { MantineProvider, Menu } from "@mantine/core";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";

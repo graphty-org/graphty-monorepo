@@ -104,9 +104,7 @@ describe("Display Components Integration", () => {
         it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Avatar data-testid="avatar">
-                        AB
-                    </Avatar>
+                    <Avatar data-testid="avatar">AB</Avatar>
                 </MantineProvider>,
             );
             expect(screen.getByTestId("avatar")).toBeInTheDocument();

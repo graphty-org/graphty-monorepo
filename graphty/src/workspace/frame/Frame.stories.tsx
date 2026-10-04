@@ -115,9 +115,24 @@ export const DataPage: Story = {
     args: { initialState: { ...OPEN, page: "data-page" } },
 };
 
-/** Help > About, with the build stamp (Storybook pages carry none). */
+/**
+ * Help > About. A built Storybook carries the real build stamp, which changes with every commit
+ * and release, so the story writes a fixed one (the unit test's) and its picture stays the same.
+ */
 export const About: Story = {
     args: { initialState: { ...OPEN, dialog: "about" } },
+    decorators: [
+        (Story) => {
+            let meta = document.querySelector<HTMLMetaElement>('meta[name="graphty-build"]');
+            if (meta === null) {
+                meta = document.createElement("meta");
+                meta.name = "graphty-build";
+                document.head.append(meta);
+            }
+            meta.content = "0123456789ab graphty@0.8.35";
+            return <Story />;
+        },
+    ],
 };
 
 /** Keyboard shortcuts, listing every built command's key. */

@@ -43,8 +43,8 @@ export const registration = defineRegistration({
             group: "Project",
             keys: ["Mod+Z"],
             disabled: ({ session }) => (session?.canUndo === true ? null : "Nothing to undo"),
-            run: ({ session }) => {
-                void session?.undo();
+            run: async ({ session }) => {
+                await session?.undo();
             },
         },
         {
@@ -53,8 +53,8 @@ export const registration = defineRegistration({
             group: "Project",
             keys: ["Shift+Mod+Z", "Mod+Y"],
             disabled: ({ session }) => (session?.canRedo === true ? null : "Nothing to redo"),
-            run: ({ session }) => {
-                void session?.redo();
+            run: async ({ session }) => {
+                await session?.redo();
             },
         },
         {

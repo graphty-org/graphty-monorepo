@@ -446,6 +446,21 @@ All packages: 80% lines/functions/statements, 75% branches
 
 ## CI/CD Pipeline
 
+The adopted plan for how pull requests are checked, merged and released is
+`design/ci/ci-cd-plan.md` (decision record `design/decisions/2026-10-04-ci-cd-plan-adopted.md`).
+The target flow:
+
+- A pull request runs the affected CI; drafts run none. The owner approves its screenshots there.
+- Mergify checks batches of up to 4 ready pull requests, 2 batches at once. Each batch gets the
+  full un-selected suite on the combined tree, and a failing batch is bisected. The visual gate
+  passes a batch whose images equal the owner-approved images of its pull requests.
+- A red master freezes the queue and opens a `priority:critical` revert automatically.
+- Releases go out once a day as a release pull request, plus an ad hoc release on demand.
+
+**Live today:** none of the target flow. The workflows below, the serial in-place queue under
+"Merging" and the release on every merge under "Release versioning" are still what runs. The
+plan's section 16 is the order of the migration. Update this paragraph as each step lands.
+
 ### Workflows (`.github/workflows/`)
 
 | Workflow | Trigger | Purpose |
@@ -485,6 +500,15 @@ package has no guide pages, so its documentation link is the generated API refer
 `/storybook/graphty-element/`; `/storybook/element/` only redirects there, for old links.
 
 ### Release versioning
+
+Today `release.yml` publishes after every green merge. The adopted plan (`design/ci/ci-cd-plan.md`,
+sections 10 and 11; being implemented) replaces that with a daily release train. Once a day it
+opens a "chore: release" pull request from the newest commit green on every lane, Mergify merges
+it, and `release.yml` publishes it with npm trusted publishing. An ad hoc release cuts the same
+pull request at once, for the owner or an agent the owner asked:
+`gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never
+start one on your own initiative. Everything below about versions, holds and changelogs holds for
+both.
 
 `release.yml` runs `nx release`, which bumps each package from the conventional commits since its
 last `{projectName}@{version}` tag. A commit with `!` or a `BREAKING CHANGE:` footer always means a
@@ -808,6 +832,10 @@ that starts the same server from the owner's own shell, which is how the owner s
 
 ### Merging
 
+The adopted plan (`design/ci/ci-cd-plan.md`, sections 4 to 6; being implemented) moves Mergify to
+batches of up to 4 pull requests, 2 batches checked at once, each with the full suite on the
+combined tree, and a gate that accepts a batch. Until that lands, the queue below is what runs.
+
 Mergify merges pull requests (`.mergify.yml`): it queues every pull request into master that is not
 a draft, has no conflict, has no `hold` label and has no breaking `!` in its title, brings it up to
 date with master and merges it once `All Checks Pass` (which includes the visual-review gate) and
@@ -836,6 +864,19 @@ breaking changes into as few majors as possible.
 - A pull request that will bump a published package's major says so in its description, lists
   the breaking changes it groups, and names any known breaking change it deliberately leaves for
   a later major, with the reason.
+
+### Public API review
+
+graphty-element's public API is committed as a report: `graphty-element/api/<entry>.api.md`, one
+per typed entry point in its package.json `"exports"` (`index` for `.`), written by
+@microsoft/api-extractor from the built `.d.ts` files. A pull request that changes the API shows the
+change as a diff of those files.
+
+**"Public API report (graphty-element)"** (ci.yml's Build job and `tools/prepush.sh`) fails when the
+built API differs from the committed report. Build, then run `npm run api:report` in graphty-element
+and commit the report with the change. An agent whose pull request changes the report says so in
+the pull request description: which entry points, what was added, changed or removed, and whether
+it is breaking.
 
 ### Module System
 

@@ -48,7 +48,7 @@ export function segmentMatrixToRef(srcPoint: Vector3, dstPoint: Vector3, out: Ma
     // segment, so the vector it turns into yaw and pitch is half the delta -- same direction,
     // and the angles below are Babylon's own (TransformNode.setDirection).
     const yaw = -Math.atan2(scratchDirection.z, scratchDirection.x) + Math.PI / 2;
-    const flat = Math.sqrt(scratchDirection.x * scratchDirection.x + scratchDirection.z * scratchDirection.z);
+    const flat = Math.sqrt(scratchDirection.x * scratchDirection.x + scratchDirection.z * scratchDirection.z); // NOSONAR(S7769): per edge, per frame; Math.hypot made this function 50-70% slower
     const pitch = -Math.atan2(scratchDirection.y, flat);
 
     Quaternion.RotationYawPitchRollToRef(yaw, pitch, 0, scratchRotation);
@@ -291,7 +291,7 @@ export class EdgeLineBatch {
         const y = this.matrices[at + 1];
         const z = this.matrices[at + 2];
 
-        return Math.sqrt(x * x + y * y + z * z);
+        return Math.sqrt(x * x + y * y + z * z); // NOSONAR(S7769): per edge, per frame; Math.hypot measured ~17x slower here
     }
 
     /**

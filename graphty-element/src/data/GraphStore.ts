@@ -912,8 +912,7 @@ export class GraphStore {
         // costs. Anything else written, or any freeze, ends the run.
         let chain = this.removedSinceFreeze;
         if (
-            chain === null ||
-            chain.revision !== this.revision ||
+            chain?.revision !== this.revision ||
             chain.snapshot !== this.cache ||
             this.cachedRevision === this.revision ||
             this.structural.length > 0 ||

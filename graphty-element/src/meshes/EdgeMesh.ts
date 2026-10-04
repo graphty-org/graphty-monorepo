@@ -27,7 +27,7 @@ import { PatternedLineRenderer } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
-const PATTERNED_TYPES = ["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"];
+const PATTERNED_TYPES = new Set(["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
 
 interface EdgeMeshOptions {
     styleId: string;
@@ -290,7 +290,7 @@ void main() {
             return cache.getBatch(key, staticLine, scene);
         }
 
-        if (PATTERNED_TYPES.includes(lineType)) {
+        if (PATTERNED_TYPES.has(lineType)) {
             return null;
         }
 

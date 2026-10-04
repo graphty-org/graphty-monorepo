@@ -80,9 +80,8 @@ function Palette(props: QuickActionsProps): React.JSX.Element {
  *
  * - `description` puts a dimmed second line under an action -- the reason a disabled one cannot
  *   be used -- and keeps it through a search, where section headings are dropped.
- * - `searchThreshold={15}` shows the search field only past 15 actions.
- * - `initialFocus="first"` opens with the first action highlighted and focus on the list, so
- *   Enter runs it at once; typing a letter moves to the search field.
+ * - The search field shows however few actions there are, and holds focus: the first action is
+ *   highlighted on open, so Enter runs it at once.
  * - `truncate="middle"` cuts a long name in the middle ("shared_ch...apters") and puts the full
  *   name in its tooltip.
  *
@@ -93,8 +92,6 @@ function Palette(props: QuickActionsProps): React.JSX.Element {
  *         { value: "degree", label: "degree" },
  *         { value: "community", label: "community", disabled: true, description: "Holds groups, not amounts" },
  *     ]}
- *     searchThreshold={15}
- *     initialFocus="first"
  *     truncate="middle"
  *     onRun={bind}
  * />
@@ -103,8 +100,7 @@ function Palette(props: QuickActionsProps): React.JSX.Element {
  * ## Keyboard and accessibility
  *
  * - Focus goes to the search field on open. Typing filters; the first match is highlighted.
- *   With `initialFocus="first"`, or with no search field (`searchThreshold`), focus goes to the
- *   list instead, which then carries `aria-activedescendant`.
+ *   Focus never leaves the field, so the panel and the list draw no focus ring.
  * - An action's `description` is its option's accessible description; its name stays `label`.
  * - ArrowUp / ArrowDown move the highlight, skipping disabled rows, while focus stays in the
  *   field: the field is a `role="combobox"` whose `aria-activedescendant` names the highlighted
@@ -201,8 +197,8 @@ export const Keyboard: Story = {
 };
 
 /**
- * A short field chooser: no search field (8 actions, under the threshold of 15), focus on the
- * first field, a disabled field with its reason on a second line, and a long name cut in the
+ * A short field chooser: the search field holds focus with the first field highlighted, a
+ * disabled field stays listed with its reason on a second line, and a long name is cut in the
  * middle.
  */
 export const FieldChooser: Story = {
@@ -212,8 +208,6 @@ export const FieldChooser: Story = {
             aria-label="From data"
             width={240}
             height={260}
-            searchThreshold={15}
-            initialFocus="first"
             truncate="middle"
             actions={[
                 { value: "degree", label: "degree" },
@@ -231,7 +225,11 @@ export const FieldChooser: Story = {
     ),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await expect(canvas.queryByRole("combobox")).toBeNull();
-        await expect(canvas.getByRole("listbox")).toHaveFocus();
+        const input = canvas.getByRole("combobox");
+        await expect(input).toHaveFocus();
+        await expect(canvas.getByRole("listbox")).not.toHaveFocus();
+        await expect(canvas.getByRole("listbox")).not.toHaveAttribute("tabindex");
+        await expect(input).toHaveAttribute("aria-activedescendant", canvas.getByRole("option", { name: "degree" }).id);
+        await expect(canvas.getByRole("option", { name: "community" })).toHaveAttribute("aria-disabled", "true");
     },
 };

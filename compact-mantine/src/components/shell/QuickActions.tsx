@@ -87,18 +87,6 @@ export interface QuickActionsProps {
     /** Placeholder of the search field. Defaults to the "Search actions" label. */
     placeholder?: string;
     /**
-     * Show the search field only when there are more actions than this. At or below it the
-     * palette is a plain list: focus goes to the list and the arrows, Enter and Escape work
-     * there. Default: the search field always shows.
-     */
-    searchThreshold?: number;
-    /**
-     * Where focus goes on open: `"search"` (the default) puts it in the search field;
-     * `"first"` puts it on the list with the first action highlighted, so Enter runs it at
-     * once. Typing a letter on the list moves to the search field.
-     */
-    initialFocus?: "search" | "first";
-    /**
      * How a name too long for its row is cut. `"end"` (the default) ends it with an ellipsis;
      * `"middle"` keeps its start and its end ("shared_ch...apters"), for names that differ at
      * the end. A middle-cut name carries the full name as its tooltip.
@@ -153,8 +141,6 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props.filter - Which actions match the search
  * @param props.header - Rendered between the search field and the list
  * @param props.searchAction - A trailing action at the right end of the search field
- * @param props.searchThreshold - Show the search field only past this many actions
- * @param props.initialFocus - Focus the search field, or the list with its first action
  * @param props.truncate - Cut a long name at the end or in the middle
  * @param props.placeholder - Placeholder of the search field
  * @param props.width - Panel width
@@ -172,8 +158,6 @@ export function QuickActions({
     filter = defaultFilter,
     header,
     searchAction,
-    searchThreshold,
-    initialFocus = "search",
     truncate = "end",
     placeholder,
     width = 529,
@@ -186,8 +170,6 @@ export function QuickActions({
     const labels = useLabels();
     const id = useId();
     const input = useRef<HTMLInputElement>(null);
-    const list = useRef<HTMLDivElement>(null);
-    const searchShown = searchThreshold === undefined || actions.length > searchThreshold;
     const [search, setSearch] = useUncontrolled({
         value: query,
         defaultValue: "",
@@ -218,32 +200,14 @@ export function QuickActions({
     const setHighlight = (value: string): void => {
         setMarked({ search, value });
     };
-    const focusList = !searchShown || initialFocus === "first";
     useEffect(() => {
-        (focusList ? list.current : input.current)?.focus();
+        input.current?.focus();
         // Only on open: the reader moves focus from here.
     }, []);
 
     const optionId = (value: string): string => `${id}-option-${value}`;
 
-    const onKeyDown = (event: React.KeyboardEvent<HTMLElement>): void => {
-        if (event.target !== event.currentTarget) {
-            return;
-        }
-        // On the list, a letter goes to the search field, where it is typed. Space is not a
-        // letter: it does nothing on the list.
-        if (
-            event.currentTarget === list.current &&
-            searchShown &&
-            event.key.length === 1 &&
-            event.key !== " " &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.altKey
-        ) {
-            input.current?.focus();
-            return;
-        }
+    const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
         const index = enabled.findIndex((a) => a.value === current);
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
@@ -272,61 +236,48 @@ export function QuickActions({
             className={className ? `cm-quick-actions ${className}` : "cm-quick-actions"}
             style={{ width, height, ...style }}
         >
-            {searchShown ? (
-                <div className="cm-field cm-qa-search">
-                    <span className="cm-qa-search-icon" aria-hidden="true">
-                        <SearchGlyph />
+            <div className="cm-field cm-qa-search">
+                <span className="cm-qa-search-icon" aria-hidden="true">
+                    <SearchGlyph />
+                </span>
+                <input
+                    ref={input}
+                    className="cm-qa-input"
+                    type="text"
+                    role="combobox"
+                    aria-label={placeholder ?? labels.searchActions}
+                    aria-expanded="true"
+                    aria-controls={`${id}-list`}
+                    aria-autocomplete="list"
+                    aria-activedescendant={current === undefined ? undefined : optionId(current)}
+                    placeholder={placeholder ?? labels.searchActions}
+                    value={search}
+                    onChange={(event) => {
+                        setSearch(event.currentTarget.value);
+                    }}
+                    onKeyDown={onKeyDown}
+                />
+                {search !== "" || searchAction ? (
+                    <span className="cm-qa-search-action">
+                        {search === "" ? (
+                            searchAction
+                        ) : (
+                            <CloseButton
+                                aria-label={labels.clearSearch}
+                                onMouseDown={(event) => {
+                                    event.preventDefault();
+                                }}
+                                onClick={() => {
+                                    setSearch("");
+                                    input.current?.focus();
+                                }}
+                            />
+                        )}
                     </span>
-                    <input
-                        ref={input}
-                        className="cm-qa-input"
-                        type="text"
-                        role="combobox"
-                        aria-label={placeholder ?? labels.searchActions}
-                        aria-expanded="true"
-                        aria-controls={`${id}-list`}
-                        aria-autocomplete="list"
-                        aria-activedescendant={current === undefined ? undefined : optionId(current)}
-                        placeholder={placeholder ?? labels.searchActions}
-                        value={search}
-                        onChange={(event) => {
-                            setSearch(event.currentTarget.value);
-                        }}
-                        onKeyDown={onKeyDown}
-                    />
-                    {search !== "" || searchAction ? (
-                        <span className="cm-qa-search-action">
-                            {search === "" ? (
-                                searchAction
-                            ) : (
-                                <CloseButton
-                                    aria-label={labels.clearSearch}
-                                    onMouseDown={(event) => {
-                                        event.preventDefault();
-                                    }}
-                                    onClick={() => {
-                                        setSearch("");
-                                        input.current?.focus();
-                                    }}
-                                />
-                            )}
-                        </span>
-                    ) : null}
-                </div>
-            ) : null}
+                ) : null}
+            </div>
             {header ? <div className="cm-qa-header">{header}</div> : null}
-            <div
-                ref={list}
-                className="cm-qa-list"
-                id={`${id}-list`}
-                role="listbox"
-                aria-label={name}
-                // Focusable when it takes focus on open, or when there is no search field to
-                // hold it: the highlight is then this list's aria-activedescendant.
-                tabIndex={focusList ? 0 : undefined}
-                aria-activedescendant={focusList && current !== undefined ? optionId(current) : undefined}
-                onKeyDown={focusList ? onKeyDown : undefined}
-            >
+            <div className="cm-qa-list" id={`${id}-list`} role="listbox" aria-label={name}>
                 {sections.length === 0 ? <div className="cm-qa-empty">{labels.noResults}</div> : null}
                 {sections.map(([section, list]) => (
                     <div className="cm-qa-group" role="group" aria-label={section || undefined} key={section}>

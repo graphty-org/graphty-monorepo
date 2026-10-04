@@ -117,47 +117,25 @@ describe("QuickActions", () => {
             );
         });
 
-        it("hides the search field at or below the threshold and puts focus on the list", async () => {
+        it("keeps the search field and focus on a short list; the arrows, Enter and Escape work there", async () => {
             const onRun = vi.fn();
             const onClose = vi.fn();
-            renderShell(<QuickActions actions={FIELDS} onRun={onRun} onClose={onClose} searchThreshold={15} />);
-            expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+            renderShell(<QuickActions actions={FIELDS} onRun={onRun} onClose={onClose} />);
+            const input = screen.getByRole("combobox");
+            expect(input).toHaveFocus();
             const list = screen.getByRole("listbox");
-            expect(list).toHaveFocus();
-            expect(list).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "degree" }).id);
+            expect(list).not.toHaveAttribute("tabindex");
+            expect(list).not.toHaveAttribute("aria-activedescendant");
+            expect(input).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "degree" }).id);
+            // The disabled field stays listed, and the arrows skip it.
+            expect(screen.getByRole("option", { name: "community" })).toHaveAttribute("aria-disabled", "true");
             await userEvent.keyboard("{ArrowDown}");
+            expect(input).toHaveFocus();
             expect(screen.getByRole("option", { name: /shared_chapters/ })).toHaveAttribute("data-highlighted");
             await userEvent.keyboard("{Enter}");
             expect(onRun).toHaveBeenCalledWith("chapters");
             await userEvent.keyboard("{Escape}");
             expect(onClose).toHaveBeenCalled();
-        });
-
-        it("shows the search field past the threshold", () => {
-            renderShell(<QuickActions actions={FIELDS} onRun={vi.fn()} searchThreshold={2} />);
-            expect(screen.getByRole("combobox")).toHaveFocus();
-        });
-
-        it("opens on the first item, and a letter moves to the search field", async () => {
-            const onRun = vi.fn();
-            renderShell(<QuickActions actions={FIELDS} onRun={onRun} initialFocus="first" />);
-            expect(screen.getByRole("listbox")).toHaveFocus();
-            await userEvent.keyboard("s");
-            expect(screen.getByRole("combobox")).toHaveFocus();
-            expect(screen.getByRole("combobox")).toHaveValue("s");
-            expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["shared_chapters_with_valjean"]);
-            await userEvent.keyboard("{Enter}");
-            expect(onRun).toHaveBeenCalledTimes(1);
-            expect(onRun).toHaveBeenCalledWith("chapters");
-        });
-
-        it("leaves Space on the list alone: focus and the search stay put", async () => {
-            const onRun = vi.fn();
-            renderShell(<QuickActions actions={FIELDS} onRun={onRun} initialFocus="first" />);
-            await userEvent.keyboard(" ");
-            expect(screen.getByRole("listbox")).toHaveFocus();
-            expect(screen.getByRole("combobox")).toHaveValue("");
-            expect(onRun).not.toHaveBeenCalled();
         });
 
         it("cuts a name in the middle when asked, with the full name as the tooltip", () => {

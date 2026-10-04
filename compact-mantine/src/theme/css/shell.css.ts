@@ -733,7 +733,6 @@ const css = `
     color: var(--cm-text-secondary);
 }
 .cm-qa-row[aria-disabled="true"] .cm-qa-row-description { color: var(--cm-text-disabled); }
-.cm-qa-list:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 .cm-qa-row-shortcut {
     flex: none;
     padding-inline-end: 4px;

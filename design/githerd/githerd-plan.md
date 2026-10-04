@@ -199,6 +199,13 @@ run settings and no config copy.
      that landed while githerd's status for that head would have been `failure`;
    - release truth: every release run, tag and npm version against githerd's release state, and
      any half-state it raised.
+
+   Owner-input attribution is not covered by the soak. The hook that logs each `gh` write a
+   Claude session makes (`session-writes.jsonl`) reaches the other sessions only with the merge
+   and runs only after `githerd install`, so during the soak every comment, reopen or label an
+   agent session makes with the owner's account counts as his own input. Leave owner-item
+   answers, owner presence and proposal vetoes out of the tables; that path is first exercised
+   after the install.
 6. **Judge.** Every row a person judges wrong is fixed in a commit on this branch with a replay
    test from the recorded answers, or explained in the table with the reason it is acceptable.
    Paste the tables into pull request #739's description.

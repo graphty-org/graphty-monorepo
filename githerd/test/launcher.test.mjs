@@ -29,12 +29,15 @@ import {
     launcherContext,
     loadDaemonEnv,
     pm2Command,
+    prepareUpdate,
     runLauncher,
+    targetCode,
     sessionTypedAt,
     writeDaemonEnv,
 } from "../lib/launcher.mjs";
 import { TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
 import { bootId, identify } from "../lib/proc.mjs";
+import { readSelfUpdate } from "../lib/self-update.mjs";
 import { PACKAGE_DIR } from "../lib/version.mjs";
 
 const FAKE_SERVHERD = fileURLToPath(new URL("helpers/fake-servherd.mjs", import.meta.url));
@@ -134,6 +137,36 @@ function pretendAlive() {
  */
 const stateDir = () => join(dir, "home", ".githerd", "main");
 const daemonFile = () => JSON.parse(readFileSync(join(stateDir(), "daemon.json"), "utf8"));
+
+/**
+ * Gates the default branch's version with stand-in gates (the real ones run vitest and claude):
+ * replay passes, protocol passes or fails, self-test passes.
+ * @param {boolean} passes whether the protocol gate passes
+ * @returns {Promise<string[]>} the gates that ran
+ */
+async function gateWith(passes) {
+    const ran = [];
+    /**
+     * A stand-in gate that records it ran.
+     * @param {string} name the gate
+     * @param {boolean} ok its result
+     * @returns {import("../lib/self-update.mjs").Gate} the gate
+     */
+    const gate = (name, ok) => ({
+        name,
+        run: async () => {
+            ran.push(name);
+            return { ok, detail: ok ? "fine" : "broken" };
+        },
+    });
+    const ctx = context();
+    await prepareUpdate(ctx, await targetCode(ctx), [
+        gate("replay", true),
+        gate("protocol", passes),
+        gate("self-test", true),
+    ]);
+    return ran;
+}
 
 /**
  * Writes the package into the main checkout and pushes it to origin.
@@ -307,7 +340,11 @@ describe("startup", () => {
         const hash = git(root, "rev-parse", "origin/master:githerd");
         const version = JSON.parse(readFileSync(join(PACKAGE_DIR, "package.json"), "utf8")).version;
         const copy = join(stateDir(), "versions", `${version}-${hash.slice(0, 8)}`);
-        expect(JSON.parse(readFileSync(join(copy, "version.json"), "utf8"))).toEqual({ version, codeHash: hash });
+        expect(JSON.parse(readFileSync(join(copy, "version.json"), "utf8"))).toEqual({
+            version,
+            codeHash: hash,
+            pkgDir: "githerd",
+        });
         expect(readlinkSync(join(stateDir(), "current"))).toBe(join("versions", `${version}-${hash.slice(0, 8)}`));
 
         const [start] = starts();
@@ -618,11 +655,16 @@ describe("restarts and upgrades", () => {
         expect(calls()).toEqual([]);
     });
 
-    it("upgrades to a new hash on the default branch by pointing current at it and restarting", async () => {
+    it("upgrades to a new hash on the default branch only once its gates passed, by pointing current at it and restarting", async () => {
         await ensureDaemon(context());
         const first = (await health()).pid;
         pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));
         const hash = git(root, "rev-parse", "origin/master:githerd");
+        // Before its gates ran, the running version stays.
+        expect((await ensureDaemon(context())).action).toBe("gating");
+        expect(starts()).toHaveLength(1);
+        const ran = await gateWith(true);
+        expect(ran).toEqual(["replay", "protocol", "self-test"]);
         const result = await ensureDaemon(context());
         expect(result.action).toBe("upgraded");
         // The same command from the same directory: servherd keeps its one entry and restarts it.
@@ -636,7 +678,120 @@ describe("restarts and upgrades", () => {
         expect(h.pid).not.toBe(first);
     });
 
+    it("refuses a version that fails a gate, keeps the running one, pages once and never gates it again", async () => {
+        const notifyLog = join(dir, "notify.log");
+        writeConfig({ notify: { command: [process.execPath, FAKE_NOTIFY, notifyLog, "ok", "{status}", "{message}"] } });
+        await ensureDaemon(context());
+        const first = await health();
+        pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));
+        const hash = git(root, "rev-parse", "origin/master:githerd");
+        expect(await gateWith(false)).toEqual(["replay", "protocol"]);
+        expect(readSelfUpdate(stateDir()).gates[hash]).toMatchObject({
+            passed: false,
+            gate: "protocol",
+            detail: "broken",
+        });
+        expect(await gateWith(true)).toEqual([]);
+        expect((await ensureDaemon(context())).action).toBe("refused");
+        expect(starts()).toHaveLength(1);
+        expect((await health()).pid).toBe(first.pid);
+        expect(readlinkSync(join(stateDir(), "current"))).toContain(first.codeHash.slice(0, 8));
+        const pages = readFileSync(notifyLog, "utf8").trim().split("\n");
+        expect(pages).toHaveLength(1);
+        expect(JSON.parse(pages[0]).args[1]).toMatch(
+            /^githerd update to 0\.1\.0-\w{8} REFUSED: protocol failed: broken; still running /,
+        );
+        expect(readFileSync(join(stateDir(), "launcher.log"), "utf8")).toMatch(
+            / error update to .*: protocol FAILED: broken/,
+        );
+    });
+
+    it("rolls back, loudly, a version that passed its gates but does not start", async () => {
+        const notifyLog = join(dir, "notify.log");
+        writeConfig({ notify: { command: [process.execPath, FAKE_NOTIFY, notifyLog, "ok", "{status}", "{message}"] } });
+        await ensureDaemon(context());
+        const first = await health();
+        pushPackage("broken daemon", (pkg) =>
+            writeFileSync(join(pkg, "bin", "githerd-daemon.mjs"), "process.exit(1);\n"),
+        );
+        const broken = git(root, "rev-parse", "origin/master:githerd");
+        await gateWith(true);
+        const result = await ensureDaemon(context({ healthWaitMs: 3000 }));
+        expect(result.action).toBe("rolled-back");
+        const h = await health();
+        expect(h.codeHash).toBe(first.codeHash);
+        expect(h.pid).not.toBe(first.pid);
+        expect(readlinkSync(join(stateDir(), "current"))).toContain(first.codeHash.slice(0, 8));
+        expect(readSelfUpdate(stateDir())).toMatchObject({
+            adopting: null,
+            gates: { [broken]: { passed: false, gate: "start" } },
+        });
+        // Loud: a page and an error line; and the broken version is never tried again.
+        const pages = readFileSync(notifyLog, "utf8")
+            .trim()
+            .split("\n")
+            .map((l) => JSON.parse(l).args);
+        expect(pages).toHaveLength(1);
+        expect(pages[0][0]).toBe("error");
+        expect(pages[0][1]).toMatch(/^githerd ROLLED BACK from \w{8} to 0\.1\.0-\w{8}: did not answer: /);
+        expect(readFileSync(join(stateDir(), "launcher.log"), "utf8")).toMatch(/ error githerd ROLLED BACK from /);
+        expect((await ensureDaemon(context())).action).toBe("refused");
+        expect((await health()).pid).toBe(h.pid);
+    });
+
+    it("gates the successor of a daemon in fatal mode itself, and leaves the daemon down when it fails", async () => {
+        await ensureDaemon(context());
+        pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));
+        const hash = git(root, "rev-parse", "origin/master:githerd");
+        const server = createServer((req, res) => {
+            res.end(
+                JSON.stringify({
+                    name: "githerd",
+                    protocol: 1,
+                    root,
+                    codeHash: "0".repeat(40),
+                    port: /** @type {any} */ (server.address()).port,
+                    runsInFlight: 0,
+                    fatal: "crash loop",
+                }),
+            );
+        });
+        servers.push(server);
+        await new Promise((r) => server.listen(0, "127.0.0.1", () => r(undefined)));
+        const port = /** @type {any} */ (server.address()).port;
+        pretendAlive();
+        writeFileSync(join(stateDir(), "daemon.json"), JSON.stringify({ port, pid: process.pid }));
+        const before = starts().length;
+        // The real gates: the test checkout has no install, so the replay gate fails at once.
+        expect(await ensureDaemon(context())).toEqual({
+            url: `http://127.0.0.1:${port}`,
+            action: "down",
+            fatal: "crash loop",
+        });
+        expect(readSelfUpdate(stateDir()).gates[hash]).toMatchObject({
+            passed: false,
+            gate: "replay",
+            detail: expect.stringMatching(/run pnpm install in the main checkout/),
+        });
+        expect(starts()).toHaveLength(before);
+    });
+
+    it("never prunes the running version, however many newer copies were archived", async () => {
+        await ensureDaemon(context());
+        const running = readlinkSync(join(stateDir(), "current"));
+        for (let i = 0; i < 4; i++) {
+            pushPackage(`version ${i}`, (pkg) =>
+                writeFileSync(join(pkg, "lib", "extra.mjs"), `export const n = ${i};\n`),
+            );
+            await prepareUpdate(context(), await targetCode(context()), []);
+        }
+        expect(existsSync(join(stateDir(), running, "version.json"))).toBe(true);
+        // The three newest, and the running one beside them.
+        expect(readdirSync(join(stateDir(), "versions"))).toHaveLength(4);
+    });
+
     it("waits for runs in flight before an upgrade", async () => {
+        await gateWith(true);
         // A daemon on old code that reports one run in flight.
         const server = createServer((req, res) => {
             res.end(

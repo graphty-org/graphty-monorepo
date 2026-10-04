@@ -419,7 +419,7 @@ adversarial review added (section 3.10). Columns:
 |---|---|---|
 | **Daemon** | One Node process (standard library only) per machine, started through servherd with a fixed name and cwd. It polls GitHub and npm, classifies failures, keeps the job queue and every record, starts and ends workers in tmux, runs the push queue, and posts one status, `githerd/merge`, on every open pull request head into master. It never merges: Mergify does State lives in `~/.githerd/graphty-monorepo/`, outside the repository | Something has to watch when no session is looking, and something has to do the irreversible steps under one set of rules |
 | **MCP server** | A stdio server registered for every session githerd starts and, through the repository's project settings, for owner sessions. Eleven tools (section 6). It forwards calls to the daemon over localhost HTTP, checks the daemon's `alive` file once a minute, and restarts the daemon when it is stale | Work is handed out through it, as the owner asked [OD 2], and every live session becomes a restarter |
-| **Hooks** | One script, `githerd-hook`, run from the daemon-installed copy under `~/.githerd/graphty-monorepo/versions/<sha>/` (never from a worktree): SessionStart, UserPromptSubmit, Stop, StopFailure, Notification, PostToolUse (local file read only) and the PreToolUse guard for workers | Liveness, the Stop gate and hard rules come from the platform, not from the agent's memory [PA 2.14] |
+| **Hooks** | One script, `githerd-hook`, run from the daemon-installed copy under `~/.githerd/graphty-monorepo/versions/<version>-<hash8>/` (never from a worktree): SessionStart, UserPromptSubmit, Stop, StopFailure, Notification, PostToolUse (local file read only) and the PreToolUse guard for workers | Liveness, the Stop gate and hard rules come from the platform, not from the agent's memory [PA 2.14] |
 | **CLI** | `githerd` in any terminal (section 11.2) | The owner controls githerd without a Claude session, and can read its state with the daemon down |
 | **tmux server `githerd`** | A dedicated tmux socket (`tmux -L githerd`) holding one window per worker plus the board window. `githerd attach` attaches to it | Workers survive the owner killing his own tmux server, and the owner sees all of them in one place |
 | **Reference worktree** | `.worktrees/githerd-ref`, detached at the green commit, installed and built, locked (section 4.9) | Local checks that must match CI need a real, installed tree |
@@ -1314,7 +1314,7 @@ Everything is under `~/.githerd/graphty-monorepo/`, outside the repository:
 | Starts | `starts` (the last 10 start times, for the crash-loop rule) | n/a |
 | Hook events while the daemon was down | `spool/` | n/a |
 | Per job | `jobs/<id>/`: settings, MCP config, news, pane captures, findings; the guard's `guard.json` (written by the daemon), `writes.jsonl`, `refusals.jsonl` and `agents/` (written by the guard) | n/a |
-| githerd code | `versions/<sha>/`, `current` -> the running version | master |
+| githerd code | `versions/<version>-<hash8>/`, `current` -> the running version | master |
 | Fatal reason | `FATAL` | n/a |
 
 ### 9.2 Start sequence
@@ -1425,13 +1425,17 @@ config change in one commit go through the self-update gate together (9.8).
 ### 9.8 Self-update and version skew
 
 The daemon runs master's copy of `githerd/`, never a worktree's. On a master move that touches
-`githerd/`, it finishes the reconcile, materializes `versions/<sha>/`, runs the replay suite, a
-protocol test (the previous client against the new daemon) and the platform self-test, then points
-`current` at it and restarts. Failure: back to the previous version, loudly. Each session's MCP
-server and hooks run from the version that was current when the session started; the daemon serves
-the previous protocol version while any such session lives (a session counts as old until it has
-made a call in the current protocol), and a validation error caused by a
-version mismatch is never an attempt.
+`githerd/`, it finishes the reconcile, materializes `versions/<version>-<hash8>/`, runs the replay
+suite, a protocol test (the previous client against the new daemon) and the platform self-test, and
+records the verdict in `self-update.json`; a restarter (any session's MCP server, `githerd ensure`)
+then points `current` at it and restarts. A version that does not answer is rolled back by that
+restarter to the previous one, refused for good, logged and paged. A refused version is paged once
+and never gated again; the running version stays. The restarter, not the daemon, rolls back,
+because a daemon cannot watch its successor start: a version that never starts would leave nothing
+running to roll it back. Each session's MCP server and hooks run from the version that was current
+when the session started; the daemon serves the previous protocol version while any such session
+lives (a session counts as old until it has made a call in the current protocol), and a validation
+error caused by a version mismatch is never an attempt.
 
 ---
 
@@ -1644,7 +1648,7 @@ It predates this design and is reworked by the plan. Most of its fact-finding an
 | `store.mjs` | atomic `state.json`, `.bak`, append-only ledger | move to `~/.githerd/`; ledger replay; spool |
 | `proc.mjs` | process identity by pid and start time | container restart by PID 1 start time instead of boot id [R21] |
 | `config.mjs` | strict validation from the default branch, widening keys rejected | bounds; the last-good file and the replay gate live in `config-adopt.mjs` |
-| `version.mjs` | running master's code, never a worktree's | `versions/<sha>/`, protocol versions |
+| `version.mjs` | running master's code, never a worktree's | `versions/<version>-<hash8>/`, protocol versions |
 | `mcp.mjs`, `schema.mjs` | JSON-RPC core and schema validator | the eleven tools of section 6 |
 | `launcher.mjs` | find or start the one daemon, forward calls | fixed cwd; `alive` check; restart lock; drop the pm2 re-creation workaround once servherd passes `autorestart` |
 | `notify.mjs` | once per key; "phone alerts broken" | owner items only; batching; presence and digest |

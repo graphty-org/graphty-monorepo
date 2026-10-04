@@ -48,6 +48,7 @@ import { DEFAULTS, defaultBranch, repoRoot, resolveConfig } from "./config.mjs";
 import { createMcpServer, forwardingTools, identifySession } from "./mcp.mjs";
 import { createNotifier, lastTypedAt } from "./notify.mjs";
 import { identify, sameProcess } from "./proc.mjs";
+import { currentDir, currentHash, readSelfUpdate, realGates, updateGate, writeSelfUpdate } from "./self-update.mjs";
 import { defaultStateDir, readLiveness } from "./store.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 
@@ -183,7 +184,8 @@ export function launcherContext({
 }
 
 /**
- * This package's path inside its repository, from the launcher's own location.
+ * This package's path inside its repository, from the launcher's own location; an archived copy
+ * (`versions/<version>-<hash8>/`) names it in its `version.json`.
  * @returns {string} for example `githerd`
  */
 function ownPkgDir() {
@@ -193,7 +195,7 @@ function ownPkgDir() {
     } catch {
         // not inside a work tree: an archived copy
     }
-    return basename(PACKAGE_DIR.replace(/\/$/, ""));
+    return readJson(join(PACKAGE_DIR, "version.json"))?.pkgDir ?? basename(PACKAGE_DIR.replace(/\/$/, ""));
 }
 
 /**
@@ -296,17 +298,19 @@ async function materialize(ctx, target) {
         });
         writeFileSync(
             join(tmp, "version.json"),
-            `${JSON.stringify({ version: target.version, codeHash: target.hash })}\n`,
+            `${JSON.stringify({ version: target.version, codeHash: target.hash, pkgDir: ctx.pkgDir })}\n`,
         );
         rmSync(dir, { recursive: true, force: true });
         renameSync(tmp, dir);
     } finally {
         rmSync(tmp, { recursive: true, force: true });
     }
-    // ponytail: keeps the newest copies by mtime; track the copies runs use once runs exist
+    // ponytail: keeps the newest copies by mtime; track the copies runs use once runs exist. The
+    // running copy and the one an adoption would roll back to are never removed.
+    const keep = new Set([dir, currentDir(ctx.stateDir), readSelfUpdate(ctx.stateDir).adopting?.previous]);
     const old = readdirSync(versions)
         .map((name) => join(versions, name))
-        .filter((path) => path !== dir)
+        .filter((path) => !keep.has(path) && !keep.has(basename(path)))
         .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)
         .slice(KEEP_VERSIONS - 1);
     for (const path of old) rmSync(path, { recursive: true, force: true });
@@ -636,12 +640,135 @@ export function installCommand(ctx) {
  * @param {{branch: string, hash: string, version: string}} target the code
  */
 export async function prepareCode(ctx, target) {
-    const dir = await materialize(ctx, target);
+    pointCurrent(ctx, await materialize(ctx, target));
+}
+
+/**
+ * Points `current` at a version directory: a symbolic link replaced by a rename, never missing.
+ * @param {LauncherContext} ctx the context
+ * @param {string} dir the version directory
+ */
+function pointCurrent(ctx, dir) {
     const link = join(ctx.stateDir, "current");
     const tmp = `${link}.${process.pid}.tmp`;
     rmSync(tmp, { force: true });
     symlinkSync(join("versions", basename(dir)), tmp);
     renameSync(tmp, link);
+}
+
+/**
+ * A version's name in logs and pages: `<version>-<hash8>`.
+ * @param {{version: string, hash: string}} target the version
+ * @returns {string} the name
+ */
+const label = (target) => `${target.version}-${target.hash.slice(0, 8)}`;
+
+/**
+ * Gates a new version before it may run (design 9.8): archives it into `versions/`, then runs the
+ * replay, protocol and self-test gates in order and records the verdict in `self-update.json`. A
+ * refusal is logged and paged once (the verdict stops a second gating of the same hash); the
+ * running version stays. The running daemon calls this after a master move under the package;
+ * a restarter calls it only for a daemon in fatal mode, which cannot.
+ * @param {LauncherContext} ctx the context
+ * @param {{branch: string, hash: string, version: string}} target the new version
+ * @param {import("./self-update.mjs").Gate[]} [gates] the gates; the real three by default
+ * @returns {Promise<import("./self-update.mjs").GateRecord>} the verdict
+ */
+export async function prepareUpdate(ctx, target, gates) {
+    const known = readSelfUpdate(ctx.stateDir).gates[target.hash];
+    if (known) return known;
+    const opts = { cwd: ctx.root, env: ctx.env };
+    const commit = (await run(["git", "rev-parse", `origin/${target.branch}`], opts)).trim();
+    const tree = (await run(["git", "rev-parse", `${commit}:${ctx.pkgDir}`], opts)).trim();
+    if (tree !== target.hash) throw new Error(`origin/${target.branch} moved on while gating ${label(target)}`);
+    const previous = currentDir(ctx.stateDir);
+    const dir = await materialize(ctx, target);
+    const at = () => ctx.now().toISOString();
+    /** @type {import("./self-update.mjs").GateRecord} */
+    let record = { passed: true, at: at(), version: target.version };
+    for (const gate of gates ??
+        realGates({ root: ctx.root, pkgDir: ctx.pkgDir, stateDir: ctx.stateDir, env: ctx.env })) {
+        const r = await gate.run({ dir, previous, commit });
+        logLine(
+            ctx,
+            r.ok ? "info" : "error",
+            `update to ${label(target)}: ${gate.name} ${r.ok ? "passed" : "FAILED"}: ${r.detail}`,
+        );
+        if (!r.ok) {
+            record = { passed: false, at: at(), version: target.version, gate: gate.name, detail: r.detail };
+            break;
+        }
+    }
+    const saved = readSelfUpdate(ctx.stateDir);
+    writeSelfUpdate(ctx.stateDir, { ...saved, gates: { ...saved.gates, [target.hash]: record } });
+    if (!record.passed) {
+        const running = previous ? basename(previous) : "nothing";
+        await page(
+            ctx,
+            `githerd update to ${label(target)} REFUSED: ${record.gate} failed: ${record.detail}; still running ${running}`,
+        );
+    }
+    return record;
+}
+
+/**
+ * Points `current` at a version whose gates passed, recording the version it replaces until the new
+ * one answers.
+ * @param {LauncherContext} ctx the context
+ * @param {{branch: string, hash: string, version: string}} target the version
+ */
+async function adopt(ctx, target) {
+    const previous = /** @type {string} */ (currentDir(ctx.stateDir));
+    const dir = await materialize(ctx, target);
+    const saved = readSelfUpdate(ctx.stateDir);
+    writeSelfUpdate(ctx.stateDir, {
+        ...saved,
+        adopting: { hash: target.hash, previous: basename(previous), at: ctx.now().toISOString() },
+    });
+    pointCurrent(ctx, dir);
+    logLine(ctx, "info", `adopting ${label(target)} in place of ${basename(previous)}`);
+}
+
+/**
+ * Ends an adoption once its version answers.
+ * @param {LauncherContext} ctx the context
+ * @param {string} hash the hash that answered
+ */
+function settleAdoption(ctx, hash) {
+    const saved = readSelfUpdate(ctx.stateDir);
+    if (saved.adopting?.hash !== hash) return;
+    writeSelfUpdate(ctx.stateDir, { ...saved, adopting: null });
+    logLine(ctx, "info", `adopted ${hash.slice(0, 8)}`);
+}
+
+/**
+ * Rolls back an adopted version that did not start (design 9.8): `current` back to the version it
+ * replaced, the new hash refused for good, a log line and a page, and the previous version
+ * restarted. Called holding the restart lock.
+ * @param {LauncherContext} ctx the context
+ * @param {{hash: string, previous: string}} adopting the adoption that failed
+ * @param {string} reason why the new version is taken for failed
+ * @param {any} before the daemon lock's holder before the start
+ * @returns {Promise<{url: string, action: "rolled-back"}>} the previous version's daemon
+ * @throws when the previous version does not answer either
+ */
+async function rollBack(ctx, adopting, reason, before) {
+    const previous = join(ctx.stateDir, "versions", adopting.previous);
+    pointCurrent(ctx, previous);
+    const saved = readSelfUpdate(ctx.stateDir);
+    const at = ctx.now().toISOString();
+    writeSelfUpdate(ctx.stateDir, {
+        gates: { ...saved.gates, [adopting.hash]: { passed: false, at, gate: "start", detail: reason } },
+        adopting: null,
+    });
+    const line = `githerd ROLLED BACK from ${adopting.hash.slice(0, 8)} to ${adopting.previous}: ${reason}`;
+    logLine(ctx, "error", line);
+    await page(ctx, line);
+    const hash = currentHash(ctx.stateDir);
+    await servherd(ctx, ["restart", ctx.name]);
+    const { health, error } = await waitFor(ctx, (h) => ours(ctx, h) && h.codeHash === hash && h.pid !== before?.pid);
+    if (!health) throw new Error(`${line}; and ${adopting.previous} did not answer either: ${error}`);
+    return { url: daemonUrl(health), action: "rolled-back" };
 }
 
 /**
@@ -675,10 +802,13 @@ async function page(ctx, message) {
  * server at a session's start and once a minute, every CLI call that needs the daemon, and
  * `githerd ensure`.
  * @param {LauncherContext} ctx the context
- * @returns {Promise<{url: string, action: "warm" | "down" | "waiting" | "started" | "upgraded" | "other-launcher" | "run",
- *   fatal?: string}>} the daemon's URL and what was done; `waiting` means an upgrade waits for runs
- *   in flight; `down` means the daemon is up in fatal mode, with its reason in `fatal`: never
- *   restarted for that, since only a change of its cause may end fatal mode (design 9.6)
+ * @returns {Promise<{url: string, action: "warm" | "down" | "waiting" | "gating" | "refused" | "started"
+ *   | "upgraded" | "rolled-back" | "other-launcher" | "run", fatal?: string}>} the daemon's URL and
+ *   what was done; `waiting` means an upgrade waits for runs in flight, `gating` that the default
+ *   branch's version waits for its gates, `refused` that it failed them (the daemon keeps its
+ *   version), `rolled-back` that it did not start and the previous version runs again; `down` means
+ *   the daemon is up in fatal mode, with its reason in `fatal`: never restarted for that, since only
+ *   a change of its cause may end fatal mode (design 9.6)
  */
 export async function ensureDaemon(ctx) {
     if (ctx.env.GITHERD_URL) return { url: ctx.env.GITHERD_URL, action: "run" };
@@ -706,62 +836,112 @@ const daemonUrl = (health) => `http://127.0.0.1:${health.port}`;
 
 /**
  * What ensureDaemon answers about a daemon that is up: `down` in fatal mode, `warm` on the current
- * code, `waiting` on older code with runs in flight (only outside the restart lock). A daemon that
- * is up but does not answer /health within the wait is an error, never a restart.
+ * code, and on older code what `olderCode` says. A daemon that is up but does not answer /health
+ * within the wait is an error, never a restart.
  * @param {LauncherContext} ctx the context
- * @param {{hash: string}} target the code the daemon should run
- * @param {boolean} mayWait whether an upgrade may wait for runs in flight
- * @returns {Promise<{url: string, action: "warm" | "down" | "waiting", fatal?: string} | null>} the
- *   answer, or null when the daemon is down or must be upgraded
+ * @param {{branch: string, hash: string, version: string}} target the code the daemon should run
+ * @param {boolean} mayWait false inside the restart lock
+ * @returns {Promise<{url: string, action: "warm" | "down" | "waiting" | "gating" | "refused", fatal?: string} | null>}
+ *   the answer, or null when the daemon is down or must be upgraded
  */
 async function upAnswer(ctx, target, mayWait) {
     if (daemonDown(ctx)) return null;
     const { health, error } = await waitFor(ctx, (h) => ours(ctx, h));
     if (!health) throw new Error(`the daemon is running but does not answer: ${error}`);
+    if (health.codeHash !== target.hash) return olderCode(ctx, target, health, mayWait);
+    settleAdoption(ctx, health.codeHash);
     const url = daemonUrl(health);
-    if (health.codeHash !== target.hash) return mayWait && health.runsInFlight > 0 ? { url, action: "waiting" } : null;
     if (health.fatal) return { url, action: "down", fatal: health.fatal };
     return { url, action: "warm" };
 }
 
 /**
- * Starts the daemon on the target code, or restarts a running one on older code, and waits for it
- * to answer. A start that failed is not retried for 15 minutes, and pages once per code hash.
- * Called holding the restart lock.
+ * What ensureDaemon answers about a daemon up on older code (design 9.8). The default branch's
+ * version runs only once its gates passed: until then the daemon keeps its version (`gating`), and
+ * for good once they failed (`refused`). A daemon in fatal mode cannot gate its successor, so the
+ * restarter gates it, inside the restart lock. A version that passed waits for runs in flight
+ * (only outside the restart lock).
  * @param {LauncherContext} ctx the context
- * @param {{hash: string, version: string, branch: string}} target the code to run
- * @returns {Promise<{url: string, action: "started" | "upgraded"}>} the daemon and what was done
+ * @param {{branch: string, hash: string, version: string}} target the default branch's version
+ * @param {any} health the daemon's /health answer
+ * @param {boolean} mayWait false inside the restart lock
+ * @returns {Promise<{url: string, action: "down" | "waiting" | "gating" | "refused", fatal?: string} | null>}
+ *   the answer, or null when the daemon must be upgraded (or gated, outside the lock)
+ */
+async function olderCode(ctx, target, health, mayWait) {
+    const url = daemonUrl(health);
+    const down = health.fatal ? { url, action: /** @type {const} */ ("down"), fatal: health.fatal } : null;
+    let gate = updateGate(ctx.stateDir, target.hash);
+    if (gate === "pending" && !down) return { url, action: "gating" };
+    if (gate === "pending") {
+        if (mayWait) return null;
+        gate = (await prepareUpdate(ctx, target)).passed ? "passed" : "refused";
+    }
+    if (gate === "refused") return down ?? { url, action: "refused" };
+    return mayWait && health.runsInFlight > 0 ? { url, action: "waiting" } : null;
+}
+
+/**
+ * Starts the daemon, or restarts a running one on older code, and waits for it to answer. It runs
+ * the default branch's version when that passed its gates (design 9.8), or when nothing was ever
+ * installed (the first start does what `githerd install` does); otherwise the version `current`
+ * names, whose daemon gates the new one. An adopted version that does not answer is rolled back. A
+ * start that failed otherwise is not retried for 15 minutes, and pages once per code hash. Called
+ * holding the restart lock.
+ * @param {LauncherContext} ctx the context
+ * @param {{hash: string, version: string, branch: string}} target the default branch's version
+ * @returns {Promise<{url: string, action: "started" | "upgraded" | "rolled-back"}>} the daemon and
+ *   what was done
  */
 async function startOrUpgrade(ctx, target) {
+    const installed = currentHash(ctx.stateDir);
+    const takeTarget = !installed || updateGate(ctx.stateDir, target.hash) === "passed";
+    const hash = takeTarget ? target.hash : installed;
     const failFile = join(ctx.stateDir, "start-failed.json");
     const failed = readJson(failFile);
-    const failedBefore = failed?.codeHash === target.hash;
+    const failedBefore = failed?.codeHash === hash;
     if (failedBefore && ctx.now().getTime() - Date.parse(failed.at) < RESTART_EVERY_MS) {
         throw new Error(`${failed.reason} (at ${failed.at}; next try 15 minutes after that)`);
     }
     const action = daemonDown(ctx) ? "started" : "upgraded";
     const before = readLiveness(ctx.stateDir).lock;
-    await prepareCode(ctx, target);
+    if (!installed) await prepareCode(ctx, target);
+    else if (takeTarget && installed !== target.hash) await adopt(ctx, target);
     writeDaemonEnv(ctx.stateDir, ctx.env);
     const data = await servherd(ctx, startArgs(ctx), ctx.stateDir);
     // servherd keeps an unchanged server that is online: a daemon on older code, or a process that
     // is not answering as the daemon.
     if (data.action === "existing") await servherd(ctx, ["restart", ctx.name]);
-    logLine(ctx, "info", `${action} ${ctx.name} at ${target.version}-${target.hash.slice(0, 8)}`);
+    logLine(ctx, "info", `${action} ${ctx.name} at ${basename(/** @type {string} */ (currentDir(ctx.stateDir)))}`);
     const { health: up, error } = await waitFor(
         ctx,
-        (h) => ours(ctx, h) && h.codeHash === target.hash && h.pid !== before?.pid,
+        (h) => ours(ctx, h) && h.codeHash === hash && h.pid !== before?.pid,
     );
     if (!up) {
-        const reason = `githerd daemon failed to start: ${error}`;
-        logLine(ctx, "error", reason);
-        const at = ctx.now().toISOString();
-        writeFileSync(failFile, `${JSON.stringify({ codeHash: target.hash, at, reason })}\n`);
-        if (!failedBefore) await page(ctx, reason);
-        throw new Error(reason);
+        const adopting = readSelfUpdate(ctx.stateDir).adopting;
+        if (adopting?.hash === hash) return rollBack(ctx, adopting, `did not answer: ${error}`, before);
+        return startFailed(ctx, { hash, error, failFile, failedBefore });
     }
+    settleAdoption(ctx, hash);
     rmSync(failFile, { force: true });
     return { url: daemonUrl(up), action };
+}
+
+/**
+ * Records a start that failed: a log line, `start-failed.json` (no retry for 15 minutes) and one
+ * page per code hash.
+ * @param {LauncherContext} ctx the context
+ * @param {{hash: string, error: string | null, failFile: string, failedBefore: boolean}} failure the
+ *   code that did not answer, why, the record file, and whether it failed before
+ * @returns {Promise<never>} always rejects with the reason
+ */
+async function startFailed(ctx, { hash, error, failFile, failedBefore }) {
+    const reason = `githerd daemon failed to start: ${error}`;
+    logLine(ctx, "error", reason);
+    const at = ctx.now().toISOString();
+    writeFileSync(failFile, `${JSON.stringify({ codeHash: hash, at, reason })}\n`);
+    if (!failedBefore) await page(ctx, reason);
+    throw new Error(reason);
 }
 
 /** How much of a transcript's end is read for the owner's last typed message. */
@@ -886,7 +1066,7 @@ export async function runLauncher({
         inflight ??= ensureDaemon(ctx)
             .then((r) => {
                 daemonUrl = r.url;
-                upgradeWaiting = r.action === "waiting";
+                upgradeWaiting = r.action === "waiting" || r.action === "gating";
                 return r.url;
             })
             .catch((err) => {

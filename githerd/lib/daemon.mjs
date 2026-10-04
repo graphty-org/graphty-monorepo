@@ -74,7 +74,7 @@ import { createGitHub, GitHubError } from "./github.mjs";
 import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
-import { servherd as servherdData } from "./launcher.mjs";
+import { launcherContext, prepareUpdate, servherd as servherdData, targetCode } from "./launcher.mjs";
 import { dispatch } from "./dispatch.mjs";
 import { doneIo, pollVerifying } from "./done.mjs";
 import { classify } from "./classify.mjs";
@@ -115,6 +115,7 @@ import {
 } from "./store.mjs";
 import { recoverDeath } from "./session-death.mjs";
 import { resumeVerified } from "./selftest.mjs";
+import { updateGate } from "./self-update.mjs";
 import { secretValues } from "./text.mjs";
 import { sessionToolSet } from "./session-tools.mjs";
 import { alertBanner, sessionTools, statusData } from "./tools.mjs";
@@ -1965,6 +1966,30 @@ export async function startDaemon({
         }
     }
 
+    /** @type {Promise<void> | null} the gating of a new version of githerd, while it runs */
+    let updating = null;
+
+    /**
+     * Gates the default branch's version of githerd when it differs from the running one and has no
+     * verdict yet (design 9.8). The gates are child processes, so the reconcile goes on meanwhile; a
+     * restarter adopts a version that passed. Never in the development daemon, in fatal mode (the
+     * restarter gates then), when fenced, or when the running code is not an archived copy (no code
+     * hash).
+     */
+    async function selfUpdate() {
+        if (env.GITHERD_DEV || !codeHash || updating || fatal || fenced || stopping) return;
+        const found = launcherContext({ cwd: root, env, stateDir });
+        if (found.kind !== "ready") return;
+        const target = await targetCode(found.ctx);
+        if (target.hash === codeHash || updateGate(stateDir, target.hash) !== "pending") return;
+        updating = prepareUpdate(found.ctx, target)
+            .then(() => {})
+            .catch((err) => say("error", `self-update: ${err.message}`))
+            .finally(() => {
+                updating = null;
+            });
+    }
+
     /** Polls, then schedules the next poll. */
     async function tick() {
         timer = null;
@@ -1976,6 +2001,7 @@ export async function startDaemon({
         } catch (err) {
             say("error", `poll: ${/** @type {Error} */ (err).message}`);
         }
+        await selfUpdate().catch((err) => say("error", `self-update: ${err.message}`));
         if (stopping || fenced) return;
         const ms = (config?.pollSeconds ?? 180) * 1000 * intervalFactor;
         nextPollAt = new Date(now().getTime() + ms).toISOString();

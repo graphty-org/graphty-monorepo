@@ -952,6 +952,10 @@ jobs:
             actions: read
         continue-on-error: true
         timeout-minutes: 45
+        # Throwaway experiment: the base branch's capture code does not read the config's fontconfig
+        # yet, so the pinned fonts are set here; Playwright passes the variable to Chromium.
+        env:
+            FONTCONFIG_FILE: ${{ github.workspace }}/visual-fonts/fonts.conf
         strategy:
             fail-fast: false
             matrix:

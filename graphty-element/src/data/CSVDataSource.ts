@@ -255,9 +255,9 @@ function missingColumnHeader(error: unknown): string[] | null {
  * @returns `E_EDGE_ENDPOINTS_UNRESOLVED` with `details.table`, `details.missing` and `details.columns`
  */
 function noEndpointColumns(columns: readonly string[]): GraphtyError {
-    const lower = columns.map((name) => name.toLowerCase());
+    const lower = new Set(columns.map((name) => name.toLowerCase()));
     const unmatched = (["source", "target"] as const).filter(
-        (_, half) => !ENDPOINT_PAIRS.some((pair) => lower.includes(pair[half] ?? "")),
+        (_, half) => !ENDPOINT_PAIRS.some((pair) => lower.has(pair[half] ?? "")),
     );
     // Each half spelled by a different pair (`source`, `dst`) pairs neither.
     const missing = unmatched.length === 0 ? ["source", "target"] : unmatched;
@@ -679,10 +679,11 @@ export class CSVDataSource extends DataSource {
             sample: text.slice(0, 4096),
         });
         if (formats.length > 0 && !formats.includes("csv")) {
+            const subject = name ?? `The ${half} table`;
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
                 source: "data",
-                message: `${name ?? `The ${half} table`} reads as ${formats[0]}, not as a table, so it cannot be one half of a pair of CSV tables.`,
+                message: `${subject} reads as ${formats[0]}, not as a table, so it cannot be one half of a pair of CSV tables.`,
                 details: {
                     reason: "not-a-table",
                     table: half,

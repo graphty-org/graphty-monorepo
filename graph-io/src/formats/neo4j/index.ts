@@ -7,6 +7,7 @@
 import {
     COLUMN_RENAMED_CODE,
     ENCODING_FALLBACK_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MUTUAL_EXPANDED_CODE,
@@ -59,6 +60,7 @@ export {
  * A key is the code without its severity and format prefixes.
  */
 export const NEO4J_ISSUE = Object.freeze({
+    ...INPUT_ISSUE,
     /** The input holds invalid UTF-8 (fatal). */
     INVALID_UTF8: INVALID_UTF8_CODE,
     /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */

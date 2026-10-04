@@ -8,11 +8,14 @@ import {
     AMBIGUOUS_GRAPH_NAME_CODE,
     DANGLING_REFERENCE_CODE,
     EMPTY_INPUT_CODE,
+    ENCODING_FALLBACK_CODE,
     GRAPH_NOT_FOUND_CODE,
+    INPUT_ISSUE,
     MULTIPLE_GRAPHS_CODE,
     NO_GRAPH_CODE,
     STYLES_NOT_IMPORTED_CODE,
     TOO_LARGE_CODE,
+    UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import { XGMML_ISSUE } from "../xgmml/constants.js";
 
@@ -59,6 +62,11 @@ const RELAYED: Readonly<Record<string, string>> = Object.fromEntries(
  * XGMML codes it relays from the files inside (with the entry name in the message).
  */
 export const CYS_ISSUE = Object.freeze({
+    ...INPUT_ISSUE,
+    /** A session XML entry that is not UTF-8 and declares no encoding was read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A session XML entry declares an encoding the platform cannot decode; read as UTF-8. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     ...RELAYED,
     /** The input is not a zip archive (or is text). */
     NOT_ZIP: "E_CYS_NOT_ZIP",

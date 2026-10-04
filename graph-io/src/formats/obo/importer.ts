@@ -36,6 +36,7 @@ import {
     DUPLICATE_NODE_CODE,
     EMPTY_INPUT_CODE,
     ENCODING_FALLBACK_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MISSING_ID_CODE,
@@ -81,6 +82,7 @@ export interface OboImportOptions {
 
 /** Issue codes of the OBO importer (design section 4.3). */
 export const OBO_ISSUE = Object.freeze({
+    ...INPUT_ISSUE,
     /** The input is empty or whitespace (fatal). */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The input holds invalid UTF-8 (fatal). */

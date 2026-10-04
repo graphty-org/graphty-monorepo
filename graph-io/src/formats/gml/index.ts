@@ -9,6 +9,7 @@ import {
     DIRECTION_REFUSED_CODE,
     ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MIXED_DIRECTION_CODE,
@@ -58,6 +59,7 @@ export { gmlImporter, type GmlImportOptions } from "./importer.js";
  * its severity and format prefixes.
  */
 export const GML_ISSUE = Object.freeze({
+    ...INPUT_ISSUE,
     /** A grammar violation: an untokenisable bare token, an unclosed string or `[`, a stray `]`, a key without a value (fatal). */
     SYNTAX: SYNTAX_CODE,
     /** The input holds invalid UTF-8 (fatal). */

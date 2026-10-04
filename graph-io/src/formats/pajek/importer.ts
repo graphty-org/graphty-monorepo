@@ -31,6 +31,7 @@ import { declareResolved, RENAMED_CODE, ROLE_TAKEN_CODE, uniqueColumnName } from
 import {
     DUPLICATE_NODE_CODE,
     ENCODING_FALLBACK_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MULTIPLE_GRAPHS_CODE,
@@ -87,6 +88,7 @@ export interface PajekImportOptions {
 
 /** Issue codes of the Pajek importer. */
 export const PAJEK_ISSUE = Object.freeze({
+    ...INPUT_ISSUE,
     /** The input holds invalid UTF-8 (fatal). */
     INVALID_UTF8: INVALID_UTF8_CODE,
     /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */

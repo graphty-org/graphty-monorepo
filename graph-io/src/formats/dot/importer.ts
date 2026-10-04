@@ -49,6 +49,7 @@ import {
     EMPTY_INPUT_CODE,
     ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MIXED_DIRECTION_CODE,
@@ -108,6 +109,7 @@ export interface DotImportOptions {
  * its severity and format prefixes.
  */
 export const DOT_ISSUE = Object.freeze({
+    ...INPUT_ISSUE,
     /** A grammar violation; fatal. */
     SYNTAX: SYNTAX_CODE,
     /** The input holds no graph at all (empty or only comments); fatal. */

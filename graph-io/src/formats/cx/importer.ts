@@ -51,6 +51,7 @@ import {
     GRAPH_NOT_FOUND_CODE,
     ID_MERGED_CODE,
     ID_TEXT_TYPE_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MISSING_ENDPOINT_CODE,
@@ -131,6 +132,7 @@ export interface CxImportOptions extends GraphChoiceOptions {
  * its severity and format prefixes.
  */
 export const CX_ISSUE = Object.freeze({
+    ...INPUT_ISSUE,
     /** The input is empty (fatal). */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The text is not JSON (fatal). */

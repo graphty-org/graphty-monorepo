@@ -16,6 +16,7 @@ import {
     DUPLICATE_NODE_CODE,
     ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MISSING_ENDPOINT_CODE,
@@ -62,6 +63,7 @@ export { type GexfVersion } from "./schema.js";
  * its severity and format prefixes.
  */
 export const GEXF_ISSUE = Object.freeze({
+    ...INPUT_ISSUE,
     /** The XML is not well-formed (fatal). */
     XML_SYNTAX: XML_SYNTAX_CODE,
     /** The input holds invalid UTF-8 (fatal). */

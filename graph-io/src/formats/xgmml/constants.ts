@@ -21,6 +21,7 @@ import {
     GRAPH_NOT_FOUND_CODE,
     ID_MERGED_CODE,
     ID_TEXT_TYPE_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MISSING_ENDPOINT_CODE,
@@ -120,6 +121,7 @@ export const CYTOSCAPE_ORIGIN_NAMESPACE = "cytoscape";
  * its severity and format prefixes.
  */
 export const XGMML_ISSUE = Object.freeze({
+    ...INPUT_ISSUE,
     /** Fatal: the input is not well-formed XML. */
     XML_SYNTAX: XML_SYNTAX_CODE,
     /** Fatal: the input is empty or whitespace only. */

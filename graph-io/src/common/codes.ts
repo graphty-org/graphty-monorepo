@@ -84,6 +84,32 @@ export const ENCODING_FALLBACK_CODE = "W_ENCODING_FALLBACK";
 /** The file declares an encoding the platform's TextDecoder does not know; the declaration is ignored. */
 export const UNKNOWN_ENCODING_CODE = "W_UNKNOWN_ENCODING";
 
+/**
+ * A byte order mark, the `encoding` option and the encoding the file declares disagree, or the file
+ * declares UTF-16 over bytes that are not UTF-16; the message names which one applied (a BOM wins
+ * over the option and the declaration, the option over the declaration).
+ */
+export const ENCODING_CONFLICT_CODE = "W_ENCODING_CONFLICT";
+
+/**
+ * The text holds a control character (C0 other than TAB, LF, FF and CR; DEL; C1) or a stray U+FEFF
+ * that is kept in the id or value it is part of, or a trailing Ctrl-Z end-of-file marker that was
+ * ignored; recorded once per import.
+ */
+export const CONTROL_CHARACTER_CODE = "W_CONTROL_CHARACTER";
+
+/**
+ * The input is a known file type that is no graph format at all (an HTML page, a PDF, gzip or zip
+ * data, a PNG image), so it is not read as the format asked for (fatal).
+ */
+export const FOREIGN_FORMAT_CODE = "E_FOREIGN_FORMAT";
+
+/**
+ * More warnings of one code than a report keeps: the first ones are kept and this one warning (the
+ * suppressed code as its element) counts the rest.
+ */
+export const ISSUES_SUPPRESSED_CODE = "W_ISSUES_SUPPRESSED";
+
 /** The sink refused the file's direction (locked or non-empty); the file is read as the sink's. */
 export const DIRECTION_REFUSED_CODE = "W_DIRECTION_REFUSED";
 
@@ -218,3 +244,26 @@ export const XML_ILLEGAL_CHAR_CODE = "E_XML_ILLEGAL_CHAR";
 
 /** A dict column without declared options gains one from its dictionary on re-import. */
 export const OPTIONS_GAINED_CODE = "W_OPTIONS_GAINED";
+
+
+// ============================================================ the input layer
+
+/**
+ * The issue codes the shared input layer (src/common/input.ts and the report) records for every
+ * text importer, by name; each format's `<FMT>_ISSUE` table spreads it, so these codes are members
+ * of every table.
+ */
+export const INPUT_ISSUE = Object.freeze({
+    /** The input is empty or holds only whitespace (fatal). */
+    EMPTY_INPUT: EMPTY_INPUT_CODE,
+    /** The input is longer than one JavaScript string, or holds a line that is (fatal). */
+    TOO_LARGE: TOO_LARGE_CODE,
+    /** A byte order mark, the encoding option and the declared encoding disagree. */
+    ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
+    /** A control character or a stray U+FEFF in the text, or an ignored trailing Ctrl-Z. */
+    CONTROL_CHARACTER: CONTROL_CHARACTER_CODE,
+    /** The input is an HTML page, a PDF, compressed or archived data or an image (fatal). */
+    FOREIGN_FORMAT: FOREIGN_FORMAT_CODE,
+    /** Warnings of one code beyond the number a report keeps, counted in one warning. */
+    ISSUES_SUPPRESSED: ISSUES_SUPPRESSED_CODE,
+});

@@ -7,6 +7,7 @@ import {
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
     ENCODING_FALLBACK_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MIXED_DIRECTION_CODE,
@@ -42,6 +43,7 @@ export { csvImporter, type CsvImportOptions } from "./importer.js";
  * its severity and format prefixes.
  */
 export const CSV_ISSUE = Object.freeze({
+    ...INPUT_ISSUE,
     /** The input is empty (fatal). */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The input holds invalid UTF-8 (fatal). */

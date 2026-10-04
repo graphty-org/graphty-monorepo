@@ -171,6 +171,18 @@ export const STYLES_NOT_IMPORTED_CODE = "W_STYLES_NOT_IMPORTED";
 /** A CX array member that is not a one-key object holding an array or an object; the block is skipped. */
 export const BAD_ASPECT_BLOCK_CODE = "E_BAD_ASPECT_BLOCK";
 
+/** A CX array member holding several aspects (`{"nodes": [...], "edges": [...]}`); each array-valued key is read as its own fragment. */
+export const MULTI_ASPECT_FRAGMENT_CODE = "W_MULTI_ASPECT_FRAGMENT";
+
+/** A CX aspect, an array of elements, written as one object (`{"nodes": {"@id": 1}}`); read as one element. */
+export const SINGLE_OBJECT_ASPECT_CODE = "W_SINGLE_OBJECT_ASPECT";
+
+/**
+ * The document uses the bare tokens NaN, Infinity or -Infinity (Python's json writes them), which
+ * strict JSON does not allow; read as the numbers.
+ */
+export const JSON_NONSTANDARD_NUMBER_CODE = "W_JSON_NONSTANDARD_NUMBER";
+
 /** A CX aspect out of its place (after the post-metadata, a status that is not last, a block buffered for what it depends on). */
 export const ASPECT_ORDER_CODE = "W_ASPECT_ORDER";
 

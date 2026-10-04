@@ -424,7 +424,10 @@ describe("cxImporter: the stream (research-cx.md 4.1)", () => {
     it("fails on empty input, invalid JSON, a top-level object and CX2 content", async () => {
         expect(codes((await failure("")).report)).toEqual([CX_ISSUE.EMPTY_INPUT]);
         expect(codes((await failure('[{"nodes":[{"@id":1}]')).report)).toEqual([CX_ISSUE.SYNTAX]);
-        expect(codes((await failure('[{"nodes":[{"@id":NaN}]}]')).report)).toEqual([CX_ISSUE.SYNTAX]);
+        // a bare NaN (Python's json writes it) is read as the number since the robustness pass: the
+        // node's id is then E_INVALID_ID and the import goes on
+        const nan = await load('[{"nodes":[{"@id":NaN}]}]');
+        expect(codes(nan.report)).toEqual([CX_ISSUE.JSON_NONSTANDARD_NUMBER, CX_ISSUE.INVALID_ID]);
         expect(codes((await failure('{"nodes":[]}')).report)).toEqual([CX_ISSUE.NOT_CX]);
         const cx2 = await failure('[{"CXVersion":"2.0","hasFragments":false},{"status":[{"success":true}]}]');
         expect(codes(cx2.report)).toEqual([CX_ISSUE.NOT_CX]);
@@ -473,7 +476,10 @@ describe("cxImporter: the stream (research-cx.md 4.1)", () => {
             ]),
         );
         expect(snapshot.ids.toArray()).toEqual([1, 2, 3]);
-        expect(report.issues.filter((i) => i.code === CX_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(4);
+        // the first member's array-valued second key (edges: []) is read as its own fragment since
+        // the robustness pass (W_MULTI_ASPECT_FRAGMENT), no longer skipped as a bad block
+        expect(report.issues.filter((i) => i.code === CX_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(3);
+        expect(codes(report)).toContain(CX_ISSUE.MULTI_ASPECT_FRAGMENT);
         expect((snapshot.meta.extra.cx as Record<string, unknown>).ndexStatus).toEqual([{ published: true }]);
     });
 

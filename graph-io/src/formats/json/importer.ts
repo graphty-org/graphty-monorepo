@@ -55,6 +55,7 @@ import {
     INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
+    JSON_NONSTANDARD_NUMBER_CODE,
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
     MULTIPLE_GRAPHS_CODE,
@@ -235,7 +236,7 @@ export const JSON_ISSUE = Object.freeze({
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** The document uses the non-standard tokens NaN / Infinity / -Infinity (Python's json writes them); read as numbers. */
-    NONSTANDARD_NUMBER: "W_JSON_NONSTANDARD_NUMBER",
+    NONSTANDARD_NUMBER: JSON_NONSTANDARD_NUMBER_CODE,
     /** Integer literals beyond 2^53 were read as their exact digits (strings), not as rounded numbers. */
     BIG_INTEGER: "W_JSON_BIG_INTEGER",
     /** A declared encoding the platform cannot decode was ignored. */

@@ -1187,8 +1187,10 @@ continue (5.5). Pushes are not lost: the daemon runs them.
 ### 7.8 Ending
 
 End the session if open (`/exit` when idle, SIGTERM after 30 s [PF 2.3]); kill processes whose cwd
-is in the worktree; stop servherd servers whose cwd is inside it; push unpushed commits to a
-salvage branch if the job was cancelled; unlock and remove the worktree with `git worktree remove`
+is in the worktree; keep unpushed commits on a local salvage branch `githerd/<job>-salvage` if the
+job was cancelled (local, not pushed: a push would run the gate on unfinished work and write to
+GitHub, and a branch in the shared repository already outlives the worktree), and refuse the
+removal otherwise; unlock and remove the worktree with `git worktree remove`
 (never `--force`) once its pull request is closed; write the outcome to the ledger.
 
 ---

@@ -7,6 +7,9 @@
  * removed, with `git worktree remove` and never `--force`: once no running run uses it
  * (`sweepWorktrees`).
  *
+ * A job's worktree, `.worktrees/githerd-<job>`, is detached, locked, built and smoke-tested before
+ * its worker starts (design section 7.1; `prepareJobWorktree` and `removeJobWorktree` below).
+ *
  * The reference worktree, `.worktrees/githerd-ref`, is the daemon's own tree at the green commit for
  * the local checks that must match CI (design section 4.9; `refreshReference` and the `reference*`
  * checks below).
@@ -14,7 +17,8 @@
  * githerd never runs git stash, reset, checkout of a file, clean or rebase.
  */
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
@@ -650,4 +654,281 @@ export async function referenceGate(options) {
     }
     options.state.reference.gate = result;
     return result;
+}
+
+/*
+ * Job worktrees (design section 7.1, step 2): `.worktrees/githerd-<job>`, one per job, detached at
+ * the green commit for new work or at the pull request's head for `pr` and `review` jobs, so a
+ * branch the owner has checked out elsewhere is never a conflict. Locked with the reason
+ * `githerd job <id>`, installed, built with Nx, checked for `dist` and smoke-tested before a
+ * session is started in it. A preparation that fails is a fault for the job, never a session.
+ */
+
+/** The default preparation steps, each run without a shell in the job's worktree. */
+const JOB_STEPS = {
+    install: ["pnpm", "install", "--frozen-lockfile"],
+    build: ["pnpm", "exec", "nx", "run-many", "-t", "build"],
+    // graph-io's tests resolve graph-format through its `dist`, so they fail on an unbuilt tree.
+    smoke: ["pnpm", "--filter", "@graphty/graph-io", "run", "test:run"],
+};
+
+/**
+ * @typedef {{dir: string, dirty: boolean, unpushed: number}} Holder a worktree that has a branch
+ *   checked out with work on it: uncommitted changes, or commits no remote has
+ * @typedef {{verdict: "faulted", step: string, dir: string | null, reason: string}} JobFault
+ */
+
+/**
+ * A job's worktree directory.
+ * @param {string} root the main checkout
+ * @param {string} job the job id
+ * @returns {string} `<root>/.worktrees/githerd-<job>`
+ */
+export function jobWorktreeDir(root, job) {
+    return join(root, ".worktrees", `githerd-${slug(job)}`);
+}
+
+/**
+ * Commits reachable from `rev` that neither `base` nor any remote-tracking branch has.
+ * @param {string} cwd a worktree of the repository
+ * @param {string} rev the revision
+ * @param {Record<string, string | undefined>} env the environment
+ * @param {string} [base] a commit whose history counts as pushed
+ * @returns {Promise<number>} the count
+ */
+async function unpushedCount(cwd, rev, env, base) {
+    const r = await run("git", ["rev-list", "--count", rev, "--not", "--remotes", ...(base ? [base] : [])], {
+        cwd,
+        env,
+    });
+    if (r.code !== 0) throw new Error(`git rev-list failed: ${(r.stderr || r.stdout).trim()}`);
+    return Number(r.stdout.trim());
+}
+
+/**
+ * The worktrees that have `branch` checked out with work on it, live session or not (design 7.1):
+ * a `pr` job on that branch does not start, and the board names them. A worktree with the branch
+ * checked out, clean and fully pushed, is no holder; a worktree whose state cannot be read is one.
+ * @param {{root: string, branch: string, env?: Record<string, string | undefined>}} options the
+ *   main checkout, the pull request's head branch and the environment
+ * @returns {Promise<Holder[]>} the holders
+ */
+export async function branchHolders({ root, branch, env = process.env }) {
+    const list = await run("git", ["worktree", "list", "--porcelain"], { cwd: root, env });
+    if (list.code !== 0) throw new Error(`git worktree list failed: ${(list.stderr || list.stdout).trim()}`);
+    const dirs = list.stdout
+        .split("\n\n")
+        .map((block) => block.split("\n"))
+        .filter((lines) => lines.includes(`branch refs/heads/${branch}`))
+        .map((lines) => lines[0].slice("worktree ".length))
+        .filter((dir) => existsSync(dir));
+    /** @type {Holder[]} */
+    const holders = [];
+    for (const dir of dirs) {
+        const status = await run("git", ["status", "--porcelain"], { cwd: dir, env });
+        const dirty = status.code !== 0 || status.stdout.trim() !== "";
+        const unpushed = await unpushedCount(root, `refs/heads/${branch}`, env);
+        if (dirty || unpushed > 0) holders.push({ dir, dirty, unpushed });
+    }
+    return holders;
+}
+
+/**
+ * Records and returns a failed preparation.
+ * @param {Ledger} ledger the ledger
+ * @param {string} job the job id
+ * @param {string} step the step that failed
+ * @param {string | null} dir the worktree, when one exists
+ * @param {RunResult | string} r the step's result, or why it failed
+ * @returns {Promise<JobFault>} the fault
+ */
+async function jobFault(ledger, job, step, dir, r) {
+    let reason = r;
+    if (typeof r !== "string") {
+        const outcome = r.timedOut ? "timed out" : `exited ${r.code}`;
+        reason = `${step} ${outcome}: ${tail(r, 5)}`;
+    }
+    const f = /** @type {JobFault} */ ({ verdict: "faulted", step, dir, reason });
+    await ledger({ kind: "job-worktree-faulted", job, ...f });
+    return f;
+}
+
+/**
+ * Prepares a job's worktree (design 7.1, step 2): checks that no worktree holds a `pr` job's
+ * branch, fetches the start commit, adds the worktree detached at it, locks it, then installs,
+ * builds, checks that every built package has its `dist` and runs the smoke test. When a step
+ * after the worktree was added fails, the worktree is removed again (`removeJobWorktree`), so a
+ * later attempt starts clean; the fault names it when it could not be removed.
+ * @param {{root: string, job: string, sha: string, ref?: string, branch?: string, remote?: string,
+ *   steps?: {install: string[], build: string[], smoke: string[]},
+ *   env?: Record<string, string | undefined>, ledger: Ledger}} options `sha` is the green commit or
+ *   the pull request's head, fetched by `ref` (`refs/pull/<n>/head`) when absent; `branch` is a
+ *   `pr` job's head branch, checked for holders; `env` is the daemon's environment with the
+ *   owner's signing variables
+ * @returns {Promise<{verdict: "ready", dir: string, sha: string} |
+ *   {verdict: "held", holders: Holder[]} | JobFault>} the prepared worktree; the worktrees holding
+ *   the branch; or the fault
+ */
+export async function prepareJobWorktree({
+    root,
+    job,
+    sha,
+    ref,
+    branch,
+    remote = "origin",
+    steps = JOB_STEPS,
+    env = process.env,
+    ledger,
+}) {
+    const dir = jobWorktreeDir(root, job);
+    if (branch) {
+        const held = await heldBy({ root, job, branch, env, ledger });
+        if (held) return held;
+    }
+    if (existsSync(dir)) return jobFault(ledger, job, "worktree add", dir, `${dir} already exists`);
+    const fetched = await haveCommit(root, sha, remote, ref, env);
+    if (fetched.code !== 0) return jobFault(ledger, job, "fetch", null, fetched);
+    const add = await run("git", ["worktree", "add", "--detach", dir, sha], { cwd: root, env });
+    if (add.code !== 0) return jobFault(ledger, job, "worktree add", null, add);
+    const lock = await run("git", ["worktree", "lock", "--reason", `githerd job ${job}`, dir], { cwd: root, env });
+    const failed = lock.code === 0 ? await runSteps(dir, steps, env) : { step: "worktree lock", r: lock };
+    if (failed) {
+        const removed = await removeJobWorktree({ root, job, dir, base: sha, env, ledger });
+        const fault = await jobFault(ledger, job, failed.step, removed.ok ? null : dir, failed.r);
+        if (!("reason" in removed)) return fault;
+        return { ...fault, reason: `${fault.reason}; not removed: ${removed.reason}` };
+    }
+    await ledger({ kind: "job-worktree-ready", job, dir, sha });
+    return { verdict: "ready", dir, sha };
+}
+
+/**
+ * The holders of a `pr` job's branch, as the answer `prepareJobWorktree` gives.
+ * @param {{root: string, job: string, branch: string, env: Record<string, string | undefined>,
+ *   ledger: Ledger}} options the main checkout, the job, its branch, the environment, the ledger
+ * @returns {Promise<{verdict: "held", holders: Holder[]} | JobFault | null>} held, a fault when
+ *   the worktrees could not be read, or null when nothing holds the branch
+ */
+async function heldBy({ root, job, branch, env, ledger }) {
+    let holders;
+    try {
+        holders = await branchHolders({ root, branch, env });
+    } catch (err) {
+        return jobFault(ledger, job, "holders", null, /** @type {Error} */ (err).message);
+    }
+    if (holders.length === 0) return null;
+    await ledger({ kind: "job-worktree-held", job, branch, holders });
+    return { verdict: "held", holders };
+}
+
+/**
+ * Runs install, build and smoke in order in a job's worktree, stopping at the first that fails. A
+ * build that leaves a built package without `dist` has failed, whatever its exit code.
+ * @param {string} dir the worktree
+ * @param {{install: string[], build: string[], smoke: string[]}} steps the commands
+ * @param {Record<string, string | undefined>} env the environment
+ * @returns {Promise<{step: string, r: RunResult | string} | null>} the failed step, or null
+ */
+async function runSteps(dir, steps, env) {
+    for (const step of /** @type {const} */ (["install", "build", "smoke"])) {
+        const [file, ...args] = steps[step];
+        const r = await run(file, args, { cwd: dir, timeoutMs: SETUP_TIMEOUT_MS, env: refEnv(env) });
+        if (r.code !== 0) return { step, r };
+        const missing = step === "build" ? missingDist(dir) : [];
+        if (missing.length > 0) return { step, r: `build left no dist in ${missing.join(", ")}` };
+    }
+    return null;
+}
+
+/**
+ * Removes a job's worktree with `git worktree remove`, never `--force`: git refuses one with
+ * uncommitted changes. Commits on its detached head that neither `base` nor any remote has are
+ * kept first: with `salvage`, on a local branch `githerd/<job>-salvage` (`-2`, `-3` when taken),
+ * which the job record lists; without it the removal is refused. The lock is taken again when the
+ * removal fails, so no session can remove it either.
+ * @param {{root: string, job: string, dir?: string, base: string, salvage?: boolean,
+ *   env?: Record<string, string | undefined>, ledger: Ledger}} options the main checkout, the job
+ *   id, its worktree (the job's directory by default), the commit it was prepared at, and whether
+ *   unpushed commits are salvaged (a cancelled job) or block the removal
+ * @returns {Promise<{ok: true, salvage: string | null} | {ok: false, reason: string}>} whether it
+ *   was removed, and the salvage branch it left
+ */
+export async function removeJobWorktree({
+    root,
+    job,
+    dir = jobWorktreeDir(root, job),
+    base,
+    salvage = false,
+    env = process.env,
+    ledger,
+}) {
+    if (!existsSync(dir)) return { ok: true, salvage: null };
+    const refuse = async (/** @type {string} */ reason) => {
+        await ledger({ kind: "job-worktree-remove-failed", job, dir, reason });
+        return /** @type {{ok: false, reason: string}} */ ({ ok: false, reason });
+    };
+    let kept = null;
+    try {
+        const unpushed = await unpushedCount(dir, "HEAD", env, base);
+        if (unpushed > 0 && !salvage) return await refuse(`${unpushed} unpushed commits on its head`);
+        if (unpushed > 0) {
+            kept = await freeSalvageBranch(root, `githerd/${slug(job)}-salvage`);
+            await git(root, ["branch", kept, await git(dir, ["rev-parse", "HEAD"])]);
+            await ledger({ kind: "job-salvaged", job, dir, branch: kept, commits: unpushed });
+        }
+    } catch (err) {
+        return refuse(/** @type {Error} */ (err).message);
+    }
+    // Unlocking a worktree that is not locked fails harmlessly; the removal decides.
+    await run("git", ["worktree", "unlock", dir], { cwd: root, env });
+    const r = await run("git", ["worktree", "remove", dir], { cwd: root, env });
+    if (r.code !== 0) {
+        await run("git", ["worktree", "lock", "--reason", `githerd job ${job}`, dir], { cwd: root, env });
+        return refuse((r.stderr || r.stdout).trim());
+    }
+    await ledger({ kind: "job-worktree-removed", job, dir });
+    return { ok: true, salvage: kept };
+}
+
+/**
+ * The first of `name`, `name-2`, `name-3`, ... that is not a branch yet.
+ * @param {string} root the repository
+ * @param {string} name the branch name
+ * @returns {Promise<string>} a free name
+ */
+async function freeSalvageBranch(root, name) {
+    const taken = new Set((await git(root, ["branch", "--list", "--format=%(refname:short)", `${name}*`])).split("\n"));
+    if (!taken.has(name)) return name;
+    let n = 2;
+    while (taken.has(`${name}-${n}`)) n++;
+    return `${name}-${n}`;
+}
+
+/**
+ * The signing probe (design 7.1, step 1): `git commit-tree -S` of the empty tree in a scratch
+ * repository, with exactly the environment a worker gets (its signing variables and PATH). The
+ * owner's SSH signing key answers in milliseconds; without the signing variables git falls back to
+ * his gpg key, whose pinentry fails without a terminal (platform facts 8.6).
+ * @param {{env: Record<string, string>, timeoutMs?: number}} options the worker's environment
+ * @returns {Promise<{ok: true} | {ok: false, reason: string}>} whether a signed commit was made
+ */
+export async function signingProbe({ env, timeoutMs = 30_000 }) {
+    const dir = mkdtempSync(join(tmpdir(), "githerd-sign-probe-"));
+    try {
+        const opts = { cwd: dir, env, timeoutMs };
+        const init = await run("git", ["init", "-q"], opts);
+        if (init.code !== 0) return { ok: false, reason: `git init: ${tail(init, 3)}` };
+        const tree = await run("git", ["hash-object", "-t", "tree", "-w", "--stdin"], { ...opts, input: "" });
+        const commit = await run("git", ["commit-tree", "-S", "-m", "githerd signing probe", tree.stdout.trim()], opts);
+        if (commit.code !== 0) {
+            return {
+                ok: false,
+                reason: `git commit-tree -S ${commit.timedOut ? "timed out" : "failed"}: ${tail(commit, 3)}`,
+            };
+        }
+        const body = await run("git", ["cat-file", "commit", commit.stdout.trim()], opts);
+        return body.stdout.includes("\ngpgsig") ? { ok: true } : { ok: false, reason: "the commit is not signed" };
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
 }

@@ -33,7 +33,13 @@ import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf } from "./session/GraphSession";
 import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
-import type { ProjectSaveOptions, ProjectSaveReport, ProjectStatus } from "./session/projectFile";
+import {
+    PROJECT_FILE,
+    projectFileName,
+    type ProjectSaveOptions,
+    type ProjectSaveReport,
+    type ProjectStatus,
+} from "./session/projectFile";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { ProgressChange } from "./session/shared";
@@ -172,13 +178,15 @@ export class Graphty extends LitElement {
      * ```
      */
     async downloadProject(
-        options: ProjectSaveOptions & { readonly fileName?: string } = {},
+        options: Omit<ProjectSaveOptions, "markSaved"> & { readonly fileName?: string } = {},
     ): Promise<ProjectSaveReport> {
-        const { text, report } = await this.session.project.save(options);
-        const url = URL.createObjectURL(new Blob([text], { type: "application/vnd.graphty+json" }));
+        // The download is the write, and the caller never sees a SavedProject to mark, so this
+        // save always clears `dirty`.
+        const { text, report } = await this.session.project.save({ ...options, markSaved: true });
+        const url = URL.createObjectURL(new Blob([text], { type: PROJECT_FILE.mediaType }));
         const link = document.createElement("a");
         link.href = url;
-        link.download = options.fileName ?? `${this.session.project.name ?? "project"}.graphty.json`;
+        link.download = options.fileName ?? projectFileName(this.session.project.name);
         link.click();
         URL.revokeObjectURL(url);
         return report;

@@ -1377,6 +1377,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             neighbors: READ,
             lastImport: READ,
             source: READ,
+            // Reads and holds a source; the draft it returns loads through data.import.
+            prepare: READ,
             attributes: READ,
             declare: {
                 kind: "dispatches",
@@ -1415,6 +1417,38 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ type: "json", config: { data: TINY_JSON } }],
                 [imports("replace", { type: "json", config: { data: TINY_JSON } })],
             ),
+        },
+    },
+    {
+        name: "LoadDraft",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            type: READ,
+            tables: READ,
+            mapping: READ,
+            // Measured in a scratch session; this one is untouched.
+            report: READ,
+            rows: READ,
+            // A draft of TINY_JSON: the rows it held, loaded without reading the source again.
+            load: calls(
+                [],
+                [
+                    {
+                        op: "data.import",
+                        source: { type: "json", config: { data: TINY_JSON } },
+                        mode: "replace",
+                        held: {
+                            nodes: [{ id: "j1" }, { id: "j2" }],
+                            edges: [{ src: "j1", dst: "j2" }],
+                            declaredDirection: null,
+                            errors: [],
+                            errorLimit: 100,
+                        },
+                    },
+                ],
+            ),
+            dispose: exempt("Lets go of the rows a draft holds; nothing a project saves changes."),
         },
     },
     {
@@ -1601,6 +1635,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 expect: [{ op: "config.set", values: { name: "Fixture project" } }],
             },
             save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
+            markSaved: exempt("Moves the save point that dirty is measured from; it changes nothing a project saves."),
             open: exempt(
                 "Opens a file as one transaction: every write goes through the session's own doors, " +
                     "which have rows of their own.",

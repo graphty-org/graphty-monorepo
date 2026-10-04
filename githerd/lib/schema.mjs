@@ -1,6 +1,6 @@
 /**
  * Validates MCP tool arguments against a JSON Schema subset: exactly the keywords githerd's tool
- * schemas use (design section 3). A schema that uses any other keyword is a programming error and
+ * schemas use (design section 6). A schema that uses any other keyword is a programming error and
  * throws, so a constraint is never silently skipped.
  */
 
@@ -20,6 +20,7 @@ const KEYWORDS = new Set([
     "default",
     "additionalProperties",
     "description",
+    "anyOf",
 ]);
 
 /**
@@ -40,6 +41,8 @@ const KEYWORDS = new Set([
  * @property {unknown} [default] filled in when the property is absent
  * @property {false} [additionalProperties] false refuses properties not listed
  * @property {string} [description] documentation only
+ * @property {Schema[]} [anyOf] the value must match at least one of these; the first match fills
+ *   its defaults
  */
 
 /**
@@ -94,17 +97,19 @@ export function assertSupported(schema, path = "schema") {
     for (const [name, sub] of Object.entries(schema.properties ?? {})) {
         assertSupported(sub, `${path}.properties.${name}`);
     }
+    for (const [i, sub] of (schema.anyOf ?? []).entries()) assertSupported(sub, `${path}.anyOf[${i}]`);
 }
 
 /**
  * Validates one value against one schema.
  * @param {Schema} schema the schema
- * @param {unknown} value the value
+ * @param {unknown} input the value
  * @param {string} path where the value sits, for messages
  * @param {string[]} errors collects violations
  * @returns {unknown} the value with defaults filled
  */
-function check(schema, value, path, errors) {
+function check(schema, input, path, errors) {
+    const value = schema.anyOf === undefined ? input : checkAnyOf(schema.anyOf, input, path, errors);
     const got = typeOf(value);
     if (schema.type !== undefined && !typeMatches(schema.type, got)) {
         errors.push(`${path}: expected ${schema.type}, got ${got}`);
@@ -122,6 +127,28 @@ function check(schema, value, path, errors) {
         }
     }
     if (got === "object") return checkObject(schema, /** @type {Record<string, unknown>} */ (value), path, errors);
+    return value;
+}
+
+/**
+ * Validates a value against alternatives: the first that matches wins; when none does, one message
+ * names every alternative's first violation.
+ * @param {Schema[]} alternatives the schemas
+ * @param {unknown} value the value
+ * @param {string} path where the value sits, for messages
+ * @param {string[]} errors collects violations
+ * @returns {unknown} the value with the matching alternative's defaults filled
+ */
+function checkAnyOf(alternatives, value, path, errors) {
+    const reasons = [];
+    for (const alternative of alternatives) {
+        /** @type {string[]} */
+        const own = [];
+        const out = check(alternative, value, path, own);
+        if (own.length === 0) return out;
+        reasons.push(own[0]);
+    }
+    errors.push(`${path}: matches none of the allowed forms (${reasons.join(" | ")})`);
     return value;
 }
 

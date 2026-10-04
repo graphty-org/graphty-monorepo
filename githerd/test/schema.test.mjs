@@ -135,3 +135,39 @@ describe("validate", () => {
         expect(() => assertSupported(CLAIM)).not.toThrow();
     });
 });
+
+describe("anyOf", () => {
+    const schema = {
+        type: "object",
+        properties: {
+            result: {
+                anyOf: [
+                    { type: "array", items: { type: "integer" } },
+                    {
+                        type: "object",
+                        properties: { tag: { type: "string", default: "x" } },
+                        additionalProperties: false,
+                    },
+                ],
+            },
+        },
+    };
+
+    it("accepts the first alternative that matches and fills its defaults", () => {
+        expect(validate(schema, { result: [1, 2] })).toEqual({ ok: true, value: { result: [1, 2] } });
+        expect(validate(schema, { result: {} })).toEqual({ ok: true, value: { result: { tag: "x" } } });
+    });
+
+    it("names each alternative's first violation when none matches", () => {
+        expect(errorsOf(validate(schema, { result: "no" }))).toEqual([
+            "arguments.result: matches none of the allowed forms (arguments.result: expected array, got string | " +
+                "arguments.result: expected object, got string)",
+        ]);
+    });
+
+    it("checks the alternatives' keywords too", () => {
+        expect(() => assertSupported({ anyOf: [{ type: "string" }, { not: {} }] })).toThrow(
+            /schema\.anyOf\[1\] uses unsupported keyword "not"/,
+        );
+    });
+});

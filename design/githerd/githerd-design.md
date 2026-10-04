@@ -912,7 +912,9 @@ Free-text policy is added to every worker's job text and re-added after compacti
 The MCP server identifies its session from the SessionStart hook's `session_id`, then from the
 registry file named by its parent pid, accepted only if the file's pid matches and that process
 started before the file's `startedAt` [PF 2.2]. Workers also carry `GITHERD_JOB`. Every call
-carries a protocol version (9.8). Arguments are validated against these schemas; a refused call
+carries a protocol version (9.8), with the session, the job and the nonce, in
+`params._meta.githerd`; a call in a version the daemon does not serve is refused before anything
+runs. Arguments are validated against these schemas; a refused call
 has no partial effect and says why. Every result starts with active banners and faults.
 
 Every tool answers within seconds and none blocks. Claude Code moves an MCP call still running
@@ -924,7 +926,8 @@ end with the doorbell.
 ```jsonc
 // 1. The board. Any session.
 githerd_status: { section?: "all"|"owner"|"master"|"release"|"prs"|"jobs"|"sessions"|"health",
-                  pr?: integer }
+                  pr?: integer, format?: "text"|"json" }
+// "json" is what the SessionStart hook reads to build its status line.
 
 // 2. My job (workers), or what could be taken (owner sessions).
 githerd_next: {}
@@ -960,6 +963,8 @@ githerd_rerun: { job: string, run: integer, jobId: integer, reason: string /*<=3
 
 // 8. Read GitHub text, filtered to the owner's account.
 githerd_read: { issue?: integer, pr?: integer, include?: ("body"|"comments"|"reviews"|"files")[] }
+// One of issue and pr is required; the daemon checks it, because the model API refuses a tool
+// schema with anyOf at its top level.
 // -> the body and only comments and reviews written by the gh login; edits by other accounts
 //    stripped; other-account items counted, not shown.
 

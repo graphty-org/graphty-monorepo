@@ -1,4 +1,4 @@
-import { Avatar, Badge, Indicator, Kbd, MantineProvider, Pill, Text, ThemeIcon } from "@mantine/core";
+import { Avatar, Badge, Indicator, Kbd, MantineProvider, Pill, TagsInput, Text, ThemeIcon } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Settings } from "lucide-react";
@@ -97,6 +97,26 @@ describe("Display Components Integration", () => {
             expect(remove).toHaveFocus();
             await userEvent.keyboard("{Enter}");
             expect(onRemove).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe("TagsInput pills", () => {
+        it("keeps each remove button reachable when the caller passes attributes for another part", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <TagsInput
+                        label="Tags"
+                        defaultValue={["degree", "group"]}
+                        attributes={{ input: { "data-test": "x" } }}
+                    />
+                </MantineProvider>,
+            );
+            const removes = screen.getAllByRole("button", { name: "Remove" });
+            expect(removes).toHaveLength(2);
+            for (const remove of removes) {
+                expect(remove).toHaveAttribute("tabindex", "0");
+                expect(remove).not.toHaveAttribute("aria-hidden", "true");
+            }
         });
     });
 

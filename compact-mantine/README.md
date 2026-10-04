@@ -230,7 +230,11 @@ light cap in running text, `mod={{ active: true }}` to light it); `Select`
 defaults to the outlined trigger; `Tabs` defaults to pills. A removable `Pill`'s
 remove button is in the Tab order and named "Remove" (Mantine hides it from the
 keyboard and from screen readers); name it after the value with
-`removeButtonProps={{ "aria-label": `Remove ${tag}` }}`.
+`removeButtonProps={{ "aria-label": `Remove ${tag}` }}`. The name is always the
+English "Remove" -- the theme cannot reach `LabelsProvider` -- and the pills of
+`MultiSelect` and `TagsInput` cannot be renamed, since Mantine gives them no
+`removeButtonProps`: each pill's button there reads "Remove", after the value it
+follows.
 
 ### Making it your own
 

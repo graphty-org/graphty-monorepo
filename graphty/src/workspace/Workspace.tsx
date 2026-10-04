@@ -38,7 +38,7 @@ export function Workspace({
     initialState,
     store: given,
     registrations = REGISTRATIONS,
-}: WorkspaceProps): React.JSX.Element {
+}: Readonly<WorkspaceProps>): React.JSX.Element {
     const [store] = useState(() => given ?? createWorkspaceStore(initialState));
     const registry = useMemo(() => createRegistry(registrations), [registrations]);
     const [element, setElement] = useState<{ element: GraphtyElement | null; session: GraphSession | null }>({

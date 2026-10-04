@@ -57,6 +57,14 @@ async function importGraphFile(session: GraphSession): Promise<void> {
 const tree = (name: string): HTMLElement => screen.getByRole("tree", { name });
 
 /**
+ * A row's accessible description: the text its aria-describedby names.
+ * @param row - the tree row.
+ * @returns the description, or null.
+ */
+const describedBy = (row: HTMLElement): string | null =>
+    document.getElementById(row.getAttribute("aria-describedby") ?? "")?.textContent ?? null;
+
+/**
  * Opens a row's context menu from the keyboard, as a reader without a mouse would.
  * @param row - the tree row.
  * @returns the menu.
@@ -86,9 +94,12 @@ describe("the Data place on the real element", () => {
             const file = await within(place).findByRole("treeitem", { name: "les-miserables.gml" });
             const { counts } = session.data.lastImport() ?? assert.fail("no import report");
             assert.include(file.textContent, `${String(counts.nodes)} nodes, ${String(counts.edges)} edges`);
-            const nodes = within(tree("Sources")).getByRole("treeitem", { name: "Nodes" });
-            assert.include(nodes.textContent, `${String(counts.nodeRecords)} rows, ${String(counts.nodes)} nodes`);
-            assert.isNotNull(within(tree("Sources")).getByRole("treeitem", { name: "Edges" }));
+            const nodes = within(tree("Sources")).getByRole("treeitem", { name: "Node table" });
+            const quiet = `${String(counts.nodeRecords)} rows, ${String(counts.nodes)} nodes`;
+            assert.include(nodes.textContent, quiet);
+            // The quiet line reaches a screen reader too.
+            assert.equal(describedBy(nodes), quiet);
+            assert.isNotNull(within(tree("Sources")).getByRole("treeitem", { name: "Edge table" }));
 
             await session.undo();
             await waitFor(() => {
@@ -106,9 +117,11 @@ describe("the Data place on the real element", () => {
 
             const attributes = await screen.findByRole("tree", { name: "Attributes" });
             for (const a of session.data.attributes()) {
-                const row = within(attributes).getByRole("treeitem", { name: a.name });
+                const row = within(attributes).getByRole("treeitem", { name: `${a.name}, ${a.kind} attribute` });
                 if (a.completeness < 1) {
-                    assert.include(row.textContent, `${String(Math.floor(a.completeness * 100))}%`, a.name);
+                    const fill = `${String(Math.floor(a.completeness * 100))}%`;
+                    assert.include(row.textContent, fill, a.name);
+                    assert.include(describedBy(row), fill, a.name);
                 }
             }
             const born = session.data.attributes().find((a) => a.kind === "node" && a.name === "born");
@@ -119,8 +132,13 @@ describe("the Data place on the real element", () => {
                     .getAllByRole("treeitem")
                     .filter((row) => row.getAttribute("aria-level") === "1")
                     .map((row) => row.getAttribute("aria-label")),
-                ["Nodes", "Edges"],
+                ["Node attributes", "Edge attributes"],
             );
+            // No two rows of the place share an accessible name (section 4).
+            const names = within(screen.getByRole("region", { name: "Data place" }))
+                .getAllByRole("treeitem")
+                .map((row) => row.getAttribute("aria-label"));
+            assert.equal(new Set(names).size, names.length, names.join(" | "));
         },
         TIMEOUT_MS,
     );
@@ -131,8 +149,11 @@ describe("the Data place on the real element", () => {
             const { session, store } = await openDataPlace();
             await importGraphFile(session);
 
-            await userEvent.click(await screen.findByRole("treeitem", { name: "group" }));
+            await userEvent.click(await screen.findByRole("treeitem", { name: "group, node attribute" }));
             assert.deepEqual(store.get().inspected, { kind: "attribute", id: "node:group" });
+            // A click on the quiet fill text is a click on the row.
+            await userEvent.click(within(tree("Attributes")).getByText("25%"));
+            assert.deepEqual(store.get().inspected, { kind: "attribute", id: "node:born" });
 
             const menu = await menuOf(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
             // Rename waits for the element (#894).
@@ -149,22 +170,25 @@ describe("the Data place on the real element", () => {
     );
 
     it(
-        "Add label line binds a new layer's node label to the attribute, as one undoable step",
+        "Add label line binds a new layer's node label to the attribute and selects it, as one undoable step",
         async () => {
-            const { session } = await openDataPlace();
+            const { session, store } = await openDataPlace();
             await importGraphFile(session);
             const before = session.styles.list().length;
 
-            const menu = await menuOf(await screen.findByRole("treeitem", { name: "label" }));
+            const menu = await menuOf(await screen.findByRole("treeitem", { name: "label, node attribute" }));
             await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
 
             await waitFor(() => {
                 assert.equal(session.styles.list().length, before + 1);
             });
-            // A new row on top, its node label bound to the column.
+            // A new row on top, its node label bound to the column, selected.
             const layer = session.styles.list().at(-1);
             assert.equal(layer?.name, "label");
             assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
+            await waitFor(() => {
+                assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer?.id });
+            });
 
             await session.undo();
             await waitFor(() => {
@@ -180,11 +204,10 @@ describe("the Data place on the real element", () => {
             const { session } = await openDataPlace();
             await importGraphFile(session);
 
-            const value = within(await screen.findByRole("tree", { name: "Attributes" }))
-                .getAllByRole("treeitem", { name: "value" })
-                .at(-1);
-            assert.isDefined(value);
-            value?.focus();
+            const value = within(await screen.findByRole("tree", { name: "Attributes" })).getByRole("treeitem", {
+                name: "value, edge attribute",
+            });
+            value.focus();
             await userEvent.keyboard("{Shift>}{F10}{/Shift}");
             assert.isNull(screen.queryByRole("menu"));
         },
@@ -199,12 +222,16 @@ describe("the Data place on the real element", () => {
 
             const find = await screen.findByRole("searchbox", { name: "Find attribute" });
             const attributes = tree("Attributes");
-            assert.isNotNull(within(attributes).getByRole("treeitem", { name: "m01" }));
+            assert.isNotNull(within(attributes).getByRole("treeitem", { name: "m01, node attribute" }));
             await userEvent.type(find, "m16");
             await waitFor(() => {
-                assert.isNull(within(attributes).queryByRole("treeitem", { name: "m01" }));
+                assert.isNull(within(attributes).queryByRole("treeitem", { name: "m01, node attribute" }));
             });
-            assert.isNotNull(within(attributes).getByRole("treeitem", { name: "m16" }));
+            assert.isNotNull(within(attributes).getByRole("treeitem", { name: "m16, node attribute" }));
+
+            // Nothing matches: one gray line says so.
+            await userEvent.type(find, "x");
+            assert.isNotNull(await screen.findByText('No match for "m16x"'));
         },
         TIMEOUT_MS,
     );

@@ -27,3 +27,8 @@
     font-size: 11px;
     white-space: nowrap;
 }
+
+/* Find's empty state: one gray line (section 6). */
+.dp-no-match {
+    padding: 4px 8px 4px 16px;
+}

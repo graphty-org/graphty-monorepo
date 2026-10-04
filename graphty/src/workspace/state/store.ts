@@ -48,11 +48,6 @@ export interface WorkspaceState {
     readonly inspected: Inspected | null;
     /** The tab last chosen per inspected kind. */
     readonly tabs: Readonly<Record<string, "style" | "values">>;
-    /**
-     * The column the table dock opens on and brings into view (Show in table, section 2.6); the
-     * Table dock reads it. Null for none.
-     */
-    readonly tableShow: { readonly kind: "node" | "edge"; readonly name: string } | null;
     readonly leftWidth: number;
     readonly rightWidth: number;
     readonly dockHeight: number;
@@ -78,7 +73,6 @@ const INITIAL: WorkspaceState = {
     renaming: false,
     inspected: null,
     tabs: {},
-    tableShow: null,
     leftWidth: PANEL_MIN,
     rightWidth: PANEL_MIN,
     dockHeight: 240,

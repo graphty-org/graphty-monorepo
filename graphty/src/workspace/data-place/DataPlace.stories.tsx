@@ -83,7 +83,7 @@ export const AttributePicked: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await load(canvasElement, GRAPH_FILE);
-        await userEvent.click(await within(canvasElement).findByRole("treeitem", { name: "group" }));
+        await userEvent.click(await within(canvasElement).findByRole("treeitem", { name: "group, node attribute" }));
     },
 };
 
@@ -101,7 +101,7 @@ export const AttributeMenu: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await load(canvasElement, GRAPH_FILE);
-        await openMenu(canvasElement, "label");
+        await openMenu(canvasElement, "label, node attribute");
     },
 };
 

@@ -2,7 +2,7 @@ import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
 import type { ImportReport } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { attributeRows, columnOf, count, sourceRows } from "../words";
+import { attributeRows, columnOf, count, fillOf, sourceRows } from "../words";
 
 /**
  * An import report with these counts; the rest of the report is not read.
@@ -54,8 +54,8 @@ describe("the Data place's words", () => {
         assert.deepEqual(
             file.children?.map((t) => [t.kind, t.name, t.quiet]),
             [
-                ["nodes", "Nodes", "34 rows, 34 nodes"],
-                ["edges", "Edges", "78 rows, 78 edges"],
+                ["nodes", "Node table", "34 rows, 34 nodes"],
+                ["edges", "Edge table", "78 rows, 78 edges"],
             ],
         );
     });
@@ -65,6 +65,14 @@ describe("the Data place's words", () => {
         assert.deepEqual(
             rows.map((r) => [r.kind, r.name, r.quiet, r.children]),
             [["edges", "edges.csv", "254 rows, 254 edges", undefined]],
+        );
+    });
+
+    it("draws a lone node table with its node count only", () => {
+        const rows = sourceRows({ name: "les miserables" }, report({ nodes: 77, nodeRecords: 77 }));
+        assert.deepEqual(
+            rows.map((r) => [r.kind, r.name, r.quiet]),
+            [["nodes", "les miserables", "77 nodes"]],
         );
     });
 
@@ -89,10 +97,37 @@ describe("the Data place's words", () => {
             ],
         );
         assert.deepEqual(rows[2].column, { kind: "node", name: "group" });
+        assert.equal(rows[2].label, "group, node attribute");
+        assert.equal(rows[2].description, "Category, 20% have a value");
         assert.deepEqual(
             attributeRows(attributes, "edge").map((r) => r.id),
             ["edge:weight"],
         );
+    });
+
+    it("lists the results of runs first, marked by their run, then the rest by name", () => {
+        const pagerank = { ...attribute("node", "pagerank", "quantitative"), origin: "result", runId: "r1" };
+        const rows = attributeRows(
+            [attribute("node", "age", "quantitative"), pagerank as AttributeDescriptor],
+            "node",
+            "",
+            (id) => (id === "r1" ? "PageRank" : undefined),
+        );
+        assert.deepEqual(
+            rows.map((r) => [r.name, r.glyph, r.typeWord]),
+            [
+                ["pagerank", "result", "Result of PageRank"],
+                ["age", "number", "Number"],
+            ],
+        );
+    });
+
+    it("never shows a few values as 0% or a missing value as 100%", () => {
+        assert.isNull(fillOf(1));
+        assert.equal(fillOf(0), "0%");
+        assert.equal(fillOf(0.004), "<1%");
+        assert.equal(fillOf(0.999), "99%");
+        assert.equal(fillOf(0.25), "25%");
     });
 
     it("filters by name, ignoring case", () => {

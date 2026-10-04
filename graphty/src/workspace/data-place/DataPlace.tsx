@@ -2,8 +2,19 @@ import "./data-place.css";
 
 import { ContextMenu, ControlSection, SearchInput, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Menu } from "@mantine/core";
-import { Calendar, CaseSensitive, CircleDashed, CircleDot, FileText, Hash, ListOrdered, Plus, Waypoints } from "lucide-react";
+import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
+import {
+    Calendar,
+    CaseSensitive,
+    ChartColumn,
+    CircleDashed,
+    CircleDot,
+    FileText,
+    Hash,
+    ListOrdered,
+    Plus,
+    Waypoints,
+} from "lucide-react";
 import React, { useEffect, useState } from "react";
 
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -12,6 +23,7 @@ import {
     attributeRows,
     columnOf,
     FIND_PAST,
+    labelRefusalWords,
     type SourceKind,
     type SourceRow,
     sourceRows,
@@ -30,6 +42,7 @@ const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
     ordinal: <ListOrdered size={14} aria-hidden />,
     time: <Calendar size={14} aria-hidden />,
     unknown: <CircleDashed size={14} aria-hidden />,
+    result: <ChartColumn size={14} aria-hidden />,
 };
 
 /**
@@ -69,6 +82,26 @@ function Quiet({ children }: { children: React.ReactNode }): React.JSX.Element {
 }
 
 /**
+ * A menu item's label, with a disabled item's reason on its second line (section 4, "Disabled").
+ * @param props - Component props
+ * @param props.label - The item's label
+ * @param props.reason - Why it is disabled, or null
+ * @returns The label
+ */
+function ItemLabel({ label, reason }: { label: string; reason: string | null }): React.JSX.Element {
+    return (
+        <>
+            {label}
+            {reason === null ? null : (
+                <Text size="xs" c="dimmed">
+                    {reason}
+                </Text>
+            )}
+        </>
+    );
+}
+
+/**
  * The tree item for a Sources row.
  * @param row - the row.
  * @returns the item.
@@ -77,6 +110,7 @@ function sourceItem(row: SourceRow): TreeNodeData {
     return {
         id: row.id,
         name: row.name,
+        description: row.quiet,
         icon: SOURCE_GLYPHS[row.kind],
         strong: false,
         actions: <Quiet>{row.quiet}</Quiet>,
@@ -93,7 +127,14 @@ function attributeItem(row: AttributeRow): TreeNodeData {
     return {
         id: row.id,
         name: row.name,
-        icon: <span title={row.typeWord}>{TYPE_GLYPHS[row.glyph]}</span>,
+        label: row.label,
+        // The type reaches a screen reader through the description; the tooltip is for a pointer.
+        description: row.description,
+        icon: (
+            <Tooltip label={row.typeWord}>
+                <span>{TYPE_GLYPHS[row.glyph]}</span>
+            </Tooltip>
+        ),
         ...(row.fill === null ? {} : { actions: <Quiet>{row.fill}</Quiet> }),
     };
 }
@@ -113,7 +154,8 @@ function rowIdOf(event: React.SyntheticEvent): string | null {
  * `data.attributes()` for Attributes.
  *
  * Not drawn until graphty-element provides them: Rename on a source (#894) and the attributes'
- * role tags, Key, Name and Weight (#893).
+ * role tags, Key, Name and Weight (#893). A closed section's one-line summary waits for
+ * compact-mantine's ControlSection (#916).
  * @returns The Data place
  */
 export function DataPlace(): React.JSX.Element {
@@ -131,11 +173,17 @@ export function DataPlace(): React.JSX.Element {
     const sources = session === null ? [] : sourceRows(session.data.source(), session.data.lastImport());
     const attributes = session?.data.attributes() ?? [];
     const findShown = attributes.length > FIND_PAST;
-    const nodeRows = attributeRows(attributes, "node", findShown ? filter : "");
-    const edgeRows = attributeRows(attributes, "edge", findShown ? filter : "");
+    const needle = findShown ? filter : "";
+    const runLabel = (runId: string): string | undefined => session?.runs.get(runId)?.label;
+    const nodeRows = attributeRows(attributes, "node", needle, runLabel);
+    const edgeRows = attributeRows(attributes, "edge", needle, runLabel);
     const attributeItems: TreeNodeData[] = [
-        ...(nodeRows.length > 0 ? [{ id: "nodes", name: "Nodes", children: nodeRows.map(attributeItem) }] : []),
-        ...(edgeRows.length > 0 ? [{ id: "edges", name: "Edges", children: edgeRows.map(attributeItem) }] : []),
+        ...(nodeRows.length > 0
+            ? [{ id: "nodes", name: "Nodes", label: "Node attributes", children: nodeRows.map(attributeItem) }]
+            : []),
+        ...(edgeRows.length > 0
+            ? [{ id: "edges", name: "Edges", label: "Edge attributes", children: edgeRows.map(attributeItem) }]
+            : []),
     ];
     const selectedAttribute = inspected?.kind === "attribute" && inspected.id !== undefined ? [inspected.id] : [];
 
@@ -143,6 +191,34 @@ export function DataPlace(): React.JSX.Element {
         store.set({ page: "data-page" });
     };
     const menuColumn = menuFor === null ? null : columnOf(menuFor);
+    const labelSpec = menuColumn?.kind === "node" ? { column: menuColumn, channel: "node.label" as const } : null;
+    let labelRefusal: string | null = null;
+    if (labelSpec !== null && session !== null) {
+        try {
+            const proposal = session.styles.proposeEncoding(labelSpec);
+            labelRefusal = proposal.ok ? null : labelRefusalWords(proposal.refusal);
+        } catch {
+            // The attribute went away under the open menu.
+            labelRefusal = "No longer in the data";
+        }
+    }
+    /**
+     * Add label line (T10, the attribute menu's door): a new row on top whose label is bound to
+     * the attribute. It lands selected, so the inspector shows it; a refusal is one Problem notice.
+     * @param spec - the column and the label channel.
+     */
+    const addLabelLine = (spec: NonNullable<typeof labelSpec>): void => {
+        session?.styles.encode(spec).then(
+            (layer) => {
+                store.set({ inspected: { kind: "layer-row", id: layer.id } });
+            },
+            () => {
+                store.set({
+                    notice: { message: `Could not add a label line from "${spec.column.name}". Pick another attribute.` },
+                });
+            },
+        );
+    };
     /**
      * Whether a row has a menu: a source, a node attribute (Add label line), or an edge attribute
      * once the table dock is built (Show in table). A subhead has none.
@@ -158,14 +234,16 @@ export function DataPlace(): React.JSX.Element {
         addCommands.length === 0 ? null : (
             <Menu position="bottom-end">
                 <Menu.Target>
-                    <ActionIcon variant="subtle" aria-label="Add data" title="Add data">
-                        <Plus size={14} aria-hidden />
-                    </ActionIcon>
+                    <Tooltip label="Add data">
+                        <ActionIcon variant="subtle" aria-label="Add data">
+                            <Plus size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
                 </Menu.Target>
                 <Menu.Dropdown>
                     {addCommands.map((door) => (
                         <Menu.Item key={door.command.id} disabled={door.disabledReason !== null} onClick={door.run}>
-                            {door.command.label}
+                            <ItemLabel label={door.command.label} reason={door.disabledReason} />
                         </Menu.Item>
                     ))}
                 </Menu.Dropdown>
@@ -216,6 +294,11 @@ export function DataPlace(): React.JSX.Element {
                                     onChange={setFilter}
                                 />
                             ) : null}
+                            {attributeItems.length === 0 && filter !== "" ? (
+                                <Text size="xs" c="dimmed" className="dp-no-match">
+                                    No match for &quot;{filter}&quot;
+                                </Text>
+                            ) : null}
                             {attributeItems.length === 0 ? null : (
                                 <Tree
                                     label="Attributes"
@@ -236,20 +319,21 @@ export function DataPlace(): React.JSX.Element {
                 }
             >
                 {menuFor?.startsWith("source") === true ? <Menu.Item onClick={editSource}>Edit source...</Menu.Item> : null}
-                {menuColumn?.kind === "node" ? (
+                {labelSpec === null ? null : (
                     <Menu.Item
+                        disabled={labelRefusal !== null}
                         onClick={() => {
-                            // A door that is not on a row makes a new row on top (tier1-design.md T9).
-                            void session?.styles.encode({ column: menuColumn, channel: "node.label" });
+                            addLabelLine(labelSpec);
                         }}
                     >
-                        Add label line
+                        <ItemLabel label="Add label line" reason={labelRefusal} />
                     </Menu.Item>
-                ) : null}
+                )}
                 {menuColumn !== null && tableBuilt ? (
                     <Menu.Item
                         onClick={() => {
-                            store.set({ dockOpen: true, tableShow: menuColumn });
+                            // Opens the dock; bringing the column into view is the Table dock's.
+                            store.set({ dockOpen: true });
                         }}
                     >
                         Show in table

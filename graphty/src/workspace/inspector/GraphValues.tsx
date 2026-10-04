@@ -128,7 +128,7 @@ const ORIGIN_WORDS = { imported: "From the file", joined: "Joined", computed: "C
  * @param props.path - The attribute's path, such as `data.age`
  * @returns The Summary, or nothing when the graph has no such attribute
  */
-export function AttributeValues({ path }: { path: string }): React.JSX.Element | null {
+export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const column = session?.data.attributes().find((candidate) => candidate.path === path);
     if (column === undefined) {

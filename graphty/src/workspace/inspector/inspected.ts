@@ -106,12 +106,11 @@ interface SelectionView {
 }
 
 /**
- * What the inspector draws: the open row when there is one and it parses, else the selection.
+ * The open row, when there is one and it parses.
  * @param inspected - the store's `inspected`.
- * @param selection - the element's selection, or null before the element is up.
- * @returns what to draw.
+ * @returns what to draw, or undefined to fall back to the selection.
  */
-export function resolveInspected(inspected: WorkspaceState["inspected"], selection: SelectionView | null): Resolved {
+function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
     switch (inspected?.kind) {
         case "neighborhood": {
             const node = idOf(parse(inspected.id));
@@ -146,7 +145,20 @@ export function resolveInspected(inspected: WorkspaceState["inspected"], selecti
         default:
             break;
     }
+    return undefined;
+}
 
+/**
+ * What the inspector draws: the open row when there is one and it parses, else the selection.
+ * @param inspected - the store's `inspected`.
+ * @param selection - the element's selection, or null before the element is up.
+ * @returns what to draw.
+ */
+export function resolveInspected(inspected: WorkspaceState["inspected"], selection: SelectionView | null): Resolved {
+    const row = fromRow(inspected);
+    if (row !== undefined) {
+        return row;
+    }
     const nodes = selection?.nodes ?? [];
     const edges = selection?.edges ?? [];
     if (nodes.length === 0 && edges.length === 0) {

@@ -251,6 +251,16 @@ export function Inspector(): React.JSX.Element {
 }
 
 /**
+ * The "from" line of a header: what made the thing, and when when that is known.
+ * @param name - what made it.
+ * @param date - the day it ran, or null.
+ * @returns the words.
+ */
+function fromWords(name: string, date: string | null): string {
+    return date === null ? `from ${name}` : `from ${name}, ${date}`;
+}
+
+/**
  * The header's name and provenance for what is inspected.
  * @param session - the session.
  * @param resolved - what is inspected.
@@ -264,7 +274,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
     const from = (made: Run): Header["from"] => {
         const date = runDate(made.startedAt);
         return {
-            words: `from ${made.label}${date === null ? "" : `, ${date}`}`,
+            words: fromWords(made.label, date),
             open: () => {
                 open({ kind: "run-row", run: made.id });
             },
@@ -303,7 +313,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             const analysis = session.catalog.algorithms().find((a) => a.key === run.algorithm)?.plainName ?? run.label;
             return {
                 name: run.label,
-                from: { words: `from ${analysis}${date === null ? "" : `, ${date}`}`, open: openAnalyze },
+                from: { words: fromWords(analysis, date), open: openAnalyze },
             };
         }
         case "group-row": {

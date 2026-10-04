@@ -24,7 +24,7 @@ let returnToDegree = false;
  * @param props.rows - The attributes as name and value
  * @returns The rows
  */
-function AttributeRows({ rows }: { rows: readonly (readonly [string, unknown])[] }): React.JSX.Element {
+function AttributeRows({ rows }: Readonly<{ rows: readonly (readonly [string, unknown])[] }>): React.JSX.Element {
     const [all, setAll] = useState(false);
     const shown = all ? rows : rows.slice(0, ATTRIBUTES_SHOWN);
     return (
@@ -86,7 +86,7 @@ function fileAttributes(
  * @param props.id - The node
  * @returns The tab
  */
-export function NodeValues({ id }: { id: NodeId }): React.JSX.Element | null {
+export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const degree = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -182,12 +182,29 @@ async function openNeighborhood(
  * @param props.center - The node at the center
  * @returns The list
  */
-export function NeighborList({ center }: { center: NodeId }): React.JSX.Element | null {
+export function NeighborList({ center }: Readonly<{ center: NodeId }>): React.JSX.Element | null {
     const { session } = useWorkspace();
-    const heading = useRef<HTMLDivElement>(null);
+    const heading = useRef<HTMLElement>(null);
+    // The list takes focus as it opens, and Esc anywhere in it returns to the center node: a
+    // shortcut on the region, so it is listened for on the region's own element.
     useEffect(() => {
-        heading.current?.focus();
-    }, [center]);
+        const region = heading.current;
+        if (region === null || session === null) {
+            return undefined;
+        }
+        region.focus();
+        const onKeyDown = (event: KeyboardEvent): void => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                returnToDegree = true;
+                selectNode(session, center);
+            }
+        };
+        region.addEventListener("keydown", onKeyDown);
+        return () => {
+            region.removeEventListener("keydown", onKeyDown);
+        };
+    }, [center, session]);
     if (session === null) {
         return null;
     }
@@ -201,19 +218,7 @@ export function NeighborList({ center }: { center: NodeId }): React.JSX.Element 
     const tie = page.measuredBy?.attribute;
 
     return (
-        <div
-            ref={heading}
-            tabIndex={-1}
-            role="region"
-            aria-label={`${String(center)}'s ${count(page.total, "connection")}`}
-            onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                    event.preventDefault();
-                    returnToDegree = true;
-                    selectNode(session, center);
-                }
-            }}
-        >
+        <section ref={heading} tabIndex={-1} aria-label={`${String(center)}'s ${count(page.total, "connection")}`}>
             <Text size="xs" fw={600} px="md" py={6}>
                 {`${String(center)}'s ${count(page.total, "connection")}`}
             </Text>
@@ -228,7 +233,7 @@ export function NeighborList({ center }: { center: NodeId }): React.JSX.Element 
                     }}
                 />
             ))}
-        </div>
+        </section>
     );
 }
 
@@ -239,7 +244,7 @@ export function NeighborList({ center }: { center: NodeId }): React.JSX.Element 
  * @param props.id - The edge
  * @returns The tab
  */
-export function EdgeValues({ id }: { id: string }): React.JSX.Element | null {
+export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const edge = session?.data.edge(id);
     if (session === null || edge === undefined) {
@@ -286,7 +291,7 @@ function attributeSummary(attribute: SelectionAttributeStatistics): string | und
  * @param props.version - Changes whenever the element reports a change
  * @returns The Summary
  */
-export function SeveralValues({ version }: { version: number }): React.JSX.Element | null {
+export function SeveralValues({ version }: Readonly<{ version: number }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const statistics = useAsyncValue(() => session?.selection.statistics() ?? null, version);
     if (statistics === undefined) {

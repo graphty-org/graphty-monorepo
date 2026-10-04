@@ -31,11 +31,11 @@ export function RunStateBar({
     run,
     draft,
     onDraft,
-}: {
+}: Readonly<{
     run: Run;
     draft: Draft;
     onDraft: (draft: Draft) => void;
-}): React.JSX.Element | null {
+}>): React.JSX.Element | null {
     const { session } = useWorkspace();
     let words: string;
     let buttons: React.ReactNode;
@@ -111,11 +111,11 @@ function SettingField({
     option,
     value,
     onChange,
-}: {
+}: Readonly<{
     option: OptionDescriptor;
     value: unknown;
     onChange: (value: unknown) => void;
-}): React.JSX.Element | null {
+}>): React.JSX.Element | null {
     switch (option.type) {
         case "number":
         case "integer":
@@ -171,11 +171,11 @@ function MadeWith({
     run,
     draft,
     onDraft,
-}: {
+}: Readonly<{
     run: Run;
     draft: Draft;
     onDraft: (draft: Draft) => void;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     const { session } = useWorkspace();
     const descriptor = session?.catalog.algorithms().find((algorithm) => algorithm.key === run.algorithm);
     const settings = settingsOf(run, draft);
@@ -216,11 +216,11 @@ function MeasureValues({
     session,
     run,
     field,
-}: {
+}: Readonly<{
     session: GraphSession;
     run: Run;
     field: string;
-}): React.JSX.Element | null {
+}>): React.JSX.Element | null {
     const { result } = run;
     if (result === undefined) {
         return null;
@@ -276,7 +276,7 @@ function MeasureValues({
  * @param props.run - The run
  * @returns The sections
  */
-function GroupsValues({ run }: { run: Run }): React.JSX.Element | null {
+function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null {
     const { store } = useWorkspace();
     const groups = run.result?.summary().groups;
     if (run.result === undefined || groups === undefined) {
@@ -293,7 +293,11 @@ function GroupsValues({ run }: { run: Run }): React.JSX.Element | null {
                     <DataRow
                         stat
                         name="Modularity"
-                        value={`${formatNumber(modularity)}${band === undefined ? "" : `, ${band.plainName}`}`}
+                        value={
+                            band === undefined
+                                ? formatNumber(modularity)
+                                : `${formatNumber(modularity)}, ${band.plainName}`
+                        }
                     />
                 )}
             </ControlSection>
@@ -336,11 +340,11 @@ export function RunValues({
     run,
     draft,
     onDraft,
-}: {
+}: Readonly<{
     run: Run;
     draft: Draft;
     onDraft: (draft: Draft) => void;
-}): React.JSX.Element | null {
+}>): React.JSX.Element | null {
     const { session } = useWorkspace();
     if (session === null) {
         return null;
@@ -389,11 +393,11 @@ export function GroupValues({
     run,
     group,
     version,
-}: {
+}: Readonly<{
     run: Run;
     group: string | number;
     version: number;
-}): React.JSX.Element | null {
+}>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const field = RESULT_SHAPE_CONTRACTS[run.shape].primaryField;
     const scope = field === null ? null : groupScope(run.id, field, group);

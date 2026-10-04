@@ -41,7 +41,7 @@ function rowOf(source: LayerSource | undefined): Resolved | null {
  * @param props.target - The node or edge
  * @returns The section, or nothing when the element cannot explain it
  */
-export function WhyThisLook({ target }: { target: ExplainTarget }): React.JSX.Element | null {
+export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     if (session === null) {
         return null;

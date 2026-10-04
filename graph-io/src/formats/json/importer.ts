@@ -2685,6 +2685,14 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
                 ctx.countSkipped("node");
                 continue;
             }
+            if (record !== null && hasKey(record, "id") && record.id !== key) {
+                report.warning(
+                    "validation-error",
+                    JSON_ISSUE.INCONSISTENT,
+                    `${element}: the inner id ${describe(record.id)} differs from the key; the key is the id, the inner one is kept as id${SUFFIX.element}`,
+                    { element },
+                );
+            }
             pushJgfNode(ctx, id, record ?? {}, labelColumn, element);
         }
     } else {
@@ -3004,6 +3012,17 @@ function importHyperedges(
         );
         return;
     }
+    // each expanded edge is pushed on its own, so one the sink refuses is reported and counted
+    // while the others stay
+    const expand = (record: JsonRecord, pairs: readonly (readonly [NodeId, NodeId])[], kind: EdgeKind, element: string): void => {
+        for (const [u, v] of pairs) {
+            try {
+                push(record, u, v, kind, element, JGF_HYPEREDGE_KEYS);
+            } catch (err) {
+                ctx.skip(err, "edge", element);
+            }
+        }
+    };
     for (let i = 0; i < hyperedges.length; i++) {
         const element = `hyperedges[${i}]`;
         const record = hyperedges[i];
@@ -3013,7 +3032,7 @@ function importHyperedges(
         }
         try {
             if (Array.isArray(record.nodes)) {
-                const members = record.nodes.map((raw) => ctx.requireId(raw, element));
+                const members = distinctMembers(ctx, record.nodes.map((raw) => ctx.requireId(raw, element)), element);
                 if (members.length < 2) {
                     throw new GraphFormatError(
                         "E_INVALID_ID",
@@ -3021,18 +3040,21 @@ function importHyperedges(
                         { reason: "hyperedge shape" },
                     );
                 }
-                const kind: EdgeKind = directed ? "directed" : "undirected";
+                const n = members.length;
+                checkExpansion(policy === "star" ? n - 1 : (n * (n - 1)) / 2, element);
+                const pairs: [NodeId, NodeId][] = [];
                 if (policy === "star") {
-                    for (let k = 1; k < members.length; k++) {
-                        push(record, members[0], members[k], kind, element, JGF_HYPEREDGE_KEYS);
+                    for (let k = 1; k < n; k++) {
+                        pairs.push([members[0], members[k]]);
                     }
                 } else {
-                    for (let a = 0; a < members.length; a++) {
-                        for (let b = a + 1; b < members.length; b++) {
-                            push(record, members[a], members[b], kind, element, JGF_HYPEREDGE_KEYS);
+                    for (let a = 0; a < n; a++) {
+                        for (let b = a + 1; b < n; b++) {
+                            pairs.push([members[a], members[b]]);
                         }
                     }
                 }
+                expand(record, pairs, directed ? "directed" : "undirected", element);
             } else if (Array.isArray(record.source) && Array.isArray(record.target)) {
                 const sources = record.source.map((raw) => ctx.requireId(raw, element));
                 const targets = record.target.map((raw) => ctx.requireId(raw, element));
@@ -3043,11 +3065,13 @@ function importHyperedges(
                         { reason: "hyperedge shape" },
                     );
                 }
-                for (const s of sources) {
-                    for (const t of targets) {
-                        push(record, s, t, "directed", element, JGF_HYPEREDGE_KEYS);
-                    }
-                }
+                checkExpansion(sources.length * targets.length, element);
+                expand(
+                    record,
+                    sources.flatMap((s) => targets.map((t) => [s, t] as const)),
+                    "directed",
+                    element,
+                );
             } else {
                 report.error(
                     "validation-error",
@@ -3061,6 +3085,46 @@ function importHyperedges(
             ctx.skip(err, "edge", element);
         }
     }
+}
+
+/** The most edges one hyperedge expands into; a 20k-member clique would be 200M edges. */
+// ponytail: a fixed cap; make it an option if a real file needs more
+const MAX_HYPEREDGE_EXPANSION = 1_000_000;
+
+/**
+ * Refuse an expansion beyond MAX_HYPEREDGE_EXPANSION before any of it is pushed.
+ * @param count - the number of edges the expansion makes
+ * @param element - the hyperedge's name
+ */
+function checkExpansion(count: number, element: string): void {
+    if (count > MAX_HYPEREDGE_EXPANSION) {
+        throw new GraphFormatError(
+            "E_TOO_LARGE",
+            `${element}: the expansion makes ${count} edges, more than ${MAX_HYPEREDGE_EXPANSION}; the hyperedge is skipped`,
+            { count, limit: MAX_HYPEREDGE_EXPANSION },
+        );
+    }
+}
+
+/**
+ * The members of an undirected hyperedge with repeats removed (a repeat would expand into a
+ * self-loop and parallel edges), each repeat reported as E_HYPEREDGE_SHAPE.
+ * @param ctx - the context
+ * @param members - the members as listed
+ * @param element - the hyperedge's name
+ * @returns the distinct members in first-listed order
+ */
+function distinctMembers(ctx: ImportContext, members: readonly NodeId[], element: string): NodeId[] {
+    const distinct = [...new Set(members)];
+    if (distinct.length < members.length) {
+        ctx.report.error(
+            "validation-error",
+            JSON_ISSUE.HYPEREDGE_SHAPE,
+            `${element} lists ${members.length - distinct.length} member(s) more than once; each is read once`,
+            { element },
+        );
+    }
+    return distinct;
 }
 
 // ============================================================ Cytoscape

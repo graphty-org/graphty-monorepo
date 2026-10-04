@@ -19,7 +19,7 @@ import { capabilities } from "../../common/export.js";
 import { type ExportCapabilities } from "../../types.js";
 
 /** The JSON dialects the plugin reads and writes. */
-export type JsonDialect = "node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis";
+export type JsonDialect = "node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis" | "obographs";
 
 /** Every dialect name, for option checking and messages. */
 export const JSON_DIALECTS: readonly JsonDialect[] = Object.freeze([
@@ -29,22 +29,21 @@ export const JSON_DIALECTS: readonly JsonDialect[] = Object.freeze([
     "cytoscape",
     "graphology",
     "vis",
+    "obographs",
 ]);
 
 /**
- * The dialects the importer reads: every JsonDialect plus three it only reads, NetworkX
- * adjacency_data (`nodes` plus one neighbour list per node under `adjacency`), tree_data (a
- * nested `id` / `children` record) and OBO Graphs (`graphs[]` of `sub` / `pred` / `obj` edges, the
- * JSON form of the Gene Ontology and the OBO Foundry ontologies). The exporter writes none of them.
+ * The dialects the importer reads: every JsonDialect plus two it only reads, NetworkX
+ * adjacency_data (`nodes` plus one neighbour list per node under `adjacency`) and tree_data (a
+ * nested `id` / `children` record). The exporter writes neither.
  */
-export type JsonImportDialect = JsonDialect | "adjacency" | "tree" | "obographs";
+export type JsonImportDialect = JsonDialect | "adjacency" | "tree";
 
 /** Every dialect the importer reads, for option checking and messages. */
 export const JSON_IMPORT_DIALECTS: readonly JsonImportDialect[] = Object.freeze([
     ...JSON_DIALECTS,
     "adjacency",
     "tree",
-    "obographs",
 ]);
 
 /** The key under `meta.extra` that holds the shape record (design section 8.5). */
@@ -334,6 +333,15 @@ const TABLES: Readonly<Record<JsonDialect, ExportCapabilities>> = Object.freeze(
         hierarchy: false,
         graphAttributes: false,
     }),
+    // the OBO flat file's table: no column of the snapshot's own reads back as a column (the
+    // vocabulary columns have their places; every other one becomes property values or edge meta)
+    obographs: capabilities({
+        mixedDirection: false,
+        multiEdges: true,
+        selfLoops: true,
+        edgeIds: "none",
+        idCharset: "any",
+    }),
 });
 
 /**
@@ -391,3 +399,21 @@ export const CLASSES_COLUMN = "classes";
 
 /** The name of the Cytoscape parent column (u32 refersTo node, role "parent"). */
 export const PARENT_COLUMN = "parent";
+
+/**
+ * An integer text beyond 2^53 in exponent form (`100000000000000000000` -> `1e+20`, the same
+ * digits): the importer reads an integer literal that large as its exact digits (a string), so
+ * a number must not be written as one.
+ * @param text - the shortest decimal text of a finite number
+ * @returns the text, or its exponent form for an integer literal of 16 or more digits
+ */
+export function exponentIfUnsafe(text: string): string {
+    const match = /^(-?)([0-9]{16,})$/.exec(text);
+    if (match === null || Number.isSafeInteger(Number(text))) {
+        return text;
+    }
+    const [, sign, digits] = match;
+    const mantissa = digits.replace(/0+$/, "");
+    const fraction = mantissa.length > 1 ? `.${mantissa.slice(1)}` : "";
+    return `${sign}${mantissa[0]}${fraction}e+${digits.length - 1}`;
+}

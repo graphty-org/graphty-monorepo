@@ -281,6 +281,27 @@ export const TEXT_INFERRED_CODE = "W_TEXT_INFERRED";
 /** A string cell holding a character XML 1.0 forbids; export() throws E_COLUMN_TYPE. */
 export const XML_ILLEGAL_CHAR_CODE = "E_XML_ILLEGAL_CHAR";
 
+/** An ontology exporter (OBO, OBO Graphs) writes a node column outside its vocabulary as property values; it reads back inside the `property_value` column. */
+export const COLUMN_AS_PROPERTY_VALUE_CODE = "W_COLUMN_AS_PROPERTY_VALUE";
+
+/** An ontology exporter writes an edge without a relation as `is_a` (or the relation the caller chose). */
+export const RELATION_ASSUMED_CODE = "W_RELATION_ASSUMED";
+
+/** An ontology exporter writes Typedef (property) nodes; they read back as nodes only under the importer's `typedefs: "nodes"`. */
+export const TYPEDEF_NODES_CODE = "W_TYPEDEF_NODES";
+
+/** A graph column is written into the file's metadata and reads back in `meta.extra`, not as a column. */
+export const GRAPH_COLUMN_AS_METADATA_CODE = "W_GRAPH_COLUMN_AS_METADATA";
+
+/** The file carries no direction (or only directed edges); the snapshot's undirected edges read back directed, or the whole graph with the reader's default. */
+export const DIRECTION_DROPPED_CODE = "W_DIRECTION_DROPPED";
+
+/** NaN and the infinities cannot be written; they are written as null and read back unset. */
+export const NONFINITE_AS_NULL_CODE = "W_NONFINITE_AS_NULL";
+
+/** The nodes read back in another order than the snapshot's. */
+export const NODE_ORDER_CODE = "W_NODE_ORDER";
+
 /** A dict column without declared options gains one from its dictionary on re-import. */
 export const OPTIONS_GAINED_CODE = "W_OPTIONS_GAINED";
 

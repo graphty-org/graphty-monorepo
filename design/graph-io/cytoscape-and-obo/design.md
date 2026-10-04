@@ -532,14 +532,22 @@ the gain is none.
 
 ### 1.5 OBO (`@graphty/graph-io/obo`)
 
-Exports: `oboImporter`, `OboImportOptions`, `OBO_ISSUE`. Format name `"obo"`, extension `.obo`,
+Exports: `oboImporter`, `OboImportOptions`, `OBO_ISSUE`, `oboExporter`, `OboExportOptions`
+(`relation`, `ontology`), `OBO_LOSS`, `OBO_CAPABILITIES`. Format name `"obo"`, extension `.obo`,
 MIME types `text/obo`, `application/obo` (neither is registered; both are seen). Section 4 has the
 mapping.
 
-**Exporter: no.** OBO's value is the published ontology itself, which users download from the
-GO; writing an edited ontology back is an editor's job (Protege, ROBOT), and an OBO writer would
-have to drop every column, position and edge attribute that has no OBO tag. Graphs read from OBO
-export losslessly enough through GraphML or graph-format's own container.
+**Exporter: yes** (amended 2026-10-03; the first version of this design had none). The owner asked
+for every format to be writable. The exporter writes OBO 1.4 through the same column vocabulary
+(`src/common/ontology.ts`), so a file read from OBO writes back as the same snapshot; any other
+graph writes its extra node columns as typed `property_value` lines (with an auto-declared
+metadata `[Typedef]`) and its edge columns as qualifiers, each reported by `check()`. The
+capabilities table claims no dtypes, lists, json or graph attributes, because no column of the
+snapshot's own reads back as a column. Frames come in node order with Typedefs last (what the GO
+and ROBOT write), not the guide's alphabetical order, so a re-import keeps the node order. `\W`
+is never written. Under `sanitizeIds: "mangle"` an id holding whitespace, `!`, `{` or `}` is
+rewritten with `_`, its original kept as `property_value: graphty:originalId "<JSON text>"
+xsd:string`, which the importer restores under `restoreMangledIds`.
 
 **Sniffing.** After skipping a BOM, blank lines and `!` comment lines: 0.9 when the first
 significant line is `format-version:` or a `[Term]`, `[Typedef]` or `[Instance]` header (a file
@@ -559,8 +567,16 @@ in its nodes or edges, an edge with `sub` (or the outdated `subj`) and `obj`, or
 node with `lbl`, a `meta` object, or a `type` of `CLASS` / `INDIVIDUAL` / `PROPERTY`; looking only at
 the first node and first edge misses graphs with no edges (`obsoletion_example`) and graphs whose
 first node has no `lbl` (`nucleus.json`). With `source` / `target` edges or a nodes object (and
-none of those keys) it stays `"jgf"`. The head scan for truncated heads looks for the same keys. `"obographs"` is an import-only dialect
-(added to `JSON_IMPORT_DIALECTS`, not to the exporter's `JSON_DIALECTS`).
+none of those keys) it stays `"jgf"`. The head scan for truncated heads looks for the same keys.
+`"obographs"` is a member of the exported `JsonDialect` union and is written as well as read
+(amended 2026-10-03, reversing the import-only decision of one-way door 2 at the owner's request
+to make every format writable): `src/formats/json/obographs-export.ts`, with codes
+`W_OBOGRAPHS_EDGE_COLUMN_AS_META`, `W_OBOGRAPHS_ID_CHANGED` and `W_OBOGRAPHS_DATATYPE_DROPPED` in
+`JSON_LOSS`, the option `ontologyIri`, and the concepts it shares with the OBO exporter under the
+shared codes `W_COLUMN_AS_PROPERTY_VALUE`, `W_RELATION_ASSUMED`, `W_TYPEDEF_NODES` and
+`W_GRAPH_COLUMN_AS_METADATA`. An id is written as the IRI the importer compacts back to it (a
+CURIE as its OBO PURL, a shorthand as its property's IRI, an unprefixed id under the ontology
+IRI), else as it stands.
 
 Codes, added to `JSON_ISSUE`: `W_JSON_OBOGRAPHS_SUBJ` (the legacy `subj` key, read as `sub`); the
 shared `W_DANGLING_REFERENCE` for an edge endpoint missing from `nodes` (a placeholder node is

@@ -72,6 +72,9 @@ function rich(): GraphSnapshot {
     return b.freeze();
 }
 
+/** The dialects that keep any column; OBO Graphs keeps the OBO vocabulary only (test/formats/json/obographs-export.test.ts). */
+const GENERIC_DIALECTS = JSON_DIALECTS.filter((d) => d !== "obographs");
+
 describe("corpus round trips (design 16.5)", () => {
     for (const entry of corpusFiles("json")) {
         it(`${entry.path}: export in its own dialect and re-import is exact`, async () => {
@@ -99,7 +102,7 @@ describe("corpus round trips (design 16.5)", () => {
         const mixedCapable = new Set<JsonDialect>(["jgf", "graphology"]);
         for (const entry of corpusFiles("json")) {
             const s = await imported(readCorpusText("json", entry.path), entry.options as JsonImportOptions);
-            for (const dialect of JSON_DIALECTS) {
+            for (const dialect of GENERIC_DIALECTS) {
                 const exportOptions: JsonExportOptions & CommonExportOptions = { dialect };
                 const importOptions: JsonImportOptions & CommonImportOptions = { dialect };
                 if (dialect === "jgf" && s.ids.toArray().some((id) => typeof id === "number")) {
@@ -208,7 +211,7 @@ describe("synthetic round trips", () => {
         const shadow = s.edges.byRole("weight");
         expect(shadow?.isSet(1)).toBe(false);
         expect(shadow?.isSet(2)).toBe(true);
-        for (const dialect of JSON_DIALECTS) {
+        for (const dialect of GENERIC_DIALECTS) {
             const rt = await roundTrip(s, jsonExporter, jsonImporter, {
                 exportOptions: { dialect },
                 importOptions: { defaultDirected: true },

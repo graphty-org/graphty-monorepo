@@ -32,7 +32,7 @@ import { gmlExporter, gmlImporter } from "./formats/gml/index.js";
 import { graphmlExporter, graphmlImporter } from "./formats/graphml/index.js";
 import { jsonExporter, jsonImporter } from "./formats/json/index.js";
 import { neo4jExporter, neo4jImporter } from "./formats/neo4j/index.js";
-import { oboImporter } from "./formats/obo/index.js";
+import { oboExporter, oboImporter } from "./formats/obo/index.js";
 import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
 import { xgmmlExporter, xgmmlImporter } from "./formats/xgmml/index.js";
 import { type FormatName, rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
@@ -614,6 +614,7 @@ export function createRegistry(): FormatRegistry {
         .registerExporter(cx2Exporter)
         .registerImporter(cxImporter)
         .registerImporter(oboImporter)
+        .registerExporter(oboExporter)
         .registerImporter(cysImporter);
 }
 

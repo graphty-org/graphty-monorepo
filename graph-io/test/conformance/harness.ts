@@ -512,8 +512,10 @@ export async function checkRoundTrip(format: string, fixture: Fixture): Promise<
         const exporter = registry.exporter(format);
         const notes = exporter.check(first.snapshot);
         const text = await exporter.exportToString(first.snapshot);
-        // the exporter writes its own conventions, so the fixture's reading options do not apply
-        const second = await importGraph(text, { format });
+        // the exporter writes its own conventions, so the fixture's reading options do not apply;
+        // a note that names the reading option a file needs (Typedef nodes) is followed
+        const typedefs = notes.some((n) => n.code === "W_TYPEDEF_NODES");
+        const second = await importGraph(text, typedefs ? { format, typedefs: "nodes" } : { format });
         if (notes.length === 0) {
             return compareSnapshots(first.snapshot, second.snapshot, { tolerance: 1e-9, limit: 5 }).map(
                 (d) => d.message,

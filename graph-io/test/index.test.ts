@@ -85,7 +85,10 @@ const VALUE_EXPORTS = [
     "TYPE_COLUMN",
     "neo4jExporter",
     "neo4jImporter",
+    "OBO_CAPABILITIES",
     "OBO_ISSUE",
+    "OBO_LOSS",
+    "oboExporter",
     "oboImporter",
     "PAJEK_ISSUE",
     "PAJEK_LOSS",
@@ -189,6 +192,13 @@ const VALUE_EXPORTS = [
     "MUTUAL_EXPANDED_CODE",
     "NO_GRAPH_CODE",
     "OPTIONS_GAINED_CODE",
+    "COLUMN_AS_PROPERTY_VALUE_CODE",
+    "RELATION_ASSUMED_CODE",
+    "TYPEDEF_NODES_CODE",
+    "GRAPH_COLUMN_AS_METADATA_CODE",
+    "DIRECTION_DROPPED_CODE",
+    "NONFINITE_AS_NULL_CODE",
+    "NODE_ORDER_CODE",
     "OPTION_IGNORED_CODE",
     "PARENT_CYCLE_CODE",
     "PARENTS_DROPPED_CODE",
@@ -257,6 +267,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             ["neo4j", graphIo.neo4jImporter, graphIo.neo4jExporter],
             ["pajek", graphIo.pajekImporter, graphIo.pajekExporter],
             ["xgmml", graphIo.xgmmlImporter, graphIo.xgmmlExporter],
+            ["obo", graphIo.oboImporter, graphIo.oboExporter],
         ];
         for (const [format, importer, exporter] of pairs) {
             expect(importer.format).toBe(format);
@@ -266,9 +277,8 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(importer.extensions.length).toBeGreaterThan(0);
             expect(typeof importer.sniff).toBe("function");
         }
-        // OBO, CX version 1 and Cytoscape sessions are read-only: an importer, no exporter
+        // CX version 1 and Cytoscape sessions are read-only: an importer, no exporter
         for (const [format, importer] of [
-            ["obo", graphIo.oboImporter],
             ["cx", graphIo.cxImporter],
             ["cys", graphIo.cysImporter],
         ] as const) {
@@ -277,7 +287,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(graphIo.registry.hasExporter(format)).toBe(false);
         }
         expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(
-            new Set([...pairs.map(([format]) => format), "obo", "cx", "cys"]),
+            new Set([...pairs.map(([format]) => format), "cx", "cys"]),
         );
     });
 
@@ -302,6 +312,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             NEO4J_ISSUE: graphIo.NEO4J_ISSUE,
             NEO4J_LOSS: graphIo.NEO4J_LOSS,
             OBO_ISSUE: graphIo.OBO_ISSUE,
+            OBO_LOSS: graphIo.OBO_LOSS,
             PAJEK_ISSUE: graphIo.PAJEK_ISSUE,
             PAJEK_LOSS: graphIo.PAJEK_LOSS,
             XGMML_ISSUE: graphIo.XGMML_ISSUE,

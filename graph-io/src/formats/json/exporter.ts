@@ -20,6 +20,7 @@
 
 import { type Column, GraphFormatError, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
+import { DIRECTION_DROPPED_CODE, NODE_ORDER_CODE, NONFINITE_AS_NULL_CODE } from "../../common/codes.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { checkCapabilities, countMixedEdges, LOSS } from "../../common/export.js";
 import { formatF32, formatF64 } from "../../common/format.js";
@@ -31,6 +32,7 @@ import {
     CYTOSCAPE_ELEMENT_KEYS,
     DIALECT_DEFAULT_DIRECTED,
     dialectCapabilities,
+    exponentIfUnsafe,
     isJsonDialect,
     JSON_DIALECTS,
     type JsonDialect,
@@ -38,6 +40,7 @@ import {
     shapeMetaOf,
     SUFFIX,
 } from "./dialect.js";
+import { OBOGRAPHS_LOSS, OBOGRAPHS_SHARED_LOSS, planObographs } from "./obographs-export.js";
 
 /** The format-specific options of the JSON exporter. */
 export interface JsonExportOptions {
@@ -57,6 +60,11 @@ export interface JsonExportOptions {
     targetKey?: string | undefined;
     /** The key the weight is written under; default: the key the JSON importer read it from, else "weight". */
     weightKey?: string | undefined;
+    /**
+     * obographs: the ontology IRI that ids without a prefix are written under (`<ontologyIri>#<id>`);
+     * default: the graph id an OBO Graphs import kept, else `http://purl.obolibrary.org/obo/<ontology>.owl`.
+     */
+    ontologyIri?: string | undefined;
 }
 
 /**
@@ -66,9 +74,9 @@ export interface JsonExportOptions {
  */
 export const JSON_LOSS = Object.freeze({
     /** Non-finite numbers (columns, weights) are written as null. */
-    NONFINITE_AS_NULL: "W_NONFINITE_AS_NULL",
+    NONFINITE_AS_NULL: NONFINITE_AS_NULL_CODE,
     /** Cytoscape, vis and d3 carry no direction; the file re-imports with the dialect's default direction. */
-    DIRECTION_DROPPED: "W_DIRECTION_DROPPED",
+    DIRECTION_DROPPED: DIRECTION_DROPPED_CODE,
     /** GEXF mutual pairs are written as two directed edges. */
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
     /** JGF keys its nodes by string; numeric ids re-import as text unless ids: "canonical". */
@@ -76,7 +84,7 @@ export const JSON_LOSS = Object.freeze({
     /** JGF: two ids have the same text; export() throws E_INVALID_ID. */
     ID_TEXT_COLLISION: LOSS.ID_TEXT_COLLISION,
     /** JGF: integer-like id keys are enumerated first and ascending by JSON parsers; node order changes on re-import. */
-    NODE_ORDER: "W_NODE_ORDER",
+    NODE_ORDER: NODE_ORDER_CODE,
     /** A column named like a reserved key of the dialect (id, source, target, ...) is skipped. */
     RESERVED_KEY: "W_RESERVED_KEY",
     /** A plain edge column named like the weight key reads back as THE weight (or is skipped when weights are written). */
@@ -95,6 +103,28 @@ export const JSON_LOSS = Object.freeze({
     ROLE_DROPPED: LOSS.ROLE,
     /** A column without a set cell is not written (JSON declares no columns). */
     EMPTY_COLUMN_DROPPED: LOSS.EMPTY_COLUMN,
+    /** obographs: an edge column (or the explicit weights) is written into each edge's meta and reads back inside the meta column. */
+    OBOGRAPHS_EDGE_COLUMN_AS_META: OBOGRAPHS_LOSS.EDGE_COLUMN_AS_META,
+    /** obographs: a node id or relation is written as an IRI the importer's default oboIds "curie" reads back as another id. */
+    OBOGRAPHS_ID_CHANGED: OBOGRAPHS_LOSS.ID_CHANGED,
+    /** obographs: a property_value's xsd datatype has no place in basicPropertyValues and reads back unset. */
+    OBOGRAPHS_DATATYPE_DROPPED: OBOGRAPHS_LOSS.DATATYPE_DROPPED,
+    /** obographs: a node column outside the OBO vocabulary reads back inside the property_value column. */
+    COLUMN_AS_PROPERTY_VALUE: OBOGRAPHS_SHARED_LOSS.COLUMN_AS_PROPERTY_VALUE,
+    /** obographs: an edge without a relation is written with the pred is_a. */
+    RELATION_ASSUMED: OBOGRAPHS_SHARED_LOSS.RELATION_ASSUMED,
+    /** obographs: Typedef nodes are written as PROPERTY nodes, which read back as nodes only under typedefs: "nodes". */
+    TYPEDEF_NODES: OBOGRAPHS_SHARED_LOSS.TYPEDEF_NODES,
+    /** obographs: a graph column is written into the graph's meta and reads back in meta.extra.obographs. */
+    GRAPH_COLUMN_AS_METADATA: OBOGRAPHS_SHARED_LOSS.GRAPH_COLUMN_AS_METADATA,
+    /** obographs: numeric node ids are written as text and read back as strings. */
+    ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
+    /** obographs: a role-less relation column is written as the pred and reads back with the kind role. */
+    ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
+    /** obographs: the label column reads back as name, the edge kind column as relation. */
+    COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
+    /** obographs: a vocabulary column of the other text dtype reads back as the vocabulary's. */
+    DTYPE_UNSUPPORTED: LOSS.DTYPE,
 });
 
 /** The roles each dialect has a slot for (every other role column is a plain attribute, reported by checkCapabilities()). */
@@ -105,6 +135,7 @@ const SLOT_ROLES: Readonly<Record<JsonDialect, ReadonlySet<string>>> = Object.fr
     cytoscape: new Set(["classes"]),
     graphology: new Set<string>(),
     vis: new Set<string>(),
+    obographs: new Set(["label", "kind"]),
 });
 
 /** The element domains. */
@@ -165,6 +196,7 @@ interface Resolved {
     readonly targetKey: string;
     readonly weightKey: string;
     readonly shape: JsonShapeMeta;
+    readonly ontologyIri: string | null;
 }
 
 /** Everything write() needs, computed once by plan(). */
@@ -239,7 +271,20 @@ function resolve(snapshot: GraphSnapshot, options: (JsonExportOptions & CommonEx
         (weightOrigin !== null && weightOrigin.format === "json" && weightOrigin.id !== null
             ? weightOrigin.id
             : "weight");
-    return { common, dialect, indent, edgesKey, nodeIdKey, indexLinks, sourceKey, targetKey, weightKey, shape };
+    const ontologyIri = keyOption("ontologyIri", o.ontologyIri);
+    return {
+        common,
+        dialect,
+        indent,
+        edgesKey,
+        nodeIdKey,
+        indexLinks,
+        sourceKey,
+        targetKey,
+        weightKey,
+        shape,
+        ontologyIri,
+    };
 }
 
 /**
@@ -290,24 +335,6 @@ function numberText(value: number, f32: boolean, nonfinite: Counter): string {
     }
     // -0 is a JSON number too ("-0"); JSON.parse reads it back as -0
     return exponentIfUnsafe(f32 ? formatF32(value) : formatF64(value));
-}
-
-/**
- * An integer text beyond 2^53 in exponent form (`100000000000000000000` -> `1e+20`, the same
- * digits): the importer reads an integer literal that large as its exact digits (a string), so
- * a number must not be written as one.
- * @param text - the shortest decimal text of a finite number
- * @returns the text, or its exponent form for an integer literal of 16 or more digits
- */
-function exponentIfUnsafe(text: string): string {
-    const match = /^(-?)([0-9]{16,})$/.exec(text);
-    if (match === null || Number.isSafeInteger(Number(text))) {
-        return text;
-    }
-    const [, sign, digits] = match;
-    const mantissa = digits.replace(/0+$/, "");
-    const fraction = mantissa.length > 1 ? `.${mantissa.slice(1)}` : "";
-    return `${sign}${mantissa[0]}${fraction}e+${digits.length - 1}`;
 }
 
 /**
@@ -1606,6 +1633,16 @@ function edgeIdGenerator(snapshot: GraphSnapshot, p: Plan): (e: number) => strin
 // ============================================================ the plugin
 
 /**
+ * The text parts of the document in the resolved dialect.
+ * @param snapshot - the snapshot
+ * @param resolved - the resolved options
+ * @returns the parts
+ */
+function parts(snapshot: GraphSnapshot, resolved: Resolved): Generator<string, void, undefined> {
+    return resolved.dialect === "obographs" ? planObographs(snapshot, resolved).write() : write(snapshot, plan(snapshot, resolved));
+}
+
+/**
  * The JSON exporter plugin (design section 8.5). `capabilities` is the node-link table (the
  * default dialect); check() applies the table of the dialect actually selected.
  */
@@ -1620,7 +1657,9 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
      * @returns the notes, empty when the export is exact
      */
     check(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): readonly LossNote[] {
-        return Object.freeze([...plan(snapshot, resolve(snapshot, options)).notes]);
+        const resolved = resolve(snapshot, options);
+        const notes = resolved.dialect === "obographs" ? planObographs(snapshot, resolved).notes : plan(snapshot, resolved).notes;
+        return Object.freeze([...notes]);
     },
 
     /**
@@ -1630,7 +1669,7 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
      * @returns the chunks
      */
     export(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(write(snapshot, plan(snapshot, resolve(snapshot, options))));
+        return encodeChunks(parts(snapshot, resolve(snapshot, options)));
     },
 
     /**
@@ -1640,7 +1679,7 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
      * @returns the document
      */
     exportToString(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): Promise<string> {
-        return joinText(write(snapshot, plan(snapshot, resolve(snapshot, options))));
+        return joinText(parts(snapshot, resolve(snapshot, options)));
     },
 });
 

@@ -534,3 +534,97 @@ export function hasStrayBrace(value: string): boolean {
     }
     return false;
 }
+
+// ============================================================ the writer side
+
+/** A carriage return, a CRLF pair or a form feed: line ends OBO text cannot carry. */
+const LINE_ENDS = /\r\n|\r|\f/g;
+
+/**
+ * Whether a text holds a carriage return or a form feed, which the OBO line grammar reads as a line
+ * end wherever it stands and no escape can spell; the writers turn them into `\n`.
+ * @param text - the text
+ * @returns true when the text loses a character on the way through an OBO file
+ */
+export function hasLineEnd(text: string): boolean {
+    return text.includes("\r") || text.includes("\f");
+}
+
+/**
+ * Escape text for a quoted OBO string (`def: "..."`, a synonym, a qualifier value): backslash,
+ * quote, newline and tab. A carriage return or form feed becomes a newline (see hasLineEnd()).
+ * `\W` is never written: graph-io reads it as a space, fastobo and the 1.4 BNF as the letter W.
+ * @param text - the text
+ * @returns the escaped text, without the quotes
+ */
+export function escapeOboQuoted(text: string): string {
+    return text
+        .replace(LINE_ENDS, "\n")
+        .replace(/[\\"\n\t]/g, (ch) => {
+            switch (ch) {
+                case "\n":
+                    return "\\n";
+                case "\t":
+                    return "\\t";
+                default:
+                    return `\\${ch}`;
+            }
+        });
+}
+
+/**
+ * Escape text for an unquoted OBO value (`name:`, `comment:`, an xref id, an unknown tag): what
+ * escapeOboQuoted() escapes plus `!` (a comment), `{` and `}` (a qualifier block), `[`, `]` and `,`
+ * (an xref list) and `"` (a quoted string). The reader trims an unquoted value, so its leading
+ * and trailing spaces cannot be kept.
+ * @param text - the text
+ * @returns the escaped text
+ */
+export function escapeOboValue(text: string): string {
+    return escapeOboQuoted(text).replace(/[!{}[\],]/g, (ch) => `\\${ch}`);
+}
+
+/**
+ * Whether a text can stand as one OBO word (an id, a relation, a subset or synonym type name): not
+ * empty, no whitespace, no `!`, `{` or `}`. escapeOboWord() escapes what else would end it or turn
+ * it into another token (a backslash, a quote, a leading `[`).
+ * @param text - the text
+ * @returns true when the text is a word
+ */
+export function isOboWord(text: string): boolean {
+    return text.length > 0 && !/[\s!{}]/.test(text);
+}
+
+/**
+ * Write a word (see isOboWord()): a backslash and a quote escaped, and a leading `[` (which would
+ * open an xref list).
+ * @param word - a text isOboWord() accepts
+ * @returns the text to write
+ */
+export function escapeOboWord(word: string): string {
+    const out = word.replace(/[\\"]/g, (ch) => `\\${ch}`);
+    return out.startsWith("[") ? `\\${out}` : out;
+}
+
+/**
+ * Whether a text can be a qualifier name: not empty, no surrounding space, none of `=`, `"`, `,`,
+ * `{`, `}`, `[`, `]`, `!`, a backslash or a line end (the reader takes a name as everything up to
+ * the first `=`, unescaped only after the split).
+ * @param name - the name
+ * @returns true when the name is written as it is
+ */
+export function isQualifierName(name: string): boolean {
+    return name.length > 0 && name === name.trim() && !/[=",{}[\]!\\\n\r\t\f]/.test(name);
+}
+
+/**
+ * A qualifier block: `{name="value", ...}`, a list value as one pair per item.
+ * @param pairs - the name / value pairs, in order (names isQualifierName() accepts)
+ * @returns the block with a leading space, or "" when there are no pairs
+ */
+export function qualifierBlock(pairs: readonly (readonly [string, string])[]): string {
+    if (pairs.length === 0) {
+        return "";
+    }
+    return ` {${pairs.map(([name, value]) => `${name}="${escapeOboQuoted(value)}"`).join(", ")}}`;
+}

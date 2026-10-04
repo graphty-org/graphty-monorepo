@@ -168,6 +168,7 @@ export type {
     ProjectStatus,
     SavedProject,
 } from "./src/session/projectFile";
+export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";

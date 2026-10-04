@@ -340,10 +340,44 @@ describe("csv robustness: delimiters and dialects", () => {
         }
     });
 
+    it("excel-sep-directive-space: a `sep= ` line selects the whitespace dialect and is not a row", async () => {
+        const { snapshot, report } = await load("sep= \na b\nc d\n");
+        expect(report.issues).toEqual([]);
+        expect(edgesOf(snapshot)).toEqual(["a->b", "c->d"]);
+    });
+
     it("multiple-spaces-delimiter: runs of spaces collapse in the space dialect", async () => {
         const { snapshot, report } = await load("1  2\n3  4\n5   6");
         expect(report.issues).toEqual([]);
         expect(edgesOf(snapshot)).toEqual(["1->2", "3->4", "5->6"]);
+    });
+
+    it("json-lines-under-csv: refused as another format before a quoted field can fail the record reader", async () => {
+        for (const text of ['{"id":"a","x":1}\n{"id":"b","x":2}\n', '# note\n{"id":"a","x":1}\n', '[{"id":"a"}]']) {
+            const err = await failure(text);
+            expect(codes(err.report), text).toEqual(["E_CSV_OTHER_FORMAT"]);
+        }
+    });
+
+    it("bracketed-ids-are-csv: an id in angle brackets or braces is not a tag or a JSON object", async () => {
+        for (const [text, edge] of [
+            ["<alice smith>,bob\n", "<alice smith>->bob"],
+            ["<a>,b\n", "<a>->b"],
+            ["{a},{b}\n", "{a}->{b}"],
+        ]) {
+            const { snapshot, report } = await load(text);
+            expect(report.issues, text).toEqual([]);
+            expect(edgesOf(snapshot), text).toEqual([edge]);
+            expect(sniff(encoder.encode(text)), text).toBeGreaterThan(0);
+        }
+    });
+
+    it("explicit-options-skip-other-format-refusal: a caller-fixed dialect reads the first line as a table", async () => {
+        const { snapshot, report } = await load("<a> <b>\n<b> <c>\n", { delimiter: " ", header: false });
+        expect(report.issues).toEqual([]);
+        expect(edgesOf(snapshot)).toEqual(["<a>-><b>", "<b>-><c>"]);
+        const html = await load("<html>,<body>\n", { header: false });
+        expect(edgesOf(html.snapshot)).toEqual(["<html>-><body>"]);
     });
 
     it("leading-whitespace-space-dialect: leading indentation is ignored in the space dialect", async () => {
@@ -429,10 +463,14 @@ describe("csv robustness: header and column roles", () => {
         }
     });
 
-    it("trailing-delimiter-on-data-only: a trailing delimiter on the rows only is a field-count error per row", async () => {
+    it("trailing-delimiter-on-data-only: one extra empty last cell per row is dropped and reported once", async () => {
         const { snapshot, report } = await load("source,target\na,b,\nc,d,\n");
-        expect(codes(report)).toEqual(["E_CSV_FIELD_COUNT", "E_CSV_FIELD_COUNT"]);
-        expect(snapshot.edgeCount).toBe(0);
+        expect(codes(report)).toEqual(["W_CSV_TRAILING_DELIMITER"]);
+        expect(report.issues[0].line).toBe(2);
+        expect(edgesOf(snapshot)).toEqual(["a->b", "c->d"]);
+        // a non-empty extra cell is still a field-count error
+        const extra = await load("source,target\na,b,x\n");
+        expect(codes(extra.report)).toEqual(["E_CSV_FIELD_COUNT"]);
     });
 
     it("header-trailing-delimiter: an empty last header column is reported once and the rows imported", async () => {
@@ -492,12 +530,26 @@ describe("csv robustness: header and column roles", () => {
         expect(edgesOf(snapshot)).toEqual(["key->lock", "lock->door", "door->room"]);
     });
 
+    it("marker-header-value-reappears: a marker header whose names reappear unchained is still the header", async () => {
+        const nodes = await load("id,label\n1,id\n2,x\n", { table: "nodes" });
+        expect(nodes.report.issues).toEqual([]);
+        expect(nodes.snapshot.ids.toArray()).toEqual([1, 2]);
+        // a header with one endpoint column is a broken edge table, never an edge name->target
+        const err = await failure("name,target\nalice,name\n");
+        expect(codes(err.report)).toEqual(["E_CSV_NO_ENDPOINT_COLUMNS"]);
+    });
+
     it("headerless-third-column-not-numeric: a text third column is an attribute, not the weight", async () => {
         const { snapshot, report } = await load("a b knows\nc d likes\n");
-        expect(report.issues).toEqual([]);
+        expect(codes(report)).toEqual(["W_CSV_WEIGHT_AS_ATTRIBUTE"]);
+        expect(report.issues[0].element).toBe("column3");
         expect(edgesOf(snapshot)).toEqual(["a->b", "c->d"]);
         expect(weightsOf(snapshot)).toEqual([undefined, undefined]);
         expect(column(snapshot, "edges", "column3")).toEqual(["knows", "likes"]);
+        // later numeric cells stay attribute values; the demotion is what the warning reports
+        const later = await load("a,b,x\nc,d,y\ne,f,2\ng,h,3\n");
+        expect(codes(later.report)).toEqual(["W_CSV_WEIGHT_AS_ATTRIBUTE"]);
+        expect(weightsOf(later.snapshot)).toEqual([undefined, undefined, undefined, undefined]);
     });
 
     it("lowercase-type-column-ignored: direction words in a plain type column are reported once", async () => {
@@ -547,11 +599,16 @@ describe("csv robustness: values and ids", () => {
         expect(report.issues[0].line).toBe(1);
     });
 
-    it("form feed inside an id is kept (no control-character warning yet)", async () => {
-        // deferred: a C0 control character in an id is kept silently
+    it("control-character-in-id: a form feed or NUL in a cell is kept and reported once", async () => {
         const { snapshot, report } = await load("source,target\na\fb,c\n");
-        expect(report.issues).toEqual([]);
+        expect(codes(report)).toEqual(["W_CSV_CONTROL_CHARACTER"]);
+        expect(report.issues[0].line).toBe(2);
         expect(edgesOf(snapshot)).toEqual(["a\fb->c"]);
+        // declared or already decoded text skips the decoder's binary check; the reader still reports
+        for (const input of [encoder.encode("s,t\na\0,b\n"), "s,t\na\0,b\n"]) {
+            const nul = await load(input, { encoding: "utf-8" });
+            expect(codes(nul.report)).toEqual(["W_CSV_CONTROL_CHARACTER"]);
+        }
     });
 });
 
@@ -629,9 +686,16 @@ describe("csv robustness: adjacency tables", () => {
     });
 
     it("adjacency-colon-ids: the last colon splits when a number follows it", async () => {
-        const { snapshot, report } = await load("a ::1 b:NaN c:1e400\n", adjacency);
+        const { snapshot, report } = await load("a ::1 b:NaN\n", adjacency);
         expect(report.issues).toEqual([]);
-        expect(edgesOf(snapshot)).toEqual(["a->:", "a->b:NaN", "a->c"]);
-        expect(weightsOf(snapshot)).toEqual([1, undefined, Infinity]);
+        expect(edgesOf(snapshot)).toEqual(["a->:", "a->b:NaN"]);
+        expect(weightsOf(snapshot)).toEqual([1, undefined]);
+    });
+
+    // known failure: a weight that overflows to Infinity (`c:1e400`) is kept with no warning; the
+    // intended behavior reports it. Remove `.fails` when the shared weight parser reports overflow.
+    it.fails("adjacency-weight-overflow: a weight beyond the f64 range is reported", async () => {
+        const { report } = await load("a c:1e400\n", adjacency);
+        expect(report.issues.length).toBeGreaterThan(0);
     });
 });

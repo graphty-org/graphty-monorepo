@@ -175,6 +175,12 @@ export const AMBIGUOUS_COLUMN_CODE = "W_CSV_AMBIGUOUS_COLUMN";
 export const PADDED_ID_CODE = "W_CSV_PADDED_ID";
 /** Issue code: a leading `#` / `%` line skipped as a comment has the fields of a record. */
 export const COMMENT_LIKE_RECORD_CODE = "W_CSV_COMMENT_LIKE_RECORD";
+/** Issue code: data rows end in one extra empty cell (a trailing delimiter); the cell is dropped. */
+export const TRAILING_DELIMITER_CODE = "W_CSV_TRAILING_DELIMITER";
+/** Issue code: a headerless three-column table's third column holds text, so it is an attribute, not the weight. */
+export const WEIGHT_AS_ATTRIBUTE_CODE = "W_CSV_WEIGHT_AS_ATTRIBUTE";
+/** Issue code: an unquoted cell holds a C0 control character (NUL, form feed, ...); the cell keeps it. */
+export const CONTROL_CHARACTER_CODE = "W_CSV_CONTROL_CHARACTER";
 
 const TABLE_MODES: ReadonlySet<string> = new Set(["edges", "nodes", "adjacency", "auto"]);
 
@@ -611,6 +617,12 @@ class TableReader {
             signal: state.common.signal,
             onProgress: progress ? state.common.onProgress : null,
             encoding: state.common.encoding,
+            // explicit dialect options say the caller knows the input is a table
+            inspect: hasExplicitDialect(state.csv)
+                ? undefined
+                : (preview, line) => {
+                      this.refuseOtherFormat(preview, line);
+                  },
         };
         this.reader = new CsvRecordReader(input, state.report, readerOptions);
     }
@@ -634,7 +646,7 @@ class TableReader {
     private async readRows(iterator: AsyncGenerator<string[], void, undefined>): Promise<void> {
         const { report } = this.state;
         let first = await iterator.next();
-        if (!first.done && this.isSepDirective(first.value)) {
+        if (!first.done && (this.reader.sepDirective || this.isSepDirective(first.value))) {
             // Excel's `sep=;` line: the reader took the delimiter from it; it is not a row
             first = await iterator.next();
         }
@@ -647,7 +659,6 @@ class TableReader {
             : first.value;
         const firstLine = this.reader.line;
         const firstQuoted = this.reader.quoted.slice(0, firstRow.length);
-        this.refuseOtherFormat(firstRow, firstQuoted, firstLine);
         const pending: { row: string[]; quoted: readonly boolean[]; line: number }[] = [];
         let header: boolean;
         // an adjacency table has no header unless the caller says so: its rows vary in width; a
@@ -705,7 +716,11 @@ class TableReader {
             );
         }
         this.reportCommentLikeRecords(names.length);
-        this.reportSingleColumn(names.length, pending.map((p) => p.row), firstLine);
+        this.reportSingleColumn(
+            names.length,
+            pending.map((p) => p.row),
+            firstLine,
+        );
         this.prepareColumns(firstLine);
         for (const { row, quoted, line } of pending) {
             this.processRow(row, quoted, line);
@@ -735,30 +750,32 @@ class TableReader {
     }
 
     /**
-     * Whether a row is Excel's delimiter directive (`sep=;`), whatever delimiter split it.
+     * Whether a row is Excel's delimiter directive (`sep=;`) under a delimiter the caller gave (a
+     * sniffed one comes from the directive itself: `reader.sepDirective`).
      * @param row - the first row
      * @returns true for the directive
      */
     private isSepDirective(row: readonly string[]): boolean {
-        return !this.reader.quoted[0] && /^sep=.$/i.test(row.join(this.reader.delimiter ?? ","));
+        return (
+            this.state.csv.delimiter !== null &&
+            !this.reader.quoted[0] &&
+            /^sep=.$/i.test(row.join(this.state.csv.delimiter))
+        );
     }
 
     /**
-     * Fail when the first row opens another format (an HTML error page, a JSON, GML, DOT or Pajek
+     * Fail when the input opens like another format (an HTML error page, a JSON, GML, DOT or Pajek
      * file handed to the CSV importer), which any delimiter would otherwise read as rows of text.
-     * @param row - the first row
-     * @param quoted - whether each cell was quoted
-     * @param line - its line
+     * Runs on the raw preview before any record is parsed, so a quoting error in the other
+     * format's syntax cannot abort first.
+     * @param preview - the start of the input, leading comments removed
+     * @param line - the line it starts on
      */
-    private refuseOtherFormat(row: readonly string[], quoted: readonly boolean[], line: number): void {
-        if (quoted[0]) {
-            return;
-        }
-        const text = row.map((cell, k) => (quoted[k] ? `"${cell}"` : cell)).join(this.reader.delimiter ?? ",");
-        if (OTHER_FORMAT.test(text)) {
+    private refuseOtherFormat(preview: string, line: number): void {
+        if (OTHER_FORMAT.test(preview)) {
             this.state.report.fail(
                 OTHER_FORMAT_CODE,
-                `line ${line}: the input opens like another format (XML / HTML, JSON, GML, DOT or Pajek), not CSV: ${JSON.stringify(text.slice(0, 60))}`,
+                `line ${line}: the input opens like another format (XML / HTML, JSON, GML, DOT or Pajek), not CSV: ${JSON.stringify(preview.trimStart().slice(0, 60))}`,
                 { line },
             );
         }
@@ -865,7 +882,15 @@ class TableReader {
     /** Report what the record reader noticed while reading: a stray quote, a byte order mark in the text. */
     private reportReaderFindings(): void {
         const { report } = this.state;
-        const { strayQuoteLine, strayBomLine } = this.reader;
+        const { strayQuoteLine, strayBomLine, controlLine } = this.reader;
+        if (controlLine > 0) {
+            report.warnOnce(
+                "validation-error",
+                CONTROL_CHARACTER_CODE,
+                `line ${controlLine}: a control character (such as NUL or a form feed) inside an unquoted cell; the cell keeps it`,
+                { line: controlLine },
+            );
+        }
         if (strayQuoteLine > 0) {
             report.warnOnce(
                 "parse-error",
@@ -1000,8 +1025,17 @@ class TableReader {
                         { line, element: common.weightFrom },
                     );
                 }
-            } else if (names.length >= 3 && !claimed.has(2) && !isTextTriple(names.length, sample)) {
-                weight = 2;
+            } else if (names.length >= 3 && !claimed.has(2)) {
+                if (isTextTriple(names.length, sample)) {
+                    report.warnOnce(
+                        "validation-error",
+                        WEIGHT_AS_ATTRIBUTE_CODE,
+                        `line ${line}: the third column holds text in the first row(s), so it is read as the attribute ${names[2]}, not the weight`,
+                        { line, element: names[2] },
+                    );
+                } else {
+                    weight = 2;
+                }
             }
         }
         if (weight >= 0) {
@@ -1038,7 +1072,8 @@ class TableReader {
         if (type >= 0) {
             claimed.add(type);
         }
-        const typeHint = header && type < 0 && csv.typeColumn === undefined ? findFree(names, [TYPE_NAME], claimed) : -1;
+        const typeHint =
+            header && type < 0 && csv.typeColumn === undefined ? findFree(names, [TYPE_NAME], claimed) : -1;
         const id = header ? findFree(names, EDGE_ID_NAMES, claimed) : -1;
         if (id >= 0) {
             claimed.add(id);
@@ -1301,7 +1336,7 @@ class TableReader {
     private processEdgeRow(plan: EdgePlan, row: string[], cellQuoted: readonly boolean[], line: number): void {
         const { report, sink, resolver, common } = this.state;
         const { counts } = report;
-        const quoted = completeRow(plan, row, cellQuoted);
+        const quoted = completeRow(plan, row, cellQuoted, report, line);
         if (row.length !== plan.width) {
             report.error(
                 "validation-error",
@@ -1409,7 +1444,7 @@ class TableReader {
         const { report, sink } = this.state;
         const { counts } = report;
         const ordinal = this.nodeOrdinal++;
-        const quoted = completeRow(plan, row, cellQuoted);
+        const quoted = completeRow(plan, row, cellQuoted, report, line);
         if (row.length !== plan.width) {
             report.error(
                 "validation-error",
@@ -1574,14 +1609,51 @@ function isTextTriple(width: number, sample: readonly (readonly string[])[]): bo
 }
 
 /**
- * Complete a row that omits the empty last cell of a header ending in a delimiter: an unset cell is
- * appended so the row has the header's width.
- * @param plan - the plan
- * @param row - the cells (extended in place)
- * @param quoted - whether each cell was quoted
- * @returns the quoted flags of the completed row
+ * Whether the caller fixed how the input is read (a delimiter, the header, the table kind or a
+ * column): it is then a table, and its first line is never refused as another format.
+ * @param csv - the resolved options
+ * @returns true when any of them is explicit
  */
-function completeRow(plan: EdgePlan | NodePlan, row: string[], quoted: readonly boolean[]): readonly boolean[] {
+function hasExplicitDialect(csv: ResolvedCsvOptions): boolean {
+    return (
+        csv.delimiter !== null ||
+        csv.header !== "auto" ||
+        csv.table !== "auto" ||
+        csv.sourceColumn !== null ||
+        csv.targetColumn !== null ||
+        csv.idColumn !== null ||
+        (csv.typeColumn !== undefined && csv.typeColumn !== null)
+    );
+}
+
+/**
+ * Fit a row whose width differs from the header's by one empty last cell: a row that omits the
+ * empty last cell of a header ending in a delimiter gets an unset cell appended, and a row ending
+ * in a delimiter the header does not have (Excel, pandas) loses that empty cell, reported once.
+ * @param plan - the plan
+ * @param row - the cells (changed in place)
+ * @param quoted - whether each cell was quoted
+ * @param report - the report
+ * @param line - the row's line
+ * @returns the quoted flags of the fitted row
+ */
+function completeRow(
+    plan: EdgePlan | NodePlan,
+    row: string[],
+    quoted: readonly boolean[],
+    report: ImportReportBuilder,
+    line: number,
+): readonly boolean[] {
+    if (row.length === plan.width + 1 && isUnset(row[plan.width], quoted[plan.width])) {
+        row.pop();
+        report.warnOnce(
+            "validation-error",
+            TRAILING_DELIMITER_CODE,
+            `line ${line}: the row ends in a delimiter the header does not have; the empty last cell is dropped`,
+            { line },
+        );
+        return quoted;
+    }
     if (!plan.optionalLast || row.length !== plan.width - 1) {
         return quoted;
     }
@@ -1595,11 +1667,13 @@ const HEAD_BYTES = 4096;
 
 /**
  * The openings of the formats a CSV reader would otherwise split into rows of text: an XML / HTML
- * tag or declaration (not an IRI such as `<http://a>`), JSON, a DOT graph, a Pajek section, GML's
- * `Creator "..."` or `graph [`. Matched against the start of the input.
+ * tag or declaration (not an IRI such as `<http://a>`, nor a bracketed id such as `<alice smith>`
+ * or `<a>,b`: a tag needs an attribute, or another tag after it), a JSON object (`{"` or `{}`) or
+ * array, a DOT graph, a Pajek section, GML's `Creator "..."` or `graph [`. Matched against the
+ * start of the input.
  */
 const OTHER_FORMAT =
-    /^\s*(?:<(?:\?xml|!doctype|!--|[a-z_][\w.-]*(?::[a-z_][\w.-]*)?[\s/>])|[[{]|(?:strict\s+)?(?:di)?graph(?:\s+\S+)?\s*\{|\*(?:vertices|network|arcs|edges)\b|creator\s+"|graph\s*\[)/i;
+    /^\s*(?:<(?:\?xml|!doctype|!--|[a-z_][\w.-]*(?::[a-z_][\w.-]*)?(?:\s*\/?>\s*(?:[^,;\t|\s]*<|$)|\s+[a-z_][\w.:-]*\s*=))|\{\s*(?:["}]|$)|\[\s*(?:[[{"\]\d-]|$)|(?:strict\s+)?(?:di)?graph(?:\s+\S+)?\s*\{|\*(?:vertices|network|arcs|edges)\b|creator\s+"|graph\s*\[)/i;
 
 /**
  * Sniff confidence for the registry: 0 for XML, JSON, GML, DOT and Pajek openings; otherwise a

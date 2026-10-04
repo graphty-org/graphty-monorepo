@@ -86,6 +86,12 @@ export interface RecordSyntax {
     readonly collapseSpaces?: boolean | undefined;
     /** Whether an Excel `sep=X` first line names the delimiter for the sniff. False by default. */
     readonly sepDirective?: boolean | undefined;
+    /**
+     * Called with the sniff preview (leading comment lines removed) and the line it starts on,
+     * before any record is scanned, so a caller can refuse input that is not delimited text at all.
+     * Only called when the delimiter is sniffed.
+     */
+    readonly inspect?: ((preview: string, line: number) => void) | undefined;
 }
 
 /**
@@ -365,6 +371,12 @@ export class RecordReader implements AsyncIterable<number> {
     /** The line of the first U+FEFF after the start of the input (a concatenated file's BOM); 0 for none. */
     strayBomLine = 0;
 
+    /** The line of the first C0 control character (not tab) in an unquoted field; 0 for none. */
+    controlLine = 0;
+
+    /** Whether the sniff took the delimiter from an Excel `sep=X` first line (yielded as the first record). */
+    sepDirective = false;
+
     private readonly input: ImportInput;
 
     private readonly report: ImportReportBuilder;
@@ -532,15 +544,21 @@ export class RecordReader implements AsyncIterable<number> {
      * @param text - the preview
      */
     private sniff(text: string): void {
+        // the sniff is a heuristic over the first rows: a single chunk holding a huge quoted cell
+        // is capped so the candidate scans stay bounded
+        const preview = text.slice(0, PREVIEW_CHARS);
+        const body = stripLeadingComments(preview, this.syntax.comments ?? []);
+        if (this.syntax.inspect !== undefined) {
+            const skipped = preview.slice(0, preview.length - body.length).match(/\r\n|\r|\n/g)?.length ?? 0;
+            this.syntax.inspect(body, skipped + 1);
+        }
         const directive = this.syntax.sepDirective === true ? SEP_DIRECTIVE.exec(text) : null;
         if (directive !== null && directive[1] !== this.syntax.quote) {
             this.delimiterText = directive[1];
+            this.sepDirective = true;
             return;
         }
         const candidates = this.syntax.candidates ?? DELIMITER_CANDIDATES;
-        // the sniff is a heuristic over the first rows: a single chunk holding a huge quoted cell
-        // is capped so the candidate scans stay bounded
-        const body = stripLeadingComments(text.slice(0, PREVIEW_CHARS), this.syntax.comments ?? []);
         this.delimiterText =
             sniffDelimiter(
                 body,
@@ -732,6 +750,8 @@ class RecordScanner {
             this.lastWasCr = false;
             if (c === BOM_CODE && this.reader.strayBomLine === 0) {
                 this.reader.strayBomLine = this.startLine;
+            } else if (c < SPACE && c !== TAB && this.reader.controlLine === 0) {
+                this.reader.controlLine = this.startLine;
             }
             if (this.state === START) {
                 if (this.leading && this.count === 0 && this.commentCodes.includes(c)) {
@@ -856,6 +876,8 @@ export interface CsvReaderOptions extends ReadOptions {
     readonly comments?: readonly string[] | undefined;
     /** RecordSyntax.skipQuoteErrors; false by default. */
     readonly skipQuoteErrors?: boolean | undefined;
+    /** RecordSyntax.inspect; none by default. */
+    readonly inspect?: ((preview: string, line: number) => void) | undefined;
 }
 
 /**
@@ -888,6 +910,7 @@ export class CsvRecordReader implements AsyncIterable<string[]> {
                 skipQuoteErrors: options.skipQuoteErrors,
                 collapseSpaces: true,
                 sepDirective: true,
+                inspect: options.inspect,
             },
             { signal: options.signal, onProgress: options.onProgress, encoding: options.encoding, nulIsBinary: true },
         );
@@ -947,6 +970,22 @@ export class CsvRecordReader implements AsyncIterable<string[]> {
      */
     get strayBomLine(): number {
         return this.inner.strayBomLine;
+    }
+
+    /**
+     * The line of the first C0 control character (other than tab) in an unquoted field.
+     * @returns the line, or 0 when there was none
+     */
+    get controlLine(): number {
+        return this.inner.controlLine;
+    }
+
+    /**
+     * Whether the first record is an Excel `sep=X` line the delimiter was taken from.
+     * @returns true when it is
+     */
+    get sepDirective(): boolean {
+        return this.inner.sepDirective;
     }
 
     /**

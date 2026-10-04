@@ -21,6 +21,7 @@ import {
     COLUMN_MISSING_CODE,
     COMMENT_DIRECTION_CODE,
     COMMENT_LIKE_RECORD_CODE,
+    CONTROL_CHARACTER_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
     EMPTY_INPUT_CODE,
@@ -37,8 +38,10 @@ import {
     SINGLE_COLUMN_CODE,
     STRAY_BOM_CODE,
     STRAY_QUOTE_CODE,
+    TRAILING_DELIMITER_CODE,
     TRAILING_HEADER_DELIMITER_CODE,
     TYPE_COLUMN_IGNORED_CODE,
+    WEIGHT_AS_ATTRIBUTE_CODE,
 } from "./importer.js";
 import { BAD_QUOTE_CODE, UNCLOSED_QUOTE_CODE } from "./records.js";
 
@@ -124,4 +127,10 @@ export const CSV_ISSUE = Object.freeze({
     PADDED_ID: PADDED_ID_CODE,
     /** A leading # / % line skipped as a comment has the fields of a record. */
     COMMENT_LIKE_RECORD: COMMENT_LIKE_RECORD_CODE,
+    /** Data rows end in one extra empty cell (a trailing delimiter); dropped (once per import). */
+    TRAILING_DELIMITER: TRAILING_DELIMITER_CODE,
+    /** A headerless three-column table's text third column is an attribute, not the weight (once per import). */
+    WEIGHT_AS_ATTRIBUTE: WEIGHT_AS_ATTRIBUTE_CODE,
+    /** An unquoted cell holds a C0 control character such as NUL; kept (once per import). */
+    CONTROL_CHARACTER: CONTROL_CHARACTER_CODE,
 });

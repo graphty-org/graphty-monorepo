@@ -12,7 +12,8 @@
  * Only the owner's issues and pull requests are in it. Nothing here changes the state.
  */
 
-import { byOwner } from "./board.mjs";
+import { byOwner, TERMINAL } from "./board.mjs";
+import { span } from "./board-text.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
 /** Labels that keep an issue out of the queue, besides every `needs-*` label. */
@@ -23,6 +24,11 @@ const BREAKING = new Set(["breaking", "breaking-change", "breaking-hold"]);
 export const NEXT = "githerd:next";
 export const SKIP = "githerd:skip";
 const DEFAULT_AGING_DAYS = 60;
+const HOUR = 60 * 60 * 1000;
+/** How long a push by someone else keeps a pull request in use, unless the config says otherwise. */
+const DEFAULT_OTHERS_PUSH_HOURS = 3;
+/** The committer of GitHub's own commits (update-branch, Mergify's updates): no session's push. */
+const GITHUB_COMMITTER = "noreply@github.com";
 
 /**
  * Whether the record carries `label` and the owner is the one who applied it.
@@ -213,6 +219,59 @@ function issueReady(state, issue, labels) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Pull requests in use (the owner's decision of 2026-10-04): a pull request one session works on is
+// never offered to another.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The pull request a job works on: a `pr` or `title` job's, a review's, or the one a job made.
+ * @param {any} job the job
+ * @returns {number | null} the number
+ */
+const prOf = (job) => job.pr ?? job.facts?.pr ?? null;
+
+/**
+ * Why pull request `n` is in use, or null. In use: another job on it is in flight (claimed by a
+ * live session, or being started), or someone other than githerd pushed its head within
+ * `workers.othersPushHours`. githerd's own pushes are the heads `githerd_push` and the upkeep
+ * recorded in `state.pushedByGitherd`, and GitHub's own commits (update-branch, Mergify). A review
+ * is a second look at a worker's patch while that worker waits, so only an owner session hides it.
+ * An owner session's claim lapses when the session ends (`syncJobs`), and with it the reason.
+ * @param {any} state the daemon state
+ * @param {number | string} n the pull request
+ * @param {{config?: any, now: Date, except?: string | null, review?: boolean}} opts the config, the
+ *   clock, the job asking (never in use by itself) and whether it is a review
+ * @returns {string | null} the reason
+ */
+export function prInUse(state, n, { config, now, except = null, review = false }) {
+    for (const j of Object.values(state.jobs ?? {})) {
+        if (j.id === except || j.state === "queued" || TERMINAL.includes(j.state)) continue;
+        if (String(prOf(j)) !== String(n) || (review && j.holder?.startedBy !== "owner")) continue;
+        const session = j.holder?.session;
+        if (!session) return `in flight as ${j.id}`;
+        return `claimed by session ${j.holder.name ?? state.sessions?.[session]?.name ?? session}`;
+    }
+    const rec = state.prs?.[String(n)];
+    const at = Date.parse(rec?.headCommittedAt ?? "");
+    if (!rec || !at || state.pushedByGitherd?.[rec.headSha] || rec.headCommitter === GITHUB_COMMITTER) return null;
+    const age = now.getTime() - at;
+    const hours = config?.workers?.othersPushHours ?? DEFAULT_OTHERS_PUSH_HOURS;
+    return age < hours * HOUR ? `pushed by someone else ${span(age)} ago` : null;
+}
+
+/**
+ * Why a job is in use (its pull request is, by someone else), or null.
+ * @param {any} state the daemon state
+ * @param {any} job the job
+ * @param {{config?: any, now: Date}} opts the config and the clock
+ * @returns {string | null} the reason
+ */
+export function jobInUse(state, job, opts) {
+    const n = prOf(job);
+    return n === null ? null : prInUse(state, n, { ...opts, except: job.id, review: job.kind === "review" });
+}
+
+// ---------------------------------------------------------------------------------------------
 // The job queue order (design section 5.4): finish before starting.
 // ---------------------------------------------------------------------------------------------
 
@@ -308,17 +367,23 @@ function jobReason(job, words) {
  * skipped right now with why. Within a tier: the owner's `githerd:next` first, then for issues the
  * open order, priority and bug before other types, then oldest (`facts.since`: red since for an
  * incident, opened for a pull request or issue), then id.
+ * A job whose pull request is in use (`prInUse`) is neither ordered nor skipped but listed apart.
  * @param {Record<string, import("./board.mjs").Job>} jobs the job records
- * @param {{reviewQueueFull?: boolean}} [ctx] what limits apply now
- * @returns {{items: {job: string, reason: string}[], skipped: {job: string, reason: string}[]}} the order
+ * @param {{reviewQueueFull?: boolean, inUse?: (job: any) => string | null}} [ctx] what limits apply
+ *   now, and why a job is in use
+ * @returns {{items: {job: string, reason: string}[], skipped: {job: string, reason: string}[],
+ *   inUse: {job: string, reason: string}[]}} the order
  */
 export function jobOrder(jobs, ctx = {}) {
     const items = [];
     const skips = [];
+    const used = [];
     for (const job of Object.values(jobs)) {
         if (job.state !== "queued") continue;
         const skip = skipped(job, ctx);
+        const inUse = skip ? null : (ctx.inUse?.(job) ?? null);
         if (skip) skips.push({ job: job.id, reason: skip });
+        else if (inUse) used.push({ job: job.id, reason: inUse });
         else items.push({ job, tier: tier(job) });
     }
     items.sort((a, b) => {
@@ -334,5 +399,9 @@ export function jobOrder(jobs, ctx = {}) {
             a.job.id.localeCompare(b.job.id)
         );
     });
-    return { items: items.map((x) => ({ job: x.job.id, reason: jobReason(x.job, x.tier[1]) })), skipped: skips };
+    return {
+        items: items.map((x) => ({ job: x.job.id, reason: jobReason(x.job, x.tier[1]) })),
+        skipped: skips,
+        inUse: used,
+    };
 }

@@ -22,6 +22,9 @@
  *   the next is made once that one leaves the queue, never one per backlog issue.
  * - `issue-reland-<n>`: a pull request a revert took out, once the revert left the queue of open
  *   pull requests.
+ *
+ * A job an owner session claimed goes back to the queue once that session ended (`sessionGone`):
+ * its claim, and the pull request it kept in use, lapse with the session.
  */
 
 import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
@@ -46,21 +49,22 @@ const RELEASE_KINDS = new Set(["release-failed", "release-stalled"]);
 const OWNER_ONLY = ["githerd/", "githerd.config.json", ".claude/", ".mcp.json", "CLAUDE.md"];
 
 /**
- * @typedef {{created: string[], cancelled: {job: string, reason: string}[]}} SyncResult what
- *   changed, for the ledger
+ * @typedef {{created: string[], cancelled: {job: string, reason: string}[],
+ *   lapsed: {job: string, session: string}[]}} SyncResult what changed, for the ledger
  */
 
 /**
  * Brings the job records in step with the facts. Mutates `state.jobs`; the caller persists it and
  * writes the ledger lines.
  * @param {any} state the daemon state
- * @param {{config: any, now: Date}} ctx the normalized config and the clock
- * @returns {SyncResult} the jobs made and cancelled
+ * @param {{config: any, now: Date, sessionGone?: (session: string) => boolean}} ctx the normalized
+ *   config, the clock, and whether an owner session ended
+ * @returns {SyncResult} the jobs made, cancelled and given back by an ended owner session
  */
-export function syncJobs(state, { config, now }) {
+export function syncJobs(state, { config, now, sessionGone = () => false }) {
     state.jobs ??= {};
     /** @type {SyncResult} */
-    const out = { created: [], cancelled: [] };
+    const out = { created: [], cancelled: [], lapsed: [] };
     const add = (/** @type {any} */ spec, /** @type {any} */ extra = {}) => {
         const id = spec.id;
         const old = state.jobs[id];
@@ -77,12 +81,33 @@ export function syncJobs(state, { config, now }) {
         out.cancelled.push({ job: job.id, reason });
     };
 
+    lapseOwnerClaims(state, sessionGone, now, out);
     incidentJobs(state, add, cancel);
     prJobs(state, add, cancel);
     reviewJobs(state, add, cancel);
     triageJobs(state, config, now, add);
     issueJobs(state, config, now, add, cancel);
     return out;
+}
+
+/**
+ * Puts back in the queue every job an owner session claimed whose session ended. A job the owner
+ * kept with its window (`githerd keep --with-job`) stays his.
+ * @param {any} state the daemon state
+ * @param {(session: string) => boolean} gone whether a session ended
+ * @param {Date} now the clock
+ * @param {SyncResult} out what changed
+ */
+function lapseOwnerClaims(state, gone, now, out) {
+    for (const job of Object.values(state.jobs)) {
+        const session = job.holder?.session;
+        if (job.holder?.startedBy !== "owner" || job.kept || !session || TERMINAL.includes(job.state)) continue;
+        if (!gone(session)) continue;
+        // Waiting and parked have no way back to the queue but through working.
+        if (job.state === "waiting" || job.state === "parked") move(job, "working", now);
+        move(job, "queued", now, { reason: `claim lapsed: session ${session} ended` });
+        out.lapsed.push({ job: job.id, session });
+    }
 }
 
 /**

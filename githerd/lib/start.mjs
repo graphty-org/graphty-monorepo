@@ -23,7 +23,7 @@ import * as board from "./board.mjs";
 import { LAUNCH_PROMPT } from "./hook.mjs";
 import { startFailed } from "./advance.mjs";
 import { endItem, raiseItem } from "./notify.mjs";
-import { jobOrder } from "./queue.mjs";
+import { jobInUse, jobOrder } from "./queue.mjs";
 import { resumeVerified, runSelftest } from "./selftest.mjs";
 import { listWindows, startWorker } from "./tmux.mjs";
 import { codeEnv, loginPath, readSigningEnv, workerArgv, workerEnv, writeJobFiles } from "./worker-settings.mjs";
@@ -425,7 +425,7 @@ export async function fillSlots(ctx) {
             .filter((j) => j.state === "working" && !j.holder && !ctx.tasks.has(j.id))
             .sort((a, b) => Number(isUrgent(b)) - Number(isUrgent(a)) || a.id.localeCompare(b.id)),
         // A job whose start task still runs (its deadline requeued it meanwhile) is not admitted twice.
-        ...jobOrder(state.jobs ?? {})
+        ...jobOrder(state.jobs ?? {}, { inUse: (j) => jobInUse(state, j, { config: ctx.config, now: t }) })
             .items.map((i) => state.jobs[i.job])
             .filter((j) => !ctx.tasks.has(j.id)),
     ];
@@ -485,7 +485,9 @@ function admitInto(ctx, candidates, canary, hours) {
     };
     const admitted = [];
     for (const job of candidates) {
-        if (!fits(job, room) || !startCommit(state, job)) continue;
+        // A job admitted earlier in this loop puts its pull request in use for the rest.
+        const inUse = job.state === "queued" && jobInUse(state, job, { config, now: ctx.now() });
+        if (inUse || !fits(job, room) || !startCommit(state, job)) continue;
         admit(ctx, job, { busy: room.busy });
         admitted.push(job.id);
         if (isUrgent(job)) room.urgent += 1;

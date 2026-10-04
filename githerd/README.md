@@ -67,7 +67,11 @@ Every session gets the eleven tools of design section 6 from the MCP server in `
 `githerd_status`, `githerd_next`, `githerd_claim`, `githerd_wait`, `githerd_expect`, `githerd_push`,
 `githerd_rerun`, `githerd_read`, `githerd_done`, `githerd_ask_owner` and `githerd_record`. A
 session calls `githerd_next` for its job (a worker) or the queued jobs it could take (an owner
-session), and `githerd_claim` with its overlap judgment before any edit. Pushes go through
+session), and `githerd_claim` with its overlap judgment before any edit. A pull request another
+session works on is never offered: one whose job a live session claimed, or whose head someone other
+than githerd pushed within `workers.othersPushHours` (default 3). `githerd_next` lists such jobs as
+in use with the reason, and `githerd status` shows it on the pull request's line. A held (`hold`)
+pull request that is broken is still offered; the label only keeps it from merging. Pushes go through
 `githerd_push`, which runs the push and its pre-push gate through the machine's push queue
 (`tools/push-queue.sh`). `githerd_wait` declares a wait the daemon watches and ends with a
 doorbell; `githerd_done` is checked against GitHub before the job counts as done.

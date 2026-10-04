@@ -132,7 +132,7 @@ import { stopGating, updateGate } from "./self-update.mjs";
 import { secretValues } from "./text.mjs";
 import { sessionToolSet } from "./session-tools.mjs";
 import { alertBanner, statusData } from "./tools.mjs";
-import { ring as ringWorker, running } from "./tmux.mjs";
+import { readRegistry, ring as ringWorker, running } from "./tmux.mjs";
 import { readVersion } from "./version.mjs";
 import { endRetired, watchPass, watchWanted } from "./watchdog.mjs";
 import { codeEnv, readSigningEnv } from "./worker-settings.mjs";
@@ -213,6 +213,7 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
         author { login }
         commits(last: 1) { nodes { commit {
           committedDate
+          committer { email }
           statusCheckRollup { contexts(first: 100) { nodes {
             __typename
             ... on CheckRun { name status conclusion startedAt databaseId }
@@ -1566,11 +1567,25 @@ export async function startDaemon({
      * @param {Date} t the poll's time
      */
     function jobsFromFacts(t) {
-        const synced = syncJobs(state, { config, now: t });
+        const synced = syncJobs(state, { config, now: t, sessionGone: (session) => ownerSessionGone(session, t) });
         for (const id of synced.created) {
             void ledger({ kind: "job-created", job: id, reason: state.jobs[id].reason, target: state.jobs[id].target });
         }
         for (const c of synced.cancelled) void ledger({ kind: "job-cancelled", ...c });
+        for (const l of synced.lapsed) void ledger({ kind: "claim-lapsed", ...l });
+    }
+
+    /**
+     * Whether an owner session ended: its Claude Code registry entry is gone or names another
+     * session; without a recorded pid, its heartbeat stopped (15 minutes).
+     * @param {string} session the session
+     * @param {Date} t the clock
+     * @returns {boolean} it ended
+     */
+    function ownerSessionGone(session, t) {
+        const pid = state.sessions?.[session]?.pid;
+        if (!pid) return !board.holderAlive(state, session, t, startedAtDate);
+        return readRegistry(join(env.HOME ?? homedir(), ".claude", "sessions"), pid)?.sessionId !== session;
     }
 
     /**
@@ -1684,6 +1699,9 @@ export async function startDaemon({
                 ledger,
                 env: { ...env, GIT_TERMINAL_PROMPT: "0" },
                 branch,
+                own: (sha) => {
+                    (state.pushedByGitherd ??= {})[sha] = "upkeep";
+                },
             },
             poll,
         );

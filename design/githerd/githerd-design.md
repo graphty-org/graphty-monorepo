@@ -1222,7 +1222,9 @@ only; it stops when the last worker ends).
   without charging attempts.
 - **Owner sessions** appear on the board through the registry [PF 6]; they may take work with
   `githerd_next` and `githerd_claim`, and are never assigned work, rung or ended. Their claims lapse
-  24 hours after their last githerd call or commit on the claimed branch.
+  when the session ends (its Claude Code registry entry is gone or names another session; without a
+  recorded pid, 15 minutes without a githerd call or hook) or when it releases the job
+  (`githerd_done`): the job goes back to the queue (8.2).
 
 ### 7.7 Session death
 
@@ -1271,6 +1273,18 @@ shows each limit with the measurement that applied at the last start.
   session ends; the holder gets news) or `wait`. It names related jobs.
 - `githerd_claim` succeeds only on the current snapshot version and refuses a wait that would close
   a cycle.
+- **A pull request one session works on is never offered to another** (owner decision 2026-10-04).
+  A queued job is in use, so `githerd_next` does not offer it, `githerd_claim` refuses it and no
+  worker starts on it, while its pull request (a `pr` or `title` job's, a review's, or the one a
+  job made) has (a) another job in flight on it, claimed by a live session or being started, or
+  (b) a head that someone other than githerd pushed within `workers.othersPushHours` (default 3,
+  0 to 48; 0 turns it off), timed by the head commit's committer date. githerd's own heads are
+  those `githerd_push` and the upkeep recorded (`state.pushedByGitherd`) and GitHub's own commits
+  (committer `noreply@github.com`: update-branch, Mergify). A review runs beside the worker whose
+  patch it reviews; only an owner session's claim hides it. `githerd_next` lists each in-use job
+  with why ("claimed by session X", "pushed by someone else 40 min ago"), and the board shows the
+  same on the queue and on the pull request's line. `hold` only stops a merge: a held pull request
+  that is broken is offered like any other, and the hold still blocks its merge.
 - At every push the daemon intersects the pushed diff's files with every other in-flight
   worktree's and every owner session's changed files. A non-empty intersection records the two as
   related and tells both holders. This is a fact about the diffs, not a

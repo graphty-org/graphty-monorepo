@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { move } from "../lib/board.mjs";
 import { normalizeConfig } from "../lib/config.mjs";
 import { syncJobs } from "../lib/jobs.mjs";
+import { jobInUse, jobOrder } from "../lib/queue.mjs";
 import { accumulateMerged } from "../lib/merged.mjs";
 
 const NOW = new Date("2026-10-04T12:00:00Z");
@@ -100,7 +101,7 @@ describe("syncJobs: incidents", () => {
             facts: { scope: "master", since: "2026-10-04T11:00:00Z", lane: "ci", incident: "i1" },
         });
         // A second sync makes nothing new.
-        expect(sync(state)).toEqual({ created: [], cancelled: [] });
+        expect(sync(state)).toEqual({ created: [], cancelled: [], lapsed: [] });
         state.incidents.i1.status = "resolved";
         expect(sync(state).cancelled).toEqual([
             { job: "incident-CI-Build-Run-build", reason: "master's incident ended or went intermittent" },
@@ -174,7 +175,7 @@ describe("syncJobs: pull requests", () => {
             mergeState: "DIRTY",
             conflictSightings: 2,
         });
-        expect(sync(state)).toEqual({ created: [], cancelled: [] });
+        expect(sync(state)).toEqual({ created: [], cancelled: [], lapsed: [] });
         expect(state.jobs["pr-942"].reason).toBe("conflicting with master (GitHub: DIRTY)");
         // Master merged in: GitHub says MERGEABLE, the sightings reset, the job goes.
         Object.assign(state.prs[942], { mergeable: "MERGEABLE", mergeState: "BLOCKED", conflictSightings: 0 });
@@ -322,5 +323,35 @@ describe("syncJobs: issues", () => {
         expect(sync(state).created).toEqual(["issue-reland-718"]);
         expect(state.jobs["issue-reland-718"]).toMatchObject({ kind: "issue", target: "#718" });
         expect(sync(state).created).toEqual([]);
+    });
+});
+
+describe("syncJobs: pull requests in use (owner decision 2026-10-04)", () => {
+    it("offers a held pull request that conflicts: hold stops its merge, not its fix", () => {
+        const state = base();
+        failingPr(state, 943, { labels: ["hold"], required: {}, mergeable: "CONFLICTING", conflictSightings: 2 });
+        expect(sync(state).created).toEqual(["pr-943"]);
+        const order = jobOrder(state.jobs, { inUse: (j) => jobInUse(state, j, { config: CONFIG, now: NOW }) });
+        expect(order.items.map((i) => i.job)).toEqual(["pr-943"]);
+    });
+
+    it("gives a job back to the queue when the owner session that claimed it ends", () => {
+        const state = base();
+        failingPr(state, 7);
+        sync(state);
+        const job = state.jobs["pr-7"];
+        move(job, "starting", NOW, { holder: { session: "o1", window: null, startedBy: "owner" } });
+        move(job, "working", NOW);
+        move(job, "waiting", NOW, { waitingFor: { checks: "abc" } });
+        const ended = new Set();
+        const gone = (/** @type {string} */ s) => ended.has(s);
+        expect(syncJobs(state, { config: CONFIG, now: NOW, sessionGone: gone }).lapsed).toEqual([]);
+        expect(job.state).toBe("waiting");
+        ended.add("o1");
+        expect(syncJobs(state, { config: CONFIG, now: NOW, sessionGone: gone }).lapsed).toEqual([
+            { job: "pr-7", session: "o1" },
+        ]);
+        // Queued again, it says what the pull request needs now.
+        expect(job).toMatchObject({ state: "queued", holder: null, reason: "required check failing: All Checks Pass" });
     });
 });

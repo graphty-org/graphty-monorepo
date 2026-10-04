@@ -47,10 +47,11 @@ const REVIEW_TOOL = ["node", "visual-review/trusted/cli.mjs", "update"];
  *   remote?: string,
  *   branch?: string,
  *   reviewTool?: string[],
+ *   own?: (sha: string) => void,
  * }} Context the GitHub client, `owner/name`, the main checkout, each group's mode, the ledger, the
  *   push queue, the environment git and the review tool run with (the owner's signing variables),
- *   the remote, the default branch, and the review tool's update command (the pull request's
- *   number is appended)
+ *   the remote, the default branch, the review tool's update command (the pull request's
+ *   number is appended), and what records a head githerd pushed as its own
  * @typedef {{path: "review-tool" | "update-branch" | "local" | "none",
  *   result: "updated" | "would-do" | "current" | "conflict" | "stale" | "wait" | "failed",
  *   conflicts?: string[], why?: string}} UpdateResult which path was taken and how it ended:
@@ -140,6 +141,7 @@ async function pushed(ctx, { op, branch, before, fields }, res) {
     }
     const now = (await git(ctx, ["ls-remote", ctx.remote ?? "origin", `refs/heads/${branch}`])).stdout.split("\t")[0];
     const moved = now !== "" && now !== before;
+    if (moved) ctx.own?.(now);
     await ctx.ledger({ kind: "action", op, group: GROUP, result: "pushed", head: now, ...fields });
     if (!moved) await ctx.ledger({ kind: "write-mismatch", op, group: GROUP, ...fields });
     return moved;

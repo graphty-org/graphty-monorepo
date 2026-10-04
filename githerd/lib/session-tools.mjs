@@ -20,6 +20,7 @@ import { taskOutputPath } from "./hook.mjs";
 import { askOwner, recordOwner } from "./owner.mjs";
 import { jobText } from "./job-text.mjs";
 import { TOOLS } from "./mcp.mjs";
+import { jobInUse } from "./queue.mjs";
 import { statusData, statusText } from "./tools.mjs";
 
 /** The status sections of the old board that the new section names show. */
@@ -186,7 +187,12 @@ export function sessionToolSet(ctx) {
                         : "Continue your job; your news is above.");
                 return JSON.stringify({ job, snapshot: snap, news, load, instructions });
             }
-            const offered = Object.values(state.jobs ?? {}).filter((/** @type {any} */ j) => j.state === "queued");
+            // A job whose pull request another session works on is listed apart, with why (8.2).
+            const queued = Object.values(state.jobs ?? {}).filter((/** @type {any} */ j) => j.state === "queued");
+            const inUse = queued
+                .map((/** @type {any} */ j) => ({ job: j.id, reason: jobInUse(state, j, ctx) }))
+                .filter((u) => u.reason);
+            const offered = queued.filter((/** @type {any} */ j) => !inUse.some((u) => u.job === j.id));
             // What githerd told this session, such as a worker's push that overlaps its files (8.2).
             const record = session ? state.sessions?.[session] : null;
             const news = (record?.news ?? [])
@@ -196,6 +202,7 @@ export function sessionToolSet(ctx) {
             return JSON.stringify({
                 job: null,
                 offered,
+                inUse,
                 snapshot: snap,
                 news,
                 load,
@@ -207,6 +214,13 @@ export function sessionToolSet(ctx) {
             if (!session) throw new Error("this session is not identified yet; try again in a moment");
             if (client.job && client.job !== args.job) throw new Error(`this worker is started for job ${client.job}`);
             if (client.job && !startedFor(state.jobs?.[args.job], client)) throw new Error(STALE(args.job));
+            const queued = state.jobs?.[args.job]?.state === "queued" ? state.jobs[args.job] : null;
+            const inUse = queued && jobInUse(state, queued, ctx);
+            if (inUse)
+                return {
+                    text: JSON.stringify({ ok: false, reason: `${args.job} is in use: ${inUse}` }),
+                    isError: true,
+                };
             const result = board.claimJob(state, args, { session }, snapshot(ctx), now);
             if (!result.ok) return { text: JSON.stringify(result), isError: true };
             await ctx.commit({ kind: "job-claim", job: args.job, session, decision: args.overlap.decision });
@@ -288,7 +302,10 @@ export function sessionToolSet(ctx) {
             // session still speaks it (design 9.8).
             if (session) {
                 const cwd = sessionCwd(client, session, state.sessions?.[session]?.cwd, ctx.home);
-                board.heartbeat(state, { session, cwd }, now).protocol = client?.protocol;
+                const record = board.heartbeat(state, { session, cwd }, now);
+                record.protocol = client?.protocol;
+                // An owner session's claude process: its claims lapse when its registry entry goes.
+                if (!client?.job && client?.pid) record.pid = client.pid;
             }
             return handlers[tool.name](args, caller, client ?? {});
         },

@@ -39,7 +39,14 @@ describe("normalizeConfig", () => {
         expect(c.protectedPaths).toEqual(DEFAULTS.protectedPaths);
         expect(c.notify).toEqual({ command: null, maxPerHour: 6 });
         expect(c.ownerGate).toBeNull();
-        expect(c.workers).toEqual({ model: "claude-opus-5-5", slots: 3, urgent: 1, waiting: 6, hoursPerDay: 10 });
+        expect(c.workers).toEqual({
+            model: "claude-opus-5-5",
+            slots: 3,
+            urgent: 1,
+            waiting: 6,
+            hoursPerDay: 10,
+            othersPushHours: 3,
+        });
         expect(c.lanes.ci).toEqual({ workflow: "ci.yml", gating: "required", maxMinutes: null });
     });
 

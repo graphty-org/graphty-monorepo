@@ -39,7 +39,14 @@
         "incidents": false
     },
     "grace": { "closeIssueDays": 7, "closeIssueShownDays": 3, "revertMinutes": 30 },
-    "workers": { "model": "claude-opus-5-5", "slots": 3, "urgent": 1, "waiting": 6, "hoursPerDay": 10 },
+    "workers": {
+        "model": "claude-opus-5-5",
+        "slots": 3,
+        "urgent": 1,
+        "waiting": 6,
+        "hoursPerDay": 10,
+        "othersPushHours": 3
+    },
     "backlog": { "agingDays": 60 },
     "notify": {
         "command": [

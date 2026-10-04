@@ -34,8 +34,9 @@ export const DEFAULTS = Object.freeze({
     grace: { closeIssueDays: 7, closeIssueShownDays: 3, revertMinutes: 30 },
     // The worker sessions (design 8.1): the model, the routine slots, the urgent overflow, the
     // waiting sessions kept open, and the routine worker hours a day until the usage reading is
-    // verified (urgent work is exempt).
-    workers: { model: "claude-opus-5-5", slots: 3, urgent: 1, waiting: 6, hoursPerDay: 10 },
+    // verified (urgent work is exempt); and how long a push to a pull request by someone other than
+    // githerd keeps it from being offered to another session (0 never does).
+    workers: { model: "claude-opus-5-5", slots: 3, urgent: 1, waiting: 6, hoursPerDay: 10, othersPushHours: 3 },
     backlog: { agingDays: 60 },
     notify: { command: null, maxPerHour: 6 },
     digest: { weekday: "sun", hourUtc: 16, issue: null },
@@ -89,7 +90,8 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  *   labels: { types: string[], priorities: string[], efforts: string[] },
  *   protectedPaths: string[], actions: Record<string, boolean>,
  *   grace: { closeIssueDays: number, closeIssueShownDays: number, revertMinutes: number },
- *   workers: { model: string, slots: number, urgent: number, waiting: number, hoursPerDay: number },
+ *   workers: { model: string, slots: number, urgent: number, waiting: number, hoursPerDay: number,
+ *     othersPushHours: number },
  *   backlog: { agingDays: number },
  *   notify: { command: string[] | null, maxPerHour: number },
  *   digest: { weekday: string, hourUtc: number, issue: number | null },
@@ -262,7 +264,13 @@ function workers(raw) {
     if (model !== undefined && !MODELS.includes(string(model, "workers.model"))) {
         fail(`workers.model must be one of ${MODELS.join(", ")}, not "${model}"`);
     }
-    const limits = { slots: d.slots, urgent: d.urgent, waiting: d.waiting, hoursPerDay: d.hoursPerDay };
+    const limits = {
+        slots: d.slots,
+        urgent: d.urgent,
+        waiting: d.waiting,
+        hoursPerDay: d.hoursPerDay,
+        othersPushHours: d.othersPushHours,
+    };
     return {
         model: model ?? d.model,
         ...numbers(rest, limits, "workers", {
@@ -270,6 +278,7 @@ function workers(raw) {
             urgent: { min: 0, max: 2 },
             waiting: { min: 0, max: 20 },
             hoursPerDay: { min: 1, max: 24 },
+            othersPushHours: { min: 0, max: 48, integer: false },
         }),
     };
 }

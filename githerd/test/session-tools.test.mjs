@@ -190,6 +190,38 @@ describe("sessionToolSet", () => {
         );
     });
 
+    it("never offers a pull request another session claimed, and lists it as in use with why", async () => {
+        const pr = Object.assign(newJob({ kind: "pr", target: "#9", id: "pr-9" }, NOW), { pr: 9 });
+        const title = Object.assign(newJob({ kind: "title", target: "#9", id: "title-9" }, NOW), { pr: 9 });
+        const other = newJob({ kind: "issue", target: "#5", id: "issue-5" }, NOW);
+        const { ctx } = setup({
+            jobs: { "pr-9": pr, "title-9": title, "issue-5": other },
+            prs: { 9: { author: "owner", stuck: [] } },
+            trust: { login: "owner" },
+            master: { lanes: {} },
+        });
+        const first = { session: "o1" };
+        const next = JSON.parse((await call(ctx, "githerd_next", {}, first)).text);
+        const claim = {
+            job: "pr-9",
+            snapshotVersion: next.snapshot.version,
+            overlap: { decision: "independent", reason: "alone" },
+            plan: "fix the check",
+        };
+        expect(JSON.parse((await call(ctx, "githerd_claim", claim, first)).text).ok).toBe(true);
+
+        const second = { session: "o2" };
+        const seen = JSON.parse((await call(ctx, "githerd_next", {}, second)).text);
+        expect(seen.offered.map((/** @type {any} */ j) => j.id)).toEqual(["issue-5"]);
+        expect(seen.inUse).toEqual([{ job: "title-9", reason: "claimed by session o1" }]);
+        const taken = await call(ctx, "githerd_claim", { ...claim, job: "title-9" }, second);
+        expect(taken.isError).toBe(true);
+        expect(JSON.parse(taken.text).reason).toBe("title-9 is in use: claimed by session o1");
+        const board = (await call(ctx, "githerd_status", { section: "prs" }, second)).text;
+        expect(board).toContain("#9 ");
+        expect(board).toContain("[in use: claimed by session o1]");
+    });
+
     it("declares a wait and a long step only for a job the caller holds", async () => {
         const job = heldJob("pr-7");
         const other = heldJob("pr-8");

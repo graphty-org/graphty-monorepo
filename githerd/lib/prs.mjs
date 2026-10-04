@@ -30,7 +30,7 @@ import { execFileSync } from "node:child_process";
  *   the commit that ended the last incident was made
  * @typedef {{
  *   headSha: string, headRef: string, baseRef: string, draft: boolean, author: string | null,
- *   title: string, createdAt: string | null, references: number[], labels: string[], headChangedAt: string, headCommittedAt: string | null,
+ *   title: string, createdAt: string | null, references: number[], labels: string[], headChangedAt: string, headCommittedAt: string | null, headCommitter: string | null,
  *   breaking: boolean, breakingCheckedFor: string | null,
  *   touchesProtected: boolean,
  *   autoMerge: boolean, mergeable: string | null, mergeState?: string | null, conflictSightings: number,
@@ -114,8 +114,9 @@ function contextState(ctx) {
  * @param {any} node a GraphQL pullRequest node
  * @param {string[]} requiredChecks the required context names
  * @returns {{ required: Record<string, CheckState>, failing: string[], startedAt: string | null,
- *   committedAt: string | null }} required verdicts, every failing context, the latest start of a
- *   failing required check run, and the head commit's date
+ *   committedAt: string | null, committer: string | null }} required verdicts, every failing
+ *   context, the latest start of a failing required check run, and the head commit's date and
+ *   committer email
  */
 function readChecks(node, requiredChecks) {
     const commit = node.commits?.nodes?.[0]?.commit;
@@ -136,7 +137,13 @@ function readChecks(node, requiredChecks) {
             startedAt = ctx.startedAt;
         }
     }
-    return { required, failing, startedAt, committedAt: commit?.committedDate ?? null };
+    return {
+        required,
+        failing,
+        startedAt,
+        committedAt: commit?.committedDate ?? null,
+        committer: commit?.committer?.email ?? null,
+    };
 }
 
 /**
@@ -199,6 +206,7 @@ function foldPr(node, prev, config, now) {
         labels: (node.labels?.nodes ?? []).map((/** @type {any} */ l) => l.name),
         headChangedAt: kept.headChangedAt,
         headCommittedAt: checks.committedAt,
+        headCommitter: checks.committer,
         breaking: kept.breaking,
         breakingCheckedFor: kept.breakingCheckedFor,
         touchesProtected: kept.touchesProtected,

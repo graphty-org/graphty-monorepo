@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { move, newJob } from "../lib/board.mjs";
-import { jobOrder } from "../lib/queue.mjs";
+import { jobInUse, jobOrder } from "../lib/queue.mjs";
 
 const NOW = new Date("2026-10-02T12:00:00Z");
 
@@ -87,7 +87,62 @@ describe("jobOrder: the order of design 5.4", () => {
                 { job: "issue-3", reason: "the owner's review queue is full and it touches a Storybook" },
                 { job: "pr-4", reason: "githerd:skip (owner)" },
             ],
+            inUse: [],
         });
         expect(jobOrder(jobs).items.map((i) => i.job)).toEqual(["pr-5", "issue-3"]);
+    });
+});
+
+describe("pull requests in use (owner decision 2026-10-04)", () => {
+    const HOUR = 60 * 60 * 1000;
+    /**
+     * A state with one queued pr job on #9, its head committed `hoursAgo` by `committer`.
+     * @param {number} hoursAgo when the head was committed
+     * @param {string} [committer] the committer's email
+     * @returns {any} the state
+     */
+    function pushed(hoursAgo, committer = "owner@example.com") {
+        const job = Object.assign(newJob({ kind: "pr", target: "#9", id: "pr-9" }, NOW), { pr: 9 });
+        return {
+            jobs: { "pr-9": job },
+            prs: {
+                9: {
+                    headSha: "c".repeat(40),
+                    headCommittedAt: new Date(NOW.getTime() - hoursAgo * HOUR).toISOString(),
+                    headCommitter: committer,
+                },
+            },
+        };
+    }
+    const order = (/** @type {any} */ state, config = {}) =>
+        jobOrder(state.jobs, { inUse: (j) => jobInUse(state, j, { config, now: NOW }) });
+
+    it("does not offer a pull request someone else pushed an hour ago, and offers it after three hours", () => {
+        expect(order(pushed(1))).toEqual({
+            items: [],
+            skipped: [],
+            inUse: [{ job: "pr-9", reason: "pushed by someone else 1 h 0 min ago" }],
+        });
+        expect(order(pushed(4)).items.map((i) => i.job)).toEqual(["pr-9"]);
+        // The window is the config's.
+        expect(order(pushed(4), { workers: { othersPushHours: 6 } }).inUse).toHaveLength(1);
+        expect(order(pushed(1), { workers: { othersPushHours: 0 } }).items).toHaveLength(1);
+    });
+
+    it("never counts githerd's own pushes or GitHub's own commits as someone else's", () => {
+        const own = pushed(1);
+        own.pushedByGitherd = { ["c".repeat(40)]: "#9" };
+        expect(order(own).items.map((i) => i.job)).toEqual(["pr-9"]);
+        expect(order(pushed(1, "noreply@github.com")).items.map((i) => i.job)).toEqual(["pr-9"]);
+    });
+
+    it("lets a review run beside the worker whose patch it reviews, but not beside an owner session", () => {
+        const maker = Object.assign(newJob({ kind: "issue", target: "#3", id: "issue-3" }, NOW), { pr: 9 });
+        move(maker, "starting", NOW, { holder: { session: "w1", startedBy: "githerd" } });
+        const review = newJob({ kind: "review", target: "#9", id: "review-9", facts: { pr: 9 } }, NOW);
+        const state = { jobs: { "issue-3": maker, "review-9": review }, prs: {} };
+        expect(order(state).items.map((i) => i.job)).toEqual(["review-9"]);
+        maker.holder.startedBy = "owner";
+        expect(order(state).inUse).toEqual([{ job: "review-9", reason: "claimed by session w1" }]);
     });
 });

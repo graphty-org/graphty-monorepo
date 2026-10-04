@@ -9,7 +9,7 @@
 
 import * as board from "./board.mjs";
 import { GRACE_DAYS } from "./proposals.mjs";
-import { jobOrder, ownerWaitingPrs } from "./queue.mjs";
+import { jobInUse, jobOrder, ownerWaitingPrs, prInUse } from "./queue.mjs";
 
 /** Escalation kinds the owner must act on; others are listed as notes. */
 const OWNER_KINDS = new Set(["decision", "credential", "visual-review", "approval", "master-red"]);
@@ -126,9 +126,10 @@ function masterData(state) {
  * @param {any} pr the PR record
  * @param {boolean} owned the owner wrote it
  * @param {boolean} full include the check list
+ * @param {string | null} inUse why another session may not take it now, or null
  * @returns {object} the PR, titled only when the owner wrote it
  */
-function prData(number, pr, owned, full) {
+function prData(number, pr, owned, full, inUse) {
     const out = {
         number: Number(number),
         author: pr.author ?? null,
@@ -136,6 +137,7 @@ function prData(number, pr, owned, full) {
         draft: Boolean(pr.draft),
         autoMerge: Boolean(pr.autoMerge),
         stuck: pr.stuck ?? [],
+        inUse,
     };
     if (full) {
         // A fork's own workflow names its checks, so another author's PR shows only how many fail.
@@ -164,6 +166,7 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
     const { now, startedAt } = ctx;
     const owned = (/** @type {string | null | undefined} */ who) => board.byOwner(state, who);
     const want = (/** @type {string} */ name) => pr === undefined && (section === "all" || section === name);
+    const inUse = (/** @type {string} */ n) => prInUse(state, n, { config: ctx.config, now });
     /** @type {Record<string, any>} */
     const out = {
         banner: alertBanner(state),
@@ -183,21 +186,27 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
     };
     if (pr !== undefined) {
         const record = state.prs?.[String(pr)];
-        out.prs = record ? [prData(String(pr), record, owned(record.author), true)] : [];
+        out.prs = record ? [prData(String(pr), record, owned(record.author), true, inUse(String(pr)))] : [];
     }
     if (want("master")) out.master = masterData(state);
     if (want("prs")) {
         out.prs = Object.entries(state.prs ?? {})
             .sort(([a], [b]) => Number(a) - Number(b))
-            .map(([n, p]) => prData(n, p, owned(p.author), false));
+            .map(([n, p]) => prData(n, p, owned(p.author), false, inUse(n)));
     }
     if (want("queue")) {
-        const order = jobOrder(state.jobs ?? {});
+        const order = jobOrder(state.jobs ?? {}, { inUse: (j) => jobInUse(state, j, { config: ctx.config, now }) });
         const inFlight = Object.values(state.jobs ?? {})
             .filter((j) => j.state !== "queued" && !board.TERMINAL.includes(j.state))
             .sort((a, b) => a.id.localeCompare(b.id))
             .map((j) => ({ job: j.id, state: j.state, reason: j.reason ?? "" }));
-        out.queue = { items: order.items, skipped: order.skipped, inFlight, ownerWaiting: ownerWaitingPrs(state, now) };
+        out.queue = {
+            items: order.items,
+            skipped: order.skipped,
+            inUse: order.inUse,
+            inFlight,
+            ownerWaiting: ownerWaitingPrs(state, now),
+        };
     }
     if (want("sessions")) {
         out.sessions = Object.entries(state.sessions ?? {})
@@ -335,7 +344,8 @@ function masterLines(m, now) {
 function prLine(p) {
     const name = p.title === undefined ? `(author: ${p.author})` : p.title;
     const why = p.stuck.length ? p.stuck.join("; ") : "no blockers";
-    return `  #${p.number} ${name} -- ${why}${p.autoMerge ? " [auto-merge on]" : ""}`;
+    const used = p.inUse ? ` [in use: ${p.inUse}]` : "";
+    return `  #${p.number} ${name} -- ${why}${p.autoMerge ? " [auto-merge on]" : ""}${used}`;
 }
 
 /**
@@ -360,14 +370,16 @@ function prLines(prs) {
  * Renders the queue part of status: the queued jobs in order, the jobs in flight, and the pull
  * requests that wait on the owner.
  * @param {{items: {job: string, reason: string}[], skipped: {job: string, reason: string}[],
+ *   inUse?: {job: string, reason: string}[],
  *   inFlight: {job: string, state: string, reason: string}[], ownerWaiting: {target: string, reason: string}[]}} queue
  *   the queue data
  * @returns {string[]} the lines
  */
-function queueLines({ items, skipped, inFlight, ownerWaiting }) {
+function queueLines({ items, skipped, inUse = [], inFlight, ownerWaiting }) {
     const lines = [`QUEUE (${items.length})${items.length ? ":" : ": nothing to do"}`];
     for (const i of items) lines.push(`  ${i.job} -- ${i.reason}`);
     for (const i of skipped) lines.push(`  ${i.job} -- skipped: ${i.reason}`);
+    for (const i of inUse) lines.push(`  ${i.job} -- in use: ${i.reason}`);
     if (inFlight.length) {
         const jobs = inFlight.map((j) => (j.reason ? `${j.job} ${j.state} (${j.reason})` : `${j.job} ${j.state}`));
         lines.push(`IN FLIGHT${countedList(jobs)}`);

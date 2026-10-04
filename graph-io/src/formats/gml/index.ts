@@ -86,7 +86,7 @@ export const GML_ISSUE = Object.freeze({
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** There is no `graph [` block. The import stops. */
     NO_GRAPH: NO_GRAPH_CODE,
-    /** The file holds more than one `graph` block; the first was read, or the one `graphIndex` or `graphName` chose. */
+    /** The file holds more than one `graph` block and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph. */
     MULTIPLE_GRAPHS: SECOND_GRAPH_CODE,
     /** A node without an `id`. */
     MISSING_ID: MISSING_ID_CODE,

@@ -291,8 +291,8 @@ document with a `graphs` array, a CX collection, an XGMML session file, and a Cy
 - `importGraph()` reads the first graph and adds the warning `W_MULTIPLE_GRAPHS`, which says how
   many it skipped.
 - `graphIndex` (0-based) or `graphName` chooses another graph, in every one of these formats. One
-  that names no graph fails with `E_GRAPH_NOT_FOUND`. The report still holds `W_MULTIPLE_GRAPHS`,
-  because the other graphs were not read; when you chose the graph on purpose, you can ignore it.
+  that names no graph fails with `E_GRAPH_NOT_FOUND`. A graph you choose this way gets no
+  `W_MULTIPLE_GRAPHS` warning.
 - `importAllGraphs(input, options)` reads every graph and returns one result per graph.
 - `listGraphs(input, options)` lists the graphs without reading them: each entry has an `index`, a
   `name`, and node and edge counts when the file states them. JSON, CX, XGMML and Cytoscape

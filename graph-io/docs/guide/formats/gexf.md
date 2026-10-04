@@ -149,7 +149,7 @@ The codes this format's import report can hold. They are also exported as `GEXF_
 - `W_UNKNOWN_ENCODING` (warning): A declared encoding the platform cannot decode was ignored.
 - `E_NOT_GEXF` (error): The root element is not `<gexf>`. The import stops.
 - `E_NO_GRAPH` (error): The document has no `<graph>`. The import stops.
-- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.
+- `W_MULTIPLE_GRAPHS` (warning): The file holds more than one `<graph>` element; their nodes and edges are merged into one graph. `importAllGraphs()` reads every one.
 - `E_GEXF_MISSING_NODES` (error): `<edges>` without `<nodes>`.
 - `E_MISSING_ID` (error): A node without an id.
 - `E_MISSING_ENDPOINT` (error): An edge without a source or target.

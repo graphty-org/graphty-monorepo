@@ -151,7 +151,7 @@ The codes this format's import report can hold. They are also exported as `GML_I
 - `W_ENCODING_FALLBACK` (warning): Bytes that are not UTF-8 and declare no encoding were read as windows-1252.
 - `W_UNKNOWN_ENCODING` (warning): A declared encoding the platform cannot decode was ignored.
 - `E_NO_GRAPH` (error): There is no `graph [` block. The import stops.
-- `W_MULTIPLE_GRAPHS` (warning): The file holds more than one `graph` block; the first was read, or the one `graphIndex` or `graphName` chose.
+- `W_MULTIPLE_GRAPHS` (warning): The file holds more than one `graph` block and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph.
 - `E_MISSING_ID` (error): A node without an `id`.
 - `E_GML_MISSING_LABEL` (error): A node without a `label` under nodeIdFrom "label".
 - `E_MISSING_ENDPOINT` (error): An edge without `source` or `target`.

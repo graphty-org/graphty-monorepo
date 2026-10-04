@@ -99,7 +99,7 @@ export const GEXF_ISSUE = Object.freeze({
     /** The document has no `<graph>`. The import stops. */
     NO_GRAPH: NO_GRAPH_CODE,
     /**
-     * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+     * The file holds more than one `<graph>` element; their nodes and edges are merged into one graph.
      * `importAllGraphs()` reads every one.
      */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,

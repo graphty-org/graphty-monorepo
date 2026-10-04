@@ -180,7 +180,7 @@ The codes this format's import report can hold. They are also exported as `GRAPH
 - `E_GRAPHML_INVALID_DIRECTED` (error): A `directed` attribute that is neither true nor false.
 - `E_GRAPHML_INVALID_EDGEDEFAULT` (error): An `edgedefault` that is neither directed nor undirected.
 - `W_GRAPHML_EDGEDEFAULT_MISSING` (warning): A `<graph>` without edgedefault; the `defaultDirected` option applies.
-- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.
+- `W_MULTIPLE_GRAPHS` (warning): The file holds more than one top-level `<graph>`; their nodes and edges are merged into one graph. `importAllGraphs()` reads every one.
 - `W_COUNT_HINT` (warning): A node or edge count the file announces is too large to reserve room for; it is ignored and the elements are read as they come.
 - `W_COUNT_MISMATCH` (warning): A `parse.nodes` or `parse.edges` count disagrees with what the graph holds. The elements are read as they are.
 - `E_HYPEREDGE` (error): A hyperedge under `hyperedges: "error"`.

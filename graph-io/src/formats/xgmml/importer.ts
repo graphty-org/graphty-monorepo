@@ -17,6 +17,7 @@ import { GraphFormatError, type GraphSink } from "@graphty/graph-format";
 import { textChunks, throwIfAborted } from "../../common/input.js";
 import {
     chooseGraph,
+    graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,
@@ -344,7 +345,7 @@ async function importXgmml(
         options,
         prepared.report,
     );
-    if (prepared.graphs.length > 1) {
+    if (prepared.graphs.length > 1 && !graphChosen(options)) {
         prepared.report.warning(
             "unsupported",
             XGMML_ISSUE.MULTIPLE_GRAPHS,

@@ -308,6 +308,13 @@ describe("importAllGraphs", () => {
                 one.report.issues.map((i) => i.code),
                 format,
             ).toContain("W_MULTIPLE_GRAPHS");
+            // a graph chosen by graphIndex is not a default the caller needs warning about
+            const chosen = await importGraph(utf8(text), { format, graphIndex: 1 });
+            expect(chosen.snapshot.nodeCount, format).toBe(nodes[1]);
+            expect(
+                chosen.report.issues.map((i) => i.code),
+                format,
+            ).not.toContain("W_MULTIPLE_GRAPHS");
         }
     });
 

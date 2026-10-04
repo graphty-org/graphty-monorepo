@@ -157,7 +157,7 @@ The codes this format's import report can hold. They are also exported as `DOT_I
 - `W_UNKNOWN_ENCODING` (warning): A declared encoding the platform cannot decode was ignored.
 - `E_DOT_NESTING` (error): Subgraphs or braces are nested deeper than graph-io reads. The import stops.
 - `W_DOT_EDGE_OPERATOR` (warning): An edge operator contradicting the graph keyword, read under mismatchedEdgeOperator "operator" or "header". Under "error" the import stops with `E_SYNTAX` instead.
-- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.
+- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph. `importAllGraphs()` reads every one.
 - `W_DOT_NUMERAL_AMBIGUITY` (warning): A badly delimited numeral (`1e3`) split into two tokens, as Graphviz does with a warning.
 - `W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED` (warning): Attributes of a subgraph that is not a cluster (rank=same and the like) cannot be represented.
 - `W_DOT_NODE_PORT_DROPPED` (warning): A port on a node statement has no meaning and was dropped.

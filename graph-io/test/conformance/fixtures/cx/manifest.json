@@ -2119,9 +2119,6 @@
               0
             ]
           }
-        ],
-        "warnings": [
-          "W_MULTIPLE_GRAPHS"
         ]
       },
       "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",

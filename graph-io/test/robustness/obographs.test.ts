@@ -403,7 +403,7 @@ describe("robustness: OBO Graphs documents", () => {
         const b = new GraphBuilder({ directed: true });
         const report = await jsonImporter.import(JSON.stringify(doc), b, { graphIndex: 1 });
         const s = b.freeze();
-        expect(codes(report)).toEqual([JSON_ISSUE.MULTIPLE_GRAPHS]);
+        expect(codes(report)).toEqual([]); // the graph was chosen, so no W_MULTIPLE_GRAPHS
         expect(cell(s, "name", "a")).toBe("A");
         expect((s.meta.extra.json as Record<string, unknown>).dialect).toBe("obographs");
     });

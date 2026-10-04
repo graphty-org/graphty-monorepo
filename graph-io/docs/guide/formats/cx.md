@@ -191,7 +191,7 @@ The codes this format's import report can hold. They are also exported as `CX_IS
 - `W_ID_TEXT_TYPE` (warning): An id spelled as a string or a non-integer literal; read as the integer.
 - `W_PRECISION` (warning): An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.
 - `W_ID_MERGED` (warning): Two id texts merged under `ids: "number"`.
-- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.
+- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph. `importAllGraphs()` reads every one.
 - `E_GRAPH_NOT_FOUND` (error): `graphIndex` or `graphName` matches no subnetwork. The import stops.
 - `E_AMBIGUOUS_GRAPH_NAME` (error): `graphName` matches several subnetworks. The import stops.
 - `E_NO_GRAPH` (error): The input holds no graph. The import stops.

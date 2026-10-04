@@ -85,6 +85,7 @@ import {
 } from "../../common/json-elements.js";
 import {
     chooseGraph,
+    graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,
@@ -247,7 +248,7 @@ export const JSON_ISSUE = Object.freeze({
     /** Edge ids of mixed JSON types were stored as text. */
     EDGE_ID_STRINGIFIED: "W_EDGE_ID_STRINGIFIED",
     /**
-     * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+     * The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph.
      * `importAllGraphs()` reads every one.
      */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
@@ -2979,7 +2980,7 @@ export function chosenGraph(ctx: ImportContext, root: JsonRecord, what: string):
     }
     const index =
         ctx.json.all === true ? ctx.json.graphIndex : chooseGraph(graphs.map(graphNameOf), ctx.json.choice, report);
-    if (graphs.length > 1 && ctx.json.all !== true) {
+    if (graphs.length > 1 && ctx.json.all !== true && !graphChosen(ctx.json.choice)) {
         report.warning(
             "unsupported",
             JSON_ISSUE.MULTIPLE_GRAPHS,

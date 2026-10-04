@@ -139,7 +139,8 @@ the two correctly.
   (`E_FOREIGN_FORMAT`), and reports control characters (`W_CONTROL_CHARACTER`), so an importer
   never repeats those checks; its codes are `INPUT_ISSUE`, spread into every `<FMT>_ISSUE` table.
 - A format that can hold several graphs (DOT, Pajek `.paj`, GML, JGF) implements `importAll()`;
-  its `import()` reads the first and warns `W_MULTIPLE_GRAPHS` with the number skipped. A new
+  its `import()` reads the first and warns `W_MULTIPLE_GRAPHS` with the number skipped (not when
+  `graphIndex` / `graphName` chose the graph: `graphChosen()`). A new
   importer of such a format also implements `listGraphs()` (a `GraphListing` per graph, cheaply)
   and takes `graphIndex` / `graphName` (`GraphChoiceOptions`), resolved by `chooseGraph()` in
   `common/options.ts`; the registry's `listGraphs()` answers null for an importer without it.

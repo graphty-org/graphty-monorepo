@@ -250,7 +250,7 @@ export const GRAPHML_ISSUE = Object.freeze({
     /** A `<graph>` without edgedefault; the `defaultDirected` option applies. */
     EDGEDEFAULT_MISSING: "W_GRAPHML_EDGEDEFAULT_MISSING",
     /**
-     * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+     * The file holds more than one top-level `<graph>`; their nodes and edges are merged into one graph.
      * `importAllGraphs()` reads every one.
      */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,

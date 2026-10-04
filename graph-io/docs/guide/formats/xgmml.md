@@ -181,7 +181,7 @@ The codes this format's import report can hold. They are also exported as `XGMML
 - `W_UNKNOWN_ATTR_TYPE` (warning): An att type XGMML and Cytoscape do not define; kept as text.
 - `W_UNKNOWN_ELEMENT` (warning): An element XGMML does not define at that place; skipped with its subtree.
 - `W_STRAY_TEXT` (warning): Character data where XGMML allows only elements, or inside an att.
-- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.
+- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph. `importAllGraphs()` reads every one.
 - `E_GRAPH_NOT_FOUND` (error): `graphIndex` or `graphName` matches no network in the session. The import stops.
 - `E_AMBIGUOUS_GRAPH_NAME` (error): `graphName` matches several networks in the session. The import stops.
 - `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.

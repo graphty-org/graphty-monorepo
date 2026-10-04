@@ -148,7 +148,7 @@ export const DOT_ISSUE = Object.freeze({
      */
     EDGE_OPERATOR: "W_DOT_EDGE_OPERATOR",
     /**
-     * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+     * The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph.
      * `importAllGraphs()` reads every one.
      */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,

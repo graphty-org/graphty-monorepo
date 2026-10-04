@@ -23,6 +23,7 @@ import { IdCoercer } from "../../common/ids.js";
 import { decodeEntryName, throwIfAborted } from "../../common/input.js";
 import {
     chooseGraph,
+    graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,
@@ -1379,7 +1380,7 @@ async function importCys(
         options,
         prepared.report,
     );
-    if (prepared.choices.length > 1) {
+    if (prepared.choices.length > 1 && !graphChosen(options)) {
         prepared.report.warning(
             "unsupported",
             CYS_ISSUE.MULTIPLE_GRAPHS,

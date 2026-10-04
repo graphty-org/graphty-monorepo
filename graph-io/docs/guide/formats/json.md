@@ -277,7 +277,7 @@ The codes this format's import report can hold. They are also exported as `JSON_
 - `W_DUPLICATE_NODE` (warning): A node id repeated by a later record; the records are merged (the later attributes win).
 - `W_ID_MERGED` (warning): Two different id texts became the same number because `ids` is "number", so their nodes were merged.
 - `W_EDGE_ID_STRINGIFIED` (warning): Edge ids of mixed JSON types were stored as text.
-- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.
+- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph. `importAllGraphs()` reads every one.
 - `E_GRAPH_NOT_FOUND` (error): `graphIndex` is past the end of the `graphs` array, or `graphName` matches none of its graphs. The import stops.
 - `E_AMBIGUOUS_GRAPH_NAME` (error): `graphName` matches more than one graph of the `graphs` array. The import stops.
 - `W_JSON_OBOGRAPHS_SUBJ` (warning): Obographs: an edge uses the outdated `subj` key of the OBO Graphs README; it is read as `sub`.

@@ -44,7 +44,7 @@ export const DUPLICATE_NODE_CODE = "W_DUPLICATE_NODE";
 export const NO_GRAPH_CODE = "E_NO_GRAPH";
 
 /**
- * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+ * The file holds several graphs and only the first was read (GraphML and GEXF merge them into one graph instead). It is not added when `graphIndex` or `graphName` chose the graph.
  * `importAllGraphs()` reads every one.
  * @category Issue and loss codes
  */

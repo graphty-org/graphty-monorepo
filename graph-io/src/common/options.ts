@@ -206,6 +206,17 @@ export function reportUnusedOptions(
 }
 
 /**
+ * Whether the caller chose a graph with `graphIndex` or `graphName`. An importer warns
+ * W_MULTIPLE_GRAPHS about the graphs it skipped only when it read the first by default.
+ * @param options - the caller's graphIndex / graphName
+ * @returns true when either option is set
+ * @category Writing a format
+ */
+export function graphChosen(options: GraphChoiceOptions | undefined): boolean {
+    return options?.graphIndex !== undefined || options?.graphName !== undefined;
+}
+
+/**
  * The graph an importer reads from an input that holds several: the one `graphIndex` or
  * `graphName` names, else the first. A choice that names no graph is E_GRAPH_NOT_FOUND, a name two
  * graphs share is E_AMBIGUOUS_GRAPH_NAME, and an input with no graph at all is E_NO_GRAPH, each

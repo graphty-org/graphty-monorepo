@@ -102,6 +102,7 @@ import {
 } from "../../common/json-elements.js";
 import {
     chooseGraph,
+    graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,
@@ -234,7 +235,7 @@ export const CX_ISSUE = Object.freeze({
     /** Two id texts merged under `ids: "number"`. */
     ID_MERGED: ID_MERGED_CODE,
     /**
-     * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+     * The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph.
      * `importAllGraphs()` reads every one.
      */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
@@ -3175,7 +3176,7 @@ export const cxImporter: GraphImporter<CxImportOptions> = Object.freeze({
                     options,
                     first,
                 );
-                if (plans.length > 1) {
+                if (plans.length > 1 && !graphChosen(options)) {
                     first.warning(
                         "unsupported",
                         MULTIPLE_GRAPHS_CODE,

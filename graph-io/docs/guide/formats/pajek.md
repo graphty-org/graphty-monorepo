@@ -154,7 +154,7 @@ The codes this format's import report can hold. They are also exported as `PAJEK
 - `W_UNKNOWN_ENCODING` (warning): A declared encoding the platform cannot decode was ignored.
 - `E_PAJEK_NO_VERTICES` (error): There is no `*Vertices` section: the file is empty or not a Pajek network. The import stops.
 - `E_PAJEK_VERTICES_COUNT` (error): `*Vertices` without a vertex count, with a count too large to hold, or with a first-mode count outside 0 to N; the import stops.
-- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.
+- `W_MULTIPLE_GRAPHS` (warning): The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph. `importAllGraphs()` reads every one.
 - `E_PAJEK_OUTSIDE_SECTION` (error): A data line before the first section header.
 - `E_SYNTAX` (error): A section header the importer cannot parse.
 - `E_PAJEK_UNTERMINATED_QUOTE` (error): A double quote not closed before the end of the line.

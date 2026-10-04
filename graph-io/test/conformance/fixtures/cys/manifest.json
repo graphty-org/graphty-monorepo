@@ -332,8 +332,7 @@
         "directed": true,
         "graphs": 7,
         "warnings": [
-          "W_STYLES_NOT_IMPORTED",
-          "W_MULTIPLE_GRAPHS"
+          "W_STYLES_NOT_IMPORTED"
         ]
       },
       "options": {
@@ -361,8 +360,7 @@
           "galFiltered"
         ],
         "warnings": [
-          "W_STYLES_NOT_IMPORTED",
-          "W_MULTIPLE_GRAPHS"
+          "W_STYLES_NOT_IMPORTED"
         ]
       },
       "options": {
@@ -444,8 +442,7 @@
           "GO:0003674"
         ],
         "warnings": [
-          "W_STYLES_NOT_IMPORTED",
-          "W_MULTIPLE_GRAPHS"
+          "W_STYLES_NOT_IMPORTED"
         ]
       },
       "options": {
@@ -557,8 +554,7 @@
           "galFiltered.sif(1)"
         ],
         "warnings": [
-          "W_STYLES_NOT_IMPORTED",
-          "W_MULTIPLE_GRAPHS"
+          "W_STYLES_NOT_IMPORTED"
         ]
       },
       "options": {
@@ -745,7 +741,6 @@
           "W_CYS_TABLE_ROW",
           "W_STYLES_NOT_IMPORTED",
           "W_CYS_ENTRY_SKIPPED",
-          "W_MULTIPLE_GRAPHS",
           "W_XGMML_ROOT_ONLY_ELEMENTS"
         ]
       },
@@ -1215,8 +1210,7 @@
         "warnings": [
           "W_STYLES_NOT_IMPORTED",
           "W_CYS_ENTRY_SKIPPED",
-          "W_DANGLING_REFERENCE",
-          "W_MULTIPLE_GRAPHS"
+          "W_DANGLING_REFERENCE"
         ]
       },
       "options": {

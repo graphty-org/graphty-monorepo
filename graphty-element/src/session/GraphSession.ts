@@ -45,12 +45,13 @@ import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
-import type { ImportReport } from "../data/report";
+import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
+import { declarationKey } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
@@ -78,10 +79,12 @@ import {
 } from "./project/Dispatcher";
 import { nodeOfKey, ROWS_MOVED } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
+import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
 import { shareNodeIndex } from "./results/RunResult";
+import { bindResultPath } from "./results/types";
 import {
     type Caveats,
     createLocalRunQueue,
@@ -139,6 +142,8 @@ import type {
     CommandOutcome,
     CreateGraphSessionOptions,
     ElementSession,
+    FindOptions,
+    FindResult,
     GraphSession,
     HistoryOutcome,
     PositionEntry,
@@ -309,6 +314,8 @@ interface SessionParts {
     readonly watchers: Watchers;
     /** The one path every change to project state takes; the styles API already writes through it. */
     readonly dispatcher: Dispatcher;
+    /** Saved results waiting for the runs a project open starts; the executor answers from it. */
+    readonly canned: CannedOutcomes;
 }
 
 /**
@@ -394,6 +401,7 @@ class Session implements ElementSession {
     readonly views: SessionViews;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
+    readonly project: ProjectApi;
 
     /** Cancels every style edit still pending. */
     private readonly stopStyleEdits: () => void;
@@ -490,6 +498,12 @@ class Session implements ElementSession {
             return advice === undefined ? undefined : { id: advice.layout.id, engine: advice.layout.engine };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
+        this.project = projectOf(this, this.dispatcher, parts.canned, {
+            announce: (change) => {
+                publish(this.watchers, "project:status", change);
+            },
+            isDerived: (id) => this.sessionRuns.isDerivedId(id),
+        });
     }
 
     /**
@@ -773,6 +787,17 @@ class Session implements ElementSession {
     }
 
     /**
+     * What a find box lists, without selecting anything.
+     * @param text - What was typed.
+     * @param options - The window, the kinds and the scope.
+     * @returns A page of hits and at most three value rows.
+     * @throws A `GraphtyError` coded `E_OPTION_RANGE` for a bad window or kind.
+     */
+    find(text: string, options?: FindOptions): FindResult {
+        return this.sessionData.find(text, options);
+    }
+
+    /**
      * Do one thing, as a command.
      * @param command - What to do.
      * @param options - The signal, the progress handler and how the call joins the queue.
@@ -840,6 +865,8 @@ class Session implements ElementSession {
         }
 
         this.disposed = true;
+        // A pass still queued would repaint from a store disposed below.
+        this.dispatcher.lane.close();
         // The store may be the renderer's, and gone: nothing is captured on the way out.
         this.dispatcher.arrangement.bind(null);
         this.dispatcher.clear();
@@ -1100,6 +1127,9 @@ function configOf(
         },
         get author() {
             return read().author;
+        },
+        get name() {
+            return read().name;
         },
         // Read from the controller, not from a value frozen at construction: the policy and the
         // threshold are changed at runtime through the session's accessors and the element's
@@ -1459,7 +1489,8 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
     for (const run of runs.list()) {
         for (const field of run.fields) {
             if (field.kind === target) {
-                paths.push(field.path);
+                // A field declared by its algorithm names the run as "$" until bound to this one.
+                paths.push(bindResultPath(field.path, run.id));
             }
         }
     }
@@ -1515,7 +1546,7 @@ function fieldWordsOf(
 
         for (const run of runs.list()) {
             for (const field of run.fields) {
-                if (field.path === path && field.kind === target) {
+                if (bindResultPath(field.path, run.id) === path && field.kind === target) {
                     return { plainName: field.plainName, technicalName: field.technicalName };
                 }
             }
@@ -1778,6 +1809,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // per-capability floors in force, and a 0 written here would count as the consumer's own.
     const minNodes = options.acceleration?.minNodes ?? options.config?.acceleration?.minNodes;
     const watchers: Watchers = new Map();
+    dispatcher.services.progress = (change) => {
+        publish(watchers, "progress:changed", change);
+    };
 
     // Assigned below, and read only from inside a callback: a store this session built delivers
     // its freeze remaps here, and a freeze cannot happen before the store exists.
@@ -1821,7 +1855,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const records = sliceRecords(
         slice,
         snapshot,
-        () => (slice().values.get("importReport") as ImportReport | undefined) ?? store.store.lastImport ?? null,
+        () => (slice().values.get("importReport") as LoadReport | undefined) ?? store.store.lastImport ?? null,
         options.records ?? null,
     );
     const data = new SessionData(
@@ -1832,11 +1866,36 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
             importer: () => dispatcher.capturedDispatch(),
             slice,
+            measure: async (command, config) => {
+                const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });
+                try {
+                    await dispatcherOf(scratch).dispatch(command);
+                    const report = scratch.data.lastImport();
+                    if (report === null) {
+                        throw new GraphtyError({
+                            code: "E_INTERNAL",
+                            source: "data",
+                            message: "A measured load finished without a report.",
+                        });
+                    }
+
+                    return report;
+                } finally {
+                    scratch.dispose();
+                }
+            },
+            declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
+            declarations: () => dispatcher.state.attributes,
         },
         {
             revision: () => inputs.tick.value,
             // Read through a call: the resolver is built below.
             resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
+            // And the query engine, below that.
+            search: (text, request) => requireQuery(query).search(text, request),
+            // Read through calls: the runs are built below.
+            run: (id: RunId) => runs.get(id),
+            runIds: () => runs.list().map((run) => run.id),
         },
     );
     // A session that holds a store of its own kind writes it through its own ingest; the element
@@ -2087,6 +2146,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         return spec;
     };
+    const canned: CannedOutcomes = new Map();
     const runs = createRunsApi({
         queue,
         // Finished runs are the `runs` slice, recorded in this session's history.
@@ -2107,7 +2167,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return kept === undefined ? { reading } : { set: { id: kept.id, revision: kept.revision }, reading };
         },
         setName: (id: SetId) => sets.get(id)?.name,
-        execute: sharingIndexes(runsOptions.execute ?? refuseToExecute, snapshot, () => dispatcher.state.graph.token),
+        execute: sharingIndexes(
+            answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
+            snapshot,
+            () => dispatcher.state.graph.token,
+        ),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         defaultScope,
         onExecution: advanceTick,
@@ -2205,6 +2269,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             }
 
             publish(watchers, "run:changed", change);
+            // The announced record is a snapshot without the progress; the live run holds it.
+            const progress = runs.get(change.run.id)?.progress;
+            if (progress !== undefined && (change.phase === "progress" || change.phase === "end")) {
+                const { completed, total, fraction } = progress;
+                publish(watchers, "progress:changed", {
+                    task: "run",
+                    run: change.run.id,
+                    phase: change.phase,
+                    completed,
+                    total,
+                    fraction,
+                });
+            }
         },
     });
 
@@ -2252,6 +2329,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const paths = pathDirectoryOf(data, runs);
     query = createQueryEngine({
         snapshot,
+        revision: () => inputs.tick.value,
         elements,
         answers: (path, target) => paths.answers(path, target),
         searchPaths: () =>
@@ -2259,6 +2337,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 .attributes()
                 .filter((attribute) => attribute.kind === "node")
                 .map((attribute) => attribute.path),
+        edgeSearchPaths: () =>
+            data
+                .attributes()
+                .filter((attribute) => attribute.kind === "edge")
+                .map((attribute) => attribute.path),
+        labelPath: () => {
+            const key = readData().knownFields.nodeLabelPath;
+            return key === null ? null : `data.${key}`;
+        },
+        idPath: () => `data.${readData().knownFields.nodeIdPath}`,
+        excluded: (target, index) =>
+            !(target === "node" ? visibility.masks.nodes() : visibility.masks.edges()).has(index),
     });
     const engine = query;
 
@@ -2336,6 +2426,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         paths,
         scales,
         runs: encodingSourceOf(runs),
+        columns: {
+            attributes: () => data.attributes(),
+            declaration: (column) => dispatcher.state.attributes.get(declarationKey(column)),
+        },
         nodeIndex: nodeIndexOf(snapshot),
         edgeIndex: edgeIndexOf(snapshot),
         field: fieldWordsOf(data, runs),
@@ -2483,6 +2577,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         planning,
         watchers,
         dispatcher,
+        canned,
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);

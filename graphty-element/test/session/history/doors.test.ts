@@ -18,6 +18,9 @@ import { createElementSession, dispatcherOf } from "../../../src/session/GraphSe
 import type { ElementSession } from "../../../src/session/types";
 import { callOf, checkDispatches, dispatchesOf } from "./door-harness";
 
+/** The document the `LoadDraft` row of `doors.ts` prepares. */
+const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
+
 /** Every row, labelled `Root.member`; a whole-type root is one row labelled `Root.*`. */
 function rows(): [string, Door][] {
     return DOOR_ROOTS.flatMap((root) =>
@@ -46,6 +49,7 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SessionDataApi: (session) => session.data,
     SessionGraphStore: (session) => session.data.store,
     RunsApi: (session) => session.runs,
+    LoadDraft: (session) => session.data.prepare({ type: "json", config: { data: TINY_JSON } }),
     // Cancelled, so `rerun` has something to run again.
     Run: (session) => {
         const run = session.runs.start("degree");
@@ -65,6 +69,7 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SelectionApi: selectOne,
     SelectionOwner: selectOne,
     NotesApi: (session) => session.notes,
+    ProjectApi: (session) => session.project,
     SessionViews: (session) => session.views,
     SessionLayout: (session) => session.layout,
     SessionConfig: (session) => session.config,

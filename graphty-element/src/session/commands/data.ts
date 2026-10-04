@@ -7,6 +7,8 @@
  * - `data.import`: a load through a registered data source, replacing the graph or adding to it.
  * - `data.expand`: the neighbourhood a double-click fetched, added as one step. The fetched
  *   records are in the command, so redo never fetches again.
+ * - `data.declare`: what a column measures, kept in the `attributes` slice under
+ *   `<kind>:<name>` so it is saved and undone like any other project change.
  *
  * Each reads its records through ingest (id and endpoint extraction, the repeated-edge policy,
  * weights) and writes through the graph primitives in its draft, which record the resolved values,
@@ -23,7 +25,9 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
-import type { EdgeId, NodeId } from "../../catalog/types";
+import type { EdgeId, MeasurementDeclaration, NodeId } from "../../catalog/types";
+import type { DeclaredDirection } from "../../data/DataSource";
+import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
@@ -52,6 +56,15 @@ export type DataMutation =
           readonly target?: string;
           /** The repeated-edge policy for this call. */
           readonly repeated?: DuplicatePolicy;
+          /**
+           * The graph's direction, declared the way a node-link JSON file's `"directed"` key
+           * declares it, and taken on the same terms: only while the graph holds no edges, and
+           * never over a `data.directed` the configuration set to a boolean. On a graph that
+           * already holds edges it changes nothing, not even where the direction came from; a
+           * value that disagrees is logged. Undo takes it back with the edges. Default: leave
+           * the direction as it is.
+           */
+          readonly directed?: boolean;
       }
     | {
           /** The same values on many rows: "set type to hub on these nodes". */
@@ -109,6 +122,15 @@ export interface DataImportCommand {
     readonly mode?: "replace" | "merge";
     /** `"recommended"` also chooses a layout for what was loaded, in the same step. */
     readonly layout?: "recommended" | "keep";
+    /** Rows a draft already read: loaded in place of reading the source again, on redo too. */
+    readonly held?: HeldRows;
+    /** An edge naming a node no node record holds: made (the default), or left out. */
+    readonly unmatched?: "add" | "leave-out";
+    /**
+     * Count the load instead of refusing it: a limit it passes is recorded in the report, and
+     * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
+     */
+    readonly measure?: { readonly nodes: ReadonlySet<NodeId>; readonly edges: number };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
     /**
@@ -116,6 +138,28 @@ export interface DataImportCommand {
      * properties assigned one after the other are one load.
      */
     readonly coalesce?: string;
+}
+
+/** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */
+export interface HeldRows {
+    /** Node records. */
+    readonly nodes: readonly Record<string, unknown>[];
+    /** Edge records. */
+    readonly edges: readonly Record<string, unknown>[];
+    /** The direction the file declared, read when the rows were. */
+    readonly declaredDirection: DeclaredDirection | null;
+    /** The rows reading the source refused. */
+    readonly errors: readonly DataLoadingError[];
+    /** How many refused rows end a read: the source's error limit. */
+    readonly errorLimit: number;
+    /** The expression a node record's id is read with; the configured one when absent. */
+    readonly idPath?: string;
+    /** The expression an edge's source is read with; probed when absent. */
+    readonly source?: string;
+    /** The expression an edge's target is read with; probed when absent. */
+    readonly target?: string;
+    /** The record key weights are read from, with no `value` fallback; null reads none; configured when absent. */
+    readonly weight?: string | null;
 }
 
 /** `data.expand`: what a double-click on `seed` fetched, captured so redo does not fetch again. */
@@ -130,8 +174,29 @@ interface DataExpandCommand {
     readonly target?: string;
 }
 
+/** `data.declare`: what a column measures, overriding what the element inferred. */
+interface DataDeclareCommand {
+    readonly op: "data.declare";
+    readonly column: { readonly kind: "node" | "edge"; readonly name: string };
+    readonly declaration: MeasurementDeclaration;
+}
+
 /** Every data op. */
-export type DataCommand = DataApplyCommand | DataImportCommand | DataExpandCommand;
+export type DataCommand = DataApplyCommand | DataImportCommand | DataExpandCommand | DataDeclareCommand;
+
+/** The measurements every declaration may name. */
+const DECLARABLE: ReadonlySet<string> = new Set(["categorical", "ordinal", "quantitative", "time"]);
+
+/**
+ * The `attributes` slice key one column's declaration is kept under.
+ * @param column - The column.
+ * @param column.kind - Nodes or edges.
+ * @param column.name - Its literal name.
+ * @returns The key.
+ */
+export function declarationKey(column: { readonly kind: string; readonly name: string }): string {
+    return `${column.kind}:${column.name}`;
+}
 
 /** How a session applies a data mutation: its ingest and its store. Set by whoever owns them. */
 export interface DataService {
@@ -410,8 +475,9 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
     // A load writes rows it cannot name before it has read them, so it holds the whole slice.
     keys: () => ["graph"],
     lane: { kind: "queued", category: "data-add", coalesce: (command) => command.coalesce ?? null },
-    // The options can carry a `File` and a whole file's text; neither is copied.
-    byReference: ["config"],
+    // The options can carry a `File` and a whole file's text, and a draft's held rows a whole
+    // file's records, an error tally and the graph a measured merge counts; none is copied.
+    byReference: ["config", "held", "measure"],
     closesBaseline: true,
     execute: async (command, ctx) => {
         if (command.layout === "recommended") {
@@ -469,5 +535,39 @@ const dataExpand: UndoableDefinition<DataExpandCommand> = {
     },
 };
 
+const dataDeclare: UndoableDefinition<DataDeclareCommand> = {
+    op: "data.declare",
+    undo: { kind: "undoable", label: (command) => `Declare ${command.column.name}` },
+    // A declaration repaints nothing: a layer keeps the binding it was created with.
+    moves: false,
+    keys: (command) => [`attributes/${declarationKey(command.column)}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        const { declaration } = command;
+        const { order } = declaration as { order?: unknown };
+        const valid =
+            DECLARABLE.has(declaration.measurement) &&
+            (declaration.measurement === "ordinal"
+                ? Array.isArray(order) &&
+                  order.length > 0 &&
+                  order.every((value) => typeof value === "string" || typeof value === "number")
+                : order === undefined);
+        if (!valid) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `A declaration names one of ${[...DECLARABLE].join(", ")}, and an ordinal one lists its values in order.`,
+                source: "data",
+                details: { column: command.column, declaration, available: [...DECLARABLE] },
+            });
+        }
+
+        const stored: MeasurementDeclaration =
+            declaration.measurement === "ordinal"
+                ? { measurement: "ordinal", order: Object.freeze([...declaration.order]) }
+                : { measurement: declaration.measurement };
+        ctx.draft.attributes.set(declarationKey(command.column), Object.freeze(stored));
+    },
+};
+
 /** The data ops' definitions. */
-export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand] as const;
+export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand, dataDeclare] as const;

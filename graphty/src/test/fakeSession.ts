@@ -88,7 +88,9 @@ function fakePage<TRecord extends Readonly<Record<string, unknown>>>(
     records: readonly TRecord[],
     page: RecordPageOptions,
 ): RecordPage<TRecord> {
-    const { offset = 0, sort } = page;
+    const { offset = 0 } = page;
+    // A result sort ({ run }) has no result to read here; only a { key } sort orders the fake.
+    const sort = page.sort !== undefined && "key" in page.sort ? page.sort : undefined;
     const ordered =
         sort === undefined
             ? records

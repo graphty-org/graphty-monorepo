@@ -113,7 +113,6 @@ import { useAiManager } from "../../hooks/useAiManager";
 import type { ChatMessage } from "../ai/AiMessageBubble";
 import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
-import type { LayerItem } from "../layout/LeftSidebar";
 import type { LoadDataRequest } from "../LoadDataModal";
 import {
     edgeEndpoints,
@@ -210,6 +209,7 @@ import { DataPanel, type LoadedDataSummary } from "./panel/DataPanel";
 import { ExplorePanel, type ExploreSearchScope } from "./panel/ExplorePanel";
 import { PresentPanel } from "./panel/PresentPanel";
 import { SettingsOverlay } from "./panel/SettingsOverlay";
+import type { LayerItem } from "./panel/StyleLayerList";
 import { StylePanel } from "./panel/StylePanel";
 import { ActivityRail } from "./rail/ActivityRail";
 import type { HelpMenuRowId } from "./rail/HelpMenu";
@@ -729,7 +729,8 @@ function sourceOf(request: LoadDataRequest, format: string | undefined): DataSou
     }
 
     if (request.inputMethod === "file" && request.file !== undefined) {
-        return { ...type, config: { file: request.file } };
+        const graph = request.graphIndex === undefined ? {} : { graphIndex: request.graphIndex };
+        return { ...type, config: { file: request.file, ...graph } };
     }
 
     if (request.inputMethod === "paste" && request.data !== undefined) {

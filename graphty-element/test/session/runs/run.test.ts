@@ -350,6 +350,25 @@ describe("the time box", () => {
         assert.strictEqual(run.record.partial, true);
     });
 
+    it("is partial whatever stopped it, when the caveats say why it stopped early (#933)", async () => {
+        const { run, queue } = makeRun(async (context) => {
+            await settle(1);
+
+            return {
+                result: stubResult(context.runId),
+                caveats: { exact: false, partialReason: "iteration cap reached" },
+            };
+        });
+
+        run.start();
+        await queue.runLatest();
+
+        assert.strictEqual(run.status, "succeeded");
+        assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
+        assert.strictEqual(run.partial, true, "the caveats and the flag never disagree");
+        assert.strictEqual(run.record.partial, true);
+    });
+
     it("leaves the work's own signal alone, so stopping early is not an abort", async () => {
         let sawAbort = false;
         const { run, queue } = makeRun(

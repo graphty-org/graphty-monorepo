@@ -204,6 +204,23 @@ The same values are published as columns under the run's id, which is what a sty
 filter read: `results.<runId>.value`. A table reads them the same way, a page of records at a
 time, sorted by the run's values -- see [Result Columns](./result-columns).
 
+### A result that stopped early
+
+A run that stopped before it finished still succeeds and publishes what it had. `run.partial` (and
+`run.record.partial`) is `true`, and `run.caveats.partialReason` says why, whatever stopped it: a
+`timeBoxMs` box, a cancellation, or an algorithm reporting that it reached its own iteration cap
+(a [custom algorithm](./extending/custom-algorithms) does that with `converged(false, iterations)`). The two always
+agree, so a consumer that marks unfinished results reads `partial` alone:
+
+```typescript
+const run = element.run("betweenness", {}, { timeBoxMs: 200 });
+await run;
+
+if (run.partial) {
+    console.log(run.caveats.partialReason); // why it stopped
+}
+```
+
 ## Running over part of the graph
 
 The `scope` option runs an algorithm over part of the graph -- a kept [set](./sets), the

@@ -17,7 +17,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import type { AttributeDescriptor, AttributeType } from "../catalog/types";
+import type { AttributeDescriptor, AttributeType, Measurement } from "../catalog/types";
 import type { MovedInput } from "./sets/notify";
 import { ATTRIBUTE_SAMPLE_CAP, ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "./types";
 
@@ -138,6 +138,26 @@ function isCategorical(accumulator: Accumulator, total: number): boolean {
 }
 
 /**
+ * What a column's values measure, read from their type alone.
+ *
+ * Never from how many distinct values there are: the same column must not change meaning when
+ * next month's file has more rows. Numbers are amounts until someone declares them codes.
+ * @param type - the settled type
+ * @returns the measurement
+ */
+function inferMeasurement(type: AttributeType): Measurement {
+    switch (type) {
+        case "number":
+        case "integer":
+            return "quantitative";
+        case "time":
+            return "time";
+        default:
+            return "categorical";
+    }
+}
+
+/**
  * Turn one accumulator into the descriptor a consumer reads.
  * @param name - the attribute's key
  * @param kind - whether it was found on nodes or on edges
@@ -158,6 +178,9 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
         technicalName: name,
         kind,
         type,
+        ...(accumulator.present === 0
+            ? {}
+            : { measurement: inferMeasurement(settled), measurementSource: "inferred" as const }),
         origin: "imported",
         completeness: total === 0 ? 0 : accumulator.present / total,
         ...(accumulator.unique === null ? {} : { uniqueCount: accumulator.unique.size }),

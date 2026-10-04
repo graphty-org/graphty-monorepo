@@ -1,3 +1,44 @@
+## 0.9.0 (2026-10-03)
+
+### 🚀 Features
+
+- ⚠️  **compact-mantine:** stop theming Mantine's ColorInput and ColorPicker ([#672](https://github.com/graphty-org/graphty-monorepo/issues/672))
+- ⚠️  **compact-mantine:** remove icon group row, narrow data row, add tree helpers ([1e463501](https://github.com/graphty-org/graphty-monorepo/commit/1e463501))
+- ⚠️  **compact-mantine:** match the figma editor's components in light and dark ([#0](https://github.com/graphty-org/graphty-monorepo/issues/0))
+
+### 🩹 Fixes
+
+- **compact-mantine:** keep a focused tree row action's ring off its neighbor ([9c9c8acf](https://github.com/graphty-org/graphty-monorepo/commit/9c9c8acf))
+- **compact-mantine:** draw a pressable row's ring inside its pill so its sides are not clipped ([438fc60b](https://github.com/graphty-org/graphty-monorepo/commit/438fc60b))
+- **compact-mantine:** add a stat mode to DataRow ([#140](https://github.com/graphty-org/graphty-monorepo/issues/140))
+- **compact-mantine:** settle the focused control's tooltip before two stories end ([1255563c](https://github.com/graphty-org/graphty-monorepo/commit/1255563c))
+- **compact-mantine:** end the pick-from-flyout story once the face's tooltip shows ([24e02d33](https://github.com/graphty-org/graphty-monorepo/commit/24e02d33))
+- **compact-mantine:** let focus and hover tooltips finish before a story is captured ([16bd9dcc](https://github.com/graphty-org/graphty-monorepo/commit/16bd9dcc))
+- **compact-mantine:** make five overlay stories capture the same way every time ([b1aee374](https://github.com/graphty-org/graphty-monorepo/commit/b1aee374))
+- **compact-mantine:** match figma rings, gaps and row pitch; honor reduced motion ([4f2e1912](https://github.com/graphty-org/graphty-monorepo/commit/4f2e1912))
+- **compact-mantine:** keep the checked option on the field when a list overflows ([63ef41aa](https://github.com/graphty-org/graphty-monorepo/commit/63ef41aa))
+- **compact-mantine:** match figma quick actions, submenus, shortcut sheet; fix story plays ([dded3759](https://github.com/graphty-org/graphty-monorepo/commit/dded3759))
+
+### ⚠️  Breaking Changes
+
+- **compact-mantine:** stop theming Mantine's ColorInput and ColorPicker  ([#672](https://github.com/graphty-org/graphty-monorepo/issues/672))
+  the theme no longer styles Mantine's ColorInput or
+  ColorPicker; both render as plain Mantine. Migration: use
+  CompactColorInput (ColorPickerPanel for the picker on its own surface).
+  Refs #672
+- **compact-mantine:** remove icon group row, narrow data row, add tree helpers  ([1e463501](https://github.com/graphty-org/graphty-monorepo/commit/1e463501))
+  IconGroupRow, IconGroupRowProps and IconGroupOption are
+  removed. DataRow loses role, tabIndex, onDoubleClick and onContextMenu, and
+  the DataRowRole type is removed. CHANGELOG-figma.md has the migrations.
+- **compact-mantine:** match the figma editor's components in light and dark  ([#0](https://github.com/graphty-org/graphty-monorepo/issues/0))
+  51 breaking changes, listed in compact-mantine/CHANGELOG-figma.md; the largest
+  are the 240 px panel with 88 px fields, Select and Autocomplete as combobox roles, pill Tabs by
+  default, one root popout at a time, and the restyled ControlSection.
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.19 (2026-10-02)
 
 ### 🩹 Fixes

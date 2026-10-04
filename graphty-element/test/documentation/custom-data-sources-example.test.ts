@@ -51,6 +51,18 @@ describe("the custom-data-sources guide", () => {
         session.dispose();
     });
 
+    it("loads a trade-flows file, which a reader hands over as bytes", async () => {
+        const session = createGraphSession();
+        const file = new File(["FR\tDE\t12.5\n"], "march.trade");
+        await session.data.import({ type: "trade-flows", config: { file } });
+
+        assert.deepEqual(
+            session.data.edges().map((edge) => [edge.source, edge.target, edge.weight]),
+            [["FR", "DE", 12.5]],
+        );
+        session.dispose();
+    });
+
     it("refuses a file with no shipment in it as a parse failure", async () => {
         const session = createGraphSession();
         try {

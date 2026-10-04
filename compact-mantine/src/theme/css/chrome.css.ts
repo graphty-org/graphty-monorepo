@@ -138,7 +138,9 @@ const css = `
    8px after it (the page row: pill at x 8, text at x 16), and rings that pill 1px at offset 0.
    The pill reaches 8px out into the section's 16px start padding, so the text stays where a
    plain reading's does; the ring sits on the pill, not on the text's own edge. The pressable
-   area stays the full 32px row. */
+   area stays the full 32px row. The ring is drawn just inside the pill (offset -1px): the
+   button truncates its text with overflow hidden, and a ring at offset 0 on a pill as wide as the
+   button falls 1px outside it, so its left and right sides were clipped away. */
 .cm-row-target {
     position: relative;
     box-sizing: border-box;
@@ -153,7 +155,7 @@ const css = `
     inset-inline: 0;
     border-radius: 5px;
     outline: 1px solid transparent;
-    outline-offset: 0;
+    outline-offset: -1px;
     pointer-events: none;
 }
 .cm-row-target:focus-visible::before { outline-color: var(--cm-border-selected); }

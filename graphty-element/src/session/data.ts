@@ -14,17 +14,20 @@ import "../data/index";
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
-import type { AttributeDescriptor, EdgeId, ScopeInput } from "../catalog/types";
+import type { AttributeDescriptor, EdgeId, MeasurementDeclaration, ScopeInput } from "../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import type { ImportReport } from "../data/report";
+import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
+import { resolveColumn } from "./columns";
 import {
     type DataImportCommand,
     type DataMutation,
     type DataService,
+    declarationKey,
     type ImportSource,
     SOURCE_VALUE,
 } from "./commands/data";
@@ -32,8 +35,10 @@ import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
+import { RevisionCache } from "./revision";
 import type { ResolvedScope } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
+import type { ColumnRef } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type {
     DataSourceDescriptor,
@@ -66,6 +71,10 @@ interface DataWrites {
     importer(): (command: DataImportCommand) => Promise<unknown>;
     /** The `graph` slice now. */
     slice(): GraphSlice;
+    /** Dispatch `data.declare`. */
+    declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
+    /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
+    declarations(): ReadonlyMap<string, MeasurementDeclaration>;
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -191,8 +200,6 @@ interface Derived {
     readonly snapshot: GraphSnapshot;
     /** The graph's shape, once something asked for it. */
     statistics: GraphStatistics | null;
-    /** The attribute descriptors, once something asked for them. */
-    attributes: readonly AttributeDescriptor[] | null;
     /** The topology fingerprint, once something asked for it. */
     fingerprint: string | null;
 }
@@ -216,9 +223,10 @@ export class SessionData implements SessionDataApi {
     private readonly writes: DataWrites;
     private readonly pages: PageSources;
     private derived: Derived | null = null;
-    /** Row orders computed for pages, by what they were asked with, at {@link orderRevision}. */
-    private readonly orders = new Map<string, Uint32Array>();
-    private orderRevision = -1;
+    /** Row orders computed for pages, by what they were asked with, for the current revision. */
+    private readonly orders: RevisionCache<Uint32Array>;
+    /** The attribute walk, for the current revision. */
+    private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
     private disposed = false;
 
     /**
@@ -244,6 +252,8 @@ export class SessionData implements SessionDataApi {
         this.readConfig = readConfig;
         this.writes = writes;
         this.pages = pages;
+        this.orders = new RevisionCache(() => pages.revision());
+        this.attributeCache = new RevisionCache(() => pages.revision());
     }
 
     /**
@@ -510,7 +520,7 @@ export class SessionData implements SessionDataApi {
         // Read after the snapshot: a freeze moves the tick, so reading it first would name a
         // revision the page was not read at.
         const revision = this.pages.revision();
-        const rows = this.orderOf(snapshot, target, revision, options);
+        const rows = this.orderOf(snapshot, target, options);
         const rowCount = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const total = rows === null ? rowCount : rows.length;
         const records: TRecord[] = [];
@@ -525,36 +535,19 @@ export class SessionData implements SessionDataApi {
      * The rows a page's list holds, in order, computed once per revision and request.
      * @param snapshot - the current snapshot
      * @param target - nodes or edges
-     * @param revision - the revision now
      * @param options - the scope, the order and the node
      * @returns the rows, or null for every row in graph order
      */
-    private orderOf(
-        snapshot: GraphSnapshot,
-        target: "node" | "edge",
-        revision: number,
-        options: EdgePageOptions,
-    ): Uint32Array | null {
+    private orderOf(snapshot: GraphSnapshot, target: "node" | "edge", options: EdgePageOptions): Uint32Array | null {
         const scope = options.scope === "graph" ? undefined : options.scope;
         const touching = target === "edge" ? options.touching : undefined;
         if (scope === undefined && touching === undefined && options.sort === undefined) {
             return null;
         }
 
-        if (revision !== this.orderRevision) {
-            this.orders.clear();
-            this.orderRevision = revision;
-        }
-
         // JSON keeps 1 and "1" apart, which the ids need.
         const key = JSON.stringify([target, scope, options.sort, touching]);
-        let rows = this.orders.get(key);
-        if (rows === undefined) {
-            rows = this.computeOrder(snapshot, target, scope, touching, options.sort);
-            this.orders.set(key, rows);
-        }
-
-        return rows;
+        return this.orders.get(key, () => this.computeOrder(snapshot, target, scope, touching, options.sort));
     }
 
     /**
@@ -688,9 +681,38 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     attributes(): readonly AttributeDescriptor[] {
-        const derived = this.derivedFor(this.current());
-        derived.attributes ??= describeAttributes(derived.snapshot, this.records);
-        return derived.attributes;
+        // Keyed on the input tick, which moves on a freeze AND on an attribute write: keyed on the
+        // snapshot alone, an edited value never reached the descriptors.
+        const snapshot = this.current();
+        const described = this.attributeCache.get("", () => describeAttributes(snapshot, this.records));
+        const declarations = this.writes.declarations();
+        if (declarations.size === 0) {
+            return described;
+        }
+
+        // ponytail: overlaid per call while anything is declared; a few dozen spreads.
+        return Object.freeze(
+            described.map((each) => {
+                const declared = declarations.get(declarationKey(each));
+                return declared === undefined
+                    ? each
+                    : Object.freeze({ ...each, measurement: declared.measurement, measurementSource: "declared" });
+            }),
+        );
+    }
+
+    /**
+     * Say what a column measures, as one undoable step.
+     * @param column - the column, such as an entry of {@link SessionData.attributes}
+     * @param declaration - what it measures, with the order of an ordinal column
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
+     *     `E_BAD_COMMAND` for a declaration that is not one.
+     */
+    async declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void> {
+        this.requireLive("declare");
+        const { kind, name } = resolveColumn(this.attributes(), column);
+        await this.writes.declare({ kind, name }, declaration);
     }
 
     /**
@@ -728,7 +750,6 @@ export class SessionData implements SessionDataApi {
     dispose(): void {
         this.disposed = true;
         this.derived = null;
-        this.orders.clear();
     }
 
     /**
@@ -743,7 +764,7 @@ export class SessionData implements SessionDataApi {
      */
     private derivedFor(snapshot: GraphSnapshot): Derived {
         if (this.derived === null || this.derived.snapshot !== snapshot) {
-            this.derived = { snapshot, statistics: null, attributes: null, fingerprint: null };
+            this.derived = { snapshot, statistics: null, fingerprint: null };
         }
 
         return this.derived;
@@ -902,6 +923,7 @@ export function headlessDataService(
         loadErrors: () => undefined,
         loadComplete: () => undefined,
         loadFailed: () => undefined,
+        progress: (change) => dispatcher.services.progress?.(change),
     });
 
     return {
@@ -956,18 +978,15 @@ function consumerSnapshot(resident: GraphSnapshot): GraphSnapshot {
     return copy;
 }
 
-/** How many leading characters of a file a format is detected from. */
-const DETECTION_SAMPLE = 2048;
-
 /**
  * The file an import names, read structurally: a `File` in a browser, or anything with a name, a
- * size and a way to read its text.
+ * size and a way to read its bytes.
  * @param value - The `file` option.
  * @returns The file, or null when the option holds none.
  */
 function fileOf(
     value: unknown,
-): { name: string; size: number; slice(start: number, end: number): { text(): Promise<string> } } | null {
+): { name: string; size: number; slice(start: number, end: number): { arrayBuffer(): Promise<ArrayBuffer> } } | null {
     if (typeof value !== "object" || value === null) {
         return null;
     }
@@ -976,16 +995,6 @@ function fileOf(
     return typeof file.name === "string" && typeof file.size === "number" && typeof file.slice === "function"
         ? (value as ReturnType<typeof fileOf>)
         : null;
-}
-
-/**
- * The last part of a URL's path, which is what its extension and its name are read from.
- * @param url - The URL.
- * @returns The part, or "" when the path ends in a slash.
- */
-function urlTail(url: string): string {
-    const path = url.split(/[?#]/)[0] ?? "";
-    return path.split("/").pop() ?? "";
 }
 
 /**
@@ -1017,7 +1026,7 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
         return { type: byName, config, ...described };
     }
 
-    const detect = (sample: string | undefined, fetched?: string): ImportSource => {
+    const detect = (sample: string | undefined, fetched?: Uint8Array): ImportSource => {
         const detected = sample === undefined ? null : detectFormat({ filename, sample });
         if (detected === null) {
             throw undetectedFormat(name ?? url ?? "the data", 'session.data.import({ type: "graphml", config })');
@@ -1026,51 +1035,23 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
         return { type: detected, config: fetched === undefined ? config : { ...config, data: fetched }, ...described };
     };
 
-    if (typeof config.data === "string") {
-        return detect(config.data.slice(0, DETECTION_SAMPLE));
+    if (isSourceData(config.data)) {
+        return detect(sampleOf(toSourceInput(config.data)));
     }
 
     if (file !== null) {
+        // Twice the sample, so a UTF-16 file still yields DETECTION_SAMPLE characters.
         return file
-            .slice(0, DETECTION_SAMPLE)
-            .text()
-            .then((sample) => detect(sample));
+            .slice(0, DETECTION_SAMPLE * 2)
+            .arrayBuffer()
+            .then((bytes) => detect(sampleOf(new Uint8Array(bytes))));
     }
 
     if (url !== undefined) {
-        return fetchText(url).then((text) => detect(text.slice(0, DETECTION_SAMPLE), text));
+        // Read once, as bytes, and handed on: the reader does not fetch it again, and the importer
+        // decodes it.
+        return fetchBytes(url).then((bytes) => detect(sampleOf(bytes), bytes));
     }
 
     return detect(undefined);
-}
-
-/**
- * Read a URL's text, once.
- * @param url - The URL.
- * @returns The text.
- * @throws A `GraphtyError` with `E_FETCH_FAILED` when it cannot be read.
- */
-async function fetchText(url: string): Promise<string> {
-    let response: Response;
-    try {
-        response = await fetch(url);
-    } catch (error) {
-        throw new GraphtyError({
-            code: "E_FETCH_FAILED",
-            message: `Could not fetch "${url}".`,
-            source: "data",
-            cause: error,
-        });
-    }
-
-    if (!response.ok) {
-        throw new GraphtyError({
-            code: "E_FETCH_FAILED",
-            message: `Could not fetch "${url}": ${String(response.status)} ${response.statusText}`,
-            source: "data",
-            details: { url, status: response.status },
-        });
-    }
-
-    return response.text();
 }

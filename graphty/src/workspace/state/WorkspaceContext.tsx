@@ -101,7 +101,13 @@ export function makeWorkspaceValue(
             if (command === undefined || (command.disabled?.(value) ?? null) !== null) {
                 return;
             }
-            void command.run(value);
+            const outcome = command.run(value);
+            if (outcome instanceof Promise) {
+                outcome.catch((error: unknown) => {
+                    const reason = error instanceof Error ? error.message : String(error);
+                    store.set({ notice: { message: `${command.label} failed: ${reason}` } });
+                });
+            }
         },
     };
     return value;

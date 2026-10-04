@@ -1,0 +1,43 @@
+# Mergify merges this repository's pull requests (https://docs.mergify.com).
+#
+# A pull request into master is queued for merging when it is ready, so nobody has to switch on
+# auto-merge by hand. Mergify then keeps it up to date with master and merges it once the required
+# checks pass on the updated branch. "All Checks Pass" includes the visual-review gate, so nothing
+# merges with an image the owner has not approved.
+#
+# Held, never queued:
+# - a breaking change (a "!" before the colon of a conventional-commit title, e.g. "feat(x)!: ...");
+#   breaking changes wait for the grouped major release;
+# - a pull request labeled "hold";
+# - a draft.
+# One check at a time, so Mergify checks each pull request in place on its own branch (see below).
+merge_queue:
+    max_parallel_checks: 1
+
+queue_rules:
+    - name: default
+      # One pull request at a time, checked in place on its own branch: the visual-review gate is
+      # tied to the pull request's number, so a batch on a temporary branch would never pass it.
+      batch_size: 1
+      update_method: merge
+      merge_method: merge
+      # Checked for as long as a pull request is queued: adding "hold" (or retitling it as a breaking
+      # change) takes an already-queued pull request out of the queue.
+      queue_conditions:
+          - label!=hold
+          - "-title~=^[a-z]+(\\([^)]*\\))?!:"
+      merge_conditions:
+          - check-success=All Checks Pass
+          - check-success=Lint PR Title
+
+pull_request_rules:
+    - name: queue ready, non-breaking pull requests into master
+      conditions:
+          - base=master
+          - -draft
+          - -conflict
+          - label!=hold
+          - "-title~=^[a-z]+(\\([^)]*\\))?!:"
+      actions:
+          queue:
+              name: default

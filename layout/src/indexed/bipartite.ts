@@ -1,4 +1,4 @@
-import type { F64, GraphSnapshot, NodeMask } from "@graphty/graph-format";
+import { type F64, type GraphSnapshot, type NodeMask, type NodeSet, resolveNodeMask } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions";
 import { type CommonLayoutOptions, planar, resolve, result } from "./common";
@@ -7,10 +7,11 @@ import { type LayerAlign, layeredRows } from "./multipartite";
 /** Options of the index-based bipartite layout. */
 export interface BipartiteLayoutOptions extends CommonLayoutOptions {
     /**
-     * The nodes of the first line: a node mask (bit i set means node i), or the name of a `bool` node column whose
-     * true rows are the first line (an unset row is false). Default the even node indices.
+     * The nodes of the first line: a node mask (bit i set means node i), any other node set (a plain array of
+     * indices, `{ mask }` or `{ ids }`), or the name of a `bool` node column whose true rows are the first line (an
+     * unset row is false). A bare Uint32Array is read as a node mask. Default the even node indices.
      */
-    readonly top?: NodeMask | string | undefined;
+    readonly top?: NodeMask | NodeSet | string | undefined;
     /** Default `vertical`. */
     readonly align?: LayerAlign | undefined;
     /** Width over height of the unscaled layout; default 4 / 3. */
@@ -52,10 +53,11 @@ function bipartiteRows(
 /**
  * The bit of every node of a mask or a `bool` node column.
  * @param s - the snapshot
- * @param top - the mask or column name
+ * @param topSet - the mask, another node set, or the column name
  * @returns one bit per node, as a predicate
  */
-function topOf(s: GraphSnapshot, top: NodeMask | string): (i: number) => boolean {
+function topOf(s: GraphSnapshot, topSet: NodeMask | NodeSet | string): (i: number) => boolean {
+    const top = typeof topSet === "string" || topSet instanceof Uint32Array ? topSet : resolveNodeMask(s, topSet);
     if (typeof top !== "string") {
         if (top.length < Math.ceil(s.nodeCount / 32)) {
             throw new Error(

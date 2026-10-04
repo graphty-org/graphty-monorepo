@@ -1,3 +1,34 @@
+## 3.8.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** the project file is a graphty document ([d64088e2](https://github.com/graphty-org/graphty-monorepo/commit/d64088e2))
+- **graphty-element:** encode by a data column from what it measures ([6cf1ec4e](https://github.com/graphty-org/graphty-monorepo/commit/6cf1ec4e))
+- **graphty-element:** address result columns and result sorts by run ([9758284d](https://github.com/graphty-org/graphty-monorepo/commit/9758284d))
+- **graphty-element:** report what a run's suggested style did as data with runs.painting ([88921f21](https://github.com/graphty-org/graphty-monorepo/commit/88921f21))
+- **graphty-element:** column levels, default bindings and a capped legend ([#782](https://github.com/graphty-org/graphty-monorepo/issues/782))
+- **graphty-element:** save and reopen a whole session as one project file ([#301](https://github.com/graphty-org/graphty-monorepo/issues/301))
+- **graphty-element:** report what a run's suggested style applied, withheld or took over ([#788](https://github.com/graphty-org/graphty-monorepo/issues/788))
+- **graphty-element:** page and sort records by run result columns ([#785](https://github.com/graphty-org/graphty-monorepo/issues/785))
+
+### 🩹 Fixes
+
+- **graphty-element:** raise the session entry's size budget for the tier 1 APIs ([#842](https://github.com/graphty-org/graphty-monorepo/issues/842), [#844](https://github.com/graphty-org/graphty-monorepo/issues/844), [#849](https://github.com/graphty-org/graphty-monorepo/issues/849))
+- **graphty-element:** type result columns as present and name what a reader had to guess ([573499f8](https://github.com/graphty-org/graphty-monorepo/commit/573499f8))
+- **graphty-element:** refuse an undrawable column with E_UNSUPPORTED ([3b7904c1](https://github.com/graphty-org/graphty-monorepo/commit/3b7904c1))
+- **graphty-element:** a batch member's dropped suggestion reads superseded, not merged ([7e5b9472](https://github.com/graphty-org/graphty-monorepo/commit/7e5b9472))
+- **graphty-element:** run no derivation pass after a session is disposed ([8aa601a8](https://github.com/graphty-org/graphty-monorepo/commit/8aa601a8))
+- **graphty-element:** type the graphty-* DOM events and name the project status event as approved ([cadd2c55](https://github.com/graphty-org/graphty-monorepo/commit/cadd2c55))
+- **graphty-element:** clearer column encoding names and docs ([c1c6f6e8](https://github.com/graphty-org/graphty-monorepo/commit/c1c6f6e8))
+- **graphty-element:** clearer runs.painting names and guide fixes from a blind-author review ([b92dcd4a](https://github.com/graphty-org/graphty-monorepo/commit/b92dcd4a))
+- **graphty-element:** a reopened project keeps runs, filters and layers that name a set ([#301](https://github.com/graphty-org/graphty-monorepo/issues/301))
+- **graphty-element:** defaultBinding reads the attribute of the channel's kind ([d23a8182](https://github.com/graphty-org/graphty-monorepo/commit/d23a8182))
+- **graphty-element:** a layer reading a run's result counts as bound ([2e5fd441](https://github.com/graphty-org/graphty-monorepo/commit/2e5fd441))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.7.0 (2026-10-03)
 
 ### 🚀 Features

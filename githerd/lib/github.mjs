@@ -182,6 +182,19 @@ function isMutation(query) {
 }
 
 /**
+ * The check a write is read back with, once its answer is known.
+ * @param {CheckSpec} spec the write's check
+ * @param {any} answer the write's answer body
+ * @returns {Check | null} the check, or null when `created` has no resource URL to read
+ */
+function resolveCheck(spec, answer) {
+    if (spec !== "created") return spec;
+    const url = answer?.url;
+    if (typeof url !== "string" || !url.startsWith(API_URL)) return null;
+    return { path: url.slice(API_URL.length), expect: { id: answer.id } };
+}
+
+/**
  * Creates the GitHub client the daemon and the actor share.
  * @param {{
  *   repo: string,
@@ -443,19 +456,6 @@ export function createGitHub({
     }
 
     /**
-     * The check a write is read back with, once its answer is known.
-     * @param {CheckSpec} spec the write's check
-     * @param {any} answer the write's answer body
-     * @returns {Check | null} the check, or null when `created` has no resource URL to read
-     */
-    function resolveCheck(spec, answer) {
-        if (spec !== "created") return spec;
-        const url = answer?.url;
-        if (typeof url !== "string" || !url.startsWith(API_URL)) return null;
-        return { path: url.slice(API_URL.length), expect: { id: answer.id } };
-    }
-
-    /**
      * Reads a write back.
      * @param {SentWrite} entry the write
      * @param {boolean} fresh true to skip the ETag (right after sending)
@@ -644,7 +644,7 @@ export function createGitHub({
          * @returns {Promise<void>}
          */
         async confirm() {
-            for (const entry of [...sent]) {
+            for (const entry of sent.slice()) {
                 const ok = await verify(entry, false);
                 if (ok !== true) continue;
                 sent.splice(sent.indexOf(entry), 1);

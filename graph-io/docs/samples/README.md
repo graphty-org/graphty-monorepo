@@ -1,7 +1,8 @@
 # Sample files
 
 The graph files the graph-io guide reads in its examples. They are published at
-https://graphty.app/docs/graph-io/samples/, and the npm package holds a copy in
+`https://graphty.app/docs/graph-io/samples/<name>` (listed, each with its link, in
+[the quick start](https://graphty.app/docs/graph-io/guide/quick-start#sample-files)), and the npm package holds a copy in
 `node_modules/@graphty/graph-io/docs/samples/`.
 
 The Game of Thrones character network is from

@@ -197,8 +197,8 @@ runs every example in a directory holding the corpus files, with `fetch` and a s
 stubbed, and fails when what it prints differs from its `.txt` (rerun with `UPDATE_EXAMPLES=1`) or
 when the files it writes change (a vitest snapshot). Examples import `@graphty/graph-io` by name;
 `vitest.config.ts` and the `paths` of `tsconfig.json` map it to `src/`. `docs/samples/` holds the
-public-domain sample files the guide loads by URL; `tools/copy-docs-content.js` publishes them at
-https://graphty.app/docs/graph-io/samples/ and the examples run with them in their directory. Write user docs from the
+public-domain sample files the guide loads by URL; `tools/copy-docs-content.js` publishes them under
+`https://graphty.app/docs/graph-io/samples/` (listed in the quick start's "Sample files") and the examples run with them in their directory. Write user docs from the
 reader's side: what to call and what happens, never how the package is built or tested.
 
 ## Conformance suite

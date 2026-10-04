@@ -909,23 +909,28 @@ class RecordScanner {
      * @param to - the index after the run
      */
     private countLineBreaks(chunk: string, from: number, to: number): void {
-        let { line, lastWasCr } = this;
-        for (let i = from; i < to; i++) {
-            const c = chunk.charCodeAt(i);
-            if (c === LF) {
-                if (!lastWasCr) {
+        // indexOf, not a charCodeAt loop: a quoted cell may be hundreds of MiB, and a per-character
+        // loop over it is the whole cost of reading it (and many times that under coverage)
+        const run = chunk.slice(from, to);
+        let { line } = this;
+        // the index of the last CR seen; -1 is a CR just before the run, -2 none
+        let lastCr = this.lastWasCr ? -1 : -2;
+        let lf = run.indexOf("\n");
+        let cr = run.indexOf("\r");
+        while (lf >= 0 || cr >= 0) {
+            if (lf < 0 || (cr >= 0 && cr < lf)) {
+                line++;
+                lastCr = cr;
+                cr = run.indexOf("\r", cr + 1);
+            } else {
+                if (lf !== lastCr + 1) {
                     line++;
                 }
-                lastWasCr = false;
-            } else if (c === CR) {
-                line++;
-                lastWasCr = true;
-            } else {
-                lastWasCr = false;
+                lf = run.indexOf("\n", lf + 1);
             }
         }
         this.line = line;
-        this.lastWasCr = lastWasCr;
+        this.lastWasCr = lastCr === run.length - 1;
     }
 
     /**

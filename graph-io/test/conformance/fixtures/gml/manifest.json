@@ -1260,8 +1260,7 @@
         "labels": [
           "bad &#99999999; ref"
         ]
-      },
-      "knownFailure": "&#99999999; escapes as a raw RangeError instead of an ImportError or warning (sources.md 0.4)"
+      }
     },
     {
       "file": "authored/string-ids.gml",

@@ -325,8 +325,14 @@ function classifyBare(text: string, start: number, end: number, line: number): T
     if (REAL_TEXT.test(token) || NON_FINITE_TEXT.test(token)) {
         return TOKEN_REAL;
     }
-    const shown = token.length > 20 ? `${token.slice(0, 20)}...` : token;
-    throw new GmlSyntaxError(SYNTAX_TOKEN_CODE, `cannot tokenize "${shown}" at line ${line}`, line);
+    // the message is ASCII: a character outside it is shown as \uXXXX and named, since it may look
+    // like something else (a no-break space pasted from a web page looks like a space)
+    const hex = (c: string): string => (c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0");
+    const head = token.length > 20 ? `${token.slice(0, 20)}...` : token;
+    const shown = head.replace(/[^\x20-\x7e]/gu, (c) => `\\u${hex(c)}`);
+    const odd = /[^\x21-\x7e]/u.exec(token);
+    const note = odd === null ? "" : ` (it holds U+${hex(odd[0])}, which GML allows only inside a string)`;
+    throw new GmlSyntaxError(SYNTAX_TOKEN_CODE, `cannot tokenize "${shown}" at line ${line}${note}`, line);
 }
 
 /**

@@ -35,11 +35,14 @@ import {
     ELEMENT_TYPE_CODE,
     FLAG_TYPE_CODE,
     FLAG_VALUE_CODE,
+    GRAPHICS_CODE,
+    GROUPS_CODE,
     ID_DROPPED_CODE,
     ID_TYPE_CODE,
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
     MISSING_LABEL_CODE,
+    NESTED_ELEMENT_CODE,
     NO_GRAPH_CODE,
     PRECISION_CODE,
     REPEATED_KEY_CODE,
@@ -47,6 +50,7 @@ import {
     SECOND_GRAPH_CODE,
     STRING_ID_CODE,
     UNKNOWN_ENTITY_CODE,
+    WIDENED_CODE,
 } from "./importer.js";
 
 export { gmlExporter, type GmlExportOptions } from "./exporter.js";
@@ -92,10 +96,18 @@ export const GML_ISSUE = Object.freeze({
     FLAG_TYPE: FLAG_TYPE_CODE,
     /** A `directed` / `multigraph` flag outside 0 / 1, or repeated. */
     FLAG_VALUE: FLAG_VALUE_CODE,
-    /** A named entity in a string that no table decodes; kept as written. */
+    /** A named entity no table decodes, or a numeric reference beyond U+10FFFF; kept as written. */
     UNKNOWN_ENTITY: UNKNOWN_ENTITY_CODE,
-    /** An integer beyond 2^53 rounded to f64. */
+    /** An integer beyond 2^53 rounded to f64, or a real literal beyond the f64 range stored as an infinity. */
     PRECISION: PRECISION_CODE,
+    /** A node's graphics value that cannot give a position as written; kept in the graphics json column. */
+    GRAPHICS: GRAPHICS_CODE,
+    /** A graph, node or edge record nested in a node or edge; kept as json, not read as structure. */
+    NESTED_ELEMENT: NESTED_ELEMENT_CODE,
+    /** yEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment. */
+    GROUPS: GROUPS_CODE,
+    /** A key whose values mix numbers and strings; the column is string. */
+    WIDENED: WIDENED_CODE,
     /** A column renamed `<name>#<key>` because the sink held the name with another shape. */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /** A column declared without its role because the sink already holds it. */

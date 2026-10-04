@@ -116,18 +116,22 @@ const GML_NAMED: ReadonlyMap<string, string> = (() => {
 /**
  * Decode the character entities of a GML string body (the inverse of quoteGmlString on the text
  * between the quotes): numeric references, the XML entities and the ISO-8859-1 HTML entities. An
- * unknown named entity is left as written and handed to `onUnknown`.
+ * unknown named entity, or a numeric reference beyond U+10FFFF, is left as written and handed to
+ * `onUnknown`.
  * @param body - the text between the quotes
- * @param onUnknown - called with each unknown named entity (`&name;`), when given
+ * @param onUnknown - called with each entity left as written (`&name;`, `&#99999999;`), when given
  * @returns the decoded text
  */
 export function decodeGmlString(body: string, onUnknown?: (entity: string) => void): string {
     return body.replace(GML_ENTITY, (whole, entity: string) => {
-        if (entity.startsWith("#x")) {
-            return String.fromCodePoint(Number.parseInt(entity.slice(2), 16));
-        }
         if (entity.startsWith("#")) {
-            return String.fromCodePoint(Number.parseInt(entity.slice(1), 10));
+            const code = entity.startsWith("#x") ? Number.parseInt(entity.slice(2), 16) : Number(entity.slice(1));
+            if (code <= 0x10ffff) {
+                return String.fromCodePoint(code);
+            }
+            // beyond Unicode: no character to decode to, kept as written like an unknown name
+            onUnknown?.(whole);
+            return whole;
         }
         const known = GML_NAMED.get(entity);
         if (known === undefined) {

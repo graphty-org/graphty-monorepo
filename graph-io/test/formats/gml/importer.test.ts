@@ -823,12 +823,16 @@ describe("gmlImporter: graphics and positions", () => {
         expect(snapshot.nodes.names()).toEqual(["position"]);
     });
 
+    // Updated: graphics used to become a list column when one node repeated it, which cost every
+    // other node its position (test/robustness/gml.test.ts); repeats are kept as one json array now.
     it("keeps an empty graphics record and a non-record graphics value as json", async () => {
-        const { snapshot } = await importGml(
+        const { snapshot, report } = await importGml(
             "graph [ node [ id 1 graphics [ ] ] node [ id 2 graphics 5 graphics 6 ] ]",
         );
         expect(snapshot.nodes.names()).toEqual(["graphics"]);
-        expect(snapshot.nodes.require("graphics").dtype).toBe("list");
+        expect(snapshot.nodes.require("graphics").dtype).toBe("json");
+        expect(column(snapshot, "nodes", "graphics")).toEqual([{}, [5, 6]]);
+        expect(report.issues.map((i) => i.code)).toEqual(["W_GML_GRAPHICS", "W_GML_GRAPHICS"]);
     });
 
     it("positions: false keeps the whole record in the json column", async () => {

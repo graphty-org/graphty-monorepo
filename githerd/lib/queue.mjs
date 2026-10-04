@@ -40,7 +40,7 @@ export function ownerLabel(rec, label) {
  * @param {any} config the normalized config
  * @returns {boolean} true when one is missing
  */
-export function missingLabels(labels, config) {
+function missingLabels(labels, config) {
     const { types = [], priorities = [], efforts = [] } = config.labels ?? {};
     return [types, priorities, efforts].some((set) => set.length > 0 && !labels.some((l) => set.includes(l)));
 }
@@ -52,7 +52,7 @@ export function missingLabels(labels, config) {
  * @param {number} number the issue
  * @returns {number | null} the PR number, or null
  */
-export function openPrFor(state, number) {
+function openPrFor(state, number) {
     const hit = Object.entries(state.prs ?? {}).find(
         ([, p]) =>
             (p.references ?? []).includes(number) ||

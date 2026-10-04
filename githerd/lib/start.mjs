@@ -509,7 +509,7 @@ async function startTask(ctx, job, busy) {
  * @param {any} job the job, with its worktree
  * @param {string} jobDir its directory under the state directory
  */
-export function writeGuard(state, config, job, jobDir) {
+function writeGuard(state, config, job, jobDir) {
     const ownerItems = Object.values(state.ownerItems ?? {})
         .filter((i) => !i.endedAt)
         .map((i) => Number(/^(?:pr:|issue:|#)(\d+)$/.exec(i.target ?? "")?.[1]))

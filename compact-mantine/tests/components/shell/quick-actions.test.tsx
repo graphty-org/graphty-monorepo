@@ -145,9 +145,7 @@ describe("QuickActions", () => {
             await userEvent.keyboard("s");
             expect(screen.getByRole("combobox")).toHaveFocus();
             expect(screen.getByRole("combobox")).toHaveValue("s");
-            expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
-                "shared_chapters_with_valjean",
-            ]);
+            expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["shared_chapters_with_valjean"]);
             await userEvent.keyboard("{Enter}");
             expect(onRun).toHaveBeenCalledTimes(1);
             expect(onRun).toHaveBeenCalledWith("chapters");

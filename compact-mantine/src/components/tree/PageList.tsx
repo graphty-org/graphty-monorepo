@@ -220,9 +220,7 @@ export function PageList({
     // can re-render its own button.
     useEffect(() => {
         grid.current
-            ?.querySelectorAll<HTMLElement>(
-                ".cm-page-menu :is(button, a[href], input, select, textarea, [tabindex])",
-            )
+            ?.querySelectorAll<HTMLElement>(".cm-page-menu :is(button, a[href], input, select, textarea, [tabindex])")
             .forEach((el) => {
                 el.tabIndex = -1;
             });

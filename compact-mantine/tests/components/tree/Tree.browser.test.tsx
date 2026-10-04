@@ -510,10 +510,7 @@ describe("PageList: second line, value and row menu", () => {
     });
 
     it("stays one Tab stop: Tab from the focused row leaves the list, past every row menu", async () => {
-        const items = [
-            ...RECENT,
-            { id: "two", name: "Second", menu: <button type="button">More for Second</button> },
-        ];
+        const items = [...RECENT, { id: "two", name: "Second", menu: <button type="button">More for Second</button> }];
         await renderThemed(
             <>
                 <PageList label="Recent projects" items={items} />

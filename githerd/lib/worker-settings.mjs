@@ -251,13 +251,14 @@ export function workerEnv({ env, path, signing, job, nonce }) {
 /**
  * The worker's command line, from `env -i` to the launch prompt (design section 7.1); tmux runs it
  * as the window's command.
- * @param {{env: Record<string, string>, model: string, job: string, jobDir: string, prompt: string}} options
- *   the environment from {@link workerEnv}, the model, the job id, its directory with the
- *   generated files, and the launch prompt
+ * @param {{env: Record<string, string>, model: string, job: string, jobDir: string, prompt: string,
+ *   resume?: string | null}} options the environment from {@link workerEnv}, the model, the job id,
+ *   its directory with the generated files, the launch prompt, and the session a dead worker's next
+ *   session resumes (design 7.7)
  * @returns {string[]} the argument vector
  * @throws {Error} when the model is not one a worker may use
  */
-export function workerArgv({ env, model, job, jobDir, prompt }) {
+export function workerArgv({ env, model, job, jobDir, prompt, resume = null }) {
     if (!WORKER_MODELS.has(model)) throw new Error(`a worker runs on ${[...WORKER_MODELS].join(" or ")}, not ${model}`);
     return [
         "env",
@@ -270,6 +271,7 @@ export function workerArgv({ env, model, job, jobDir, prompt }) {
         `githerd-${job}`,
         "--permission-mode",
         "default",
+        ...(resume ? ["--resume", resume] : []),
         "--settings",
         join(jobDir, "settings.json"),
         "--mcp-config",

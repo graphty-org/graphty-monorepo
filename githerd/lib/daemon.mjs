@@ -110,6 +110,7 @@ import {
     writeFatal,
     writeProgress,
 } from "./store.mjs";
+import { recoverDeath } from "./session-death.mjs";
 import { secretValues } from "./text.mjs";
 import { sessionTools, statusData } from "./tools.mjs";
 import { readVersion } from "./version.mjs";
@@ -1854,8 +1855,8 @@ export async function startDaemon({
     let watching = false;
 
     /**
-     * One watchdog pass over the workers githerd started (design 7.5). Skipped while a pass runs or
-     * the daemon cannot write.
+     * One watchdog pass over the workers githerd started (design 7.5), then the death and recovery
+     * of each session it found dead (7.7). Skipped while a pass runs or the daemon cannot write.
      * ponytail: runs every minute even with no worker; a pass over no worker reads nothing.
      */
     async function watch() {
@@ -1866,7 +1867,20 @@ export async function startDaemon({
                 (state.pushQueue?.entries ?? []).some((/** @type {any} */ e) => e.job === job.id);
             const pass = await watchPass(state, now(), { pushQueued: queued });
             for (const line of pass.ledger) void ledger(line);
-            if (pass.ledger.length) await save();
+            for (const id of pass.dead) {
+                // The self-test that verifies resume (design 11.4) does not run yet, so every
+                // death starts the next session fresh.
+                await recoverDeath({
+                    job: state.jobs[id],
+                    state,
+                    repo: config.repo,
+                    github: github(),
+                    ledger,
+                    resumeVerified: false,
+                    now,
+                });
+            }
+            if (pass.ledger.length || pass.dead.length) await save();
         } catch (err) {
             say("error", `watchdog: ${/** @type {Error} */ (err).message}`);
         } finally {

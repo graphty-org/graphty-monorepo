@@ -508,6 +508,31 @@ describe("HTTP endpoints", () => {
         expect(news.map((n) => n.text)).toEqual(["CI went green"]);
     });
 
+    it("recovers a worker whose session died: news, a fresh next session and a ledger line", async () => {
+        const daemon = await start();
+        const job = newJob({ kind: "issue", target: "#12", id: "issue-12" }, clock);
+        job.state = "working";
+        // A start time that is not this process's: the session githerd started is gone.
+        job.holder = {
+            pane: "%1",
+            window: "@1",
+            pid: process.pid,
+            startTime: "0",
+            session: "s1",
+            name: "githerd-issue-12",
+        };
+        daemon.state.jobs = { "issue-12": job };
+        await daemon.watch();
+        expect(job.holder).toBeNull();
+        expect(job.fresh).toBe(true);
+        expect(job.news.at(-1).text).toContain("your session died; nothing was pushed yet");
+        expect(saved().jobs["issue-12"].deaths).toHaveLength(1);
+        await daemon.watch();
+        await daemon.shutdown();
+        const deaths = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "session-death");
+        expect(deaths).toEqual([expect.objectContaining({ job: "issue-12", session: "s1", action: "fresh" })]);
+    });
+
     it("refuses a hook request without an event", async () => {
         const daemon = await start();
         const res = await fetch(`${daemon.url}/hook`, { method: "POST", body: JSON.stringify({ input: {} }) });

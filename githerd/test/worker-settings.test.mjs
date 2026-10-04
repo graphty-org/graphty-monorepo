@@ -205,6 +205,19 @@ describe("environment and command line", () => {
             /a worker runs on claude-opus-5-5 or claude-fable-5, not claude-haiku-4-5/,
         );
     });
+
+    it("resumes a dead worker's session by its id", () => {
+        const argv = workerArgv({
+            env: {},
+            model: "claude-opus-5-5",
+            job: "j",
+            jobDir: "/j",
+            prompt: "p",
+            resume: "s-1",
+        });
+        expect(argv.slice(argv.indexOf("--resume"), argv.indexOf("--resume") + 2)).toEqual(["--resume", "s-1"]);
+        expect(argv.indexOf("--resume")).toBeLessThan(argv.indexOf("--"));
+    });
 });
 
 describe("login PATH", () => {

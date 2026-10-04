@@ -65,7 +65,7 @@ describe("the workspace frame", () => {
     it("lets the Data page take the panels while the element stays mounted", () => {
         renderWorkspace({ ...OPEN, page: "data-page" });
 
-        assert.isNotNull(screen.getByText("Data page"));
+        assert.isNotNull(screen.getByRole("region", { name: "Data page" }));
         assert.isFalse(document.querySelector('aside[aria-label="Inspector"]')?.checkVisibility());
         assert.isNotNull(document.querySelector("graphty-element"));
         // The Data place is lit while the Data page shows (tier1-design.md 2.10).

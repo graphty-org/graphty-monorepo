@@ -3075,7 +3075,7 @@ export class Graph implements GraphContext {
      * ```
      */
     zoomToFit(): void {
-        this.updateManager.enableZoomToFit();
+        this.updateManager.enableZoomToFit(true);
     }
 
     // GraphContext implementation methods
@@ -3510,7 +3510,7 @@ export class Graph implements GraphContext {
     setAutoFrame(on: boolean): void {
         this.#autoFrame = on;
         if (!on) {
-            this.updateManager.disableZoomToFit();
+            this.updateManager.stopAutoZoomToFit();
         }
     }
 

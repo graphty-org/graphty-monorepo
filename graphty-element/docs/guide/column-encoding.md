@@ -168,5 +168,6 @@ for (const block of session.styles.legend()) {
   no one direction to state: categories, a diverging palette, a fixed value, a domain of one value.
 - `range` is `{ min, max }`, the range the binding maps onto in the channel's own units, for a
   channel that carries a number (`node.size`, `edge.width`, an opacity). Node size is unitless, so
-  print it as a number, not in pixels. It is the binding's range, so read it rather than the
+  print it as a number, not in pixels. It is absent when the binding has a `map` or an `other` value, whose values
+  are drawn instead of the range. It is the binding's range, so read it rather than the
   smallest and largest swatch, which are only samples.

@@ -511,6 +511,35 @@ describe("a block states what a higher value means, and the range a number is bo
             assert.isUndefined(block.range);
         }
     });
+
+    it("states no reading for a numeric domain grouped through a qualitative palette", () => {
+        for (const scale of ["bins", "quantile"] as const) {
+            const block = onlyBlock([
+                betweennessColor({
+                    encode: { "node.color": { by: "results.betweenness.value", scale, palette: "okabe-ito" } },
+                }),
+            ]);
+
+            assert.strictEqual(block.kind, "categorical", scale);
+            assert.isUndefined(block.reading, scale);
+        }
+    });
+
+    it("states no range when a map paints the sizes itself", () => {
+        const block = onlyBlock([
+            {
+                name: "Communities",
+                kind: "encoding",
+                selector: { match: "has", path: "results.louvain.group" },
+                encode: {
+                    "node.size": { by: "results.louvain.group", scale: "ordinal", map: { a: 5, b: 10, c: 20 } },
+                },
+            },
+        ]);
+
+        assert.isUndefined(block.range);
+        assert.isUndefined(block.reading);
+    });
 });
 
 describe("what a legend leaves out, and why", () => {

@@ -3899,7 +3899,7 @@ export class Graphty extends LitElement {
      * WebGPU the VR and AR buttons report the mode unavailable. See the renderer guide for what
      * else differs and the measured frame times.
      * @returns What the consumer asked for. `"webgl"` unless it was set.
-     * @since 3.10.0
+     * @since 3.3.0
      * @example HTML attribute
      * ```html
      * <graphty-element renderer="auto"></graphty-element>
@@ -3939,7 +3939,7 @@ export class Graphty extends LitElement {
      * Null until the element has initialised its renderer, which it does once connected; the
      * `render-initialized` event fires after.
      * @returns The status, or null before the renderer has been chosen.
-     * @since 3.10.0
+     * @since 3.3.0
      * @example
      * ```typescript
      * await element.updateComplete;

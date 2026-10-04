@@ -100,6 +100,18 @@ describe("autoFrame", () => {
         assert.notStrictEqual(element.graph.getCameraState().cameraDistance, UNFRAMED_DISTANCE);
     });
 
+    it("keeps a zoomToFit() asked for just before switching off", async () => {
+        const element = await mount({});
+        await element.graph.setCameraState({ position: { x: 0, y: 0, z: -40 }, target: { x: 0, y: 0, z: 0 } });
+        const placed = element.graph.getCameraState().cameraDistance;
+
+        element.zoomToFit();
+        element.autoFrame = false;
+        await frames();
+
+        assert.notStrictEqual(element.graph.getCameraState().cameraDistance, placed);
+    });
+
     it("frames the next load once switched back on", async () => {
         const element = await mount({ "auto-frame": "false" });
 

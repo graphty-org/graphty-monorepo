@@ -170,7 +170,8 @@ export interface LegendBlock {
     /**
      * The range the binding maps values onto, in the channel's own units ("1 to 3" for a node
      * size; node size is unitless, never pixels). Present only for a channel that carries a
-     * number, such as `node.size` or `edge.width`. It is the binding's range, not the smallest and
+     * number, such as `node.size` or `edge.width`, and absent when the binding's `map` or `other` paints values
+     * of its own, which the range does not bound. It is the binding's range, not the smallest and
      * largest swatch: a reversed binding still reads low to high here, and the swatches are only
      * samples of it.
      * @since 3.10.0
@@ -777,12 +778,13 @@ function directionOf(
 /**
  * What a higher value means on the drawing.
  * @param prepared - The prepared binding.
- * @param kind - The block's kind, so a diverging palette, strong at both ends, states nothing.
+ * @param kind - The block's kind. Only a sequential block has one direction: a diverging palette
+ *   is strong at both ends, and a categorical one's colors are unrelated, so neither states one.
  * @returns The reading, or undefined when the encoding has no one direction to state.
  */
 function readingOf(prepared: PreparedBinding, kind: LegendBlock["kind"]): LegendReading | undefined {
     const { domain, path } = prepared;
-    if (path === null || domain === null || kind === "diverging" || !(domain[1] > domain[0])) {
+    if (path === null || domain === null || kind !== "sequential" || !(domain[1] > domain[0])) {
         return undefined;
     }
 

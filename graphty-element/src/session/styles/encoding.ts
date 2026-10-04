@@ -157,9 +157,10 @@ export interface PreparedBinding {
     readonly groups: number;
     /**
      * The two ends of the range the binding maps values onto, in the channel's own units and
-     * clamped to what the channel draws, in the binding's order (low value's end first, so a
-     * reversed binding reads high to low). Present only for a channel that carries a number, such
-     * as a node's size or an edge's width, through a scale that maps onto a range.
+     * clamped to what the channel draws, in the order the range was authored: `reverse` does not
+     * swap them, and only an authored range such as `[3, 1]` reads high to low. Present only for a
+     * channel that carries a number, such as a node's size or an edge's width, through a scale
+     * that maps onto a range, and absent when a `map` or an `other` value paints values of its own.
      */
     readonly range?: readonly [number, number];
     /** What the column held. */
@@ -1261,8 +1262,10 @@ function valuePainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
     const absent = missingValue(descriptor, binding);
     const overrides = valueOverrides(binding, parts.categories.lumped, descriptor);
     const { map } = parts;
-    // Passthrough reads neither the domain nor the range, so it maps onto no range at all.
-    const ends = descriptor.accepts === "number" && parts.scale !== "passthrough" ? (context.range ?? [0, 1]) : null;
+    // Passthrough reads neither the domain nor the range, so it maps onto no range at all. A `map`
+    // or an `other` value paints values of its own, so the range no longer bounds what is drawn.
+    const bounded = descriptor.accepts === "number" && parts.scale !== "passthrough" && overrides === null;
+    const ends = bounded ? (context.range ?? [0, 1]) : null;
     const low = ends === null ? undefined : convert(ends[0]);
     const high = ends === null ? undefined : convert(ends[1]);
 

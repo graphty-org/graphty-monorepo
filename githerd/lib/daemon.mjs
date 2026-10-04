@@ -74,8 +74,9 @@ import { pollIssues } from "./issues.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
 import { servherd as servherdData } from "./launcher.mjs";
 import { dispatch } from "./dispatch.mjs";
-import { createIncidentActions } from "./incident-actions.mjs";
-import { failureKey } from "./lanes.mjs";
+import { classify } from "./classify.mjs";
+import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
+import { failureKey, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
@@ -126,6 +127,17 @@ const MAX_BODY = 1024 * 1024;
 const ISSUES_START = "1970-01-01T00:00:00Z";
 
 const RED_JOB = new Set(["failure", "timed_out", "startup_failure"]);
+/**
+ * The least a queued job waits before its lane counts as not progressing: the worst pickup seen on
+ * the rented GPU label from 09-18 to 10-03, 926 s (design 3.10). A label whose worst pickup is
+ * longer is held to that.
+ */
+const PICKUP_FLOOR_MS = 926_000;
+/** The owner item of each failure class on a master lane that is not code (design 4.4). */
+const PARKED_ITEMS = /** @type {Record<string, string>} */ ({
+    "paid-capacity": "cannot get a rented runner",
+    credential: "fails on a credential",
+});
 /** Escalation kinds that are owner items, and what each blocks (design 11.3). */
 const ITEM_KINDS = /** @type {Record<string, "workers" | null>} */ ({
     decision: null,
@@ -294,9 +306,22 @@ async function crashLoop(stateDir, stale, at) {
  */
 function noteLaneName(lane, runName, ms) {
     if (runName) lane.workflowName = runName;
-    if (lane.verdict !== "red") delete lane.redSince;
-    else lane.redSince ??= lane.updatedAt ?? new Date(ms).toISOString();
+    if (lane.verdict !== "red") {
+        delete lane.redSince;
+        delete lane.redClass;
+        delete lane.redReason;
+        delete lane.redJobs;
+        delete lane.classifiedFor;
+    } else lane.redSince ??= lane.updatedAt ?? new Date(ms).toISOString();
 }
+
+/**
+ * Whether a red lane counts as code red: classified `code`, or not classified yet (fail closed).
+ * Paid capacity, credential, outside and drift park the lane instead (design 4.4).
+ * @param {any} lane the lane record
+ * @returns {boolean} true for code red
+ */
+const codeRed = (lane) => (lane.redClass ?? "code") === "code";
 
 /**
  * Describes an incident's failing lanes for an owner item.
@@ -815,27 +840,79 @@ export async function startDaemon({
     }
 
     /**
-     * Moves the incident record along with the verdict, and pages.
+     * Classifies each red gating lane's newest run attempt once (design 4.4): every failing job,
+     * by its failed step names, its annotations and its runner labels, on master. The lane is code
+     * red when any job is `code`; otherwise it takes the first job's class and is parked, with no
+     * incident and no merge hold.
      * @param {any} m the master record
-     * @param {{lane: string, runId: number, jobs?: string[], refs?: any[]}[]} reds this poll's lane-red events
+     */
+    async function classifyLanes(m) {
+        for (const [name, l] of Object.entries(m.lanes)) {
+            const lane = /** @type {any} */ (l);
+            // A cancelled or skipped run after the red one leaves the verdict, and its class, as they were.
+            if (!gatingLane(name) || lane.verdict !== "red" || !lane.runId || !RED_JOB.has(lane.conclusion)) continue;
+            const at = `${lane.runId}/${lane.attempt}`;
+            if (lane.classifiedFor === at) continue;
+            const workflow = lane.workflowName ?? name;
+            const refs = [];
+            for (const j of await failingJobs(lane.runId)) {
+                const steps = (j.steps ?? []).filter((/** @type {any} */ x) => RED_JOB.has(x.conclusion));
+                const annotations = (
+                    (await github().get(`repos/${config.repo}/check-runs/${j.id}/annotations?per_page=100`)).body ?? []
+                ).map((/** @type {any} */ a) => String(a.message ?? ""));
+                const verdict = classify(
+                    {
+                        workflow,
+                        job: j.name,
+                        steps: steps.map((/** @type {any} */ x) => x.name),
+                        annotations,
+                        labels: j.labels,
+                    },
+                    { where: "master" },
+                );
+                refs.push({
+                    id: j.id,
+                    runId: lane.runId,
+                    attempt: j.run_attempt ?? 1,
+                    name: j.name,
+                    step: steps[0]?.name ?? "",
+                    class: verdict.class,
+                    reason: verdict.reason,
+                });
+            }
+            const first = refs.find((r) => r.class === "code") ?? refs[0];
+            Object.assign(lane, {
+                redJobs: refs,
+                redClass: first?.class ?? "code",
+                redReason: first ? `${first.name}: ${first.step || first.reason}` : "no failing job",
+                classifiedFor: at,
+            });
+            event("lane-classified", { lane: name, runId: lane.runId, attempt: lane.attempt, class: lane.redClass });
+        }
+    }
+
+    /**
+     * Whether a configured lane gates master.
+     * @param {string} name the lane
+     * @returns {boolean} true unless it is unknown or only watched
+     */
+    const gatingLane = (name) => Boolean(config.lanes[name]) && config.lanes[name].gating !== "watch";
+
+    /**
+     * Moves the incident record along with the code-red lanes: opens it (and raises its owner item
+     * when no fix run will handle it) while any is red, and resolves it once none is.
+     * @param {any} m the master record
      * @param {string | null} previousGreen the green SHA before this poll
      * @param {string} iso the poll's time
      */
-    async function track(m, reds, previousGreen, iso) {
+    async function track(m, previousGreen, iso) {
         const open = Object.values(state.incidents).find((i) => i.status === "open");
-        for (const red of reds) {
-            const failed = await failingJobs(red.runId);
-            red.jobs = failed.map((j) => j.name);
-            red.refs = failed.map((j) => ({
-                id: j.id,
-                runId: red.runId,
-                attempt: j.run_attempt ?? 1,
-                name: j.name,
-                step: j.steps?.find((/** @type {any} */ s) => RED_JOB.has(s.conclusion))?.name ?? "",
-            }));
-        }
-        if (m.verdict === "red") trackRed(m, reds, open, previousGreen, iso);
-        else if (m.verdict === "green" && open) {
+        await classifyLanes(m);
+        const codeLanes = Object.entries(m.lanes).filter(
+            ([name, l]) => gatingLane(name) && /** @type {any} */ (l).verdict === "red" && codeRed(l),
+        );
+        if (m.verdict === "red" && codeLanes.length) trackRed(codeLanes, open, previousGreen, iso);
+        else if (m.verdict !== "unknown" && open) {
             open.status = "resolved";
             open.resolvedAt = iso;
             const fix = commits.find((c) => c.sha === m.greenSha);
@@ -850,9 +927,9 @@ export async function startDaemon({
      * code-red key of the open incident, from the reconcile after its first sighting, the red-head
      * re-run and the parent re-test and what their outcome calls for (an `intermittent` issue, or
      * the revert pull request of the one merge between green and red); and the CI re-run that
-     * recreates a release's expired artifacts. A failure is ledgered and tried again next reconcile.
-     * ponytail: the paid-capacity backoff and the lane-not-progressing item wait for the classifier
-     * and the queue ages, which the daemon does not compute yet.
+     * recreates a release's expired artifacts; and for each lane parked for paid capacity, its
+     * owner item and its backoff re-run (design 3.2). A failure is ledgered and tried again next
+     * reconcile.
      */
     async function incidentSteps() {
         const spent = (state.incidentActions ??= {});
@@ -865,6 +942,7 @@ export async function startDaemon({
         try {
             const open = Object.values(state.incidents).find((i) => i.status === "open");
             if (open) await codeRedKeys(open, actions);
+            await parkedLanes(actions);
             if (config.lanes.release) await releaseArtifacts(actions, spent);
         } catch (err) {
             void ledger({ kind: "error", where: "incidents", error: /** @type {Error} */ (err).message });
@@ -901,6 +979,82 @@ export async function startDaemon({
                 Object.assign(rec, { outcome: out.outcome }, "issue" in out ? { issue: out.issue } : {});
                 if ("revertPr" in out) rec.revertPr = out.revertPr;
             }
+        }
+    }
+
+    /**
+     * The owner item of each gating lane parked for a class only the owner can clear (paid
+     * capacity, a credential), ended once the lane is no longer red for it; and the backoff re-run
+     * of a lane parked for paid capacity, never while one of its runs is in flight or no runner
+     * picks its jobs up.
+     * ponytail: outside and drift lanes are parked (no incident, no hold) and only ledgered; their
+     * re-run after 15 minutes and the drift incident come with the worker platform.
+     * @param {ReturnType<typeof createIncidentActions>} actions the incident actions
+     */
+    async function parkedLanes(actions) {
+        for (const name of Object.keys(config.lanes)) {
+            const l = state.master.lanes[name];
+            for (const [cls, what] of Object.entries(PARKED_ITEMS)) {
+                const id = `${cls}:${name}`;
+                if (!gatingLane(name) || l?.verdict !== "red" || l.redClass !== cls) {
+                    endItem(state, id, "cleared", now());
+                    continue;
+                }
+                raiseItem(
+                    state,
+                    {
+                        id,
+                        kind: cls,
+                        question: `${name} ${what} (${l.redReason}); merges continue and the release waits until it runs`,
+                        blocks: "release",
+                    },
+                    now(),
+                );
+                if (cls !== "paid-capacity") continue;
+                await actions.backoff({
+                    lane: name,
+                    openedAt: Date.parse(state.ownerItems[id].raisedAt),
+                    run: { id: l.runId, attempt: l.attempt },
+                    running: Object.keys(l.inFlight ?? {}).length > 0,
+                    notProgressing: Boolean(l.notProgressing),
+                });
+            }
+        }
+    }
+
+    /**
+     * Reads the jobs of each gating lane's runs in flight, keeps the worst pickup per runner label,
+     * and raises the lane-not-progressing owner item while a job waits for a runner past its bound
+     * (design 3.10); ends it once every job is within its bound or the lane has nothing in flight.
+     * @param {ReturnType<typeof createGitHub>} gh the client
+     * @param {number} ms the poll's time
+     */
+    async function laneProgress(gh, ms) {
+        const m = state.master;
+        m.pickups ??= {};
+        for (const [name, l] of Object.entries(m.lanes)) {
+            const lane = /** @type {any} */ (l);
+            if (!gatingLane(name)) continue;
+            const jobs = [];
+            for (const runId of Object.keys(lane.inFlight ?? {})) {
+                const res = await gh.get(`repos/${config.repo}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
+                jobs.push(...(res.body?.jobs ?? []));
+            }
+            m.pickups = notePickups(m.pickups, jobs);
+            const bounds = Object.fromEntries(
+                Object.entries(m.pickups).map(([label, worst]) => [label, Math.max(Number(worst), PICKUP_FLOOR_MS)]),
+            );
+            const item = laneNotProgressing(name, queueAges(jobs, { ...bounds, "": PICKUP_FLOOR_MS }, ms));
+            lane.notProgressing = item !== null;
+            if (!item) {
+                endItem(state, `lane-not-progressing:${name}`, "cleared", now());
+                continue;
+            }
+            raiseItem(
+                state,
+                { id: item.key, kind: "lane-not-progressing", question: item.summary, blocks: "release" },
+                now(),
+            );
         }
     }
 
@@ -958,29 +1112,25 @@ export async function startDaemon({
     }
 
     /**
-     * A red master: opens the incident when none is open (and pages), and records each red gating
-     * lane's run and failing jobs on it.
-     * @param {any} m the master record
-     * @param {{lane: string, runId: number, jobs?: string[], refs?: any[]}[]} reds this poll's lane-red events
+     * A code-red master: opens the incident when none is open (and raises its owner item), and
+     * records each code-red lane's run and its code failing jobs on it.
+     * @param {[string, any][]} gatingRed the code-red gating lanes
      * @param {any} open the open incident, if any
      * @param {string | null} previousGreen the green SHA before this poll
      * @param {string} iso the poll's time
      */
-    function trackRed(m, reds, open, previousGreen, iso) {
-        const gatingRed = Object.entries(m.lanes).filter(
-            ([name, l]) => config.lanes[name] && config.lanes[name].gating !== "watch" && l.verdict === "red",
-        );
+    function trackRed(gatingRed, open, previousGreen, iso) {
         const incident = open ?? openIncident(gatingRed[0][1], previousGreen, iso);
         for (const [name, l] of gatingRed) {
-            const red = reds.find((r) => r.lane === name && r.runId === l.runId);
-            const jobs = red?.jobs;
-            if (incident.lanes[name]?.runId === l.runId && !jobs) continue;
+            if (incident.lanes[name]?.classifiedFor === l.classifiedFor) continue;
+            const refs = (l.redJobs ?? []).filter((/** @type {any} */ j) => (j.class ?? "code") === "code");
             incident.lanes[name] = {
                 runId: l.runId,
                 attempt: l.attempt,
                 sha: l.sha,
-                failingJobs: jobs ?? incident.lanes[name]?.failingJobs ?? [],
-                jobRefs: red?.refs ?? incident.lanes[name]?.jobRefs ?? [],
+                classifiedFor: l.classifiedFor,
+                failingJobs: refs.map((/** @type {any} */ j) => j.name),
+                jobRefs: refs,
             };
         }
         if (open) return;
@@ -1090,7 +1240,8 @@ export async function startDaemon({
         const prList = await gh.graphql(PRS_QUERY, { owner, name }, { purpose: "essential" });
         m.branch = prList.repository.defaultBranchRef.name;
         const branch = m.branch ?? "master";
-        const reds = await pollLanes(gh, branch, ms, derived);
+        await pollLanes(gh, branch, ms, derived);
+        if (pace.level === "normal") await laneProgress(gh, ms);
         await followHead(gh, branch, prList.repository.defaultBranchRef.target.oid, iso);
 
         const previousGreen = m.greenSha ?? null;
@@ -1099,7 +1250,7 @@ export async function startDaemon({
             Object.assign(m, masterVerdict(m.lanes, config, { headSha: m.headSha, commits, greenSha: previousGreen }));
         else m.verdict = "unknown";
         if (m.verdict !== previousVerdict) m.since = iso;
-        await track(m, reds, previousGreen, iso);
+        await track(m, previousGreen, iso);
         await incidentSteps();
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);
         if (pace.level === "normal") await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
@@ -1145,12 +1296,9 @@ export async function startDaemon({
      * @param {string} branch the default branch
      * @param {number} ms the poll's time
      * @param {(args: any) => void} derived raises an escalation that clears when it stops holding
-     * @returns {Promise<{lane: string, runId: number}[]>} this poll's lane-red events on gating lanes
      */
     async function pollLanes(gh, branch, ms, derived) {
         const m = state.master;
-        /** @type {{lane: string, runId: number}[]} */
-        const reds = [];
         for (const [lane, { workflow }] of Object.entries(config.lanes)) {
             const res = await gh.get(
                 `repos/${config.repo}/actions/workflows/${workflow}/runs?branch=${branch}&per_page=10&exclude_pull_requests=true`,
@@ -1162,7 +1310,6 @@ export async function startDaemon({
             for (const e of updated.events) {
                 const { event: kind, ...fields } = e;
                 event(kind, fields);
-                if (kind === "lane-red" && config.lanes[lane].gating !== "watch") reds.push({ lane, runId: e.runId });
             }
         }
         for (const [lane, l] of Object.entries(m.lanes)) {
@@ -1176,7 +1323,6 @@ export async function startDaemon({
                 });
             }
         }
-        return reds;
     }
 
     /**
@@ -1294,10 +1440,10 @@ export async function startDaemon({
             prs.push(openPr(node, gate.heads[node.number], { ownerItemOpen }));
         }
         const fixPrs = incidentFixPrs();
-        // ponytail: every red gating lane counts as code red until the classifier is wired in;
-        // a paid-capacity or outside red holds too, which fails closed.
+        // Only a code-red lane holds merges; a lane parked for paid capacity, a credential, an
+        // outside failure or drift does not (design 4.4).
         const redLanes = Object.entries(m.lanes)
-            .filter(([name, l]) => config.lanes[name] && config.lanes[name].gating !== "watch" && l.verdict === "red")
+            .filter(([name, l]) => gatingLane(name) && l.verdict === "red" && codeRed(l))
             .map(([name, l]) => ({
                 workflow: l.workflowName ?? name,
                 since: l.redSince ?? l.updatedAt,

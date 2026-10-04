@@ -113,7 +113,8 @@ let notifyLog;
 let clock;
 /**
  * @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null,
- *   events?: Record<string, any[]>, merged?: any[], release?: any[], annotations?: any[]}}
+ *   events?: Record<string, any[]>, merged?: any[], release?: any[], annotations?: any[], gpu?: any[],
+ *   jobs?: Record<string, any[]>}}
  */
 let scene;
 /** @type {ReturnType<typeof createFakeGh>} */
@@ -174,6 +175,9 @@ function respond({ args, input }) {
     }
     if (path.includes("/actions/workflows/ci.yml/runs?")) return ok({ workflow_runs: scene.ci });
     if (path.includes("/actions/workflows/release.yml/runs?")) return ok({ workflow_runs: scene.release ?? [] });
+    if (path.includes("/actions/workflows/gpu.yml/runs?")) return ok({ workflow_runs: scene.gpu ?? [] });
+    const runJobs = /\/actions\/runs\/(\d+)\/jobs\?/.exec(path);
+    if (runJobs && scene.jobs?.[runJobs[1]]) return ok({ jobs: scene.jobs[runJobs[1]] });
     if (/\/check-runs\/\d+\/annotations\?/.test(path)) return ok(scene.annotations ?? []);
     if (/\/actions\/runs\/\d+$/.test(path) && !args.includes("-X")) {
         return ok({ id: Number(path.split("/").at(-1)), run_attempt: 1, status: "completed" });
@@ -518,7 +522,7 @@ describe("the poll loop", () => {
             lanes: { ci: { runId: 101, sha: B, failingJobs: ["Build"] } },
         });
         expect(masterRed()).toEqual([{ status: "waiting", message: expect.stringContaining("ci (Build)") }]);
-        expect(await events()).toEqual(["lane-green", "lane-red", "master-red-confirmed"]);
+        expect(await events()).toEqual(["lane-green", "lane-red", "lane-classified", "master-red-confirmed"]);
 
         // a restart in the middle keeps the lane verdict on the first poll after it
         await daemon.shutdown();
@@ -542,6 +546,7 @@ describe("the poll loop", () => {
         expect(await events()).toEqual([
             "lane-green",
             "lane-red",
+            "lane-classified",
             "master-red-confirmed",
             "lane-green",
             "master-recovered",
@@ -1099,6 +1104,84 @@ describe("the poll loop", () => {
         scene.events[7].push(labeled("githerd:next", "owner"));
         await poll(daemon);
         expect(await queue()).toEqual(["issue:7", "issue:6"]);
+    });
+});
+
+describe("failure classes on master", () => {
+    const RENTED = "machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand";
+    const BALANCE = "Machine: Insufficient balance to run job. Current balance: $-2.0800. Minimum required: $0.05.";
+    const gpuConfig = () =>
+        writeConfig({
+            lanes: { ci: { workflow: "ci.yml", gating: "required" }, gpu: { workflow: "gpu.yml", gating: "required" } },
+        });
+
+    it("parks a lane out of balance: an owner item and one backoff re-run per slot, no incident", async () => {
+        gpuConfig();
+        scene.gpu = [{ ...run(200, A, "failure"), name: "GPU" }];
+        scene.jobs = {
+            200: [
+                {
+                    id: 2000,
+                    run_attempt: 1,
+                    name: "Test (NVIDIA T4)",
+                    conclusion: "failure",
+                    labels: [RENTED],
+                    steps: [{ name: BALANCE, conclusion: "failure" }],
+                },
+            ],
+        };
+        const daemon = await start();
+        for (const at of ["12:00", "12:03", "12:20", "12:36", "12:45"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        expect(daemon.state.master.lanes.gpu).toMatchObject({ verdict: "red", redClass: "paid-capacity" });
+        expect(daemon.state.incidents).toEqual({});
+        expect(daemon.state.ownerItems["paid-capacity:gpu"]).toMatchObject({ blocks: "release" });
+        expect(daemon.state.ownerItems["paid-capacity:gpu"].endedAt).toBeUndefined();
+        const would = (await readLedger(join(dir, ".githerd"))).filter((e) => e.group === "incidents");
+        expect(would.map((e) => [e.op, e.situation, e.slot])).toEqual([
+            ["POST actions/runs/200/rerun-failed-jobs", "paid-capacity-backoff", 1],
+        ]);
+        expect(gh.writes()).toEqual([]);
+
+        // A green run ends the item by itself.
+        scene.gpu = [{ ...run(201, A, "success"), name: "GPU" }, ...scene.gpu];
+        clock = new Date("2026-10-02T12:48:00Z");
+        await poll(daemon);
+        expect(daemon.state.ownerItems["paid-capacity:gpu"]).toMatchObject({ endedBy: "cleared" });
+    });
+
+    it("raises lane-not-progressing while a gating job waits for a runner past its bound, and ends it once picked up", async () => {
+        gpuConfig();
+        const queued = { ...run(300, A, null), status: "queued", name: "GPU" };
+        scene.gpu = [queued, { ...run(299, A, "success"), name: "GPU" }];
+        const job = {
+            id: 3000,
+            name: "Test (NVIDIA T4)",
+            status: "queued",
+            labels: [RENTED],
+            created_at: "2026-10-02T12:00:00Z",
+        };
+        scene.jobs = { 300: [job] };
+        const daemon = await start();
+        clock = new Date("2026-10-02T12:10:00Z");
+        await poll(daemon);
+        expect(daemon.state.ownerItems?.["lane-not-progressing:gpu"]).toBeUndefined();
+        clock = new Date("2026-10-02T12:20:00Z");
+        await poll(daemon);
+        expect(daemon.state.ownerItems["lane-not-progressing:gpu"]).toMatchObject({
+            blocks: "release",
+            question: expect.stringMatching(/^gpu: Test \(NVIDIA T4\) has waited 20 min for a runner/),
+        });
+        expect(daemon.state.master.lanes.gpu.notProgressing).toBe(true);
+        scene.jobs = {
+            300: [{ ...job, status: "in_progress", runner_name: "t4-1", started_at: "2026-10-02T12:21:00Z" }],
+        };
+        clock = new Date("2026-10-02T12:23:00Z");
+        await poll(daemon);
+        expect(daemon.state.ownerItems["lane-not-progressing:gpu"]).toMatchObject({ endedBy: "cleared" });
+        expect(daemon.state.master.pickups[RENTED]).toBe(21 * 60_000);
     });
 });
 

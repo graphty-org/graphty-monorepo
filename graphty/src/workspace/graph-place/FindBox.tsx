@@ -6,6 +6,7 @@ import { CircleDot, ListFilter, Minus } from "lucide-react";
 import React, { useId, useMemo, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
+import { useSessionVersion } from "./useSessionVersion";
 
 /** The find box's id, which `find.focus` ("/") moves focus to. */
 export const FIND_BOX_ID = "ws-find";
@@ -50,12 +51,13 @@ export function FindBox(): React.JSX.Element {
     const [text, setText] = useState("");
     const [active, setActive] = useState(-1);
     const listId = useId();
+    // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
+    const version = useSessionVersion(session);
 
-    const found: FindResult | null = useMemo(
-        () => (session === null || text.trim() === "" ? null : session.find(text, { limit: LIMIT })),
-        // The revision is read inside find; a new text is what asks again.
-        [session, text],
-    );
+    const found: FindResult | null = useMemo(() => {
+        void version;
+        return session === null || text.trim() === "" ? null : session.find(text, { limit: LIMIT });
+    }, [session, text, version]);
     const options: Option[] = found
         ? [
               ...found.records.map((hit): Option => ({ type: "hit", hit })),
@@ -76,7 +78,8 @@ export function FindBox(): React.JSX.Element {
         }
         const { hit } = option;
         await session.selection.apply(hit.target);
-        store.set({ inspected: { kind: hit.kind, id: String(hit.id) } });
+        // The inspector shows what is selected once no row is open.
+        store.set({ inspected: null });
         await element?.zoomToSelection();
     };
 

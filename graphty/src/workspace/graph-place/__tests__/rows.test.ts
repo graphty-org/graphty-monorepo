@@ -18,6 +18,7 @@ interface RunStub {
     partial?: boolean;
     error?: { message: string };
     record: { summary?: { measured?: number; groups?: { group: string | number; size: number; name?: string }[] } };
+    result?: { graph: Record<string, unknown> };
 }
 
 /**
@@ -66,8 +67,8 @@ describe("paintRows", () => {
         assert.deepEqual(
             rows.map((r) => [r.kind, r.name]),
             [
-                ["selection", "Selection"],
-                ["everything", "Everything"],
+                ["selection-row", "Selection"],
+                ["everything-row", "Everything"],
             ],
         );
         assert.isUndefined(rows[0].count, "an empty selection shows no count");
@@ -105,8 +106,14 @@ describe("paintRows", () => {
             layers: [...BASE, layer("pr-color", runSource("pagerank"), false)],
             legend: [
                 {
+                    channel: "node.size",
+                    runId: "pagerank",
+                    swatches: [{ label: "small", value: 0 }],
+                },
+                {
                     channel: "node.color",
                     runId: "pagerank",
+                    palette: { name: "viridis", reversed: false },
                     swatches: [
                         { label: "low", value: 0, color: "#000000" },
                         { label: "high", value: 1, color: "#ffffff" },
@@ -138,6 +145,7 @@ describe("paintRows", () => {
                 {
                     channel: "node.color",
                     runId: "louvain",
+                    palette: { name: "okabe-ito", reversed: false },
                     swatches: [
                         { label: "Group 1", value: 0, color: "#ff0000" },
                         { label: "Group 2", value: 1, color: "#00ff00" },
@@ -150,6 +158,8 @@ describe("paintRows", () => {
                     label: "Louvain",
                     status: "succeeded",
                     shape: "community",
+                    // The count is the one the run publishes, not the length of the bounded list.
+                    result: { graph: { groupCount: 30 } },
                     record: {
                         summary: {
                             groups: [
@@ -163,12 +173,12 @@ describe("paintRows", () => {
         });
         const row = findRow(paintRows(session), "louvain");
         assert.equal(row?.kind, "run-row");
-        assert.equal(row?.count, 2);
+        assert.equal(row?.count, 30);
         assert.deepEqual(
             row?.children?.map((c) => [c.id, c.name, c.count, c.swatch, c.layerIds.length]),
             [
-                ["louvain/0", "Group 1", 40, { color: "#ff0000" }, 0],
-                ["louvain/1", "1", 37, { color: "#00ff00" }, 0],
+                ['["louvain",0]', "Group 1", 40, { color: "#ff0000" }, 0],
+                ['["louvain",1]', "1", 37, { color: "#00ff00" }, 0],
             ],
         );
     });

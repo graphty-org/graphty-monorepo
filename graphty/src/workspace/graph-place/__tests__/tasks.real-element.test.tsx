@@ -92,7 +92,7 @@ describe("the Graph place on the real element", () => {
             await waitFor(() => {
                 assert.isTrue(session.selection.has(2));
             });
-            assert.deepEqual(store.get().inspected, { kind: "node", id: "2" });
+            assert.isNull(store.get().inspected, "the inspector shows what is selected");
             assert.isNull(screen.queryByRole("listbox", { name: "Find results" }));
         },
         TIMEOUT_MS * 2,
@@ -119,7 +119,7 @@ describe("the Graph place on the real element", () => {
             await waitFor(() => {
                 assert.isTrue(session.selection.has(7));
             });
-            assert.deepEqual(store.get().inspected, { kind: "node", id: "7" });
+            assert.isNull(store.get().inspected, "the inspector shows what is selected");
         },
         TIMEOUT_MS * 2,
     );
@@ -187,6 +187,19 @@ describe("the Graph place on the real element", () => {
             await waitFor(() => {
                 assert.deepEqual(treeRows(), ["Selection", run.label, "Everything"]);
             });
+            assert.isNull(store.get().notice, "the notice goes once its delete is undone");
+
+            // Once another change is made, the notice goes: its Undo would take back that change.
+            const row2 = screen.getByRole("treeitem", { name: run.label });
+            await userEvent.click(row2);
+            await userEvent.keyboard("{Delete}");
+            await waitFor(() => {
+                assert.isNotNull(store.get().notice);
+            });
+            await session.data.addNodes([{ id: 99, name: "Zed" }]);
+            await waitFor(() => {
+                assert.isNull(store.get().notice);
+            });
         },
         TIMEOUT_MS * 2,
     );
@@ -200,12 +213,15 @@ describe("the Graph place on the real element", () => {
             const run = session.runs.list()[0];
             const groups = run.record.summary?.groups ?? [];
             assert.isNotEmpty(groups);
+            const groupCount = run.result?.graph.groupCount;
+            assert.isNumber(groupCount);
             await waitFor(() => {
                 assert.include(treeRows(), run.label);
             });
             const tree = screen.getByRole("tree", { name: "Paint tree" });
             const parent = within(tree).getByRole("treeitem", { name: run.label });
             assert.equal(parent.getAttribute("aria-expanded"), "true", "few groups open by default");
+            assert.include(parent.textContent, String(groupCount), "the count is the one the run publishes");
             for (const group of groups) {
                 const child = within(tree).getByRole("treeitem", { name: group.name ?? String(group.group) });
                 assert.include(child.textContent, String(group.size));

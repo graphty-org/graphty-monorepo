@@ -141,7 +141,7 @@ describe("the Graph place", () => {
         await waitFor(() => {
             assert.isTrue(session.selection.has("b"));
         });
-        assert.deepEqual(store.get().inspected, { kind: "node", id: "b" });
+        assert.isNull(store.get().inspected, "the inspector shows what is selected");
         assert.equal((box as HTMLInputElement).value, "", "a pick clears the box");
     });
 
@@ -154,6 +154,16 @@ describe("the Graph place", () => {
         await waitFor(() => {
             assert.equal(session.selection.size, 2);
         });
+    });
+
+    it("keeps the list current when the data changes while the text sits in the box", async () => {
+        const session = await sessionWithGraph();
+        renderPlace(session);
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "law");
+        await screen.findByRole("option", { name: "Select where side is law (2)" });
+        await session.data.addNodes([{ id: "d", name: "Thenardier", side: "law" }]);
+        assert.isNotNull(await screen.findByRole("option", { name: "Select where side is law (3)" }));
     });
 
     it("clears with Esc, then leaves the box with a second Esc", async () => {

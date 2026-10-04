@@ -5,17 +5,20 @@
  */
 
 import type { LayerId, RunId } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
 
-/** The kind of a row, which is also the inspected kind a click on it opens. */
-export type RowKind = "selection" | "measure-row" | "run-row" | "group-row" | "layer-row" | "everything";
+/** The kind of a row, which is also the inspected kind a click on it opens (the inspector's kinds). */
+export type RowKind = "selection-row" | "measure-row" | "run-row" | "group-row" | "layer-row" | "everything-row";
 
 /** What the kind slot shows besides the kind's icon. */
 type RowState = "ready" | "running" | "partial" | "failed" | "canceled";
 
 /** One row of the paint tree. */
 export interface PaintRow {
-    /** Unique across the tree: the run id, the layer id, `<run id>/<group>`, or the fixed row's kind. */
+    /**
+     * Unique across the tree, and the id the inspector reads: the run id, the layer id, a group's
+     * `JSON.stringify([runId, group])`, or the fixed row's own name.
+     */
     readonly id: string;
     readonly kind: RowKind;
     readonly name: string;
@@ -39,11 +42,6 @@ export interface PaintRow {
     readonly children?: readonly PaintRow[];
 }
 
-/** The shapes a run row draws its groups for. */
-const GROUP_SHAPES = new Set(["community", "layered-grouping", "category-table"]);
-/** The shapes that are one value per element: a single measure row. */
-const MEASURE_SHAPES = new Set(["node-metric", "edge-metric"]);
-
 /**
  * The paint tree's rows, top first: Selection; then the runs and the reader's own layers in paint
  * order, the topmost first, with a run that has no layer yet (queued, running, failed, or styled
@@ -61,9 +59,11 @@ export function paintRows(session: GraphSession): PaintRow[] {
         const layerIds = session.runs.bindings(run.id);
         const owned = layers.filter((layer) => layerIds.includes(layer.id));
         const blocks = legend.filter((block) => block.runId === run.id);
-        const color = blocks.find((block) => block.channel.endsWith(".color")) ?? blocks[0];
+        // The block that carries a palette is the one that paints a color.
+        const color = blocks.find((block) => block.palette !== undefined);
         const { summary } = run.record;
-        const groups = GROUP_SHAPES.has(run.shape) ? (summary?.groups ?? []) : undefined;
+        // The element publishes groups only for a result that partitions.
+        const groups = summary?.groups;
         const hidden = owned.length > 0 && owned.every((layer) => !layer.enabled);
         const base = {
             id: run.id,
@@ -75,16 +75,19 @@ export function paintRows(session: GraphSession): PaintRow[] {
             runId: run.id,
         };
         if (groups !== undefined) {
+            // The group count the run publishes; `groups` itself is bounded.
+            const graph = run.result?.graph;
+            const published = graph?.groupCount ?? graph?.levelCount;
             return {
                 ...base,
                 kind: "run-row",
-                count: groups.length > 0 ? groups.length : undefined,
+                count: typeof published === "number" ? published : undefined,
                 children: groups.map((group) => {
                     // Draws no color until the legend and the summary spell a group the same way
                     // (#906: a number in the summary, a string in the legend).
                     const swatch = color?.swatches.find((s) => s.value === group.group)?.color;
                     return {
-                        id: `${run.id}/${String(group.group)}`,
+                        id: JSON.stringify([run.id, group.group]),
                         kind: "group-row",
                         name: group.name ?? String(group.group),
                         state: "ready",
@@ -100,7 +103,8 @@ export function paintRows(session: GraphSession): PaintRow[] {
         const ramp = color?.swatches.flatMap((s) => (s.color === undefined ? [] : [s.color])) ?? [];
         return {
             ...base,
-            kind: MEASURE_SHAPES.has(run.shape) ? "measure-row" : "run-row",
+            // A run whose primary field is one value per element is a single measure row.
+            kind: RESULT_SHAPE_CONTRACTS[run.shape].primaryField === "value" ? "measure-row" : "run-row",
             count: summary?.measured,
             swatch: ramp.length === 0 ? undefined : { ramp },
         };
@@ -136,7 +140,7 @@ export function paintRows(session: GraphSession): PaintRow[] {
     return [
         {
             id: "selection",
-            kind: "selection",
+            kind: "selection-row",
             name: "Selection",
             state: "ready",
             count: selected > 0 ? selected : undefined,
@@ -145,7 +149,7 @@ export function paintRows(session: GraphSession): PaintRow[] {
         },
         ...unplaced.map(rowFor),
         ...middle,
-        { id: "everything", kind: "everything", name: "Everything", state: "ready", layerIds: [], hidden: false },
+        { id: "everything", kind: "everything-row", name: "Everything", state: "ready", layerIds: [], hidden: false },
     ];
 }
 

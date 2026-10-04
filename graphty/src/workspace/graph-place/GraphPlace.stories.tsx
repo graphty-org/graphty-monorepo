@@ -1,27 +1,41 @@
 // Storybook does not run src/main.tsx, so the story defines the real <graphty-element> itself.
 import "@graphty/graphty-element";
 
+import { defineAlgorithm } from "@graphty/graphty-element/extend";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
 import { Workspace } from "../Workspace";
+import { EDGES, NODES } from "./twoRings.fixture";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 
-/**
- * Two named rings of six joined by one bridge edge, laid out on a flat circle, which places them
- * the same way every time: PageRank ranks the bridge's ends highest and Louvain finds the rings.
- */
-const NAMES = ["Ada", "Bea", "Cy", "Dot", "Eve", "Flo", "Gus", "Hal", "Ivy", "Jo", "Kit", "Lou"];
-const NODES = NAMES.map((name, i) => ({ id: `n${String(i)}`, name, ring: i < 6 ? "east" : "west" }));
-const ring = (from: number): { source: string; target: string }[] =>
-    Array.from({ length: 6 }, (_, i) => ({
-        source: `n${String(from + i)}`,
-        target: `n${String(from + ((i + 1) % 6))}`,
-    }));
-const EDGES = [...ring(0), ...ring(6), { source: "n0", target: "n6" }];
-
 const OPEN = { project: { name: "Two rings", id: 1 } } as const;
+
+// A story-only algorithm that always fails, registered through the element's public extension API.
+defineAlgorithm({
+    id: "graphty-story-fails",
+    name: "Fails on purpose",
+    nodes: () => {
+        throw new Error("This sample algorithm always fails.");
+    },
+});
+
+/**
+ * The story's element, laid out flat with the fixture's fixed positions.
+ * @param canvasElement - the story's root.
+ * @returns the element.
+ */
+async function fixedElement(canvasElement: HTMLElement): Promise<GraphtyElement> {
+    await customElements.whenDefined("graphty-element");
+    const element = canvasElement.querySelector("graphty-element");
+    if (element === null) {
+        throw new Error("the story rendered no <graphty-element>");
+    }
+    await element.session.layout.setDimension("2d");
+    await element.session.layout.set("fixed");
+    return element;
+}
 
 /**
  * Loads the two rings into the story's element and waits for a stable frame.
@@ -29,13 +43,7 @@ const OPEN = { project: { name: "Two rings", id: 1 } } as const;
  * @returns the element.
  */
 async function loadRings(canvasElement: HTMLElement): Promise<GraphtyElement> {
-    await customElements.whenDefined("graphty-element");
-    const element = canvasElement.querySelector("graphty-element");
-    if (element === null) {
-        throw new Error("the story rendered no <graphty-element>");
-    }
-    await element.session.layout.setDimension("2d");
-    await element.session.layout.set("circular", { options: { scale: 0.2 } });
+    const element = await fixedElement(canvasElement);
     await element.session.data.addNodes(NODES);
     await element.session.data.addEdges(EDGES);
     await element.waitForStableFrame();
@@ -73,7 +81,10 @@ type Story = StoryObj<typeof meta>;
 /** No data yet: Selection and Everything, and "Add data to start" (`#/graph-place/empty`). */
 export const Empty: Story = { args: { initialState: OPEN } };
 
-/** A graph just loaded, nothing run: the footer points at Analyze (`#/graph-place/karate`). */
+/**
+ * A graph just loaded, nothing run: the footer points at Analyze (`#/graph-place/karate`, and
+ * `#/graph-place/ppi`, which is the same state over another sample).
+ */
 export const AtRest: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -103,7 +114,11 @@ export const Hidden: Story = {
     },
 };
 
-/** Louvain over PageRank: a run row with its groups open, each with its color and size (`#/graph-place/louvain-open`). */
+/**
+ * Louvain over PageRank: a run row with its groups open, each with its color and size
+ * (`#/graph-place/louvain-open`). Until graphty-element #906 is fixed the group rows draw no color,
+ * so a capture of this story shows that defect and is not the expected look.
+ */
 export const LouvainOpen: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -128,5 +143,29 @@ export const FindNoMatch: Story = {
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
         await find(canvasElement, "xyz");
+    },
+};
+
+/** A graph read from a file: the title line names the file (`#/graph-place/file-loaded`). */
+export const FileLoaded: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await fixedElement(canvasElement);
+        const json = JSON.stringify({ nodes: NODES, edges: EDGES });
+        await element.session.data.import({ config: { file: new File([json], "two-rings.json") } });
+        await element.waitForStableFrame();
+    },
+};
+
+/** A run that failed: the error icon, the element's message in its tooltip (`#/graph-place/failed`). */
+export const Failed: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await loadRings(canvasElement);
+        await element.session.runs.start("graphty-story-fails").then(
+            () => undefined,
+            () => undefined,
+        );
+        await within(canvasElement).findByRole("treeitem", { name: "Fails on purpose" });
     },
 };

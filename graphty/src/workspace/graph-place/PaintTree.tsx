@@ -24,16 +24,18 @@ const OPEN_UP_TO = 12;
 
 /** The kind slot's icon for each row kind. */
 const KIND_ICONS: Record<RowKind, React.ReactNode> = {
-    selection: <SquareDashed size={14} />,
+    "selection-row": <SquareDashed size={14} />,
     "measure-row": <ChartColumn size={14} />,
     "run-row": <Layers size={14} />,
     "group-row": <Circle size={14} />,
     "layer-row": <Paintbrush size={14} />,
-    everything: <SquareStack size={14} />,
+    "everything-row": <SquareStack size={14} />,
 };
 
 /**
- * The kind slot: the kind's icon, or the run's state with its sentence in a tooltip.
+ * The kind slot: the kind's icon, or the run's state with its sentence in a tooltip. The
+ * sentence reaches only pointer users: compact-mantine's Tree names a row by its name alone and
+ * has no slot for a description (#908).
  * @param row - the row.
  * @returns the icon.
  */
@@ -143,7 +145,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
             name: row.name,
             icon: kindSlot(row),
             dimmed: row.hidden,
-            strong: row.kind === "selection" || row.kind === "everything" ? false : undefined,
+            strong: row.kind === "selection-row" || row.kind === "everything-row" ? false : undefined,
             children: row.children?.map(toItem),
             actions: (
                 <>
@@ -159,10 +161,8 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
         .filter((row) => row.children !== undefined)
         .filter((row) => opened.get(row.id) ?? (row.children?.length ?? 0) <= OPEN_UP_TO)
         .map((row) => row.id);
-    const selected =
-        inspected !== null && findRow(rows, inspected.id ?? inspected.kind) !== undefined
-            ? [inspected.id ?? inspected.kind]
-            : [];
+    const shown = inspected?.id === undefined ? undefined : findRow(rows, inspected.id);
+    const selected = shown !== undefined && shown.kind === inspected?.kind ? [shown.id] : [];
 
     const onKeyDownCapture = (event: React.KeyboardEvent): void => {
         // Only on a focused row: Space on the eye inside it presses the eye itself. Caught here

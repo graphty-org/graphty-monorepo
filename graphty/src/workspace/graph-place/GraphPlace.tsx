@@ -1,6 +1,6 @@
 import "./graph-place.css";
 
-import { Anchor, Text } from "@mantine/core";
+import { Anchor, Text, Tooltip } from "@mantine/core";
 import React, { useMemo } from "react";
 
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -67,9 +67,11 @@ export function GraphPlace(): React.JSX.Element {
                 <Text span className="ws-graph-title-prefix">
                     Graph
                 </Text>
-                <Text span className="ws-graph-title-name" title={name}>
-                    {name}
-                </Text>
+                <Tooltip label={name}>
+                    <Text span className="ws-graph-title-name">
+                        {name}
+                    </Text>
+                </Tooltip>
             </div>
             <div className="ws-graph-treebar">
                 <FindBox />

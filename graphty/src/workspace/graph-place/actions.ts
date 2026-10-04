@@ -1,6 +1,6 @@
 import type { GraphSession } from "@graphty/graphty-element/session";
 
-import type { WorkspaceStore } from "../state/store";
+import type { Notice, WorkspaceStore } from "../state/store";
 import type { PaintRow } from "./rows";
 
 /**
@@ -33,17 +33,34 @@ export async function deleteRow(session: GraphSession, store: WorkspaceStore, ro
     } else {
         return;
     }
+    // Undo takes back this delete only while it is still the step an undo would take back; once
+    // the history moves on, the notice goes.
+    const next = session.history.nextUndo;
+    const step = next?.kind === "undo" ? next.step.id : undefined;
+    const isNext = (): boolean => {
+        const now = session.history.nextUndo;
+        return step !== undefined && now?.kind === "undo" && now.step.id === step;
+    };
     const groups = row.children?.length ?? 0;
-    store.set({
-        inspected: null,
-        notice: {
-            message: groups > 0 ? `Deleted ${row.name} and ${String(groups)} groups.` : `Deleted ${row.name}.`,
-            action: {
-                label: "Undo",
-                run: () => {
+    const notice: Notice = {
+        message:
+            groups > 0
+                ? `Deleted ${row.name} and ${String(groups)} ${groups === 1 ? "group" : "groups"}.`
+                : `Deleted ${row.name}.`,
+        action: {
+            label: "Undo",
+            run: () => {
+                if (isNext()) {
                     void session.undo();
-                },
+                }
             },
         },
+    };
+    const off = session.on("history:changed", () => {
+        if (!isNext()) {
+            off();
+            store.set((state) => (state.notice === notice ? { notice: null } : {}));
+        }
     });
+    store.set({ inspected: null, notice });
 }

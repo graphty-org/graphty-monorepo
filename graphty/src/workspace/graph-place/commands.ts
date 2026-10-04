@@ -2,8 +2,9 @@ import { defineRegistration } from "../commands/registry";
 import { FIND_BOX_ID } from "./FindBox";
 
 /**
- * The Graph place's commands and the row kinds its paint tree hands the inspector. A click on a
- * row sets `inspected` to `{ kind, id }` with one of these kinds and the row's id.
+ * The Graph place's commands. A click on a row sets `inspected` to `{ kind, id }` with the row's
+ * kind and id; the inspector registers and draws those kinds, except a reader's own layer row,
+ * which only the paint tree has.
  */
 export const registration = defineRegistration({
     owner: "graph-place",
@@ -25,11 +26,6 @@ export const registration = defineRegistration({
         },
     ],
     inspectedKinds: [
-        { kind: "selection", tabs: [] },
-        { kind: "measure-row", tabs: ["style", "values"] },
-        { kind: "run-row", tabs: ["style", "values"] },
-        { kind: "group-row", tabs: ["style", "values"] },
         { kind: "layer-row", tabs: ["style", "values"] },
-        { kind: "everything", tabs: ["style", "values"] },
     ],
 });

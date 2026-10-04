@@ -3000,7 +3000,8 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
             role: "position",
             mutable: true,
             nullable: true,
-            extra: { sourceDims: 2, units: "file" },
+            // 3D layouts written by Cytoscape-compatible tools carry a z
+            extra: { sourceDims: nodes.some(hasPositionZ) ? 3 : 2, units: "file" },
             origin: { format: "json", namespace: "cytoscape" },
         },
         anyHas(nodes, "position"),
@@ -3037,6 +3038,14 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
         if (index < 0) {
             continue;
         }
+        if (present(data, "source") && present(data, "target")) {
+            report.warning(
+                "validation-error",
+                JSON_ISSUE.INCONSISTENT,
+                `${element} has data.source and data.target, the shape of an edge, but its section or group says node; read as a node`,
+                { element },
+            );
+        }
         try {
             for (const key of Object.keys(data)) {
                 if (key === "id") {
@@ -3056,15 +3065,17 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
             }
             const { position } = record;
             if (position !== undefined && position !== null) {
-                if (isJsonObject(position) && typeof position.x === "number" && typeof position.y === "number") {
+                const z = isJsonObject(position) ? (position.z ?? 0) : 0;
+                if (isJsonObject(position) && isCoordinate(position.x) && isCoordinate(position.y) && isCoordinate(z)) {
                     point[0] = position.x;
                     point[1] = position.y;
+                    point[2] = z;
                     ctx.nodes.set(positionColumn, index, point);
                 } else {
                     report.error(
                         "validation-error",
                         JSON_ISSUE.BAD_VALUE,
-                        `${element}: position must be an object with numeric x and y`,
+                        `${element}: position must be an object with numeric x and y (and z) that are finite and within the f32 range`,
                         { element },
                     );
                 }
@@ -3075,6 +3086,9 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
             report.recordError(err, { element: String(id) });
         }
     }
+    // the parent links set so far, child -> parent, to refuse a link that closes a cycle (Cytoscape.js
+    // refuses those too)
+    const parentOf = new Map<number, number>();
     for (const { index, parent, element } of parents) {
         const parentIndex = ctx.sink.indexOf(parent);
         if (parentIndex === INVALID_INDEX) {
@@ -3086,6 +3100,21 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
             );
             continue;
         }
+        // ponytail: walks the ancestor chain per link, O(depth); compound nesting is shallow in practice
+        let ancestor: number | undefined = parentIndex;
+        while (ancestor !== undefined && ancestor !== index) {
+            ancestor = parentOf.get(ancestor);
+        }
+        if (ancestor === index) {
+            report.error(
+                "validation-error",
+                JSON_ISSUE.PARENT_CYCLE,
+                `${element}: parent ${JSON.stringify(parent)} would make the node its own ancestor; the link is dropped`,
+                { element },
+            );
+            continue;
+        }
+        parentOf.set(index, parentIndex);
         ctx.nodes.set(parentColumn, index, parentIndex);
     }
     throwIfAborted(ctx.options.signal);
@@ -3153,10 +3182,21 @@ function cytoscapeSections(
 ): { readonly nodes: readonly unknown[]; readonly edges: readonly unknown[] } {
     const { report } = ctx;
     if (Array.isArray(elements)) {
-        return {
-            nodes: elements.filter((item) => isJsonObject(item) && isNodeElement(item)),
-            edges: elements.filter((item) => isJsonObject(item) && !isNodeElement(item)),
-        };
+        const nodes: unknown[] = [];
+        const edges: unknown[] = [];
+        elements.forEach((item: unknown, i) => {
+            if (isJsonObject(item) && item.group !== undefined && item.group !== "nodes" && item.group !== "edges") {
+                report.error(
+                    "validation-error",
+                    JSON_ISSUE.BAD_VALUE,
+                    `elements[${i}]: group ${describe(item.group)} is neither "nodes" nor "edges"; classed by its endpoints`,
+                    { element: `elements[${i}]` },
+                );
+            }
+            // a non-object item stays with the nodes, whose reader reports it as E_BAD_ELEMENT
+            (isJsonObject(item) && !isNodeElement(item) ? edges : nodes).push(item);
+        });
+        return { nodes, edges };
     }
     if (isJsonObject(elements)) {
         return {
@@ -3171,6 +3211,27 @@ function cytoscapeSections(
         return { nodes: [], edges: [] };
     }
     return report.fail(JSON_ISSUE.SHAPE, `elements must be an object or an array, found ${describe(elements)}`);
+}
+
+/**
+ * Whether a Cytoscape element's position has a numeric z.
+ * @param element - the element
+ * @returns true when position.z is a number
+ */
+function hasPositionZ(element: unknown): boolean {
+    return isJsonObject(element) && isJsonObject(element.position) && typeof element.position.z === "number";
+}
+
+/** The largest finite f32, the bound of a position coordinate. */
+const F32_MAX = 3.4028234663852886e38;
+
+/**
+ * Whether a value is a coordinate the f32 position column holds: a finite number within the f32 range.
+ * @param value - the value
+ * @returns true for a storable coordinate
+ */
+function isCoordinate(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= F32_MAX;
 }
 
 /**

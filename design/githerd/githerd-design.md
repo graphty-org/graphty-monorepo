@@ -1278,9 +1278,21 @@ lock's pid is dead or has another start time, and only by a restarter holding `r
 Restarters: pm2 (once servherd passes `autorestart` [R18], [S26]); every MCP server, which stats
 `alive` once a minute while its session lives (idle waiting workers included); every hook and CLI
 call; the launcher of the first Claude session after a container restart; and `githerd ensure`
-from any terminal. There is no supervisord entry (owner's decision 3 in 12.3). Every start path uses one fixed cwd,
-`~/.githerd/graphty-monorepo/current`, and the name `githerd` [R18], and clears inherited `CLAUDE*`
-and Pushover variables [R19]. An uncaught exception enters fatal mode with its stack instead of
+from any terminal. There is no supervisord entry (owner's decision 3 in 12.3). Every start path
+gives servherd the same name, `githerd`, the same working directory and the same command line
+[R18], so servherd always finds its one entry; a changed command would restart it. The working
+directory is the state directory `~/.githerd/graphty-monorepo`, not `current`: servherd records the
+directory as the process reports it, and a process started in a symbolic link reports the link's
+target, so every new version would be a second server. The command is
+`env -i GITHERD_ROOT=<repository> GITHERD_STATE_DIR=<state directory> PORT={{port}} node
+<state directory>/current/bin/githerd-daemon.mjs` with servherd's `--autorestart`, and it is what
+`githerd install` prints. `env -i` keeps out the stale `CLAUDE*` variables pm2 carries [R19]; the
+daemon takes the rest of its environment from `daemon-env.json` in the state directory, an
+allow-list (`HOME`, `USER`, `LANG`, `PATH`, `SSH_AUTH_SOCK`, the `GIT_CONFIG_*` signing variables
+and the notify command's Pushover keys) written owner-only by `githerd install`, or by the first
+start when it is missing. The daemon keeps the Pushover keys because it pages (11.3); workers never
+get them (7.1). They are in a file, not on the command line, because every process on the machine
+can read a command line. An uncaught exception enters fatal mode with its stack instead of
 exiting.
 
 ### 9.5 The invariant check
@@ -1413,7 +1425,7 @@ rulesets, and never acts on input from an account other than the `gh` login.
 | `githerd veto <item>` | Never close or propose closing it again |
 | `githerd answer <item> <words>` / `answer <item> allow` | Answer an owner item / add the item's allow rule to the overlay |
 | `githerd order ...` / `policy ...` / `policy end <id>` | Record orders and policies |
-| `githerd install` | Print the servherd start command |
+| `githerd install` | Archive master's copy into `versions/`, point `current` at it, write `daemon-env.json` from this shell's environment, and print the servherd start command (9.4) |
 | `githerd ensure` | Start the daemon if it is not running, with the same `alive` and lock checks the MCP server makes; for after a container restart when no session has opened yet |
 | `githerd selftest` | Run the platform self-test |
 | `githerd mode` | Each write group's mode and its ledger coverage |

@@ -3,13 +3,15 @@
  * `registry.json` (the servers), `calls.jsonl` (one `{pid, argv, cwd, pm2Home}` line per invocation) and
  * `pids.jsonl` (every process it spawned, so a test can kill them all).
  *
- * Usage, like the real one: `node fake-servherd.mjs --json start -n <name> -e K=V ... -- <command>`,
+ * Usage, like the real one: `node fake-servherd.mjs --json start -n <name> [--autorestart] -e K=V ... -- <command>`,
  * `node fake-servherd.mjs --json restart <name>`, `node fake-servherd.mjs --json list`. With `pm2`
- * first it acts as pm2: `node fake-servherd.mjs pm2 delete <pm2 name>`,
- * `node fake-servherd.mjs pm2 start <file.json>`, `node fake-servherd.mjs pm2 jlist`.
+ * first it acts as pm2's `jlist`: `node fake-servherd.mjs pm2 jlist`.
  *
- * `start` spawns the command detached, answers "existing" for an unchanged command whose process
- * is alive, and "restarted" (after stopping the old process) for a changed one or a dead process.
+ * Like the real servherd, a server is its working directory plus its name: the same name started
+ * from a second directory is a second server (registry key `<name>@<cwd>`; the first keeps the
+ * bare name). `start` spawns the command detached, answers "existing" for an unchanged command
+ * whose process is alive, and "restarted" (after stopping the old process) for a changed one or a
+ * dead process. `restart` finds the server by name. Nothing restarts a process that dies.
  * `FAKE_SERVHERD_SLEEP_MS` makes it sleep first, after logging the call.
  */
 import { spawn } from "node:child_process";
@@ -116,33 +118,12 @@ function freePort() {
 }
 
 if (argv[0] === "pm2") {
-    const [, verb, arg] = argv;
-    if (verb === "delete") {
-        const entry = Object.values(registry).find((e) => e.pm2Name === arg);
-        if (!entry) {
-            console.error(`[PM2][ERROR] Process or Namespace ${arg} not found`);
-            process.exit(1);
-        }
-        await stop(entry);
-        entry.autorestart = false;
-    } else if (verb === "jlist") {
-        const list = Object.values(registry).map((e) => ({
-            name: e.pm2Name,
-            pid: e.pid,
-            pm2_env: { status: alive(e.pid) ? "online" : "stopped", autorestart: e.autorestart },
-        }));
-        console.log(JSON.stringify(list));
-        process.exit(0);
-    } else if (verb === "start") {
-        const app = JSON.parse(readFileSync(arg, "utf8")).apps[0];
-        const entry = Object.values(registry).find((e) => e.pm2Name === app.name);
-        entry.resolvedCommand = [app.script, ...app.args].join(" ");
-        entry.cwd = app.cwd;
-        entry.env = app.env;
-        entry.autorestart = app.autorestart;
-        launch(entry);
-    }
-    save();
+    const list = Object.values(registry).map((e) => ({
+        name: e.pm2Name,
+        pid: e.pid,
+        pm2_env: { status: alive(e.pid) ? "online" : "stopped", autorestart: e.autorestart },
+    }));
+    console.log(JSON.stringify(list));
     process.exit(0);
 }
 
@@ -164,7 +145,8 @@ if (argv[0] === "start") {
             env[k] = v.join("=");
         }
     });
-    let entry = registry[name];
+    const key = registry[name] && registry[name].cwd !== process.cwd() ? `${name}@${process.cwd()}` : name;
+    let entry = registry[key];
     let action = "started";
     if (entry) {
         if (entry.command === command && alive(entry.pid)) {
@@ -175,13 +157,13 @@ if (argv[0] === "start") {
         action = "restarted";
     } else {
         entry = { name, pm2Name: `servherd-${name}`, port: await freePort(), cwd: process.cwd(), autorestart: false };
-        registry[name] = entry;
+        registry[key] = entry;
     }
     const resolve = (/** @type {string} */ s) => s.replaceAll("{{port}}", String(entry.port));
     entry.command = command;
     entry.resolvedCommand = resolve(command);
     entry.env = Object.fromEntries(Object.entries(env).map(([k, v]) => [k, resolve(v)]));
-    entry.autorestart = false;
+    entry.autorestart = opts.includes("--autorestart");
     launch(entry);
     save();
     reply(action, entry);

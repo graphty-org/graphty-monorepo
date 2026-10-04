@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * The githerd daemon process, started by the launcher through servherd with `PORT` set and the
- * repository's main checkout as its working directory (design section 3.2).
+ * The githerd daemon process, started through servherd under `env -i` with `PORT`,
+ * `GITHERD_ROOT` and `GITHERD_STATE_DIR` set (design section 9.4). The rest of its environment
+ * comes from `daemon-env.json` in the state directory, never from pm2.
  *
- * Environment: `PORT` (required), `GITHERD_CONFIG` (a config file instead of the default
+ * Environment: `PORT` (required), `GITHERD_ROOT` (the repository; else the working directory's),
+ * `GITHERD_CONFIG` (a config file instead of the default
  * branch's), `GITHERD_STATE_DIR` (instead of `~/.githerd/<repository>`), `GITHERD_DEV` (the development
  * daemon: never above dry-run, pages to the ledger only), `GITHERD_DEV_NOTIFY=1` (deliver the
  * development daemon's pages anyway).
@@ -17,6 +19,9 @@
 
 import { repoRoot } from "../lib/config.mjs";
 import { startDaemon } from "../lib/daemon.mjs";
+import { loadDaemonEnv } from "../lib/launcher.mjs";
+
+if (process.env.GITHERD_STATE_DIR) loadDaemonEnv(process.env.GITHERD_STATE_DIR, process.env);
 
 /** pm2 kills at 1.6 s; the state flush must be done before then. */
 const EXIT_WITHIN_MS = 1400;
@@ -30,7 +35,7 @@ if (!Number.isInteger(port) || port < 0 || port > 65535 || (!once && !process.en
 
 let root;
 try {
-    root = repoRoot(process.cwd());
+    root = repoRoot(process.env.GITHERD_ROOT || process.cwd());
 } catch (err) {
     console.error(`githerd-daemon: ${err.message}`);
     process.exit(2);

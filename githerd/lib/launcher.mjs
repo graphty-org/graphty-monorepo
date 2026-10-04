@@ -5,10 +5,21 @@
  * that daemon over HTTP. stdout carries JSON-RPC lines only; anything else goes to stderr.
  *
  * The daemon always runs the default branch's copy of the package, archived into
- * `~/.githerd/<checkout name>/versions/<version>-<hash8>/`, so a worktree's unmerged code never becomes the
- * shared daemon. It is started through servherd under the name `githerd`; because servherd 1.1
- * starts every process with pm2's autorestart off, the launcher re-creates the pm2 process with
- * autorestart on after every `start`.
+ * `~/.githerd/<checkout name>/versions/<version>-<hash8>/` with `current` pointing at it, so a
+ * worktree's unmerged code never becomes the shared daemon. Every start path (this launcher, the
+ * MCP server's once-a-minute check, `githerd ensure`, the command `githerd install` prints) gives
+ * servherd the same name, the same working directory (the state directory) and the same command
+ * line, so servherd, which identifies a server by working directory plus name, always finds the one
+ * entry (design section 9.4). servherd's `--autorestart` makes pm2 bring back a crashed daemon.
+ *
+ * The command starts the daemon under `env -i`: pm2 hands every process it starts the environment
+ * of the session that first started pm2 (stale `CLAUDE*` variables among it). The daemon reads its
+ * environment from `daemon-env.json` in the state directory instead, an allow-list written by the
+ * first start or by `githerd install`; secrets in it (the notify command's keys) never appear on a
+ * command line, which every process on the machine can read.
+ *
+ * A restart is allowed only when `alive` is older than 60 s and the daemon's lock names a process
+ * that is gone, and only by the holder of `restart.lock`.
  */
 
 import { execFile, execFileSync, spawn } from "node:child_process";
@@ -21,6 +32,7 @@ import {
     renameSync,
     rmSync,
     statSync,
+    symlinkSync,
     writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
@@ -32,7 +44,7 @@ import { DEFAULTS, defaultBranch, repoRoot, resolveConfig } from "./config.mjs";
 import { createMcpServer } from "./mcp.mjs";
 import { createNotifier } from "./notify.mjs";
 import { identify, sameProcess } from "./proc.mjs";
-import { defaultStateDir } from "./store.mjs";
+import { defaultStateDir, readLiveness } from "./store.mjs";
 import { sessionTools } from "./tools.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 
@@ -47,7 +59,9 @@ const HEALTH_WAIT_MS = 30_000;
 const HEALTH_POLL_MS = 250;
 /** A lock with no owner.json is stale after this long. */
 const LOCK_STALE_MS = 60_000;
-/** At most one restart for a wedged loop, and one start of code that failed to start, per this long. */
+/** The daemon rewrites `alive` every 10 s; older than this, and with its lock holder gone, it is down. */
+const ALIVE_STALE_MS = 60_000;
+/** At most one start of code that failed to start per this long. */
 const RESTART_EVERY_MS = 15 * 60_000;
 const HEARTBEAT_MS = 60_000;
 const HEARTBEAT_JITTER_MS = 10_000;
@@ -322,28 +336,15 @@ export async function probe(ctx) {
 export const ours = (ctx, health) => health?.name === NAME && health.root === ctx.root && health.protocol === PROTOCOL;
 
 /**
- * Whether the daemon's loop is ticking: its last tick is younger than 3 poll intervals plus 60 s.
- * `lastPollOkAt` is never consulted; a GitHub outage is not a daemon fault.
- * @param {LauncherContext} ctx the context
- * @param {any} health the /health answer
- * @returns {boolean} true when the loop is alive
- */
-function ticking(ctx, health) {
-    const pollMs = (ctx.config?.pollSeconds ?? DEFAULTS.pollSeconds) * 1000;
-    const tick = Date.parse(health.loopTickAt ?? health.startedAt);
-    return ctx.now().getTime() - tick < 3 * pollMs + 60_000;
-}
-
-/**
- * Takes the start lock: `mkdir`, then owner.json with this process's identity. A stale lock (its
+ * Takes the restart lock: `mkdir`, then owner.json with this process's identity. A stale lock (its
  * owner is gone, or it has no owner.json and is older than 60 s) is removed only by the holder of
- * `start.lock.steal`, which judges it again first: renaming a lock judged stale a moment ago could
+ * `restart.lock.steal`, which judges it again first: renaming a lock judged stale a moment ago could
  * remove a fresh lock another launcher took in between, and then two launchers would start.
  * @param {LauncherContext} ctx the context
  * @returns {boolean} true when this launcher holds the lock
  */
 function takeLock(ctx) {
-    const lock = join(ctx.stateDir, "start.lock");
+    const lock = join(ctx.stateDir, "restart.lock");
     mkdirSync(ctx.stateDir, { recursive: true });
     for (let attempt = 0; attempt < 2; attempt++) {
         if (makeLock(lock)) return true;
@@ -354,7 +355,7 @@ function takeLock(ctx) {
 }
 
 /**
- * Makes the start lock directory with this process's owner.json.
+ * Makes the restart lock directory with this process's owner.json.
  * @param {string} lock the lock directory
  * @returns {boolean} false when it already exists
  */
@@ -370,7 +371,7 @@ function makeLock(lock) {
 }
 
 /**
- * Removes a stale start lock while holding `start.lock.steal`, judging it again first.
+ * Removes a stale restart lock while holding `restart.lock.steal`, judging it again first.
  * @param {LauncherContext} ctx the context
  * @param {string} lock the lock directory
  * @returns {boolean} false when another launcher holds the steal
@@ -408,7 +409,7 @@ function mtimeOf(path) {
 }
 
 /**
- * Whether the start lock is stale: its owner is gone, or it has no owner.json and is older than
+ * Whether the restart lock is stale: its owner is gone, or it has no owner.json and is older than
  * 60 s. A lock that no longer exists is not stale.
  * @param {LauncherContext} ctx the context
  * @param {string} lock the lock directory
@@ -422,11 +423,11 @@ function lockStale(ctx, lock) {
 }
 
 /**
- * Releases the start lock.
+ * Releases the restart lock.
  * @param {LauncherContext} ctx the context
  */
 function releaseLock(ctx) {
-    rmSync(join(ctx.stateDir, "start.lock"), { recursive: true, force: true });
+    rmSync(join(ctx.stateDir, "restart.lock"), { recursive: true, force: true });
 }
 
 /**
@@ -451,10 +452,19 @@ export async function waitFor(ctx, ready) {
  * Runs servherd with `--json` and returns its `data`.
  * @param {LauncherContext} ctx the context
  * @param {string[]} args the arguments after `--json`
+ * @param {string} [cwd] where it runs, which servherd records as a new server's working directory
  * @returns {Promise<any>} the data servherd reported
  */
-export async function servherd(ctx, args) {
-    const out = await run([...ctx.servherd, "--json", ...args], { cwd: ctx.root, env: ctx.env });
+export async function servherd(ctx, args, cwd = ctx.root) {
+    let out;
+    try {
+        out = await run([...ctx.servherd, "--json", ...args], { cwd, env: ctx.env });
+    } catch (err) {
+        if (err.message.includes("unknown option '--autorestart'")) {
+            throw new Error("this servherd has no --autorestart option; githerd needs a servherd release that has it");
+        }
+        throw err;
+    }
     let parsed;
     try {
         parsed = JSON.parse(out.slice(out.indexOf("{")));
@@ -476,27 +486,115 @@ export function pm2Options(ctx) {
 }
 
 /**
- * Re-creates the pm2 process servherd just started, with autorestart on and everything else the
- * same (servherd 1.1 has no option for it).
- * @param {LauncherContext} ctx the context
- * @param {any} server servherd's record of the server
+ * The variables the daemon keeps from the environment it was installed from: what git, gh, ssh
+ * signing and the notify command need. No `CLAUDE*` variable, ever.
  */
-async function enableAutorestart(ctx, server) {
-    const [script, ...args] = server.resolvedCommand.trim().split(/\s+/);
-    const file = join(ctx.stateDir, `pm2-${ctx.name}.json`);
-    const app = {
-        name: server.pm2Name,
-        script,
-        args,
-        cwd: server.cwd,
-        env: { ...server.env, PORT: String(server.port) },
-        autorestart: true,
-        log_date_format: "YYYY-MM-DDTHH:mm:ss.SSSZ",
-    };
-    writeFileSync(file, `${JSON.stringify({ apps: [app] }, null, 2)}\n`);
-    const opts = pm2Options(ctx);
-    await run([...ctx.pm2, "delete", server.pm2Name], opts);
-    await run([...ctx.pm2, "start", file], opts);
+const DAEMON_ENV =
+    /^(HOME|USER|LOGNAME|LANG|LC_[A-Z]+|TZ|PATH|SHELL|SSH_AUTH_SOCK|XDG_CONFIG_HOME|PUSHOVER_[A-Z_]+|GIT_CONFIG_(COUNT|KEY_\d+|VALUE_\d+))$/;
+const DAEMON_ENV_FILE = "daemon-env.json";
+
+/**
+ * Writes `daemon-env.json` (owner-only) from the allow-listed variables of `env`: when it is
+ * missing, or always with `replace` (`githerd install`). A start from a worker, whose environment
+ * lacks the notify keys, never overwrites the file the owner's shell wrote.
+ * @param {string} stateDir the state directory
+ * @param {Record<string, string | undefined>} env the environment to copy from
+ * @param {{replace?: boolean}} [options] overwrite an existing file
+ */
+export function writeDaemonEnv(stateDir, env, { replace = false } = {}) {
+    const file = join(stateDir, DAEMON_ENV_FILE);
+    if (!replace && readJson(file)) return;
+    const kept = Object.fromEntries(
+        Object.entries(env).filter(([k, v]) => typeof v === "string" && DAEMON_ENV.test(k)),
+    );
+    mkdirSync(stateDir, { recursive: true });
+    const tmp = `${file}.${process.pid}.tmp`;
+    writeFileSync(tmp, `${JSON.stringify(kept, null, 2)}\n`, { mode: 0o600 });
+    renameSync(tmp, file);
+}
+
+/**
+ * Sets the daemon's own environment from `daemon-env.json`: every allow-listed variable not
+ * already set (the start command sets only `PORT` and the `GITHERD_*` variables).
+ * @param {string} stateDir the state directory
+ * @param {Record<string, string | undefined>} env the environment to fill, `process.env` in the daemon
+ */
+export function loadDaemonEnv(stateDir, env) {
+    const saved = readJson(join(stateDir, DAEMON_ENV_FILE)) ?? {};
+    for (const [k, v] of Object.entries(saved)) {
+        if (typeof v === "string" && DAEMON_ENV.test(k)) env[k] ??= v;
+    }
+}
+
+/**
+ * The servherd arguments that start the daemon. They are the same from every start path, and so is
+ * the working directory (`servherd(ctx, startArgs(ctx), ctx.stateDir)`), so servherd always finds
+ * its one entry: a second working directory or a changed command would make a second server, or
+ * restart the first.
+ * @param {LauncherContext} ctx the context
+ * @returns {string[]} the arguments after servherd's `--json`
+ */
+function startArgs(ctx) {
+    const config = ctx.env.GITHERD_CONFIG ? [`GITHERD_CONFIG=${ctx.env.GITHERD_CONFIG}`] : [];
+    return [
+        "start",
+        "-n",
+        ctx.name,
+        "--autorestart",
+        "--",
+        "env",
+        "-i",
+        `GITHERD_ROOT=${ctx.root}`,
+        `GITHERD_STATE_DIR=${ctx.stateDir}`,
+        ...config,
+        "PORT={{port}}",
+        "node",
+        join(ctx.stateDir, "current", "bin", "githerd-daemon.mjs"),
+    ];
+}
+
+/**
+ * Quotes one word for a POSIX shell.
+ * @param {string} word the word
+ * @returns {string} the word, quoted when it needs it
+ */
+const shellWord = (word) => (/^[\w@%+=:,./-]+$/.test(word) ? word : `'${word.replaceAll("'", String.raw`'\''`)}'`);
+
+/**
+ * The command `githerd install` prints: servherd's start of the daemon, from its fixed directory.
+ * @param {LauncherContext} ctx the context
+ * @returns {string} one shell line
+ */
+export function installCommand(ctx) {
+    return `cd ${shellWord(ctx.stateDir)} && ${[...ctx.servherd, ...startArgs(ctx)].map(shellWord).join(" ")}`;
+}
+
+/**
+ * Archives the target and points `current` at it (a symbolic link replaced by a rename, so it is
+ * never missing). The running daemon keeps its copy until it restarts.
+ * @param {LauncherContext} ctx the context
+ * @param {{branch: string, hash: string, version: string}} target the code
+ */
+export async function prepareCode(ctx, target) {
+    const dir = await materialize(ctx, target);
+    const link = join(ctx.stateDir, "current");
+    const tmp = `${link}.${process.pid}.tmp`;
+    rmSync(tmp, { force: true });
+    symlinkSync(join("versions", basename(dir)), tmp);
+    renameSync(tmp, link);
+}
+
+/**
+ * Whether the daemon is down by the restart rule (design section 9.4): `alive` is missing or older
+ * than 60 s, and the daemon's lock names no live process. A daemon whose loop is slow keeps `alive`
+ * fresh, and one whose process lives is never restarted.
+ * @param {LauncherContext} ctx the context
+ * @returns {boolean} true when a restarter may start it
+ */
+export function daemonDown(ctx) {
+    const { alive, lock } = readLiveness(ctx.stateDir);
+    if (ctx.now().getTime() - Date.parse(alive?.at ?? "") < ALIVE_STALE_MS) return false;
+    return !lock?.pid || !sameProcess(lock);
 }
 
 /**
@@ -513,9 +611,11 @@ async function page(ctx, message) {
 }
 
 /**
- * Finds the repository's daemon, or starts, upgrades or restarts it (design section 3.1).
+ * Finds the repository's daemon, or starts or upgrades it. Every restarter calls this: the MCP
+ * server at a session's start and once a minute, every CLI call that needs the daemon, and
+ * `githerd ensure`.
  * @param {LauncherContext} ctx the context
- * @returns {Promise<{url: string, action: "warm" | "down" | "waiting" | "started" | "restarted" | "other-launcher" | "run",
+ * @returns {Promise<{url: string, action: "warm" | "down" | "waiting" | "started" | "upgraded" | "other-launcher" | "run",
  *   fatal?: string}>} the daemon's URL and what was done; `waiting` means an upgrade waits for runs
  *   in flight; `down` means the daemon is up in fatal mode, with its reason in `fatal`: never
  *   restarted for that, since only a change of its cause may end fatal mode (design 9.6)
@@ -523,16 +623,15 @@ async function page(ctx, message) {
 export async function ensureDaemon(ctx) {
     if (ctx.env.GITHERD_URL) return { url: ctx.env.GITHERD_URL, action: "run" };
     const target = await targetCode(ctx);
-    const warm = warmAnswer(ctx, (await probe(ctx)).health, target, true);
-    if (warm) return warm;
+    const up = await upAnswer(ctx, target, true);
+    if (up) return up;
     if (!takeLock(ctx)) {
         const { health, error } = await waitFor(ctx, (h) => ours(ctx, h) && h.codeHash === target.hash);
         if (!health) throw new Error(`another launcher is starting the daemon: ${error}`);
         return { url: daemonUrl(health), action: "other-launcher" };
     }
     try {
-        const { record, health } = await probe(ctx);
-        return warmAnswer(ctx, health, target, false) ?? (await startOrRestart(ctx, target, record));
+        return (await upAnswer(ctx, target, false)) ?? (await startOrUpgrade(ctx, target));
     } finally {
         releaseLock(ctx);
     }
@@ -546,48 +645,52 @@ export async function ensureDaemon(ctx) {
 const daemonUrl = (health) => `http://127.0.0.1:${health.port}`;
 
 /**
- * What ensureDaemon answers without starting anything: a daemon on the current code that is up in
- * fatal mode (`down`) or ticking (`warm`), or one on older code with runs in flight (`waiting`,
- * only outside the start lock).
+ * What ensureDaemon answers about a daemon that is up: `down` in fatal mode, `warm` on the current
+ * code, `waiting` on older code with runs in flight (only outside the restart lock). A daemon that
+ * is up but does not answer /health within the wait is an error, never a restart.
  * @param {LauncherContext} ctx the context
- * @param {any} health the /health answer, or null
  * @param {{hash: string}} target the code the daemon should run
  * @param {boolean} mayWait whether an upgrade may wait for runs in flight
- * @returns {{url: string, action: "warm" | "down" | "waiting", fatal?: string} | null} the answer,
- *   or null when the daemon must be started, upgraded or restarted
+ * @returns {Promise<{url: string, action: "warm" | "down" | "waiting", fatal?: string} | null>} the
+ *   answer, or null when the daemon is down or must be upgraded
  */
-function warmAnswer(ctx, health, target, mayWait) {
-    if (!ours(ctx, health)) return null;
+async function upAnswer(ctx, target, mayWait) {
+    if (daemonDown(ctx)) return null;
+    const { health, error } = await waitFor(ctx, (h) => ours(ctx, h));
+    if (!health) throw new Error(`the daemon is running but does not answer: ${error}`);
     const url = daemonUrl(health);
     if (health.codeHash !== target.hash) return mayWait && health.runsInFlight > 0 ? { url, action: "waiting" } : null;
     if (health.fatal) return { url, action: "down", fatal: health.fatal };
-    return ticking(ctx, health) ? { url, action: "warm" } : null;
+    return { url, action: "warm" };
 }
 
 /**
- * Starts the daemon on the target code, or restarts a live one whose loop is wedged, and waits for
- * it to answer. A start that failed is not retried for 15 minutes, and pages once per code hash.
- * Called holding the start lock.
+ * Starts the daemon on the target code, or restarts a running one on older code, and waits for it
+ * to answer. A start that failed is not retried for 15 minutes, and pages once per code hash.
+ * Called holding the restart lock.
  * @param {LauncherContext} ctx the context
  * @param {{hash: string, version: string, branch: string}} target the code to run
- * @param {any} record daemon.json, or null
- * @returns {Promise<{url: string, action: "started" | "restarted"}>} the daemon and what was done
+ * @returns {Promise<{url: string, action: "started" | "upgraded"}>} the daemon and what was done
  */
-async function startOrRestart(ctx, target, record) {
+async function startOrUpgrade(ctx, target) {
     const failFile = join(ctx.stateDir, "start-failed.json");
     const failed = readJson(failFile);
     const failedBefore = failed?.codeHash === target.hash;
     if (failedBefore && ctx.now().getTime() - Date.parse(failed.at) < RESTART_EVERY_MS) {
         throw new Error(`${failed.reason} (at ${failed.at}; next try 15 minutes after that)`);
     }
-    const live = record && sameProcess(record) ? record : null;
-    // Online with the right code, but its loop is wedged or it does not answer.
-    const wedged = live?.codeHash === target.hash;
-    if (wedged) await restartWedged(ctx, live);
-    else await startOn(ctx, target);
+    const action = daemonDown(ctx) ? "started" : "upgraded";
+    const before = readLiveness(ctx.stateDir).lock;
+    await prepareCode(ctx, target);
+    writeDaemonEnv(ctx.stateDir, ctx.env);
+    const data = await servherd(ctx, startArgs(ctx), ctx.stateDir);
+    // servherd keeps an unchanged server that is online: a daemon on older code, or a process that
+    // is not answering as the daemon.
+    if (data.action === "existing") await servherd(ctx, ["restart", ctx.name]);
+    logLine(ctx, "info", `${action} ${ctx.name} at ${target.version}-${target.hash.slice(0, 8)}`);
     const { health: up, error } = await waitFor(
         ctx,
-        (h) => ours(ctx, h) && h.codeHash === target.hash && h.pid !== live?.pid,
+        (h) => ours(ctx, h) && h.codeHash === target.hash && h.pid !== before?.pid,
     );
     if (!up) {
         const reason = `githerd daemon failed to start: ${error}`;
@@ -598,39 +701,7 @@ async function startOrRestart(ctx, target, record) {
         throw new Error(reason);
     }
     rmSync(failFile, { force: true });
-    return { url: daemonUrl(up), action: wedged ? "restarted" : "started" };
-}
-
-/**
- * Restarts a live daemon whose loop is wedged, at most once per 15 minutes.
- * @param {LauncherContext} ctx the context
- * @param {any} record its daemon.json
- */
-async function restartWedged(ctx, record) {
-    const restartFile = join(ctx.stateDir, "last-restart.json");
-    const last = Date.parse(readJson(restartFile)?.at ?? "");
-    if (ctx.now().getTime() - last < RESTART_EVERY_MS) {
-        throw new Error(`daemon pid ${record.pid} is wedged; restarted less than 15 minutes ago`);
-    }
-    writeFileSync(restartFile, `${JSON.stringify({ at: ctx.now().toISOString(), pid: record.pid })}\n`);
-    logLine(ctx, "info", `restarting wedged daemon pid ${record.pid}`);
-    await servherd(ctx, ["restart", ctx.name]);
-}
-
-/**
- * Starts the daemon through servherd on the target code, materialized from the default branch.
- * @param {LauncherContext} ctx the context
- * @param {{hash: string, version: string, branch: string}} target the code to run
- */
-async function startOn(ctx, target) {
-    const dir = await materialize(ctx, target);
-    const env = ["-e", "PORT={{port}}"];
-    if (ctx.env.GITHERD_CONFIG) env.push("-e", `GITHERD_CONFIG=${ctx.env.GITHERD_CONFIG}`);
-    env.push("-e", `GITHERD_STATE_DIR=${ctx.stateDir}`);
-    const daemon = join(dir, "bin", "githerd-daemon.mjs");
-    const data = await servherd(ctx, ["start", "-n", ctx.name, ...env, "--", "node", daemon]);
-    if (data.action !== "existing") await enableAutorestart(ctx, data.server);
-    logLine(ctx, "info", `servherd ${data.action} ${ctx.name} at ${target.version}-${target.hash.slice(0, 8)}`);
+    return { url: daemonUrl(up), action };
 }
 
 /**
@@ -784,10 +855,16 @@ export async function runLauncher({
         }
     }
 
+    // Once a minute: a local look at `alive` and the daemon's lock decides a restart (design 9.4);
+    // the heartbeat only tells the daemon this session lives.
     const beat = setInterval(async () => {
-        if (upgradeWaiting) void ensure().catch(() => {});
+        if (upgradeWaiting || daemonDown(ctx)) {
+            const jitter = Math.random() * jitterMs; // NOSONAR(S2245): spreads restarts; not a secret
+            setTimeout(() => void ensure().catch(() => {}), jitter).unref();
+            return;
+        }
         try {
-            const target = daemonUrl ?? "http://127.0.0.1:1";
+            const target = daemonUrl ?? (await ensure());
             await fetch(`${target}/heartbeat`, {
                 method: "POST",
                 headers,
@@ -796,8 +873,6 @@ export async function runLauncher({
             });
         } catch {
             daemonUrl = null;
-            const jitter = Math.random() * jitterMs; // NOSONAR(S2245): spreads restarts; not a secret
-            setTimeout(() => void ensure().catch(() => {}), jitter).unref();
         }
     }, heartbeatMs);
     beat.unref();

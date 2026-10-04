@@ -32,8 +32,11 @@ Build order and per-task done-criteria: `design/githerd/githerd-plan.md`.
   item. The dispatcher and `githerd_next` follow it; a new kind of work gets a place in it, not a
   separate order. Effort never gates work or reaches the owner: effort:high gets the
   `backlog-high` model and caps, and a run may split the issue with `githerd_split_issue`.
-- Supervision is pm2 autorestart plus the launcher's heartbeat restart. The container has no cron
-  and no systemd; `githerd ensure` is a command the owner runs by hand.
+- Supervision is servherd's `--autorestart` (pm2) plus the restarters of design section 9.4: every
+  session's MCP server looks at `alive` once a minute, and `githerd ensure` is a command the owner
+  runs by hand (the container has no cron and no systemd). A restarter starts the daemon only when
+  `alive` is older than 60 s and the daemon's lock names a process that is gone, holding
+  `restart.lock`. Every start uses the command `githerd install` prints, from the state directory.
 
 ## Verified against the real claude (Claude Code 2.1.287, 2026-10-02)
 

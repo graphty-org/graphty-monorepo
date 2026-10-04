@@ -64,15 +64,17 @@ githerd runs --last 10           # recent judgment runs; githerd run <id> shows 
 githerd mode paused              # lower the mode locally (also dry-run); mode clear removes it
 githerd ack <key>                # clear an escalation
 githerd veto <proposal id>       # stop a pending close or revert
+githerd install                  # prepare the daemon and print the servherd command that starts it
 githerd ensure                   # find or start the daemon, e.g. after a container restart
 githerd restart                  # servherd restart githerd
 githerd dev                      # this working tree as the githerd-dev daemon, dry-run only
 githerd doctor [--send-test]     # gh, servherd, daemon code, pm2 autorestart, notify, signing
 ```
 
-The container has no cron and no systemd: pm2 restarts a crashed daemon, an open session's
-launcher restarts a missing one, and after a container restart `githerd ensure` brings it back
-before any session opens. `mode acting` is refused; the mode is raised only by a
+The container has no cron and no systemd: pm2 restarts a crashed daemon (servherd's
+`--autorestart`), an open session's launcher restarts one whose `alive` file is over a minute old
+and whose process is gone, and after a container restart `githerd ensure` brings it back before any
+session opens. `mode acting` is refused; the mode is raised only by a
 `githerd.config.json` change merged to the default branch. `githerd dev` needs `GITHERD_CONFIG`
 and keeps its state in `<worktree>/.githerd-dev/`; point the other commands at it with
 `GITHERD_STATE_DIR=.githerd-dev`. Exit codes: 0 done, 1 failed, 2 usage or refused.
@@ -81,8 +83,8 @@ and keeps its state in `<worktree>/.githerd-dev/`; point the other commands at i
 
 Claude Code starts `node githerd/bin/githerd-mcp.mjs` (the launcher). It lists the session tools at
 once, then finds or starts the repository's one daemon through servherd under the name `githerd`,
-running the default branch's copy of this package from `.githerd/versions/`, and forwards tool
-calls to it. Its errors go to `.githerd/launcher.log`.
+running the default branch's copy of this package from `~/.githerd/<checkout>/current/`, and
+forwards tool calls to it. Its errors go to `~/.githerd/<checkout>/launcher.log`.
 
 `githerd/scripts/smoke-launcher.sh` checks the launcher against the real servherd: five launchers
 at once in a scratch repository, under the name `githerd-smoke`, must share one daemon; it removes
@@ -92,14 +94,16 @@ its entry at the end.
 
 The owner does these once, before the first soak (design section 17):
 
-1. **Supervision: nothing to install.** The launcher turns on pm2's autorestart for the daemon
-   after every start, so pm2 brings back a crashed daemon. The container has no cron and no
-   systemd, so neither `pm2 startup` nor a crontab line is available: after a container restart
-   the daemon comes back when the first session opens, or when the owner runs
+1. **Start githerd once.** From the owner's own shell (it copies `HOME`, `PATH`, the signing
+   variables and the Pushover keys into `~/.githerd/<checkout>/daemon-env.json`, owner-only), run
+   `node githerd/bin/githerd.mjs install` and then the servherd command it prints. The command
+   starts the daemon under `env -i` from the state directory with servherd's `--autorestart`, so
+   pm2 brings back a crashed daemon; it needs a servherd release that has `--autorestart`. After a
+   container restart the daemon comes back when the first session opens, or with
    `node githerd/bin/githerd.mjs ensure`.
-2. **Notify credentials.** The notify command loads its own credentials (the Pushover keys from a
-   file), so paging works whatever environment pm2 started the daemon in. Check it with
-   `githerd doctor --send-test`.
+2. **Notify credentials.** The daemon pages with the Pushover keys from `daemon-env.json`, never
+   from pm2's environment. Check it with `githerd doctor --send-test`; after changing the keys, run
+   `githerd install` again and restart the daemon.
 3. **MCP approval.** The server is registered in the repository's `.mcp.json`. Claude Code may ask
    to approve it once in each new worktree. Either approve it per worktree, or register it once at
    user scope with a relative path, which starts it in every project:

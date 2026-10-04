@@ -5,6 +5,7 @@ import {
     mkdirSync,
     mkdtempSync,
     readFileSync,
+    readlinkSync,
     rmSync,
     symlinkSync,
     writeFileSync,
@@ -546,6 +547,22 @@ describe("ensure and restart", () => {
         expect(restart).toMatchObject({ code: 0, out: "restarted githerd" });
         expect(servherdCalls().at(-1)?.argv).toEqual(["--json", "restart", "githerd"]);
         expect(JSON.parse(readFileSync(join(fake, "registry.json"), "utf8")).githerd.pid).not.toBe(before);
+    });
+
+    it("install prepares the code and the environment file, prints the start command, and starts nothing", async () => {
+        mkdirSync(stateDir(), { recursive: true });
+        writeFileSync(join(stateDir(), "daemon-env.json"), JSON.stringify({ HOME: "/from-a-worker" }));
+        const r = await cli(["install"], { extraEnv: { PUSHOVER_USER_KEY: "k", CLAUDECODE: "1" } });
+        expect(r.code).toBe(0);
+        expect(r.out).toMatch(
+            new RegExp(`^cd ${stateDir()} && .* start -n githerd --autorestart -- env -i GITHERD_ROOT=${root} `),
+        );
+        expect(r.out).not.toContain("PUSHOVER");
+        expect(readlinkSync(join(stateDir(), "current"))).toMatch(/^versions\/0\.\d+\.\d+-[0-9a-f]{8}$/);
+        const saved = JSON.parse(readFileSync(join(stateDir(), "daemon-env.json"), "utf8"));
+        expect(saved).toMatchObject({ HOME: join(dir, "home"), PUSHOVER_USER_KEY: "k" });
+        expect(saved.CLAUDECODE).toBeUndefined();
+        expect(servherdCalls()).toEqual([]);
     });
 
     it("ensure exits 1 when githerd is not configured", async () => {

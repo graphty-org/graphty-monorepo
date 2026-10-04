@@ -4,7 +4,9 @@
 #
 # It works in a temporary repository with a bare origin holding this package, under the servherd
 # name githerd-smoke, with a gh that is always offline (nothing reaches GitHub) and no notify
-# command. At the end it removes its servherd entry and checks that no process it started is left.
+# command; its state is ~/.githerd/githerd-smoke-repo. At the end it removes its servherd entry and
+# that directory, and checks that no process it started is left. It needs a servherd release that
+# has --autorestart.
 #
 # Usage: githerd/scripts/smoke-launcher.sh
 # Environment: SERVHERD (the servherd command, default "npx -y servherd").
@@ -14,12 +16,13 @@ PKG=$(cd "$(dirname "$0")/.." && pwd)
 SERVHERD=${SERVHERD:-npx -y servherd}
 NAME=githerd-smoke
 WORK=$(mktemp -d)
-REPO=$WORK/repo
+REPO=$WORK/githerd-smoke-repo
+STATE=$HOME/.githerd/githerd-smoke-repo
 read -r -a SH <<<"$SERVHERD"
 
 cleanup() {
     (cd "$REPO" 2>/dev/null && "${SH[@]}" remove --force "$NAME" >/dev/null 2>&1) || true
-    rm -rf "$WORK"
+    rm -rf "$WORK" "$STATE"
 }
 trap cleanup EXIT
 
@@ -67,15 +70,15 @@ for i in 1 2 3 4 5; do
     fi
 done
 
-# Every daemon process is the archived copy in the scratch repository.
-mapfile -t pids < <(pgrep -f "$REPO/.githerd/versions/.*/bin/githerd-daemon.mjs" || true)
+# Every daemon process runs the archived copy through the state directory's current link.
+mapfile -t pids < <(pgrep -f "$STATE/current/bin/githerd-daemon.mjs" || true)
 echo "daemon pids: ${pids[*]:-none}"
-port=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).port)' "$REPO/.githerd/daemon.json")
+port=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).port)' "$STATE/daemon.json")
 curl -s "http://127.0.0.1:$port/health"
 echo
 [ "${#pids[@]}" -eq 1 ] || failed=1
 
-# The pm2 process servherd made was re-created with autorestart on.
+# servherd started the pm2 process with autorestart on.
 autorestart=$(SERVHERD_JSON=$servherd_json node --input-type=module -e "
 import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
@@ -91,10 +94,10 @@ echo "pm2 autorestart: $autorestart"
 
 (cd "$REPO" && "${SH[@]}" remove --force "$NAME" >/dev/null)
 for _ in $(seq 50); do
-    pgrep -f "$REPO/.githerd/versions" >/dev/null || break
+    pgrep -f "$STATE/current/bin" >/dev/null || break
     sleep 0.1
 done
-if pgrep -f "$REPO/.githerd/versions" >/dev/null; then
+if pgrep -f "$STATE/current/bin" >/dev/null; then
     echo "a daemon process is left after servherd remove" >&2
     failed=1
 fi

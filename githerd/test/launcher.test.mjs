@@ -7,12 +7,14 @@ import {
     mkdtempSync,
     readdirSync,
     readFileSync,
+    readlinkSync,
     rmSync,
+    statSync,
     utimesSync,
     writeFileSync,
 } from "node:fs";
 import { createServer } from "node:http";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -20,13 +22,23 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
-import { ensureDaemon, launcherContext, pm2Command, runLauncher } from "../lib/launcher.mjs";
+import {
+    daemonDown,
+    ensureDaemon,
+    installCommand,
+    launcherContext,
+    loadDaemonEnv,
+    pm2Command,
+    runLauncher,
+    writeDaemonEnv,
+} from "../lib/launcher.mjs";
 import { bootId } from "../lib/proc.mjs";
 import { PACKAGE_DIR } from "../lib/version.mjs";
 
 const FAKE_SERVHERD = fileURLToPath(new URL("helpers/fake-servherd.mjs", import.meta.url));
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
 const LAUNCHER_BIN = fileURLToPath(new URL("../bin/githerd-mcp.mjs", import.meta.url));
+const CLI_BIN = fileURLToPath(new URL("../bin/githerd.mjs", import.meta.url));
 
 /** @type {string} */
 let dir;
@@ -87,8 +99,33 @@ function calls() {
         .map((l) => JSON.parse(l));
 }
 
-const starts = () => calls().filter((c) => c.argv.includes("start") && c.argv[0] !== "pm2");
+const starts = () => calls().filter((c) => c.argv[1] === "start");
 const registry = () => JSON.parse(readFileSync(join(fake, "registry.json"), "utf8"));
+/**
+ * Every live process running the state directory's daemon.
+ * @returns {number[]} their pids
+ */
+function daemonPids() {
+    const script = join(stateDir(), "current", "bin", "githerd-daemon.mjs");
+    return readdirSync("/proc")
+        .filter((name) => /^\d+$/.test(name))
+        .filter((pid) => {
+            try {
+                return readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").includes(script) && alive(Number(pid));
+            } catch {
+                return false; // gone meanwhile
+            }
+        })
+        .map(Number);
+}
+
+/**
+ * Writes a fresh `alive` for a daemon this test pretends is running.
+ */
+function pretendAlive() {
+    mkdirSync(stateDir(), { recursive: true });
+    writeFileSync(join(stateDir(), "alive"), JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
+}
 /**
  * The checkout's state directory under the test's HOME.
  * @returns {string} the directory
@@ -153,12 +190,13 @@ function writeConfig(overrides = {}) {
 /**
  * Spawns the launcher binary.
  * @param {Record<string, string | undefined>} [extra] environment additions
+ * @param {string} [cwd] where it runs
  * @returns {{child: import("node:child_process").ChildProcess, out: () => string,
  *   send: (msg: object) => void, reply: (id: number) => Promise<any>}} the launcher
  */
-function spawnLauncher(extra = {}) {
+function spawnLauncher(extra = {}, cwd = root) {
     const child = spawn(process.execPath, [LAUNCHER_BIN], {
-        cwd: root,
+        cwd,
         detached: true,
         stdio: ["pipe", "pipe", "pipe"],
         env: { ...env, ...extra },
@@ -264,7 +302,9 @@ describe("startup", () => {
         expect(existsSync(join(fake, "registry.json"))).toBe(false);
     });
 
-    it("cold start archives the default branch's package and starts it with pm2 autorestart on", async () => {
+    it("cold start archives the default branch's package and starts it from the fixed directory under env -i", async () => {
+        env.CLAUDE_STALE = "1";
+        env.PUSHOVER_USER_KEY = "k3y";
         const result = await ensureDaemon(context());
         expect(result.action).toBe("started");
 
@@ -272,27 +312,37 @@ describe("startup", () => {
         const version = JSON.parse(readFileSync(join(PACKAGE_DIR, "package.json"), "utf8")).version;
         const copy = join(stateDir(), "versions", `${version}-${hash.slice(0, 8)}`);
         expect(JSON.parse(readFileSync(join(copy, "version.json"), "utf8"))).toEqual({ version, codeHash: hash });
+        expect(readlinkSync(join(stateDir(), "current"))).toBe(join("versions", `${version}-${hash.slice(0, 8)}`));
 
         const [start] = starts();
-        expect(start.cwd).toBe(root);
+        expect(start.cwd).toBe(stateDir());
+        expect(start.argv.slice(1, start.argv.indexOf("--"))).toEqual(["start", "-n", "githerd", "--autorestart"]);
         expect(start.argv.slice(start.argv.indexOf("--") + 1)).toEqual([
+            "env",
+            "-i",
+            `GITHERD_ROOT=${root}`,
+            `GITHERD_STATE_DIR=${stateDir()}`,
+            `GITHERD_CONFIG=${env.GITHERD_CONFIG}`,
+            "PORT={{port}}",
             "node",
-            join(copy, "bin", "githerd-daemon.mjs"),
+            join(stateDir(), "current", "bin", "githerd-daemon.mjs"),
         ]);
-        expect(start.argv).toContain("PORT={{port}}");
-        // The pm2 process servherd made was deleted and started again with autorestart on.
-        const pm2 = calls()
-            .filter((c) => c.argv[0] === "pm2")
-            .map((c) => c.argv.slice(0, 2).join(" "));
-        expect(pm2).toEqual(["pm2 delete", "pm2 start"]);
-        // servherd's pm2, not a second one in ~/.pm2.
-        for (const c of calls().filter((c) => c.argv[0] === "pm2")) {
-            expect(c.pm2Home).toBe(join(homedir(), ".servherd", "pm2"));
-        }
+        // No pm2 re-creation: servherd's --autorestart is the supervision.
+        expect(calls().filter((c) => c.argv[0] === "pm2")).toEqual([]);
         expect(registry().githerd.autorestart).toBe(true);
 
+        // The daemon starts with only the command's variables; the rest comes from its file.
         const h = await health();
         expect(h).toMatchObject({ name: "githerd", root, codeHash: hash, pid: registry().githerd.pid });
+        const environ = readFileSync(`/proc/${h.pid}/environ`, "utf8").split("\0").filter(Boolean);
+        expect(environ.map((kv) => kv.split("=")[0]).sort()).toEqual(
+            ["GITHERD_CONFIG", "GITHERD_ROOT", "GITHERD_STATE_DIR", "PORT"].sort(),
+        );
+        const file = join(stateDir(), "daemon-env.json");
+        expect(statSync(file).mode & 0o777).toBe(0o600);
+        const saved = JSON.parse(readFileSync(file, "utf8"));
+        expect(saved).toMatchObject({ HOME: env.HOME, PATH: env.PATH, PUSHOVER_USER_KEY: "k3y" });
+        expect(Object.keys(saved).filter((k) => k.startsWith("CLAUDE") || k.startsWith("GITHERD"))).toEqual([]);
         expect(result.url).toBe(`http://127.0.0.1:${h.port}`);
     });
 
@@ -324,9 +374,7 @@ describe("startup", () => {
         const ctx = context({ cwd: wt });
         expect(ctx.root).toBe(root);
         await ensureDaemon(ctx);
-        const [start] = starts();
-        const daemon = start.argv[start.argv.length - 1];
-        expect(daemon.startsWith(join(stateDir(), "versions"))).toBe(true);
+        const daemon = join(stateDir(), "current", "bin", "githerd-daemon.mjs");
         expect(readFileSync(join(daemon, "..", "..", "lib", "version.mjs"), "utf8")).toBe(
             readFileSync(join(PACKAGE_DIR, "lib", "version.mjs"), "utf8"),
         );
@@ -360,9 +408,9 @@ describe("startup", () => {
     });
 });
 
-describe("the start lock", () => {
+describe("the restart lock", () => {
     it("five launchers against a stale lock make exactly one servherd start", async () => {
-        const lock = join(stateDir(), "start.lock");
+        const lock = join(stateDir(), "restart.lock");
         mkdirSync(lock, { recursive: true });
         // A dead owner: no live process has this identity.
         writeFileSync(join(lock, "owner.json"), JSON.stringify({ pid: 999_999, startTime: "1", bootId: bootId() }));
@@ -375,11 +423,11 @@ describe("the start lock", () => {
         for (const r of replies) expect(r.result.isError, JSON.stringify(r.result)).toBeUndefined();
         expect(starts()).toHaveLength(1);
         expect(existsSync(lock)).toBe(false);
-        expect(readdirSync(join(stateDir())).filter((n) => n.startsWith("start.lock"))).toEqual([]);
+        expect(readdirSync(join(stateDir())).filter((n) => n.startsWith("restart.lock"))).toEqual([]);
     });
 
     it("does not steal a young lock with no owner.json, and steals an old one", async () => {
-        const lock = join(stateDir(), "start.lock");
+        const lock = join(stateDir(), "restart.lock");
         mkdirSync(lock, { recursive: true });
         await expect(ensureDaemon(context({ healthWaitMs: 300 }))).rejects.toThrow(/another launcher/);
         expect(existsSync(lock)).toBe(true);
@@ -392,20 +440,107 @@ describe("the start lock", () => {
     });
 });
 
+describe("one daemon", () => {
+    it("starts one daemon for concurrent launchers in three directories and githerd ensure", async () => {
+        const wt = join(dir, "wt");
+        git(root, "worktree", "add", "-q", "-b", "feature", wt);
+        const cwds = [root, wt, join(root, "githerd", "lib")];
+        const three = cwds.map((cwd) => spawnLauncher({}, cwd));
+        const ensure = spawn(process.execPath, [CLI_BIN, "ensure"], {
+            cwd: join(wt, "githerd"),
+            detached: true,
+            stdio: ["ignore", "pipe", "pipe"],
+            env,
+        });
+        launchers.push(ensure);
+        let ensureOut = "";
+        ensure.stdout.on("data", (d) => (ensureOut += d));
+        three.forEach((l) =>
+            l.send({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "githerd_status" } }),
+        );
+        const exited = new Promise((r) => ensure.once("exit", r));
+        const replies = await Promise.all(three.map((l) => l.reply(1)));
+        for (const r of replies) expect(r.result.isError, JSON.stringify(r.result)).toBeUndefined();
+        expect(await exited).toBe(0);
+        expect(ensureOut).toMatch(/^(started|warm|other-launcher) http:\/\/127\.0\.0\.1:\d+\n$/);
+
+        expect(starts()).toHaveLength(1);
+        expect(starts()[0].cwd).toBe(stateDir());
+        expect(Object.keys(registry())).toEqual(["githerd"]);
+        expect(daemonPids()).toEqual([(await health()).pid]);
+    });
+
+    it("finds the one servherd entry again when a start comes from another directory", async () => {
+        await ensureDaemon(context());
+        const wt = join(dir, "wt");
+        git(root, "worktree", "add", "-q", "-b", "feature", wt);
+        // A later start from elsewhere after the daemon died: still the same entry.
+        process.kill(-(await health()).pid, "SIGKILL");
+        const later = () => new Date(Date.now() + 61_000);
+        expect((await ensureDaemon(context({ cwd: wt, now: later }))).action).toBe("started");
+        expect(starts().map((c) => c.cwd)).toEqual([stateDir(), stateDir()]);
+        expect(Object.keys(registry())).toEqual(["githerd"]);
+        expect(daemonPids()).toHaveLength(1);
+    });
+});
+
+describe("install and the daemon's environment", () => {
+    it("prints the servherd command a launcher would run, from the fixed directory", () => {
+        const ctx = context();
+        expect(installCommand(ctx)).toBe(
+            `cd ${stateDir()} && ${process.execPath} ${FAKE_SERVHERD} start -n githerd --autorestart -- env -i ` +
+                `GITHERD_ROOT=${root} GITHERD_STATE_DIR=${stateDir()} GITHERD_CONFIG=${env.GITHERD_CONFIG} ` +
+                `'PORT={{port}}' node ${join(stateDir(), "current", "bin", "githerd-daemon.mjs")}`,
+        );
+    });
+
+    it("keeps the file the owner wrote unless told to replace it, and loads only allow-listed unset variables", () => {
+        const sd = join(dir, "sd");
+        writeDaemonEnv(sd, { HOME: "/h", PUSHOVER_APP_TOKEN: "t", CLAUDECODE: "1", GITHERD_URL: "x" });
+        writeDaemonEnv(sd, { HOME: "/worker" });
+        expect(JSON.parse(readFileSync(join(sd, "daemon-env.json"), "utf8"))).toEqual({
+            HOME: "/h",
+            PUSHOVER_APP_TOKEN: "t",
+        });
+        writeDaemonEnv(sd, { HOME: "/owner" }, { replace: true });
+        expect(JSON.parse(readFileSync(join(sd, "daemon-env.json"), "utf8"))).toEqual({ HOME: "/owner" });
+
+        writeFileSync(join(sd, "daemon-env.json"), JSON.stringify({ HOME: "/owner", PATH: "/p", CLAUDECODE: "1" }));
+        /** @type {Record<string, string | undefined>} */
+        const target = { PATH: "/kept" };
+        loadDaemonEnv(sd, target);
+        expect(target).toEqual({ PATH: "/kept", HOME: "/owner" });
+        loadDaemonEnv(join(dir, "missing"), target);
+        expect(target).toEqual({ PATH: "/kept", HOME: "/owner" });
+    });
+
+    it("names a servherd without --autorestart", async () => {
+        const old = join(dir, "old-servherd.mjs");
+        writeFileSync(old, "console.error(\"error: unknown option '--autorestart'\"); process.exit(1);\n");
+        writeConfig({ servherdCommand: [process.execPath, old] });
+        await expect(ensureDaemon(context())).rejects.toThrow(
+            "this servherd has no --autorestart option; githerd needs a servherd release that has it",
+        );
+    });
+});
+
 describe("restarts and upgrades", () => {
-    it("restarts a daemon whose loop is wedged, at most once per 15 minutes", async () => {
+    it("never restarts a daemon whose process lives, however old its alive file", async () => {
         await ensureDaemon(context());
         const first = (await health()).pid;
-        // Two hours on, the daemon's last loop tick looks stale while it still answers.
         const later = () => new Date(Date.now() + 2 * 3600_000);
-        const result = await ensureDaemon(context({ now: later }));
-        expect(result.action).toBe("restarted");
-        expect(calls().some((c) => c.argv.join(" ") === "--json restart githerd")).toBe(true);
-        expect(starts()).toHaveLength(1);
-        expect((await health()).pid).not.toBe(first);
+        expect(daemonDown(context({ now: later }))).toBe(false);
+        expect((await ensureDaemon(context({ now: later }))).action).toBe("warm");
+        expect(calls().filter((c) => c.argv.includes("restart"))).toEqual([]);
+        expect((await health()).pid).toBe(first);
+    });
 
-        await expect(ensureDaemon(context({ now: later }))).rejects.toThrow(/less than 15 minutes/);
-        expect(calls().filter((c) => c.argv.includes("restart"))).toHaveLength(1);
+    it("errs, and starts nothing, while the daemon is alive but does not answer", async () => {
+        pretendAlive();
+        await expect(ensureDaemon(context({ healthWaitMs: 300 }))).rejects.toThrow(
+            /the daemon is running but does not answer: no daemon.json/,
+        );
+        expect(calls()).toEqual([]);
     });
 
     it("never restarts a daemon in fatal mode, however old its loop tick, and reports why it is down", async () => {
@@ -427,7 +562,7 @@ describe("restarts and upgrades", () => {
         servers.push(server);
         await new Promise((r) => server.listen(0, "127.0.0.1", () => r(undefined)));
         const port = /** @type {any} */ (server.address()).port;
-        mkdirSync(join(stateDir()), { recursive: true });
+        pretendAlive();
         writeFileSync(join(stateDir(), "daemon.json"), JSON.stringify({ port, pid: process.pid }));
 
         expect(await ensureDaemon(context())).toEqual({
@@ -438,14 +573,22 @@ describe("restarts and upgrades", () => {
         expect(calls()).toEqual([]);
     });
 
-    it("upgrades to a new hash on the default branch", async () => {
+    it("upgrades to a new hash on the default branch by pointing current at it and restarting", async () => {
         await ensureDaemon(context());
+        const first = (await health()).pid;
         pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));
         const hash = git(root, "rev-parse", "origin/master:githerd");
         const result = await ensureDaemon(context());
-        expect(result.action).toBe("started");
+        expect(result.action).toBe("upgraded");
+        // The same command from the same directory: servherd keeps its one entry and restarts it.
         expect(starts()).toHaveLength(2);
-        expect((await health()).codeHash).toBe(hash);
+        expect(new Set(starts().map((c) => c.argv.join(" "))).size).toBe(1);
+        expect(calls().at(-1)?.argv).toEqual(["--json", "restart", "githerd"]);
+        expect(Object.keys(registry())).toEqual(["githerd"]);
+        expect(readlinkSync(join(stateDir(), "current"))).toContain(hash.slice(0, 8));
+        const h = await health();
+        expect(h.codeHash).toBe(hash);
+        expect(h.pid).not.toBe(first);
     });
 
     it("waits for runs in flight before an upgrade", async () => {
@@ -466,7 +609,7 @@ describe("restarts and upgrades", () => {
         servers.push(server);
         await new Promise((r) => server.listen(0, "127.0.0.1", () => r(undefined)));
         const port = /** @type {any} */ (server.address()).port;
-        mkdirSync(join(stateDir()), { recursive: true });
+        pretendAlive();
         writeFileSync(join(stateDir(), "daemon.json"), JSON.stringify({ port }));
 
         const result = await ensureDaemon(context());
@@ -501,13 +644,15 @@ describe("restarts and upgrades", () => {
 });
 
 describe("the session proxy", () => {
-    it("brings a killed daemon back after a failed heartbeat", async () => {
+    it("brings a killed daemon back once its alive file is a minute old, and not before", async () => {
+        let skew = 0;
         const input = new PassThrough();
         const running = runLauncher({
             input,
             write: () => {},
             cwd: root,
             env,
+            now: () => new Date(Date.now() + skew),
             ppid: 4242,
             pkgDir: "githerd",
             heartbeatMs: 100,
@@ -528,6 +673,9 @@ describe("the session proxy", () => {
 
         process.kill(-first, "SIGKILL");
         await until(() => !alive(first), "the daemon to die");
+        // alive is younger than 60 s: no restarter may start it yet.
+        expect(daemonDown(context())).toBe(false);
+        skew = 61_000;
         const second = await until(async () => {
             const h = await health().catch(() => null);
             return h && h.pid !== first ? h.pid : null;

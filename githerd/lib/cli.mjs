@@ -16,7 +16,20 @@ import { join, resolve } from "node:path";
 import { groupModes, modeText, renderBoard, whyText } from "./board-text.mjs";
 import { repoRoot } from "./config.mjs";
 import { notifyCommandProblem } from "./daemon.mjs";
-import { ensureDaemon, launcherContext, ours, pm2Options, probe, servherd, targetCode, waitFor } from "./launcher.mjs";
+import {
+    ensureDaemon,
+    installCommand,
+    launcherContext,
+    loadDaemonEnv,
+    ours,
+    pm2Options,
+    prepareCode,
+    probe,
+    servherd,
+    targetCode,
+    waitFor,
+    writeDaemonEnv,
+} from "./launcher.mjs";
 import { createNotifier } from "./notify.mjs";
 import { sameProcess } from "./proc.mjs";
 import { defaultStateDir, readLedger, readLiveness, replayLedger, STATE_SCHEMA } from "./store.mjs";
@@ -34,6 +47,8 @@ const USAGE = `usage: githerd <command>
   mode dry-run|paused|clear                lower the mode locally, or remove the override
   ack <key>                                clear an escalation
   veto <proposal id>                       stop a pending proposal
+  install                                  prepare the daemon's code and environment, and print
+                                           the servherd command that starts it
   ensure                                   find or start the daemon, then exit
   restart                                  servherd restart githerd
   dev                                      run this working tree as the githerd-dev daemon
@@ -168,16 +183,18 @@ export function parseSince(value, now) {
 }
 
 /**
- * The environment of a live daemon process, read from /proc, so the doctor's signing check runs
- * the way the daemon would (pm2 starts it without the shell's GPG_TTY or agent variables).
+ * The environment of a live daemon process, so the doctor's signing check runs the way the daemon
+ * would: what it was started with (read from /proc), plus what it loads from `daemon-env.json`.
  * @param {any} record `daemon.json`
- * @returns {Record<string, string> | null} its environment, or null when it is not running
+ * @param {string} stateDir the state directory
+ * @returns {Record<string, string | undefined> | null} its environment, or null when it is not running
  */
-function daemonEnv(record) {
+function daemonEnv(record, stateDir) {
     if (!record || !Number.isInteger(record.pid) || !sameProcess(record)) return null;
+    let env;
     try {
         const text = readFileSync(`/proc/${record.pid}/environ`, "utf8");
-        return Object.fromEntries(
+        env = Object.fromEntries(
             text
                 .split("\0")
                 .filter(Boolean)
@@ -186,6 +203,8 @@ function daemonEnv(record) {
     } catch {
         return null;
     }
+    loadDaemonEnv(stateDir, env);
+    return env;
 }
 
 /**
@@ -483,7 +502,7 @@ async function showModes(c, file) {
 }
 
 /**
- * `ensure`, `restart`, `dev` and `doctor`: the commands that need the launcher's context.
+ * `install`, `ensure`, `restart`, `dev` and `doctor`: the commands that need the launcher's context.
  * @param {Command} c the command
  * @returns {Promise<number>} the exit code
  */
@@ -550,6 +569,11 @@ async function startDev(ctx, c, devState) {
 
 /** @type {Record<string, (ctx: import("./launcher.mjs").LauncherContext, c: Command, devState: string) => Promise<void>>} */
 const SERVICE = {
+    install: async (ctx, c) => {
+        await prepareCode(ctx, await targetCode(ctx));
+        writeDaemonEnv(ctx.stateDir, ctx.env, { replace: true });
+        c.out(installCommand(ctx));
+    },
     ensure: async (ctx, c) => {
         const r = await ensureDaemon(ctx);
         c.out(r.fatal ? `${r.action} ${r.url}: githerd is DOWN: ${r.fatal}` : `${r.action} ${r.url}`);
@@ -573,6 +597,7 @@ const HANDLERS = {
     runs: cmdRuns,
     run: cmdRun,
     mode: cmdMode,
+    install: cmdService,
     ensure: cmdService,
     restart: cmdService,
     dev: cmdService,
@@ -721,7 +746,7 @@ async function doctor(found, c) {
     // servherd, the daemon, supervision and the notify command: only for a configured repository
     const sendTest = Boolean(c.flags["send-test"]);
     const record = ctx ? await serviceChecks(ctx, { env: c.env, now: c.now, sendTest, report }) : null;
-    await signingCheck(place, daemonEnv(record), c.signTimeoutMs, report);
+    await signingCheck(place, daemonEnv(record, ctx?.stateDir ?? c.stateDir), c.signTimeoutMs, report);
     stateCheck(join(ctx?.stateDir ?? c.stateDir, "state.json"), report);
     if (ghPresent && ctx?.config?.repo) await deployKeyCheck(ctx.config.repo, { root, env: c.env, report });
     return failed ? 1 : 0;

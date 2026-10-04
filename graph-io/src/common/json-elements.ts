@@ -99,7 +99,8 @@ function sentinelFor(text: string): string {
 
 /**
  * Whether a number literal with a fraction or an exponent reads back as another value: an integer
- * beyond 2^53 the nearest double misses, or a finite literal beyond the double range.
+ * beyond 2^53 written with more significant digits than a double keeps, which the nearest double
+ * misses, or a finite literal beyond the double range.
  * @param literal - the literal as written
  * @returns true when the double read for it is not the value it denotes
  */
@@ -117,8 +118,9 @@ function isInexactLiteral(literal: string): boolean {
     }
     const digits = (m[2] + (m[3] ?? "")).replace(/0+$/, "");
     const exponent = Number(m[4] ?? "0") - (m[3] ?? "").length + ((m[2] + (m[3] ?? "")).length - digits.length);
-    if (digits.length === 0 || exponent < 0) {
-        // a fraction that rounds to an integer: ordinary floating-point rounding
+    if (digits.replace(/^0+/, "").length <= 15 || exponent < 0) {
+        // up to 15 significant digits the nearest double reads back as the same text (1e39 is the
+        // float it says); a fraction that rounds to an integer is ordinary floating-point rounding
         return false;
     }
     const exact = BigInt(digits) * 10n ** BigInt(exponent);

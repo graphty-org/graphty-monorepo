@@ -169,6 +169,12 @@ export type { LayoutRecommendation, LayoutRecommendationOptions } from "./src/se
 export { recommendLayout } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
+// Previewing a load: the column roles a table of each kind takes and requires
+// ---------------------------------------------------------------------------------------------
+
+export { LOAD_ROLES } from "./src/session";
+
+// ---------------------------------------------------------------------------------------------
 // Runs: starting a computation, watching it, stopping it, and finding it again
 // ---------------------------------------------------------------------------------------------
 

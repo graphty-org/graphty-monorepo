@@ -21,6 +21,7 @@ import type { BatchCommand } from "./commands";
 import type { DataImportCommand, HeldRows, ImportSource } from "./commands/data";
 import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import type {
+    ColumnRole,
     DraftColumn,
     DraftRow,
     DraftRowFilter,
@@ -70,10 +71,25 @@ interface ReadSource {
     readonly errorLimit: number;
 }
 
-/** The roles a node table can have, and an edge table. */
+/**
+ * The column roles a table of each kind takes (`takes`), and the ones a load cannot do without
+ * (`requires`). A node table needs no role: without a `key` its rows are numbered. An edge table
+ * needs both ends. Plain data, safe to import in Node.
+ */
+export const LOAD_ROLES: Readonly<
+    Record<"nodes" | "edges", { readonly takes: readonly ColumnRole[]; readonly requires: readonly ColumnRole[] }>
+> = Object.freeze({
+    nodes: Object.freeze({ takes: Object.freeze(["key", "label", "time"] as const), requires: Object.freeze([]) }),
+    edges: Object.freeze({
+        takes: Object.freeze(["source", "target", "weight", "time", "edgeId"] as const),
+        requires: Object.freeze(["source", "target"] as const),
+    }),
+});
+
+/** The keys a table's mapping takes: `rowsAre` and its roles. */
 const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
-    nodes: new Set(["rowsAre", "key", "label", "time"]),
-    edges: new Set(["rowsAre", "source", "target", "weight", "time", "edgeId"]),
+    nodes: new Set(["rowsAre", ...LOAD_ROLES.nodes.takes]),
+    edges: new Set(["rowsAre", ...LOAD_ROLES.edges.takes]),
 };
 
 /** The endpoint column pairs a CSV edge table is probed for, as the CSV reader probes them. */
@@ -376,8 +392,14 @@ export class Draft implements LoadDraft {
         this.tables = Object.freeze(
             read.tables.map((held) => {
                 const roles = suggestedRoles(this.mapping.tables[held.table.id]);
+                const own = this.mapping.tables[held.table.id];
+                const weightCandidate = weightCandidateOf(
+                    held,
+                    own.rowsAre === "edges" ? own : guessTable(held, "edges", read.source.config ?? {}, config),
+                );
                 return Object.freeze({
                     ...held.table,
+                    ...(weightCandidate === undefined ? {} : { weightCandidate }),
                     columns: Object.freeze(
                         held.table.columns.map((column) => {
                             const suggested = roles.get(column.name);
@@ -387,6 +409,16 @@ export class Draft implements LoadDraft {
                 });
             }),
         );
+    }
+
+    /**
+     * The roles each table needs and does not have under a set of choices.
+     * @param choices - The same choices `report` and `load` take.
+     * @returns By table id, the required roles left unset; an empty list means ready.
+     */
+    missing(choices: LoadChoices = {}): Readonly<Record<string, readonly ColumnRole[]>> {
+        const read = this.live("missing");
+        return missingRoles(this.effective(read, choices.mapping));
     }
 
     /**
@@ -580,6 +612,22 @@ export class Draft implements LoadDraft {
      */
     private plan(read: ReadSource, choices: LoadChoices): Plan {
         const mapping = this.effective(read, choices.mapping);
+        const missing = missingRoles(mapping);
+        // A table the reader maps that lacks an end is refused here, naming it: read with one end,
+        // every row would be rejected, and read with none, the probe has already failed.
+        const unready = read.tables.find(
+            (held) => !held.table.fixed && held.rows.length > 0 && missing[held.table.id].length > 0,
+        );
+        if (unready !== undefined) {
+            const { id } = unready.table;
+            throw new GraphtyError({
+                code: "E_EDGE_ENDPOINTS_UNRESOLVED",
+                source: "data",
+                message: `Table ${JSON.stringify(id)} has no ${missing[id].join(" or ")} column; name it in the mapping.`,
+                details: { table: id, missing: missing[id], columns: unready.order },
+            });
+        }
+
         const knownFields = knownFieldsOf(mapping, choices.mapping, read);
         if (read.tables.every((held) => held.table.fixed)) {
             const [nodes, edges] = read.tables;
@@ -690,6 +738,48 @@ export class Draft implements LoadDraft {
         });
         return picked;
     }
+}
+
+/**
+ * The roles each table needs and its roles leave unset.
+ * @param mapping - Every table's roles.
+ * @returns By table id, the required roles left unset.
+ */
+function missingRoles(mapping: LoadMappingRead): Readonly<Record<string, readonly ColumnRole[]>> {
+    return Object.freeze(
+        Object.fromEntries(
+            Object.entries(mapping.tables).map(([id, roles]) => [
+                id,
+                Object.freeze(
+                    LOAD_ROLES[roles.rowsAre].requires.filter((role) => {
+                        const value = roles[role];
+                        return value === undefined || value === null;
+                    }),
+                ),
+            ]),
+        ),
+    );
+}
+
+/**
+ * The column a table could take as its weight, when its reading as edges finds none: the first
+ * column every row of which holds a number, that no other role reads.
+ * @param held - The table.
+ * @param asEdges - The table's roles read as edges.
+ * @returns The column's name, or undefined.
+ */
+function weightCandidateOf(held: HeldTable, asEdges: TableMappingRead): string | undefined {
+    if (held.table.fixed || asEdges.weight !== null) {
+        return undefined;
+    }
+
+    const taken = new Set([asEdges.source?.column, asEdges.target?.column, asEdges.time, asEdges.edgeId]);
+    return held.table.columns.find(
+        (column) =>
+            (column.type === "number" || column.type === "integer") &&
+            column.completeness === 1 &&
+            !taken.has(column.name),
+    )?.name;
 }
 
 /**

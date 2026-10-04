@@ -848,6 +848,16 @@ export interface LoadDraft {
     /** The element's own reading: every table, with every role it found written out. */
     readonly mapping: LoadMappingRead;
     /**
+     * The roles each table needs and does not have under a set of choices, for a per-table
+     * "ready" check: `LOAD_ROLES[rowsAre].requires` less the roles the choices and the element's
+     * own reading set. An edge table needs `source` and `target`; a node table needs nothing.
+     * `report` and `load` refuse a table the reader maps that is not ready with
+     * `E_EDGE_ENDPOINTS_UNRESOLVED`, whose `details.table` and `details.missing` say the same.
+     * @param choices - The same choices `load` takes.
+     * @returns By table id, the required roles left unset; an empty list means the table is ready.
+     */
+    missing(choices?: LoadChoices): Readonly<Record<string, readonly ColumnRole[]>>;
+    /**
      * What `load(choices)` would do to the graph as it is now, computed from the held rows with
      * no I/O. A load past the element's limit is reported in `tooLarge` rather than thrown.
      * @param choices - The same choices `load` takes.
@@ -886,6 +896,13 @@ export interface DraftTable {
     readonly fixed: boolean;
     /** Its columns, in the order the file has them, computed over every row. */
     readonly columns: readonly DraftColumn[];
+    /**
+     * A column that could be the table's edge weight, offered rather than applied: present when
+     * the element's own reading of the table as edges finds no weight, naming the first column
+     * that holds a number on every row and has no other role. Naming it as the `weight` role in
+     * a mapping applies it. Absent for a table whose format sets its roles.
+     */
+    readonly weightCandidate?: string;
 }
 
 /** One column of a draft table, described as `data.attributes()` describes it after a load. */

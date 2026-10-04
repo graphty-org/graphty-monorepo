@@ -7,7 +7,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession } from "../../src/session";
+import { createGraphSession, LOAD_ROLES } from "../../src/session";
 import type { GraphSession, LoadDraft } from "../../src/session/types";
 
 const PEOPLE = "id,name,team\na,Ann,red\nb,Bo,blue\nc,Cy,red\n";
@@ -367,6 +367,44 @@ describe("session.data.prepare", () => {
 
             session.dispose();
         }
+    });
+
+    it("publishes the roles each table kind takes and requires (#926)", () => {
+        assert.deepEqual(LOAD_ROLES.nodes, { takes: ["key", "label", "time"], requires: [] });
+        assert.deepEqual(LOAD_ROLES.edges, {
+            takes: ["source", "target", "weight", "time", "edgeId"],
+            requires: ["source", "target"],
+        });
+        assert.isTrue(Object.isFrozen(LOAD_ROLES.edges.takes));
+    });
+
+    it("says which table is not ready and which role it lacks (#926)", async () => {
+        const session = createGraphSession();
+        const draft = await session.data.prepare({ type: "csv", config: { data: TRIPS } });
+        const onlySource = { mapping: { source: "from_station" } };
+
+        assert.deepEqual(draft.missing(), { rows: ["source", "target"] });
+        assert.deepEqual(draft.missing(onlySource), { rows: ["target"] });
+        assert.deepEqual(draft.missing({ mapping: { rowsAre: "nodes" } }), { rows: [] });
+        const refused = await refusal(draft.report(onlySource));
+        assert.strictEqual(refused?.code, "E_EDGE_ENDPOINTS_UNRESOLVED");
+        assert.deepInclude(refused?.details, { table: "rows", missing: ["target"] });
+        assert.strictEqual((await refusal(draft.load(onlySource)))?.code, "E_EDGE_ENDPOINTS_UNRESOLVED");
+        assertUntouched(session);
+        session.dispose();
+    });
+
+    it("offers a number column as the weight without applying it (#926)", async () => {
+        const session = createGraphSession();
+        const draft = await session.data.prepare({ type: "csv", config: { data: TRIPS } });
+
+        const table = draft.tables[0];
+        assert.strictEqual(table.weightCandidate, "trips");
+        assert.isUndefined(table.columns.find((column) => column.name === "trips")?.suggested);
+        assert.isNull(draft.mapping.tables.rows.weight ?? null);
+        const tied = await pair(session);
+        assert.isUndefined(tied.tables[1].weightCandidate, "a table with a weight needs no offer");
+        session.dispose();
     });
 
     it("reads a graph file as two tables whose roles the format sets", async () => {

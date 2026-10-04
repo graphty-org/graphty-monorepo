@@ -47,15 +47,16 @@ await element.session.data.import({ config: { file } }, { mapping: { source: "fr
 
 ## What a draft holds
 
-| Member            | What it is                                                                     |
-| ----------------- | ------------------------------------------------------------------------------ |
-| `type`            | The format that read the file (`"csv"`, `"graphml"`, ...)                      |
-| `tables`          | The file's tables: an `id`, the file `name`, `rowCount`, `fixed` and `columns` |
-| `mapping`         | The element's own reading of every table's roles                               |
-| `report(choices)` | What `load(choices)` would do to the graph as it is now                        |
-| `rows(id, page)`  | The rows of one table as the file holds them, a page at a time                 |
-| `load(choices)`   | Loads the held rows as one undoable step                                       |
-| `dispose()`       | Lets go of the held rows                                                       |
+| Member             | What it is                                                                     |
+| ------------------ | ------------------------------------------------------------------------------ |
+| `type`             | The format that read the file (`"csv"`, `"graphml"`, ...)                      |
+| `tables`           | The file's tables: an `id`, the file `name`, `rowCount`, `fixed` and `columns` |
+| `mapping`          | The element's own reading of every table's roles                               |
+| `missing(choices)` | The roles each table still needs under those choices                           |
+| `report(choices)`  | What `load(choices)` would do to the graph as it is now                        |
+| `rows(id, page)`   | The rows of one table as the file holds them, a page at a time                 |
+| `load(choices)`    | Loads the held rows as one undoable step                                       |
+| `dispose()`        | Lets go of the held rows                                                       |
 
 Table ids are assigned by the element and are the same for every file of the same shape:
 `"rows"` for a single CSV file (so its rows are read with `draft.rows("rows")`), and `"nodes"`
@@ -98,6 +99,27 @@ await draft.report({
 | `weight`  | edges | The weight column; `null` weighs every edge 1 |
 | `time`    | any   | A time column                                 |
 | `edgeId`  | edges | The edge's own id column                      |
+
+The same list is published as `LOAD_ROLES` from `@graphty/graphty-element/session`, so a role
+menu never keeps its own copy: `LOAD_ROLES.nodes.takes` and `LOAD_ROLES.edges.takes` are the roles
+a table of each kind takes (beside `rowsAre`), and `requires` the ones a load cannot do without --
+`source` and `target` for an edge table, nothing for a node table.
+
+```ts
+import { LOAD_ROLES } from "@graphty/graphty-element/session";
+
+const menu = LOAD_ROLES[draft.mapping.tables[table.id].rowsAre].takes; // the roles to offer
+const ready = draft.missing(choices)[table.id].length === 0; // a per-table check mark
+```
+
+`draft.missing(choices)` names, for every table, the required roles those choices leave unset;
+an empty list means the table is ready. `report` and `load` refuse a CSV table that is not ready
+with `E_EDGE_ENDPOINTS_UNRESOLVED`, whose `details.table` names the table and `details.missing`
+the roles, so with two tables you can mark only the one at fault.
+
+When a table read as edges has no weight column, `table.weightCandidate` names a column that
+could be one -- the first column holding a number on every row that no other role reads. It is an
+offer, not a choice: nothing is weighted until the mapping names it (`{ weight: table.weightCandidate }`).
 
 The load records the label, weight, time and edge id columns in the graph's settings
 (`session.config.data.knownFields`), so every later read of a node's label or an edge's weight

@@ -10,6 +10,7 @@
  * enforces it.
  */
 
+export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { LayoutRecommendation, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";

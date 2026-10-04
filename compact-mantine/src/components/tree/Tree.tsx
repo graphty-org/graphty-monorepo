@@ -193,7 +193,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
                 </span>
             )}
             {progress !== undefined && (
-                <span
+                <span // NOSONAR(S6819): a 2px bar inside the row, drawn the same when indeterminate
                     className="cm-tree-progress"
                     role="progressbar"
                     aria-label={name}

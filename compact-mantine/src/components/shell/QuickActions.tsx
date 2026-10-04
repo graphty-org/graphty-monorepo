@@ -107,7 +107,7 @@ export interface QuickActionsProps {
  * @param props.label - The name
  * @returns The two halves
  */
-function MiddleCut({ label }: { label: string }): React.JSX.Element {
+function MiddleCut({ label }: Readonly<{ label: string }>): React.JSX.Element {
     const tail = Math.min(8, Math.ceil(label.length / 3));
     return (
         <>

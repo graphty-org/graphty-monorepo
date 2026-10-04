@@ -9,11 +9,11 @@
 # has --autorestart.
 #
 # Usage: githerd/scripts/smoke-launcher.sh
-# Environment: SERVHERD (the servherd command, default "npx -y servherd").
+# Environment: SERVHERD (the servherd command, default "npx -y servherd@^1.2.0").
 set -euo pipefail
 
 PKG=$(cd "$(dirname "$0")/.." && pwd)
-SERVHERD=${SERVHERD:-npx -y servherd}
+SERVHERD=${SERVHERD:-npx -y servherd@^1.2.0}
 NAME=githerd-smoke
 WORK=$(mktemp -d)
 REPO=$WORK/githerd-smoke-repo

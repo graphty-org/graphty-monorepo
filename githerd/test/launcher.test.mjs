@@ -602,7 +602,7 @@ describe("install and the daemon's environment", () => {
         writeFileSync(old, "console.error(\"error: unknown option '--autorestart'\"); process.exit(1);\n");
         writeConfig({ servherdCommand: [process.execPath, old] });
         await expect(ensureDaemon(context())).rejects.toThrow(
-            "this servherd has no --autorestart option; githerd needs a servherd release that has it",
+            "this servherd has no --autorestart option; githerd needs servherd 1.2.0 or later",
         );
     });
 });
@@ -1108,6 +1108,7 @@ describe("the session proxy", () => {
 describe("pm2Command", () => {
     it("finds pm2 next to servherd", () => {
         expect(pm2Command(["npx", "-y", "servherd"], {})).toEqual(["npx", "-y", "-p", "servherd", "pm2"]);
+        expect(pm2Command(["npx", "-y", "servherd@^1.2.0"], {})).toEqual(["npx", "-y", "-p", "servherd@^1.2.0", "pm2"]);
         expect(pm2Command(["x"], { GITHERD_PM2: '["a","b"]' })).toEqual(["a", "b"]);
         expect(pm2Command(["/nowhere/servherd.js"], {})).toEqual(["pm2"]);
     });

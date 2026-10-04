@@ -522,7 +522,7 @@ export async function servherd(ctx, args, cwd = ctx.root) {
         out = await run([...ctx.servherd, "--json", ...args], { cwd, env: ctx.env });
     } catch (err) {
         if (err.message.includes("unknown option '--autorestart'")) {
-            throw new Error("this servherd has no --autorestart option; githerd needs a servherd release that has it");
+            throw new Error("this servherd has no --autorestart option; githerd needs servherd 1.2.0 or later");
         }
         throw err;
     }

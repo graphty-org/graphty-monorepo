@@ -26,7 +26,7 @@ describe("normalizeConfig", () => {
         const c = normalizeConfig(MINIMAL);
         expect(c.mode).toBe("dry-run");
         expect(c.pollSeconds).toBe(180);
-        expect(c.servherdCommand).toEqual(["npx", "-y", "servherd"]);
+        expect(c.servherdCommand).toEqual(["npx", "-y", "servherd@^1.2.0"]);
         expect(c.actions).toEqual({
             statuses: false,
             prUpkeep: false,

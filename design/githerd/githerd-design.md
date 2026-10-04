@@ -323,7 +323,7 @@ adversarial review added (section 3.10). Columns:
 
 | Situation | Signal | Action | Actor | Done |
 |---|---|---|---|---|
-| githerd crashed | The `alive` file (written every 10 s) is older than 60 s and the lock's pid is dead or has another start time | Restarted by pm2 once servherd passes `autorestart` [R18], [S26]; by the MCP server of every live session and the first session's launcher (a local stat once a minute); by `githerd ensure` (no supervisord entry, owner's decision 3 in 12.3). Each restarter takes a restart lock. Uncaught exceptions enter fatal mode instead of exiting | D | `alive` fresh |
+| githerd crashed | The `alive` file (written every 10 s) is older than 60 s and the lock's pid is dead or has another start time | Restarted by pm2 through servherd's `--autorestart` (servherd 1.2.0) [R18], [S26]; by the MCP server of every live session and the first session's launcher (a local stat once a minute); by `githerd ensure` (no supervisord entry, owner's decision 3 in 12.3). Each restarter takes a restart lock. Uncaught exceptions enter fatal mode instead of exiting | D | `alive` fresh |
 | githerd alive but stuck | `alive` fresh but `progress` names one step for longer than that step's bound | Shown on the board; a reconcile step past its bound is cancelled and logged; long work runs as tracked child processes with their own deadlines | D | Reconciles completing |
 | More than one githerd | The lock (pid, start time); every start path uses one fixed cwd and name [R18] | A second daemon exits; stray servherd entries named githerd with another cwd are removed | D | One daemon |
 | Stale or backwards API answers | (run attempt, `updated_at`) monotonic per run, and a new run older than every remembered run is stale (1.4); `since` polls overlap by 10 minutes; heads confirmed with `git ls-remote` before a refusal [INC2 2] | Discarded or re-read | D | n/a |
@@ -1365,7 +1365,7 @@ the reconcile, with their own deadlines.
 `alive` is written by a 10-second timer in the event loop, independent of reconcile progress, so
 slow work never looks like death. A restart is allowed only when `alive` is older than 60 s and the
 lock's pid is dead or has another start time, and only by a restarter holding `restart.lock`.
-Restarters: pm2 (once servherd passes `autorestart` [R18], [S26]); every MCP server, which stats
+Restarters: pm2 (through servherd's `--autorestart`, servherd 1.2.0 [R18], [S26]); every MCP server, which stats
 `alive` once a minute while its session lives (idle waiting workers included); every hook and CLI
 call; the launcher of the first Claude session after a container restart; and `githerd ensure`
 from any terminal. There is no supervisord entry (owner's decision 3 in 12.3). Every start path
@@ -1700,7 +1700,7 @@ It predates this design and is reworked by the plan. Most of its fact-finding an
 | `config.mjs` | strict validation from the default branch, widening keys rejected | bounds; the last-good file and the replay gate live in `config-adopt.mjs` |
 | `version.mjs` | running master's code, never a worktree's | `versions/<version>-<hash8>/`, protocol versions |
 | `mcp.mjs`, `schema.mjs` | JSON-RPC core and schema validator | the eleven tools of section 6 |
-| `launcher.mjs` | find or start the one daemon, forward calls | fixed cwd; `alive` check; restart lock; drop the pm2 re-creation workaround once servherd passes `autorestart` |
+| `launcher.mjs` | find or start the one daemon, forward calls | fixed cwd; `alive` check; restart lock; supervision is servherd's `--autorestart` (1.2.0) |
 | `notify.mjs` | once per key; "phone alerts broken" | owner items only; batching; presence and digest |
 | `text.mjs` | ASCII and credential checks on outgoing text | none |
 | `shellwords.mjs` | the tokenizer | none |

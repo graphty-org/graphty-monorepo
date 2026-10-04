@@ -2,7 +2,7 @@
     "repo": "graphty-org/graphty-monorepo",
     "mode": "dry-run",
     "pollSeconds": 180,
-    "servherdCommand": ["node", "/home/apowers/Projects/servherd-autorestart/dist/index.js"],
+    "servherdCommand": ["npx", "-y", "servherd@^1.2.0"],
     "lanes": {
         "ci": { "workflow": "ci.yml", "gating": "required" },
         "gpu": { "workflow": "gpu.yml", "gating": "required", "maxMinutes": 240 },

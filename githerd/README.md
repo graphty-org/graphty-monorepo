@@ -164,8 +164,8 @@ githerd from the default branch, so they fail until the merge.
    environment it takes them from `~/.claude/settings.json`, and it warns when it finds none
    anywhere, because the daemon's git would then sign with the gpg key, whose pinentry cannot run
    without a terminal. The command starts the daemon under `env -i` from the state directory with
-   servherd's `--autorestart`, so pm2 brings back a crashed daemon; it needs a servherd release that
-   has `--autorestart`. After a container restart the daemon comes back when the first session
+   servherd's `--autorestart`, so pm2 brings back a crashed daemon. The config runs the published
+   servherd through `npx -y servherd@^1.2.0`, the first release with `--autorestart`. After a container restart the daemon comes back when the first session
    opens, or with `node githerd/bin/githerd.mjs ensure`.
 
     githerd finds the default branch through `refs/remotes/origin/HEAD`. A checkout whose remote

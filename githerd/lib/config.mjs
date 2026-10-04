@@ -23,7 +23,8 @@ const ACTION_GROUPS = ["statuses", "prUpkeep", "workers", "workerWrites", "propo
 export const DEFAULTS = Object.freeze({
     mode: "dry-run",
     pollSeconds: 180,
-    servherdCommand: ["npx", "-y", "servherd"],
+    // 1.2.0 is the first servherd with --autorestart, which the daemon's start needs.
+    servherdCommand: ["npx", "-y", "servherd@^1.2.0"],
     release: null,
     requiredChecks: [],
     ownerGate: null,

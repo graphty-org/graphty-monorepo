@@ -230,7 +230,7 @@ describe("LoadDataModal", () => {
             expect(input).not.toBeNull();
             fireEvent.change(input as HTMLInputElement, { target: { files: [file] } });
 
-            const picker = await screen.findByRole("textbox", { name: "Network" });
+            const picker = await screen.findByRole("combobox", { name: "Network" });
             fireEvent.click(picker);
             fireEvent.click(await screen.findByRole("option", { name: /^Alpha/ }));
             fireEvent.click(screen.getByRole("button", { name: /^Load / }));

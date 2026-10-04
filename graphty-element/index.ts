@@ -114,7 +114,24 @@ export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from ".
 // The shapes every session verb names things with: a data column, a run's result column, a coded
 // fact (graphty-element reports facts, never sentences) and a progress report
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
+// How many node labels the element draws, and why the rest are not (element.nodeLabelCounts)
+export type { NodeLabelCounts } from "./src/managers/LabelDeclutter";
 
+// What a find box lists without selecting: `element.session.find(text)`
+export type {
+    FindEnd,
+    FindHit,
+    FindHitBase,
+    FindKind,
+    FindOptions,
+    FindResult,
+    FindValueRow,
+} from "./src/session/types";
+// `session.data.neighbors(id)`: a node's neighbors, one row each, with their combined weight
+export type { WeightMeaning } from "./src/session/runs";
+export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./src/session/types";
+// The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
+export type { NodeId } from "./src/catalog/types";
 // What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
 export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
 
@@ -151,6 +168,7 @@ export type {
     ProjectStatus,
     SavedProject,
 } from "./src/session/projectFile";
+export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";

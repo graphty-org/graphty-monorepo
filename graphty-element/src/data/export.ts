@@ -28,6 +28,7 @@ import { type ColumnDecl, GraphBuilder, type GraphSnapshot } from "@graphty/grap
 import {
     type CommonExportOptions,
     csvExporter,
+    cx2Exporter,
     dotExporter,
     gexfExporter,
     gmlExporter,
@@ -37,6 +38,7 @@ import {
     type LossNote,
     neo4jExporter,
     pajekExporter,
+    xgmmlExporter,
 } from "@graphty/graph-io";
 
 import { formatDescriptor, NEO4J_WRITER_OPTIONS } from "../catalog/formats";
@@ -105,6 +107,8 @@ const BUILT_IN_WRITERS: Readonly<Record<string, AnyExporter>> = {
     gml: gmlExporter as AnyExporter,
     dot: dotExporter as AnyExporter,
     pajek: pajekExporter as AnyExporter,
+    xgmml: xgmmlExporter as AnyExporter,
+    cx2: cx2Exporter as AnyExporter,
 };
 
 /**

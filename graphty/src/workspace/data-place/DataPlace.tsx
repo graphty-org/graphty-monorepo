@@ -2,7 +2,7 @@ import "./data-place.css";
 
 import { ContextMenu, ControlSection, SearchInput, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Box, Menu, Text, Tooltip } from "@mantine/core";
 import {
     Calendar,
     CaseSensitive,
@@ -55,9 +55,10 @@ const ADD_SOURCE = ["data.add-file", "data.add-url", "data.add-paste"] as const;
  * Re-renders on every change the element reports to the project (an import, an undo, a
  * declaration), so the lists read the session fresh.
  * @param session - the element's session, or null.
+ * @returns a number that changes with each reported change.
  */
-function useProjectVersion(session: GraphSession | null): void {
-    const [, setVersion] = useState(0);
+function useProjectVersion(session: GraphSession | null): number {
+    const [version, setVersion] = useState(0);
     useEffect(
         () =>
             session?.on("project:changed", () => {
@@ -65,6 +66,7 @@ function useProjectVersion(session: GraphSession | null): void {
             }),
         [session],
     );
+    return version;
 }
 
 /**
@@ -73,7 +75,7 @@ function useProjectVersion(session: GraphSession | null): void {
  * @param props.children - The text
  * @returns The text
  */
-function Quiet({ children }: { children: React.ReactNode }): React.JSX.Element {
+function Quiet({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
     return (
         <span className="dp-quiet" data-pinned="">
             {children}
@@ -88,7 +90,7 @@ function Quiet({ children }: { children: React.ReactNode }): React.JSX.Element {
  * @param props.reason - Why it is disabled, or null
  * @returns The label
  */
-function ItemLabel({ label, reason }: { label: string; reason: string | null }): React.JSX.Element {
+function ItemLabel({ label, reason }: Readonly<{ label: string; reason: string | null }>): React.JSX.Element {
     return (
         <>
             {label}
@@ -149,6 +151,112 @@ function rowIdOf(event: React.SyntheticEvent): string | null {
 }
 
 /**
+ * Whether a row has a menu: a source, a node attribute (Add label line), or an edge attribute
+ * once the table dock is built (Show in table). A subhead has none.
+ * @param id - the row's id, or null off any row.
+ * @param tableBuilt - whether the table dock is built.
+ * @returns true when the row has at least one item.
+ */
+function hasMenu(id: string | null, tableBuilt: boolean): boolean {
+    const column = id === null ? null : columnOf(id);
+    return id?.startsWith("source") === true || column?.kind === "node" || (column !== null && tableBuilt);
+}
+
+/**
+ * Whether a key opens a context menu (Shift+F10 or the menu key).
+ * @param event - the key event.
+ * @returns true for a menu key.
+ */
+function isMenuKey(event: React.KeyboardEvent): boolean {
+    return (event.shiftKey && event.key === "F10") || event.key === "ContextMenu";
+}
+
+/**
+ * The Attributes tree: a Nodes and an Edges subhead, each drawn only when it has a row.
+ * @param session - the element's session, or null.
+ * @param needle - the find text, or "" for every attribute.
+ * @returns the tree items.
+ */
+function attributeTree(session: GraphSession | null, needle: string): TreeNodeData[] {
+    const attributes = session?.data.attributes() ?? [];
+    const runLabel = (runId: string): string | undefined => session?.runs.get(runId)?.label;
+    const subheads = [
+        { id: "nodes", name: "Nodes", label: "Node attributes", kind: "node" },
+        { id: "edges", name: "Edges", label: "Edge attributes", kind: "edge" },
+    ] as const;
+    return subheads.flatMap(({ kind, ...head }) => {
+        const rows = attributeRows(attributes, kind, needle, runLabel);
+        return rows.length > 0 ? [{ ...head, children: rows.map(attributeItem) }] : [];
+    });
+}
+
+/**
+ * Why Add label line cannot bind an attribute, in the app's words, or null when it can.
+ * @param session - the element's session.
+ * @param spec - the column and the label channel.
+ * @returns the reason, or null.
+ */
+function labelRefusalFor(
+    session: GraphSession,
+    spec: Parameters<GraphSession["styles"]["proposeEncoding"]>[0],
+): string | null {
+    try {
+        const proposal = session.styles.proposeEncoding(spec);
+        return proposal.ok ? null : labelRefusalWords(proposal.refusal);
+    } catch {
+        // The attribute went away under the open menu.
+        return "No longer in the data";
+    }
+}
+
+/**
+ * The Attributes section: the find box once there are many, and the Nodes and Edges tree. Picking
+ * an attribute opens it in the inspector.
+ * @returns The section
+ */
+function AttributesSection(): React.JSX.Element {
+    const { session, store } = useWorkspace();
+    const inspected = useWorkspaceState((state) => state.inspected);
+    const [filter, setFilter] = useState("");
+    const findShown = (session?.data.attributes().length ?? 0) > FIND_PAST;
+    const attributeItems = attributeTree(session, findShown ? filter : "");
+    const selectedAttribute = inspected?.kind === "attribute" && inspected.id !== undefined ? [inspected.id] : [];
+    return (
+        <ControlSection label="Attributes" empty={attributeItems.length === 0 && filter === ""}>
+            {findShown ? (
+                <SearchInput
+                    className="dp-find"
+                    aria-label="Find attribute"
+                    placeholder="Find"
+                    value={filter}
+                    onChange={setFilter}
+                />
+            ) : null}
+            {attributeItems.length === 0 && filter !== "" ? (
+                <Text size="xs" c="dimmed" className="dp-no-match">
+                    No match for &quot;{filter}&quot;
+                </Text>
+            ) : null}
+            {attributeItems.length === 0 ? null : (
+                <Tree
+                    label="Attributes"
+                    items={attributeItems}
+                    defaultExpanded={["nodes", "edges"]}
+                    multiselect={false}
+                    selected={selectedAttribute}
+                    onSelect={(ids) => {
+                        const id = ids.at(-1);
+                        if (id !== undefined && columnOf(id) !== null) {
+                            store.set({ inspected: { kind: "attribute", id } });
+                        }
+                    }}
+                />
+            )}
+        </ControlSection>
+    );
+}
+
+/**
  * The Data place (tier1-design.md section 2.6): the graph's name, then Sources and Attributes.
  * Every fact is the element's: `data.source()` and `data.lastImport()` for Sources,
  * `data.attributes()` for Attributes.
@@ -162,8 +270,6 @@ export function DataPlace(): React.JSX.Element {
     const { session, store } = useWorkspace();
     useProjectVersion(session);
     const graphName = useWorkspaceState((state) => state.project?.name ?? "");
-    const inspected = useWorkspaceState((state) => state.inspected);
-    const [filter, setFilter] = useState("");
     const tableBuilt = useCommand("table.toggle") !== null;
     const addCommands = [useCommand(ADD_SOURCE[0]), useCommand(ADD_SOURCE[1]), useCommand(ADD_SOURCE[2])].filter(
         (door) => door !== null,
@@ -171,37 +277,13 @@ export function DataPlace(): React.JSX.Element {
     const [menuFor, setMenuFor] = useState<string | null>(null);
 
     const sources = session === null ? [] : sourceRows(session.data.source(), session.data.lastImport());
-    const attributes = session?.data.attributes() ?? [];
-    const findShown = attributes.length > FIND_PAST;
-    const needle = findShown ? filter : "";
-    const runLabel = (runId: string): string | undefined => session?.runs.get(runId)?.label;
-    const nodeRows = attributeRows(attributes, "node", needle, runLabel);
-    const edgeRows = attributeRows(attributes, "edge", needle, runLabel);
-    const attributeItems: TreeNodeData[] = [
-        ...(nodeRows.length > 0
-            ? [{ id: "nodes", name: "Nodes", label: "Node attributes", children: nodeRows.map(attributeItem) }]
-            : []),
-        ...(edgeRows.length > 0
-            ? [{ id: "edges", name: "Edges", label: "Edge attributes", children: edgeRows.map(attributeItem) }]
-            : []),
-    ];
-    const selectedAttribute = inspected?.kind === "attribute" && inspected.id !== undefined ? [inspected.id] : [];
 
     const editSource = (): void => {
         store.set({ page: "data-page" });
     };
     const menuColumn = menuFor === null ? null : columnOf(menuFor);
     const labelSpec = menuColumn?.kind === "node" ? { column: menuColumn, channel: "node.label" as const } : null;
-    let labelRefusal: string | null = null;
-    if (labelSpec !== null && session !== null) {
-        try {
-            const proposal = session.styles.proposeEncoding(labelSpec);
-            labelRefusal = proposal.ok ? null : labelRefusalWords(proposal.refusal);
-        } catch {
-            // The attribute went away under the open menu.
-            labelRefusal = "No longer in the data";
-        }
-    }
+    const labelRefusal = labelSpec === null || session === null ? null : labelRefusalFor(session, labelSpec);
     /**
      * Add label line (T10, the attribute menu's door): a new row on top whose label is bound to
      * the attribute. It lands selected, so the inspector shows it; a refusal is one Problem notice.
@@ -220,16 +302,6 @@ export function DataPlace(): React.JSX.Element {
                 });
             },
         );
-    };
-    /**
-     * Whether a row has a menu: a source, a node attribute (Add label line), or an edge attribute
-     * once the table dock is built (Show in table). A subhead has none.
-     * @param id - the row's id, or null off any row.
-     * @returns true when the row has at least one item.
-     */
-    const hasMenu = (id: string | null): boolean => {
-        const column = id === null ? null : columnOf(id);
-        return id?.startsWith("source") === true || column?.kind === "node" || (column !== null && tableBuilt);
     };
 
     const plus =
@@ -257,11 +329,13 @@ export function DataPlace(): React.JSX.Element {
             <h2 className="dp-title">{graphName}</h2>
             <ContextMenu
                 target={
-                    <div
+                    // A plain box that catches the context-menu click and key bubbling up from the
+                    // trees' rows, which are the controls.
+                    <Box
                         onContextMenu={(event) => {
                             const id = rowIdOf(event);
                             setMenuFor(id);
-                            if (!hasMenu(id)) {
+                            if (!hasMenu(id, tableBuilt)) {
                                 // Opens nothing, and keeps the browser's own menu away too.
                                 event.preventDefault();
                             }
@@ -269,10 +343,7 @@ export function DataPlace(): React.JSX.Element {
                         onKeyDown={(event) => {
                             const id = rowIdOf(event);
                             setMenuFor(id);
-                            if (
-                                ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") &&
-                                !hasMenu(id)
-                            ) {
+                            if (isMenuKey(event) && !hasMenu(id, tableBuilt)) {
                                 event.preventDefault();
                             }
                         }}
@@ -289,38 +360,8 @@ export function DataPlace(): React.JSX.Element {
                                 />
                             )}
                         </ControlSection>
-                        <ControlSection label="Attributes" empty={attributeItems.length === 0 && filter === ""}>
-                            {findShown ? (
-                                <SearchInput
-                                    className="dp-find"
-                                    aria-label="Find attribute"
-                                    placeholder="Find"
-                                    value={filter}
-                                    onChange={setFilter}
-                                />
-                            ) : null}
-                            {attributeItems.length === 0 && filter !== "" ? (
-                                <Text size="xs" c="dimmed" className="dp-no-match">
-                                    No match for &quot;{filter}&quot;
-                                </Text>
-                            ) : null}
-                            {attributeItems.length === 0 ? null : (
-                                <Tree
-                                    label="Attributes"
-                                    items={attributeItems}
-                                    defaultExpanded={["nodes", "edges"]}
-                                    multiselect={false}
-                                    selected={selectedAttribute}
-                                    onSelect={(ids) => {
-                                        const id = ids.at(-1);
-                                        if (id !== undefined && columnOf(id) !== null) {
-                                            store.set({ inspected: { kind: "attribute", id } });
-                                        }
-                                    }}
-                                />
-                            )}
-                        </ControlSection>
-                    </div>
+                        <AttributesSection />
+                    </Box>
                 }
             >
                 {menuFor?.startsWith("source") === true ? (

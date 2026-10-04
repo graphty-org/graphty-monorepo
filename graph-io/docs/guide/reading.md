@@ -70,6 +70,10 @@ Edges are numbered `0` to `snapshot.edgeCount - 1`. `snapshot.edgeSource(e)` and
 gave. `snapshot.directed` says whether the graph is directed. An undirected edge is still one edge,
 with its two ends in the order the file listed them.
 
+Whether a graph is directed comes from the file. A CSV table without a `Type` column does not say,
+so graph-io reads it as directed unless you pass `defaultDirected: false`, as this example does for
+the Game of Thrones edges, which are undirected.
+
 <!-- generated:begin example:reading/edges -->
 
 ```ts
@@ -77,7 +81,10 @@ import { readFile } from "node:fs/promises";
 
 import { importGraph } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("got-edges.csv"), { filename: "got-edges.csv" });
+const { snapshot } = await importGraph(await readFile("got-edges.csv"), {
+    filename: "got-edges.csv",
+    defaultDirected: false, // the table has no Type column; these edges are undirected
+});
 const weights = snapshot.edgeList().weights; // one per edge; null when the graph has no weights
 
 for (let e = 0; e < 3; e++) {
@@ -96,7 +103,7 @@ console.log(snapshot.directed ? "directed" : "undirected", snapshot.edges.names(
 Aemon - Grenn: 5
 Aemon - Samwell: 31
 Aerys - Jaime: 18
-directed []
+undirected []
 ```
 
 <!-- generated:end -->
@@ -105,7 +112,9 @@ directed []
 
 `snapshot.edgeList().weights` holds one weight per edge, in edge order, or is `null` when the graph
 has no weights. Which attribute becomes the weight depends on the format (`weight` for most,
-`value` for GML and Pajek); the [`weightFrom`](./options.md#every-importer) option changes it.
+`value` for GML and Pajek); the [`weightFrom`](./options.md#every-importer) option changes it. A d3
+JSON file usually keeps its link strengths in `value`: read it with `weightFrom: "value"`, or the
+graph has no weights and `value` is a plain edge attribute.
 
 These weights are 32-bit floats, which hold integers up to 16,777,216 and most decimals only
 approximately: `0.1` is stored as `0.10000000149011612`. When a file has a weight that 32-bit floats
@@ -188,8 +197,8 @@ Jaime: 24 edges
 
 `snapshot.meta` keeps what the file said about itself: `name`, `description`, `creator` and the
 like, `sourceFormat` (the format it was read from) and, under `extra`, details a format keeps so it
-can write the file back the same way, such as `meta.extra.json.dialect` for the JSON dialect that
-was read.
+can write the file back the same way. For a JSON file, `jsonShapeOf(snapshot)` from
+`@graphty/graph-io/json` reads that record with its type, including the dialect that was read.
 
 ## Renaming an attribute before you save
 

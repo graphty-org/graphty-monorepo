@@ -2,10 +2,10 @@ import { readFile } from "node:fs/promises";
 
 import { sniff, SNIFF_HEAD_BYTES } from "@graphty/graph-io";
 
-const bytes = await readFile("karate-neo4j.csv");
+const bytes = await readFile("movies-nodes.csv");
 
 // The content outranks the name: this .csv file has a neo4j-admin header
-console.log(sniff({ filename: "karate-neo4j.csv", head: bytes.subarray(0, SNIFF_HEAD_BYTES) }));
+console.log(sniff({ filename: "movies-nodes.csv", head: bytes.subarray(0, SNIFF_HEAD_BYTES) }));
 
 // A name alone is a weak hint, but it is enough when nothing contradicts it
 console.log(sniff({ filename: "graph.gexf" }));

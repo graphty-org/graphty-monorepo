@@ -51,12 +51,15 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("polbooks.gml"), { filename: "polbooks.gml" });
+// got.gml was saved with sanitizeIds: "mangle": its ids are numbers, and the names are restored on reading
+const { snapshot } = await importGraph(await readFile("got.gml"), { filename: "got.gml" });
 console.log(`${snapshot.nodeCount} nodes; node columns: ${snapshot.nodes.names().join(", ")}`);
-console.log(`node 0: ${String(snapshot.nodes.value("label", 0))}, ${String(snapshot.nodes.value("value", 0))}`);
+console.log(`node 0: id ${JSON.stringify(snapshot.ids.idOf(0))}, label ${String(snapshot.nodes.value("label", 0))}`);
 
-console.log(checkExport(snapshot, "gml"));
-await writeFile("polbooks-copy.gml", await exportGraphToBytes(snapshot, "gml"));
+// Saving it again needs the same option, because the ids are text once more
+const options = { sanitizeIds: "mangle" } as const;
+console.log(checkExport(snapshot, "gml", options).map((n) => n.code));
+await writeFile("got-copy.gml", await exportGraphToBytes(snapshot, "gml", options));
 ```
 
 <!-- generated:end -->
@@ -64,15 +67,17 @@ await writeFile("polbooks-copy.gml", await exportGraphToBytes(snapshot, "gml"));
 <!-- generated:begin output:formats/gml -->
 
 ```text
-105 nodes; node columns: label, value
-node 0: 1000 Years for Revenge, n
-[]
+107 nodes; node columns: label
+node 0: id "Aemon", label Aemon
+[ 'W_ID_MANGLED' ]
 ```
 
 <!-- generated:end -->
 
-The node labels and the `value` key of every node came back as columns, and the file
-saves back to GML with nothing lost.
+GML node ids are integers, so `got.gml` was saved with `sanitizeIds: "mangle"`: the file numbers
+the nodes and keeps each character's name in a `graphty_originalId` key, and graph-io reads the
+names back as the ids. Saving the graph to GML again needs the same option, and the only note is
+`W_ID_MANGLED`.
 
 ## How graph-io reads it
 
@@ -134,40 +139,40 @@ These come on top of the [options every exporter takes](../options.md#every-expo
 
 The codes this format's import report can hold, also exported as `GML_ISSUE` from `@graphty/graph-io/gml`.
 
-| Code                   | Key                 | Severity | Meaning                                                                                                                                                                                                                                      |
-| ---------------------- | ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_SYNTAX`             | `SYNTAX`            | error    | A grammar violation: an untokenizable bare token, an unclosed string or `[`, a stray `]`, a key without a value (fatal).                                                                                                                     |
-| `E_INVALID_UTF8`       | `INVALID_UTF8`      | error    | The input holds invalid UTF-8 (fatal).                                                                                                                                                                                                       |
-| `E_INVALID_ENCODING`   | `INVALID_ENCODING`  | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).                                                                                                                                                     |
-| `W_ENCODING_FALLBACK`  | `ENCODING_FALLBACK` | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                                                                                                                                                                  |
-| `W_UNKNOWN_ENCODING`   | `UNKNOWN_ENCODING`  | warning  | A declared encoding the platform cannot decode was ignored.                                                                                                                                                                                  |
-| `E_NO_GRAPH`           | `NO_GRAPH`          | error    | No `graph [` block (fatal).                                                                                                                                                                                                                  |
-| `W_MULTIPLE_GRAPHS`    | `MULTIPLE_GRAPHS`   | warning  | More than one `graph` block (fatal).                                                                                                                                                                                                         |
-| `E_MISSING_ID`         | `MISSING_ID`        | error    | A node without an `id`.                                                                                                                                                                                                                      |
-| `E_GML_MISSING_LABEL`  | `MISSING_LABEL`     | error    | A node without a `label` under nodeIdFrom "label".                                                                                                                                                                                           |
-| `E_MISSING_ENDPOINT`   | `MISSING_ENDPOINT`  | error    | An edge without `source` or `target`.                                                                                                                                                                                                        |
-| `E_GML_ID_TYPE`        | `ID_TYPE`           | error    | A node id, source or target that is neither an integer nor a string.                                                                                                                                                                         |
-| `W_GML_STRING_ID`      | `STRING_ID`         | warning  | String node ids, sources or targets (outside the spec's integers), kept under the ids rule; warned once.                                                                                                                                     |
-| `W_DUPLICATE_NODE`     | `DUPLICATE_NODE`    | warning  | A node id declared twice (later keys overwrite).                                                                                                                                                                                             |
-| `E_GML_REPEATED_KEY`   | `REPEATED_KEY`      | error    | A structural key repeated in one element.                                                                                                                                                                                                    |
-| `E_GML_ELEMENT_TYPE`   | `ELEMENT_TYPE`      | error    | A `node` / `edge` key whose value is not a record.                                                                                                                                                                                           |
-| `E_GML_FLAG_TYPE`      | `FLAG_TYPE`         | error    | A `directed` / `multigraph` flag that is not an integer.                                                                                                                                                                                     |
-| `W_GML_FLAG_VALUE`     | `FLAG_VALUE`        | warning  | A `directed` / `multigraph` flag outside 0 / 1, or repeated.                                                                                                                                                                                 |
-| `W_GML_UNKNOWN_ENTITY` | `UNKNOWN_ENTITY`    | warning  | A named entity no table decodes, or a numeric reference beyond U+10FFFF; kept as written.                                                                                                                                                    |
-| `W_PRECISION`          | `PRECISION`         | warning  | An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.                                                                                                                                    |
-| `W_GML_GRAPHICS`       | `GRAPHICS`          | warning  | A node's graphics value that cannot give a position as written; kept in the graphics json column.                                                                                                                                            |
-| `W_GML_NESTED_ELEMENT` | `NESTED_ELEMENT`    | warning  | A graph, node or edge record nested in a node or edge; kept as json, not read as structure.                                                                                                                                                  |
-| `W_GML_GROUPS`         | `GROUPS`            | warning  | yEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment.                                                                                                                                                   |
-| `W_WIDENED`            | `WIDENED`           | warning  | An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column, or two declared types for one attribute.                                                                                      |
-| `W_COLUMN_RENAMED`     | `COLUMN_RENAMED`    | warning  | An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.                                                                                                             |
-| `W_ROLE_TAKEN`         | `ROLE_TAKEN`        | warning  | You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.                                                                                                          |
-| `W_ID_MERGED`          | `ID_MERGED`         | warning  | Two id texts merged into one number under ids "number".                                                                                                                                                                                      |
-| `W_OPTION_IGNORED`     | `OPTION_IGNORED`    | warning  | You set an option this format does not use; it had no effect. The message names the option.                                                                                                                                                  |
-| `W_SINK_OPTION`        | `SINK_OPTION`       | warning  | You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.                                        |
-| `W_DIRECTION_REFUSED`  | `DIRECTION_REFUSED` | warning  | You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.                                                                             |
-| `W_DIRECTION_FORCED`   | `DIRECTION_FORCED`  | warning  | Edges forced to the policy's direction.                                                                                                                                                                                                      |
-| `E_MIXED_DIRECTION`    | `MIXED_DIRECTION`   | error    | The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write it anyway. |
-| `W_GML_ID_DROPPED`     | `ID_DROPPED`        | warning  | Under nodeIdFrom "label" / "index" the integer ids are not kept (a loss note).                                                                                                                                                               |
+| Code                   | Key                 | Severity | Meaning                                                                                                                                                                                                                                        |
+| ---------------------- | ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_SYNTAX`             | `SYNTAX`            | error    | The text breaks GML's syntax: a word that is not a key or a value, an unclosed string or `[`, a stray `]`, or a key without a value. The import stops.                                                                                         |
+| `E_INVALID_UTF8`       | `INVALID_UTF8`      | error    | The input is not valid UTF-8. The import stops.                                                                                                                                                                                                |
+| `E_INVALID_ENCODING`   | `INVALID_ENCODING`  | error    | Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the `encoding` option). The import stops.                                                                                            |
+| `W_ENCODING_FALLBACK`  | `ENCODING_FALLBACK` | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                                                                                                                                                                    |
+| `W_UNKNOWN_ENCODING`   | `UNKNOWN_ENCODING`  | warning  | A declared encoding the platform cannot decode was ignored.                                                                                                                                                                                    |
+| `E_NO_GRAPH`           | `NO_GRAPH`          | error    | There is no `graph [` block. The import stops.                                                                                                                                                                                                 |
+| `W_MULTIPLE_GRAPHS`    | `MULTIPLE_GRAPHS`   | warning  | The file holds more than one `graph` block; the first was read, or the one `graphIndex` or `graphName` chose.                                                                                                                                  |
+| `E_MISSING_ID`         | `MISSING_ID`        | error    | A node without an `id`.                                                                                                                                                                                                                        |
+| `E_GML_MISSING_LABEL`  | `MISSING_LABEL`     | error    | A node without a `label` under nodeIdFrom "label".                                                                                                                                                                                             |
+| `E_MISSING_ENDPOINT`   | `MISSING_ENDPOINT`  | error    | An edge without `source` or `target`.                                                                                                                                                                                                          |
+| `E_GML_ID_TYPE`        | `ID_TYPE`           | error    | A node id, source or target that is neither an integer nor a string.                                                                                                                                                                           |
+| `W_GML_STRING_ID`      | `STRING_ID`         | warning  | Node ids, sources or targets are text, where GML expects integers. They are read under the `ids` option. Reported once per file.                                                                                                               |
+| `W_DUPLICATE_NODE`     | `DUPLICATE_NODE`    | warning  | A node id declared twice (later keys overwrite).                                                                                                                                                                                               |
+| `E_GML_REPEATED_KEY`   | `REPEATED_KEY`      | error    | A structural key repeated in one element.                                                                                                                                                                                                      |
+| `E_GML_ELEMENT_TYPE`   | `ELEMENT_TYPE`      | error    | A `node` / `edge` key whose value is not a record.                                                                                                                                                                                             |
+| `E_GML_FLAG_TYPE`      | `FLAG_TYPE`         | error    | A `directed` / `multigraph` flag that is not an integer.                                                                                                                                                                                       |
+| `W_GML_FLAG_VALUE`     | `FLAG_VALUE`        | warning  | A `directed` / `multigraph` flag outside 0 / 1, or repeated.                                                                                                                                                                                   |
+| `W_GML_UNKNOWN_ENTITY` | `UNKNOWN_ENTITY`    | warning  | A named entity no table decodes, or a numeric reference beyond U+10FFFF; kept as written.                                                                                                                                                      |
+| `W_PRECISION`          | `PRECISION`         | warning  | An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.                                                                                                                                      |
+| `W_GML_GRAPHICS`       | `GRAPHICS`          | warning  | A node's graphics value that cannot give a position as written; kept in the graphics json column.                                                                                                                                              |
+| `W_GML_NESTED_ELEMENT` | `NESTED_ELEMENT`    | warning  | A graph, node or edge record nested in a node or edge; kept as json, not read as structure.                                                                                                                                                    |
+| `W_GML_GROUPS`         | `GROUPS`            | warning  | YEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment.                                                                                                                                                     |
+| `W_WIDENED`            | `WIDENED`           | warning  | An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column, or two declared types for one attribute.                                                                                        |
+| `W_COLUMN_RENAMED`     | `COLUMN_RENAMED`    | warning  | An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.                                                                                                               |
+| `W_ROLE_TAKEN`         | `ROLE_TAKEN`        | warning  | You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.                                                                                                            |
+| `W_ID_MERGED`          | `ID_MERGED`         | warning  | Two different id texts became the same number because `ids` is "number", so their nodes were merged.                                                                                                                                           |
+| `W_OPTION_IGNORED`     | `OPTION_IGNORED`    | warning  | You set an option this format does not use; it had no effect. The message names the option.                                                                                                                                                    |
+| `W_SINK_OPTION`        | `SINK_OPTION`       | warning  | You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.                                          |
+| `W_DIRECTION_REFUSED`  | `DIRECTION_REFUSED` | warning  | You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.                                                                               |
+| `W_DIRECTION_FORCED`   | `DIRECTION_FORCED`  | warning  | Edges of the other direction were read with the direction `onMixedDirection` chose.                                                                                                                                                            |
+| `E_MIXED_DIRECTION`    | `MIXED_DIRECTION`   | error    | The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a format that holds one direction per file fails with `E_DIRECTED`. Pass "directed" or "undirected" to read or write it anyway. |
+| `W_GML_ID_DROPPED`     | `ID_DROPPED`        | warning  | Under nodeIdFrom "label" / "index" the integer ids are not kept (a loss note).                                                                                                                                                                 |
 
 Like every format, it can also record the codes for unreadable input: [`E_EMPTY_INPUT`](../codes.md#E_EMPTY_INPUT), [`E_TOO_LARGE`](../codes.md#E_TOO_LARGE), [`W_ENCODING_CONFLICT`](../codes.md#W_ENCODING_CONFLICT), [`W_CONTROL_CHARACTER`](../codes.md#W_CONTROL_CHARACTER), [`E_FOREIGN_FORMAT`](../codes.md#E_FOREIGN_FORMAT), [`W_ISSUES_SUPPRESSED`](../codes.md#W_ISSUES_SUPPRESSED).
 
@@ -175,18 +180,18 @@ Like every format, it can also record the codes for unreadable input: [`E_EMPTY_
 
 The codes `checkExport(snapshot, "gml", options)` can return before a save, also exported as `GML_LOSS` from `@graphty/graph-io/gml`. An `E_` code means the save throws unless you change the graph or the options. A save can also return the [shared loss codes](../codes.md#shared-loss-codes) that any format can.
 
-| Code                        | Key                   | Severity            | Meaning                                                                              |
-| --------------------------- | --------------------- | ------------------- | ------------------------------------------------------------------------------------ |
-| `W_GML_RECORD_NUMBER_TYPE`  | `RECORD_NUMBER_TYPE`  | warning             | A json column holds numbers; GML records cannot keep int versus real.                |
-| `W_GML_RECORD_BOOLEAN`      | `RECORD_BOOLEAN`      | warning             | A json column holds booleans, written 1 / 0.                                         |
-| `W_GML_RECORD_NULL`         | `RECORD_NULL`         | warning             | A json column holds nulls, omitted.                                                  |
-| `E_GML_NESTED_ARRAY`        | `NESTED_ARRAY`        | error (save throws) | An attribute holds an array inside an array, which GML cannot write; the save fails. |
-| `W_GML_JSON_ARRAY`          | `JSON_ARRAY`          | warning             | A json row that is an array, written as repeated keys.                               |
-| `E_GML_INVALID_KEY`         | `INVALID_KEY`         | error (save throws) | A column name or record key outside the GML key grammar.                             |
-| `E_GML_RESERVED_KEY`        | `RESERVED_KEY`        | error (save throws) | A column named like a structural key.                                                |
-| `W_GML_KEY_MANGLED`         | `KEY_MANGLED`         | warning             | A key rewritten under sanitizeKeys "mangle".                                         |
-| `W_GML_POSITION_COMPONENTS` | `POSITION_COMPONENTS` | warning             | A position column with more than three components.                                   |
-| `W_GML_GRAPHICS_OVERRIDDEN` | `GRAPHICS_OVERRIDDEN` | warning             | A graphics record whose x / y / z the position column overrides.                     |
-| `E_GML_GRAPHICS_CONFLICT`   | `GRAPHICS_CONFLICT`   | error (save throws) | A graphics record that cannot hold the position.                                     |
+| Code                        | Key                   | Severity            | Meaning                                                                                                                                            |
+| --------------------------- | --------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `W_GML_RECORD_NUMBER_TYPE`  | `RECORD_NUMBER_TYPE`  | warning             | A json column holds numbers; GML records cannot keep int versus real.                                                                              |
+| `W_GML_RECORD_BOOLEAN`      | `RECORD_BOOLEAN`      | warning             | A json column holds booleans, written 1 / 0.                                                                                                       |
+| `W_GML_RECORD_NULL`         | `RECORD_NULL`         | warning             | A json column holds nulls, omitted.                                                                                                                |
+| `E_GML_NESTED_ARRAY`        | `NESTED_ARRAY`        | error (save throws) | An attribute holds an array inside an array, which GML cannot write; the save fails.                                                               |
+| `W_GML_JSON_ARRAY`          | `JSON_ARRAY`          | warning             | A json row that is an array, written as repeated keys.                                                                                             |
+| `E_GML_INVALID_KEY`         | `INVALID_KEY`         | error (save throws) | An attribute name GML cannot use as a key (keys are letters and digits, starting with a letter). The save fails unless `sanitizeKeys` is "mangle". |
+| `E_GML_RESERVED_KEY`        | `RESERVED_KEY`        | error (save throws) | A column named like a structural key.                                                                                                              |
+| `W_GML_KEY_MANGLED`         | `KEY_MANGLED`         | warning             | A key rewritten under sanitizeKeys "mangle".                                                                                                       |
+| `W_GML_POSITION_COMPONENTS` | `POSITION_COMPONENTS` | warning             | A position column with more than three components.                                                                                                 |
+| `W_GML_GRAPHICS_OVERRIDDEN` | `GRAPHICS_OVERRIDDEN` | warning             | A graphics record whose x / y / z the position column overrides.                                                                                   |
+| `E_GML_GRAPHICS_CONFLICT`   | `GRAPHICS_CONFLICT`   | error (save throws) | A graphics record that cannot hold the position.                                                                                                   |
 
 <!-- generated:end -->

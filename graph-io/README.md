@@ -14,6 +14,9 @@ could not read or could not save instead of dropping it.
 npm install @graphty/graph-io
 ```
 
+This reads [got-network.graphml](https://graphty.app/docs/graph-io/samples/got-network.graphml), a
+sample file from the guide; download it to run the example as it is.
+
 <!-- generated:begin example:quick-start/readme -->
 
 ```ts

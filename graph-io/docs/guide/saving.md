@@ -18,7 +18,10 @@ All of them write the same bytes for the same arguments. Text formats are writte
 A format can rarely hold everything a graph can. Pajek has no edge ids, CSV holds one table per
 file, GML node ids must be integers, and so on. `checkExport()` compares your graph with the format
 and returns one note per difference, before anything is written. An empty list means the saved
-file reads back as the same graph.
+file reads back as the same graph, as long as you read it back with the options you saved it with.
+A file does not record the format options that shaped it, such as a CSV `delimiter`, a JSON
+`sourceKey` or `weightKey`, or a Neo4j `weightColumn`. Read such a file with the matching import
+option: `delimiter`, `sourceKey`, or `weightFrom` for a weight saved under another name.
 
 Each note has a `code`, a `message`, the attribute `column` it is about (or `null`), and a `count`
 of the nodes, edges or values affected (or `null`).
@@ -38,6 +41,7 @@ import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io"
 
 const { snapshot } = await importGraph(await readFile("got-edges.csv"), {
     filename: "got-edges.csv",
+    defaultDirected: false, // the table has no Type column; these edges are undirected
     nodes: await readFile("got-nodes.csv"),
 });
 
@@ -61,7 +65,7 @@ await writeFile("got.graphml", await exportGraphToBytes(snapshot, "graphml", opt
 <!-- generated:begin output:saving/check -->
 
 ```text
-E_ID_CHARSET: 2 node id(s) outside the nmtoken charset; the save fails unless sanitizeIds is "mangle"
+E_ID_CHARSET: 2 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces); the save fails unless sanitizeIds is "mangle"
 W_COLUMN_NAME_CHANGED: node column "Label" (label) is written into the format's label slot and reads back as "label"
 [ 'W_ID_MANGLED', 'W_COLUMN_NAME_CHANGED' ]
 ```
@@ -89,7 +93,8 @@ format:
 | `E_XML_ILLEGAL_CHAR` and other value notes | `E_COLUMN_TYPE` or `E_UNSUPPORTED`; the note's entry on [Issue and loss codes](./codes.md) says which |
 
 An option value the format does not allow is not a note: `checkExport()` throws it as
-`E_UNSUPPORTED`, the same as the save would, with the option's name in `err.details.option`.
+`E_UNSUPPORTED`, the same as the save would, with the option's name in `err.details.option`. A load
+does the same for an import option value it cannot use.
 
 <!-- generated:begin example:saving/options-error -->
 
@@ -133,7 +138,14 @@ With `sanitizeIds: "mangle"` the exporter rewrites the ids the format cannot hol
 original id to the file too, in an attribute each format page names (`graphty:originalId` in
 GraphML, `graphty_originalId` in GML, for example). When graph-io reads that file back, it puts the
 original ids back (`restoreMangledIds`, on by default), so a round trip through the format keeps
-your ids. Other programs see the rewritten ids.
+your ids. Other programs see the rewritten ids. With `restoreMangledIds: false` the originals stay
+an ordinary node attribute; GraphML reads `graphty:originalId` back as an attribute named
+`graphty.originalId`.
+
+A file can be read cleanly and still need `"mangle"` to be saved again in the same format. graph-io
+reads GraphML ids with spaces, which other tools write although GraphML does not allow them, but it
+only writes valid ones. The same goes for a graph read from a Cytoscape session or a CX file whose
+ids came from the original ids: save it to CX, CX2 or a session with `sanitizeIds: "mangle"`.
 
 Pajek is the exception: its nodes are always numbered 1 to N, so a Pajek save renumbers any other
 ids whatever `sanitizeIds` says, and `checkExport()` returns the warning `W_ID_RENUMBERED`. The old
@@ -212,9 +224,30 @@ JSON. They go in the same options object as `sanitizeIds` and `onMixedDirection`
 
 An option the chosen format does not have is ignored without a warning, so one options object can
 serve several formats. That also means a misspelled option is ignored. In TypeScript, check the
-names with `satisfies` and the format's options type (`CsvExportOptions` from
-`@graphty/graph-io/csv`, and so on), as [Loading graphs](./loading.md#options) shows for import
-options.
+names with `satisfies` and the format's options type, which includes `sanitizeIds` and
+`onMixedDirection`:
+
+<!-- generated:begin example:saving/typed-options -->
+
+```ts
+import { readFile } from "node:fs/promises";
+
+import { exportGraphToString, importGraph } from "@graphty/graph-io";
+import { type GmlExportOptions } from "@graphty/graph-io/gml";
+
+const { snapshot } = await importGraph(await readFile("got.gml"), { filename: "got.gml" });
+
+// `satisfies` checks the GML options and the ones every exporter takes
+const options = { sanitizeIds: "mangle", weightKey: "weight" } satisfies GmlExportOptions;
+const gml = await exportGraphToString(snapshot, "gml", options);
+console.log(gml.split("\n").slice(0, 7).join("\n"));
+```
+
+<!-- generated:end -->
+
+Use `satisfies` rather than a type annotation: a variable declared as `const options:
+GmlExportOptions` cannot be passed to the save functions, as
+[Loading graphs](./loading.md#options) explains. Spread it (`{ ...options }`) if you have one.
 
 ## Large graphs: stream to a file
 
@@ -230,10 +263,12 @@ import { pipeline } from "node:stream/promises";
 
 import { exportGraph, importGraph } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("airlines-sample.gexf"), { filename: "airlines-sample.gexf" });
+const { snapshot } = await importGraph(await readFile("got-network.graphml"), {
+    filename: "got-network.graphml",
+});
 
 // The file is written chunk by chunk; the whole document is never held in memory
-await pipeline(exportGraph(snapshot, "graphml"), createWriteStream("airlines.graphml"));
+await pipeline(exportGraph(snapshot, "gexf"), createWriteStream("got-copy.gexf"));
 ```
 
 <!-- generated:end -->
@@ -243,9 +278,9 @@ the chunks with `toReadableStream(exportGraph(snapshot, format, options))`.
 
 ## Choosing the format from a file name
 
-`listFormats()` describes every format: its name, its extensions with the leading dot, its MIME
-types, and whether graph-io can read it (`canImport`) and write it (`canExport`). Together with
-`extensionOf()` it picks the format for a path:
+`listFormats()` returns one entry per format, with the fields `format` (the name you pass to the
+save functions), `extensions` (with the leading dot), `mimeTypes`, `canImport`, `canExport` and
+`capabilities`. Together with `extensionOf()` it picks the format for a path:
 
 <!-- generated:begin example:saving/pick-format -->
 
@@ -254,9 +289,9 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { exportGraphToBytes, extensionOf, importGraph, listFormats } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("karate.gml"), { filename: "karate.gml" });
+const { snapshot } = await importGraph(await readFile("got.gml"), { filename: "got.gml" });
 
-for (const path of ["karate.gexf", "karate.dot", "karate.xyz"]) {
+for (const path of ["network.gexf", "network.dot", "network.xyz"]) {
     const extension = extensionOf(path) ?? "";
     const target = listFormats().find((f) => f.canExport && f.extensions.includes(extension));
     if (target === undefined) {
@@ -272,7 +307,7 @@ for (const path of ["karate.gexf", "karate.dot", "karate.xyz"]) {
 <!-- generated:begin output:saving/pick-format -->
 
 ```text
-karate.xyz: no format writes .xyz files
+network.xyz: no format writes .xyz files
 ```
 
 <!-- generated:end -->
@@ -319,7 +354,9 @@ import { FormatRegistry } from "@graphty/graph-io";
 import { csvExporter, csvImporter } from "@graphty/graph-io/csv";
 
 const io = new FormatRegistry().registerImporter(csvImporter).registerExporter(csvExporter);
-const { snapshot } = await io.loadFromUrl("https://graphty.app/docs/graph-io/samples/got-edges.csv");
+const { snapshot } = await io.loadFromUrl("https://graphty.app/docs/graph-io/samples/got-edges.csv", {
+    defaultDirected: false, // the table has no Type column; these edges are undirected
+});
 
 // <button id="save">Save as CSV</button>
 document.querySelector("#save").addEventListener("click", async () => {

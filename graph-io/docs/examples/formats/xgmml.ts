@@ -2,8 +2,8 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("cytoscape3-small.xgmml"), {
-    filename: "cytoscape3-small.xgmml",
+const { snapshot } = await importGraph(await readFile("proteins.xgmml"), {
+    filename: "proteins.xgmml",
 });
 console.log(`${snapshot.nodeCount} nodes; node columns: ${snapshot.nodes.names().join(", ")}`);
 

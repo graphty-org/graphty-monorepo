@@ -14,6 +14,11 @@ input.addEventListener("change", async () => {
     }
     try {
         const { snapshot, report } = await loadFromFile(file);
+        if (snapshot.nodeCount === 0) {
+            // a text file that is not a graph can still read as an empty CSV table
+            console.error(`${file.name} holds no graph`);
+            return;
+        }
         console.log(`${file.name}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
         if (report.errorCount > 0) {
             console.warn(`${report.errorCount} elements could not be read and were skipped`);

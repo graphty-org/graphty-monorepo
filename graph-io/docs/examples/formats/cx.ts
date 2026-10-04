@@ -2,10 +2,12 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("SimpleNetwork.cx"), { filename: "SimpleNetwork.cx" });
+const { snapshot } = await importGraph(await readFile("got.cx"), { filename: "got.cx" });
 console.log(`${snapshot.nodeCount} nodes; node columns: ${snapshot.nodes.names().join(", ")}`);
 
-// Every CX edge is directed, so an undirected graph is written with a warning
-const karate = await importGraph(await readFile("karate.gml"), { filename: "karate.gml" });
-console.log(checkExport(karate.snapshot, "cx").map((n) => n.code));
-await writeFile("karate.cx", await exportGraphToBytes(karate.snapshot, "cx"));
+// CX node ids are integers, so a graph with text ids needs sanitizeIds: "mangle"
+const got = await importGraph(await readFile("got-network.graphml"), { filename: "got-network.graphml" });
+console.log(checkExport(got.snapshot, "cx").map((n) => n.code));
+const options = { sanitizeIds: "mangle" } as const;
+console.log(checkExport(got.snapshot, "cx", options).map((n) => n.code));
+await writeFile("got-copy.cx", await exportGraphToBytes(got.snapshot, "cx", options));

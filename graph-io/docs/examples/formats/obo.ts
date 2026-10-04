@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { exportGraphToString, importGraph } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("basic.obo"), { filename: "basic.obo" });
+const { snapshot } = await importGraph(await readFile("vehicles.obo"), { filename: "vehicles.obo" });
 for (let i = 0; i < snapshot.nodeCount; i++) {
     console.log(`${String(snapshot.ids.idOf(i))} ${String(snapshot.nodes.value("name", i))}`);
 }
@@ -13,5 +13,5 @@ for (let e = 0; e < snapshot.edgeCount; e++) {
 }
 
 // Write it back as OBO, or as OBO Graphs JSON
-await writeFile("basic-copy.obo", await exportGraphToString(snapshot, "obo"));
-await writeFile("basic.json", await exportGraphToString(snapshot, "json", { dialect: "obographs" }));
+await writeFile("vehicles-copy.obo", await exportGraphToString(snapshot, "obo"));
+await writeFile("vehicles.json", await exportGraphToString(snapshot, "json", { dialect: "obographs" }));

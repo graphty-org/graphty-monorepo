@@ -1,3 +1,3 @@
 dot: 2 nodes
-no registered importer recognizes the input; pass the format explicitly
-read as csv, but: line 3: 1 field(s), expected 2
+the input is not in a graph format graph-io recognizes; if you know its format, pass it as the format option
+read as csv, but: 1 field(s), expected 2

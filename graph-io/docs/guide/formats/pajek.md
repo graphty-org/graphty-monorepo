@@ -51,18 +51,24 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
 
-// Pajek numbers vertices 1..N; with sanitizeIds: "mangle" the file also keeps the original ids ("Myriel", ...)
-const { snapshot } = await importGraph(await readFile("miserables.json"), { filename: "miserables.json" });
+// Pajek numbers vertices 1..N; with sanitizeIds: "mangle" the file also keeps the original ids ("Aemon", ...)
+const { snapshot } = await importGraph(await readFile("got-network.graphml"), { filename: "got-network.graphml" });
 const options = { sanitizeIds: "mangle" } as const;
 for (const note of checkExport(snapshot, "pajek", options)) {
     console.log(`${note.code}: ${note.message}`);
 }
 const bytes = await exportGraphToBytes(snapshot, "pajek", options);
-await writeFile("miserables.net", bytes);
+await writeFile("got-mangled.net", bytes);
 
 // Reading the file back restores the original ids
-const back = await importGraph(bytes, { filename: "miserables.net" });
+const back = await importGraph(bytes, { filename: "got-mangled.net" });
 console.log(`first id after the round trip: ${String(back.snapshot.ids.idOf(0))}`);
+
+// got.net was saved without "mangle": its ids are the numbers 1..107 and the names are labels
+const plain = await importGraph(await readFile("got.net"), { filename: "got.net" });
+console.log(
+    `got.net: id ${String(plain.snapshot.ids.idOf(0))}, label ${String(plain.snapshot.nodes.value("label", 0))}`,
+);
 ```
 
 <!-- generated:end -->
@@ -70,9 +76,11 @@ console.log(`first id after the round trip: ${String(back.snapshot.ids.idOf(0))}
 <!-- generated:begin output:formats/pajek -->
 
 ```text
-W_ID_RENUMBERED: 77 node id(s) are not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value
-W_PAJEK_LABEL_GAINED: 77 vertex line(s) carry coordinates, a shape or parameters and need a label; the id text is written there and reads back as a label
-first id after the round trip: Myriel
+W_PAJEK_KEY_DROPPED: edge column "Edge Label" cannot be a Pajek parameter key; it is not written
+W_EDGE_IDS_DROPPED: edge id column "id" cannot be written
+W_ID_RENUMBERED: 107 node id(s) are not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value
+first id after the round trip: Aemon
+got.net: id 1, label Aemon
 ```
 
 <!-- generated:end -->
@@ -138,33 +146,33 @@ The codes this format's import report can hold, also exported as `PAJEK_ISSUE` f
 
 | Code                             | Key                      | Severity | Meaning                                                                                                                                                                                               |
 | -------------------------------- | ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_INVALID_UTF8`                 | `INVALID_UTF8`           | error    | The input holds invalid UTF-8 (fatal).                                                                                                                                                                |
-| `E_INVALID_ENCODING`             | `INVALID_ENCODING`       | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).                                                                                                              |
+| `E_INVALID_UTF8`                 | `INVALID_UTF8`           | error    | The input is not valid UTF-8. The import stops.                                                                                                                                                       |
+| `E_INVALID_ENCODING`             | `INVALID_ENCODING`       | error    | Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the `encoding` option). The import stops.                                                   |
 | `W_ENCODING_FALLBACK`            | `ENCODING_FALLBACK`      | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                                                                                                                           |
 | `W_UNKNOWN_ENCODING`             | `UNKNOWN_ENCODING`       | warning  | A declared encoding the platform cannot decode was ignored.                                                                                                                                           |
-| `E_PAJEK_NO_VERTICES`            | `NO_VERTICES`            | error    | Fatal: no `*Vertices` section (an empty file, or not a Pajek network).                                                                                                                                |
+| `E_PAJEK_NO_VERTICES`            | `NO_VERTICES`            | error    | There is no `*Vertices` section: the file is empty or not a Pajek network. The import stops.                                                                                                          |
 | `E_PAJEK_VERTICES_COUNT`         | `VERTICES_COUNT`         | error    | `*Vertices` without a vertex count, with a count too large to hold, or with a first-mode count outside 0 to N; the import stops.                                                                      |
 | `W_MULTIPLE_GRAPHS`              | `MULTIPLE_GRAPHS`        | warning  | The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.                                                    |
 | `E_PAJEK_OUTSIDE_SECTION`        | `OUTSIDE_SECTION`        | error    | A data line before the first section header.                                                                                                                                                          |
 | `E_SYNTAX`                       | `SYNTAX`                 | error    | A section header the importer cannot parse.                                                                                                                                                           |
 | `E_PAJEK_UNTERMINATED_QUOTE`     | `UNTERMINATED_QUOTE`     | error    | A double quote not closed before the end of the line.                                                                                                                                                 |
-| `E_PAJEK_VERTEX_LINE`            | `VERTEX_LINE`            | error    | A vertex line the grammar does not accept.                                                                                                                                                            |
+| `E_PAJEK_VERTEX_LINE`            | `VERTEX_LINE`            | error    | A vertex line that is not in Pajek's vertex syntax; the vertex is skipped.                                                                                                                            |
 | `E_PAJEK_VERTEX_RANGE`           | `VERTEX_RANGE`           | error    | A vertex number outside the declared range.                                                                                                                                                           |
 | `W_PAJEK_VERTEX_COUNT`           | `VERTEX_COUNT`           | warning  | Fewer vertex lines than `*Vertices` declares, which the Pajek manual allows (vertices without a line have no label).                                                                                  |
 | `W_DUPLICATE_NODE`               | `DUPLICATE_NODE`         | warning  | A second line for the same vertex; the later values overwrite.                                                                                                                                        |
-| `E_PAJEK_LINE`                   | `LINE`                   | error    | A line (arc, edge, list, matrix row, partition or vector value) the grammar does not accept.                                                                                                          |
-| `E_UNKNOWN_NODE`                 | `UNKNOWN_NODE`           | error    | A line endpoint outside the declared vertex range (the core's code, forwarded).                                                                                                                       |
+| `E_PAJEK_LINE`                   | `LINE`                   | error    | A line that is not in Pajek's syntax for its section (an arc, edge, list, matrix row, partition or vector value); it is skipped.                                                                      |
+| `E_UNKNOWN_NODE`                 | `UNKNOWN_NODE`           | error    | An edge names a vertex number outside the range `*Vertices` declared; the edge is skipped.                                                                                                            |
 | `E_PAJEK_INTERVAL`               | `INTERVAL`               | error    | A malformed time interval token.                                                                                                                                                                      |
 | `E_PAJEK_MATRIX_ROWS`            | `MATRIX_ROWS`            | error    | A `*Matrix` section with the wrong number of rows (N, or N1 in a two-mode network).                                                                                                                   |
 | `W_PAJEK_MATRIX_EXTRA`           | `MATRIX_EXTRA`           | warning  | `*Matrix` rows longer than the column count; the extra values are ignored.                                                                                                                            |
 | `E_PAJEK_OBJECT_COUNT`           | `OBJECT_COUNT`           | error    | A `*Partition` or `*Vector` whose value count differs from the network's vertex count; values beyond it are dropped, vertices without one are unset.                                                  |
 | `W_PAJEK_UNSUPPORTED_SECTION`    | `UNSUPPORTED_SECTION`    | warning  | A project-file section (`*Events`, `*Permutation`, ...) the importer does not read; its lines are skipped.                                                                                            |
-| `W_PAJEK_HEADER_EXTRA`           | `HEADER_EXTRA`           | warning  | Tokens after a section header the grammar does not account for.                                                                                                                                       |
+| `W_PAJEK_HEADER_EXTRA`           | `HEADER_EXTRA`           | warning  | A section header has extra words Pajek does not define; they are ignored.                                                                                                                             |
 | `W_PAJEK_NO_LINES`               | `NO_LINES`               | warning  | The file declares vertices but no line section.                                                                                                                                                       |
 | `W_PAJEK_ZERO_BASED`             | `ZERO_BASED`             | warning  | Vertex numbering starts at 0 rather than 1.                                                                                                                                                           |
 | `W_PAJEK_COORD_DIMS`             | `COORD_DIMS`             | warning  | Vertex lines mix two and three coordinates.                                                                                                                                                           |
 | `W_PAJEK_LABEL_MERGED`           | `LABEL_MERGED`           | warning  | Two vertices share a label under nodeIdFrom "label" and became one node.                                                                                                                              |
-| `W_ID_MERGED`                    | `ID_MERGED`              | warning  | Two distinct label texts became one numeric id under ids "number".                                                                                                                                    |
+| `W_ID_MERGED`                    | `ID_MERGED`              | warning  | Two different labels became the same number because `ids` is "number", so their vertices were merged.                                                                                                 |
 | `W_WIDENING_UNSUPPORTED`         | `WIDENING_UNSUPPORTED`   | warning  | Your graph builder cannot change an attribute's type after its first value, so a text column keeps the type of its first values.                                                                      |
 | `W_COLUMN_RENAMED`               | `COLUMN_RENAMED`         | warning  | A structural column (label, position, shape, spells, relation) renamed `<name>#<id>` because the name was taken.                                                                                      |
 | `W_ROLE_TAKEN`                   | `ROLE_TAKEN`             | warning  | You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.                                                                   |
@@ -187,21 +195,21 @@ Like every format, it can also record the codes for unreadable input: [`E_EMPTY_
 
 The codes `checkExport(snapshot, "pajek", options)` can return before a save, also exported as `PAJEK_LOSS` from `@graphty/graph-io/pajek`. An `E_` code means the save throws unless you change the graph or the options. A save can also return the [shared loss codes](../codes.md#shared-loss-codes) that any format can.
 
-| Code                         | Key                    | Severity            | Meaning                                                                                                                                                 |
-| ---------------------------- | ---------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_PAJEK_TEXT`               | `TEXT`                 | error (save throws) | A label or text value holds a double quote or a line break, which Pajek cannot write; the save fails with E_UNSUPPORTED.                                |
-| `W_PAJEK_KEY_DROPPED`        | `KEY_DROPPED`          | warning             | A column whose name cannot be a parameter key (whitespace, a quote, numeric, a shape keyword); skipped.                                                 |
-| `W_PAJEK_LABEL_AS_TEXT`      | `LABEL_AS_TEXT`        | warning             | A label role column that is not text; its values are written as text and re-import as string.                                                           |
-| `W_PAJEK_NONFINITE_AS_TEXT`  | `NONFINITE_AS_TEXT`    | warning             | NaN or an infinity is written as the text Infinity or NaN, which reads back as text.                                                                    |
-| `W_MUTUAL_AS_UNDIRECTED`     | `MUTUAL_AS_UNDIRECTED` | warning             | A mutual pair; written as one undirected edge, the mark lost.                                                                                           |
-| `W_TEMPORAL_DROPPED`         | `TEMPORAL_DROPPED`     | warning             | A start / end / timestamp role column; Pajek intervals are written from the spells role only.                                                           |
-| `W_PAJEK_POSITION_STRIDE`    | `POSITION_STRIDE`      | warning             | A position column with a stride other than 2 or 3.                                                                                                      |
-| `W_PAJEK_FIRST_MODE_DROPPED` | `FIRST_MODE_DROPPED`   | warning             | meta.extra.pajek.firstMode is not a count within 0..N; the two-mode header is not written.                                                              |
-| `W_ROLE_DROPPED`             | `ROLE_DROPPED`         | warning             | An attribute with a role the format has no place for is written as a plain attribute; the role is lost.                                                 |
-| `W_PAJEK_SHAPE_AS_PARAMETER` | `SHAPE_AS_PARAMETER`   | warning             | A `shape` column with a value outside the shape keywords is written as a parameter (a string on re-import).                                             |
-| `W_PAJEK_LABEL_GAINED`       | `LABEL_GAINED`         | warning             | A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label.                                  |
-| `W_ROLE_ASSUMED`             | `ROLE_ASSUMED`         | warning             | An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads back with that role.                |
-| `W_ID_TEXT_TYPE`             | `ID_TEXT_TYPE`         | warning             | Under sanitizeIds "mangle": an original id whose text reads back as the other type under ids "canonical".                                               |
-| `W_TEXT_INFERRED`            | `TEXT_INFERRED`        | warning             | A text value that reads back as a number or a boolean, because the format does not record that it was text (the text "42" reads back as the number 42). |
+| Code                         | Key                    | Severity            | Meaning                                                                                                                                                  |
+| ---------------------------- | ---------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_PAJEK_TEXT`               | `TEXT`                 | error (save throws) | A label or text value holds a double quote or a line break, which Pajek cannot write; the save fails with `E_UNSUPPORTED`.                               |
+| `W_PAJEK_KEY_DROPPED`        | `KEY_DROPPED`          | warning             | A column whose name cannot be a parameter key (whitespace, a quote, numeric, a shape keyword); skipped.                                                  |
+| `W_PAJEK_LABEL_AS_TEXT`      | `LABEL_AS_TEXT`        | warning             | The node label attribute holds numbers or other values that are not text; they are written as text and read back as text.                                |
+| `W_PAJEK_NONFINITE_AS_TEXT`  | `NONFINITE_AS_TEXT`    | warning             | NaN or an infinity is written as the text Infinity or NaN, which reads back as text.                                                                     |
+| `W_MUTUAL_AS_UNDIRECTED`     | `MUTUAL_AS_UNDIRECTED` | warning             | A mutual pair; written as one undirected edge, the mark lost.                                                                                            |
+| `W_TEMPORAL_DROPPED`         | `TEMPORAL_DROPPED`     | warning             | A start / end / timestamp role column; Pajek intervals are written from the spells role only.                                                            |
+| `W_PAJEK_POSITION_STRIDE`    | `POSITION_STRIDE`      | warning             | A position with other than 2 or 3 coordinates is not written.                                                                                            |
+| `W_PAJEK_FIRST_MODE_DROPPED` | `FIRST_MODE_DROPPED`   | warning             | The graph's two-mode vertex count (`meta.extra.pajek.firstMode`) is not between 0 and the number of nodes, so the file is written as a one-mode network. |
+| `W_ROLE_DROPPED`             | `ROLE_DROPPED`         | warning             | An attribute with a role the format has no place for is written as a plain attribute; the role is lost.                                                  |
+| `W_PAJEK_SHAPE_AS_PARAMETER` | `SHAPE_AS_PARAMETER`   | warning             | A `shape` attribute whose value is not one of Pajek's shape names is written as a parameter, and reads back as a plain text attribute.                   |
+| `W_PAJEK_LABEL_GAINED`       | `LABEL_GAINED`         | warning             | A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label.                                   |
+| `W_ROLE_ASSUMED`             | `ROLE_ASSUMED`         | warning             | An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads back with that role.                 |
+| `W_ID_TEXT_TYPE`             | `ID_TEXT_TYPE`         | warning             | With `sanitizeIds: "mangle"`: an original id that reads back as a different type, such as the text "7" as the number 7.                                  |
+| `W_TEXT_INFERRED`            | `TEXT_INFERRED`        | warning             | A text value that reads back as a number or a boolean, because the format does not record that it was text (the text "42" reads back as the number 42).  |
 
 <!-- generated:end -->

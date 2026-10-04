@@ -51,12 +51,14 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
 
-const { snapshot, report } = await importGraph(await readFile("glypican2.cx2"), { filename: "glypican2.cx2" });
-console.log(`${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
+const { snapshot, report } = await importGraph(await readFile("got.cx2"), { filename: "got.cx2" });
+console.log(`${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges, first id ${String(snapshot.ids.idOf(0))}`);
 console.log(report.issues.map((i) => i.code));
 
-console.log(checkExport(snapshot, "cx2").map((n) => n.code));
-await writeFile("glypican2-copy.cx2", await exportGraphToBytes(snapshot, "cx2"));
+// The ids were restored to the names, which CX2 cannot hold as ids, so saving needs "mangle" again
+const options = { sanitizeIds: "mangle" } as const;
+console.log(checkExport(snapshot, "cx2", options).map((n) => n.code));
+await writeFile("got-copy.cx2", await exportGraphToBytes(snapshot, "cx2", options));
 ```
 
 <!-- generated:end -->
@@ -64,16 +66,19 @@ await writeFile("glypican2-copy.cx2", await exportGraphToBytes(snapshot, "cx2"))
 <!-- generated:begin output:formats/cx2 -->
 
 ```text
-2 nodes, 1 edges
-[ 'W_STYLES_NOT_IMPORTED' ]
+107 nodes, 352 edges, first id Aemon
 []
+[ 'W_ID_MANGLED' ]
 ```
 
 <!-- generated:end -->
 
-A CX2 file read by graph-io keeps its style rules and other aspects in the snapshot's
-metadata, and writes them back when you save as CX2, even though graph-io does not apply them
-(`W_STYLES_NOT_IMPORTED`).
+`got.cx2` was saved with `sanitizeIds: "mangle"`, so its node ids are numbers and graph-io reads
+the character names back as the ids. Saving to CX2 again needs the same option.
+
+A CX2 file from Cytoscape or NDEx usually has style rules. graph-io keeps them, and the file's
+other aspects, in the snapshot's metadata and writes them back when you save as CX2, although it
+does not apply them to the graph (`W_STYLES_NOT_IMPORTED`).
 
 ## How graph-io reads it
 
@@ -134,16 +139,16 @@ The codes this format's import report can hold, also exported as `CX2_ISSUE` fro
 
 | Code                         | Key                       | Severity | Meaning                                                                                                                                                                                               |
 | ---------------------------- | ------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_SYNTAX`                   | `SYNTAX`                  | error    | The text is not JSON (fatal).                                                                                                                                                                         |
-| `E_INVALID_UTF8`             | `INVALID_UTF8`            | error    | Invalid UTF-8 (fatal).                                                                                                                                                                                |
-| `E_INVALID_ENCODING`         | `INVALID_ENCODING`        | error    | Invalid bytes in the encoding a BOM or the encoding option chose (fatal).                                                                                                                             |
+| `E_SYNTAX`                   | `SYNTAX`                  | error    | The text is not valid JSON. The import stops.                                                                                                                                                         |
+| `E_INVALID_UTF8`             | `INVALID_UTF8`            | error    | The input is not valid UTF-8. The import stops.                                                                                                                                                       |
+| `E_INVALID_ENCODING`         | `INVALID_ENCODING`        | error    | Some bytes are not valid in the encoding that was chosen (by a byte order mark or the `encoding` option). The import stops.                                                                           |
 | `W_ENCODING_FALLBACK`        | `ENCODING_FALLBACK`       | warning  | Bytes that are not UTF-8 were read as windows-1252.                                                                                                                                                   |
 | `W_UNKNOWN_ENCODING`         | `UNKNOWN_ENCODING`        | warning  | An encoding the platform cannot decode was ignored.                                                                                                                                                   |
-| `E_CX2_NO_DESCRIPTOR`        | `NO_DESCRIPTOR`           | error    | The document is not an array or does not start with a descriptor holding CXVersion (fatal).                                                                                                           |
-| `E_CX2_VERSION`              | `VERSION`                 | error    | CXVersion names a major version other than 2 (fatal); "1.x" says the file is CX1.                                                                                                                     |
+| `E_CX2_NO_DESCRIPTOR`        | `NO_DESCRIPTOR`           | error    | The document is not a JSON array, or its first element is not the CX2 descriptor with `CXVersion`. The import stops.                                                                                  |
+| `E_CX2_VERSION`              | `VERSION`                 | error    | `CXVersion` names a version other than 2 ("1.x" means the file is CX1; read it as `cx`). The import stops.                                                                                            |
 | `W_CX2_MINOR_VERSION`        | `MINOR_VERSION`           | warning  | CXVersion is a 2.x other than "2.0" (or not a string); the document is read.                                                                                                                          |
 | `E_CX2_NO_STATUS`            | `NO_STATUS`               | error    | The document has no status block, or a malformed one.                                                                                                                                                 |
-| `E_STATUS_FAILED`            | `STATUS_FAILED`           | error    | The producer marked the document as failed (fatal).                                                                                                                                                   |
+| `E_STATUS_FAILED`            | `STATUS_FAILED`           | error    | The program that wrote the file marked it as failed, so it is incomplete. The import stops.                                                                                                           |
 | `W_STATUS_WARNING`           | `STATUS_WARNING`          | warning  | The producer marked the document as successful with an error text.                                                                                                                                    |
 | `W_CX2_UNDECLARED_FRAGMENTS` | `UNDECLARED_FRAGMENTS`    | warning  | An aspect appears in several blocks although the descriptor does not declare fragments.                                                                                                               |
 | `E_CX2_DECLARATION_CONFLICT` | `DECLARATION_CONFLICT`    | error    | An attribute declared twice with two different types; the first declaration wins.                                                                                                                     |
@@ -181,7 +186,7 @@ The codes this format's import report can hold, also exported as `CX2_ISSUE` fro
 | `W_COLUMN_RENAMED`           | `COLUMN_RENAMED`          | warning  | An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.                                                                      |
 | `W_ROLE_TAKEN`               | `ROLE_TAKEN`              | warning  | You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.                                                                   |
 | `W_DIRECTION_REFUSED`        | `DIRECTION_REFUSED`       | warning  | You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.                                      |
-| `W_DIRECTION_FORCED`         | `DIRECTION_FORCED`        | warning  | Edges forced to the policy's direction.                                                                                                                                                               |
+| `W_DIRECTION_FORCED`         | `DIRECTION_FORCED`        | warning  | Edges of the other direction were read with the direction `onMixedDirection` chose.                                                                                                                   |
 | `W_OPTION_IGNORED`           | `OPTION_IGNORED`          | warning  | You set an option this format does not use; it had no effect. The message names the option.                                                                                                           |
 | `W_SINK_OPTION`              | `SINK_OPTION`             | warning  | You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies. |
 
@@ -191,19 +196,19 @@ Like every format, it can also record the codes for unreadable input: [`E_EMPTY_
 
 The codes `checkExport(snapshot, "cx2", options)` can return before a save, also exported as `CX2_LOSS` from `@graphty/graph-io/cx2`. An `E_` code means the save throws unless you change the graph or the options. A save can also return the [shared loss codes](../codes.md#shared-loss-codes) that any format can.
 
-| Code                           | Key                      | Severity            | Meaning                                                                                                                                         |
-| ------------------------------ | ------------------------ | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `W_CX2_UNDIRECTED_AS_DIRECTED` | `UNDIRECTED_AS_DIRECTED` | warning             | Every edge is written directed: an undirected snapshot, or the undirected pairs of a mixed one.                                                 |
-| `W_CX2_JSON_AS_STRING`         | `JSON_AS_STRING`         | warning             | A nested (json) column is written as a string attribute holding its JSON text.                                                                  |
-| `W_CX2_NONFINITE_AS_NULL`      | `NONFINITE_AS_NULL`      | warning             | NaN and the infinities cannot be written; they are written as null and read back unset.                                                         |
-| `W_MUTUAL_EXPANDED`            | `MUTUAL_EXPANDED`        | warning             | A mutual pair is written as two directed edges without its mark.                                                                                |
-| `W_WEIGHT_KEY_CLASH`           | `WEIGHT_KEY_CLASH`       | warning             | A plain edge column named like the weight key reads back as THE weight (or is skipped when weights are written).                                |
-| `W_HIERARCHY_DROPPED`          | `HIERARCHY_DROPPED`      | warning             | A parent / parents column: CX2 has no containment.                                                                                              |
-| `W_TEMPORAL_DROPPED`           | `TEMPORAL_DROPPED`       | warning             | A start / end / timestamp column: CX2 has no time.                                                                                              |
-| `W_ROLE_DROPPED`               | `ROLE_DROPPED`           | warning             | An attribute with a role the format has no place for is written as a plain attribute; the role is lost.                                         |
-| `W_DTYPE_UNSUPPORTED`          | `DTYPE_UNSUPPORTED`      | warning             | A dtype CX2 declares as another (f32 as double, u32 as long, dict as string, ...).                                                              |
-| `E_ID_CHARSET`                 | `ID_CHARSET`             | error (save throws) | Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with E_INVALID_ID. Pass `sanitizeIds: "mangle"` to rewrite them. |
-| `W_ID_MANGLED`                 | `ID_MANGLED`             | warning             | Node ids that are not integers under sanitizeIds "mangle": renumbered, originals kept.                                                          |
-| `W_EDGE_IDS_GENERATED`         | `EDGE_IDS_GENERATED`     | warning             | Edges without a usable id get generated integer ids.                                                                                            |
+| Code                           | Key                      | Severity            | Meaning                                                                                                                                                                          |
+| ------------------------------ | ------------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `W_CX2_UNDIRECTED_AS_DIRECTED` | `UNDIRECTED_AS_DIRECTED` | warning             | Every edge is written as directed, so an undirected graph, or the undirected edges of a mixed graph, read back as directed.                                                      |
+| `W_CX2_JSON_AS_STRING`         | `JSON_AS_STRING`         | warning             | A nested (json) column is written as a string attribute holding its JSON text.                                                                                                   |
+| `W_CX2_NONFINITE_AS_NULL`      | `NONFINITE_AS_NULL`      | warning             | NaN and the infinities cannot be written; they are written as null and read back unset.                                                                                          |
+| `W_MUTUAL_EXPANDED`            | `MUTUAL_EXPANDED`        | warning             | A mutual pair is written as two directed edges without its mark.                                                                                                                 |
+| `W_WEIGHT_KEY_CLASH`           | `WEIGHT_KEY_CLASH`       | warning             | An attribute without the weight role is named like the key weights are written under; it reads back as the edge weight, or is not written when the graph has weights of its own. |
+| `W_HIERARCHY_DROPPED`          | `HIERARCHY_DROPPED`      | warning             | A parent / parents column: CX2 has no containment.                                                                                                                               |
+| `W_TEMPORAL_DROPPED`           | `TEMPORAL_DROPPED`       | warning             | A start / end / timestamp column: CX2 has no time.                                                                                                                               |
+| `W_ROLE_DROPPED`               | `ROLE_DROPPED`           | warning             | An attribute with a role the format has no place for is written as a plain attribute; the role is lost.                                                                          |
+| `W_DTYPE_UNSUPPORTED`          | `DTYPE_UNSUPPORTED`      | warning             | An attribute type CX2 stores as another (a 32-bit float as double, an unsigned integer as long, a dictionary as string); it reads back with that type.                           |
+| `E_ID_CHARSET`                 | `ID_CHARSET`             | error (save throws) | Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with `E_INVALID_ID`. Pass `sanitizeIds: "mangle"` to rewrite them.                                |
+| `W_ID_MANGLED`                 | `ID_MANGLED`             | warning             | Node ids that are not integers under sanitizeIds "mangle": renumbered, originals kept.                                                                                           |
+| `W_EDGE_IDS_GENERATED`         | `EDGE_IDS_GENERATED`     | warning             | Edges without a usable id get generated integer ids.                                                                                                                             |
 
 <!-- generated:end -->

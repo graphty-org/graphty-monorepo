@@ -10,8 +10,8 @@ false, `string` text, `dict` text stored once per distinct value, and `list` and
 nested JSON values. "none" means the format keeps no attribute types: every value reads back as
 text or a guessed number.
 
-The examples on the format pages read files by name, such as `karate.gml`. Use any file of that
-format, or the [sample files](../quick-start.md#sample-files).
+The examples on the format pages read the [sample files](../quick-start.md#sample-files); each
+file they name is there.
 
 <!-- generated:begin matrix -->
 
@@ -59,67 +59,67 @@ format, or the [sample files](../quick-start.md#sample-files).
 
 #### mixedDirection
 
-Directed and undirected edges in one file.
+Whether one file can hold directed and undirected edges together. When false, a graph with both needs `onMixedDirection` ("directed" or "undirected") to be saved.
 
 #### multiEdges
 
-Parallel edges.
+Whether the file can hold two edges between the same pair of nodes. When false, the extra edges are not kept as separate edges.
 
 #### selfLoops
 
-Self-loops.
+Whether the file can hold an edge from a node to itself. When false, such edges are lost.
 
 #### edgeIds
 
-Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).
+Whether edges carry ids. "required": every edge has one, and ids are made up (e0, e1, ...) for a graph without them. "optional": edge ids are written when the graph has them. "none": edge ids are lost.
 
 #### idCharset
 
-Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).
+Which node ids the format can write as they are: "any"; "nmtoken" (XML name tokens: letters, digits and `. - _ :`, no spaces); "integer"; or "dense-1-based" (the nodes are always numbered 1 to N). Other ids need `sanitizeIds: "mangle"`, which writes the original ids too.
 
 #### dtypes
 
-The attribute types the format keeps exactly: "bool", "i32" (32-bit integer), "u32" (unsigned 32-bit integer), "u8" (byte), "f32" (32-bit float), "f64" (64-bit float, a JavaScript number), "string" (text), "dict" (text stored as a dictionary of repeated values), "list" and "json". An attribute of another type is written as the nearest one the format has, with a W_DTYPE_UNSUPPORTED note.
+The attribute types the format keeps exactly: "bool", "i32" (32-bit integer), "u32" (unsigned 32-bit integer), "u8" (byte), "f32" (32-bit float), "f64" (64-bit float, a JavaScript number), "string" (text), "dict" (text stored as a dictionary of repeated values), "list" and "json". An attribute of another type is written as the nearest one the format has, with a `W_DTYPE_UNSUPPORTED` note.
 
 #### components
 
-Columns with several numbers per row, such as a position.
+Whether an attribute other than the node position can hold several numbers per node or edge (a vector). When false, such an attribute does not read back as one attribute. Positions are covered by `positions`.
 
 #### lists
 
-List columns.
+Whether an attribute can hold a list per node or edge. When false, list attributes are lost or flattened.
 
 #### json
 
-Nested JSON values.
+Whether an attribute can hold nested JSON objects and arrays. When false, such attributes are written as text or lost.
 
 #### defaults
 
-Columns' declared default values.
+Whether the file can declare a default value for an attribute. When false, declared defaults are lost.
 
 #### options
 
-Declared lists of allowed values (GEXF options).
+Whether the file can declare the allowed values of an attribute (GEXF `options`). When false, those declarations are lost; the values themselves are kept.
 
 #### hierarchy
 
-Nesting: nodes inside other nodes (parent columns).
+Whether nodes can sit inside other nodes (groups or clusters). When false, the nesting is lost.
 
 #### temporal
 
-Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time).
+What the file can say about time: "none" (time attributes are lost), "intervals" (one start and end per element), "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time, as well).
 
 #### graphAttributes
 
-Graph-level attributes.
+Whether the file can hold attributes of the graph itself. When false, graph attributes are lost.
 
 #### positions
 
-Node positions.
+Whether the file can hold node positions. When false, the layout is lost.
 
 #### viz
 
-Visual columns: color, size, shape and thickness.
+Whether the file can hold node and edge color, size, shape and thickness. When false, they are lost.
 
 <!-- generated:end -->
 
@@ -132,7 +132,11 @@ Visual columns: color, size, shape and thickness.
 - In a spreadsheet, a database or a script: CSV, with the node table and the edge table written as
   two files.
 - In Cytoscape: CX2 or XGMML to add a network to an open session, a Cytoscape session to hand over
-  a whole session, and CX2 for NDEx.
+  a whole session, and CX2 for NDEx. CX, CX2 and session node ids are integers, so pass
+  `sanitizeIds: "mangle"` when you save a graph with text ids, including one you read from a
+  session or a CX file, whose ids come back as the original names.
 - In Neo4j: Neo4j CSV, loaded with `neo4j-admin database import`.
 - Ontologies: OBO, or the `obographs` dialect of JSON.
-- Graphviz, Pajek, and tools that read GML: DOT, Pajek and GML.
+- For a picture: DOT, which Graphviz lays out and draws.
+- For Pajek, UCINET or igraph: Pajek `.net` or GML. Both number
+  their nodes, so `checkExport()` tells you how your ids will be written.

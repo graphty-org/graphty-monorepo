@@ -4,7 +4,9 @@ import { pipeline } from "node:stream/promises";
 
 import { exportGraph, importGraph } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("airlines-sample.gexf"), { filename: "airlines-sample.gexf" });
+const { snapshot } = await importGraph(await readFile("got-network.graphml"), {
+    filename: "got-network.graphml",
+});
 
 // The file is written chunk by chunk; the whole document is never held in memory
-await pipeline(exportGraph(snapshot, "graphml"), createWriteStream("airlines.graphml"));
+await pipeline(exportGraph(snapshot, "gexf"), createWriteStream("got-copy.gexf"));

@@ -52,13 +52,15 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("SimpleNetwork.cx"), { filename: "SimpleNetwork.cx" });
+const { snapshot } = await importGraph(await readFile("got.cx"), { filename: "got.cx" });
 console.log(`${snapshot.nodeCount} nodes; node columns: ${snapshot.nodes.names().join(", ")}`);
 
-// Every CX edge is directed, so an undirected graph is written with a warning
-const karate = await importGraph(await readFile("karate.gml"), { filename: "karate.gml" });
-console.log(checkExport(karate.snapshot, "cx").map((n) => n.code));
-await writeFile("karate.cx", await exportGraphToBytes(karate.snapshot, "cx"));
+// CX node ids are integers, so a graph with text ids needs sanitizeIds: "mangle"
+const got = await importGraph(await readFile("got-network.graphml"), { filename: "got-network.graphml" });
+console.log(checkExport(got.snapshot, "cx").map((n) => n.code));
+const options = { sanitizeIds: "mangle" } as const;
+console.log(checkExport(got.snapshot, "cx", options).map((n) => n.code));
+await writeFile("got-copy.cx", await exportGraphToBytes(got.snapshot, "cx", options));
 ```
 
 <!-- generated:end -->
@@ -66,13 +68,26 @@ await writeFile("karate.cx", await exportGraphToBytes(karate.snapshot, "cx"));
 <!-- generated:begin output:formats/cx -->
 
 ```text
-2 nodes; node columns: name, represents
-[ 'W_EDGE_IDS_GENERATED', 'W_CX_UNDIRECTED_AS_DIRECTED' ]
+107 nodes; node columns: name
+[
+  'W_COLUMN_NAME_CHANGED',
+  'W_CX_UNDIRECTED_AS_DIRECTED',
+  'E_ID_CHARSET',
+  'W_DTYPE_UNSUPPORTED'
+]
+[
+  'W_COLUMN_NAME_CHANGED',
+  'W_CX_UNDIRECTED_AS_DIRECTED',
+  'W_ID_MANGLED',
+  'W_DTYPE_UNSUPPORTED'
+]
 ```
 
 <!-- generated:end -->
 
-graph-io writes the form NDEx and Cytoscape both open: one network with at most one view.
+CX node ids are integers, so the Game of Thrones graph, whose ids are names, is refused
+(`E_ID_CHARSET`) until you pass `sanitizeIds: "mangle"`. graph-io writes the form NDEx and Cytoscape
+both open: one network with at most one view.
 
 ## How graph-io reads it
 
@@ -122,11 +137,11 @@ A file read from CX gets its citations, supports, style rules and other aspects 
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option       | Type                     | Default    | Meaning                                                                                                                                                                                                             |
-| ------------ | ------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `zAs`        | `"column" \| "position"` | `"column"` | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position.                                         |
-| `graphIndex` | `number`                 | `0`        | The 0-based position of the graph to read from a file that holds several (`listGraphs()` gives each graph's `index`). A position past the last graph fails with E_GRAPH_NOT_FOUND.                                  |
-| `graphName`  | `string`                 |            | The name of the graph to read from a file that holds several (`listGraphs()` gives each graph's `name`). A name no graph has fails with E_GRAPH_NOT_FOUND, and a name two graphs share with E_AMBIGUOUS_GRAPH_NAME. |
+| Option       | Type                     | Default    | Meaning                                                                                                                                                                                                                 |
+| ------------ | ------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `zAs`        | `"column" \| "position"` | `"column"` | Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node attribute named `z`; "position" makes it the third coordinate of the position.                                             |
+| `graphIndex` | `number`                 | `0`        | The 0-based position of the graph to read from a file that holds several (`listGraphs()` gives each graph's `index`). A position past the last graph fails with `E_GRAPH_NOT_FOUND`.                                    |
+| `graphName`  | `string`                 |            | The name of the graph to read from a file that holds several (`listGraphs()` gives each graph's `name`). A name no graph has fails with `E_GRAPH_NOT_FOUND`, and a name two graphs share with `E_AMBIGUOUS_GRAPH_NAME`. |
 
 ## Export options
 
@@ -140,17 +155,17 @@ The codes this format's import report can hold, also exported as `CX_ISSUE` from
 
 | Code                        | Key                       | Severity | Meaning                                                                                                                                                                                               |
 | --------------------------- | ------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_SYNTAX`                  | `SYNTAX`                  | error    | The text is not JSON (fatal).                                                                                                                                                                         |
-| `E_INVALID_UTF8`            | `INVALID_UTF8`            | error    | Invalid UTF-8 (fatal).                                                                                                                                                                                |
-| `E_INVALID_ENCODING`        | `INVALID_ENCODING`        | error    | Invalid bytes in the encoding a BOM or the encoding option chose (fatal).                                                                                                                             |
+| `E_SYNTAX`                  | `SYNTAX`                  | error    | The text is not valid JSON. The import stops.                                                                                                                                                         |
+| `E_INVALID_UTF8`            | `INVALID_UTF8`            | error    | The input is not valid UTF-8. The import stops.                                                                                                                                                       |
+| `E_INVALID_ENCODING`        | `INVALID_ENCODING`        | error    | Some bytes are not valid in the encoding that was chosen (by a byte order mark or the `encoding` option). The import stops.                                                                           |
 | `W_ENCODING_FALLBACK`       | `ENCODING_FALLBACK`       | warning  | Bytes that are not UTF-8 were read as windows-1252.                                                                                                                                                   |
 | `W_UNKNOWN_ENCODING`        | `UNKNOWN_ENCODING`        | warning  | An encoding the platform cannot decode was ignored.                                                                                                                                                   |
-| `E_CX_NOT_CX`               | `NOT_CX`                  | error    | The document is not a CX array, or it is CX2 (fatal; the message names CX2).                                                                                                                          |
-| `W_CX_NUMBER_VERIFICATION`  | `NUMBER_VERIFICATION`     | warning  | numberVerification holds another value than 2^48 - 1, or comes twice.                                                                                                                                 |
+| `E_CX_NOT_CX`               | `NOT_CX`                  | error    | The document is not a CX array, or it is CX2 (the message says so; read it as `cx2`). The import stops.                                                                                               |
+| `W_CX_NUMBER_VERIFICATION`  | `NUMBER_VERIFICATION`     | warning  | NumberVerification holds another value than 2^48 - 1, or comes twice.                                                                                                                                 |
 | `W_CX_OLD_ASPECT_NAME`      | `OLD_ASPECT_NAME`         | warning  | An old Cytoscape aspect name (visualProperties, subNetworks, ...) read under its cy name.                                                                                                             |
 | `W_CX_GROUP_NODE_ADDED`     | `GROUP_NODE_ADDED`        | warning  | A cyGroups group whose id is not a node: the group node is added.                                                                                                                                     |
 | `W_CX_ROOT_ONLY`            | `ROOT_ONLY`               | warning  | Nodes or edges of the root network that no subnetwork holds: Cytoscape shows them in no network; not read.                                                                                            |
-| `E_STATUS_FAILED`           | `STATUS_FAILED`           | error    | The producer marked the document as failed (fatal).                                                                                                                                                   |
+| `E_STATUS_FAILED`           | `STATUS_FAILED`           | error    | The program that wrote the file marked it as failed, so it is incomplete. The import stops.                                                                                                           |
 | `W_STATUS_WARNING`          | `STATUS_WARNING`          | warning  | The producer marked the document as successful with an error text.                                                                                                                                    |
 | `E_BAD_ASPECT_BLOCK`        | `BAD_ASPECT_BLOCK`        | error    | A member of the array that is not a one-key aspect block, or an element that is not an object.                                                                                                        |
 | `W_ASPECT_ORDER`            | `ASPECT_ORDER`            | warning  | An aspect after the post-metadata or after the status, a third metaData.                                                                                                                              |
@@ -168,7 +183,7 @@ The codes this format's import report can hold, also exported as `CX_ISSUE` from
 | `W_DUPLICATE_NODE`          | `DUPLICATE_NODE`          | warning  | A node id declared twice; the second merges into the first.                                                                                                                                           |
 | `E_DUPLICATE_EDGE_ID`       | `DUPLICATE_EDGE_ID`       | error    | An edge id declared twice; the second edge is skipped.                                                                                                                                                |
 | `E_INVALID_ID`              | `INVALID_ID`              | error    | An id that is not an integer.                                                                                                                                                                         |
-| `W_UNKNOWN_ELEMENT`         | `UNKNOWN_ELEMENT`         | warning  | A node or edge key CX does not define, an aspect whose name the importer's own meta.extra.cx entry holds, a cyTableColumn table CX does not define.                                                   |
+| `W_UNKNOWN_ELEMENT`         | `UNKNOWN_ELEMENT`         | warning  | A node or edge key CX does not define, an aspect graph-io keeps for writing back, or a table CX does not define; it is skipped.                                                                       |
 | `W_MULTI_ASPECT_FRAGMENT`   | `MULTI_ASPECT_FRAGMENT`   | warning  | A member holding several aspects; each array-valued key is read as its own fragment.                                                                                                                  |
 | `W_SINGLE_OBJECT_ASPECT`    | `SINGLE_OBJECT_ASPECT`    | warning  | An aspect written as one object, not an array of elements; read as one element.                                                                                                                       |
 | `W_JSON_NONSTANDARD_NUMBER` | `JSON_NONSTANDARD_NUMBER` | warning  | The bare tokens NaN / Infinity / -Infinity (Python's json writes them), read as numbers.                                                                                                              |
@@ -178,13 +193,13 @@ The codes this format's import report can hold, also exported as `CX_ISSUE` from
 | `W_PRECISION`               | `PRECISION`               | warning  | An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.                                                                                             |
 | `W_ID_MERGED`               | `ID_MERGED`               | warning  | Two id texts merged under `ids: "number"`.                                                                                                                                                            |
 | `W_MULTIPLE_GRAPHS`         | `MULTIPLE_GRAPHS`         | warning  | The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.                                                    |
-| `E_GRAPH_NOT_FOUND`         | `GRAPH_NOT_FOUND`         | error    | graphIndex or graphName names no subnetwork (fatal).                                                                                                                                                  |
-| `E_AMBIGUOUS_GRAPH_NAME`    | `AMBIGUOUS_GRAPH_NAME`    | error    | graphName names several subnetworks (fatal).                                                                                                                                                          |
-| `E_NO_GRAPH`                | `NO_GRAPH`                | error    | The input holds no graph (fatal).                                                                                                                                                                     |
+| `E_GRAPH_NOT_FOUND`         | `GRAPH_NOT_FOUND`         | error    | `graphIndex` or `graphName` matches no subnetwork. The import stops.                                                                                                                                  |
+| `E_AMBIGUOUS_GRAPH_NAME`    | `AMBIGUOUS_GRAPH_NAME`    | error    | `graphName` matches several subnetworks. The import stops.                                                                                                                                            |
+| `E_NO_GRAPH`                | `NO_GRAPH`                | error    | The input holds no graph. The import stops.                                                                                                                                                           |
 | `W_COLUMN_RENAMED`          | `COLUMN_RENAMED`          | warning  | An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.                                                                      |
 | `W_ROLE_TAKEN`              | `ROLE_TAKEN`              | warning  | You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.                                                                   |
 | `W_DIRECTION_REFUSED`       | `DIRECTION_REFUSED`       | warning  | You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.                                      |
-| `W_DIRECTION_FORCED`        | `DIRECTION_FORCED`        | warning  | Edges forced to the policy's direction.                                                                                                                                                               |
+| `W_DIRECTION_FORCED`        | `DIRECTION_FORCED`        | warning  | Edges of the other direction were read with the direction `onMixedDirection` chose.                                                                                                                   |
 | `W_OPTION_IGNORED`          | `OPTION_IGNORED`          | warning  | You set an option this format does not use; it had no effect. The message names the option.                                                                                                           |
 | `W_SINK_OPTION`             | `SINK_OPTION`             | warning  | You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies. |
 
@@ -194,25 +209,25 @@ Like every format, it can also record the codes for unreadable input: [`E_EMPTY_
 
 The codes `checkExport(snapshot, "cx", options)` can return before a save, also exported as `CX_LOSS` from `@graphty/graph-io/cx`. An `E_` code means the save throws unless you change the graph or the options. A save can also return the [shared loss codes](../codes.md#shared-loss-codes) that any format can.
 
-| Code                          | Key                       | Severity            | Meaning                                                                                                                                              |
-| ----------------------------- | ------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `W_CX_UNDIRECTED_AS_DIRECTED` | `UNDIRECTED_AS_DIRECTED`  | warning             | Every edge is written directed: an undirected snapshot, or the undirected pairs of a mixed one.                                                      |
-| `W_CX_JSON_AS_STRING`         | `JSON_AS_STRING`          | warning             | A nested (json) column is written as a string attribute holding its JSON text.                                                                       |
-| `W_MUTUAL_EXPANDED`           | `MUTUAL_EXPANDED`         | warning             | A mutual pair is written as two directed edges without its mark.                                                                                     |
-| `W_WEIGHT_KEY_CLASH`          | `WEIGHT_KEY_CLASH`        | warning             | A plain edge column named `weight` reads back as THE weight, or is not written.                                                                      |
-| `W_TEMPORAL_DROPPED`          | `TEMPORAL_DROPPED`        | warning             | A start / end / timestamp column: CX has no time.                                                                                                    |
-| `W_ROLE_DROPPED`              | `ROLE_DROPPED`            | warning             | An attribute with a role the format has no place for is written as a plain attribute; the role is lost.                                              |
-| `W_ROLE_ASSUMED`              | `ROLE_ASSUMED`            | warning             | An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads back with that role.             |
-| `W_DTYPE_UNSUPPORTED`         | `DTYPE_UNSUPPORTED`       | warning             | A dtype CX declares as another (f32 as double, u32 as long, u8 as integer, dict as string, ...).                                                     |
-| `W_COMPONENTS_FLATTENED`      | `COMPONENTS_FLATTENED`    | warning             | A multi-component column (a second view's `position@2`, a vector) is written as a list of doubles.                                                   |
-| `W_DEFAULT_DROPPED`           | `DEFAULT_DROPPED`         | warning             | A declared default: CX has none.                                                                                                                     |
-| `W_OPTIONS_DROPPED`           | `OPTIONS_DROPPED`         | warning             | Declared options: CX has no enumerations.                                                                                                            |
-| `E_ID_CHARSET`                | `ID_CHARSET`              | error (save throws) | Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with E_INVALID_ID. Pass `sanitizeIds: "mangle"` to rewrite them.      |
-| `W_ID_MANGLED`                | `ID_MANGLED`              | warning             | Node ids that are not integers under sanitizeIds "mangle": renumbered, originals kept.                                                               |
-| `W_EDGE_IDS_GENERATED`        | `EDGE_IDS_GENERATED`      | warning             | Edges without a usable integer id get generated ids.                                                                                                 |
-| `W_COLUMN_NAME_CHANGED`       | `COLUMN_NAME_CHANGED`     | warning             | An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the name the format's importer gives it. |
-| `W_EXTENSION_TABLE_DROPPED`   | `EXTENSION_TABLE_DROPPED` | warning             | An extension table other than the `cx:citations` / `cx:supports` tables a CX import creates.                                                         |
-| `W_NONFINITE_AS_NULL`         | `NONFINITE_AS_NULL`       | warning             | A position, stacking order or weight that is NaN or infinite: CX spells no such number there.                                                        |
-| `W_VIZ_DROPPED`               | `VIZ_DROPPED`             | warning             | Visual columns (color, size, shape, thickness roles): CX keeps style as visual properties, not roles.                                                |
+| Code                          | Key                       | Severity            | Meaning                                                                                                                                                                  |
+| ----------------------------- | ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `W_CX_UNDIRECTED_AS_DIRECTED` | `UNDIRECTED_AS_DIRECTED`  | warning             | Every edge is written as directed, so an undirected graph, or the undirected edges of a mixed graph, read back as directed.                                              |
+| `W_CX_JSON_AS_STRING`         | `JSON_AS_STRING`          | warning             | A nested (json) column is written as a string attribute holding its JSON text.                                                                                           |
+| `W_MUTUAL_EXPANDED`           | `MUTUAL_EXPANDED`         | warning             | A mutual pair is written as two directed edges without its mark.                                                                                                         |
+| `W_WEIGHT_KEY_CLASH`          | `WEIGHT_KEY_CLASH`        | warning             | An attribute named `weight` without the weight role reads back as the edge weight, or is not written when the graph has weights of its own.                              |
+| `W_TEMPORAL_DROPPED`          | `TEMPORAL_DROPPED`        | warning             | A start / end / timestamp column: CX has no time.                                                                                                                        |
+| `W_ROLE_DROPPED`              | `ROLE_DROPPED`            | warning             | An attribute with a role the format has no place for is written as a plain attribute; the role is lost.                                                                  |
+| `W_ROLE_ASSUMED`              | `ROLE_ASSUMED`            | warning             | An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads back with that role.                                 |
+| `W_DTYPE_UNSUPPORTED`         | `DTYPE_UNSUPPORTED`       | warning             | An attribute type CX stores as another (a 32-bit float as double, an unsigned integer as long, a byte as integer, a dictionary as string); it reads back with that type. |
+| `W_COMPONENTS_FLATTENED`      | `COMPONENTS_FLATTENED`    | warning             | A multi-component column (a second view's `position@2`, a vector) is written as a list of doubles.                                                                       |
+| `W_DEFAULT_DROPPED`           | `DEFAULT_DROPPED`         | warning             | A declared default: CX has none.                                                                                                                                         |
+| `W_OPTIONS_DROPPED`           | `OPTIONS_DROPPED`         | warning             | Declared options: CX has no enumerations.                                                                                                                                |
+| `E_ID_CHARSET`                | `ID_CHARSET`              | error (save throws) | Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with `E_INVALID_ID`. Pass `sanitizeIds: "mangle"` to rewrite them.                        |
+| `W_ID_MANGLED`                | `ID_MANGLED`              | warning             | Node ids that are not integers under sanitizeIds "mangle": renumbered, originals kept.                                                                                   |
+| `W_EDGE_IDS_GENERATED`        | `EDGE_IDS_GENERATED`      | warning             | Edges without a usable integer id get generated ids.                                                                                                                     |
+| `W_COLUMN_NAME_CHANGED`       | `COLUMN_NAME_CHANGED`     | warning             | An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the name the format's importer gives it.                     |
+| `W_EXTENSION_TABLE_DROPPED`   | `EXTENSION_TABLE_DROPPED` | warning             | An extension table other than the `cx:citations` / `cx:supports` tables a CX import creates.                                                                             |
+| `W_NONFINITE_AS_NULL`         | `NONFINITE_AS_NULL`       | warning             | A position, stacking order or weight that is NaN or infinite: CX spells no such number there.                                                                            |
+| `W_VIZ_DROPPED`               | `VIZ_DROPPED`             | warning             | Visual columns (color, size, shape, thickness roles): CX keeps style as visual properties, not roles.                                                                    |
 
 <!-- generated:end -->

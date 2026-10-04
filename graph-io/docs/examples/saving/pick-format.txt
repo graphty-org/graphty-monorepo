@@ -1,1 +1,1 @@
-karate.xyz: no format writes .xyz files
+network.xyz: no format writes .xyz files

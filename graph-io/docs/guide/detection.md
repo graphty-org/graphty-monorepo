@@ -20,20 +20,28 @@ So:
 - a file named `graph.graphml` that is really an HTML error page is refused with `E_UNKNOWN_FORMAT`
   and the message "it is an HTML document (likely an error page saved in place of the file)"
 
-Some formats can only guess from the content. A few lines of text with commas or tabs between short
-values could be a CSV edge list, so CSV claims them with low confidence. Such a weak guess never
-beats the extension of another format: a file named `session.cys` that holds a sentence is read as
-a Cytoscape session, and fails because it is not a zip archive, rather than being read as a
-one-edge CSV graph. Plain sentences are not claimed by any format.
+Some formats can only guess from the content. Text whose first lines split into the same number of
+fields on a comma, tab, semicolon or pipe, or into two or three words on spaces, could be a CSV edge
+list, so CSV claims it with low confidence. That includes a sentence with one comma in it. Such a
+weak guess never beats the extension of another format: a file named `session.cys` that holds a
+sentence is read as a Cytoscape session, and fails because it is not a zip archive, rather than
+being read as a one-edge CSV graph. Text that no format claims, such as a sentence of more than
+three words without a comma, fails with `E_UNKNOWN_FORMAT`.
 
-When the content is not recognized, the extension and the MIME type decide on their own. When
+When the content is not recognized, the extension and the MIME type decide on their own. A MIME
+type alone is a weak hint, weaker than CSV's guess from the content: a file served as
+`text/x-my-format` from a URL without an extension is read as CSV if its lines look like CSV. If you
+write a format plugin and its files are found by their `Content-Type`, give the importer a
+`sniff()` that recognizes the content, or have callers pass `format`. When
 nothing matches, the load throws an `ImportError` whose `err.issue?.code` is `E_UNKNOWN_FORMAT`.
 graph-io also refuses PDF files, images and compressed or archived data by their first bytes, and
 says what they are; a Cytoscape session is the one zip file it reads.
 
 ## Asking without loading
 
-`sniff(hints)` runs the same detection without loading the file. Pass what you know, any of:
+`sniff(hints)` runs the same detection without loading the file. (`sniffFormat()` is a lower-level
+function for code that keeps importers outside a registry; you do not need it.) Pass what you
+know, any of:
 
 - `filename`: a file name or path
 - `mimeType`: a MIME type
@@ -50,10 +58,10 @@ import { readFile } from "node:fs/promises";
 
 import { sniff, SNIFF_HEAD_BYTES } from "@graphty/graph-io";
 
-const bytes = await readFile("karate-neo4j.csv");
+const bytes = await readFile("movies-nodes.csv");
 
 // The content outranks the name: this .csv file has a neo4j-admin header
-console.log(sniff({ filename: "karate-neo4j.csv", head: bytes.subarray(0, SNIFF_HEAD_BYTES) }));
+console.log(sniff({ filename: "movies-nodes.csv", head: bytes.subarray(0, SNIFF_HEAD_BYTES) }));
 
 // A name alone is a weak hint, but it is enough when nothing contradicts it
 console.log(sniff({ filename: "graph.gexf" }));
@@ -133,8 +141,8 @@ neo4j: 0.30
 All JSON graph documents share the format name `json`. After the file is parsed, the JSON importer
 decides which dialect it is from the document's shape: a `nodes` array with `links`, an `elements`
 object, a `graphs` array, and so on. The `dialect` that `sniff()` reports from the first 8 KiB is a
-guess; the importer's decision on the whole document is the one that counts, and it is kept in
-`snapshot.meta.extra.json.dialect` whether you named the format or not. Pass the `dialect` option
+guess; the importer's decision on the whole document is the one that counts, and
+`jsonShapeOf(snapshot).dialect` returns it whether you named the format or not. Pass the `dialect` option
 to choose the dialect yourself. The [JSON page](./formats/json.md) describes each one.
 
 ## When to name the format

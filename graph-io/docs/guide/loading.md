@@ -34,15 +34,15 @@ const fromText = await importGraph("graph G { a -- b; b -- c }");
 console.log(`text: ${fromText.format}, ${fromText.snapshot.edgeCount} edges`);
 
 // Bytes: a Uint8Array or a Node Buffer
-const fromBytes = await importGraph(await readFile("karate.gml"), { filename: "karate.gml" });
+const fromBytes = await importGraph(await readFile("got.gml"), { filename: "got.gml" });
 console.log(`bytes: ${fromBytes.format}, ${fromBytes.snapshot.nodeCount} nodes`);
 
 // A Node stream, or any async iterable of strings or bytes
-const fromStream = await importGraph(createReadStream("dolphins.net"), { filename: "dolphins.net" });
+const fromStream = await importGraph(createReadStream("got.net"), { filename: "got.net" });
 console.log(`stream: ${fromStream.format}, ${fromStream.snapshot.nodeCount} nodes`);
 
 // A Blob or File
-const fromBlob = await loadFromFile(await openAsBlob("miserables.json"), { filename: "miserables.json" });
+const fromBlob = await loadFromFile(await openAsBlob("got.json"), { filename: "got.json" });
 console.log(`blob: ${fromBlob.format}, ${fromBlob.snapshot.nodeCount} nodes`);
 ```
 
@@ -52,9 +52,9 @@ console.log(`blob: ${fromBlob.format}, ${fromBlob.snapshot.nodeCount} nodes`);
 
 ```text
 text: dot, 2 edges
-bytes: gml, 34 nodes
-stream: pajek, 62 nodes
-blob: json, 77 nodes
+bytes: gml, 107 nodes
+stream: pajek, 107 nodes
+blob: json, 107 nodes
 ```
 
 <!-- generated:end -->
@@ -105,6 +105,11 @@ A failed download throws an `ImportError` whose `err.issue?.code` is `"E_FETCH"`
 `err.details.status` holds the HTTP status, or `null` when the request never got a response (a
 network failure or a CORS refusal).
 
+A missing file does not always fail as `E_FETCH`. Many development servers, Vite's among them,
+answer a request for a file they do not have with the app's `index.html` and status 200. graph-io
+then gets a web page instead of a graph, and the error is `E_UNKNOWN_FORMAT`, with a message that
+says the input is an HTML document. If you see that during development, check the URL first.
+
 A relative URL works in a browser, where it is resolved against the page. In Node, pass an absolute
 `http:` or `https:` URL (`data:` URLs work too). Node's `fetch()` cannot read `file:` URLs, so for a
 local file use `loadFromFile(await openAsBlob(path), { filename: path })`.
@@ -118,9 +123,16 @@ read as GraphML or GEXF by its root element, and a `.csv` file with a `neo4j-adm
 as Neo4j CSV. [Format detection](./detection.md) explains the ranking.
 
 An input that no format recognizes fails with an `ImportError` whose `err.issue?.code` is
-`"E_UNKNOWN_FORMAT"`; plain sentences are not taken for a graph. Detection can still read a file
-as the closest format it recognizes: a few lines of words separated by commas look like a CSV edge
-list. When the format matters, name it. The import then fails if the file is not in that format.
+`"E_UNKNOWN_FORMAT"`. CSV accepts the most: it claims any text whose first lines split into the
+same number of fields on a comma, tab, semicolon or pipe, or into two or three words on spaces, and
+any input whose MIME type is `text/plain` or whose file name ends in `.csv`, `.tsv`, `.edges` or
+`.edgelist`. So
+`Dear team, the meeting is on Monday.` reads as a one-edge CSV graph, and a `.txt` file the user
+picks can read as an empty one. Only text that fits none of these, such as a sentence of more than
+three words without a comma, is refused.
+
+For input you do not control, pass `format`, so a file in any other format is refused, and check
+`snapshot.nodeCount` and `report.issues` after the load.
 
 <!-- generated:begin example:loading/options -->
 
@@ -141,7 +153,7 @@ console.log(`ids: ${[0, 1, 2].map((i) => snapshot.ids.idOf(i)).join(", ")}`);
 console.log(`warnings: ${report.warningCount}`);
 
 // ids: "string" keeps every id as text, so "1" stays "1" instead of becoming the number 1
-const pajek = await importGraph(await readFile("karate.net"), { filename: "karate.net", ids: "string" });
+const pajek = await importGraph(await readFile("got.net"), { filename: "got.net", ids: "string" });
 console.log(`first id: ${JSON.stringify(pajek.snapshot.ids.idOf(0))}`);
 ```
 
@@ -165,7 +177,7 @@ The format names are `json`, `graphml`, `gexf`, `csv`, `gml`, `dot`, `pajek`, `n
 
 ## Options
 
-Every function takes one options object, and every option goes where it belongs:
+Every function takes one options object, which holds three kinds of option:
 
 - The [options every importer takes](./options.md#every-importer): how ids are read
   (`ids`), which attribute is the edge weight (`weightFrom`), the direction of a file that does not
@@ -181,8 +193,9 @@ when the file turns out to be in that format. A common option that the chosen fo
 for is reported in the import report as `W_OPTION_IGNORED`.
 
 A misspelled option name is not reported, because any name could be some format's option. In
-TypeScript, build the format's options with `satisfies` and its options type, which every format
-entry point exports, so a typo does not compile:
+TypeScript, build the options with `satisfies` and the format's options type, which every format
+entry point exports and which includes the options every importer takes, so a typo does not
+compile:
 
 <!-- generated:begin example:loading/typed-options -->
 
@@ -190,14 +203,20 @@ entry point exports, so a typo does not compile:
 import { importGraph } from "@graphty/graph-io";
 import { type CsvImportOptions } from "@graphty/graph-io/csv";
 
-// `satisfies` checks the names: a typo such as `delimeter` does not compile
-const csv = { delimiter: ";", header: true } satisfies CsvImportOptions;
+// `satisfies` checks the names, the CSV options and the ones every importer takes:
+// a typo such as `delimeter` does not compile
+const csv = { delimiter: ";", header: true, defaultDirected: false } satisfies CsvImportOptions;
 
 const { snapshot } = await importGraph("from;to\nA;B\n", { format: "csv", ...csv });
-console.log(`${snapshot.nodeCount} nodes`);
+console.log(`${snapshot.nodeCount} nodes, ${snapshot.directed ? "directed" : "undirected"}`);
 ```
 
 <!-- generated:end -->
+
+Use `satisfies`, not a type annotation. A variable declared as `const csv: CsvImportOptions = ...`
+cannot be passed to `importGraph()` as its options, because TypeScript does not let a variable of
+an interface type stand for an object with any keys. Spread it instead (`{ ...csv }`), or keep
+`satisfies`.
 
 ## Text encodings
 
@@ -252,7 +271,9 @@ console.log(named.report.issues.length, named.snapshot.ids.has("Zo\u00eb"), name
 
 <!-- generated:end -->
 
-A string input is already text, so `encoding` has no effect on it.
+A string input is already text, so `encoding` has no effect on it, and the report says so with a
+`W_OPTION_IGNORED` warning. A CSV import with a separate node table has two inputs and gets one
+warning for each.
 
 ## Files that hold several graphs
 
@@ -278,13 +299,13 @@ import { readFile } from "node:fs/promises";
 import { importAllGraphs, importGraph, listGraphs } from "@graphty/graph-io";
 
 // A Cytoscape session holds several networks: list them, then read one by name
-const session = await readFile("authored-3x.cys");
-const graphs = await listGraphs(session, { filename: "authored-3x.cys" });
+const session = await readFile("networks.cys");
+const graphs = await listGraphs(session, { filename: "networks.cys" });
 for (const g of graphs ?? []) {
     console.log(`#${g.index} ${g.name}: ${g.nodes ?? "?"} nodes, ${g.edges ?? "?"} edges`);
 }
-const alpha = await importGraph(session, { filename: "authored-3x.cys", graphName: "Alpha" });
-console.log(`Alpha: ${alpha.snapshot.nodeCount} nodes`);
+const alpha = await importGraph(session, { filename: "networks.cys", graphName: "Alpha" });
+console.log(`Alpha: ${alpha.snapshot.nodeCount} nodes, ${alpha.snapshot.edgeCount} edges`);
 
 // DOT cannot list its graphs, but graphIndex and graphName still choose one
 const dot = "digraph first { a -> b }\ndigraph second { x -> y; y -> z }";
@@ -304,7 +325,7 @@ for (const { snapshot } of await importAllGraphs(dot, { format: "dot" })) {
 ```text
 #0 Beta: 3 nodes, 2 edges
 #1 Alpha: 4 nodes, 2 edges
-Alpha: 4 nodes
+Alpha: 4 nodes, 3 edges
 second: 2 edges
 first: 1 edges
 second: 2 edges
@@ -335,10 +356,10 @@ import { readFile } from "node:fs/promises";
 
 import { importGraph } from "@graphty/graph-io";
 
-const bytes = await readFile("airlines-sample.gexf");
+const bytes = await readFile("got.gexf");
 
 const { snapshot } = await importGraph(bytes, {
-    filename: "airlines-sample.gexf",
+    filename: "got.gexf",
     signal: AbortSignal.timeout(10_000), // give up after 10 seconds
     onProgress: (done, total) => {
         if (done === total) {
@@ -350,7 +371,7 @@ console.log(`${snapshot.nodeCount} nodes`);
 
 // Cancel a load yourself
 const controller = new AbortController();
-const loading = importGraph(bytes, { filename: "airlines-sample.gexf", signal: controller.signal });
+const loading = importGraph(bytes, { filename: "got.gexf", signal: controller.signal });
 controller.abort();
 try {
     await loading;
@@ -364,8 +385,8 @@ try {
 <!-- generated:begin output:loading/cancel -->
 
 ```text
-read 124686 bytes
-235 nodes
+read 27806 bytes
+107 nodes
 stopped: AbortError
 ```
 
@@ -374,15 +395,15 @@ stopped: AbortError
 ## Keeping your bundle small
 
 The `@graphty/graph-io` entry point registers every format, because format detection needs them
-all. A browser bundle that uses `loadFromUrl()`, `loadFromFile()` or `downloadGraph()` from it is
-about 1.6 MB minified, or 440 kB gzipped, including `@graphty/graph-format`.
+all, so a bundle that imports `loadFromUrl()`, `loadFromFile()` or `downloadGraph()` from it holds
+the code of every format.
 
 Every format also has its own entry point, `@graphty/graph-io/<format>`, which exports its importer
 (`graphmlImporter`), its exporter, its option types and its code tables. To ship only the formats
 you need, register them in a `FormatRegistry` of your own and call its methods, which are the same
 functions: `importGraph()`, `loadFromUrl()`, `loadFromFile()`, `exportGraphToBytes()`,
-`exportGraphToBlob()`, `checkExport()` and the rest. A bundle with CSV alone is about 560 kB
-minified, or 150 kB gzipped, most of it graph-format.
+`exportGraphToBlob()`, `checkExport()` and the rest. Your bundle then holds those formats and
+`@graphty/graph-format`, and nothing else.
 
 <!-- generated:begin example:loading/small-bundle -->
 
@@ -439,15 +460,17 @@ import { readFile } from "node:fs/promises";
 import { GraphBuilder } from "@graphty/graph-format";
 import { csvImporter } from "@graphty/graph-io/csv";
 
-// The importer sets the direction from the file; weightDtype "f32" halves the memory weights take
+// `directed` is only a starting value: the first file read into the empty builder sets the direction.
+// weightDtype "f32" halves the memory the weights take.
 const builder = new GraphBuilder({ directed: true, weightDtype: "f32" });
 
 // Two files into one graph: the node table with the labels, then the edge table
 const nodes = await csvImporter.import(await readFile("got-nodes.csv"), builder, { table: "nodes" });
-const edges = await csvImporter.import(await readFile("got-edges.csv"), builder);
+// the edge table has no Type column, so say the edges are undirected
+const edges = await csvImporter.import(await readFile("got-edges.csv"), builder, { defaultDirected: false });
 
 const snapshot = builder.freeze();
-console.log(`${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
+console.log(`${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges, directed: ${snapshot.directed}`);
 console.log(`warnings: ${nodes.warningCount + edges.warningCount}`);
 console.log(`node columns: ${snapshot.nodes.names().join(", ")}`);
 ```
@@ -457,7 +480,7 @@ console.log(`node columns: ${snapshot.nodes.names().join(", ")}`);
 <!-- generated:begin output:loading/own-builder -->
 
 ```text
-107 nodes, 352 edges
+107 nodes, 352 edges, directed: false
 warnings: 0
 node columns: Label
 ```

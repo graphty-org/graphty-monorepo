@@ -17,6 +17,7 @@ import {
     type LossNote,
     pairFolding,
     parseWeightText,
+    refusedSave,
     reportSinkOptions,
     reportUnusedOptions,
     resolveExportOptions,
@@ -44,8 +45,12 @@ export const PAIRS_ISSUE = Object.freeze({
 
 /** The codes the pairs exporter's check() returns besides the shared ones. */
 export const PAIRS_LOSS = Object.freeze({
-    BAD_TEXT: "E_PAIRS_BAD_TEXT",
+    BAD_ID: "E_PAIRS_BAD_ID",
+    BAD_LABEL: "E_PAIRS_BAD_LABEL",
 });
+
+/** The error a save throws for each of the format's own refusals, as for the built-in formats. */
+const REFUSALS = { [PAIRS_LOSS.BAD_ID]: "E_INVALID_ID", [PAIRS_LOSS.BAD_LABEL]: "E_COLUMN_TYPE" } as const;
 
 /** The common options the importer reads; any other one the caller sets is reported as ignored. */
 const USED = new Set<keyof CommonImportOptions>(["ids", "defaultDirected", "onMixedDirection"]);
@@ -169,20 +174,32 @@ function check(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOpt
     });
     const separator = separatorOf(options) ?? " ";
     const label = snapshot.nodes.byRole("label");
-    let bad = 0;
+    let badIds = 0;
+    let badLabels = 0;
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const id = String(snapshot.ids.idOf(i));
+        if (id === "" || /[\s#=]/.test(id) || id.includes(separator)) {
+            badIds++;
+        }
         const text = label === null ? undefined : snapshot.nodes.value(label.meta.name, i);
-        if (id === "" || /[\s#=]/.test(id) || id.includes(separator) || /[\r\n]/.test(String(text ?? ""))) {
-            bad++;
+        if (/[\r\n]/.test(String(text ?? ""))) {
+            badLabels++;
         }
     }
-    if (bad > 0) {
+    if (badIds > 0) {
         notes.push({
-            code: PAIRS_LOSS.BAD_TEXT,
-            message: `${bad} node(s) have an id that is empty or holds a space, "#", "=" or the separator, or a label with a line break`,
+            code: PAIRS_LOSS.BAD_ID,
+            message: `${badIds} node id(s) are empty or hold a space, "#", "=" or the separator`,
             column: null,
-            count: bad,
+            count: badIds,
+        });
+    }
+    if (badLabels > 0) {
+        notes.push({
+            code: PAIRS_LOSS.BAD_LABEL,
+            message: `${badLabels} label(s) hold a line break`,
+            column: label?.meta.name ?? null,
+            count: badLabels,
         });
     }
     return notes;
@@ -196,9 +213,10 @@ function check(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOpt
  * @yields one line at a time
  */
 function* lines(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOptions): Generator<string> {
-    const refused = check(snapshot, options).find((n) => n.code.startsWith("E_"));
-    if (refused !== undefined) {
-        throw new GraphFormatError("E_UNSUPPORTED", refused.message, { code: refused.code });
+    // throw for an E_ note before writing anything: E_INVALID_ID for ids, E_DIRECTED for direction, ...
+    const refused = refusedSave(check(snapshot, options), REFUSALS);
+    if (refused !== null) {
+        throw refused;
     }
     const separator = separatorOf(options) ?? " ";
     const { onMixedDirection } = resolveExportOptions(options);

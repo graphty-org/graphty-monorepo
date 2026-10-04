@@ -2,7 +2,10 @@ import { readFile } from "node:fs/promises";
 
 import { importGraph } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("got-edges.csv"), { filename: "got-edges.csv" });
+const { snapshot } = await importGraph(await readFile("got-edges.csv"), {
+    filename: "got-edges.csv",
+    defaultDirected: false, // the table has no Type column; these edges are undirected
+});
 const weights = snapshot.edgeList().weights; // one per edge; null when the graph has no weights
 
 for (let e = 0; e < 3; e++) {

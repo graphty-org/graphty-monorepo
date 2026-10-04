@@ -37,7 +37,8 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
         const lines = text.slice(0, end).split("\n"); // the last entry is the empty rest after the blank line
         const table = lines.map((line, i) => (i < lines.length - 1 ? "#" : line)).join("\n") + text.slice(end);
 
-        const csv = await csvImporter.import(table, sink, options);
+        // The text is already decoded and its progress reported: the CSV importer gets neither option again
+        const csv = await csvImporter.import(table, sink, { ...options, onProgress: undefined, encoding: undefined });
 
         // One report: the decoding warnings, the preamble, then the table's issues
         const preamble: ImportIssue = {
@@ -48,12 +49,13 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
             line: 1,
             element: null,
         };
-        const decoded = decoding.finish().issues;
+        const decoded = decoding.finish();
         return {
             ...csv,
             format: "netscope",
-            issues: [...decoded, preamble, ...csv.issues],
-            warningCount: csv.warningCount + decoded.length + 1,
+            issues: [...decoded.issues, preamble, ...csv.issues],
+            errorCount: csv.errorCount + decoded.errorCount,
+            warningCount: csv.warningCount + decoded.warningCount + 1,
         };
     },
 };

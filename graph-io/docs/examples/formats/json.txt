@@ -1,9 +1,10 @@
-d3: 77 nodes, 254 edges
+d3: 107 nodes, 352 edges
+first weight: 5
 {
   "elements": {
     "nodes": [
       {
         "data": {
-          "id": "Myriel",
-          "group": 1
+          "id": "Aemon",
+          "label": "Aemon"
         }

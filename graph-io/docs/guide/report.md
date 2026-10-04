@@ -38,7 +38,7 @@ console.log(`rows with a missing cell: ${short.map((i) => i.line).join(", ")}`);
 
 ```text
 3 nodes and 2 edges read, 2 skipped
-error E_CSV_FIELD_COUNT line 3: line 3: 2 field(s), expected 3
+error E_CSV_FIELD_COUNT line 3: 2 field(s), expected 3
 error E_INVALID_WEIGHT line 4: invalid edge weight "heavy"
 the snapshot holds 2 edges
 rows with a missing cell: 3
@@ -136,8 +136,8 @@ console.log(await readPasted("source,target\na,b\nc\n"));
 
 ```text
 dot: 2 nodes
-no registered importer recognizes the input; pass the format explicitly
-read as csv, but: line 3: 1 field(s), expected 2
+the input is not in a graph format graph-io recognizes; if you know its format, pass it as the format option
+read as csv, but: 1 field(s), expected 2
 ```
 
 <!-- generated:end -->
@@ -207,7 +207,7 @@ try {
 E_IMPORT: error limit of 0 exceeded: line 3: 1 field(s), expected 2
 stopped by E_CSV_FIELD_COUNT on line 3
 1 edges had been read
-not a graph file: no registered importer recognizes the input (filename "graph.graphml"): it is an HTML document (likely an error page saved in place of the file); pass the format explicitly
+not a graph file: the input is not in a graph format graph-io recognizes (filename "graph.graphml"): it is an HTML document (likely an error page saved in place of the file); if you know its format, pass it as the format option
 ```
 
 <!-- generated:end -->

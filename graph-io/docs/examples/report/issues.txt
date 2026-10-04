@@ -1,5 +1,5 @@
 3 nodes and 2 edges read, 2 skipped
-error E_CSV_FIELD_COUNT line 3: line 3: 2 field(s), expected 3
+error E_CSV_FIELD_COUNT line 3: 2 field(s), expected 3
 error E_INVALID_WEIGHT line 4: invalid edge weight "heavy"
 the snapshot holds 2 edges
 rows with a missing cell: 3

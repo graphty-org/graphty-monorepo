@@ -50,16 +50,16 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { exportGraphToString, importGraph } from "@graphty/graph-io";
 
-const { snapshot } = await importGraph(await readFile("cluster.gv"), { filename: "cluster.gv" });
+const { snapshot } = await importGraph(await readFile("teams.gv"), { filename: "teams.gv" });
 console.log(`${snapshot.nodeCount} nodes (the two clusters are nodes too), ${snapshot.edgeCount} edges`);
-// A node's cluster is in the column with the "parent" role, as the cluster's node index
+// A node's cluster is in the attribute with the "parent" role, as the cluster's node index
 const parent = snapshot.nodes.byRole("parent");
-const a0 = snapshot.ids.requireIndex("a0");
-console.log(`a0 is inside ${String(snapshot.ids.idOf(Number(parent?.value(a0))))}`);
+const ana = snapshot.ids.requireIndex("ana");
+console.log(`ana is inside ${String(snapshot.ids.idOf(Number(parent?.value(ana))))}`);
 
 const dot = await exportGraphToString(snapshot, "dot");
 console.log(dot.split("\n").slice(0, 6).join("\n"));
-await writeFile("cluster-copy.gv", dot);
+await writeFile("teams-copy.gv", dot);
 ```
 
 <!-- generated:end -->
@@ -67,14 +67,14 @@ await writeFile("cluster-copy.gv", dot);
 <!-- generated:begin output:formats/dot -->
 
 ```text
-12 nodes (the two clusters are nodes too), 13 edges
-a0 is inside cluster_0
-digraph G {
-    graph [fontname="Helvetica,Arial,sans-serif"];
-    subgraph cluster_0 {
-        graph [style=filled, color=lightgrey, label="process #1"];
-        a0 [fontname="Helvetica,Arial,sans-serif", style=filled, color=white];
-        a1 [fontname="Helvetica,Arial,sans-serif", style=filled, color=white];
+9 nodes (the two clusters are nodes too), 7 edges
+ana is inside cluster_design
+digraph handoffs {
+    graph [label="Who hands work to whom"];
+    subgraph cluster_design {
+        graph [label=Design, style=filled, color=lightgrey];
+        ana;
+        ben;
 ```
 
 <!-- generated:end -->
@@ -131,48 +131,48 @@ These come on top of the [options every importer takes](../options.md#every-impo
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option   | Type             | Default           | Meaning                                                                                                                                                 |
-| -------- | ---------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `indent` | `string`         | " " (four spaces) | The indentation of one nesting level.                                                                                                                   |
-| `name`   | `null \| string` | the graph's name  | The graph name to write, or null for an anonymous graph. The default is the graph's name (`snapshot.meta.name`), which a DOT, GML or GEXF import keeps. |
-| `strict` | `boolean`        | as read           | Whether to write the `strict` keyword. The default is to write it when the graph was read from a strict DOT file.                                       |
+| Option   | Type             | Default          | Meaning                                                                                                                                                 |
+| -------- | ---------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `indent` | `string`         | four spaces      | The indentation of one nesting level.                                                                                                                   |
+| `name`   | `null \| string` | the graph's name | The graph name to write, or null for an anonymous graph. The default is the graph's name (`snapshot.meta.name`), which a DOT, GML or GEXF import keeps. |
+| `strict` | `boolean`        | as read          | Whether to write the `strict` keyword. The default is to write it when the graph was read from a strict DOT file.                                       |
 
 ## Import issue codes
 
 The codes this format's import report can hold, also exported as `DOT_ISSUE` from `@graphty/graph-io/dot`.
 
-| Code                                | Key                           | Severity | Meaning                                                                                                                                                                                                                                      |
-| ----------------------------------- | ----------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_SYNTAX`                          | `SYNTAX`                      | error    | A grammar violation; fatal.                                                                                                                                                                                                                  |
-| `E_INVALID_UTF8`                    | `INVALID_UTF8`                | error    | The input holds invalid UTF-8 (fatal).                                                                                                                                                                                                       |
-| `E_INVALID_ENCODING`                | `INVALID_ENCODING`            | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).                                                                                                                                                     |
-| `W_ENCODING_FALLBACK`               | `ENCODING_FALLBACK`           | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                                                                                                                                                                  |
-| `W_UNKNOWN_ENCODING`                | `UNKNOWN_ENCODING`            | warning  | A declared encoding the platform cannot decode was ignored.                                                                                                                                                                                  |
-| `E_DOT_NESTING`                     | `NESTING`                     | error    | Subgraphs or braces nested deeper than the parser's limit; fatal.                                                                                                                                                                            |
-| `W_DOT_EDGE_OPERATOR`               | `EDGE_OPERATOR`               | warning  | An edge operator contradicting the graph keyword (warning under "operator" / "header").                                                                                                                                                      |
-| `W_MULTIPLE_GRAPHS`                 | `MULTIPLE_GRAPHS`             | warning  | The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.                                                                                           |
-| `W_DOT_NUMERAL_AMBIGUITY`           | `NUMERAL_AMBIGUITY`           | warning  | A badly delimited numeral (`1e3`) split into two tokens, as Graphviz does with a warning.                                                                                                                                                    |
-| `W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED` | `SUBGRAPH_ATTRIBUTES_DROPPED` | warning  | Attributes of a subgraph that is not a cluster (rank=same and the like) cannot be represented.                                                                                                                                               |
-| `W_DOT_NODE_PORT_DROPPED`           | `NODE_PORT_DROPPED`           | warning  | A port on a node statement has no meaning and was dropped.                                                                                                                                                                                   |
-| `W_DOT_CLUSTER_NODE_MERGED`         | `CLUSTER_NODE_MERGED`         | warning  | A plain node and a cluster share a name and were merged into one container node.                                                                                                                                                             |
-| `W_DOT_CLUSTER_CONFLICT`            | `CLUSTER_CONFLICT`            | warning  | A node mentioned in two unrelated clusters keeps the first.                                                                                                                                                                                  |
-| `W_DOT_BAD_POS`                     | `BAD_POS`                     | warning  | A node's `pos` is not a point, or is too large for a 32-bit float position; the value was dropped.                                                                                                                                           |
-| `W_DOT_POS_DIMS`                    | `POS_DIMS`                    | warning  | Node `pos` values mix two and three coordinates; the position column records the first's.                                                                                                                                                    |
-| `W_PRECISION`                       | `PRECISION`                   | warning  | An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.                                                                                                                                    |
-| `W_DUPLICATE_ATTRIBUTE`             | `DUPLICATE_ATTRIBUTE`         | warning  | The same attribute twice in one statement's attribute lists; the last value stands, as in Graphviz.                                                                                                                                          |
-| `W_DOT_COMPASS_POINT`               | `COMPASS_POINT`               | warning  | The second part of a port (`a:p:zz`) is not a compass point; kept as written, as Graphviz warns.                                                                                                                                             |
-| `W_DOT_LATE_CHARSET`                | `LATE_CHARSET`                | warning  | A `charset` attribute beyond the head the decoder reads it from; the input was decoded without it.                                                                                                                                           |
-| `W_DOT_STRICT_MERGED`               | `STRICT_MERGED`               | warning  | A parallel edge merged into an earlier one under `strict`.                                                                                                                                                                                   |
-| `W_DOT_KEY_MERGED`                  | `KEY_MERGED`                  | warning  | An edge merged into an earlier one with the same endpoints and `key`.                                                                                                                                                                        |
-| `W_ROLE_TAKEN`                      | `ROLE_TAKEN`                  | warning  | You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.                                                                                                          |
-| `W_COLUMN_RENAMED`                  | `COLUMN_RENAMED`              | warning  | An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.                                                                                                             |
-| `W_OPTION_IGNORED`                  | `OPTION_IGNORED`              | warning  | You set an option this format does not use; it had no effect. The message names the option.                                                                                                                                                  |
-| `W_ID_MERGED`                       | `ID_MERGED`                   | warning  | Two distinct id texts merged under ids: "number".                                                                                                                                                                                            |
-| `W_SINK_OPTION`                     | `SINK_OPTION`                 | warning  | You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.                                        |
-| `W_DIRECTION_REFUSED`               | `DIRECTION_REFUSED`           | warning  | You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.                                                                             |
-| `W_DIRECTION_FORCED`                | `DIRECTION_FORCED`            | warning  | Edges forced to the policy's direction.                                                                                                                                                                                                      |
-| `E_MIXED_DIRECTION`                 | `MIXED_DIRECTION`             | error    | The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write it anyway. |
-| `W_WIDENING_UNSUPPORTED`            | `WIDENING_UNSUPPORTED`        | warning  | Your graph builder cannot change an attribute's type after its first value, so a text column keeps the type of its first values.                                                                                                             |
+| Code                                | Key                           | Severity | Meaning                                                                                                                                                                                                                                        |
+| ----------------------------------- | ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_SYNTAX`                          | `SYNTAX`                      | error    | The text breaks DOT's syntax; the message says where. The import stops.                                                                                                                                                                        |
+| `E_INVALID_UTF8`                    | `INVALID_UTF8`                | error    | The input is not valid UTF-8. The import stops.                                                                                                                                                                                                |
+| `E_INVALID_ENCODING`                | `INVALID_ENCODING`            | error    | Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the `encoding` option). The import stops.                                                                                            |
+| `W_ENCODING_FALLBACK`               | `ENCODING_FALLBACK`           | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                                                                                                                                                                    |
+| `W_UNKNOWN_ENCODING`                | `UNKNOWN_ENCODING`            | warning  | A declared encoding the platform cannot decode was ignored.                                                                                                                                                                                    |
+| `E_DOT_NESTING`                     | `NESTING`                     | error    | Subgraphs or braces are nested deeper than graph-io reads. The import stops.                                                                                                                                                                   |
+| `W_DOT_EDGE_OPERATOR`               | `EDGE_OPERATOR`               | warning  | An edge operator contradicting the graph keyword (warning under "operator" / "header").                                                                                                                                                        |
+| `W_MULTIPLE_GRAPHS`                 | `MULTIPLE_GRAPHS`             | warning  | The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.                                                                                             |
+| `W_DOT_NUMERAL_AMBIGUITY`           | `NUMERAL_AMBIGUITY`           | warning  | A badly delimited numeral (`1e3`) split into two tokens, as Graphviz does with a warning.                                                                                                                                                      |
+| `W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED` | `SUBGRAPH_ATTRIBUTES_DROPPED` | warning  | Attributes of a subgraph that is not a cluster (rank=same and the like) cannot be represented.                                                                                                                                                 |
+| `W_DOT_NODE_PORT_DROPPED`           | `NODE_PORT_DROPPED`           | warning  | A port on a node statement has no meaning and was dropped.                                                                                                                                                                                     |
+| `W_DOT_CLUSTER_NODE_MERGED`         | `CLUSTER_NODE_MERGED`         | warning  | A plain node and a cluster share a name and were merged into one container node.                                                                                                                                                               |
+| `W_DOT_CLUSTER_CONFLICT`            | `CLUSTER_CONFLICT`            | warning  | A node mentioned in two unrelated clusters keeps the first.                                                                                                                                                                                    |
+| `W_DOT_BAD_POS`                     | `BAD_POS`                     | warning  | A node's `pos` is not a point, or is too large for a 32-bit float position; the value was dropped.                                                                                                                                             |
+| `W_DOT_POS_DIMS`                    | `POS_DIMS`                    | warning  | Node `pos` values mix two and three coordinates; the position column records the first's.                                                                                                                                                      |
+| `W_PRECISION`                       | `PRECISION`                   | warning  | An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.                                                                                                                                      |
+| `W_DUPLICATE_ATTRIBUTE`             | `DUPLICATE_ATTRIBUTE`         | warning  | The same attribute twice in one statement's attribute lists; the last value stands, as in Graphviz.                                                                                                                                            |
+| `W_DOT_COMPASS_POINT`               | `COMPASS_POINT`               | warning  | The second part of a port (`a:p:zz`) is not a compass point; kept as written, as Graphviz warns.                                                                                                                                               |
+| `W_DOT_LATE_CHARSET`                | `LATE_CHARSET`                | warning  | A `charset` attribute beyond the head the decoder reads it from; the input was decoded without it.                                                                                                                                             |
+| `W_DOT_STRICT_MERGED`               | `STRICT_MERGED`               | warning  | A parallel edge merged into an earlier one under `strict`.                                                                                                                                                                                     |
+| `W_DOT_KEY_MERGED`                  | `KEY_MERGED`                  | warning  | An edge merged into an earlier one with the same endpoints and `key`.                                                                                                                                                                          |
+| `W_ROLE_TAKEN`                      | `ROLE_TAKEN`                  | warning  | You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.                                                                                                            |
+| `W_COLUMN_RENAMED`                  | `COLUMN_RENAMED`              | warning  | An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.                                                                                                               |
+| `W_OPTION_IGNORED`                  | `OPTION_IGNORED`              | warning  | You set an option this format does not use; it had no effect. The message names the option.                                                                                                                                                    |
+| `W_ID_MERGED`                       | `ID_MERGED`                   | warning  | Two different id texts became the same number because `ids` is "number", so their nodes were merged.                                                                                                                                           |
+| `W_SINK_OPTION`                     | `SINK_OPTION`                 | warning  | You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.                                          |
+| `W_DIRECTION_REFUSED`               | `DIRECTION_REFUSED`           | warning  | You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.                                                                               |
+| `W_DIRECTION_FORCED`                | `DIRECTION_FORCED`            | warning  | Edges of the other direction were read with the direction `onMixedDirection` chose.                                                                                                                                                            |
+| `E_MIXED_DIRECTION`                 | `MIXED_DIRECTION`             | error    | The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a format that holds one direction per file fails with `E_DIRECTED`. Pass "directed" or "undirected" to read or write it anyway. |
+| `W_WIDENING_UNSUPPORTED`            | `WIDENING_UNSUPPORTED`        | warning  | Your graph builder cannot change an attribute's type after its first value, so a text column keeps the type of its first values.                                                                                                               |
 
 Like every format, it can also record the codes for unreadable input: [`E_EMPTY_INPUT`](../codes.md#E_EMPTY_INPUT), [`E_TOO_LARGE`](../codes.md#E_TOO_LARGE), [`W_ENCODING_CONFLICT`](../codes.md#W_ENCODING_CONFLICT), [`W_CONTROL_CHARACTER`](../codes.md#W_CONTROL_CHARACTER), [`E_FOREIGN_FORMAT`](../codes.md#E_FOREIGN_FORMAT), [`W_ISSUES_SUPPRESSED`](../codes.md#W_ISSUES_SUPPRESSED).
 
@@ -189,7 +189,7 @@ The codes `checkExport(snapshot, "dot", options)` can return before a save, also
 | `W_MUTUAL_EXPANDED`        | `MUTUAL_EXPANDED`      | warning             | A mutual pair is written as two directed edges.                                                                                                         |
 | `W_PARENTS_DROPPED`        | `PARENTS_DROPPED`      | warning             | A parents (multi-parent) column cannot be written; DOT clusters nest.                                                                                   |
 | `W_DOT_POSITION_SHAPE`     | `POSITION_SHAPE`       | warning             | A position column that is not a node column of 2 or 3 components is not written.                                                                        |
-| `W_ID_TEXT_TYPE`           | `ID_TEXT_TYPE`         | warning             | An id whose text reads back as the other type under ids: "canonical" (1.5 as text, "1" as 1).                                                           |
+| `W_ID_TEXT_TYPE`           | `ID_TEXT_TYPE`         | warning             | An id that reads back as a different type, such as the decimal 1.5 as text or the text "1" as the number 1.                                             |
 | `W_EMPTY_COLUMN_DROPPED`   | `EMPTY_COLUMN_DROPPED` | warning             | A declared column whose every row is unset is not written (DOT writes cells, never declarations).                                                       |
 | `W_ROLE_ASSUMED`           | `ROLE_ASSUMED`         | warning             | An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads back with that role.                |
 | `W_DOT_CLUSTER_MARKED`     | `CLUSTER_MARKED`       | warning             | A parent that is a plain node is written as a node and a cluster of one name; it reads back marked as a cluster.                                        |

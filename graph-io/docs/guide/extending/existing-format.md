@@ -97,7 +97,8 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
         const lines = text.slice(0, end).split("\n"); // the last entry is the empty rest after the blank line
         const table = lines.map((line, i) => (i < lines.length - 1 ? "#" : line)).join("\n") + text.slice(end);
 
-        const csv = await csvImporter.import(table, sink, options);
+        // The text is already decoded and its progress reported: the CSV importer gets neither option again
+        const csv = await csvImporter.import(table, sink, { ...options, onProgress: undefined, encoding: undefined });
 
         // One report: the decoding warnings, the preamble, then the table's issues
         const preamble: ImportIssue = {
@@ -108,12 +109,13 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
             line: 1,
             element: null,
         };
-        const decoded = decoding.finish().issues;
+        const decoded = decoding.finish();
         return {
             ...csv,
             format: "netscope",
-            issues: [...decoded, preamble, ...csv.issues],
-            warningCount: csv.warningCount + decoded.length + 1,
+            issues: [...decoded.issues, preamble, ...csv.issues],
+            errorCount: csv.errorCount + decoded.errorCount,
+            warningCount: csv.warningCount + decoded.warningCount + 1,
         };
     },
 };
@@ -154,7 +156,7 @@ console.log(report.issues.map((i) => `${i.code} (line ${i.line ?? "-"}): ${i.mes
 netscope: 3 nodes, 2 edges
 [
   'W_NETSCOPE_PREAMBLE (line 1): skipped the NetScope preamble (instrument bench-3)',
-  'E_CSV_FIELD_COUNT (line 7): line 7: 2 field(s), expected 3'
+  'E_CSV_FIELD_COUNT (line 7): 2 field(s), expected 3'
 ]
 ```
 
@@ -167,7 +169,10 @@ the content with more confidence.
 `readText()` decodes the input with the same rules as every built-in format (byte order mark,
 `encoding` option, UTF-8, windows-1252 fallback), so the wrapper handles bytes and streams, not
 only strings. It records what it noticed, such as `W_ENCODING_FALLBACK`, in the report you pass
-it, and the wrapper copies those issues into the report it returns, so none is lost.
+it, and the wrapper adds those issues and their counts to the report it returns, so none is lost.
+`readText()` also reports the reading progress, so the wrapper passes the CSV importer neither
+`onProgress` nor `encoding`: the CSV importer reads a string the wrapper made, and a second round of
+progress calls would count the wrong bytes.
 
 The preamble lines are replaced by `#` lines rather than cut off. The CSV importer skips leading
 `#` lines as comments, and every row keeps its line number, so the bad row above is reported on
@@ -230,7 +235,7 @@ b,c,Directed
 The CSV importer skips leading `#` lines, so the stamped file still reads back as the same graph,
 and `check()` (copied from the CSV exporter, and what `checkExport()` calls) is still correct. If
 your change means the file reads back differently, wrap `check()` too and add a note that says how;
-see the rules on [Writing a format plugin](./new-format.md#rules-every-plugin-keeps).
+as [Writing a format plugin](./new-format.md#checking-what-a-save-loses) explains.
 
 ## Reusing a format's codes and options
 

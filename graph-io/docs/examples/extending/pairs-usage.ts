@@ -15,7 +15,12 @@ console.log(report.issues.map((i) => `${i.code} line ${i.line}`));
 
 // The plugin's own options go in the same object; `satisfies` checks their names
 const csvStyle = { separator: "," } satisfies PairsOptions;
-console.log(await exportGraphToString(snapshot, "pairs", csvStyle));
+const written = await exportGraphToString(snapshot, "pairs", csvStyle);
+console.log(written);
+
+// The file does not record its separator, so read it back with the same option
+const back = await importGraph(written, { format: "pairs", ...csvStyle });
+console.log(`read back: ${back.snapshot.nodeCount} nodes, ${back.snapshot.edgeCount} edges`);
 
 // Convert another format to pairs, checking first
 const gml = await importGraph(

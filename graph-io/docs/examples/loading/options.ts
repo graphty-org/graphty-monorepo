@@ -14,5 +14,5 @@ console.log(`ids: ${[0, 1, 2].map((i) => snapshot.ids.idOf(i)).join(", ")}`);
 console.log(`warnings: ${report.warningCount}`);
 
 // ids: "string" keeps every id as text, so "1" stays "1" instead of becoming the number 1
-const pajek = await importGraph(await readFile("karate.net"), { filename: "karate.net", ids: "string" });
+const pajek = await importGraph(await readFile("got.net"), { filename: "got.net", ids: "string" });
 console.log(`first id: ${JSON.stringify(pajek.snapshot.ids.idOf(0))}`);

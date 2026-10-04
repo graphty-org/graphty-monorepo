@@ -1,2 +1,13 @@
-2 nodes; node columns: name, represents
-[ 'W_EDGE_IDS_GENERATED', 'W_CX_UNDIRECTED_AS_DIRECTED' ]
+107 nodes; node columns: name
+[
+  'W_COLUMN_NAME_CHANGED',
+  'W_CX_UNDIRECTED_AS_DIRECTED',
+  'E_ID_CHARSET',
+  'W_DTYPE_UNSUPPORTED'
+]
+[
+  'W_COLUMN_NAME_CHANGED',
+  'W_CX_UNDIRECTED_AS_DIRECTED',
+  'W_ID_MANGLED',
+  'W_DTYPE_UNSUPPORTED'
+]

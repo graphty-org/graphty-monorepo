@@ -1,8 +1,8 @@
-12 nodes (the two clusters are nodes too), 13 edges
-a0 is inside cluster_0
-digraph G {
-    graph [fontname="Helvetica,Arial,sans-serif"];
-    subgraph cluster_0 {
-        graph [style=filled, color=lightgrey, label="process #1"];
-        a0 [fontname="Helvetica,Arial,sans-serif", style=filled, color=white];
-        a1 [fontname="Helvetica,Arial,sans-serif", style=filled, color=white];
+9 nodes (the two clusters are nodes too), 7 edges
+ana is inside cluster_design
+digraph handoffs {
+    graph [label="Who hands work to whom"];
+    subgraph cluster_design {
+        graph [label=Design, style=filled, color=lightgrey];
+        ana;
+        ben;

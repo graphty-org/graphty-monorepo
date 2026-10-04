@@ -4,8 +4,11 @@ const { snapshot } = await loadFromUrl("https://graphty.app/docs/graph-io/sample
 
 // <button id="save">Save as GML</button>
 document.querySelector("#save").addEventListener("click", async () => {
-    // GML ids are integers and its keys have no spaces: "mangle" rewrites both, keeping the originals
-    const options = { sanitizeIds: "mangle", sanitizeKeys: "mangle", filename: "got.gml" };
+    const options = {
+        sanitizeIds: "mangle", // any format: rewrite ids the format cannot hold (GML ids are integers)
+        sanitizeKeys: "mangle", // GML only: rewrite attribute names with spaces ("Edge Label")
+        filename: "got.gml", // downloadGraph() only: the saved file's name
+    };
     const notes = checkExport(snapshot, "gml", options);
     const refused = notes.filter((n) => n.code.startsWith("E_"));
     const lossy = notes.filter((n) => n.code.startsWith("W_"));

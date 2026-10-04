@@ -1,8 +1,8 @@
 # Quick start
 
 This page loads a graph file, looks at what was read, and saves the graph in another format. The
-examples load a [sample file](#sample-files) from this site, so you can run them as they are: the
-Node examples in Node 20 or later, the browser examples in a page or a notebook.
+examples load a [sample file](#sample-files) from this site, so you can run them as they are. The
+Node examples need Node 18.19 or later; reading a file with `fs.openAsBlob()` needs Node 20.
 
 ## Install
 
@@ -12,6 +12,20 @@ npm install @graphty/graph-io
 
 graph-io is an ES module. Import it with `import`, not `require`. The examples are TypeScript,
 except the two browser ones, which are plain JavaScript.
+
+In a page or a notebook without a bundler (a plain `<script type="module">`, Observable,
+JupyterLite), import it from a CDN instead:
+
+```js
+import { loadFromUrl } from "https://esm.sh/@graphty/graph-io";
+```
+
+Most programs need eight functions, and this page uses them all: `loadFromUrl()`,
+`loadFromFile()` and `importGraph()` read a graph; `exportGraphToBytes()`, `exportGraphToString()`,
+`exportGraphToBlob()` and `downloadGraph()` write one; and `checkExport()` says what a format would
+not keep. The package exports many more names. Those are format options, issue codes, and the
+building blocks for [adding a format](./extending/new-format.md); you can ignore them until you need
+them.
 
 ## Load a graph from a URL
 
@@ -103,7 +117,10 @@ console.log(nodes[0], links[0]);
 
 <!-- generated:end -->
 
-[Reading the graph](./reading.md) covers attributes, weights, degrees and the rest of the snapshot.
+`edgeList().weights` holds 32-bit numbers, so a weight such as 0.1 comes back as
+0.10000000149011612. When a weight does not fit in 32 bits, graph-io also keeps the exact value in
+an edge attribute that `snapshot.edges.byRole("weight")` finds; [Reading the graph](./reading.md#weights)
+shows how to read it. That page also covers attributes, degrees and the rest of the snapshot.
 
 ## Load a file the user picks
 
@@ -130,6 +147,11 @@ input.addEventListener("change", async () => {
     }
     try {
         const { snapshot, report } = await loadFromFile(file);
+        if (snapshot.nodeCount === 0) {
+            // a text file that is not a graph can still read as an empty CSV table
+            console.error(`${file.name} holds no graph`);
+            return;
+        }
         console.log(`${file.name}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
         if (report.errorCount > 0) {
             console.warn(`${report.errorCount} elements could not be read and were skipped`);
@@ -146,6 +168,11 @@ input.addEventListener("change", async () => {
 
 <!-- generated:end -->
 
+A load that does not throw can still hold an empty or meaningless graph. A short text file whose
+lines contain commas reads as a CSV edge list, and a text file with no graph in it can read as an
+empty CSV table. That is why the example checks `snapshot.nodeCount`. When you know which format
+the user should pick, pass it as `format`, and any other file is refused.
+
 In Node, the same function reads a file from disk. A Blob from `fs.openAsBlob(path)` has no file
 name, so pass one: `loadFromFile(await openAsBlob(path), { filename: path })`. You can also pass
 the file's bytes to `importGraph()`, as the next example does.
@@ -153,8 +180,9 @@ the file's bytes to `importGraph()`, as the next example does.
 ## Save it in another format
 
 `exportGraphToBytes()` writes the graph in any format and returns the file's bytes. Before you
-save, `checkExport()` tells you what the file will not keep. It returns a list of notes, and an
-empty list means the saved file reads back as the same graph.
+save, `checkExport()` tells you what the file will not keep. It returns a list of notes. An empty
+list means the saved file reads back as the same graph when you read it with the same format
+options you saved it with: a file does not record options such as a CSV `delimiter`.
 
 <!-- generated:begin example:quick-start/save-node -->
 
@@ -201,7 +229,9 @@ you actually write.
 `downloadGraph()` saves a graph as a file in the browser, as if the user clicked a download link.
 This example offers the graph as GML. GML node ids must be integers and its attribute names cannot
 contain spaces, so `checkExport()` returns `E_` notes until the example passes `"mangle"` for both.
-The originals are written to the file, and graph-io reads them back.
+The originals are written to the file, and graph-io reads them back. One options object holds all
+three kinds of option: `sanitizeIds` works for every format, `sanitizeKeys` is a GML option that
+other formats ignore, and `filename` is read by `downloadGraph()` alone.
 
 <!-- generated:begin example:quick-start/download -->
 
@@ -212,8 +242,11 @@ const { snapshot } = await loadFromUrl("https://graphty.app/docs/graph-io/sample
 
 // <button id="save">Save as GML</button>
 document.querySelector("#save").addEventListener("click", async () => {
-    // GML ids are integers and its keys have no spaces: "mangle" rewrites both, keeping the originals
-    const options = { sanitizeIds: "mangle", sanitizeKeys: "mangle", filename: "got.gml" };
+    const options = {
+        sanitizeIds: "mangle", // any format: rewrite ids the format cannot hold (GML ids are integers)
+        sanitizeKeys: "mangle", // GML only: rewrite attribute names with spaces ("Edge Label")
+        filename: "got.gml", // downloadGraph() only: the saved file's name
+    };
     const notes = checkExport(snapshot, "gml", options);
     const refused = notes.filter((n) => n.code.startsWith("E_"));
     const lossy = notes.filter((n) => n.code.startsWith("W_"));
@@ -239,7 +272,8 @@ Everything graph-io throws on purpose is a `GraphFormatError`. It has a `code` (
   failed, the format was not recognized, the file could not be parsed, or there were more errors
   than the `errorLimit` option allows (100 by default). Its `code` is always `"E_IMPORT"`.
   `err.issue?.code` is the problem that stopped the import (`"E_FETCH"`, `"E_UNKNOWN_FORMAT"`,
-  `"E_GML_SYNTAX"` and so on), and `err.report` holds everything read up to that point.
+  `"E_SYNTAX"`, `"E_CSV_UNCLOSED_QUOTE"` and so on), and `err.report` holds everything read up to
+  that point.
 - Any other `GraphFormatError` comes from the call itself: `E_UNSUPPORTED` for a format name
   graph-io does not know or an option value that is not allowed, and `E_INVALID_ID`, `E_DIRECTED`
   or `E_COLUMN_TYPE` when the format cannot hold the graph under your options (the save's
@@ -254,18 +288,38 @@ examples above do. [The import report and errors](./report.md) shows how to bran
 
 ## Sample files
 
-The examples use the Game of Thrones character network by Melanie Walsh
+The examples read these files. Download the ones you need to run the Node examples in the same
+directory.
+
+The Game of Thrones character network by Melanie Walsh
 ([sample-social-network-datasets](https://github.com/melaniewalsh/sample-social-network-datasets),
-public domain). Download them to run the Node examples:
+public domain): 107 characters and 352 weighted edges.
 
-- [got-network.graphml](https://graphty.app/docs/graph-io/samples/got-network.graphml): 107
-  characters and 352 weighted edges.
-- [got-edges.csv](https://graphty.app/docs/graph-io/samples/got-edges.csv): the same edges as a CSV
-  edge table.
-- [got-nodes.csv](https://graphty.app/docs/graph-io/samples/got-nodes.csv): the characters as a CSV
-  node table.
+- [got-network.graphml](https://graphty.app/docs/graph-io/samples/got-network.graphml): the
+  network as GraphML.
+- [got-edges.csv](https://graphty.app/docs/graph-io/samples/got-edges.csv) and
+  [got-nodes.csv](https://graphty.app/docs/graph-io/samples/got-nodes.csv): the edges and the
+  characters as CSV tables.
+- The same network saved by graph-io in other formats:
+  [got.gml](https://graphty.app/docs/graph-io/samples/got.gml),
+  [got.gexf](https://graphty.app/docs/graph-io/samples/got.gexf),
+  [got.net](https://graphty.app/docs/graph-io/samples/got.net) (Pajek),
+  [got.json](https://graphty.app/docs/graph-io/samples/got.json) (d3, with the weights in `value`),
+  [got.cx2](https://graphty.app/docs/graph-io/samples/got.cx2) and
+  [got.cx](https://graphty.app/docs/graph-io/samples/got.cx).
 
-The format pages read other files by name, such as `karate.gml`. Use any file of that format.
+Small files written for this guide:
+
+- [teams.gv](https://graphty.app/docs/graph-io/samples/teams.gv): a DOT graph with two clusters.
+- [vehicles.obo](https://graphty.app/docs/graph-io/samples/vehicles.obo): a four-term OBO
+  ontology.
+- [networks.cys](https://graphty.app/docs/graph-io/samples/networks.cys): a Cytoscape session
+  with two networks, Alpha and Beta.
+- [proteins.xgmml](https://graphty.app/docs/graph-io/samples/proteins.xgmml): a three-node network
+  as Cytoscape writes XGMML.
+- [movies-nodes.csv](https://graphty.app/docs/graph-io/samples/movies-nodes.csv) and
+  [movies-rels.csv](https://graphty.app/docs/graph-io/samples/movies-rels.csv): a Neo4j bulk import
+  of movies and the people in them.
 
 ## Next steps
 

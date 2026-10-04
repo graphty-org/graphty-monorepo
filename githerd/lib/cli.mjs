@@ -667,7 +667,7 @@ async function cmdService(c) {
     if (c.name === "doctor") return doctor(found, c);
     if (found.kind === "outside") return 2;
     if (found.kind === "unconfigured") {
-        c.err(found.reason);
+        c.err(found.reason + devHint(c.name, found.reason));
         return 1;
     }
     if (found.problem) {
@@ -678,9 +678,22 @@ async function cmdService(c) {
         await SERVICE[c.name](found.ctx, c, devState);
         return 0;
     } catch (e) {
-        c.err(`githerd ${c.name}: ${/** @type {Error} */ (e).message}`);
+        const message = /** @type {Error} */ (e).message;
+        c.err(`githerd ${c.name}: ${message}${devHint(c.name, message)}`);
         return 1;
     }
+}
+
+/**
+ * What to run instead when githerd is not on the default branch yet: before the merge, the shared
+ * daemon has no code to archive, and the soak runs the worktree's code as the development daemon.
+ * @param {string} command the command that failed
+ * @param {string} why its error
+ * @returns {string} the hint, or ""
+ */
+function devHint(command, why) {
+    if (command === "dev" || !/ on origin\//.test(why)) return "";
+    return "\nbefore githerd is merged, run this worktree as the development daemon instead: GITHERD_CONFIG=$PWD/githerd.config.json githerd dev";
 }
 
 /**

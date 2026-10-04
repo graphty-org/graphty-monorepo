@@ -710,6 +710,15 @@ describe("ensure and restart", () => {
         expect(r.err).toContain("githerd is not configured");
         expect(servherdCalls()).toEqual([]);
     });
+
+    it("points install and ensure at githerd dev while githerd is not on the default branch", async () => {
+        for (const verb of ["install", "ensure"]) {
+            const r = await cli([verb], { extraEnv: { GITHERD_CONFIG: undefined } });
+            expect(r.err, verb).toMatch(
+                /no githerd\.config\.json on origin\/master\nbefore githerd is merged.*githerd dev$/,
+            );
+        }
+    });
 });
 
 describe("dev", () => {

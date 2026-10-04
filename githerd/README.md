@@ -139,12 +139,23 @@ its entry at the end.
 
 ## Prerequisites
 
-The owner does these once, before the first soak (design section 12.1):
+The owner does these once (design section 12.1), in this order: soak the branch's code as the
+development daemon, merge it, then install the shared daemon. `install` and `ensure` archive
+githerd from the default branch, so they fail until the merge.
 
-1. **Start githerd once.** From one of the owner's own Claude sessions, or a shell that exports
-   the `GIT_CONFIG_*` signing variables (a plain terminal does not: they live in the `env` of
-   `~/.claude/settings.json`), run `node githerd/bin/githerd.mjs install` and then the servherd
-   command it prints. `install` copies `HOME`, `PATH`, the signing variables and the Pushover keys
+1. **Soak before the merge.** From the githerd worktree, in one of the owner's own Claude sessions
+   (it has the signing variables and the Pushover keys), run
+   `GITHERD_CONFIG=$PWD/githerd.config.json node githerd/bin/githerd.mjs dev`. The development
+   daemon runs this worktree's code, keeps its state in `.githerd-dev/` (point the other commands
+   at it with `GITHERD_STATE_DIR=.githerd-dev`) and never rises above dry-run.
+   `design/githerd/githerd-plan.md` ("How to run 2.3") has the procedure; stop it with
+   `githerd dev --stop`.
+2. **Merge.** Once the soak's findings are fixed or explained, merge the pull request.
+3. **Start githerd once.** From the main checkout on the default branch, in one of the owner's own
+   Claude sessions, or a shell that exports the `GIT_CONFIG_*` signing variables (a plain terminal
+   does not: they live in the `env` of `~/.claude/settings.json`), run
+   `node githerd/bin/githerd.mjs install` and then the servherd command it prints (or
+   `githerd ensure`). `install` copies `HOME`, `PATH`, the signing variables and the Pushover keys
    into `~/.githerd/<checkout>/daemon-env.json`, owner-only; with no signing variables in its
    environment it takes them from `~/.claude/settings.json`, and it warns when it finds none
    anywhere, because the daemon's git would then sign with the gpg key, whose pinentry cannot run
@@ -157,17 +168,18 @@ The owner does these once, before the first soak (design section 12.1):
     was added by hand lacks it; githerd then asks the remote (`git ls-remote`, no GitHub API) once
     per process, and `githerd doctor` warns. Set it once with `git remote set-head origin -a`.
 
-2. **Notify credentials.** The daemon pages with the Pushover keys from `daemon-env.json`, never
+4. **Notify credentials.** The daemon pages with the Pushover keys from `daemon-env.json`, never
    from pm2's environment. Check it with `githerd doctor --send-test`; after changing the keys, run
    `githerd install` again and restart the daemon.
-3. **MCP approval.** The server is registered in the repository's `.mcp.json`. Claude Code may ask
+5. **MCP approval.** The server is registered in the repository's `.mcp.json`. Claude Code may ask
    to approve it once in each new worktree.
 
     Outside a git repository the launcher exits quietly, and in a repository without githerd
     `githerd_status` answers that githerd is not configured, with the reason.
 
-4. **The self-test.** Run `node githerd/bin/githerd.mjs selftest` once, and again after each Claude
-   Code upgrade: no worker starts until it passed on the installed version.
+The platform self-test needs nothing from the owner: the daemon runs it before the first worker
+start and again after each Claude Code version change, and pages once if it fails.
+`node githerd/bin/githerd.mjs selftest` runs it by hand.
 
 ## Development
 

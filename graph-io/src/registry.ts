@@ -40,6 +40,7 @@ import {
     type GraphExporter,
     type GraphImporter,
     type GraphListing,
+    ImportError,
     type ImportInput,
     type ImportReport,
     type LossNote,
@@ -554,7 +555,12 @@ function result(
     report: ImportReport,
     options: ImportGraphOptions,
 ): ImportGraphResult {
-    const frozen = builder.freezeWithReport(options.freeze);
+    let frozen: ReturnType<GraphBuilder["freezeWithReport"]>;
+    try {
+        frozen = builder.freezeWithReport(options.freeze);
+    } catch (err) {
+        throw freezeFailure(err, report);
+    }
     return Object.freeze({
         format: chosen.importer.format,
         sniff: chosen.sniff,
@@ -562,6 +568,35 @@ function result(
         report,
         freeze: frozen.report,
     });
+}
+
+/**
+ * The ImportError of a freeze the builder refused (a `duplicateEdges: "error"` or `selfLoops:
+ * "error"` policy meeting a duplicate edge or a self-loop the file holds): the builder's code
+ * recorded as an error issue on the import's report, so the caller gets the report and the file's
+ * defect rather than a bare GraphFormatError.
+ * @param err - what freezeWithReport() threw
+ * @param report - the import's report
+ * @returns the error to throw (anything that is not a GraphFormatError, unchanged)
+ */
+function freezeFailure(err: unknown, report: ImportReport): unknown {
+    if (!(err instanceof GraphFormatError) || err instanceof ImportError) {
+        return err;
+    }
+    const issue = Object.freeze({
+        category: "validation-error" as const,
+        severity: "error" as const,
+        code: err.code,
+        message: err.message,
+        line: null,
+        element: null,
+    });
+    const failed: ImportReport = Object.freeze({
+        ...report,
+        issues: Object.freeze([...report.issues, issue]),
+        errorCount: report.errorCount + 1,
+    });
+    return new ImportError(`the graph cannot be frozen: ${err.message}`, failed, { code: err.code, ...err.details });
 }
 
 /**

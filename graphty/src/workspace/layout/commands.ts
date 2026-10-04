@@ -48,7 +48,7 @@ export const registration = defineRegistration({
             run: async ({ session }) => {
                 if (session !== null) {
                     const { id, engine, options } = session.layout;
-                    const seed = Math.floor(Math.random() * 2 ** 31);
+                    const seed = Math.floor(Math.random() * 2 ** 31); // NOSONAR(S2245): a layout seed, not a security value
                     await session.layout.set(id, { engine, options: { ...options, seed } });
                 }
             },

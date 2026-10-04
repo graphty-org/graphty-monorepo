@@ -110,7 +110,7 @@ export function AnalyzePopover({
     onStarted,
     initialPick,
     initialFilter = "",
-}: AnalyzePopoverProps): React.JSX.Element {
+}: Readonly<AnalyzePopoverProps>): React.JSX.Element {
     const algorithms = session.catalog.algorithms();
     const [filter, setFilter] = useState(initialFilter);
     const [picked, setPicked] = useState<AlgorithmDescriptor | undefined>(() =>
@@ -284,7 +284,7 @@ function Essentials({
     onBack,
     onRun,
     onKeyDown,
-}: EssentialsProps): React.JSX.Element {
+}: Readonly<EssentialsProps>): React.JSX.Element {
     const words = wordsFor(descriptor);
     const estimate = session.estimate({
         op: "algo.run",
@@ -299,7 +299,6 @@ function Essentials({
         <form
             className="ws-analyze"
             aria-label={words.name}
-            onKeyDown={onKeyDown}
             onSubmit={(event) => {
                 event.preventDefault();
                 if (estimate.available) {
@@ -307,7 +306,8 @@ function Essentials({
                 }
             }}
         >
-            <Stack gap={8}>
+            {/* Esc bubbles up from any control, the same catch as the list level (Esc steps back). */}
+            <Stack gap={8} onKeyDown={onKeyDown}>
                 <Group gap={4} wrap="nowrap">
                     <UnstyledButton aria-label="Back to analyses" onClick={onBack} className="ws-analyze-back">
                         <ChevronLeft size={16} />

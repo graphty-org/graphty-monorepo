@@ -15,6 +15,45 @@ interface OptionFieldProps {
 }
 
 /**
+ * A value if it is a number.
+ * @param value - the value.
+ * @returns the number, or undefined.
+ */
+function num(value: unknown): number | undefined {
+    return typeof value === "number" ? value : undefined;
+}
+
+/**
+ * A number or integer option as a number field.
+ * @param props - Component props
+ * @param props.label - The app's words for it
+ * @param props.option - The option descriptor
+ * @param props.value - The value set, or undefined for the default
+ * @param props.onChange - Called with the new value
+ * @returns The field
+ */
+function NumberOption({
+    label,
+    option,
+    value,
+    onChange,
+}: Readonly<{ label: string } & Omit<OptionFieldProps, "algorithm">>): React.JSX.Element {
+    const integer = option.type === "integer";
+    return (
+        <StyleNumberInput
+            label={label}
+            value={num(value)}
+            defaultValue={num(option.default) ?? 0}
+            min={num(option.min)}
+            max={num(option.max)}
+            step={option.step ?? (integer ? 1 : undefined)}
+            decimalScale={integer ? 0 : undefined}
+            onChange={onChange}
+        />
+    );
+}
+
+/**
  * One option of the short form, drawn from the element's option descriptor: a number field, a
  * choice list or a checkbox, under the app's words for it.
  * @param props - Component props
@@ -24,23 +63,17 @@ interface OptionFieldProps {
  * @param props.onChange - Called with the new value
  * @returns The control
  */
-export function OptionField({ algorithm, option, value, onChange }: OptionFieldProps): React.JSX.Element | null {
+export function OptionField({
+    algorithm,
+    option,
+    value,
+    onChange,
+}: Readonly<OptionFieldProps>): React.JSX.Element | null {
     const words = optionWords(algorithm, option);
     switch (option.type) {
         case "number":
         case "integer":
-            return (
-                <StyleNumberInput
-                    label={words.label}
-                    value={typeof value === "number" ? value : undefined}
-                    defaultValue={typeof option.default === "number" ? option.default : 0}
-                    min={typeof option.min === "number" ? option.min : undefined}
-                    max={typeof option.max === "number" ? option.max : undefined}
-                    step={option.step ?? (option.type === "integer" ? 1 : undefined)}
-                    decimalScale={option.type === "integer" ? 0 : undefined}
-                    onChange={onChange}
-                />
-            );
+            return <NumberOption label={words.label} option={option} value={value} onChange={onChange} />;
         case "enum": {
             const fallback = typeof option.default === "string" ? option.default : null;
             return (

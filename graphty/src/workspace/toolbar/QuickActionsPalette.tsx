@@ -25,7 +25,7 @@ const GROUP_ORDER = [
  * @param props.onClose - Closes the palette
  * @returns The palette
  */
-export function QuickActionsPalette({ onClose }: { onClose: () => void }): React.JSX.Element {
+export function QuickActionsPalette({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.Element {
     const workspace = useWorkspace();
     const actions = workspace.registry.live
         .filter((command) => command.id !== "quick-actions.open")

@@ -35,12 +35,13 @@ The Web Component exposes these properties for declarative configuration:
 
 ### Display Properties
 
-| Property                 | Attribute                  | Type                           | Description                                                                                                                           |
-| ------------------------ | -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | Rendering mode                                                                                                                        |
-| `background`             | `background`               | `GraphBackgroundConfig`        | A flat colour, or a skybox image                                                                                                      |
-| `startingCameraDistance` | `starting-camera-distance` | `number`                       | How far the camera starts out. Unset (the default) frames the graph to fit; set, it places the camera and turns automatic framing off |
-| `labelDeclutter`         | `label-declutter`          | `boolean`                      | Hide a node label that would overlap another until the reader zooms in. Off by default; a view preference, not saved in a project     |
+| Property                 | Attribute                  | Type                           | Description                                                                                                                                           |
+| ------------------------ | -------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | Rendering mode                                                                                                                                        |
+| `background`             | `background`               | `GraphBackgroundConfig`        | A flat colour, or a skybox image                                                                                                                      |
+| `startingCameraDistance` | `starting-camera-distance` | `number`                       | How far the camera starts out. Unset (the default) frames the graph to fit; set, it places the camera and turns automatic framing off                 |
+| `autoFrame`              | `auto-frame`               | `boolean`                      | Frame the graph after each load and layout change. On by default; `auto-frame="false"` leaves the camera where it is. `zoomToFit()` frames either way |
+| `labelDeclutter`         | `label-declutter`          | `boolean`                      | Hide a node label that would overlap another until the reader zooms in. Off by default; a view preference, not saved in a project                     |
 
 What nodes and edges look like is not a property: it is the layer stack on `element.session.styles`.
 See the [styling guide](../guide/styling).

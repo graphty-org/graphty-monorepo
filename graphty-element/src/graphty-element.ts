@@ -1876,6 +1876,48 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the camera frames the graph on its own after a data load or a layout change.
+     * @remarks
+     * On (the default), every load and layout change is framed to fit, as long as no
+     * `startingCameraDistance` is set. Off, a load or a layout change leaves the camera where it
+     * is, and a re-frame already following a moving layout stops. `zoomToFit()` frames the graph
+     * either way. A preference of this view, not part of the project: switching it records no
+     * undo step and is not saved in a project file. Independent of `startingCameraDistance`, so
+     * turning framing off needs no invented distance.
+     *
+     * The attribute is on unless it reads `"false"`: `auto-frame="false"` turns framing off, and
+     * removing the attribute turns it back on.
+     * @since 3.10.0
+     * @example
+     * ```typescript
+     * reframe.onchange = () => {
+     *     element.autoFrame = reframe.checked;
+     * };
+     * ```
+     * ```html
+     * <graphty-element auto-frame="false"></graphty-element>
+     * ```
+     * @returns True when the camera frames each load and layout change
+     */
+    @property({
+        attribute: "auto-frame",
+        converter: {
+            fromAttribute: (value: string | null): boolean => value !== "false",
+        },
+    })
+    get autoFrame(): boolean {
+        return this.#graph.getAutoFrame();
+    }
+    /**
+     * Switches the camera's own framing on or off.
+     */
+    set autoFrame(value: boolean) {
+        const oldValue = this.autoFrame;
+        this.#graph.setAutoFrame(value);
+        this.requestUpdate("autoFrame", oldValue);
+    }
+
+    /**
      * Whether to run the algorithms listed in `algorithmsOnLoad` once data has loaded.
      * @remarks
      * A boolean attribute: its presence turns it on, as `hidden` does. It was read as a string,

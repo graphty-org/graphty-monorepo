@@ -14,7 +14,7 @@ import { runIdOfRef } from "../../catalog/sets/canonical";
 import type { EdgeId, Path, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { Run } from "../runs/types";
-import type { PageColumn, ResultCell, ResultColumn, ResultSort } from "../types";
+import type { PageColumn, ResultCell, ResultColumn, ResultColumnDescriptor, ResultSort } from "../types";
 import { nearestNames } from "./ResultsApi";
 import { resultPath, resultShapeContract, type RunResult } from "./types";
 
@@ -142,6 +142,30 @@ export function resolveResult(
 }
 
 /**
+ * What a column naming only a run reads, when the run's primary field has one value per record of
+ * the kind: the same rule {@link resolveResult} enforces, as an answer rather than a refusal.
+ * @param run - The run.
+ * @param target - Whether the page holds nodes or edges.
+ * @returns The column, or undefined when a page of this kind refuses the run.
+ */
+export function primaryResultColumn(run: Run, target: "node" | "edge"): ResultColumnDescriptor | undefined {
+    const field = resultShapeContract(run.shape).primaryField;
+    const fields = run.result?.fields ?? run.fields;
+    const perRecord = fields.find((candidate) => candidate.name === field && candidate.kind === target);
+    if (field === null || perRecord === undefined || perRecord.type === "table") {
+        return undefined;
+    }
+
+    return Object.freeze({
+        run: run.id,
+        field,
+        path: resultPath(run.id, field),
+        type: perRecord.type,
+        grouping: GROUPING_FIELDS.has(field),
+    });
+}
+
+/**
  * Read one record's cell.
  * @param resolved - The column.
  * @param target - Nodes or edges.
@@ -157,6 +181,42 @@ export function resultCell(resolved: ResolvedResult, target: "node" | "edge", id
 }
 
 /**
+ * Each group's place by size, from 1 for the largest, for a grouping field.
+ * @param resolved - The column.
+ * @returns The rank by group value, or undefined when the field is not a grouping one.
+ */
+function sizeRanks(resolved: ResolvedResult): ReadonlyMap<unknown, number> | undefined {
+    const sizes = resolved.result?.graph.sizes;
+    if (!GROUPING_FIELDS.has(resolved.field) || !Array.isArray(sizes)) {
+        return undefined;
+    }
+
+    // `sizes` is largest first, ties broken as the summary and the legend break them.
+    return new Map<unknown, number>(
+        (sizes as readonly { readonly group: unknown }[]).map((row, position) => [row.group, position + 1]),
+    );
+}
+
+/**
+ * Each cell's group rank, for a column of a partition's groups: the same `rank` the run summary's
+ * group and the legend's swatch carry.
+ * @param resolved - The column.
+ * @param target - Nodes or edges.
+ * @param ids - The page's record ids.
+ * @returns The ranks aligned with the ids, or undefined when the column is not a partition's groups.
+ */
+export function resultCellRanks(
+    resolved: ResolvedResult,
+    target: "node" | "edge",
+    ids: readonly (NodeId | EdgeId)[],
+): readonly (number | undefined)[] | undefined {
+    const ranks =
+        resolved.result?.shape === "community" && resolved.field === "group" ? sizeRanks(resolved) : undefined;
+
+    return ranks === undefined ? undefined : ids.map((id) => ranks.get(resultCell(resolved, target, id)));
+}
+
+/**
  * What a record sorts by under a result sort: its value, or for a grouping field its group's size
  * rank, so the largest group is the greatest value.
  * @param resolved - The sort's column.
@@ -164,14 +224,14 @@ export function resultCell(resolved: ResolvedResult, target: "node" | "edge", id
  * @returns The reader, by record id.
  */
 export function resultSortValue(resolved: ResolvedResult, target: "node" | "edge"): (id: NodeId | EdgeId) => unknown {
-    const sizes = resolved.result?.graph.sizes;
-    if (!GROUPING_FIELDS.has(resolved.field) || !Array.isArray(sizes)) {
+    const ranks = sizeRanks(resolved);
+    if (ranks === undefined) {
         return (id) => resultCell(resolved, target, id);
     }
 
-    // `sizes` is largest first, ties broken as the legend breaks them.
-    const rank = new Map<unknown, number>(
-        (sizes as readonly { readonly group: unknown }[]).map((row, position) => [row.group, sizes.length - position]),
-    );
-    return (id) => rank.get(resultCell(resolved, target, id));
+    // Largest group first under a descending sort, so it is the greatest value.
+    return (id) => {
+        const rank = ranks.get(resultCell(resolved, target, id));
+        return rank === undefined ? undefined : ranks.size + 1 - rank;
+    };
 }

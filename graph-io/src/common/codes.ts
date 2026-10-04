@@ -81,6 +81,9 @@ export const INVALID_ENCODING_CODE = "E_INVALID_ENCODING";
 /** Bytes that are not valid UTF-8 (and declare no other encoding) were read as windows-1252. */
 export const ENCODING_FALLBACK_CODE = "W_ENCODING_FALLBACK";
 
+/** A U+FEFF after the start of the text (concatenated files, a pasted BOM); read as whitespace. */
+export const STRAY_BOM_CODE = "W_STRAY_BOM";
+
 /** The file declares an encoding the platform's TextDecoder does not know; the declaration is ignored. */
 export const UNKNOWN_ENCODING_CODE = "W_UNKNOWN_ENCODING";
 

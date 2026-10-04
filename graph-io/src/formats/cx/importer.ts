@@ -2320,10 +2320,8 @@ class CxReader {
                 case "edges": {
                     const domain = value.properties_of === "nodes" ? "node" : "edge";
                     const target = refId(value.applies_to);
-                    const row =
-                        target === null
-                            ? undefined
-                            : (domain === "node" ? this.nodeRows : this.edgeRows).get(this.key(target));
+                    const rows = domain === "node" ? this.nodeRows : this.edgeRows;
+                    const row = target === null ? undefined : rows.get(this.key(target));
                     if (row === undefined) {
                         if (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target)) {
                             this.dangle(`${domain} visual property entry`);

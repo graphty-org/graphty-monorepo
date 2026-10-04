@@ -323,7 +323,7 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
             plainName: "Cytoscape Escapes",
             technicalName: "cytoscapeEscapes",
             type: "boolean",
-            description: "Write a line break or a tab in a text value as Cytoscape's \\n or \\t.",
+            description: String.raw`Write a line break or a tab in a text value as Cytoscape's \n or \t.`,
         },
     ],
     cx2: [

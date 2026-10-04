@@ -640,23 +640,40 @@ export class FormatRegistry {
         const claimed = sniff !== null && sniff.content > 0 && !(foreign?.startsWith("an HTML") ?? false);
         if (sniff === null || (foreign !== null && !claimed)) {
             await peeked.close();
-            const text = typeof head === "string" ? head : new TextDecoder().decode(head ?? new Uint8Array(0));
-            if (text.trim() === "" && text.length < SNIFF_HEAD_BYTES) {
-                // nothing to detect: say the input is empty, as a named format would
-                return failures.fail(
-                    EMPTY_INPUT_CODE,
-                    text === "" ? "the input is empty" : "the input holds only whitespace",
-                );
-            }
-            const what = foreign === null ? "" : `: it is ${foreign}`;
-            return failures.fail(
-                UNKNOWN_FORMAT_CODE,
-                `the input is not in a graph format graph-io recognizes${describeHints(options)}${what}; if you know its format, pass it as the format option`,
-                undefined,
-                { formats: this.formats() },
-            );
+            return this.refuseUndetected(failures, head, foreign, options);
         }
         return { importer: this.importer(sniff.format), sniff, source: peeked.input, peeked, warnings };
+    }
+
+    /**
+     * Refuse an input no importer recognizes: empty, or not in a known graph format.
+     * @param failures - the report the error is recorded in
+     * @param head - the head, as sniffed
+     * @param foreign - what known non-graph file the head is, or null
+     * @param options - the importGraph options
+     * @returns never: always throws
+     */
+    private refuseUndetected(
+        failures: ImportReportBuilder,
+        head: Uint8Array | string | null,
+        foreign: string | null,
+        options: ImportGraphOptions,
+    ): never {
+        const text = typeof head === "string" ? head : new TextDecoder().decode(head ?? new Uint8Array(0));
+        if (text.trim() === "" && text.length < SNIFF_HEAD_BYTES) {
+            // nothing to detect: say the input is empty, as a named format would
+            return failures.fail(
+                EMPTY_INPUT_CODE,
+                text === "" ? "the input is empty" : "the input holds only whitespace",
+            );
+        }
+        const what = foreign === null ? "" : `: it is ${foreign}`;
+        return failures.fail(
+            UNKNOWN_FORMAT_CODE,
+            `the input is not in a graph format graph-io recognizes${describeHints(options)}${what}; if you know its format, pass it as the format option`,
+            undefined,
+            { formats: this.formats() },
+        );
     }
 
     /**

@@ -217,29 +217,10 @@ export function rankFormats(
     for (const importer of all) {
         const extensionMatch = extension !== null && importer.extensions.some((e) => e.toLowerCase() === extension);
         const mimeMatch = mime !== null && importer.mimeTypes.some((m) => m.toLowerCase() === mime);
-        let content = 0;
         const sniffed = head !== null && head.byteLength > 0 && typeof importer.sniff === "function";
-        if (head !== null && head.byteLength > 0 && typeof importer.sniff === "function") {
-            try {
-                content = clamp(importer.sniff(head));
-            } catch (err) {
-                // a plugin's sniffer that throws does not recognize the head: one buggy importer
-                // must not break the detection of every other format, but the error is handed on
-                onSniffError?.(importer.format, err);
-                content = 0;
-            }
-        }
-        let confidence: number;
-        if (content > 0 && content < WEAK_CONTENT && extensionClaimed && !extensionMatch) {
-            // a weak guess (plain delimited text read as CSV) never overrides another format's extension
-            confidence = 0.25 * content + (mimeMatch ? 0.05 : 0);
-        } else if (content > 0) {
-            confidence = 0.5 + 0.35 * content + (extensionMatch ? 0.1 : 0) + (mimeMatch ? 0.05 : 0);
-        } else if (extensionMatch || (mimeMatch && !sniffed)) {
-            // a MIME type alone does not override an importer that looked at the content and said no:
-            // servers send text/plain for any text file, and a sentence is not a CSV edge list
-            confidence = (extensionMatch ? 0.3 : 0) + (mimeMatch ? 0.1 : 0);
-        } else {
+        const content = sniffed ? contentConfidence(importer, head, onSniffError) : 0;
+        const confidence = combinedConfidence(content, { extensionMatch, mimeMatch, extensionClaimed, sniffed });
+        if (confidence === null) {
             continue;
         }
         const dialect = importer.format === "json" && head !== null ? sniffJsonDialectHead(head) : null;
@@ -255,6 +236,58 @@ export function rankFormats(
     }
     candidates.sort((a, b) => b.result.confidence - a.result.confidence || a.rank - b.rank);
     return candidates.map((c) => c.result);
+}
+
+/**
+ * An importer's confidence that it recognizes a head, 0 when its sniffer throws (one buggy
+ * importer must not break the detection of every other format, but the error is handed on).
+ * @param importer - the importer, which has a sniffer
+ * @param head - the head
+ * @param onSniffError - called with the format and the error when the sniffer throws
+ * @returns the confidence in 0..1
+ */
+function contentConfidence(
+    importer: GraphImporter,
+    head: Uint8Array,
+    onSniffError: ((format: string, error: unknown) => void) | undefined,
+): number {
+    try {
+        return clamp(importer.sniff?.(head) ?? 0);
+    } catch (err) {
+        onSniffError?.(importer.format, err);
+        return 0;
+    }
+}
+
+/**
+ * The ranking score of one importer from what matched, or null when it is not a candidate.
+ * @param content - the importer's content confidence
+ * @param match - what else matched
+ * @param match.extensionMatch - the file's extension is one the importer claims
+ * @param match.mimeMatch - the MIME type is one the importer claims
+ * @param match.extensionClaimed - some importer claims the file's extension
+ * @param match.sniffed - the importer looked at the content
+ * @returns the score, or null
+ */
+function combinedConfidence(
+    content: number,
+    match: { extensionMatch: boolean; mimeMatch: boolean; extensionClaimed: boolean; sniffed: boolean },
+): number | null {
+    const { extensionMatch, mimeMatch } = match;
+    const mimeBonus = mimeMatch ? 0.05 : 0;
+    if (content > 0 && content < WEAK_CONTENT && match.extensionClaimed && !extensionMatch) {
+        // a weak guess (plain delimited text read as CSV) never overrides another format's extension
+        return 0.25 * content + mimeBonus;
+    }
+    if (content > 0) {
+        return 0.5 + 0.35 * content + (extensionMatch ? 0.1 : 0) + mimeBonus;
+    }
+    if (extensionMatch || (mimeMatch && !match.sniffed)) {
+        // a MIME type alone does not override an importer that looked at the content and said no:
+        // servers send text/plain for any text file, and a sentence is not a CSV edge list
+        return (extensionMatch ? 0.3 : 0) + (mimeMatch ? 0.1 : 0);
+    }
+    return null;
 }
 
 /**

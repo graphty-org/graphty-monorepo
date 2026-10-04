@@ -124,30 +124,9 @@ export function defineLineFormat(definition: LineFormat): GraphImporter {
             const edges = new DirectionResolver(sink, report, opts.onMixedDirection);
             const kind = opts.defaultDirected ? "directed" : "undirected";
             edges.setHeader(opts.defaultDirected);
-            const writers = { node: new Map<string, TextCellWriter>(), edge: new Map<string, TextCellWriter>() };
-            const write = (domain: "node" | "edge", row: number, attributes: LineAttributes | undefined): void => {
-                for (const [name, value] of Object.entries(attributes ?? {})) {
-                    if (value === null || value === undefined || (domain === "edge" && name === opts.weightFrom)) {
-                        continue;
-                    }
-                    if (name === "label") {
-                        // a label is text, whatever it looks like, and the column that byRole("label") finds
-                        const decl = { name, dtype: "string", role: "label" } as const;
-                        const column = domain === "node" ? sink.declareNodeColumn(decl) : sink.declareEdgeColumn(decl);
-                        if (domain === "node") {
-                            sink.setNodeValue(column, row, String(value));
-                        } else {
-                            sink.setEdgeValue(column, row, String(value));
-                        }
-                        continue;
-                    }
-                    let writer = writers[domain].get(name);
-                    if (writer === undefined) {
-                        writer = new TextCellWriter(name, domain, sink, report);
-                        writers[domain].set(name, writer);
-                    }
-                    writer.write(row, String(value));
-                }
+            const attributes = new AttributeWriter(sink, report, opts.weightFrom);
+            const write = (domain: "node" | "edge", row: number, values: LineAttributes | undefined): void => {
+                attributes.write(domain, row, values);
             };
             const addNode = (id: string): number => {
                 const nodeId = ids.text(id);
@@ -185,16 +164,7 @@ export function defineLineFormat(definition: LineFormat): GraphImporter {
                 try {
                     parseLine(trimmed.split(/\s+/), graph, text);
                 } catch (err) {
-                    if (isAbortError(err)) {
-                        throw err;
-                    }
-                    if (err instanceof GraphFormatError) {
-                        report.recordError(err, { line });
-                    } else if (err instanceof Error) {
-                        report.error("parse-error", BAD_LINE_CODE, err.message, { line });
-                    } else {
-                        report.error("parse-error", BAD_LINE_CODE, messageOf(err), { line });
-                    }
+                    recordLineError(report, err, line);
                 }
             }
             throwIfAborted(opts.signal);
@@ -202,4 +172,78 @@ export function defineLineFormat(definition: LineFormat): GraphImporter {
         },
     };
     return Object.freeze(sniff === undefined ? importer : { ...importer, sniff });
+}
+
+/**
+ * Record what a line's parser threw: a GraphFormatError with its own code, any other error as
+ * BAD_LINE_CODE. A cancellation is rethrown.
+ * @param report - the report
+ * @param err - what the parser threw
+ * @param line - the line number
+ */
+function recordLineError(report: ImportReportBuilder, err: unknown, line: number): void {
+    if (isAbortError(err)) {
+        throw err;
+    }
+    if (err instanceof GraphFormatError) {
+        report.recordError(err, { line });
+    } else {
+        report.error("parse-error", BAD_LINE_CODE, err instanceof Error ? err.message : messageOf(err), { line });
+    }
+}
+
+/** Writes the attributes a line format's parser gives a node or an edge into columns. */
+class AttributeWriter {
+    private readonly writers = { node: new Map<string, TextCellWriter>(), edge: new Map<string, TextCellWriter>() };
+
+    /**
+     * Create a writer.
+     * @param sink - the sink
+     * @param report - the report
+     * @param weightFrom - the edge attribute read as the weight (not written as a column), or null
+     */
+    constructor(
+        private readonly sink: GraphSink,
+        private readonly report: ImportReportBuilder,
+        private readonly weightFrom: string | null,
+    ) {}
+
+    /**
+     * Write one element's attributes; null and undefined values are left unset.
+     * @param domain - node or edge
+     * @param row - the element's index
+     * @param attributes - the attributes, or undefined
+     */
+    write(domain: "node" | "edge", row: number, attributes: LineAttributes | undefined): void {
+        for (const [name, value] of Object.entries(attributes ?? {})) {
+            if (value === null || value === undefined || (domain === "edge" && name === this.weightFrom)) {
+                continue;
+            }
+            if (name === "label") {
+                this.writeLabel(domain, row, String(value));
+                continue;
+            }
+            let writer = this.writers[domain].get(name);
+            if (writer === undefined) {
+                writer = new TextCellWriter(name, domain, this.sink, this.report);
+                this.writers[domain].set(name, writer);
+            }
+            writer.write(row, String(value));
+        }
+    }
+
+    /**
+     * Write a label: text, whatever it looks like, in the column that byRole("label") finds.
+     * @param domain - node or edge
+     * @param row - the element's index
+     * @param text - the label
+     */
+    private writeLabel(domain: "node" | "edge", row: number, text: string): void {
+        const decl = { name: "label", dtype: "string", role: "label" } as const;
+        if (domain === "node") {
+            this.sink.setNodeValue(this.sink.declareNodeColumn(decl), row, text);
+        } else {
+            this.sink.setEdgeValue(this.sink.declareEdgeColumn(decl), row, text);
+        }
+    }
 }

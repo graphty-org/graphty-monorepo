@@ -131,9 +131,18 @@ you give one. A file read also records its `size` in bytes. The inline text and 
 are never kept; the loaded rows already hold them. After `session.data.clear()`, `source()`
 answers `null`.
 
+## Preview a Load Before Loading It
+
+`session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and
+columns, choose which column is the node id, the edge endpoints or the weight, and see the counts
+the load would produce before anything is added to the graph. See
+[Previewing a Load](./load-preview).
+
 ## Replacing the Graph
 
-A load ADDS to the graph unless you pass `replace: true`. A replacing load swaps the graph as one
+A load through `loadFromFile`, `loadFromUrl` or `addDataFromSource` ADDS to the graph unless you
+pass `replace: true`. (`session.data.import()` and a draft's `load()` take `mode` instead, and
+replace by default; see [Previewing a Load](./load-preview).) A replacing load swaps the graph as one
 undoable step, and a load that fails rolls its whole step back, so a malformed or empty file
 rejects and leaves the current graph exactly as it was:
 

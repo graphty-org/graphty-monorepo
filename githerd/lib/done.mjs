@@ -28,6 +28,7 @@
  */
 
 import * as board from "./board.mjs";
+import { raiseItem } from "./notify.mjs";
 import { recordVerdict } from "./proposals.mjs";
 import { run } from "./worktrees.mjs";
 
@@ -498,9 +499,24 @@ function recordVerdicts(job, report, view, now) {
     return refused;
 }
 
+/** The jobs whose `githerd_done` check is in progress, per daemon state. */
+const checking = new WeakMap();
+
+/**
+ * The set of jobs whose done check runs, for one daemon state.
+ * @param {any} state the daemon state
+ * @returns {Set<string>} the job ids
+ */
+function inProgress(state) {
+    let jobs = checking.get(state);
+    if (!jobs) checking.set(state, (jobs = new Set()));
+    return jobs;
+}
+
 /**
  * `githerd_done` for a job the caller holds: the report is checked against GitHub before it is
- * accepted. `failed` ends the attempt with the findings (the defects still have to be filed).
+ * accepted. `failed` ends the attempt with the findings (the defects still have to be filed). One
+ * check per job runs at a time, and the job must still be the caller's once GitHub has answered.
  * @param {{state: any, config: any, now: Date, io: DoneIo, commit: (entry: any) => Promise<void>}} ctx
  *   the request context
  * @param {any} job the caller's job
@@ -509,18 +525,52 @@ function recordVerdicts(job, report, view, now) {
  * @returns {Promise<{text: string, isError?: boolean}>} the tool result
  */
 export async function githerdDone(ctx, job, report, session) {
-    const { now } = ctx;
     if (job.state !== "working")
         throw new Error(`${job.id} is ${job.state}; githerd_done is for a job you are working on`);
+    const jobs = inProgress(ctx.state);
+    if (jobs.has(job.id)) {
+        return reply({
+            verified: false,
+            missing: ["a done check for this job is already running; wait for its answer"],
+        });
+    }
+    jobs.add(job.id);
+    try {
+        return await settleClaim(ctx, job, report, session);
+    } finally {
+        jobs.delete(job.id);
+    }
+}
+
+/**
+ * Checks one claim and applies the answer, unless the job moved while GitHub was read.
+ * @param {{state: any, config: any, now: Date, io: DoneIo, commit: (entry: any) => Promise<void>}} ctx
+ *   the request context
+ * @param {any} job the caller's job
+ * @param {any} report the arguments
+ * @param {string | null} session the calling session
+ * @returns {Promise<{text: string, isError?: boolean}>} the tool result
+ */
+async function settleClaim(ctx, job, report, session) {
+    const { now } = ctx;
+    const holder = job.holder;
+    const moved = () => job.state !== "working" || job.holder?.session !== holder?.session;
+    const movedReply = () =>
+        reply({
+            verified: false,
+            missing: [`${job.id} became ${job.state} while this claim was checked; it was not applied`],
+        });
     const view = { state: ctx.state, config: ctx.config, io: ctx.io, session };
     // An issue's or pull request's not-needed is a proposal; it is recorded only for a report whose
     // defects are filed.
     const filed = async () => (await defectGaps(report.defects, ctx.io).catch(() => ["unread"])).length === 0;
     if (report.outcome === "not-needed" && NOT_NEEDED_KINDS.has(job.kind) && (await filed())) {
+        if (moved()) return movedReply();
         const refused = recordVerdicts(job, report, view, now);
         if (refused.length) return reply({ verified: false, missing: refused });
     }
     const { answer, error } = await check(job, report, view);
+    if (moved()) return movedReply();
     job.report = { ...report, at: now.toISOString(), session };
     if (report.outcome === "failed") {
         if (!answer || !("holds" in answer)) return reply(toolAnswer(answer, { action: "working" }, error));
@@ -529,6 +579,7 @@ export async function githerdDone(ctx, job, report, session) {
             { outcome: "failed", findings: report.findings, theory: report.theory ?? "" },
             now,
         );
+        afterSettle(ctx.state, job, holder, ended, now);
         await ctx.commit({ kind: "done-report", job: job.id, outcome: "failed", next: ended.action });
         return reply({ verified: true });
     }
@@ -537,6 +588,7 @@ export async function githerdDone(ctx, job, report, session) {
     if (after?.action === "waiting") job.waitingFor.verify = true;
     if (after?.action === "done" && job.kind === "triage") recordVerdicts(job, report, view, now);
     if (after?.action === "done" && report.children) job.children = report.children;
+    afterSettle(ctx.state, job, holder, after, now);
     await ctx.commit({
         kind: "done-report",
         job: job.id,
@@ -545,6 +597,53 @@ export async function githerdDone(ctx, job, report, session) {
         error,
     });
     return reply(toolAnswer(answer, after, error));
+}
+
+/**
+ * What follows a job leaving its session (design 5.3 and 7.3): a job that ended done, failed or
+ * back in the queue lost its holder, so the session githerd started for it is put on
+ * `state.retiring`, which the daemon ends (its window, then what it left running in the worktree).
+ * An urgent job whose last attempt failed raises one owner item with the attempts' findings.
+ * @param {any} state the daemon state
+ * @param {any} job the job
+ * @param {any} holder its holder before the change
+ * @param {any} result what board.endAttempt or board.verifyResult returned
+ * @param {Date} now the current time
+ */
+export function afterSettle(state, job, holder, result, now) {
+    if (holder?.pane && !job.holder) {
+        state.retiring ??= [];
+        state.retiring.push({ job: job.id, holder, reason: `job ${job.state}`, at: now.toISOString() });
+    }
+    if (result?.action === "failed" && result.ownerItem) {
+        const findings = job.attempts
+            .map((/** @type {any} */ a, /** @type {number} */ i) => `${i + 1}. ${a.outcome}: ${a.findings || "none"}`)
+            .join(" ");
+        raiseItem(
+            state,
+            {
+                id: `failed-urgent:${job.id}`,
+                kind: "failed-urgent",
+                question: `${job.id} failed after ${job.attempts.length} attempts. Findings: ${findings}`,
+                target: itemTarget(job),
+            },
+            now,
+        );
+    }
+}
+
+/**
+ * The pull request or issue an owner item about a job is posted on.
+ * @param {any} job the job
+ * @returns {string | null} `pr:<n>`, `issue:<n>`, or null when the job has neither
+ */
+function itemTarget(job) {
+    if (job.pr) return `pr:${job.pr}`;
+    const n = numberOf(job.target);
+    if (n && job.kind === "pr") return `pr:${n}`;
+    if (n && job.kind === "issue") return `issue:${n}`;
+    const pr = job.report?.pr;
+    return pr ? `pr:${pr}` : null;
 }
 
 /**
@@ -570,9 +669,15 @@ export async function pollVerifying(state, ctx) {
         const j = /** @type {any} */ (job);
         const waiting = j.state === "waiting" && j.waitingFor?.verify;
         if (!j.report || (j.state !== "verifying" && !waiting)) continue;
+        const before = j.state;
+        const holder = j.holder;
         const { answer } = await check(j, j.report, { state, config: ctx.config, io: ctx.io });
-        const action = waiting ? settleWaiting(j, answer, ctx.now) : board.verifyResult(j, answer, ctx.now)?.action;
+        // A job that moved while GitHub was read (the watchdog, a death) is left to its new state.
+        if (j.state !== before || (waiting && !j.waitingFor?.verify)) continue;
+        const result = waiting ? settleWaiting(j, answer, ctx.now) : board.verifyResult(j, answer, ctx.now);
+        const action = typeof result === "string" ? result : result?.action;
         if (action === "waiting") j.waitingFor.verify = true;
+        afterSettle(state, j, holder, typeof result === "string" ? null : result, ctx.now);
         if (action) out.push({ job: j.id, action });
     }
     return out;

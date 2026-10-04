@@ -8,7 +8,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { move, newJob } from "../lib/board.mjs";
 import { identify } from "../lib/proc.mjs";
 import { running } from "../lib/tmux.mjs";
-import { decide, descendantTicks, sample, transcriptFiles, watchPass } from "../lib/watchdog.mjs";
+import { githerdDone } from "../lib/done.mjs";
+import { answerHook } from "../lib/hook.mjs";
+import { decide, descendantTicks, endRetired, sample, transcriptFiles, watchPass } from "../lib/watchdog.mjs";
 import { fakeWorkers, sleep, typed } from "./helpers/fake-worker.mjs";
 
 const T0 = new Date("2026-10-04T12:00:00Z");
@@ -458,6 +460,73 @@ describe("watchPass", () => {
             workers: 1,
             ledger: [],
             dead: ["issue-29"],
+        });
+    });
+    describe("a job that leaves its session", () => {
+        const HEAD = "a".repeat(40);
+        /**
+         * A merge-ready pull request 7 the job claims done, a reader that agrees with it, and a
+         * state holding the job.
+         * @param {any} j the job, made a pr job on #7
+         * @param {boolean} draft the pull request is a draft, so every claim is refused
+         * @returns {{state: any, ctx: any}} the state and the githerd_done context
+         */
+        function claimable(j, draft) {
+            Object.assign(j, { kind: "pr", target: "7" });
+            j.holder.session = "sess-old";
+            const state = {
+                jobs: { [j.id]: j },
+                prs: {
+                    7: {
+                        headSha: HEAD,
+                        headRef: "fix/x",
+                        baseRef: "master",
+                        draft,
+                        required: { "All Checks Pass": "SUCCESS" },
+                        mergeStatus: null,
+                    },
+                },
+                master: { branch: "master" },
+            };
+            const io = { remoteHead: async () => HEAD, extendedByMerges: async () => false };
+            const ctx = { state, config: {}, now: T0, io, commit: async () => {} };
+            return { state, ctx };
+        }
+        const claim = { outcome: "done", findings: "f", defects: [], pushedHead: HEAD };
+        const gone = (/** @type {any} */ h) => !running(h.pid, h.startTime);
+
+        it("ends the window and process of a job whose done claim was accepted", async () => {
+            const j = await held("issue-40", { screen: "idle" });
+            const holder = j.holder;
+            const { state, ctx } = claimable(j, false);
+            expect((await githerdDone(ctx, j, claim, "sess-old")).text).toBe('{"verified":true}');
+            expect([j.state, j.holder]).toEqual(["done", null]);
+            const lines = await endRetired(state, { sleep });
+            expect(lines).toEqual([expect.objectContaining({ kind: "session-ended", job: "issue-40", reason: "job done" })]);
+            await until(() => gone(holder));
+            expect(state.retiring).toEqual([]);
+            expect(await watchPass(state, T0, options())).toEqual({ workers: 0, ledger: [], dead: [] });
+        });
+
+        it("ends the old window of a job requeued by a third refused claim, and ignores its hooks", async () => {
+            const j = await held("issue-41", { screen: "idle" });
+            const holder = j.holder;
+            const { state, ctx } = claimable(j, true);
+            for (let n = 0; n < 3; n++) await githerdDone(ctx, j, claim, "sess-old");
+            expect([j.state, j.holder, j.attempts.length]).toEqual(["queued", null, 1]);
+            // The old session's Stop changes nothing on the job, and asks the daemon to end it.
+            const hook = answerHook(
+                state,
+                { event: "Stop", job: "issue-41", input: { session_id: "sess-old" } },
+                {},
+                T0,
+            );
+            expect(hook).toMatchObject({ answer: {}, end: true });
+            expect(j.state).toBe("queued");
+            expect(running(holder.pid, holder.startTime)).toBe(true);
+            await endRetired(state, { sleep });
+            await until(() => gone(holder));
+            expect(state.retiring).toEqual([]);
         });
     });
 });

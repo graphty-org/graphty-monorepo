@@ -552,6 +552,35 @@ describe("HTTP endpoints", () => {
         await daemon.shutdown();
     });
 
+    it("ends at once the session of a done job when its Stop hook fires, and changes nothing else", async () => {
+        const daemon = await start();
+        const job = newJob({ kind: "pr", target: "pr:7", id: "j1" }, clock);
+        job.state = "done";
+        daemon.state.jobs = { j1: job };
+        // A start time that is not this process's: the window's session is already gone.
+        const holder = {
+            socket: `githerd-test-none-${process.pid}`,
+            pane: "%1",
+            window: "@1",
+            pid: process.pid,
+            startTime: "0",
+            session: "w1",
+            name: "githerd-j1",
+        };
+        daemon.state.retiring = [{ job: "j1", holder, reason: "job done", at: clock.toISOString() }];
+        const res = await fetch(`${daemon.url}/hook`, {
+            method: "POST",
+            body: JSON.stringify({ event: "Stop", job: "j1", nonce: "n", input: { session_id: "w1" } }),
+        });
+        expect(await res.json()).toEqual({});
+        for (let i = 0; i < 100 && daemon.state.retiring.length; i++) await new Promise((r) => setTimeout(r, 20));
+        expect(daemon.state.retiring).toEqual([]);
+        expect(job.state).toBe("done");
+        await daemon.shutdown();
+        const ended = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "session-ended");
+        expect(ended).toEqual([expect.objectContaining({ job: "j1", reason: "job done", how: "gone" })]);
+    });
+
     it("recovers a worker whose session died: news, a fresh next session and a ledger line", async () => {
         const daemon = await start();
         const job = newJob({ kind: "issue", target: "#12", id: "issue-12" }, clock);

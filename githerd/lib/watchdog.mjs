@@ -524,3 +524,48 @@ async function recycle(state, job, window, reason, { now, sleep }) {
     if (!job.worktree || !existsSync(job.worktree)) return { ended: [], killed: [] };
     return sweepWorktree(job.worktree, { spareGroups: livePushGroups(state, job.id), ...(sleep ? { sleep } : {}) });
 }
+
+/**
+ * Ends the sessions of jobs that left them (design 5.3 and 7.3): a job that ended done, failed or
+ * back in the queue puts the session githerd started for it on `state.retiring`. Each is ended
+ * the way a recycle ends one (its window, then what it left running in the worktree, except the
+ * daemon's own push for the job), and leaves the list once ended. The worktree is swept only while
+ * no new session holds the job, so a fresh session on a requeued job keeps its processes. Mutates
+ * the state; the caller persists it and appends the ledger lines.
+ * @param {any} state the daemon state
+ * @param {{sleep?: (ms: number) => Promise<unknown>}} [options] the wait
+ * @returns {Promise<any[]>} the ledger lines
+ */
+export async function endRetired(state, { sleep } = {}) {
+    /** @type {any[]} */
+    const ledger = [];
+    for (const r of [...(state.retiring ?? [])]) {
+        const job = state.jobs?.[r.job];
+        const h = r.holder;
+        try {
+            const how = await endSession(
+                { socket: h.socket, window: h.window, pane: h.pane, pid: h.pid, name: h.name, startTime: h.startTime },
+                sleep ? { sleep } : {},
+            );
+            const sweep = job?.worktree && !job.holder && existsSync(job.worktree);
+            const swept = sweep
+                ? await sweepWorktree(job.worktree, {
+                      spareGroups: livePushGroups(state, r.job),
+                      ...(sleep ? { sleep } : {}),
+                  })
+                : { ended: [], killed: [] };
+            ledger.push({
+                kind: "session-ended",
+                job: r.job,
+                reason: r.reason,
+                how,
+                ended: swept.ended.length,
+                killed: swept.killed.length,
+            });
+            state.retiring = state.retiring.filter((/** @type {any} */ x) => x !== r);
+        } catch (err) {
+            ledger.push({ kind: "watch-error", job: r.job, error: String(/** @type {Error} */ (err)?.message ?? err) });
+        }
+    }
+    return ledger;
+}

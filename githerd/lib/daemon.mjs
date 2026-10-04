@@ -121,7 +121,7 @@ import { sessionToolSet } from "./session-tools.mjs";
 import { alertBanner, sessionTools, statusData } from "./tools.mjs";
 import { ring as ringWorker } from "./tmux.mjs";
 import { readVersion } from "./version.mjs";
-import { watchPass } from "./watchdog.mjs";
+import { endRetired, watchPass } from "./watchdog.mjs";
 import { codeEnv, readSigningEnv } from "./worker-settings.mjs";
 import { createWorktree, readTree, removeWorktree, sweepWorktrees } from "./worktrees.mjs";
 
@@ -1946,6 +1946,26 @@ export async function startDaemon({
     }
 
     let watching = false;
+    let retiring = false;
+
+    /**
+     * Ends the sessions on `state.retiring`: those of jobs that ended done, failed or back in the
+     * queue (design 5.3 and 7.3). Run by every watchdog pass, and at once when such a session's
+     * hook fires. Skipped while one runs or the daemon cannot write.
+     */
+    async function retire() {
+        if (retiring || stopping || !mayWrite() || !state.retiring?.length) return;
+        retiring = true;
+        try {
+            const lines = await endRetired(state);
+            for (const line of lines) void ledger(line);
+            if (lines.length) await save();
+        } catch (err) {
+            say("error", `retire: ${/** @type {Error} */ (err).message}`);
+        } finally {
+            retiring = false;
+        }
+    }
 
     /**
      * One watchdog pass over the workers githerd started (design 7.5), then the death and recovery
@@ -1956,6 +1976,7 @@ export async function startDaemon({
         if (watching || stopping || fatal || !config || !mayWrite()) return;
         watching = true;
         try {
+            await retire();
             const queued = (/** @type {any} */ job) =>
                 (state.pushQueue?.entries ?? []).some((/** @type {any} */ e) => e.job === job.id);
             const pass = await watchPass(state, now(), { pushQueued: queued });
@@ -2377,6 +2398,8 @@ export async function startDaemon({
         remember();
         await save();
         for (const line of result.ledger) await ledger(line);
+        // The job is done or left this session: end it once the hook has its answer.
+        if (result.end && !spooled) setImmediate(() => void retire());
         return result.answer;
     }
 

@@ -523,6 +523,14 @@ export function answerHook(state, req, facts, now) {
     const session = input.session_id;
     if (typeof session === "string" && session) heartbeat(state, { session, cwd: input.cwd }, now);
     const job = req.job ? (state.jobs?.[req.job] ?? null) : null;
+    const retired = (state.retiring ?? []).find(
+        (/** @type {any} */ r) =>
+            r.job === req.job && (r.holder?.session ? r.holder.session === session : !job?.holder),
+    );
+    if (retired) {
+        // A session its job has left: nothing it says changes the job, and the daemon ends it now.
+        return { answer: {}, ledger: [{ kind: "hook-retired-session", event: req.event, job: req.job, session }], end: true };
+    }
     const request = { ...req, input };
     switch (req.event) {
         case "SessionStart":

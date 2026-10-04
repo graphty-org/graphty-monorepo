@@ -632,6 +632,108 @@ describe("githerdDone", () => {
     });
 });
 
+describe("githerdDone and pollVerifying while a job moves", () => {
+    it("answers a second claim for the same job while the first is checked, without counting it", async () => {
+        const s = state({ prs: { 7: pr({ draft: true }) } });
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { promise: gate, resolve: release } = Promise.withResolvers();
+        const { ctx } = setup(s, fakeIo({ remoteHead: () => gate }));
+        const first = githerdDone(ctx, job, report(), "w1");
+        const second = JSON.parse((await githerdDone(ctx, job, report(), "w1")).text);
+        expect(second).toEqual({
+            verified: false,
+            missing: ["a done check for this job is already running; wait for its answer"],
+        });
+        release(HEAD);
+        expect(JSON.parse((await first).text).missing).toEqual(["#7 is a draft"]);
+        expect(job.verifyFailures).toBe(1);
+        // The check is over: the next claim is checked again.
+        expect(JSON.parse((await githerdDone(ctx, job, report(), "w1")).text).missing).toEqual(["#7 is a draft"]);
+    });
+
+    it("applies nothing when the job moved while GitHub was read", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx, commits } = setup(
+            s,
+            fakeIo({
+                remoteHead: async () => {
+                    move(job, "queued", NOW, { reason: "recycled" });
+                    return HEAD;
+                },
+            }),
+        );
+        const r = await githerdDone(ctx, job, report(), "w1");
+        expect(r.isError).toBe(true);
+        expect(JSON.parse(r.text).missing[0]).toContain("became queued while this claim was checked");
+        expect([job.state, job.report, commits]).toEqual(["queued", undefined, []]);
+    });
+
+    it("skips a verifying job that moved during its check, and goes on to the next", async () => {
+        const s = state({ prs: { 7: pr(), 8: pr() } });
+        const a = (s.jobs["pr-7"] = working("pr", "7"));
+        const b = (s.jobs["pr-8"] = working("pr", "8"));
+        let behind = true;
+        const { ctx } = setup(
+            s,
+            fakeIo({
+                remoteHead: async () => {
+                    if (behind) return OTHER;
+                    if (a.state === "verifying") move(a, "working", NOW);
+                    return HEAD;
+                },
+            }),
+        );
+        await githerdDone(ctx, a, report(), "w1");
+        await githerdDone(ctx, b, report(), "w1");
+        expect([a.state, b.state]).toEqual(["verifying", "verifying"]);
+        behind = false;
+        expect(await pollVerifying(s, ctx)).toEqual([{ job: "pr-8", action: "done" }]);
+        expect(a.state).toBe("working");
+    });
+
+    it("puts the session of a job that ended done, or back in the queue, on the retiring list", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        job.holder.pane = "%3";
+        const { ctx } = setup(s);
+        await githerdDone(ctx, job, report(), "w1");
+        expect(job.holder).toBeNull();
+        expect(s.retiring).toEqual([
+            { job: "pr-7", holder: expect.objectContaining({ session: "w1", pane: "%3" }), reason: "job done", at: NOW.toISOString() },
+        ]);
+        // An owner's session (no pane githerd started) is not githerd's to end.
+        const owned = (s.jobs["pr-8"] = working("pr", "8"));
+        s.prs[8] = pr();
+        await githerdDone(ctx, owned, report(), "w1");
+        expect(s.retiring).toHaveLength(1);
+    });
+
+    it("raises one owner item when an urgent incident spends its last attempt", async () => {
+        const s = state();
+        const job = (s.jobs.inc = working("incident", "CI / Build / x", { scope: "master", lane: "CI" }));
+        const { ctx } = setup(s);
+        for (const n of [1, 2, 3]) {
+            if (n > 1) {
+                move(job, "starting", NOW, { holder: { session: `w${n}` } });
+                move(job, "working", NOW);
+            }
+            const r = await githerdDone(ctx, job, report({ outcome: "failed", findings: `finding ${n}` }), `w${n}`);
+            expect(r.text).toBe('{"verified":true}');
+        }
+        expect(job.state).toBe("failed");
+        const items = Object.values(s.ownerItems ?? {});
+        expect(items).toHaveLength(1);
+        expect(items[0]).toMatchObject({ id: `failed-urgent:${job.id}`, kind: "failed-urgent", target: null });
+        expect(items[0].question).toContain("1. failed: finding 1 2. failed: finding 2 3. failed: finding 3");
+        // A low-priority incident's or another kind's failure raises none.
+        const low = (s.jobs.low = working("incident", "CI / Lint / y", { scope: "low", lane: "CI" }));
+        low.budget.attempts = 1;
+        await githerdDone(ctx, low, report({ outcome: "failed" }), "w1");
+        expect(Object.keys(s.ownerItems)).toHaveLength(1);
+    });
+});
+
 describe("doneIo", () => {
     /** @type {{tmp: string, root: string, remote: string}} */
     let repo;

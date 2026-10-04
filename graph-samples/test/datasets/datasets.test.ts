@@ -15,6 +15,7 @@ import { football } from "../../src/datasets/football/index.js";
 import { karate } from "../../src/datasets/karate/index.js";
 import { knuthMiles } from "../../src/datasets/knuth-miles/index.js";
 import { lesMiserables } from "../../src/datasets/les-miserables/index.js";
+import { DATASET_NAMES } from "../../src/datasets/names.js";
 import { openflights } from "../../src/datasets/openflights/index.js";
 import { politicalBlogs } from "../../src/datasets/political-blogs/index.js";
 import { politicalBooks } from "../../src/datasets/political-books/index.js";
@@ -263,5 +264,11 @@ describe("buildDataset", () => {
                 columns: { x: { dtype: "i64", values: [1] } } as never,
             }),
         ).toThrow(TypeError);
+    });
+});
+
+describe("DATASET_NAMES", () => {
+    it("lists every dataset of DATASETS, in the same order", () => {
+        expect(DATASET_NAMES).toEqual(DATASETS.map((d) => d.name));
     });
 });

@@ -138,7 +138,8 @@ karateMeta.citation; // what to cite
 | `datasets/openflights`          | OpenFlights airports and routes (directed)         | 3,214 / 36,906 |              |
 
 The root entry exports `DATASETS`, the metadata of every dataset (title, description, citation,
-source, license, counts, columns, what it showcases) without any of the graph data. The
+source, license, counts, columns, what it showcases) without any of the graph data, and
+`DATASET_NAMES`, only their names, for checking a name without bundling the metadata. The
 geographic datasets carry `latitude` and `longitude` node columns in degrees.
 
 ### Hosted datasets

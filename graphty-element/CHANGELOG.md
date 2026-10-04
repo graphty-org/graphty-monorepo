@@ -1,3 +1,82 @@
+## 3.13.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** export the project file's name, extension and media type ([#919](https://github.com/graphty-org/graphty-monorepo/pull/919))
+- **graphty-element:** mark a project saved only after the caller's write ([#918](https://github.com/graphty-org/graphty-monorepo/pull/918))
+- **graphty-element:** read a load once as a draft and load it with the reader's column roles ([209b2141e](https://github.com/graphty-org/graphty-monorepo/commit/209b2141e))
+- **graphty-element:** preview a load and load it with the reader's column roles ([5ca313b0b](https://github.com/graphty-org/graphty-monorepo/commit/5ca313b0b))
+- **graphty-element:** name the limit in every E_TOO_LARGE refusal ([1b8b07488](https://github.com/graphty-org/graphty-monorepo/commit/1b8b07488))
+
+### 🩹 Fixes
+
+- **graphty-element:** count a node row once when an earlier edge already created it ([2ef8c6b23](https://github.com/graphty-org/graphty-monorepo/commit/2ef8c6b23))
+- **graphty-element:** address review of the project save and direction changes ([c9811f5a4](https://github.com/graphty-org/graphty-monorepo/commit/c9811f5a4))
+- **graphty-element:** a saved project reopens with the graph's direction ([#909](https://github.com/graphty-org/graphty-monorepo/pull/909))
+- **graphty-element:** count the nodes an edge creates against the render ceiling ([32aeae330](https://github.com/graphty-org/graphty-monorepo/commit/32aeae330))
+- **graphty-element:** load the edges a CSV source's edgeSource and edgeTarget options name ([2f62994fa](https://github.com/graphty-org/graphty-monorepo/commit/2f62994fa))
+- **graphty-element:** satisfy lint and SonarQube in the load preview ([f134725ea](https://github.com/graphty-org/graphty-monorepo/commit/f134725ea))
+- **graphty-element:** keep edgeSource and edgeTarget as expressions when a load has no mapping ([3d74440f6](https://github.com/graphty-org/graphty-monorepo/commit/3d74440f6))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.12.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** legend blocks state what a higher value means and the bound range ([#912](https://github.com/graphty-org/graphty-monorepo/pull/912))
+- **graphty-element:** a yes/no switch for framing after a load ([#900](https://github.com/graphty-org/graphty-monorepo/pull/900))
+
+### 🩹 Fixes
+
+- **graphty-element:** legend reading and range only where they hold; keep an explicit fit ([e58419396](https://github.com/graphty-org/graphty-monorepo/commit/e58419396))
+- **graphty-element:** give label declutter a view door of its own ([#903](https://github.com/graphty-org/graphty-monorepo/pull/903))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.11.1 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty-element:** price louvain by the graph's transitivity, not one flat rate ([72ec48a6a](https://github.com/graphty-org/graphty-monorepo/commit/72ec48a6a))
+- **graphty-element:** pre-bundle the per-function lodash imports in the browser tests ([d11555da9](https://github.com/graphty-org/graphty-monorepo/commit/d11555da9))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.11.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** report node label counts on the element, not the session ([76778d4f3](https://github.com/graphty-org/graphty-monorepo/commit/76778d4f3))
+- **graphty-element:** count the labels the overlap rule hid, and which ([#787](https://github.com/graphty-org/graphty-monorepo/issues/787))
+- **graphty-element:** read XGMML, CX, CX2, Cytoscape sessions and OBO with no wiring ([6ec8b8aa4](https://github.com/graphty-org/graphty-monorepo/commit/6ec8b8aa4))
+
+### 🩹 Fixes
+
+- **graphty-element:** type graphty-label-change's detail and complete the labels guide ([521736a5e](https://github.com/graphty-org/graphty-monorepo/commit/521736a5e))
+- **graphty-element:** export the label count types from the session entry ([8b5886343](https://github.com/graphty-org/graphty-monorepo/commit/8b5886343))
+- **graphty-element:** tx.labels.setDeclutter joins the transaction ([cce1b13c6](https://github.com/graphty-org/graphty-monorepo/commit/cce1b13c6))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.30
+- Updated @graphty/remote-logger to 2.0.2
+- Updated graph-samples to 0.1.16
+- Updated graph-format to 1.3.1
+- Updated algorithms to 3.3.1
+- Updated graph-io to 0.3.21
+- Updated layout to 2.2.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.10.0 (2026-10-04)
 
 ### 🚀 Features

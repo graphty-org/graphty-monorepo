@@ -362,6 +362,45 @@ describe("the project file", () => {
         session.dispose();
     });
 
+    it("with markSaved false, stays dirty until the caller marks the file written", async () => {
+        const { harness } = withDegree();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "a" }]);
+
+        const failed = await session.project.save({ markSaved: false });
+        assert.isTrue(session.project.dirty, "a write that never happened leaves it dirty");
+
+        const saved = await session.project.save({ markSaved: false });
+        session.project.markSaved(saved);
+        assert.isFalse(session.project.dirty);
+        session.project.markSaved(failed);
+        assert.isFalse(session.project.dirty, "an older save marked late changes nothing");
+
+        await session.data.addNodes([{ id: "b" }]);
+        const late = await session.project.save({ markSaved: false });
+        await session.data.addNodes([{ id: "c" }]);
+        session.project.markSaved(late);
+        assert.isTrue(session.project.dirty, "an edit made while the file was written stays unsaved");
+        await session.undo();
+        assert.isFalse(session.project.dirty, "undo returns to the marked save");
+        session.dispose();
+    });
+
+    it("ignores a save marked after a project was opened over it", async () => {
+        const source = await busySession();
+        const { text } = await source.session.project.save();
+        const { harness } = withDegree();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "z" }]);
+        const stale = await session.project.save({ markSaved: false });
+        await session.project.open(text, { discard: true });
+        await session.data.addNodes([{ id: "y" }]);
+        session.project.markSaved(stale);
+        assert.isTrue(session.project.dirty);
+        source.session.dispose();
+        session.dispose();
+    });
+
     it("lists a run still computing as left out", async () => {
         const { harness } = withDegree();
         const { session } = harness;

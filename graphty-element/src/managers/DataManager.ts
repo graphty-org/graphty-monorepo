@@ -14,7 +14,7 @@ import { createEdgeCounter, edgeCounterOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
-import type { ImportReport } from "../data/report";
+import type { LoadReport } from "../data/report";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
@@ -560,8 +560,8 @@ export class DataManager implements Manager {
      * consumer that subscribed after the load has no way to ask otherwise.
      * @returns the report, or null when nothing has been loaded into this graph
      */
-    get lastImport(): ImportReport | null {
-        return (this.graph.slice.values.get("importReport") as ImportReport | undefined) ?? null;
+    get lastImport(): LoadReport | null {
+        return (this.graph.slice.values.get("importReport") as LoadReport | undefined) ?? null;
     }
 
     /**

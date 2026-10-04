@@ -224,6 +224,8 @@ export class UpdateManager implements Manager {
      * arrived after the layout stopped silently do nothing.
      */
     private forceZoomToFit = false;
+    /** Whether the outstanding request came from a consumer's `zoomToFit()`, not the element. */
+    private explicitZoomToFit = false;
     private config: Required<UpdateManagerConfig>;
     private layoutStepCount = 0;
     private minLayoutStepsBeforeZoom = 10;
@@ -609,10 +611,13 @@ export class UpdateManager implements Manager {
      * every frame once the layout has stopped -- so routing an explicit request through it made
      * `Graph.zoomToFit()` silent from the first settlement onwards, and made the element's own
      * "re-frame now that the layout has truly settled" call dead on arrival.
+     * @param explicit - True when a consumer asked, so {@link UpdateManager.stopAutoZoomToFit}
+     *   leaves the request standing.
      */
-    enableZoomToFit(): void {
+    enableZoomToFit(explicit = false): void {
         this.needsZoomToFit = true;
         this.forceZoomToFit = true;
+        this.explicitZoomToFit ||= explicit;
         // Whatever an earlier pass found to frame, this request has not been answered yet.
         this.framingHasNothingToFrame = false;
         // Only reset the layout step count if we haven't zoomed yet
@@ -632,6 +637,18 @@ export class UpdateManager implements Manager {
         // An outstanding request goes with it, so switching auto-framing back on later does not
         // spend a re-frame somebody asked for before it was switched off.
         this.forceZoomToFit = false;
+        this.explicitZoomToFit = false;
+    }
+
+    /**
+     * Stop the element's own framing -- the follow of a moving layout and any request the element
+     * made itself -- but keep a consumer's outstanding `zoomToFit()`, which is answered once.
+     */
+    stopAutoZoomToFit(): void {
+        this.needsZoomToFit = false;
+        if (!this.explicitZoomToFit) {
+            this.forceZoomToFit = false;
+        }
     }
 
     /**
@@ -1432,7 +1449,7 @@ export class UpdateManager implements Manager {
      * @returns True when this frame will re-frame the camera, given a box to frame.
      */
     private willZoomToFit(): boolean {
-        if (!this.needsZoomToFit) {
+        if (!this.needsZoomToFit && !this.forceZoomToFit) {
             return false;
         }
 
@@ -1519,6 +1536,7 @@ export class UpdateManager implements Manager {
 
         this.hasZoomedToFit = true;
         this.forceZoomToFit = false;
+        this.explicitZoomToFit = false;
         this.framingHasNothingToFrame = false;
         this.lastZoomStep = this.layoutStepCount;
 

@@ -77,6 +77,7 @@ export default defineConfig({
                         { text: "Neighbors", link: "/guide/neighbors" },
                         { text: "Labels", link: "/guide/labels" },
                         { text: "Data Sources", link: "/guide/data-sources" },
+                        { text: "Previewing a Load", link: "/guide/load-preview" },
                         { text: "Events", link: "/guide/events" },
                         { text: "Columns, Runs & Progress", link: "/guide/vocabulary" },
                         { text: "Undo & History", link: "/guide/undo" },

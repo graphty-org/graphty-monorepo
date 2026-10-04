@@ -17,8 +17,10 @@ import {
 } from "@graphty/graph-format";
 
 import { CellBudgetBuilder, maxEmptyCellsOption } from "./common/cell-budget.js";
+import { FETCH_CODE } from "./common/codes.js";
 import { throwIfAborted } from "./common/input.js";
-import { ImportReportBuilder } from "./common/report.js";
+import { ImportReportBuilder, isAbortError } from "./common/report.js";
+import { collectBytes } from "./common/writer.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
 import { cxImporter } from "./formats/cx/index.js";
 import { cx2Exporter, cx2Importer } from "./formats/cx2/index.js";
@@ -32,10 +34,11 @@ import { neo4jExporter, neo4jImporter } from "./formats/neo4j/index.js";
 import { oboImporter } from "./formats/obo/index.js";
 import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
 import { xgmmlExporter, xgmmlImporter } from "./formats/xgmml/index.js";
-import { rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
+import { type FormatName, rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
 import {
     type CommonExportOptions,
     type CommonImportOptions,
+    type ExportCapabilities,
     type GraphChoiceOptions,
     type GraphExporter,
     type GraphImporter,
@@ -62,9 +65,12 @@ export type BuilderSeed = Omit<
  * several, for the formats that list their graphs.
  */
 export interface ImportGraphOptions extends CommonImportOptions, GraphChoiceOptions {
-    /** The format name, or "auto" (default) to sniff it from the filename, MIME type and content. */
-    readonly format?: string | undefined;
-    /** The file name or path the input came from, a hint for sniffing. */
+    /**
+     * The format to read the input as ("graphml", "csv", ...), or "auto" (the default) to work it
+     * out from `filename`, `mimeType` and the first bytes of the input.
+     */
+    readonly format?: FormatName | "auto" | undefined;
+    /** The file name or full path the input came from; only its extension is used, as a format hint. */
     readonly filename?: string | null | undefined;
     /** The MIME type the input was served as, a hint for sniffing. */
     readonly mimeType?: string | null | undefined;
@@ -83,18 +89,79 @@ export interface ImportGraphOptions extends CommonImportOptions, GraphChoiceOpti
     readonly [formatOption: string]: unknown;
 }
 
-/** What importGraph() returns (design section 8.4). */
+/** What importGraph(), loadFromUrl() and loadFromFile() return. */
 export interface ImportGraphResult {
-    /** The format the input was read as. */
+    /** The format the input was read as ("graphml", ...). */
     readonly format: string;
-    /** The sniff that chose the importer, or null when the caller named the format. */
+    /** How the format was detected, or null when you named it. Most callers can ignore it. */
     readonly sniff: SniffResult | null;
-    /** The frozen snapshot. */
+    /**
+     * The graph. `snapshot.nodeCount`, `snapshot.edgeCount`, attribute tables and so on come from
+     * the `@graphty/graph-format` package.
+     */
     readonly snapshot: GraphSnapshot;
-    /** The importer's report. */
+    /**
+     * What happened during the import. `errorCount` counts skipped elements (see `errorLimit`,
+     * default 100); `warningCount` counts elements that were kept but changed; `issues` lists both;
+     * `counts.skippedNodes` / `counts.skippedEdges` say how much is missing from `snapshot`.
+     */
     readonly report: ImportReport;
-    /** The freeze report (design section 6.6). */
+    /** Statistics from the final build step. Most callers can ignore it. */
     readonly freeze: FreezeReport;
+}
+
+/**
+ * Options for loadFromUrl(): everything importGraph() accepts, plus the fetch request settings.
+ * @example
+ * ```ts
+ * await loadFromUrl("/api/graph.csv", { request: { headers: { Authorization: token } }, delimiter: ";" });
+ * ```
+ */
+export interface LoadFromUrlOptions extends ImportGraphOptions {
+    /**
+     * Passed to fetch() as its second argument: headers, credentials, mode and so on. If you set
+     * `signal` in the import options and not here, the same signal also cancels the download.
+     */
+    readonly request?: RequestInit | undefined;
+}
+
+/**
+ * Options for downloadGraph(): the export options plus the name of the saved file.
+ * @example
+ * ```ts
+ * await downloadGraph(snapshot, "graphml", { filename: "network.graphml" });
+ * ```
+ */
+export interface DownloadGraphOptions extends ExportGraphOptions {
+    /**
+     * The file name the browser saves as. The default is "graph" plus the first entry of the
+     * format's `extensions` ("graph.graphml"), or "graph.<format>" when it lists none.
+     */
+    readonly filename?: string | undefined;
+}
+
+/** One format the registry can read, write or both. */
+export interface FormatInfo {
+    /** The name you pass as `format`: "graphml", "gexf", "csv", "pajek", ... */
+    readonly format: string;
+    /**
+     * File extensions with the leading dot, most common first (".graphml", ".net"). Empty only for a
+     * custom format that declares none.
+     */
+    readonly extensions: readonly string[];
+    /** MIME types, most specific first. Empty when the format declares none. */
+    readonly mimeTypes: readonly string[];
+    /** Whether loadFromUrl(), loadFromFile() and importGraph() can read it. */
+    readonly canImport: boolean;
+    /** Whether the export functions can write it. */
+    readonly canExport: boolean;
+    /**
+     * What the format can store exactly, or null when it cannot be written. The fields are
+     * mixedDirection, multiEdges, selfLoops, edgeIds, idCharset, dtypes, components, lists, json,
+     * defaults, options, hierarchy, temporal, graphAttributes, positions and viz (each documented on
+     * ExportCapabilities). checkExport() tells you where a particular graph goes beyond this.
+     */
+    readonly capabilities: ExportCapabilities | null;
 }
 
 /** The options of exportGraph(): the common export options plus any format-specific option, passed through. */
@@ -149,7 +216,7 @@ export class FormatRegistry {
      * @param format - the format name
      * @returns the importer; E_UNSUPPORTED when none is registered
      */
-    importer(format: string): GraphImporter {
+    importer(format: FormatName): GraphImporter {
         const importer = this.importerMap.get(format);
         if (importer === undefined) {
             throw unknownFormat("importer", format, this.importerMap.keys());
@@ -162,7 +229,7 @@ export class FormatRegistry {
      * @param format - the format name
      * @returns the exporter; E_UNSUPPORTED when none is registered
      */
-    exporter(format: string): GraphExporter {
+    exporter(format: FormatName): GraphExporter {
         const exporter = this.exporterMap.get(format);
         if (exporter === undefined) {
             throw unknownFormat("exporter", format, this.exporterMap.keys());
@@ -175,7 +242,7 @@ export class FormatRegistry {
      * @param format - the format name
      * @returns true when importer(format) would succeed
      */
-    hasImporter(format: string): boolean {
+    hasImporter(format: FormatName): boolean {
         return this.importerMap.has(format);
     }
 
@@ -184,7 +251,7 @@ export class FormatRegistry {
      * @param format - the format name
      * @returns true when exporter(format) would succeed
      */
-    hasExporter(format: string): boolean {
+    hasExporter(format: FormatName): boolean {
         return this.exporterMap.has(format);
     }
 
@@ -254,6 +321,54 @@ export class FormatRegistry {
             throw err;
         }
         return result(chosen, builder, report, options);
+    }
+
+    /**
+     * Fetch a graph file from a URL and load it; see the top-level loadFromUrl() for the full
+     * description.
+     * @param url - an absolute URL, or in a browser one relative to the page
+     * @param options - import options, plus `request` for fetch
+     * @returns the graph, the format it was read as, and the import report
+     */
+    async loadFromUrl(url: string | URL, options: LoadFromUrlOptions = {}): Promise<ImportGraphResult> {
+        const { request, ...rest } = options;
+        const signal = request?.signal ?? rest.signal ?? null;
+        const method = request?.method ?? "GET";
+        const where = `${method} ${String(url)}`;
+        let response: Response;
+        try {
+            response = await fetch(url, { signal: rest.signal, ...request });
+        } catch (err) {
+            if (signal?.aborted === true || isAbortError(err)) {
+                throw err;
+            }
+            return fetchFailed(rest, url, `${where} failed: network error or CORS refusal`, null, err);
+        }
+        if (!response.ok) {
+            await response.body?.cancel().catch(() => undefined);
+            const status = `${String(response.status)} ${response.statusText}`.trim();
+            return fetchFailed(rest, url, `${where} failed: ${status}`, response.status, null);
+        }
+        return this.importGraph(response.body ?? new Uint8Array(0), {
+            ...rest,
+            filename: rest.filename ?? urlFilename(url),
+            mimeType: rest.mimeType ?? response.headers.get("content-type"),
+        });
+    }
+
+    /**
+     * Load a graph from a File or Blob; see the top-level loadFromFile() for the full description.
+     * @param file - the File or Blob to read
+     * @param options - the same options as importGraph()
+     * @returns the graph, the format it was read as, and the import report
+     */
+    loadFromFile(file: Blob, options: ImportGraphOptions = {}): Promise<ImportGraphResult> {
+        const {name} = (file as { name?: unknown });
+        return this.importGraph(file.stream(), {
+            ...options,
+            filename: options.filename ?? (typeof name === "string" ? name : null),
+            mimeType: options.mimeType ?? (file.type === "" ? null : file.type),
+        });
     }
 
     /**
@@ -344,7 +459,7 @@ export class FormatRegistry {
      * @param options - the exporter's common and format-specific options
      * @returns the encoded chunks
      */
-    exportGraph(snapshot: GraphSnapshot, format: string, options?: ExportGraphOptions): AsyncIterable<Uint8Array> {
+    exportGraph(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions): AsyncIterable<Uint8Array> {
         return this.exporter(format).export(snapshot, options);
     }
 
@@ -355,8 +470,37 @@ export class FormatRegistry {
      * @param options - the exporter's common and format-specific options
      * @returns the whole document
      */
-    async exportGraphToString(snapshot: GraphSnapshot, format: string, options?: ExportGraphOptions): Promise<string> {
+    async exportGraphToString(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions): Promise<string> {
         return this.exporter(format).exportToString(snapshot, options);
+    }
+
+    /**
+     * Write a snapshot in a format as one buffer of UTF-8 bytes; see the top-level
+     * exportGraphToBytes().
+     * @param snapshot - the graph to write
+     * @param format - a format name where `canExport` is true
+     * @param options - sanitizeIds, onMixedDirection and the format's own options
+     * @returns the encoded file
+     */
+    exportGraphToBytes(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions): Promise<Uint8Array> {
+        return collectBytes(this.exportGraph(snapshot, format, options));
+    }
+
+    /**
+     * Write a snapshot in a format as a Blob typed with the format's first MIME type; see the
+     * top-level exportGraphToBlob().
+     * @param snapshot - the graph to write
+     * @param format - a format name where `canExport` is true
+     * @param options - sanitizeIds, onMixedDirection and the format's own options
+     * @returns the file as a Blob
+     */
+    async exportGraphToBlob(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions): Promise<Blob> {
+        const parts: Uint8Array[] = [];
+        for await (const chunk of this.exportGraph(snapshot, format, options)) {
+            parts.push(chunk);
+        }
+        const info = this.listFormats().find((f) => f.format === format);
+        return new Blob(parts as BlobPart[], { type: info?.mimeTypes[0] ?? "application/octet-stream" });
     }
 
     /**
@@ -366,8 +510,28 @@ export class FormatRegistry {
      * @param options - the exporter's common and format-specific options
      * @returns the loss notes, empty when the export is exact
      */
-    checkExport(snapshot: GraphSnapshot, format: string, options?: ExportGraphOptions): readonly LossNote[] {
+    checkExport(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions): readonly LossNote[] {
         return this.exporter(format).check(snapshot, options);
+    }
+
+    /**
+     * Every format this registry can read or write, in registration order; see the top-level
+     * listFormats().
+     * @returns one entry per format
+     */
+    listFormats(): readonly FormatInfo[] {
+        return this.formats().map((format) => {
+            const importer = this.importerMap.get(format);
+            const exporter = this.exporterMap.get(format);
+            return Object.freeze({
+                format,
+                extensions: importer?.extensions ?? exporter?.extensions ?? [],
+                mimeTypes: importer?.mimeTypes ?? exporter?.mimeTypes ?? [],
+                canImport: importer !== undefined,
+                canExport: exporter !== undefined,
+                capabilities: exporter?.capabilities ?? null,
+            });
+        });
     }
 }
 
@@ -445,7 +609,7 @@ export function listGraphs(input: ImportInput, options?: ImportGraphOptions): Pr
  */
 export function exportGraph(
     snapshot: GraphSnapshot,
-    format: string,
+    format: FormatName,
     options?: ExportGraphOptions,
 ): AsyncIterable<Uint8Array> {
     return registry.exportGraph(snapshot, format, options);
@@ -460,7 +624,7 @@ export function exportGraph(
  */
 export async function exportGraphToString(
     snapshot: GraphSnapshot,
-    format: string,
+    format: FormatName,
     options?: ExportGraphOptions,
 ): Promise<string> {
     return registry.exportGraphToString(snapshot, format, options);
@@ -475,10 +639,198 @@ export async function exportGraphToString(
  */
 export function checkExport(
     snapshot: GraphSnapshot,
-    format: string,
+    format: FormatName,
     options?: ExportGraphOptions,
 ): readonly LossNote[] {
     return registry.checkExport(snapshot, format, options);
+}
+
+/**
+ * Fetch a graph file from a URL and load it. The file is streamed into the importer as it
+ * downloads, so a large file is not held in memory twice. When you do not name a `format`, it is
+ * worked out from the URL's file name, the response's Content-Type and the first bytes of the
+ * file. Your own `filename` or `mimeType` option takes the place of the hint from the URL or the
+ * response. Every other option goes to importGraph() unchanged, including format-specific ones
+ * such as `delimiter` or `dialect`, and `graphIndex` / `graphName` for files that hold several
+ * graphs. The result is the same as importGraph()'s. A successful load can still have skipped
+ * elements; check `report.errorCount` and `report.warningCount`, or pass `errorLimit: 0` to make
+ * the first error fatal. Works wherever fetch exists: browsers, Node 18 and later, Deno, Bun and
+ * workers.
+ * @param url - an absolute URL, or in a browser one relative to the page
+ * @param options - import options, plus `request` for fetch
+ * @returns the graph, the format it was read as, and the import report
+ * @throws ImportError when the file could not be loaded; `err.issue.code` is "E_FETCH" for a
+ *   network failure, a CORS refusal or a status outside 200-299 (`err.details.url`,
+ *   `err.details.status` -- null for a network failure -- and `err.details.cause`, fetch's own
+ *   error), "E_UNKNOWN_FORMAT" when no format recognizes the file (pass `format`), or the code of
+ *   the parse error
+ * @throws GraphFormatError with code E_UNSUPPORTED when `format` names no registered importer
+ * @throws the signal's reason when `signal` aborts
+ * @example
+ * ```ts
+ * import { GraphFormatError, loadFromUrl } from "@graphty/graph-io";
+ *
+ * try {
+ *     const { snapshot, format } = await loadFromUrl("https://example.com/data/karate.gml");
+ *     console.log(`${format}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
+ * } catch (err) {
+ *     if (err instanceof GraphFormatError) {
+ *         console.error(err.message);
+ *     } else {
+ *         throw err;
+ *     }
+ * }
+ * ```
+ */
+export function loadFromUrl(url: string | URL, options?: LoadFromUrlOptions): Promise<ImportGraphResult> {
+    return registry.loadFromUrl(url, options);
+}
+
+/**
+ * Load a graph from a File or Blob: a file the user picked in an `<input type="file">`, a file
+ * dropped on the page, a Blob you built, or in Node a Blob from `fs.openAsBlob(path)`. The content
+ * is streamed into the importer. A File's `name` and the Blob's `type` are used as format hints
+ * unless you pass `filename` or `mimeType` yourself. Options, result and errors are the same as
+ * loadFromUrl()'s, without E_FETCH.
+ * @param file - the File or Blob to read
+ * @param options - the same options as importGraph()
+ * @returns the graph, the format it was read as, and the import report
+ * @throws ImportError when the file could not be loaded (`err.issue.code` E_UNKNOWN_FORMAT or a parse error)
+ * @throws GraphFormatError with code E_UNSUPPORTED when `format` names no registered importer
+ * @throws the signal's reason when `signal` aborts
+ * @example
+ * ```ts
+ * input.addEventListener("change", async () => {
+ *     const file = input.files?.[0];
+ *     if (file) {
+ *         const { snapshot, report } = await loadFromFile(file);
+ *         console.log(`${snapshot.nodeCount} nodes, ${report.errorCount} skipped`);
+ *     }
+ * });
+ * ```
+ */
+export function loadFromFile(file: Blob, options?: ImportGraphOptions): Promise<ImportGraphResult> {
+    return registry.loadFromFile(file, options);
+}
+
+/**
+ * Write a graph in a format and return the whole file as UTF-8 bytes, ready for fs.writeFile, a
+ * fetch body or a zip entry. Prefer this over exportGraphToString() when the result goes to a file
+ * or the network. To stream a very large graph, use exportGraph(). To find out beforehand what the
+ * file will not keep, call checkExport() with the same format and the same options object: every
+ * "E_" note it returns makes this call throw, and every "W_" note describes a loss this call
+ * accepts. With default options, any "E_" note makes the call throw: sanitizeIds is "error" (ids
+ * are never renamed) and onMixedDirection is "error". Pass sanitizeIds "mangle" or
+ * onMixedDirection "directed" / "undirected" to write anyway. The format's own options (the CSV
+ * `table` and `dialect`, the GEXF `version`, ...) go in the same object.
+ * @param snapshot - the graph to write
+ * @param format - a format name from listFormats() where `canExport` is true
+ * @param options - sanitizeIds, onMixedDirection and the format's own options
+ * @returns the encoded file
+ * @throws GraphFormatError with code E_UNSUPPORTED when no exporter is registered for `format`
+ * @throws GraphFormatError when the graph cannot be written in this format under these options
+ *   (checkExport() returns an "E_" note for the same call)
+ * @example
+ * ```ts
+ * import { writeFile } from "node:fs/promises";
+ *
+ * await writeFile("out.gexf", await exportGraphToBytes(snapshot, "gexf"));
+ * ```
+ */
+export function exportGraphToBytes(
+    snapshot: GraphSnapshot,
+    format: FormatName,
+    options?: ExportGraphOptions,
+): Promise<Uint8Array> {
+    return registry.exportGraphToBytes(snapshot, format, options);
+}
+
+/**
+ * Write a graph in a format and return it as a Blob, for uploading with fetch or FormData or for
+ * offering as a download. The Blob's `type` is the first entry of the format's `mimeTypes` in
+ * listFormats(), or application/octet-stream when the format lists none. The exporter's chunks
+ * are kept as they are and never joined into one string. Options and errors are the same as
+ * exportGraphToBytes().
+ * @param snapshot - the graph to write
+ * @param format - a format name from listFormats() where `canExport` is true
+ * @param options - sanitizeIds, onMixedDirection and the format's own options
+ * @returns the file as a Blob
+ * @throws the same errors as exportGraphToBytes()
+ * @example
+ * ```ts
+ * const body = new FormData();
+ * body.append("file", await exportGraphToBlob(snapshot, "graphml"), "graph.graphml");
+ * await fetch("/api/graphs", { method: "POST", body });
+ * ```
+ */
+export function exportGraphToBlob(
+    snapshot: GraphSnapshot,
+    format: FormatName,
+    options?: ExportGraphOptions,
+): Promise<Blob> {
+    return registry.exportGraphToBlob(snapshot, format, options);
+}
+
+/**
+ * Browser only: write a graph in a format and have the browser save it as a file, the same as
+ * clicking a download link. Call it from a click handler; awaiting other work first is fine. The
+ * promise resolves once the file has been handed to the browser. There is no way to learn
+ * whether the user then cancelled the save. Calling it where there is no `document` (Node, a
+ * worker) throws instead of silently doing nothing; importing it is safe everywhere. Formats you
+ * registered with `registry.registerExporter()` can be downloaded too.
+ * @param snapshot - the graph to write
+ * @param format - a format name from listFormats() where `canExport` is true
+ * @param options - the export options, plus `filename`
+ * @returns resolves once the download has been handed to the browser
+ * @throws GraphFormatError with code E_UNSUPPORTED when called without a DOM `document`
+ * @throws the same errors as exportGraphToBytes()
+ * @example
+ * ```ts
+ * saveButton.addEventListener("click", () => {
+ *     void downloadGraph(snapshot, "graphml", { filename: "network.graphml" });
+ * });
+ * ```
+ */
+export async function downloadGraph(
+    snapshot: GraphSnapshot,
+    format: FormatName,
+    options: DownloadGraphOptions = {},
+): Promise<void> {
+    if (typeof document === "undefined") {
+        throw new GraphFormatError(
+            "E_UNSUPPORTED",
+            "downloadGraph() needs a browser document; use exportGraphToBytes() and write the bytes yourself",
+        );
+    }
+    const { filename, ...rest } = options;
+    const blob = await registry.exportGraphToBlob(snapshot, format, rest);
+    const extension = registry.listFormats().find((f) => f.format === format)?.extensions[0] ?? `.${format}`;
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = filename ?? `graph${extension}`;
+    anchor.click();
+    // Safari cancels the download when the URL is revoked in the same task
+    setTimeout(() => {
+        URL.revokeObjectURL(href);
+    }, 0);
+}
+
+/**
+ * Every format the default registry can read or write, including any you registered yourself:
+ * the built-in formats in the order of GRAPH_FORMATS (the order format detection prefers them),
+ * then yours in registration order. Use it to fill a "Save as" menu (the entries with
+ * `canExport`), a file input's `accept` attribute (the `extensions` of the entries with
+ * `canImport`), or to pick the output format from a file name.
+ * @returns one entry per format
+ * @example
+ * ```ts
+ * input.accept = listFormats().filter((f) => f.canImport).flatMap((f) => f.extensions).join(",");
+ * const target = listFormats().find((f) => f.canExport && f.extensions.includes(extensionOf(path) ?? ""));
+ * ```
+ */
+export function listFormats(): readonly FormatInfo[] {
+    return registry.listFormats();
 }
 
 /**
@@ -488,6 +840,37 @@ export function checkExport(
  */
 export function sniff(hints: SniffHints): SniffResult | null {
     return registry.sniff(hints);
+}
+
+/**
+ * Abort a loadFromUrl() whose fetch failed with an E_FETCH ImportError.
+ * @param options - the import options (for the format name on the report)
+ * @param url - the URL
+ * @param message - the message
+ * @param status - the HTTP status, or null for a network failure
+ * @param cause - fetch's own error, or null
+ * @returns never; always throws
+ */
+function fetchFailed(
+    options: ImportGraphOptions,
+    url: string | URL,
+    message: string,
+    status: number | null,
+    cause: unknown,
+): never {
+    const format = options.format === undefined || options.format === "auto" ? "unknown" : options.format;
+    return new ImportReportBuilder(format, 0).fail(FETCH_CODE, message, undefined, { url: String(url), status, cause });
+}
+
+/**
+ * The last path segment of a URL, as a format hint.
+ * @param url - the URL, absolute or relative
+ * @returns the file name, or null when the path ends in "/"
+ */
+function urlFilename(url: string | URL): string | null {
+    const path = new URL(url, "http://localhost/").pathname;
+    const name = path.slice(path.lastIndexOf("/") + 1);
+    return name === "" ? null : name;
 }
 
 /**

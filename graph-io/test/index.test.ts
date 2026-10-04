@@ -4,8 +4,17 @@ import * as graphIo from "../src/index.js";
 
 /** The value exports of the barrel (classes, functions, constants); the types are checked by test/types. */
 const VALUE_EXPORTS = [
+    // re-exported from graph-format
+    "GraphFormatError",
     // io contract (12.4)
     "ImportError",
+    // the simple surface
+    "downloadGraph",
+    "exportGraphToBlob",
+    "exportGraphToBytes",
+    "listFormats",
+    "loadFromFile",
+    "loadFromUrl",
     // registry, sniffing, children (8.2)
     "FormatRegistry",
     "GRAPH_FORMATS",
@@ -195,6 +204,7 @@ const VALUE_EXPORTS = [
     "WIDENING_UNSUPPORTED_CODE",
     "XML_ILLEGAL_CHAR_CODE",
     "XML_SYNTAX_CODE",
+    "FETCH_CODE",
     // the shared importer and exporter machinery (8.4, 8.5)
     "TextCellWriter",
     "XmlSyntaxError",

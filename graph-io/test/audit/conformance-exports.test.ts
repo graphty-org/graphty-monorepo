@@ -133,6 +133,8 @@ interface DesignCommonExportOptions {
 interface DesignGraphExporter<Opts = unknown> {
     readonly format: string;
     readonly capabilities: ExportCapabilities;
+    readonly extensions?: readonly string[] | undefined;
+    readonly mimeTypes?: readonly string[] | undefined;
     check(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): readonly LossNote[];
     export(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): AsyncIterable<Uint8Array>;
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;

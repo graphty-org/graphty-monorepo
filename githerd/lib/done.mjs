@@ -610,7 +610,7 @@ async function settleClaim(ctx, job, report, session) {
  * @param {any} result what board.endAttempt or board.verifyResult returned
  * @param {Date} now the current time
  */
-export function afterSettle(state, job, holder, result, now) {
+function afterSettle(state, job, holder, result, now) {
     if (holder?.pane && !job.holder) {
         state.retiring ??= [];
         state.retiring.push({ job: job.id, holder, reason: `job ${job.state}`, at: now.toISOString() });

@@ -1756,6 +1756,29 @@ describe("liveness", () => {
         expect(events).toEqual([expect.objectContaining({ from: "0", to: containerStart() })]);
     });
 
+    it("charges no session death to a job whose worker the container restart took", async () => {
+        const stateDir = join(dir, ".githerd");
+        mkdirSync(stateDir);
+        writeFileSync(join(stateDir, "alive"), JSON.stringify({ pid: 1, pid1Start: "0" }));
+        const job = newJob({ kind: "issue", target: "#14", id: "issue-14" }, clock);
+        job.state = "working";
+        job.deaths = [{ at: clock.toISOString(), capture: null }];
+        job.holder = { pane: "%1", window: "@1", pid: process.pid, startTime: "0", session: "s1", name: "x" };
+        writeFileSync(join(stateDir, "state.json"), JSON.stringify({ schema: 1, jobs: { "issue-14": job } }));
+        const daemon = await start();
+        await daemon.watch();
+        const after = daemon.state.jobs["issue-14"];
+        expect(after.deaths).toHaveLength(1);
+        expect(after.holder).toBeNull();
+        expect(after.state).toBe("working");
+        await daemon.shutdown();
+        const ledger = await readLedger(stateDir);
+        expect(ledger.filter((e) => e.kind === "holder-voided")).toEqual([
+            expect.objectContaining({ job: "issue-14", reason: "container restarted" }),
+        ]);
+        expect(ledger.filter((e) => e.kind === "session-death")).toEqual([]);
+    });
+
     it("sees no container restart when PID 1 is the one alive recorded", async () => {
         const stateDir = join(dir, ".githerd");
         mkdirSync(stateDir);

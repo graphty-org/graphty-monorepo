@@ -360,6 +360,23 @@ function settled(rec) {
 }
 
 /**
+ * Clears every job's holder after a container restart: its pid, pane and window belong to a
+ * process that no longer exists, and its loss is the platform's, not the job's.
+ * @param {any} state the daemon state
+ * @returns {string[]} the jobs whose holder was cleared
+ */
+function voidHolders(state) {
+    const voided = [];
+    for (const job of Object.values(state.jobs ?? {})) {
+        if (!job.holder) continue;
+        job.holder = null;
+        job.watch = null;
+        voided.push(job.id);
+    }
+    return voided;
+}
+
+/**
  * Logs the runs a restart found lost or interrupted.
  * @param {{lost: string[], interrupted: string[]}} recovered what recoverRuns found
  * @param {(level: string, text: string) => void} say the log
@@ -502,6 +519,9 @@ export async function startDaemon({
     if (containerRestarted)
         say("info", `the container restarted (PID 1 start time ${previous.alive.pid1Start} -> ${pid1Start})`);
     logRecovered(recovered, say);
+    // After a container restart every recorded pid and pane is void (design 3.5, 9.2): a worker's
+    // session did not die of anything the job did, so no death is counted; the job continues.
+    const voided = containerRestarted ? voidHolders(state) : [];
 
     let fenced = false;
     /** set once halt releases the lock: a run that ends later must not write the state */
@@ -2306,6 +2326,7 @@ export async function startDaemon({
     await save();
     if (containerRestarted) {
         ledger({ kind: "event", event: "container-restart", from: previous.alive.pid1Start, to: pid1Start });
+        for (const job of voided) ledger({ kind: "holder-voided", job, reason: "container restarted" });
     }
     const aliveTimer = setInterval(() => {
         if (!fenced) beat();

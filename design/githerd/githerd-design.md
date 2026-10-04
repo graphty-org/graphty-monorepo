@@ -1323,7 +1323,9 @@ Everything is under `~/.githerd/graphty-monorepo/`, outside the repository:
 3. Load config: master's if valid, else `config.last-good.json` with a banner, else fatal mode.
 4. Load state (`state.json`, `.bak`, rebuild).
 5. If PID 1's start time differs from the one recorded in `alive`, the container restarted [R21]:
-   every recorded pid and pane is void.
+   every recorded pid and pane is void. Every job's holder is cleared, with a `holder-voided`
+   ledger line, and no session death is counted: the loss is the platform's (5.3), and a third
+   death would otherwise fault every job the restart touched.
 6. Check the `gh` login. Changed: dispatch and writes frozen, owner item.
 7. **Release check first**: tags, npm and version commits; a half-state is an incident.
 8. Reconcile with the persisted ETags. Every open head's verdict is compared with its posted

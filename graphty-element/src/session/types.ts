@@ -66,13 +66,7 @@ import type {
     WeightMeaning,
 } from "./runs";
 import type { ScopeApi } from "./scope/index";
-import type {
-    SelectionApi,
-    SelectionDelta,
-    SelectionOwner,
-    SelectionTarget,
-    SelectionTextMode,
-} from "./selection";
+import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, SelectionTextMode } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
 import type { ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";

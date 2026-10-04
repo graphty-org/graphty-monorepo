@@ -556,6 +556,8 @@ class TableReader {
             signal: state.common.signal,
             onProgress: progress ? state.common.onProgress : null,
             encoding: state.common.encoding,
+            // an adjacency table has no header: an empty one is the empty graph
+            allowEmpty: kind === "adjacency",
         };
         this.reader = new CsvRecordReader(input, state.report, readerOptions);
     }

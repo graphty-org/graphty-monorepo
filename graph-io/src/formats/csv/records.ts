@@ -795,7 +795,12 @@ export class CsvRecordReader implements AsyncIterable<string[]> {
                 comments: options.comments,
                 skipQuoteErrors: options.skipQuoteErrors,
             },
-            { signal: options.signal, onProgress: options.onProgress, encoding: options.encoding },
+            {
+                signal: options.signal,
+                onProgress: options.onProgress,
+                encoding: options.encoding,
+                allowEmpty: options.allowEmpty,
+            },
         );
     }
 

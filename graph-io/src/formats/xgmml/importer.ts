@@ -181,7 +181,7 @@ export async function parseXgmml(
     const seen = { head: "", content: false };
     try {
         await tokenizeXml(
-            watch(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding }), seen),
+            watch(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding, xml: true }), seen),
             parser,
             repairs,
         );

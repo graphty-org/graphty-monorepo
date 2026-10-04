@@ -1,7 +1,13 @@
 import { GraphFormatError } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { ENCODING_FALLBACK_CODE, INVALID_ENCODING_CODE, UNKNOWN_ENCODING_CODE } from "../../src/common/codes.js";
+import {
+    ENCODING_CONFLICT_CODE,
+    ENCODING_FALLBACK_CODE,
+    INVALID_ENCODING_CODE,
+    OPTION_IGNORED_CODE,
+    UNKNOWN_ENCODING_CODE,
+} from "../../src/common/codes.js";
 import {
     canonicalEncoding,
     decodeEntryName,
@@ -35,8 +41,12 @@ async function collect(input: ImportInput, r = report(), options = {}): Promise<
     return out;
 }
 
-async function linesOf(input: ImportInput, r = report()): Promise<{ lines: string[]; numbers: number[] }> {
-    const reader = new LineReader(input, r);
+async function linesOf(
+    input: ImportInput,
+    r = report(),
+    options = {},
+): Promise<{ lines: string[]; numbers: number[] }> {
+    const reader = new LineReader(input, r, options);
     const lines: string[] = [];
     const numbers: number[] = [];
     for await (const line of reader) {
@@ -66,9 +76,10 @@ describe("isImportInput / inputLength", () => {
 });
 
 describe("textChunks", () => {
-    it("reads a string as one chunk", async () => {
+    it("reads a string as one chunk; an empty input is E_EMPTY_INPUT unless the format allows it", async () => {
         expect(await collect("hello")).toEqual(["hello"]);
-        expect(await collect("")).toEqual([]);
+        expect(await collect("", report(), { allowEmpty: true })).toEqual([]);
+        await expect(collect("")).rejects.toMatchObject({ details: { code: "E_EMPTY_INPUT" } });
     });
 
     it("decodes bytes, streams, byte iterables and text iterables to the same text", async () => {
@@ -105,7 +116,7 @@ describe("textChunks", () => {
         expect((await collect(byteChunks(encoder.encode(`${bom}abc`), 1))).join("")).toBe("abc");
         expect((await collect(textChunksOf(`${bom}abc`, 2))).join("")).toBe("abc");
         expect((await collect(`a${bom}bc`)).join("")).toBe(`a${bom}bc`);
-        expect(await collect(bom)).toEqual([]);
+        expect(await collect(bom, report(), { allowEmpty: true })).toEqual([]);
     });
 
     it("reports invalid UTF-8 as a parse-error and aborts with ImportError", async () => {
@@ -168,7 +179,7 @@ describe("textChunks", () => {
         await collect(encoder.encode("abcd"), report(), { onProgress });
         expect(calls).toEqual([[4, 4]]);
         calls.length = 0;
-        await collect(new Uint8Array(0), report(), { onProgress });
+        await collect(new Uint8Array(0), report(), { onProgress, allowEmpty: true });
         expect(calls).toEqual([[0, 0]]);
         calls.length = 0;
         await collect(byteChunks(encoder.encode("abcdef"), 4), report(), { onProgress });
@@ -300,11 +311,12 @@ describe("LineReader", () => {
     });
 
     it("keeps empty lines and drops nothing but terminators", async () => {
+        const blank = { allowEmpty: true };
         expect((await linesOf("a\n\nb\n")).lines).toEqual(["a", "", "b"]);
-        expect((await linesOf("\n")).lines).toEqual([""]);
-        expect((await linesOf("\r\n")).lines).toEqual([""]);
-        expect((await linesOf("\r")).lines).toEqual([""]);
-        expect((await linesOf("")).lines).toEqual([]);
+        expect((await linesOf("\n", report(), blank)).lines).toEqual([""]);
+        expect((await linesOf("\r\n", report(), blank)).lines).toEqual([""]);
+        expect((await linesOf("\r", report(), blank)).lines).toEqual([""]);
+        expect((await linesOf("", report(), blank)).lines).toEqual([]);
         expect((await linesOf("no newline")).lines).toEqual(["no newline"]);
         expect((await linesOf("trailing\r")).lines).toEqual(["trailing"]);
         expect((await linesOf("a\n\r\n")).lines).toEqual(["a", ""]);
@@ -409,20 +421,34 @@ describe("byte decoding: BOM, declaration, option, windows-1252 fallback", () =>
         expect(await decoded(latin, { declaredEncoding })).toEqual({ text: `enc=iso-8859-1 ${E_ACUTE}`, codes: [] });
         const unknown = await decoded(encoder.encode("enc=klingon x"), { declaredEncoding });
         expect(unknown).toEqual({ text: "enc=klingon x", codes: [UNKNOWN_ENCODING_CODE] });
+        // a declared UTF-16 over bytes that are not UTF-16 is read as UTF-8, no longer silently
         expect(await decoded(encoder.encode("enc=utf-16 x"), { declaredEncoding })).toEqual({
             text: "enc=utf-16 x",
-            codes: [],
+            codes: [ENCODING_CONFLICT_CODE],
         });
     });
 
-    it("lets the encoding option override the BOM and the declaration, and leaves text input alone", async () => {
+    // this test pinned the option silently winning over a BOM (the BOM became the text "i>>?" glued
+    // to the first cell); a BOM now wins, and every disagreement is a W_ENCODING_CONFLICT warning
+    it("lets a BOM win over the encoding option and the option over the declaration, warning on each conflict", async () => {
         const declaredEncoding = (): string => "utf-16le";
-        const bytes = new Uint8Array([0xef, 0xbb, 0xbf, 0xe9]);
+        const bytes = encoder.encode(`${String.fromCharCode(0xfeff)}${E_ACUTE}`);
         expect(await decoded(bytes, { encoding: "windows-1252", declaredEncoding })).toEqual({
-            text: `${String.fromCharCode(0xef, 0xbb, 0xbf)}${E_ACUTE}`,
-            codes: [],
+            text: E_ACUTE,
+            codes: [ENCODING_CONFLICT_CODE, ENCODING_CONFLICT_CODE],
         });
-        expect(await decoded(`x${E_ACUTE}`, { encoding: "utf-16be" })).toEqual({ text: `x${E_ACUTE}`, codes: [] });
+        const latin = (): string => "iso-8859-1";
+        expect(await decoded(encoder.encode(E_ACUTE), { encoding: "utf-8", declaredEncoding: latin })).toEqual({
+            text: E_ACUTE,
+            codes: [ENCODING_CONFLICT_CODE],
+        });
+    });
+
+    it("reports an encoding option given with text input as ignored (the text is already decoded)", async () => {
+        expect(await decoded(`x${E_ACUTE}`, { encoding: "utf-16be" })).toEqual({
+            text: `x${E_ACUTE}`,
+            codes: [OPTION_IGNORED_CODE],
+        });
     });
 
     it("reads a prolog's encoding and a canonical encoding name", () => {

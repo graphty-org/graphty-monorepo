@@ -2130,7 +2130,7 @@ async function importGraphml(
     reportUnusedOptions(options, report, USED_OPTIONS);
     const reader = new GraphmlReader(sink, report, common, yfilesMode);
     try {
-        await tokenizeXml(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding }), reader);
+        await tokenizeXml(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding, xml: true }), reader);
     } catch (err) {
         if (err instanceof XmlSyntaxError) {
             report.fail(GRAPHML_ISSUE.XML_SYNTAX, err.message, { line: err.line });

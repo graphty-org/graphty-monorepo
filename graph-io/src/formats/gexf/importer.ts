@@ -2355,7 +2355,7 @@ export const gexfImporter: GraphImporter<GexfImportOptions> = Object.freeze({
         const reader = new GexfReader(sink, report, resolved, viz);
         try {
             await tokenizeXml(
-                textChunks(input, report, { ...resolved, declaredEncoding: xmlDeclaredEncoding }),
+                textChunks(input, report, { ...resolved, declaredEncoding: xmlDeclaredEncoding, xml: true }),
                 reader,
             );
         } catch (err) {

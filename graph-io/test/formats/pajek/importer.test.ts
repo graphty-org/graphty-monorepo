@@ -614,7 +614,8 @@ describe("pajekImporter: direction", () => {
 describe("pajekImporter: structure errors and the error limit", () => {
     it("refuses an empty file, garbage and a file without *Vertices with ImportError and a report", async () => {
         const empty = await fails(readMalformedText("pajek", "empty-file.net"));
-        expect(codes(empty.report)).toEqual([PAJEK_ISSUE.NO_VERTICES]);
+        // one code for the concept: every importer gives an empty input E_EMPTY_INPUT (was E_PAJEK_NO_VERTICES)
+        expect(codes(empty.report)).toEqual([PAJEK_ISSUE.EMPTY_INPUT]);
         expect(empty.report.issues[0].category).toBe("parse-error");
         const garbage = await fails(readMalformedText("pajek", "garbage-content.net"));
         expect(codes(garbage.report)).toEqual([

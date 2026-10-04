@@ -77,13 +77,21 @@ for await (const chunk of csvExporter.export(snapshot, { dialect: "gephi" })) {
 ```
 
 Inputs may be a `string`, a `Uint8Array`, a `ReadableStream<Uint8Array>` (a `File.stream()`, a fetch
-body) or an async iterable of text or byte chunks. Bytes are decoded by one shared layer, whatever
-the format. The encoding is, in order: the `encoding` option (any WHATWG label, such as
-`"windows-1252"` or `"utf-16le"`); a byte order mark (UTF-8, UTF-16LE, UTF-16BE); the encoding the
-file declares (the XML prolog of GEXF and GraphML, DOT's `charset` attribute); else UTF-8. Decoding
-is strict, never a silent U+FFFD. Undeclared bytes that are not UTF-8 are read as windows-1252 with
-the warning `W_ENCODING_FALLBACK` (Excel, Pajek and older tools write it); invalid UTF-8 after valid
-non-ASCII UTF-8, or binary data, is the `parse-error` `E_INVALID_UTF8`.
+body) or an async iterable of text or byte chunks; anything else (an `ArrayBuffer`, a `Blob`, a fetch
+`Response`, `null`) is `GraphFormatError` `E_UNSUPPORTED` saying what to pass instead. Bytes are
+decoded by one shared layer, whatever the format. The encoding is, in order: a byte order mark
+(UTF-8, UTF-16LE, UTF-16BE; UTF-32 is refused); the `encoding` option (any WHATWG label, such as
+`"windows-1252"` or `"utf-16le"`); the encoding the file declares (the XML prolog of GEXF and
+GraphML, DOT's graph-level `charset` attribute); else UTF-8. Where two of them disagree the warning
+`W_ENCODING_CONFLICT` names the one that applied. Decoding is strict, never a silent U+FFFD.
+Undeclared bytes that are not UTF-8 are read as windows-1252 with the warning `W_ENCODING_FALLBACK`
+(Excel, Pajek and older tools write it); invalid UTF-8 after valid non-ASCII UTF-8, binary data, or
+a sequence cut at the end of the input is the `parse-error` `E_INVALID_UTF8`, and BOM-less UTF-16 is
+`E_INVALID_ENCODING` asking for the `encoding` option. An empty or whitespace-only input is
+`E_EMPTY_INPUT` in every format, an HTML page, a PDF or compressed, archived or image data is
+`E_FOREIGN_FORMAT`, and a control character in the text is reported once as `W_CONTROL_CHARACTER`
+(a trailing Ctrl-Z end-of-file marker is dropped with the same warning). A report keeps the first
+1000 warnings of one code and counts the rest in one `W_ISSUES_SUPPRESSED`.
 
 Some files hold several graphs: a DOT file with several `graph { }` blocks, a Pajek project (`.paj`)
 with several networks, a GML file with several `graph [ ]` blocks, a JGF document with a `graphs`
@@ -115,8 +123,8 @@ for (const { snapshot, report } of await importAllGraphs(bytes, { filename: "pro
 | `restoreMangledIds`           | `true`                                                                | Restore ids an exporter rewrote under `sanitizeIds: "mangle"` from the `graphty:originalId` attribute.                                                                      |
 | `hyperedges`                  | `"skip"`                                                              | GraphML / JGF hyperedges: `"error"`, `"skip"` with a report entry, `"star"` or `"clique"`.                                                                                  |
 | `errorLimit`                  | `100`                                                                 | Recoverable errors tolerated before the importer throws `ImportError` with the partial report.                                                                              |
-| `signal`, `onProgress`        |                                                                       | Cancellation (rejects with the signal's reason) and byte progress (`bytesTotal` known for in-memory input).                                                                 |
-| `encoding`                    | detected                                                              | The encoding of byte input; overrides the byte order mark and the file's declaration. Ignored for text input.                                                               |
+| `signal`, `onProgress`        |                                                                       | Cancellation (rejects with the signal's reason) and byte progress (text counted as UTF-8; `bytesTotal` known for in-memory input).                                          |
+| `encoding`                    | detected                                                              | The encoding of byte input; overrides the file's declaration, a byte order mark overrides it (`W_ENCODING_CONFLICT`). `W_OPTION_IGNORED` for text input.                    |
 
 On a caller's builder the builder-policy options (`addMissingNodes`, `duplicateEdges`, `selfLoops`,
 `weightDtype`) are read from the sink; an explicit request the sink does not honour is reported once

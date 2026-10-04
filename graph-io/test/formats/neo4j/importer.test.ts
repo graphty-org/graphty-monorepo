@@ -8,6 +8,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { PRECISION_CODE, RENAMED_CODE, UNKNOWN_TYPE_CODE } from "../../../src/common/attributes.js";
+import { EMPTY_INPUT_CODE } from "../../../src/common/codes.js";
 import { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE } from "../../../src/common/direction.js";
 import { INVALID_UTF8_CODE } from "../../../src/common/input.js";
 import { SINK_OPTION_CODE } from "../../../src/common/options.js";
@@ -769,8 +770,14 @@ describe("neo4jImporter (design 8.4)", () => {
     });
 
     describe("fatal errors", () => {
+        it("aborts on an empty input with E_EMPTY_INPUT, the code every importer gives it (was E_NEO4J_HEADER)", async () => {
+            for (const text of ["", "  \n\t\r\n"]) {
+                const err = await importError(text);
+                expect(err.report.issues.map((i) => i.code)).toEqual([EMPTY_INPUT_CODE]);
+            }
+        });
+
         it.each([
-            ["", "no header row"],
             ["a,b\n1,2\n", ":ID column"],
             [":ID,:ID\n1,1\n", "more than one :ID"],
             [":START_ID\n1\n", "exactly one :START_ID and one :END_ID"],

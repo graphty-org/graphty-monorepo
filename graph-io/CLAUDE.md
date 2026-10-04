@@ -41,7 +41,7 @@ graph-io/
 |   +-- common/                   # shared by every format (see the module map in STATUS.md)
 |   |   +-- codes.ts              # the one definition of every shared issue / loss code (E_MISSING_ID, W_ROLE_DROPPED, ...)
 |   |   +-- report.ts             # ImportReportBuilder: issues, error limit, warnOnce, fail() -> ImportError
-|   |   +-- input.ts              # textChunks / readText / LineReader: the one byte decoder (option, BOM, declaration, UTF-8, windows-1252 fallback), abort, progress
+|   |   +-- input.ts              # textChunks / readText / LineReader: the one byte decoder (BOM, option, declaration, UTF-8, windows-1252 fallback), the text checks, input shapes, abort, progress
 |   |   +-- options.ts            # resolveImportOptions / resolveExportOptions / reportSinkOptions / reportUnusedOptions
 |   |   +-- direction.ts          # DirectionResolver (8.4 rules), pairFolding() for exporters (3.6 pairs, mutual marks)
 |   |   +-- ids.ts                # canonical / string / number coercion, IdCoercer (W_ID_MERGED)
@@ -122,11 +122,15 @@ the two correctly.
   `"error"`: an exporter never renames a node silently.
 - Declares `@graphty/graph-format` in BOTH `dependencies` (`workspace:^`, which pnpm publishes as
   a caret range; `workspace:*` would publish an exact pin) and `peerDependencies` (`^1.0.0`).
-- Bytes are decoded once, in `common/input.ts`, for every importer: the `encoding` option, else a
-  BOM, else the file's declaration (the importer passes `declaredEncoding`: the XML prolog, DOT's
-  `charset`), else UTF-8. Decoding is strict (`fatal: true`), never a silent U+FFFD; undeclared
-  bytes that are not UTF-8 while everything before them was ASCII are read as windows-1252 with
-  `W_ENCODING_FALLBACK`. Never decode bytes anywhere else.
+- Bytes are decoded once, in `common/input.ts`, for every importer: a BOM, else the `encoding`
+  option, else the file's declaration (the importer passes `declaredEncoding`: the XML prolog, DOT's
+  `charset`), else UTF-8; a disagreement between them is `W_ENCODING_CONFLICT`. Decoding is strict
+  (`fatal: true`), never a silent U+FFFD; undeclared bytes that are not UTF-8 while everything
+  before them was ASCII (and no control byte marks them binary) are read as windows-1252 with
+  `W_ENCODING_FALLBACK`. Never decode bytes anywhere else. The same layer refuses an empty input
+  (`E_EMPTY_INPUT`, unless the reader passes `allowEmpty`) and a known non-graph file
+  (`E_FOREIGN_FORMAT`), and reports control characters (`W_CONTROL_CHARACTER`), so an importer
+  never repeats those checks; its codes are `INPUT_ISSUE`, spread into every `<FMT>_ISSUE` table.
 - A format that can hold several graphs (DOT, Pajek `.paj`, GML, JGF) implements `importAll()`;
   its `import()` reads the first and warns `W_MULTIPLE_GRAPHS` with the number skipped. A new
   importer of such a format also implements `listGraphs()` (a `GraphListing` per graph, cheaply)

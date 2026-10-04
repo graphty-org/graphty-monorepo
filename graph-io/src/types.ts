@@ -64,13 +64,19 @@ export interface CommonImportOptions {
     errorLimit?: number | undefined;
     /** Cancellation; the importer stops between chunks and rejects with the signal's reason. */
     signal?: AbortSignal | undefined;
-    /** Progress in bytes; `bytesTotal` is known for in-memory input only. */
+    /**
+     * Progress in bytes: byte input counts its bytes, text (a string input or a string chunk) counts
+     * its UTF-8 length. `bytesTotal` is known for in-memory input only; a string or a Uint8Array
+     * reports after every 256 KiB, a stream after every chunk, and the last call is (total, total).
+     */
     onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
     /**
      * The character encoding of byte input (a WHATWG label such as "utf-8", "windows-1252",
-     * "iso-8859-1", "utf-16le"); overrides the byte order mark and any encoding the file declares.
+     * "iso-8859-1", "utf-16le"); overrides any encoding the file declares (W_ENCODING_CONFLICT when
+     * they differ). A byte order mark still wins over it, with the same warning when they differ.
      * Absent: a BOM decides, else the declaration (XML prolog, DOT `charset`), else UTF-8, and
-     * bytes that are not valid UTF-8 are read as windows-1252 with a warning. Ignored for text input.
+     * bytes that are not valid UTF-8 are read as windows-1252 with a warning. Text input has nothing
+     * to decode: the option is then reported W_OPTION_IGNORED.
      */
     encoding?: string | undefined;
 }

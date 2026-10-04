@@ -1,7 +1,7 @@
 import { type Column, GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { DUPLICATE_ATTRIBUTE_CODE, XML_SYNTAX_CODE } from "../../../src/common/codes.js";
+import { DUPLICATE_ATTRIBUTE_CODE, EMPTY_INPUT_CODE,  XML_SYNTAX_CODE } from "../../../src/common/codes.js";
 import { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE } from "../../../src/common/direction.js";
 import { INVALID_UTF8_CODE } from "../../../src/common/input.js";
 import { SINK_OPTION_CODE } from "../../../src/common/options.js";
@@ -873,7 +873,8 @@ describe("gexfImporter: error aggregation (design 8.6)", () => {
 
 describe("gexfImporter: malformed corpus", () => {
     const expectedCodes: Record<string, string> = {
-        "empty-file.gexf": XML_SYNTAX_CODE,
+        // one code for the concept: every importer gives an empty input E_EMPTY_INPUT (was E_XML_SYNTAX)
+        "empty-file.gexf": EMPTY_INPUT_CODE,
         "invalid-xml.gexf": XML_SYNTAX_CODE,
         "not-xml.gexf": XML_SYNTAX_CODE,
         "no-graph-element.gexf": NO_GRAPH_CODE,

@@ -215,7 +215,8 @@ describe("graphmlImporter corpus", () => {
 
 describe("graphmlImporter malformed corpus", () => {
     const fatal: Record<string, string> = {
-        "empty-file.graphml": GRAPHML_ISSUE.XML_SYNTAX,
+        // one code for the concept: every importer gives an empty input E_EMPTY_INPUT (was E_XML_SYNTAX)
+        "empty-file.graphml": GRAPHML_ISSUE.EMPTY_INPUT,
         "invalid-xml.graphml": GRAPHML_ISSUE.XML_SYNTAX,
         "not-xml.graphml": GRAPHML_ISSUE.XML_SYNTAX,
         "unclosed-tag.graphml": GRAPHML_ISSUE.XML_SYNTAX,

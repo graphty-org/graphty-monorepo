@@ -90,6 +90,45 @@ interface ColumnsMenuProps {
 }
 
 /**
+ * One section of the Columns chooser, under its title; nothing when it has no columns.
+ * @param props - Component props
+ * @param props.title - The section's title
+ * @param props.choices - The section's columns
+ * @param props.hidden - The unchecked column ids
+ * @param props.onHiddenChange - Called with the new unchecked ids
+ * @returns The section
+ */
+function ColumnSection({
+    title,
+    choices,
+    hidden,
+    onHiddenChange,
+}: Readonly<ColumnsMenuProps & { title: string }>): React.JSX.Element | null {
+    if (choices.length === 0) {
+        return null;
+    }
+    const toggle = (id: string): void => {
+        onHiddenChange(hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id]);
+    };
+    return (
+        <>
+            <Menu.Label>{title}</Menu.Label>
+            {choices.map((choice) => (
+                <MenuCheckItem
+                    key={choice.id}
+                    checked={!hidden.includes(choice.id)}
+                    onClick={() => {
+                        toggle(choice.id);
+                    }}
+                >
+                    {choice.header}
+                </MenuCheckItem>
+            ))}
+        </>
+    );
+}
+
+/**
  * "Columns: 8 of 69": a checkbox per attribute and per run result; the keys always show.
  * @param props - Component props
  * @param props.choices - Every column
@@ -97,35 +136,8 @@ interface ColumnsMenuProps {
  * @param props.onHiddenChange - Called with the new unchecked ids
  * @returns The chooser
  */
-function ColumnsMenu({ choices, hidden, onHiddenChange }: ColumnsMenuProps): React.JSX.Element {
+function ColumnsMenu({ choices, hidden, onHiddenChange }: Readonly<ColumnsMenuProps>): React.JSX.Element {
     const shown = choices.filter((choice) => !hidden.includes(choice.id)).length;
-    const section = (group: "attribute" | "result", title: string): React.ReactNode => {
-        const rows = choices.filter((choice) => choice.group === group);
-        if (rows.length === 0) {
-            return null;
-        }
-        return (
-            <>
-                <Menu.Label>{title}</Menu.Label>
-                {rows.map((choice) => {
-                    const checked = !hidden.includes(choice.id);
-                    return (
-                        <MenuCheckItem
-                            key={choice.id}
-                            checked={checked}
-                            onClick={() => {
-                                onHiddenChange(
-                                    checked ? [...hidden, choice.id] : hidden.filter((id) => id !== choice.id),
-                                );
-                            }}
-                        >
-                            {choice.header}
-                        </MenuCheckItem>
-                    );
-                })}
-            </>
-        );
-    };
     return (
         <Menu closeOnItemClick={false} position="bottom-end">
             <Menu.Target>
@@ -134,11 +146,101 @@ function ColumnsMenu({ choices, hidden, onHiddenChange }: ColumnsMenuProps): Rea
                 </Button>
             </Menu.Target>
             <Menu.Dropdown mah={320} style={{ overflowY: "auto" }}>
-                {section("attribute", "Attributes")}
-                {section("result", "Results")}
+                <ColumnSection
+                    title="Attributes"
+                    choices={choices.filter((choice) => choice.group === "attribute")}
+                    hidden={hidden}
+                    onHiddenChange={onHiddenChange}
+                />
+                <ColumnSection
+                    title="Results"
+                    choices={choices.filter((choice) => choice.group === "result")}
+                    hidden={hidden}
+                    onHiddenChange={onHiddenChange}
+                />
             </Menu.Dropdown>
         </Menu>
     );
+}
+
+/**
+ * How many records the table lists: the element's count for the records showing, so it never
+ * lags a tab change.
+ * @param session - the element's session.
+ * @param kind - nodes or edges.
+ * @param scope - the records showing.
+ * @returns the count.
+ */
+function recordTotal(session: GraphSession, kind: RecordKind, scope: ScopeInput): number {
+    const counted = { limit: 0, scope };
+    return kind === "node" ? session.data.nodePage(counted).total : session.data.edgePage(counted).total;
+}
+
+/**
+ * The chip naming the group the Nodes tab is narrowed to; its x shows every node again.
+ * @param props - Component props
+ * @param props.members - The group shown
+ * @param props.onRemove - Shows every node again
+ * @returns The chip
+ */
+function MembersChip({ members, onRemove }: Readonly<{ members: Members; onRemove: () => void }>): React.JSX.Element {
+    return (
+        <Pill
+            withRemoveButton
+            // WORKAROUND (temporary, #925): Mantine's Pill hides its remove button from
+            // the keyboard and screen readers; this one is the chip's only control.
+            // Delete these props when compact-mantine's Pill theme makes it reachable.
+            removeButtonProps={{
+                "aria-label": `Show every node, not only ${members.name}`,
+                "aria-hidden": false,
+                tabIndex: 0,
+            }}
+            onRemove={onRemove}
+        >
+            {`${members.runLabel}: ${members.name}`}
+        </Pill>
+    );
+}
+
+/**
+ * The dock's options menu, holding Export....
+ * @param props - Component props
+ * @param props.kind - The records showing
+ * @param props.store - The workspace store
+ * @returns The menu
+ */
+function TableOptions({ kind, store }: Readonly<{ kind: RecordKind; store: WorkspaceStore }>): React.JSX.Element {
+    return (
+        <Menu position="bottom-end">
+            <Menu.Target>
+                <ActionIcon variant="subtle" aria-label="Table options">
+                    <UiGlyph name="more" />
+                </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+                <Menu.Item
+                    onClick={() => {
+                        // The file holds every column and every record of the table that is
+                        // showing: the element's export cannot be limited to the visible
+                        // columns (#875) or to a group's members (#820) yet.
+                        store.set({ dialog: "export", exportOn: kind === "edge" ? "edges" : "nodes" });
+                    }}
+                >
+                    Export...
+                </Menu.Item>
+            </Menu.Dropdown>
+        </Menu>
+    );
+}
+
+/**
+ * The record table's key: a new table, scrolled to the top, for each kind and each group shown.
+ * @param kind - nodes or edges.
+ * @param members - the group the Nodes tab is narrowed to, or null.
+ * @returns the key.
+ */
+function tableKey(kind: RecordKind, members: Members | null): string {
+    return members === null || kind === "edge" ? kind : `node:${members.run}:${members.name}`;
 }
 
 /**
@@ -159,13 +261,6 @@ export function TableDock(): React.JSX.Element {
     const arrange = (change: Partial<Arrangement>): void => {
         setArrangement((now) => ({ ...now, ...change }));
     };
-
-    // Cheap reads: the element caches each run's summary, and a zero-row page reads no values.
-    const groups = session === null ? [] : groupRuns(session);
-    // A group tab whose run went away (undo, remove) falls back to Nodes.
-    const active = tab.startsWith("g:") && !groups.some((run) => `g:${run.id}` === tab) ? "nodes" : tab;
-    const kind: RecordKind = active === "edges" ? "edge" : "node";
-    const choices = session === null ? [] : columnChoices(session, kind);
 
     const close = (
         <ActionIcon
@@ -190,11 +285,18 @@ export function TableDock(): React.JSX.Element {
         );
     }
 
+    // Cheap reads: the element caches each run's summary, and a zero-row page reads no values.
+    const groups = groupRuns(session);
+    // A group tab whose run went away (undo, remove) falls back to Nodes.
+    const active = groups.some((run) => `g:${run.id}` === tab) || !tab.startsWith("g:") ? tab : "nodes";
+    const kind: RecordKind = active === "edges" ? "edge" : "node";
+    const choices = columnChoices(session, kind);
     const groupRun = groups.find((run) => `g:${run.id}` === active);
     const view = views[kind];
     const visible = choices.filter((choice) => !view.hidden.includes(choice.id));
     const sorted = visible.find((choice) => choice.id === view.sort?.id);
-    const shownMembers = members !== null && groups.some((run) => run.id === members.run) ? members : null;
+    // A chip whose run went away (undo, remove) goes with it.
+    const shownMembers = groups.some((run) => run.id === members?.run) ? members : null;
     const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : "graph";
     const tableHeight = Math.max(32, dockHeight - CHROME_HEIGHT);
 
@@ -202,13 +304,10 @@ export function TableDock(): React.JSX.Element {
         setArrangement((now) => ({ ...now, views: { ...now.views, [kind]: { ...now.views[kind], ...change } } }));
     };
 
-    // The count is the element's, read for the records showing, so it never lags a tab change.
-    let count = countOf(groupRun?.groups.length ?? 0, "group");
-    if (groupRun === undefined) {
-        const counted = { limit: 0, scope };
-        const total = kind === "node" ? session.data.nodePage(counted).total : session.data.edgePage(counted).total;
-        count = countOf(total, kind);
-    }
+    const count =
+        groupRun === undefined
+            ? countOf(recordTotal(session, kind, scope), kind)
+            : countOf(groupRun.groups.length, "group");
 
     return (
         <div className="ws-table">
@@ -235,22 +334,12 @@ export function TableDock(): React.JSX.Element {
                     {count}
                 </Text>
                 {active === "nodes" && shownMembers !== null ? (
-                    <Pill
-                        withRemoveButton
-                        // WORKAROUND (temporary, #925): Mantine's Pill hides its remove button from
-                        // the keyboard and screen readers; this one is the chip's only control.
-                        // Delete these props when compact-mantine's Pill theme makes it reachable.
-                        removeButtonProps={{
-                            "aria-label": `Show every node, not only ${shownMembers.name}`,
-                            "aria-hidden": false,
-                            tabIndex: 0,
-                        }}
+                    <MembersChip
+                        members={shownMembers}
                         onRemove={() => {
                             arrange({ members: null });
                         }}
-                    >
-                        {`${shownMembers.runLabel}: ${shownMembers.name}`}
-                    </Pill>
+                    />
                 ) : null}
                 <span className="ws-table-spacer" />
                 {groupRun === undefined ? (
@@ -262,25 +351,7 @@ export function TableDock(): React.JSX.Element {
                         }}
                     />
                 ) : null}
-                <Menu position="bottom-end">
-                    <Menu.Target>
-                        <ActionIcon variant="subtle" aria-label="Table options">
-                            <UiGlyph name="more" />
-                        </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                        <Menu.Item
-                            onClick={() => {
-                                // The file holds every column and every record of the table that is
-                                // showing: the element's export cannot be limited to the visible
-                                // columns (#875) or to a group's members (#820) yet.
-                                store.set({ dialog: "export", exportOn: kind === "edge" ? "edges" : "nodes" });
-                            }}
-                        >
-                            Export...
-                        </Menu.Item>
-                    </Menu.Dropdown>
-                </Menu>
+                <TableOptions kind={kind} store={store} />
                 {close}
             </div>
             <Text size="xs" c="dimmed" className="ws-table-caption">
@@ -288,11 +359,7 @@ export function TableDock(): React.JSX.Element {
             </Text>
             {groupRun === undefined ? (
                 <RecordTable
-                    key={
-                        shownMembers === null || kind === "edge"
-                            ? kind
-                            : `node:${shownMembers.run}:${shownMembers.name}`
-                    }
+                    key={tableKey(kind, shownMembers)}
                     session={session}
                     kind={kind}
                     columns={visible}

@@ -23,19 +23,43 @@ interface Row {
 }
 
 /**
- * A group run's item tab (tier1-design.md section 2.9): one row per group with its size, largest
- * first. Each row's "..." menu holds "Show members in table". The rows keep the element's order,
- * so the headers do not sort and the caption "Largest group first" stays true.
+ * One group row's "..." menu, holding "Show members in table".
  * @param props - Component props
- * @param props.runLabel - The run's name
- * @param props.groups - The run's groups
- * @param props.height - The table's height in pixels
+ * @param props.row - The row
  * @param props.onShowMembers - Called with the group whose members to show
- * @returns The table
+ * @returns The menu
  */
-export function GroupTable({ runLabel, groups, height, onShowMembers }: GroupTableProps): React.JSX.Element {
-    const rows = groups.map((group, index): Row => ({ group, name: groupName(group, index + 1) }));
-    const columns: DataTableColumn<Row>[] = [
+function GroupMenu({
+    row,
+    onShowMembers,
+}: Readonly<{ row: Row; onShowMembers: GroupTableProps["onShowMembers"] }>): React.JSX.Element {
+    return (
+        <Menu position="bottom-end">
+            <Menu.Target>
+                <ActionIcon variant="subtle" aria-label={`${row.name} options`}>
+                    <UiGlyph name="more" />
+                </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+                <Menu.Item
+                    onClick={() => {
+                        onShowMembers(row.group, row.name);
+                    }}
+                >
+                    Show members in table
+                </Menu.Item>
+            </Menu.Dropdown>
+        </Menu>
+    );
+}
+
+/**
+ * The table's columns: the group, its size and its menu.
+ * @param onShowMembers - called with the group whose members to show.
+ * @returns the columns.
+ */
+function groupColumns(onShowMembers: GroupTableProps["onShowMembers"]): DataTableColumn<Row>[] {
+    return [
         { id: "group", header: "Group", sortable: false, value: (row) => row.name },
         { id: "size", header: "Size", sortable: false, value: (row) => row.group.size, align: "end" },
         {
@@ -46,26 +70,25 @@ export function GroupTable({ runLabel, groups, height, onShowMembers }: GroupTab
             filterable: false,
             hideable: false,
             value: () => undefined,
-            cell: (row) => (
-                <Menu position="bottom-end">
-                    <Menu.Target>
-                        <ActionIcon variant="subtle" aria-label={`${row.name} options`}>
-                            <UiGlyph name="more" />
-                        </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                        <Menu.Item
-                            onClick={() => {
-                                onShowMembers(row.group, row.name);
-                            }}
-                        >
-                            Show members in table
-                        </Menu.Item>
-                    </Menu.Dropdown>
-                </Menu>
-            ),
+            cell: (row) => <GroupMenu row={row} onShowMembers={onShowMembers} />,
         },
     ];
+}
+
+/**
+ * A group run's item tab (tier1-design.md section 2.9): one row per group with its size, largest
+ * first. Each row's "..." menu holds "Show members in table". The rows keep the element's order,
+ * so the headers do not sort and the caption "Largest group first" stays true.
+ * @param props - Component props
+ * @param props.runLabel - The run's name
+ * @param props.groups - The run's groups
+ * @param props.height - The table's height in pixels
+ * @param props.onShowMembers - Called with the group whose members to show
+ * @returns The table
+ */
+export function GroupTable({ runLabel, groups, height, onShowMembers }: Readonly<GroupTableProps>): React.JSX.Element {
+    const rows = groups.map((group, index): Row => ({ group, name: groupName(group, index + 1) }));
+    const columns = groupColumns(onShowMembers);
     return (
         <DataTable<Row>
             label={runLabel}

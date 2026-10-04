@@ -70,7 +70,7 @@ export function RecordTable({
     sort,
     onSortChange,
     height,
-}: RecordTableProps): React.JSX.Element {
+}: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
     const sorted = columns.find((column) => column.id === sort?.id);
@@ -139,7 +139,11 @@ export function RecordTable({
                     const real = known.get(id);
                     return real === undefined ? [] : [real];
                 });
-                void session.selection.apply(kind === "node" ? { nodes: picked } : { edges: picked.map(String) });
+                // The ids come from the page just read, so the element has no reason to refuse them;
+                // if it does, the selection it already has stays, which is what the table shows.
+                session.selection
+                    .apply(kind === "node" ? { nodes: picked } : { edges: picked.map(String) })
+                    .catch(() => undefined);
             }}
         />
     );

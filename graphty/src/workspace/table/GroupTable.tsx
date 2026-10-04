@@ -87,7 +87,7 @@ function groupColumns(onShowMembers: GroupTableProps["onShowMembers"]): DataTabl
  * @returns The table
  */
 export function GroupTable({ runLabel, groups, height, onShowMembers }: Readonly<GroupTableProps>): React.JSX.Element {
-    const rows = groups.map((group, index): Row => ({ group, name: groupName(group, index + 1) }));
+    const rows = groups.map((group): Row => ({ group, name: groupName(group) }));
     const columns = groupColumns(onShowMembers);
     return (
         <DataTable<Row>

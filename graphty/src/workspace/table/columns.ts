@@ -166,13 +166,11 @@ export function countOf(count: number, noun: string): string {
 
 /**
  * What to call a group: "Group 1" for the largest group of a partition, else the group's own
- * value (a category). The element lists a partition's groups largest first and marks a partition
- * by naming its groups; the words are the app's, from the rank (#921 asks the element to publish
- * the rank itself).
+ * value (a category). The element ranks a partition's groups largest first; the words are the
+ * app's.
  * @param group - the group.
- * @param rank - its 1-based place in the summary's list.
  * @returns the name.
  */
-export function groupName(group: SummaryGroup, rank: number): string {
-    return group.name === undefined ? String(group.group) : `Group ${String(rank)}`;
+export function groupName(group: SummaryGroup): string {
+    return group.rank === undefined ? String(group.group) : `Group ${String(group.rank)}`;
 }

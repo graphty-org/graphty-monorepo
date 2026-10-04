@@ -70,7 +70,7 @@ export function swatchName(swatch: LegendSwatch): string {
  */
 export function paintWords(swatch: LegendSwatch): string | null {
     if (typeof swatch.paints === "string" && swatch.paints !== "") {
-        const words = swatch.paints.replace(/[-_]+/g, " ");
+        const words = swatch.paints.replaceAll(/[-_]+/g, " ");
         return words.charAt(0).toUpperCase() + words.slice(1);
     }
     return swatch.size === undefined ? null : String(Number(swatch.size.toPrecision(3)));

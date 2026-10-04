@@ -31,7 +31,7 @@ function rowName(session: GraphSession, block: LegendBlock): string {
  * @param props.title - its section title, the ramp's accessible name
  * @returns the ramp row
  */
-function Ramp({ block, title }: { block: LegendBlock; title: string }): React.JSX.Element {
+function Ramp({ block, title }: Readonly<{ block: LegendBlock; title: string }>): React.JSX.Element {
     const first = block.swatches.at(0)?.label ?? "";
     const last = block.swatches.at(-1)?.label ?? "";
     if (isSizeBlock(block)) {
@@ -57,7 +57,7 @@ function Ramp({ block, title }: { block: LegendBlock; title: string }): React.JS
  * @param props.block - the block
  * @returns the rows
  */
-function List({ block }: { block: LegendBlock }): React.JSX.Element {
+function List({ block }: Readonly<{ block: LegendBlock }>): React.JSX.Element {
     return (
         <>
             {block.swatches.map((swatch, index) => (
@@ -89,7 +89,7 @@ function List({ block }: { block: LegendBlock }): React.JSX.Element {
  * @param props.session - the session
  * @returns the card
  */
-export function LegendCard({ blocks, session }: LegendCardProps): React.JSX.Element {
+export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): React.JSX.Element {
     // The element lists the stack bottom first; the card reads top first, the winner first.
     const ordered = [...blocks].reverse();
     return (
@@ -99,12 +99,16 @@ export function LegendCard({ blocks, session }: LegendCardProps): React.JSX.Elem
                     const title = sectionTitle(block, rowName(session, block));
                     const continuous = block.kind === "sequential" || block.kind === "diverging";
                     return (
-                        <div key={`${block.layerId}-${block.channel}`} aria-label={title} role="group">
+                        <fieldset
+                            key={`${block.layerId}-${block.channel}`}
+                            aria-label={title}
+                            className="ws-legend-section"
+                        >
                             <Text size="xs" fw={500}>
                                 {title}
                             </Text>
                             {continuous ? <Ramp block={block} title={title} /> : <List block={block} />}
-                        </div>
+                        </fieldset>
                     );
                 })}
             </Stack>

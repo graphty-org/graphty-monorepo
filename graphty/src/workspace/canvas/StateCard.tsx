@@ -32,7 +32,7 @@ interface StateCardProps {
  * @param props.actions - At most two buttons
  * @returns The card
  */
-export function StateCard({ icon, title, sentence, progress, actions }: StateCardProps): React.JSX.Element {
+export function StateCard({ icon, title, sentence, progress, actions }: Readonly<StateCardProps>): React.JSX.Element {
     const titleId = useId();
     return (
         <Paper component="section" aria-labelledby={titleId} className="ws-state-card" withBorder shadow="sm" p="md">

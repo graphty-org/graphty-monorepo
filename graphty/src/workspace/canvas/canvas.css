@@ -8,6 +8,14 @@
     overflow: auto;
 }
 
+/* A legend section is a native group (fieldset) drawn as a plain block. */
+.ws-legend-section {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-inline-size: 0;
+}
+
 /* One state card at a time, centered; only the card takes the pointer. */
 .ws-canvas-overlays > .ws-state-card-slot {
     position: absolute;

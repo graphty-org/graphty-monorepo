@@ -103,7 +103,12 @@ interface LoadingCardProps {
  * @param props.fraction - How far the load has got
  * @returns The card
  */
-export function LoadingCard({ projectName, nodeCount, edgeCount, fraction }: LoadingCardProps): React.JSX.Element {
+export function LoadingCard({
+    projectName,
+    nodeCount,
+    edgeCount,
+    fraction,
+}: Readonly<LoadingCardProps>): React.JSX.Element {
     return (
         <StateCard
             icon={<LoaderCircle size={20} />}

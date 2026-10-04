@@ -1563,6 +1563,40 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether a node label that would be drawn over another label is hidden until the reader
+     * zooms in.
+     * @remarks
+     * A preference of this view, not part of the project: switching it records no undo step and
+     * is not saved in a project file. Off (the default), every label is drawn. It takes effect on
+     * the next frame. The same switch as `layoutBehavior.labels.declutter`, with a door of its
+     * own so a consumer can flip it without assigning `layoutBehavior`, which also carries the
+     * project's layout pacing.
+     * @since 3.10.0
+     * @example
+     * ```typescript
+     * showAllLabels.onchange = () => {
+     *     element.labelDeclutter = !showAllLabels.checked;
+     * };
+     * ```
+     * ```html
+     * <graphty-element label-declutter></graphty-element>
+     * ```
+     * @returns True when overlapping labels are hidden
+     */
+    @property({ attribute: "label-declutter", type: Boolean })
+    get labelDeclutter(): boolean {
+        return this.#graph.getLayoutBehavior()?.labels?.declutter === true;
+    }
+    /**
+     * Switches label decluttering on or off.
+     */
+    set labelDeclutter(value: boolean) {
+        const oldValue = this.labelDeclutter;
+        this.#graph.setLayoutBehavior({ labels: { declutter: value } });
+        this.requestUpdate("labelDeclutter", oldValue);
+    }
+
+    /**
      * What a selected node looks like: the halo's colour, how far it stands out past the node,
      * and how solid it is.
      * @remarks
@@ -3823,7 +3857,7 @@ export class Graphty extends LitElement {
      * WebGPU the VR and AR buttons report the mode unavailable. See the renderer guide for what
      * else differs and the measured frame times.
      * @returns What the consumer asked for. `"webgl"` unless it was set.
-     * @since 3.1.0
+     * @since 3.10.0
      * @example HTML attribute
      * ```html
      * <graphty-element renderer="auto"></graphty-element>
@@ -3863,7 +3897,7 @@ export class Graphty extends LitElement {
      * Null until the element has initialised its renderer, which it does once connected; the
      * `render-initialized` event fires after.
      * @returns The status, or null before the renderer has been chosen.
-     * @since 3.1.0
+     * @since 3.10.0
      * @example
      * ```typescript
      * await element.updateComplete;

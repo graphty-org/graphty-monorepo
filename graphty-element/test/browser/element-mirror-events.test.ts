@@ -116,7 +116,11 @@ describe("the element's own mirrors on the DOM", () => {
 
         assert.isTrue(seen.length > 0 && seen.every((change) => change.task === "load"), "the load told the DOM");
         assert.strictEqual(seen.at(-1)?.phase, "end", "the last event says the load ended");
-        assert.strictEqual(seen[0]?.phase, "start", "the first event says the load began, never held back");
+        assert.deepInclude(
+            seen[0],
+            { phase: "progress", completed: 0 },
+            "the first event says the load began, never held back",
+        );
         assert.deepInclude(seen.at(-1), { outcome: "succeeded" }, "and how it ended");
         assert.doesNotThrow(() => structuredClone(seen), "the detail carries plain values");
     });

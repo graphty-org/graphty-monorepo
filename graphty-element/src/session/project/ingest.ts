@@ -1068,8 +1068,9 @@ export class Ingest<K extends KnownEdge> {
             chunks: 0,
             source: progressSource(opts, name),
         };
-        // Published before anything is read, so a watcher sees the load from its first moment.
-        this.host.progress?.(loadProgressChange(progress, "start"));
+        // The first change, published before anything is read, so a watcher sees the load from
+        // its first moment.
+        this.host.progress?.(loadProgressChange(progress, "progress"));
         let ended = false;
         const end = (outcome: Pick<ProgressChange, "outcome" | "error">): void => {
             if (!ended) {

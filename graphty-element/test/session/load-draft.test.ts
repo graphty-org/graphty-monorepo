@@ -373,6 +373,23 @@ describe("session.data.prepare", () => {
         }
     });
 
+    it("counts a JSON node with no id and a repeated JSON id, as it does a CSV row's (#929)", async () => {
+        const data = JSON.stringify({ nodes: [{ id: "a", n: 1 }, { id: "a", n: 2 }, { name: "x" }], edges: [] });
+        const session = createGraphSession();
+
+        await session.data.import({ type: "json", config: { data } });
+        const refused = await refusal(
+            session.data.import({ type: "json", config: { data } }, { duplicateIds: "refuse" }),
+        );
+
+        const last = session.data.lastImport();
+        assert.deepInclude(last?.counts, { nodes: 1, nodeRecords: 3, rejected: 1 });
+        assert.deepEqual(last?.duplicates, { rows: 1, ids: ["a"] });
+        assert.strictEqual(session.data.node("a")?.n, 1, "the first record is kept");
+        assert.strictEqual(refused?.code, "E_DUPLICATE_ID");
+        session.dispose();
+    });
+
     it("publishes the roles each table kind takes and requires (#926)", () => {
         assert.deepEqual(LOAD_ROLES.nodes, { takes: ["key", "label", "time"], requires: [] });
         assert.deepEqual(LOAD_ROLES.edges, {
@@ -515,6 +532,51 @@ describe("session.data.prepare", () => {
         assert.deepEqual(refused?.details, { reason: "not-a-table", table: "edges", format: "gml", name: "ring.gml" });
         assert.strictEqual((await refusal(session.data.import(source)))?.code, "E_BAD_COMMAND");
         assertUntouched(session);
+        session.dispose();
+    });
+
+    it("refuses a pair with one half missing with a code, naming the half (#930)", async () => {
+        const session = createGraphSession();
+        const source = { type: "csv", config: { nodeData: "id\na\n" } };
+
+        for (const promise of [session.data.prepare(source), session.data.import(source)]) {
+            const refused = await refusal(promise);
+            assert.strictEqual(refused?.code, "E_BAD_COMMAND");
+            assert.deepEqual(refused?.details, { reason: "missing-half", table: "edges" });
+        }
+
+        assertUntouched(session);
+        session.dispose();
+    });
+
+    it("refuses a pair whose edge table has no endpoints as the report does, not as unreadable (#928)", async () => {
+        const session = createGraphSession();
+        const source = { type: "csv", config: { nodeData: "name,group\nA,1\n", edgeData: "a,b\nA,B\n" } };
+        const expected = { table: "edges", missing: ["source", "target"] };
+
+        const reported = await refusal((await session.data.prepare(source)).report());
+        const imported = await refusal(session.data.import(source));
+
+        assert.strictEqual(reported?.code, "E_EDGE_ENDPOINTS_UNRESOLVED");
+        assert.deepInclude(reported?.details, expected);
+        assert.strictEqual(imported?.code, "E_EDGE_ENDPOINTS_UNRESOLVED");
+        assert.deepInclude(imported?.details, expected);
+        assertUntouched(session);
+        session.dispose();
+    });
+
+    it("lists a ready table's rows while another table is not ready (#926)", async () => {
+        const session = createGraphSession();
+        const draft = await session.data.prepare({
+            config: { nodeFile: new File([PEOPLE], "people.csv"), edgeFile: new File([TRIPS], "trips.csv") },
+        });
+        const edges = draft.tables.find((table) => draft.mapping.tables[table.id].rowsAre === "edges")?.id ?? "";
+        const nodes = draft.tables.find((table) => table.id !== edges)?.id ?? "";
+
+        assert.deepEqual(draft.missing()[edges], ["source", "target"]);
+        assert.strictEqual((await draft.rows(nodes, { only: "loaded" })).total, 3);
+        assert.strictEqual((await draft.rows(nodes, { only: "rejected" })).total, 0);
+        assert.strictEqual((await refusal(draft.rows(edges, { only: "loaded" })))?.code, "E_EDGE_ENDPOINTS_UNRESOLVED");
         session.dispose();
     });
 

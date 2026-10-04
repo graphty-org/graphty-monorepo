@@ -166,8 +166,9 @@ export class JsonDataSource extends DataSource {
      *
      * The node and edge arrays are found with the configured JMESPath expressions and read by
      * graph-io's node-link importer, which checks every node's id and every edge's endpoints. The
-     * records the element receives are the ones the file wrote, unchanged, less the ones graph-io
-     * refused and every repeat of a node id after its first record.
+     * records the element receives are the ones the file wrote, unchanged, less the edges graph-io
+     * refused. Every node record is handed over, so the element counts a node with no usable id and
+     * a repeated id, and applies the load's duplicate-id choice.
      *
      * Two things graph-io cannot read are handed to the element as the file wrote them: nodes
      * whose id is a JMESPath expression rather than a key, and edges whose endpoints no key names
@@ -255,10 +256,13 @@ export class JsonDataSource extends DataSource {
         // record for it.
         const rowsOf = (records: readonly { data: Record<string, unknown> }[]): number[] =>
             records.flatMap(({ data }) => (typeof data[ROW_KEY] === "number" ? [data[ROW_KEY]] : []));
+        // Every node record is handed over, including one with no usable id and one repeating an
+        // earlier id: the element counts the first as rejected and the second as a duplicate, and
+        // applies its duplicate-id policy, rather than graph-io folding them where nothing counts them.
         const nodes =
             idKey === null
                 ? rawNodes.filter((node, index) => this.isValidNode(node, index))
-                : rowsOf(imported.nodes).map((row) => rawNodes[row]);
+                : rawNodes.filter(isObject);
         const edges =
             endpoints === null
                 ? rawEdges.filter((edge, index) => this.isValidEdge(edge, index))

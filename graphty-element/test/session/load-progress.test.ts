@@ -1,5 +1,5 @@
 /**
- * @file A load's `progress:changed`: it says when the load starts (before anything is read), what
+ * @file A load's `progress:changed`: its first change comes before anything is read, it says what
  * it reads, and how it ended -- with the refusal's code and details when it failed (#902). And a
  * prepare's, which reads the same way under `task: "prepare"` (#910).
  */
@@ -32,7 +32,7 @@ describe("a load's progress", () => {
 
         assert.deepEqual(seen[0], {
             task: "load",
-            phase: "start",
+            phase: "progress",
             completed: 0,
             total: null,
             fraction: null,
@@ -53,7 +53,7 @@ describe("a load's progress", () => {
         await session.data.import({ type: "json", config: { url } }).catch(() => undefined);
 
         assert.deepEqual(seen[0]?.source, { name: "miserables.json", url });
-        assert.strictEqual(seen[0]?.phase, "start");
+        assert.deepInclude(seen[0], { phase: "progress", completed: 0 });
         assert.deepInclude(seen.at(-1), { phase: "end", outcome: "failed" });
         assert.strictEqual(seen.at(-1)?.error?.code, "E_FETCH_FAILED");
         session.dispose();
@@ -65,7 +65,7 @@ describe("a load's progress", () => {
 
         await session.data.import({ type: "json", config: { data: "{" } }).catch(() => undefined);
 
-        assert.strictEqual(seen[0]?.phase, "start");
+        assert.deepInclude(seen[0], { phase: "progress", completed: 0 });
         const end = seen.at(-1);
         assert.deepInclude(end, { phase: "end", outcome: "failed" });
         assert.strictEqual(end?.error?.code, "E_PARSE_FAILED");
@@ -89,13 +89,29 @@ describe("a prepare's progress", () => {
         });
 
         assert.isTrue(seen.every((change) => change.task === "prepare" && change.source?.name === "people.csv"));
-        assert.deepInclude(seen[0], { phase: "start", completed: 0 });
-        assert.deepInclude(
-            seen.find((change) => change.phase === "progress"),
-            { completed: 3 },
-        );
+        assert.deepInclude(seen[0], { phase: "progress", completed: 0, fraction: null });
+        assert.isTrue(seen.some((change) => change.phase === "progress" && change.completed === 3));
         assert.deepInclude(seen.at(-1), { phase: "end", outcome: "succeeded", completed: 3 });
         assert.strictEqual(draft.tables[0]?.rowCount, 3);
+        session.dispose();
+    });
+
+    it("counts a large CSV's rows while it is read, with the share of the file read", async () => {
+        const session = createGraphSession();
+        const seen = watch(session);
+        const rows = 200_000;
+        const text = `id,name,score\n${Array.from({ length: rows }, (_, i) => `n${i},Name ${i},${i % 97}`).join("\n")}\n`;
+        assert.isAbove(text.length, 3 * (1 << 20), "the file spans several slices");
+
+        await session.data.prepare({ config: { file: new File([text], "big.csv") } });
+
+        const steps = seen.filter((change) => change.phase === "progress" && change.completed > 0);
+        assert.isAbove(steps.length, 2, "several counts arrive while the file is read");
+        const partial = steps.find((change) => change.completed < rows);
+        assert.isDefined(partial, "a count arrives before the whole file is read");
+        assert.isTrue((partial?.fraction ?? 0) > 0 && (partial?.fraction ?? 1) < 1, "with the share read");
+        assert.isTrue(steps.every((change, i) => i === 0 || change.completed >= (steps[i - 1]?.completed ?? 0)));
+        assert.deepInclude(seen.at(-1), { phase: "end", outcome: "succeeded", completed: rows, fraction: 1 });
         session.dispose();
     });
 

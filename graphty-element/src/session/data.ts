@@ -1431,8 +1431,8 @@ function fileOf(
 }
 
 /**
- * Settle a source and read it once, publishing the read as `task: "prepare"` progress: a start
- * before anything is read, the rows read so far, and an end saying how it stopped.
+ * Settle a source and read it once, publishing the read as `task: "prepare"` progress: a first
+ * change before anything is read, the rows read so far, and an end saying how it stopped.
  * @param source - What `prepare` takes.
  * @param signal - Abandons the read.
  * @param publish - Where the progress goes.
@@ -1446,25 +1446,32 @@ async function readWithProgress(
 ): Promise<Awaited<ReturnType<typeof readSource>>> {
     const named = progressSource(source.config, source.name);
     let completed = 0;
+    let fraction: number | null = null;
     const change = (phase: ProgressChange["phase"], end?: Pick<ProgressChange, "outcome" | "error">): void => {
         publish({
             task: "prepare",
             phase,
             completed,
             total: null,
-            fraction: null,
+            fraction,
             ...(named === undefined ? {} : { source: named }),
             ...end,
         });
     };
 
-    change("start");
+    // The first change, sent before anything is read.
+    change("progress");
     try {
         const resolved = resolveImportSource(source);
-        const read = await readSource(resolved instanceof Promise ? await resolved : resolved, signal, (rows) => {
-            completed = rows;
-            change("progress");
-        });
+        const read = await readSource(
+            resolved instanceof Promise ? await resolved : resolved,
+            signal,
+            (rows, share) => {
+                completed = rows;
+                fraction = share ?? null;
+                change("progress");
+            },
+        );
         change("end", { outcome: "succeeded" });
         return read;
     } catch (error) {

@@ -204,14 +204,15 @@ function errorsOf(reader: DataSource): Pick<ReadSource, "errors" | "errorLimit">
  * Read a source once, holding its rows.
  * @param source - The source, its format settled.
  * @param signal - Abandons the read.
- * @param progress - Told the rows read so far, after each table or chunk.
+ * @param progress - Told the rows read so far, after each table or chunk, and, for a CSV file,
+ *     the share of its text read.
  * @returns What it holds.
  * @throws What the source's reader throws, with its code.
  */
 export async function readSource(
     source: ImportSource,
     signal?: AbortSignal,
-    progress: (rows: number) => void = () => undefined,
+    progress: (rows: number, fraction?: number) => void = () => undefined,
 ): Promise<ReadSource> {
     const type = source.type ?? "";
     const config = source.config ?? {};
@@ -221,7 +222,7 @@ export async function readSource(
     }
 
     const named = source.name ?? type;
-    const rowTables = reader instanceof CSVDataSource ? await reader.readRows() : null;
+    const rowTables = reader instanceof CSVDataSource ? await reader.readRows(progress) : null;
     signal?.throwIfAborted();
     if (rowTables !== null) {
         const pairNames: Readonly<Record<string, string | undefined>> = {
@@ -231,7 +232,10 @@ export async function readSource(
         const tables = Object.entries(rowTables).map(([id, read]) =>
             heldTable(id, pairNames[id] ?? named, false, read.rows, read.lines, read.columns, read.delimiter),
         );
-        progress(tables.reduce((sum, held) => sum + held.rows.length, 0));
+        progress(
+            tables.reduce((sum, held) => sum + held.rows.length, 0),
+            1,
+        );
         return { source, tables, declaredDirection: null, ...errorsOf(reader) };
     }
 
@@ -626,15 +630,21 @@ export class Draft implements LoadDraft {
      * What a set of choices loads.
      * @param read - The rows.
      * @param choices - The choices.
+     * @param only - The one table that must be ready, when the caller works with one table; every
+     *     table must be when absent.
      * @returns The plan.
      */
-    private plan(read: ReadSource, choices: LoadChoices): Plan {
+    private plan(read: ReadSource, choices: LoadChoices, only?: string): Plan {
         const mapping = this.effective(read, choices.mapping);
         const missing = missingRoles(mapping);
         // A table the reader maps that lacks an end is refused here, naming it: read with one end,
         // every row would be rejected, and read with none, the probe has already failed.
         const unready = read.tables.find(
-            (held) => !held.table.fixed && held.rows.length > 0 && missing[held.table.id].length > 0,
+            (held) =>
+                (only === undefined || held.table.id === only) &&
+                !held.table.fixed &&
+                held.rows.length > 0 &&
+                missing[held.table.id].length > 0,
         );
         if (unready !== undefined) {
             const { id } = unready.table;
@@ -714,7 +724,8 @@ export class Draft implements LoadDraft {
      * @returns Their indexes.
      */
     private filter(read: ReadSource, held: HeldTable, only: DraftRowFilter, choices: LoadChoices): number[] {
-        const { mapping, held: rows } = this.plan(read, choices);
+        // Only this table need be ready: another table's missing role does not stop reading this one.
+        const { mapping, held: rows } = this.plan(read, choices, held.table.id);
         const roles = mapping.tables[held.table.id];
         const value = (row: Readonly<Record<string, unknown>>, expression: string): unknown =>
             readEndpoint(row as Record<string, unknown>, expression);

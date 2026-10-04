@@ -81,7 +81,11 @@ const draft = await session.data.prepare({ config: { nodeFile: file, edgeURL: "h
 
 A half the element recognizes as a graph file rather than a table -- `ring.gml` dropped beside
 `accounts.csv` -- is refused with `E_BAD_COMMAND`, whose `details` say why
-(`reason: "not-a-table"`), which half (`table`), what it is (`format`) and its `name`.
+(`reason: "not-a-table"`), which half (`table`), what it is (`format`) and its `name`. A pair
+handed over with only one half (`nodeData` and no edge source) is refused the same way, with
+`reason: "missing-half"` and the half that is missing in `table`. A pair whose edge table names no
+endpoint columns is refused with `E_EDGE_ENDPOINTS_UNRESOLVED`, by `prepare` and `report` and by
+`data.import` alike, with the same `details.table` and `details.missing`.
 
 A CSV table also carries `delimiter: { value, detected }`: the column separator it was split on
 (`","`, `";"`, `"\t"` or `"|"`) and whether the element detected it rather than being given it as
@@ -205,7 +209,10 @@ after the load, so the numbers before and after cannot disagree. Beside the impo
   `draft.rows("edges", { only: "unmatched", choices })` lists those rows.
 - `duplicates`: `{ rows, ids }`: how many node rows repeat an id an earlier node row gave, and
   the distinct ids. A report counts them under every `duplicateIds` choice, `"refuse"` included,
-  so you can say "2 rows repeat an id" before the load refuses.
+  so you can say "2 rows repeat an id" before the load refuses. Duplicates and rows with no id
+  are counted for CSV and JSON node records. A GraphML, GEXF, GML or other graph file is read by
+  its format's own parser, which folds a repeated node id into one node before the element sees
+  it, so those rows are not counted there.
 - `counts.rejected`: rows that become nothing -- a node row with no usable id (an empty or
   missing id cell) and an edge row whose ends cannot be node ids. A load never refuses for
   them; `draft.rows(id, { only: "rejected" })` lists them.
@@ -280,9 +287,10 @@ and a successful `load` disposes its own. Disposing lets go of the rows only: `d
 
 Reading a large file takes a while, and so does loading it. Both report on the
 `progress:changed` session event (`graphty-progress-change` on the element): `prepare` with
-`task: "prepare"`, and the load with `task: "load"`. Each sends `phase: "start"` before anything
-is read, then the rows or records read so far in `completed`, then `phase: "end"` with an
-`outcome` of `"succeeded"`, `"failed"` or `"cancelled"`. `source.name` names the file.
+`task: "prepare"`, and the load with `task: "load"`. Each sends a first `phase: "progress"`
+change with `completed: 0` before anything is read, then the rows or records read so far in
+`completed`, then `phase: "end"` with an `outcome` of `"succeeded"`, `"failed"` or `"cancelled"`.
+`source.name` names the file.
 
 ```ts
 session.on("progress:changed", (change) => {
@@ -293,6 +301,6 @@ session.on("progress:changed", (change) => {
 const draft = await session.data.prepare({ config: { file } });
 ```
 
-A file's size is not known as rows, so `total` and `fraction` are `null`: show a count, not a
-bar. A CSV file is parsed in one pass, so its row count arrives once the file is read; a graph
-file's arrives a chunk at a time. See [Columns, Runs & Progress](./vocabulary) for the fields.
+A file's size is not known as rows, so `total` is `null`. While a CSV file is read, `completed`
+climbs as its rows are parsed and `fraction` is the share of the file read so far, so you can
+show a bar and a count; a graph file's count arrives a chunk at a time, with `fraction` `null`. See [Columns, Runs & Progress](./vocabulary) for the fields.

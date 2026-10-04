@@ -109,7 +109,9 @@ export interface LoadReport extends ImportReport {
      * Node rows whose id an earlier node row of the same load already gave: `rows` is how many
      * such rows there are, and `ids` the distinct ids, in the order they first repeated. What
      * became of them is `LoadChoices.duplicateIds`; under `"refuse"` a load refuses with
-     * `E_DUPLICATE_ID` and a report counts them here.
+     * `E_DUPLICATE_ID` and a report counts them here. Counted for CSV and JSON node records; a
+     * graph file (GraphML, GEXF, GML, ...) has a repeated id folded by its parser before the
+     * element sees it, so it is not counted.
      */
     readonly duplicates: { readonly rows: number; readonly ids: readonly (string | number)[] };
 }

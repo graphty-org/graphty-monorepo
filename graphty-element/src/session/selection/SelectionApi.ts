@@ -191,6 +191,22 @@ export interface SelectionApi {
     /** Whether the last mutation dropped elements to stay within the cap. */
     readonly truncated: boolean;
     /**
+     * The target the selection was made from, as it was passed to `apply`, while the selection is
+     * still exactly that target: `{ neighborsOf: ["Javert"] }` after a neighborhood was selected,
+     * so a panel that did not make the call can tell a neighborhood from any other set of nodes.
+     * Null once anything else changes the selection -- a click, `clear()`, another `apply`, or an
+     * `apply` that adds to, removes from, toggles or intersects the selection -- and null before
+     * anything was selected.
+     *
+     * ```ts
+     * const origin = session.selection.origin;
+     * if (origin !== null && "neighborsOf" in origin && origin.neighborsOf?.length === 1) {
+     *     showNeighbors(origin.neighborsOf[0]);
+     * }
+     * ```
+     */
+    readonly origin: SelectionTarget | null;
+    /**
      * Whether one element is selected.
      *
      * One array read, and no allocation at all, so a render loop can ask once per element per
@@ -491,6 +507,9 @@ class Selection implements SelectionOwner {
 
     #truncated = false;
 
+    /** The target the selection is exactly, while nothing else has changed it. */
+    #origin: SelectionTarget | null = null;
+
     /** A change {@link Selection.applyAtNextRead} is holding for the next read. */
     #pending: { readonly target: SelectionTarget; readonly op: SelectionOp; readonly cause: SelectionCause } | null =
         null;
@@ -561,6 +580,16 @@ class Selection implements SelectionOwner {
      */
     get truncated(): boolean {
         return this.#truncated;
+    }
+
+    /**
+     * The target the selection was made from, while it is still exactly that target.
+     * @returns The target as it was passed, or null.
+     */
+    get origin(): SelectionTarget | null {
+        this.#sync();
+
+        return this.#origin;
     }
 
     /**
@@ -703,6 +732,8 @@ class Selection implements SelectionOwner {
         }
 
         this.#truncated = this.#enforceCap(cap);
+        // Only a replace leaves the selection exactly what the target named.
+        this.#origin = op === "replace" ? target : null;
 
         return this.#delta(before, members.unmatched, members.unresolvedPaths, cause, members.skipped);
     }
@@ -721,6 +752,7 @@ class Selection implements SelectionOwner {
         this.#nodes.clear();
         this.#edges.clear();
         this.#truncated = false;
+        this.#origin = null;
 
         return this.#delta(before, EMPTY_STRINGS, EMPTY_PATHS, "api");
     }

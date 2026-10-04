@@ -435,6 +435,7 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     size: READ,
     cap: READ,
     truncated: READ,
+    origin: READ,
     has: READ,
     nodeMask: READ,
     edgeMask: READ,

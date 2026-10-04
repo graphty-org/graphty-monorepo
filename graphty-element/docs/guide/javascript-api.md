@@ -262,6 +262,19 @@ if (selected) {
 }
 ```
 
+`session.selection.origin` says what the selection was made from, so a panel that did not make the
+call can still tell what it is looking at. It holds the target passed to `apply` while the
+selection is exactly that target, and turns `null` at the next change of any kind:
+
+```typescript
+await session.selection.apply({ neighborsOf: ["Javert"] }); // say, from a toolbar
+// ... elsewhere, on selection:changed:
+const origin = session.selection.origin; // { neighborsOf: ["Javert"] }
+if (origin !== null && "neighborsOf" in origin && origin.neighborsOf?.length === 1) {
+    session.data.neighbors(origin.neighborsOf[0]); // list the center's connections
+}
+```
+
 ### Layout Control
 
 ```typescript

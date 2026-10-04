@@ -45,7 +45,7 @@ describe("the workspace frame", () => {
     it("draws every region with its package's stub", () => {
         renderWorkspace(OPEN);
 
-        for (const stub of ["Graph place", "Inspector", "Toolbar", "Legend card and state cards", "Privacy chip"]) {
+        for (const stub of ["Inspector", "Toolbar", "Legend card and state cards", "Privacy chip"]) {
             assert.isNotNull(screen.getByText(stub), stub);
         }
         assert.isNotNull(document.querySelector("graphty-element"));
@@ -56,10 +56,10 @@ describe("the workspace frame", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Data" }));
         assert.isNotNull(screen.getByText("Data place"));
-        assert.isNull(screen.queryByText("Graph place"));
+        assert.isNull(screen.queryByRole("region", { name: "Graph place" }));
 
         await userEvent.click(screen.getByRole("button", { name: "Graph" }));
-        assert.isNotNull(screen.getByText("Graph place"));
+        assert.isNotNull(screen.getByRole("region", { name: "Graph place" }));
     });
 
     it("lets the Data page take the panels while the element stays mounted", () => {

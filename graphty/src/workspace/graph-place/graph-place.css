@@ -1,0 +1,85 @@
+/* The Graph place (tier1-design.md section 2.5). Colors come only from compact-mantine's
+   --cm-* tokens. */
+
+.ws-graph-place {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.ws-graph-title {
+    display: flex;
+    flex: none;
+    gap: 6px;
+    align-items: baseline;
+    min-width: 0;
+    padding: 10px 12px 6px 16px;
+    font-size: 11px;
+}
+
+.ws-graph-title-prefix {
+    color: var(--cm-text-secondary);
+    font-size: inherit;
+}
+
+.ws-graph-title-name {
+    overflow: hidden;
+    color: var(--cm-text);
+    font-size: inherit;
+    font-weight: 550;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ws-graph-treebar {
+    flex: none;
+    padding: 0 8px 6px;
+}
+
+.ws-find-list {
+    max-height: 320px;
+    margin: 4px -8px 0;
+    overflow-y: auto;
+    border-bottom: 1px solid var(--cm-border);
+}
+
+.ws-find-heading {
+    padding: 6px 16px 2px;
+    color: var(--cm-text-secondary);
+    font-size: 10px;
+    font-weight: 550;
+}
+
+.ws-find-empty {
+    padding: 6px 8px 0;
+}
+
+.ws-paint-tree {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.ws-paint-swatch {
+    display: inline-block;
+    width: 24px;
+    height: 8px;
+    margin-inline-end: 6px;
+    border-radius: 2px;
+    vertical-align: middle;
+}
+
+.ws-paint-count {
+    margin-inline-end: 4px;
+    color: var(--cm-text-secondary);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ws-graph-footer {
+    flex: none;
+    padding: 8px 16px;
+    border-top: 1px solid var(--cm-border);
+    color: var(--cm-text-secondary);
+    font-size: 11px;
+}

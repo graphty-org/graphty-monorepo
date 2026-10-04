@@ -756,7 +756,11 @@ records' items, replayed oldest `reviewedAt` first, each moving a path only `fro
 hash `to` another, must take the file from its base branch hash to its hash in the pull request.
 Tying each item to the contents it was approved over is what stops a replay: an old seed record
 copied into a later pull request, or a decision the owner replaced later in the same pull
-request, moves nothing. If master changes the same baselines between Finish and merge, the
+request, moves nothing. So Finish never requires the branch to hold master's newest baselines:
+it records the owner's decisions against the capture the owner reviewed, and the merge queue,
+which brings the pull request up to date with master and captures and gates the merged tree
+before merging, sends back any image master's changes altered. If master changes the same
+baselines between capture and merge, the
 record no longer starts from master's contents and the owner reviews again; git would conflict
 on those files anyway. Update from master (`visual-review update <pr>`, or the page's button)
 resolves that conflict by taking master's side, which needs no record and no approval: the file

@@ -1,3 +1,17 @@
+## 3.7.0 (2026-10-03)
+
+### 🚀 Features
+
+- **graphty-element:** shared column, result, fact and progress shapes ([968987ab](https://github.com/graphty-org/graphty-monorepo/commit/968987ab))
+
+### 🔥 Performance
+
+- **graphty-element:** import lodash functions one by one so the main entry drops the whole library ([8c2c2f36](https://github.com/graphty-org/graphty-monorepo/commit/8c2c2f36))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.6.0 (2026-10-03)
 
 ### 🚀 Features

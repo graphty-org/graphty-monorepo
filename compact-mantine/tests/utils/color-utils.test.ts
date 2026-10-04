@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    isLightColor,
     isValidHex,
     MAX_ALPHA_HEX,
     MAX_OPACITY_PERCENT,
+    mixHex,
+    normalizeHexa,
     opacityToAlphaHex,
     parseAlphaFromHexa,
     parseHexaColor,
@@ -142,5 +145,39 @@ describe("isValidHex", () => {
     it("is case insensitive", () => {
         expect(isValidHex("#FFFFFF")).toBe(true);
         expect(isValidHex("#AbCdEf")).toBe(true);
+    });
+});
+
+describe("normalizeHexa", () => {
+    it("expands every hex length to upper-case #RRGGBBAA", () => {
+        expect(normalizeHexa("#f00")).toBe("#FF0000FF");
+        expect(normalizeHexa("f008")).toBe("#FF000088");
+        expect(normalizeHexa("#5b8ff9")).toBe("#5B8FF9FF");
+        expect(normalizeHexa("#5B8FF980")).toBe("#5B8FF980");
+    });
+
+    it("returns undefined for anything that is not a hex color", () => {
+        expect(normalizeHexa("red")).toBeUndefined();
+        expect(normalizeHexa("#12345")).toBeUndefined();
+    });
+});
+
+describe("isLightColor", () => {
+    // The ring threshold measured on Figma's picker swatches.
+    it("rings the near-white swatches Figma rings and no others", () => {
+        ["#FFFFFF", "#E6E6E6", "#F5F5F5", "#FFFFE5", "#EBEBF7"].forEach((c) => {
+            expect(isLightColor(c)).toBe(true);
+        });
+        ["#D9D9D9", "#D9E5FF", "#000000", "not a color"].forEach((c) => {
+            expect(isLightColor(c)).toBe(false);
+        });
+    });
+});
+
+describe("mixHex", () => {
+    it("mixes channel by channel", () => {
+        expect(mixHex("#000000", "#FFFFFF", 0.5)).toBe("#808080");
+        expect(mixHex("#FF0000", "#0000FF", 0)).toBe("#FF0000");
+        expect(mixHex("#FF0000", "#0000FF", 1)).toBe("#0000FF");
     });
 });

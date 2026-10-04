@@ -1,24 +1,36 @@
-import { Box, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Box } from "@mantine/core";
 import React, { useId } from "react";
 
-import { PANEL_GRID, PANEL_INK } from "../constants/panel";
+import { PANEL_GRID } from "../constants/panel";
 import { useLabels } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { DisclosureProps } from "../types/events";
 import { Popout } from "./popout/Popout";
-import { useOptionalPopoutManagerContext, usePopoutContext } from "./popout/PopoutContext";
+import {
+    PopoutProvider,
+    useOptionalPopoutContext,
+    useOptionalPopoutManagerContext,
+    usePopoutContext,
+} from "./popout/PopoutContext";
 import { PopoutManager } from "./popout/PopoutManager";
 
 // The bubble is a Popout panel rather than a Mantine Popover so that the
 // package has one floating layer with one set of dismissal rules. Before this,
 // an info bubble and a pop-out panel on the same screen closed on different
 // gestures, which is most of what made the library feel like two libraries.
+//
+// Figma has no info circle (it explains with tooltips); this one is drawn from
+// Figma's parts (design/figma-spec.md 8.4): the trigger is the 24px ghost icon
+// button with a 12px glyph, the bubble the light popover shell, 240 wide, with
+// 11/16 secondary body text. It is a hover bubble, so it stays out of the
+// one-popover-at-a-time rule: showing an explanation never closes the panel
+// the person is working in.
 
 /**
- * The width of the info bubble. A surface this narrow carries no header of its
- * own: the explanation is the whole panel.
+ * The width of the info bubble: Figma's default light popover. A surface this
+ * narrow carries no header of its own: the explanation is the whole panel.
  */
-const BUBBLE_WIDTH = 250;
+const BUBBLE_WIDTH = PANEL_GRID.POPOVER_WIDTH;
 
 /**
  * The gap between the circle and its bubble, small enough that the two read as
@@ -60,9 +72,9 @@ function InfoCircleTrigger({ name, bubbleId }: InfoCircleTriggerProps): React.JS
         // Hovering has already opened the bubble by the time a click arrives,
         // so the trigger only ever opens rather than toggling.
         <Popout.Trigger action="open">
-            <UnstyledButton
-                type="button"
-                title={name}
+            <ActionIcon
+                variant="subtle"
+                size="sm"
                 aria-label={name}
                 aria-describedby={isOpen ? bubbleId : undefined}
                 data-testid="info-circle"
@@ -70,20 +82,9 @@ function InfoCircleTrigger({ name, bubbleId }: InfoCircleTriggerProps): React.JS
                 onMouseLeave={close}
                 onFocus={open}
                 onBlur={close}
-                style={{
-                    flex: "0 0 auto",
-                    width: PANEL_GRID.GLYPH,
-                    height: PANEL_GRID.GLYPH,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "transparent",
-                    color: PANEL_INK.CHROME,
-                    cursor: "default",
-                }}
             >
-                <UiGlyph name="info" size={PANEL_GRID.CHEVRON} />
-            </UnstyledButton>
+                <UiGlyph name="info" size={PANEL_GRID.GLYPH} />
+            </ActionIcon>
         </Popout.Trigger>
     );
 }
@@ -105,9 +106,10 @@ function InfoCircleTrigger({ name, bubbleId }: InfoCircleTriggerProps): React.JS
  *
  * The bubble closes when the pointer leaves, when focus moves away, on Escape,
  * on a second tap, and when something else on the page is clicked. It shares
- * the page's floating layer with every other pop-out, so opening one closes
- * whatever else was open at the same level; when there is no `PopoutManager`
- * above it, it supplies its own and works standalone.
+ * the page's floating layer with every other pop-out (Escape closes the
+ * innermost open thing), but as a hover bubble it neither closes an open panel
+ * nor is closed by one opening; when there is no `PopoutManager` above it, it
+ * supplies its own and works standalone.
  *
  * Leave `opened` out and the bubble keeps its own state. Supply it, with
  * `onOpenChange`, to drive it from yours.
@@ -138,10 +140,17 @@ export function InfoCircle({
     const labels = useLabels();
     const bubbleId = useId();
     const hasManager = useOptionalPopoutManagerContext() !== null;
+    const parentId = useOptionalPopoutContext()?.id ?? null;
     const name = labels.about(label);
 
     const infoCircle = (
-        <Popout opened={opened} defaultOpened={defaultOpened} onOpenChange={onOpenChange}>
+        <PopoutProvider
+            parentId={parentId}
+            opened={opened}
+            defaultOpened={defaultOpened}
+            onOpenChange={onOpenChange}
+            exclusive={false}
+        >
             <InfoCircleTrigger name={name} bubbleId={bubbleId} />
             <Popout.Panel
                 width={BUBBLE_WIDTH}
@@ -155,20 +164,11 @@ export function InfoCircle({
                 // whatever the person is doing.
                 manageFocus={false}
             >
-                <Box
-                    id={bubbleId}
-                    w={BUBBLE_WIDTH}
-                    p="xs"
-                    style={{
-                        fontSize: "var(--mantine-font-size-sm)",
-                        lineHeight: 1.4,
-                        color: PANEL_INK.PROSE,
-                    }}
-                >
+                <Box id={bubbleId} w={BUBBLE_WIDTH} className="cm-info-bubble">
                     {children}
                 </Box>
             </Popout.Panel>
-        </Popout>
+        </PopoutProvider>
     );
 
     // Standalone use has to keep working: an info circle dropped into a page

@@ -14,7 +14,7 @@ import "../data/index";
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
-import type { AttributeDescriptor, EdgeId, ScopeInput } from "../catalog/types";
+import type { AttributeDescriptor, EdgeId, MeasurementDeclaration, ScopeInput } from "../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
@@ -22,10 +22,12 @@ import type { ImportReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
+import { resolveColumn } from "./columns";
 import {
     type DataImportCommand,
     type DataMutation,
     type DataService,
+    declarationKey,
     type ImportSource,
     SOURCE_VALUE,
 } from "./commands/data";
@@ -33,8 +35,10 @@ import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
+import { RevisionCache } from "./revision";
 import type { ResolvedScope } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
+import type { ColumnRef } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type {
     DataSourceDescriptor,
@@ -67,6 +71,10 @@ interface DataWrites {
     importer(): (command: DataImportCommand) => Promise<unknown>;
     /** The `graph` slice now. */
     slice(): GraphSlice;
+    /** Dispatch `data.declare`. */
+    declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
+    /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
+    declarations(): ReadonlyMap<string, MeasurementDeclaration>;
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -192,8 +200,6 @@ interface Derived {
     readonly snapshot: GraphSnapshot;
     /** The graph's shape, once something asked for it. */
     statistics: GraphStatistics | null;
-    /** The attribute descriptors, once something asked for them. */
-    attributes: readonly AttributeDescriptor[] | null;
     /** The topology fingerprint, once something asked for it. */
     fingerprint: string | null;
 }
@@ -217,9 +223,10 @@ export class SessionData implements SessionDataApi {
     private readonly writes: DataWrites;
     private readonly pages: PageSources;
     private derived: Derived | null = null;
-    /** Row orders computed for pages, by what they were asked with, at {@link orderRevision}. */
-    private readonly orders = new Map<string, Uint32Array>();
-    private orderRevision = -1;
+    /** Row orders computed for pages, by what they were asked with, for the current revision. */
+    private readonly orders: RevisionCache<Uint32Array>;
+    /** The attribute walk, for the current revision. */
+    private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
     private disposed = false;
 
     /**
@@ -245,6 +252,8 @@ export class SessionData implements SessionDataApi {
         this.readConfig = readConfig;
         this.writes = writes;
         this.pages = pages;
+        this.orders = new RevisionCache(() => pages.revision());
+        this.attributeCache = new RevisionCache(() => pages.revision());
     }
 
     /**
@@ -511,7 +520,7 @@ export class SessionData implements SessionDataApi {
         // Read after the snapshot: a freeze moves the tick, so reading it first would name a
         // revision the page was not read at.
         const revision = this.pages.revision();
-        const rows = this.orderOf(snapshot, target, revision, options);
+        const rows = this.orderOf(snapshot, target, options);
         const rowCount = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const total = rows === null ? rowCount : rows.length;
         const records: TRecord[] = [];
@@ -526,36 +535,19 @@ export class SessionData implements SessionDataApi {
      * The rows a page's list holds, in order, computed once per revision and request.
      * @param snapshot - the current snapshot
      * @param target - nodes or edges
-     * @param revision - the revision now
      * @param options - the scope, the order and the node
      * @returns the rows, or null for every row in graph order
      */
-    private orderOf(
-        snapshot: GraphSnapshot,
-        target: "node" | "edge",
-        revision: number,
-        options: EdgePageOptions,
-    ): Uint32Array | null {
+    private orderOf(snapshot: GraphSnapshot, target: "node" | "edge", options: EdgePageOptions): Uint32Array | null {
         const scope = options.scope === "graph" ? undefined : options.scope;
         const touching = target === "edge" ? options.touching : undefined;
         if (scope === undefined && touching === undefined && options.sort === undefined) {
             return null;
         }
 
-        if (revision !== this.orderRevision) {
-            this.orders.clear();
-            this.orderRevision = revision;
-        }
-
         // JSON keeps 1 and "1" apart, which the ids need.
         const key = JSON.stringify([target, scope, options.sort, touching]);
-        let rows = this.orders.get(key);
-        if (rows === undefined) {
-            rows = this.computeOrder(snapshot, target, scope, touching, options.sort);
-            this.orders.set(key, rows);
-        }
-
-        return rows;
+        return this.orders.get(key, () => this.computeOrder(snapshot, target, scope, touching, options.sort));
     }
 
     /**
@@ -689,9 +681,38 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     attributes(): readonly AttributeDescriptor[] {
-        const derived = this.derivedFor(this.current());
-        derived.attributes ??= describeAttributes(derived.snapshot, this.records);
-        return derived.attributes;
+        // Keyed on the input tick, which moves on a freeze AND on an attribute write: keyed on the
+        // snapshot alone, an edited value never reached the descriptors.
+        const snapshot = this.current();
+        const described = this.attributeCache.get("", () => describeAttributes(snapshot, this.records));
+        const declarations = this.writes.declarations();
+        if (declarations.size === 0) {
+            return described;
+        }
+
+        // ponytail: overlaid per call while anything is declared; a few dozen spreads.
+        return Object.freeze(
+            described.map((each) => {
+                const declared = declarations.get(declarationKey(each));
+                return declared === undefined
+                    ? each
+                    : Object.freeze({ ...each, measurement: declared.measurement, measurementSource: "declared" });
+            }),
+        );
+    }
+
+    /**
+     * Say what a column measures, as one undoable step.
+     * @param column - the column, such as an entry of {@link SessionData.attributes}
+     * @param declaration - what it measures, with the order of an ordinal column
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
+     *     `E_BAD_COMMAND` for a declaration that is not one.
+     */
+    async declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void> {
+        this.requireLive("declare");
+        const { kind, name } = resolveColumn(this.attributes(), column);
+        await this.writes.declare({ kind, name }, declaration);
     }
 
     /**
@@ -729,7 +750,6 @@ export class SessionData implements SessionDataApi {
     dispose(): void {
         this.disposed = true;
         this.derived = null;
-        this.orders.clear();
     }
 
     /**
@@ -744,7 +764,7 @@ export class SessionData implements SessionDataApi {
      */
     private derivedFor(snapshot: GraphSnapshot): Derived {
         if (this.derived === null || this.derived.snapshot !== snapshot) {
-            this.derived = { snapshot, statistics: null, attributes: null, fingerprint: null };
+            this.derived = { snapshot, statistics: null, fingerprint: null };
         }
 
         return this.derived;
@@ -903,6 +923,7 @@ export function headlessDataService(
         loadErrors: () => undefined,
         loadComplete: () => undefined,
         loadFailed: () => undefined,
+        progress: (change) => dispatcher.services.progress?.(change),
     });
 
     return {

@@ -8,7 +8,7 @@
  * usage error or a refused request.
  */
 
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -49,6 +49,7 @@ const USAGE = `usage: githerd <command>
   mode dry-run|paused|clear                lower the mode locally, or remove the override
   ack <key>                                clear an escalation
   veto <issue:N|pr:N>                      never let githerd close this issue or pull request
+  attach                                   attach to githerd's tmux server, one window per worker
   install                                  prepare the daemon's code and environment, and print
                                            the servherd command that starts it
   ensure                                   find or start the daemon, then exit
@@ -386,6 +387,25 @@ async function cmdOwner(c) {
 }
 
 /**
+ * `attach`: githerd's tmux server, where every worker has a window (design 7.6). Typing into a
+ * worker's window steers it.
+ * @param {Command} c the command
+ * @returns {Promise<number>} tmux's exit code
+ */
+async function cmdAttach(c) {
+    const r = spawnSync(
+        "tmux", // NOSONAR(S4036): the owner's tmux from his own PATH, as tools/ runs git
+        ["-L", "githerd", "attach", "-t", "githerd"],
+        { stdio: "inherit", env: c.env },
+    );
+    if (r.error) {
+        c.err(`githerd attach: ${r.error.message}`);
+        return 1;
+    }
+    return r.status ?? 1;
+}
+
+/**
  * Whether a ledger entry names a target.
  * @param {any} e the entry
  * @param {string | true | undefined} target the `--target` flag
@@ -623,6 +643,7 @@ const HANDLERS = {
     why: cmdWhy,
     ack: cmdOwner,
     veto: cmdOwner,
+    attach: cmdAttach,
     ledger: cmdLedger,
     runs: cmdRuns,
     run: cmdRun,

@@ -113,7 +113,11 @@ import {
 import { secretValues } from "./text.mjs";
 import { sessionTools, statusData } from "./tools.mjs";
 import { readVersion } from "./version.mjs";
+import { watchPass } from "./watchdog.mjs";
 import { createWorktree, readTree, removeWorktree, sweepWorktrees } from "./worktrees.mjs";
+
+/** How often the watchdog looks at the workers (design 7.5). */
+const WATCH_MS = 60_000;
 
 /** The /health protocol; a launcher uses a daemon only when the major matches. */
 export const PROTOCOL = 1;
@@ -1847,6 +1851,29 @@ export async function startDaemon({
         }
     }
 
+    let watching = false;
+
+    /**
+     * One watchdog pass over the workers githerd started (design 7.5). Skipped while a pass runs or
+     * the daemon cannot write.
+     * ponytail: runs every minute even with no worker; a pass over no worker reads nothing.
+     */
+    async function watch() {
+        if (watching || stopping || fatal || !config || !mayWrite()) return;
+        watching = true;
+        try {
+            const queued = (/** @type {any} */ job) =>
+                (state.pushQueue?.entries ?? []).some((/** @type {any} */ e) => e.job === job.id);
+            const pass = await watchPass(state, now(), { pushQueued: queued });
+            for (const line of pass.ledger) void ledger(line);
+            if (pass.ledger.length) await save();
+        } catch (err) {
+            say("error", `watchdog: ${/** @type {Error} */ (err).message}`);
+        } finally {
+            watching = false;
+        }
+    }
+
     /** Polls, then schedules the next poll. */
     async function tick() {
         timer = null;
@@ -2267,6 +2294,8 @@ export async function startDaemon({
         if (!fenced) beat();
     }, aliveMs);
     aliveTimer.unref();
+    const watchTimer = autoPoll ? setInterval(() => void watch(), WATCH_MS) : null;
+    watchTimer?.unref();
 
     /**
      * Enters fatal mode (design section 9.6): `FATAL`, no more polls (the loop still ticks, so
@@ -2342,6 +2371,7 @@ export async function startDaemon({
         if (timer) clearTimeout(timer);
         timer = null;
         clearInterval(aliveTimer);
+        if (watchTimer) clearInterval(watchTimer);
         process.off("uncaughtException", onUncaught);
         process.off("unhandledRejection", onUncaught);
         released = true;
@@ -2377,6 +2407,7 @@ export async function startDaemon({
         stateDir,
         state,
         poll,
+        watch,
         shutdown,
         rpc: (message, context) => mcp.handle(message, context ?? { session: "local" }),
         flushNotifications: () => notifier.flush(),
@@ -2395,6 +2426,7 @@ export async function startDaemon({
  * @property {any} [state] the live state object
  * @property {() => Promise<{skipped?: true, fenced?: true, fatal?: string, ok?: boolean}>} [poll] one
  *   poll now
+ * @property {() => Promise<void>} [watch] one watchdog pass now
  * @property {() => Promise<void>} [shutdown] the SIGTERM path
  * @property {() => string | null} [fatal] the fatal reason, null while not in fatal mode
  * @property {boolean} [containerRestarted] true when PID 1 started since the previous daemon's

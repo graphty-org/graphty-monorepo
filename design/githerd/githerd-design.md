@@ -1028,7 +1028,9 @@ Workers are prepared in parallel and started one at a time; only the span from `
 3. **Generated files** under `~/.githerd/graphty-monorepo/jobs/<id>/`: `settings.json`,
    `mcp.json`, `news`. Nothing in `~/.claude` is written.
 4. **Window**, on the githerd tmux server, created if missing (`tmux -L githerd has-session -t
-   githerd || tmux -L githerd new-session -d -s githerd`):
+   githerd || tmux -L githerd new-session -d -s githerd -x 200 -y 50`). The size matters: a
+   detached session is 80 by 24, where a doorbell for a long job id wraps onto a second line and
+   never verifies; the captures the screen matcher is tested on were taken at 200 by 50:
 
    ```
    tmux -L githerd new-window -d -t githerd -n <job> -c <worktree> \
@@ -1140,11 +1142,15 @@ waiting session is ended and its job continues later by resume [PF 10.2] or fres
 While at least one worker exists, one local check runs every 60 s (local files, `/proc` and tmux
 only; it stops when the last worker ends).
 
-- **Alive**: pid with its recorded start time, or listed by `claude agents --json` [PF 2.2].
+- **Alive**: pid with its recorded start time, not a zombie (a session that exited stays one, start
+  time intact, until tmux reaps it), or listed by `claude agents --json` [PF 2.2].
 - **Progress**: transcript growth, including the session's subagent transcripts; CPU time of the
-  session's descendant processes, never of the claude process itself, which spends CPU redrawing
-  while its command hangs [PF 10.7]; output growth of a declared local task; a push in the queue; a `githerd_expect`
-  window.
+  session's commands: the processes under each direct child of claude that runs a shell (the Bash
+  tool's and the hooks'), plus claude's reaped children. Never the claude process itself, which
+  spends CPU redrawing while its command hangs [PF 10.7], and never its other direct children, the
+  MCP servers, which run for the whole session (the owner's SonarQube server, a Java process, had
+  used 162 s of CPU in one session on 2026-10-04), so counting them would make a hang look like
+  work; output growth of a declared local task; a push in the queue; a `githerd_expect` window.
 - **Before any key is sent**, the pane is captured and matched against known screens: the empty
   prompt box; the permission dialog ("Do you want to proceed?", numbered options; from a subagent it is
   headed "from the <type> agent") [PF 2.2, 10.6]; the plan approval dialog ("Ready to code?", "Would

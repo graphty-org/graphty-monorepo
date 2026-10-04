@@ -457,6 +457,25 @@ describe("ack and veto", () => {
     });
 });
 
+describe("attach", () => {
+    it("attaches to githerd's tmux server and exits with tmux's code", async () => {
+        const log = join(dir, "tmux.log");
+        script(
+            join(dir, "bin", "tmux"),
+            `require("node:fs").writeFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(" ")); process.exit(3);`,
+        );
+        expect((await cli(["attach"])).code).toBe(3);
+        expect(readFileSync(log, "utf8")).toBe("-L githerd attach -t githerd");
+    });
+
+    it("says so when tmux cannot run", async () => {
+        env.PATH = join(dir, "bin");
+        const r = await cli(["attach"]);
+        expect(r.code).toBe(1);
+        expect(r.err).toContain("githerd attach: ");
+    });
+});
+
 describe("mode", () => {
     it("lowers the mode through override.json, refuses acting, and clears", async () => {
         const d = await daemon();

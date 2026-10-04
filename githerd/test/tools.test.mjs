@@ -216,6 +216,19 @@ describe("sessionTools", () => {
     });
 });
 
+describe("steering", () => {
+    it("ends when the steered worker calls a githerd tool, and only for that worker's job", async () => {
+        const state = exampleState();
+        state.jobs = {
+            mine: { id: "mine", steeredAt: ago(60), holder: { session: "githerd-2463873" } },
+            other: { id: "other", steeredAt: ago(60), holder: { session: "someone-else" } },
+        };
+        await call(ctxFor(state), "githerd_status");
+        expect(state.jobs.mine.steeredAt).toBeNull();
+        expect(state.jobs.other.steeredAt).not.toBeNull();
+    });
+});
+
 describe("githerd_status", () => {
     it("renders the example of design section 7.1 from a fixture state", async () => {
         const { text, isError } = await call(ctxFor(exampleState()), "githerd_status");

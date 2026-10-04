@@ -563,7 +563,13 @@ export function sessionTools(ctx) {
      * @returns {(args: any) => Promise<import("./mcp.mjs").ToolResult>} the handler
      */
     const handler = (body) => async (args) => {
-        if (caller.session) board.heartbeat(state, { session: caller.session }, now);
+        if (caller.session) {
+            board.heartbeat(state, { session: caller.session }, now);
+            // A steered worker calling githerd again is back on its job (design 7.6).
+            for (const job of Object.values(state.jobs ?? {})) {
+                if (job.steeredAt && job.holder?.session === caller.session) job.steeredAt = null;
+            }
+        }
         const { result, entry, bare } = body(args);
         if (entry && ctx.commit) await ctx.commit({ ts: now.toISOString(), ...entry });
         const out = typeof result === "string" ? { text: result } : result;

@@ -645,6 +645,40 @@ describe("ensure and restart", () => {
         expect(JSON.parse(readFileSync(join(stateDir(), "daemon-env.json"), "utf8")).PUSHOVER_USER_KEY).toBe("k");
     });
 
+    it("install from a plain terminal takes the signing variables from the Claude user settings", async () => {
+        const home = join(dir, "home");
+        mkdirSync(join(home, ".claude"), { recursive: true });
+        const settings = join(home, ".claude", "settings.json");
+        // A plain terminal: none of the signing variables a Claude session has.
+        const terminal = Object.fromEntries(
+            Object.keys(process.env)
+                .filter((k) => k.startsWith("GIT_CONFIG_") && k !== "GIT_CONFIG_GLOBAL" && k !== "GIT_CONFIG_NOSYSTEM")
+                .map((k) => [k, undefined]),
+        );
+        rmSync(join(stateDir(), "daemon-env.json"), { force: true });
+        const r0 = await cli(["install"], { extraEnv: terminal });
+        expect(r0.err).toMatch(/^warning: no GIT_CONFIG_\* signing variables here/);
+        writeFileSync(
+            settings,
+            JSON.stringify({
+                env: { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "gpg.format", GIT_CONFIG_VALUE_0: "ssh" },
+            }),
+        );
+        try {
+            const r = await cli(["install"], { extraEnv: terminal });
+            expect(r.code).toBe(0);
+            expect(r.err).toBe("");
+            expect(r.out).toContain("signing variables from ~/.claude/settings.json");
+            expect(JSON.parse(readFileSync(join(stateDir(), "daemon-env.json"), "utf8"))).toMatchObject({
+                GIT_CONFIG_COUNT: "1",
+                GIT_CONFIG_KEY_0: "gpg.format",
+                GIT_CONFIG_VALUE_0: "ssh",
+            });
+        } finally {
+            rmSync(settings, { force: true });
+        }
+    });
+
     it("names the usage of a worker control that lacks its argument", async () => {
         for (const verb of ["workers", "keep", "release"]) {
             const r = await cli([verb]);

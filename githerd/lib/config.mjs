@@ -394,14 +394,49 @@ export function repoRoot(cwd = process.cwd()) {
     return realpathSync(dirname(common));
 }
 
+/** The default branch the remote named, by repository, for a clone without origin/HEAD. */
+const remoteHeads = new Map();
+
 /**
- * The remote's default branch, from `refs/remotes/origin/HEAD`.
+ * Whether `refs/remotes/origin/HEAD` is set: a clone made by `git clone` has it; one whose remote
+ * was added by hand does not until `git remote set-head origin -a`.
  * @param {string} root the repository
- * @returns {string | null} the branch name, or null when origin/HEAD is not set
+ * @returns {string | null} the branch it names, or null
  */
-export function defaultBranch(root) {
+export function originHead(root) {
     try {
         return run(root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD").replace(/^origin\//, "");
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * The remote's default branch: from `refs/remotes/origin/HEAD`, or, when that is not set, from the
+ * remote itself (`git ls-remote --symref origin HEAD`, a git call, not the GitHub API), asked once
+ * per process. `githerd doctor` says how to set origin/HEAD so the remote is not asked.
+ * @param {string} root the repository
+ * @returns {string | null} the branch name, or null when neither answers
+ */
+export function defaultBranch(root) {
+    const local = originHead(root);
+    if (local) return local;
+    if (remoteHeads.has(root)) return remoteHeads.get(root);
+    try {
+        const out = execFileSync(
+            "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
+            ["ls-remote", "--symref", "origin", "HEAD"],
+            {
+                cwd: root,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "pipe"],
+                timeout: 15_000,
+                env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+            },
+        );
+        const branch = /^ref: refs\/heads\/(\S+)\s+HEAD$/m.exec(out)?.[1] ?? null;
+        if (branch) remoteHeads.set(root, branch);
+        return branch;
     } catch {
         return null;
     }
@@ -435,7 +470,7 @@ export function resolveConfig(root, env = process.env) {
     if (branch === null) {
         return {
             configured: false,
-            reason: "githerd is not configured: origin/HEAD is not set and GITHERD_CONFIG is unset",
+            reason: "githerd is not configured: the remote's default branch is unknown (origin/HEAD is not set and the remote did not answer) and GITHERD_CONFIG is unset",
         };
     }
     const source = `origin/${branch}:${CONFIG_FILE}`;

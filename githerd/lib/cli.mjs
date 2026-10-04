@@ -14,7 +14,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { groupModes, modeText, renderBoard, whyText } from "./board-text.mjs";
-import { repoRoot } from "./config.mjs";
+import { originHead, repoRoot } from "./config.mjs";
 import { notifyCommandProblem } from "./daemon.mjs";
 import {
     daemonStartArgs,
@@ -38,6 +38,7 @@ import { pushQueueTickets, sameProcess } from "./proc.mjs";
 import { runSelftest, selftestText } from "./selftest.mjs";
 import { defaultStateDir, readLedger, readLiveness, replayLedger, STATE_SCHEMA } from "./store.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
+import { readSigningEnv } from "./worker-settings.mjs";
 
 const USAGE = `usage: githerd <command>
   status [section] [--json]                the board; read from state.json when the daemon is down
@@ -691,12 +692,51 @@ async function startDev(ctx, c, devState) {
     c.out(`use it with GITHERD_STATE_DIR=${devState} githerd status`);
 }
 
+/**
+ * Whether a variable is one of the git signing variables.
+ * @param {string} name the variable
+ * @returns {boolean} true for GIT_CONFIG_COUNT, _KEY_n and _VALUE_n
+ */
+const isSigning = (name) => /^GIT_CONFIG_(COUNT$|KEY_|VALUE_)/.test(name);
+
+/**
+ * The environment `install` copies, with the signing variables: this shell's when it has them
+ * (a Claude session gets them from the owner's user settings), else the user settings' own, so an
+ * install from a plain terminal does not lose the daemon its signing.
+ * @param {Record<string, string | undefined>} env this shell's environment
+ * @returns {{env: Record<string, string | undefined>, from: string | null}} the environment, and
+ *   where its signing variables came from when not from this shell
+ */
+function withSigning(env) {
+    if (Object.entries(env).some(([k, v]) => v !== undefined && isSigning(k))) return { env, from: null };
+    let signing = {};
+    try {
+        signing = readSigningEnv(env.HOME ?? homedir());
+    } catch {
+        // malformed user settings: no signing variables from there; the warning says so
+    }
+    return Object.keys(signing).length
+        ? { env: { ...env, ...signing }, from: "~/.claude/settings.json" }
+        : { env, from: null };
+}
+
 /** @type {Record<string, (ctx: import("./launcher.mjs").LauncherContext, c: Command, devState: string) => Promise<void>>} */
 const SERVICE = {
     install: async (ctx, c) => {
         await prepareCode(ctx, await targetCode(ctx));
-        const carried = writeDaemonEnv(ctx.stateDir, ctx.env, { replace: true });
+        const signing = withSigning(ctx.env);
+        const carried = writeDaemonEnv(ctx.stateDir, signing.env, { replace: true });
         if (carried.length) c.out(`kept from the old daemon-env.json, unset here: ${carried.join(" ")}`);
+        if (signing.from) c.out(`signing variables from ${signing.from}`);
+        const signs = Object.entries(signing.env).some(([k, v]) => v !== undefined && isSigning(k));
+        if (!signs && !carried.some(isSigning)) {
+            c.err(
+                "warning: no GIT_CONFIG_* signing variables here, in ~/.claude/settings.json or in the old " +
+                    "daemon-env.json: the daemon's own commits would sign with the gpg key, whose pinentry " +
+                    "cannot run without a terminal. Run githerd install from one of your Claude sessions, " +
+                    "or from a shell that exports them.",
+            );
+        }
         c.out(installCommand(ctx));
     },
     ensure: async (ctx, c) => {
@@ -921,6 +961,13 @@ async function doctor(found, c) {
     if (found.kind === "unconfigured") report("FAIL", "config", `${found.reason}; nothing starts until it is`);
     else if (found.problem) report("FAIL", "config", found.problem);
     else report("ok", "config", `${ctx?.config?.repo}, mode ${ctx?.config?.mode}`);
+    if (!originHead(root)) {
+        report(
+            "warn",
+            "origin/HEAD",
+            "not set, so githerd asks the remote for the default branch; set it once with: git remote set-head origin -a",
+        );
+    }
     const place = { cwd: root, env: c.env };
     const ghPresent = await ghCheck(place, report);
     // servherd, the daemon, supervision and the notify command: only for a configured repository

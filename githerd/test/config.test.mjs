@@ -10,6 +10,7 @@ import {
     CONFIG_FILE,
     DEFAULTS,
     defaultBranch,
+    originHead,
     effectiveMode,
     normalizeConfig,
     repoRoot,
@@ -207,6 +208,16 @@ describe("resolveConfig", () => {
         expect(repoRoot(join(wt))).toBe(repoRoot(clone));
         expect(repoRoot(clone)).toBe(clone);
         git(clone, "worktree", "remove", wt);
+    });
+
+    it("asks the remote for the default branch when origin/HEAD is not set", () => {
+        const nohead = join(dir, "nohead");
+        git(dir, "clone", "-q", remote, nohead);
+        git(nohead, "remote", "set-head", "origin", "-d");
+        expect(originHead(nohead)).toBeNull();
+        expect(defaultBranch(nohead)).toBe("main");
+        const r = resolveConfig(nohead, {});
+        expect(r.configured && r.source).toBe(`origin/main:${CONFIG_FILE}`);
     });
 
     it("reads the default branch's file", () => {

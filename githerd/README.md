@@ -135,13 +135,22 @@ its entry at the end.
 
 The owner does these once, before the first soak (design section 12.1):
 
-1. **Start githerd once.** From the owner's own shell (it copies `HOME`, `PATH`, the signing
-   variables and the Pushover keys into `~/.githerd/<checkout>/daemon-env.json`, owner-only), run
-   `node githerd/bin/githerd.mjs install` and then the servherd command it prints. The command
-   starts the daemon under `env -i` from the state directory with servherd's `--autorestart`, so
-   pm2 brings back a crashed daemon; it needs a servherd release that has `--autorestart`. After a
-   container restart the daemon comes back when the first session opens, or with
-   `node githerd/bin/githerd.mjs ensure`.
+1. **Start githerd once.** From one of the owner's own Claude sessions, or a shell that exports
+   the `GIT_CONFIG_*` signing variables (a plain terminal does not: they live in the `env` of
+   `~/.claude/settings.json`), run `node githerd/bin/githerd.mjs install` and then the servherd
+   command it prints. `install` copies `HOME`, `PATH`, the signing variables and the Pushover keys
+   into `~/.githerd/<checkout>/daemon-env.json`, owner-only; with no signing variables in its
+   environment it takes them from `~/.claude/settings.json`, and it warns when it finds none
+   anywhere, because the daemon's git would then sign with the gpg key, whose pinentry cannot run
+   without a terminal. The command starts the daemon under `env -i` from the state directory with
+   servherd's `--autorestart`, so pm2 brings back a crashed daemon; it needs a servherd release that
+   has `--autorestart`. After a container restart the daemon comes back when the first session
+   opens, or with `node githerd/bin/githerd.mjs ensure`.
+
+    githerd finds the default branch through `refs/remotes/origin/HEAD`. A checkout whose remote
+    was added by hand lacks it; githerd then asks the remote (`git ls-remote`, no GitHub API) once
+    per process, and `githerd doctor` warns. Set it once with `git remote set-head origin -a`.
+
 2. **Notify credentials.** The daemon pages with the Pushover keys from `daemon-env.json`, never
    from pm2's environment. Check it with `githerd doctor --send-test`; after changing the keys, run
    `githerd install` again and restart the daemon.

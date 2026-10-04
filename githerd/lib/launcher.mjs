@@ -254,7 +254,11 @@ function readJson(path) {
  */
 export async function targetCode(ctx) {
     const branch = defaultBranch(ctx.root);
-    if (branch === null) throw new Error("origin/HEAD is not set: cannot find the default branch");
+    if (branch === null) {
+        throw new Error(
+            "cannot find the default branch: origin/HEAD is not set and the remote did not answer (git remote set-head origin -a)",
+        );
+    }
     const opts = { cwd: ctx.root, env: ctx.env };
     let hash;
     try {

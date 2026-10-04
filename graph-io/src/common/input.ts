@@ -45,8 +45,8 @@ export interface ReadOptions {
 /** How many leading bytes the declaration check sees (an XML prolog, a DOT `charset` near the top). */
 const HEAD_BYTES = 1024;
 
-/** How many leading bytes the BOM check needs. */
-const BOM_BYTES = 3;
+/** How many leading bytes the BOM check and the UTF-16 NUL-pattern check need. */
+const BOM_BYTES = 4;
 
 /**
  * The canonical name of an encoding label, or null when the platform's TextDecoder does not know it.
@@ -74,6 +74,27 @@ function bomEncoding(head: Uint8Array): string | null {
         return "utf-16le";
     }
     if (head.byteLength >= 2 && head[0] === 0xfe && head[1] === 0xff) {
+        return "utf-16be";
+    }
+    return null;
+}
+
+/**
+ * The UTF-16 byte order of a head without a BOM, from the NUL pattern of two ASCII characters
+ * (RFC 4627 section 3: `xx 00 xx 00` is UTF-16LE, `00 xx 00 xx` UTF-16BE). PowerShell's
+ * `Out-File` and other Windows tools write such files; read as UTF-8 they are text full of NULs.
+ * @param head - the first bytes
+ * @returns "utf-16le", "utf-16be" or null
+ */
+function nulPatternEncoding(head: Uint8Array): string | null {
+    if (head.byteLength < 4) {
+        return null;
+    }
+    const [a, b, c, d] = head;
+    if (a !== 0 && a < 0x80 && b === 0 && c !== 0 && c < 0x80 && d === 0) {
+        return "utf-16le";
+    }
+    if (a === 0 && b !== 0 && b < 0x80 && c === 0 && d !== 0 && d < 0x80) {
         return "utf-16be";
     }
     return null;
@@ -129,7 +150,7 @@ class ByteDecoder {
             this.use(explicit, false);
             return;
         }
-        const bom = bomEncoding(head);
+        const bom = bomEncoding(head) ?? nulPatternEncoding(head);
         if (bom !== null) {
             this.use(bom, false);
             return;
@@ -206,7 +227,10 @@ class ByteDecoder {
             return (this.decoder as TextDecoder).decode(all, { stream });
         }
         if (this.encoding === "utf-8") {
-            const after = this.mayFallBack ? " after valid non-ASCII UTF-8 text; pass the encoding option" : "";
+            let after = this.mayFallBack ? " after valid non-ASCII UTF-8 text; pass the encoding option" : "";
+            if (all.includes(0)) {
+                after = ": the input holds NUL bytes, so it is binary or compressed data (gzip, zip), not text; decompress it first";
+            }
             return this.report.fail(
                 INVALID_UTF8_CODE,
                 `invalid UTF-8 near byte ${this.offset}${after}`,

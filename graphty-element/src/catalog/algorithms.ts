@@ -232,7 +232,15 @@ const MODULARITY_INTERPRETATION: FieldInterpretation = {
  */
 function communityFields(plainName: string, withModularity: boolean): readonly FieldDescriptor[] {
     const fields: FieldDescriptor[] = [
-        field({ name: "group", plainName, technicalName: "group", kind: "node", type: "integer" }),
+        // Group ids are names, not amounts: group 3 is not more than group 1.
+        field({
+            name: "group",
+            plainName,
+            technicalName: "group",
+            kind: "node",
+            type: "integer",
+            measurement: "categorical",
+        }),
         field({
             name: "groupSize",
             plainName: `${plainName} size`,
@@ -693,7 +701,14 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "path",
         shape: "layered-grouping",
         fields: [
-            field({ name: "level", plainName: "Steps away", technicalName: "level", kind: "node", type: "integer" }),
+            field({
+                name: "level",
+                plainName: "Steps away",
+                technicalName: "level",
+                kind: "node",
+                type: "integer",
+                measurement: "categorical",
+            }),
             field({
                 name: "levelSize",
                 plainName: "Nodes this many steps away",

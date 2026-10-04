@@ -20,6 +20,7 @@ import type { FieldDescriptor, Path, Query, ResultShape, RunId } from "../../cat
 // The DEEP path on purpose. `../styles` re-exports StylesApi, which imports this file, so
 // importing the barrel here closes a cycle; `predicate` itself reaches only a type and the error
 // class, so this edge is one-way.
+import type { ResultRef } from "../shared";
 import { quotePath } from "../styles/predicate";
 import {
     RESULT_ROOT,
@@ -208,6 +209,26 @@ function shapeOf(ref: RunRef): ResultShape | undefined {
  */
 function publishes(result: RunResult, field: string): boolean {
     return result.fields.some((candidate: FieldDescriptor) => candidate.name === field) || field in result.graph;
+}
+
+/**
+ * The field a run-result reference names: its own `field`, else the run's primary field.
+ *
+ * Every API that takes a {@link ResultRef} reads the field through here, so "the primary field
+ * when absent" means the same thing everywhere.
+ * @param results - The session's results.
+ * @param ref - The run, and optionally the field.
+ * @returns The field name, or undefined for a result with no primary field (a `fact` result).
+ */
+export function fieldOfResult(results: ResultsApi, ref: ResultRef): string | undefined {
+    if (ref.field !== undefined) {
+        return ref.field;
+    }
+
+    const prefix = `${resultPath(runIdOf(ref.run))}.`;
+    const path = results.path(ref.run);
+
+    return path.startsWith(prefix) ? path.slice(prefix.length) : undefined;
 }
 
 /** Addressing results over one registry of runs. */

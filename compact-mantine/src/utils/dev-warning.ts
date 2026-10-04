@@ -41,7 +41,7 @@ import { useEffect, useRef } from "react";
 export function useDevWarning(message: string | undefined): void {
     // Surviving the simulated unmount and remount StrictMode performs is the
     // whole point of keeping this in a ref: React preserves refs across it, so
-    // the second run of the effect recognises the message it has already
+    // the second run of the effect recognizes the message it has already
     // logged.
     const reported = useRef<string | undefined>(undefined);
 

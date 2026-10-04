@@ -51,8 +51,10 @@ import {
     ID_TEXT_TYPE_CODE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
+    JSON_NONSTANDARD_NUMBER_CODE,
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
+    MULTI_ASPECT_FRAGMENT_CODE,
     OPTION_IGNORED_CODE,
     PRECISION_CODE,
     ROLE_TAKEN_CODE,
@@ -74,14 +76,19 @@ import {
     CxStructure,
     declareFresh,
     ExactInteger,
+    fitsF32,
     flipY,
+    headText,
     inexactLiteral,
     isRecord,
     JsonScanError,
+    keptPrecision,
     plainJson,
     positionDecl,
+    reportSharedBlock,
     reportTooDeep,
     scanAspects,
+    setOwn,
     zDecl,
 } from "../../common/json-elements.js";
 import {
@@ -163,6 +170,12 @@ export const CX2_ISSUE = Object.freeze({
     ALIAS_BYPASSED: "W_CX2_ALIAS_BYPASSED",
     /** A CX1 cartesianLayout aspect next to node coordinates; kept, not applied. */
     LEGACY_LAYOUT: "W_CX2_LEGACY_LAYOUT",
+    /** An aspect CX2 defines as an array of elements written as one object; read as one element. */
+    SINGLE_OBJECT_ASPECT: "W_CX2_SINGLE_OBJECT_ASPECT",
+    /** A member holding several aspects; each array-valued key is read as its own block. */
+    MULTI_ASPECT_FRAGMENT: MULTI_ASPECT_FRAGMENT_CODE,
+    /** The bare tokens NaN / Infinity / -Infinity (Python's json writes them), read as numbers. */
+    JSON_NONSTANDARD_NUMBER: JSON_NONSTANDARD_NUMBER_CODE,
     /** The file's style rules are not applied (issue #706). */
     STYLES_NOT_IMPORTED: STYLES_NOT_IMPORTED_CODE,
     /** A member of the top-level array that is not a one-key aspect block, or an element that is not an object. */
@@ -265,6 +278,18 @@ const STYLE_ASPECTS: readonly string[] = [
 /** The aspects the stream structure owns; never kept as opaque. */
 const STRUCTURE_ASPECTS: ReadonlySet<string> = new Set(["metaData", "status"]);
 
+/** The aspects CX2 defines as an array of elements, which a reader expects in that form. */
+const ARRAY_ASPECTS: ReadonlySet<string> = new Set([
+    "nodes",
+    "edges",
+    "attributeDeclarations",
+    "networkAttributes",
+    "nodeBypasses",
+    "edgeBypasses",
+    "status",
+    "metaData",
+]);
+
 /** The canonical CX2 scalar types. */
 type Cx2Scalar = "string" | "long" | "integer" | "double" | "boolean";
 
@@ -279,17 +304,17 @@ interface Cx2Type {
 }
 
 /** The type spellings CX2 defines, plus the Python spellings ndex2 writes. */
-const SCALARS: Readonly<Record<string, Cx2Scalar>> = {
-    string: "string",
-    long: "long",
-    integer: "integer",
-    double: "double",
-    boolean: "boolean",
-    str: "string",
-    int: "integer",
-    bool: "boolean",
-    float: "double",
-};
+const SCALARS: ReadonlyMap<string, Cx2Scalar> = new Map([
+    ["string", "string"],
+    ["long", "long"],
+    ["integer", "integer"],
+    ["double", "double"],
+    ["boolean", "boolean"],
+    ["str", "string"],
+    ["int", "integer"],
+    ["bool", "boolean"],
+    ["float", "double"],
+]);
 
 /**
  * Resolve a declared type text.
@@ -298,7 +323,7 @@ const SCALARS: Readonly<Record<string, Cx2Scalar>> = {
  */
 export function cx2Type(d: string): Cx2Type | null {
     const list = d.startsWith("list_of_");
-    const scalar = SCALARS[list ? d.slice("list_of_".length) : d] as Cx2Scalar | undefined;
+    const scalar = SCALARS.get(list ? d.slice("list_of_".length) : d);
     if (scalar === undefined) {
         return null;
     }
@@ -357,6 +382,7 @@ function convertScalar(
             return typeof value === "boolean" ? value : BAD;
         case "double":
             if (value instanceof ExactInteger) {
+                onPrecision(value.digits);
                 return Number(value.digits);
             }
             return typeof value === "number" ? value : BAD;
@@ -460,15 +486,16 @@ interface Cx2Document {
  * The inexact-literal bits of an element.
  * @param text - the element's JSON text
  * @param keys - the id keys to check, bit 1, 2, 4 in order
+ * @param depth - the depth of the element's own keys in the text (2: a member's single object)
  * @returns the bits
  */
-function inexactBits(text: string, keys: readonly string[]): number {
+function inexactBits(text: string, keys: readonly string[], depth = 1): number {
     if (!/[0-9][.eE]/.test(text)) {
         return 0;
     }
     let bits = 0;
     keys.forEach((key, i) => {
-        if (inexactLiteral(text, key)) {
+        if (inexactLiteral(text, key, depth)) {
             bits |= 1 << i;
         }
     });
@@ -504,16 +531,17 @@ async function readDocument(
     let descriptor = false;
     let elementsSeen = false;
     let sinceCheck = 0;
-    const collect = (aspect: string, value: unknown, text: string, line: number, exact: boolean): void => {
+    const opaquePrecision = keptPrecision(report, "meta.extra.cx2.opaque");
+    const collect = (aspect: string, value: unknown, text: string, line: number, exact: boolean, depth = 1): void => {
         structure.element(aspect, value, line);
         switch (aspect) {
             case "nodes":
                 elementsSeen = true;
-                doc.nodes.push({ value, line, inexact: inexactBits(text, ["id"]) });
+                doc.nodes.push({ value, line, inexact: inexactBits(text, ["id"], depth) });
                 return;
             case "edges":
                 elementsSeen = true;
-                doc.edges.push({ value, line, inexact: inexactBits(text, ["id", "s", "t"]) });
+                doc.edges.push({ value, line, inexact: inexactBits(text, ["id", "s", "t"], depth) });
                 return;
             case "attributeDeclarations":
                 if (elementsSeen) {
@@ -525,7 +553,8 @@ async function readDocument(
                         `${ASPECT_ORDER_CODE}:declarations`,
                     );
                 }
-                doc.declarations.push({ value: plainJson(value), line, inexact: 0 });
+                // not plainJson(): a long default beyond 2^53 keeps its digits for long: "string"
+                doc.declarations.push({ value, line, inexact: 0 });
                 return;
             case "networkAttributes":
                 elementsSeen = true;
@@ -547,11 +576,11 @@ async function readDocument(
                 if (!doc.opaque.has(aspect)) {
                     doc.opaque.set(aspect, []);
                 }
-                doc.opaque.get(aspect)?.push(exact ? plainJson(value, () => undefined) : value);
+                doc.opaque.get(aspect)?.push(exact ? plainJson(value, opaquePrecision) : value);
         }
     };
     try {
-        for await (const event of scanAspects(textChunks(input, report, options))) {
+        for await (const event of scanAspects(textChunks(input, report, options), report)) {
             if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
                 sinceCheck = 0;
                 throwIfAborted(options.signal);
@@ -560,7 +589,7 @@ async function readDocument(
                 case "root":
                     report.fail(
                         CX2_ISSUE.NO_DESCRIPTOR,
-                        `a CX2 document is a JSON array; found ${isRecord(event.value) ? "an object" : shown(event.value)}`,
+                        `a CX2 document is a JSON array; found ${event.object ? "an object" : shown(event.value)}`,
                         { line: event.line },
                     );
                     break;
@@ -571,10 +600,11 @@ async function readDocument(
                         break;
                     }
                     memberAspect(event.value, event.line, structure, report, (aspect, value) => {
-                        collect(aspect, value, JSON.stringify(value) ?? "", event.line, event.exact);
+                        collect(aspect, value, event.text, event.line, event.exact, 2);
                     });
                     break;
                 case "block":
+                    reportSharedBlock(report, event);
                     if (!descriptor) {
                         report.fail(
                             CX2_ISSUE.NO_DESCRIPTOR,
@@ -597,7 +627,7 @@ async function readDocument(
                     report.error(
                         "parse-error",
                         BAD_ASPECT_BLOCK_CODE,
-                        `the "${event.aspect}" block holds more keys (${event.keys.join(", ")}); an aspect block has one key, the others are skipped`,
+                        `the "${event.aspect}" block holds more keys (${event.keys.join(", ")}) whose values are not arrays; an aspect block has one key, the others are skipped`,
                         { line: event.line, element: event.aspect },
                     );
                     break;
@@ -635,7 +665,8 @@ function readDescriptor(value: unknown, line: number, doc: Cx2Document, report: 
     }
     const raw = value.CXVersion;
     const text = typeof raw === "string" || typeof raw === "number" ? String(raw) : "";
-    const match = /^([0-9]+)(?:\.([0-9]+))?$/.exec(text);
+    // the major version: "2.0", "2.1", "2.0.1", "2.1-beta", " 2.0" are all CX2
+    const match = /^\s*([0-9]+)(?=$|[.\s-])/.exec(text);
     const major = match === null ? NaN : Number(match[1]);
     if (major === 1) {
         report.fail(
@@ -695,6 +726,14 @@ function memberAspect(
 ): void {
     const keys = isRecord(value) ? Object.keys(value) : [];
     if (isRecord(value) && keys.length === 1 && isRecord(value[keys[0]])) {
+        if (ARRAY_ASPECTS.has(keys[0])) {
+            report.warning(
+                "validation-error",
+                CX2_ISSUE.SINGLE_OBJECT_ASPECT,
+                `the "${keys[0]}" aspect is one object, not an array of elements; read as one element`,
+                { line, element: keys[0] },
+            );
+        }
         structure.block(keys[0], line);
         collect(keys[0], value[keys[0]]);
         return;
@@ -832,7 +871,21 @@ interface Declarations {
 }
 
 /** The domain key of attributeDeclarations for each table. */
-const DECLARATION_KEYS = { nodes: "node", edges: "edge", networkAttributes: "network" } as const;
+const DECLARATION_KEYS: ReadonlyMap<string, "node" | "edge" | "network"> = new Map([
+    ["nodes", "node"],
+    ["edges", "edge"],
+    ["networkAttributes", "network"],
+]);
+
+/**
+ * Whether an object has an own property (never one of Object.prototype, as `in` would find).
+ * @param record - the object
+ * @param key - the key
+ * @returns true for an own property
+ */
+function hasOwn(record: Record<string, unknown>, key: string): boolean {
+    return Object.prototype.hasOwnProperty.call(record, key);
+}
 
 // ============================================================ the build
 
@@ -864,6 +917,9 @@ class Cx2Reader {
 
     /** CX node id -> the id the sink holds it under (differs when a mangled id is restored). */
     private readonly sinkIds = new Map<NodeId, NodeId>();
+
+    /** The original ids restored so far: a second node with one keeps its CX id. */
+    private readonly restored = new Set<NodeId>();
 
     /** CX edge id -> sink edge index. */
     private readonly edgeRows = new Map<NodeId, number>();
@@ -967,13 +1023,21 @@ class Cx2Reader {
                 continue;
             }
             for (const [key, table] of Object.entries(held.value)) {
-                const domain = DECLARATION_KEYS[key as keyof typeof DECLARATION_KEYS] as
-                    | "node"
-                    | "edge"
-                    | "network"
-                    | undefined;
+                const domain = DECLARATION_KEYS.get(key);
                 if (domain === undefined) {
-                    this.decls.other[key] = table;
+                    report.warning(
+                        "unsupported",
+                        UNKNOWN_ELEMENT_CODE,
+                        `attributeDeclarations holds the table "${key}", which CX2 does not define; kept in meta.extra.cx2.declarations, not applied`,
+                        { line: held.line, element: key },
+                    );
+                    setOwn(
+                        this.decls.other,
+                        key,
+                        plainJson(table, (digits) => {
+                            this.precision(key, digits);
+                        }),
+                    );
                     continue;
                 }
                 if (!isRecord(table)) {
@@ -1012,7 +1076,7 @@ class Cx2Reader {
             }
             for (const [key, raw] of Object.entries(value.v)) {
                 const resolved = table.resolve(key);
-                if ((resolved !== null && resolved.decl.type !== null) || raw === null || raw === undefined) {
+                if (key === "" || (resolved !== null && resolved.decl.type !== null) || raw === null || raw === undefined) {
                     continue;
                 }
                 const name = resolved?.decl.name ?? key;
@@ -1060,6 +1124,15 @@ class Cx2Reader {
         const { report } = this;
         const table = this.decls[domain];
         const where = { line, element: name };
+        if (name === "") {
+            report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `a ${domain} attribute declaration has an empty name; ignored`,
+                where,
+            );
+            return;
+        }
         if (!isRecord(raw)) {
             report.error(
                 "validation-error",
@@ -1100,6 +1173,14 @@ class Cx2Reader {
                 );
             }
             return;
+        }
+        if (raw.a !== undefined && raw.a !== null && typeof raw.a !== "string") {
+            report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `the alias ${shown(raw.a)} of "${name}" is not a string; ignored`,
+                where,
+            );
         }
         let alias = typeof raw.a === "string" ? raw.a : null;
         let hasDefault = raw.v !== undefined && raw.v !== null;
@@ -1147,7 +1228,9 @@ class Cx2Reader {
         type: Cx2Type,
         where: { line?: number; element: string },
     ): unknown {
-        const converted = convertValue(value, type, this.options.long, () => undefined);
+        const converted = convertValue(value, type, this.options.long, (digits) => {
+            this.precision(name, digits);
+        });
         if (converted !== BAD) {
             return converted;
         }
@@ -1281,10 +1364,11 @@ class Cx2Reader {
      * @param raw - the parsed id
      * @param inexact - whether the literal was not a plain integer
      * @param element - the element name for issues
+     * @param line - the element's line
      * @param edgeId - whether this is an edge's own id (stored in the f64 id column, not kept as digits)
      * @returns the id, or null when it was reported
      */
-    private idOf(raw: unknown, inexact: boolean, element: string, edgeId = false): NodeId | null {
+    private idOf(raw: unknown, inexact: boolean, element: string, line: number, edgeId = false): NodeId | null {
         let id: NodeId;
         try {
             const parsed = cxId(raw, inexact);
@@ -1293,7 +1377,7 @@ class Cx2Reader {
                     "coercion",
                     ID_TEXT_TYPE_CODE,
                     `${element}: the id ${shown(raw)} is not written as an integer; read as ${String(parsed.id)}`,
-                    { element },
+                    { line, element },
                 );
             } else if (parsed.note === "precision" && edgeId) {
                 // the edge is told apart by its digits, but the id column is f64
@@ -1301,7 +1385,7 @@ class Cx2Reader {
                     "precision",
                     PRECISION_CODE,
                     `${element}: the edge id ${String(parsed.id)} is beyond 2^53; the id column holds the nearest double`,
-                    { element },
+                    { line, element },
                     `${PRECISION_CODE}:edge`,
                 );
             } else if (parsed.note === "precision") {
@@ -1310,12 +1394,12 @@ class Cx2Reader {
                     "precision",
                     PRECISION_CODE,
                     `${element}: the id ${String(parsed.id)} is beyond 2^53; kept as its digits (a string id)`,
-                    { element },
+                    { line, element },
                 );
             }
             id = this.options.ids === "keep" ? parsed.id : this.coercer.value(parsed.id);
         } catch (err) {
-            this.report.recordError(err, { element });
+            this.report.recordError(err, { line, element });
             return null;
         }
         return id;
@@ -1377,7 +1461,7 @@ class Cx2Reader {
             return;
         }
         const element = `node ${shown(value.id)}`;
-        const cx = this.idOf(value.id, (held.inexact & 1) !== 0, element);
+        const cx = this.idOf(value.id, (held.inexact & 1) !== 0, element, line);
         if (cx === null) {
             report.counts.skippedNodes++;
             return;
@@ -1398,7 +1482,19 @@ class Cx2Reader {
                 { line, element },
             );
         } else {
-            const original = this.originalIdOf(attrs);
+            let original = this.originalIdOf(attrs, element, line);
+            if (original !== null && this.restored.has(original)) {
+                report.warning(
+                    "merged",
+                    DUPLICATE_NODE_CODE,
+                    `${element}: its original id ${shown(original)} is already another node's; it keeps its CX id`,
+                    { line, element },
+                );
+                original = null;
+            }
+            if (original !== null) {
+                this.restored.add(original);
+            }
             this.idTypeOf(original ?? cx);
             try {
                 row = sink.addNode(original ?? cx);
@@ -1420,14 +1516,24 @@ class Cx2Reader {
     /**
      * The original id the exporter's `sanitizeIds: "mangle"` kept, when it is to be restored.
      * @param attrs - the node's v
+     * @param element - the element name for issues
+     * @param line - its line
      * @returns the original id, or null
      */
-    private originalIdOf(attrs: Record<string, unknown> | null): NodeId | null {
+    private originalIdOf(attrs: Record<string, unknown> | null, element: string, line: number): NodeId | null {
         if (attrs === null || !this.options.restoreMangledIds) {
             return null;
         }
         const alias = this.decls.node.byName.get(ORIGINAL_ID_ATTRIBUTE)?.alias ?? null;
         const raw = attrs[ORIGINAL_ID_ATTRIBUTE] ?? (alias === null ? undefined : attrs[alias]);
+        if (raw !== undefined && raw !== null && typeof raw !== "string") {
+            this.report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `${element}: ${ORIGINAL_ID_ATTRIBUTE} is ${shown(raw)}, not a string; the node keeps its CX id`,
+                { line, element },
+            );
+        }
         return typeof raw === "string" ? raw : null;
     }
 
@@ -1485,7 +1591,14 @@ class Cx2Reader {
                 `${CX2_ISSUE.PARTIAL_LAYOUT}:z`,
             );
         }
-        if (x !== null && y !== null) {
+        if (x !== null && y !== null && (!fitsF32(x) || !fitsF32(y))) {
+            this.report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `${element}: the coordinates ${String(x)}, ${String(y)} are beyond what the f32 position column holds; the position is unset`,
+                { line, element },
+            );
+        } else if (x !== null && y !== null) {
             this.setPosition(row, x, y, z);
         }
         if (z !== null && this.zAs === "column") {
@@ -1538,6 +1651,9 @@ class Cx2Reader {
             );
             return;
         }
+        // the first view named is the layout; a CX1 file with several views keeps the others
+        let view: unknown;
+        const seen = new Set<number>();
         for (const held of cartesianLayout) {
             const entry = held.value;
             if (!isRecord(entry) || typeof entry.x !== "number" || typeof entry.y !== "number") {
@@ -1554,6 +1670,31 @@ class Cx2Reader {
                 this.dangle("cartesianLayout entry");
                 continue;
             }
+            view ??= entry.view ?? null;
+            if ((entry.view ?? null) !== view) {
+                this.doc.opaque.set(
+                    "cartesianLayout",
+                    cartesianLayout.map((h) => plainJson(h.value)),
+                );
+                this.report.warnOnce(
+                    "validation-error",
+                    DUPLICATE_ATTRIBUTE_CODE,
+                    `the cartesianLayout aspect names several views; view ${shown(view)} is read, the aspect is kept in meta.extra.cx2`,
+                    { line: held.line, element: "cartesianLayout" },
+                    `${DUPLICATE_ATTRIBUTE_CODE}:layout:view`,
+                );
+                continue;
+            }
+            if (seen.has(row)) {
+                this.report.warnOnce(
+                    "validation-error",
+                    DUPLICATE_ATTRIBUTE_CODE,
+                    `node ${shown(entry.node)} has two cartesianLayout entries; the later wins`,
+                    { line: held.line, element: "cartesianLayout" },
+                    `${DUPLICATE_ATTRIBUTE_CODE}:layout`,
+                );
+            }
+            seen.add(row);
             const z = typeof entry.z === "number" ? entry.z : null;
             this.setPosition(row, entry.x, entry.y, z);
             if (z !== null && this.zAs === "column") {
@@ -1609,6 +1750,15 @@ class Cx2Reader {
         const table = this.decls[domain];
         for (const key of Object.keys(attrs)) {
             const value = attrs[key];
+            if (key === "") {
+                report.error(
+                    "validation-error",
+                    BAD_VALUE_CODE,
+                    `${element}: v holds an attribute with an empty name; skipped`,
+                    { line, element },
+                );
+                continue;
+            }
             const resolved = table.resolve(key);
             const name = resolved?.decl.name ?? key;
             if (domain === "node" && this.options.restoreMangledIds && name === ORIGINAL_ID_ATTRIBUTE) {
@@ -1632,7 +1782,7 @@ class Cx2Reader {
                 resolved.decl.alias !== null &&
                 resolved.decl.alias !== key
             ) {
-                if (resolved.decl.alias in attrs) {
+                if (hasOwn(attrs, resolved.decl.alias)) {
                     report.warning(
                         "validation-error",
                         DUPLICATE_ATTRIBUTE_CODE,
@@ -1741,9 +1891,9 @@ class Cx2Reader {
                 return;
             }
         }
-        const id = this.idOf(value.id, (held.inexact & 1) !== 0, element, true);
-        const s = id === null ? null : this.idOf(value.s, (held.inexact & 2) !== 0, element);
-        const t = s === null ? null : this.idOf(value.t, (held.inexact & 4) !== 0, element);
+        const id = this.idOf(value.id, (held.inexact & 1) !== 0, element, line, true);
+        const s = id === null ? null : this.idOf(value.s, (held.inexact & 2) !== 0, element, line);
+        const t = s === null ? null : this.idOf(value.t, (held.inexact & 4) !== 0, element, line);
         if (id === null || s === null || t === null) {
             report.counts.skippedEdges++;
             return;
@@ -1765,6 +1915,12 @@ class Cx2Reader {
             return;
         }
         const attrs = isRecord(value.v) ? value.v : null;
+        if (value.v !== undefined && value.v !== null && attrs === null) {
+            report.error("validation-error", BAD_VALUE_CODE, `${element}: v is ${shown(value.v)}, not an object`, {
+                line,
+                element,
+            });
+        }
         let weight: number | undefined;
         const weightKey = this.weightKey(attrs);
         try {
@@ -1805,10 +1961,10 @@ class Cx2Reader {
             return null;
         }
         const alias = this.decls.edge.byName.get(weightFrom)?.alias ?? null;
-        if (alias !== null && alias in attrs) {
+        if (alias !== null && hasOwn(attrs, alias)) {
             return alias;
         }
-        return weightFrom in attrs ? weightFrom : null;
+        return hasOwn(attrs, weightFrom) ? weightFrom : null;
     }
 
     /**
@@ -1938,7 +2094,7 @@ class Cx2Reader {
      */
     private readBypasses(domain: "node" | "edge", entries: readonly Held[]): void {
         const rows = domain === "node" ? this.nodeRows : this.edgeRows;
-        const columns = new Map<string, { rows: number[]; values: unknown[] }>();
+        const columns = new Map<string, { rows: number[]; values: unknown[]; at: Map<number, number> }>();
         for (const held of entries) {
             this.checkAbort();
             const { value, line } = held;
@@ -1960,13 +2116,38 @@ class Cx2Reader {
                 if (raw === null || raw === undefined) {
                     continue;
                 }
+                if (property === "") {
+                    this.report.error(
+                        "validation-error",
+                        BAD_VALUE_CODE,
+                        `a ${domain}Bypasses element holds a visual property with an empty name; skipped`,
+                        { line, element: `${domain}Bypasses` },
+                    );
+                    continue;
+                }
                 let column = columns.get(property);
                 if (column === undefined) {
-                    column = { rows: [], values: [] };
+                    column = { rows: [], values: [], at: new Map() };
                     columns.set(property, column);
                 }
-                column.rows.push(row);
-                column.values.push(plainJson(raw));
+                const plain = plainJson(raw);
+                const index = column.at.get(row);
+                if (index === undefined) {
+                    column.at.set(row, column.rows.length);
+                    column.rows.push(row);
+                    column.values.push(plain);
+                    continue;
+                }
+                if (JSON.stringify(column.values[index]) !== JSON.stringify(plain)) {
+                    this.report.warnOnce(
+                        "validation-error",
+                        DUPLICATE_ATTRIBUTE_CODE,
+                        `a ${domain} has the visual property "${property}" in two ${domain}Bypasses elements; the later wins`,
+                        { line, element: property },
+                        `${DUPLICATE_ATTRIBUTE_CODE}:bypass:${domain}:${property}`,
+                    );
+                }
+                column.values[index] = plain;
             }
         }
         for (const [property, { rows: targets, values }] of columns) {
@@ -2156,7 +2337,7 @@ export const cx2Importer: GraphImporter<Cx2ImportOptions> = Object.freeze({
      * @returns the confidence
      */
     sniff(head: Uint8Array): number {
-        const text = new TextDecoder("utf-8").decode(head.subarray(0, 1024)).replace(/^\uFEFF/, "");
+        const text = headText(head);
         return /^\s*\[\s*\{(?:\s*"[^"]*"\s*:\s*(?:true|false|"[^"]*"|[0-9.]+)\s*,)*\s*"CXVersion"\s*:/.test(text)
             ? 0.97
             : 0;

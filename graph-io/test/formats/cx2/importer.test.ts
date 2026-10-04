@@ -196,7 +196,9 @@ describe("cx2Importer: the mapping (design section 1.3)", () => {
 describe("cx2Importer: the descriptor and the stream (research-cx2.md 4.1)", () => {
     it("fails on empty input, invalid JSON, a non-array, an empty array and a missing descriptor", async () => {
         expect(codes((await failure("")).report)).toEqual([CX2_ISSUE.EMPTY_INPUT]);
-        expect(codes((await failure('{"invalid": json}')).report)).toEqual([CX2_ISSUE.SYNTAX]);
+        // a top-level object is refused at its first character, unread (so its syntax is never checked)
+        expect(codes((await failure('{"invalid": json}')).report)).toEqual([CX2_ISSUE.NO_DESCRIPTOR]);
+        expect(codes((await failure("[{invalid json}]")).report)).toEqual([CX2_ISSUE.SYNTAX]);
         expect(codes((await failure('{"invalid": "structure"}')).report)).toEqual([CX2_ISSUE.NO_DESCRIPTOR]);
         expect(codes((await failure("[]")).report)).toEqual([CX2_ISSUE.NO_DESCRIPTOR]);
         expect(codes((await failure('[{"nodes":[]}]')).report)).toEqual([CX2_ISSUE.NO_DESCRIPTOR]);
@@ -296,7 +298,10 @@ describe("cx2Importer: the descriptor and the stream (research-cx2.md 4.1)", () 
         );
         expect(snapshot.nodeCount).toBe(2);
         expect(snapshot.edgeCount).toBe(1);
-        expect(report.issues.filter((i) => i.code === CX2_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(4);
+        // the array-valued second key (extra: []) is read as its own (opaque) block since the
+        // robustness pass (W_MULTI_ASPECT_FRAGMENT), no longer skipped as a bad block
+        expect(report.issues.filter((i) => i.code === CX2_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(3);
+        expect(codes(report)).toContain(CX2_ISSUE.MULTI_ASPECT_FRAGMENT);
         expect(report.counts.skippedNodes).toBe(1);
         expect(report.counts.skippedEdges).toBe(1);
     });

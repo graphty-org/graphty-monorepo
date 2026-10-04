@@ -48,9 +48,9 @@ describe("the workspace command registry", () => {
     });
 
     it("hides a stub from every door but keeps its id", () => {
-        const stub = registry.get("project.save");
+        const stub = registry.get("style.add-label-line");
         assert.isTrue(stub?.stub);
-        assert.isUndefined(registry.built("project.save"));
+        assert.isUndefined(registry.built("style.add-label-line"));
         assert.notInclude(registry.live, stub);
         assert.isDefined(registry.built("help.about"));
     });

@@ -396,6 +396,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     // Its coordinate and pin columns are copies, so a write there moves nothing.
     snapshot: READ,
     fingerprint: READ,
+    // What a find box lists; selects nothing.
+    find: READ,
     run: calls([{ op: "algo.run", algorithm: "degree" }], [RUN_DEGREE]),
     execute: EXECUTE,
     undo: HISTORY,
@@ -537,6 +539,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "renderer",
         doors: {
             session: READ,
+            nodeLabelCounts: READ,
             setDefaultPalettes: PALETTE_DEFAULTS,
             run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
@@ -752,6 +755,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             rendererRequest: READ,
             rendererStatus: READ,
             eventManager: READ,
+            nodeLabelCounts: READ,
+            onNodeLabelCounts: READ,
             shutdown: LIFECYCLE,
             runAlgorithmsFromTemplate: {
                 kind: "dispatches",
@@ -1321,6 +1326,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getSelectionManager: READ,
             getEventManager: READ,
             getAcceleration: READ,
+            onNodeLabelCounts: READ,
         },
     },
     {
@@ -1379,6 +1385,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
+            neighbors: READ,
             lastImport: READ,
             source: READ,
             attributes: READ,

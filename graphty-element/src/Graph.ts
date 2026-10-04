@@ -14,6 +14,7 @@ import {
     CubicEase,
     EasingFunction,
     Engine,
+    Observable,
     PointerEventTypes,
     Quaternion,
     Scene,
@@ -105,6 +106,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { LabelDeclutter, NO_NODE_LABELS, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
@@ -372,6 +374,8 @@ export class Graph implements GraphContext {
     // Managers
     /** Event manager for adding/removing event listeners */
     readonly eventManager: EventManager;
+    /** Told the node label counts once the view is still and they changed. */
+    readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
     private lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
@@ -1660,6 +1664,16 @@ export class Graph implements GraphContext {
         } else if (Object.keys(project).length > 0) {
             this.setProjectConfig({ layoutBehavior: project });
         }
+    }
+
+    /**
+     * How many node labels this graph is drawing, and why the rest are not, as of the last frame
+     * that decided it. All zeros before a label is drawn. Reading it never forces a frame.
+     * @returns The counts.
+     */
+    get nodeLabelCounts(): NodeLabelCounts {
+        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        return declutter instanceof LabelDeclutter ? declutter.counts : NO_NODE_LABELS;
     }
 
     /**
@@ -5514,10 +5528,10 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Centre the camera on the selected nodes, keeping where it stands.
+     * Center the camera on the selection, keeping where it stands.
      *
-     * The camera turns to look at the centre of the box around the selected nodes; with nothing
-     * selected it does not move. The camera is view state, so this is not an undoable step.
+     * The camera turns to look at the center of the box around the selected nodes and the ends
+     * of the selected edges; with nothing selected it does not move. The camera is view state, so this is not an undoable step.
      * @param options - Optional animation configuration.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.0.0
@@ -5528,7 +5542,17 @@ export class Graph implements GraphContext {
      * ```
      */
     async zoomToSelection(options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
-        const bounds = this.boundsToFrame(this.session.selection.nodes);
+        const { selection, data } = this.session;
+        const nodes = new Set<string | number>(selection.nodes);
+        for (const id of selection.edges) {
+            const edge = data.edge(id);
+            if (edge !== undefined) {
+                nodes.add(edge.source);
+                nodes.add(edge.target);
+            }
+        }
+
+        const bounds = this.boundsToFrame(nodes);
         if (bounds.measured === 0) {
             return undefined;
         }

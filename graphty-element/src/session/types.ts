@@ -40,6 +40,7 @@ import type {
     RunId,
     Scope,
     ScopeInput,
+    SelectionDirection,
     SetId,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
@@ -61,9 +62,10 @@ import type {
     RunQueue,
     RunRemoval,
     RunsApi,
+    WeightMeaning,
 } from "./runs";
 import type { ScopeApi } from "./scope/index";
-import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
+import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
 import type { ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
@@ -205,6 +207,189 @@ export interface RecordPage<TRecord> {
      * typed as present then, so a page read with `columns` needs no `?? []`.
      */
     readonly columns?: readonly PageColumn[];
+}
+
+/** What {@link GraphSession.find} lists. An open set: later releases add kinds. */
+export type FindKind = "node" | "edge";
+
+/** What {@link GraphSession.find} reads beside the text. Every field is optional. */
+export interface FindOptions {
+    /** The most hits it returns. Default 20; `Infinity` for all. */
+    readonly limit?: number;
+    /** How many hits to skip, for paging. Default 0. */
+    readonly offset?: number;
+    /** What to list. Default `["node", "edge"]`. */
+    readonly kinds?: readonly FindKind[];
+    /**
+     * Where to search. Default the whole graph: a hit the visibility filter hides is still
+     * listed, and carries `excludedBy`.
+     */
+    readonly scope?: ScopeInput;
+}
+
+/** One end of an edge hit. */
+export interface FindEnd {
+    /** The node's id. */
+    readonly id: NodeId;
+    /** The node's name: its label column's value, else its id as text. */
+    readonly name: string;
+}
+
+/** What every {@link FindHit} carries. */
+export interface FindHitBase {
+    /**
+     * Where the text was found. `path` is `"id"` for a node's id, else the attribute's literal
+     * column key (`AttributeDescriptor.path`, such as `"data.name"`). When several values match,
+     * this is the best-ranked one, ties going to the first in `data.attributes()` order.
+     */
+    readonly match: { readonly path: Path; readonly value: string | number | boolean };
+    /**
+     * Present when the element is in the graph but `session.visibility` hides it (the time window
+     * is part of that filter). Never present under `scope: "visible"`, which leaves hidden
+     * elements out.
+     */
+    readonly excludedBy?: { readonly kind: "filter" };
+    /**
+     * A selection target naming exactly this element, for `selection.apply`. Not the edge's end:
+     * that is `ends.target` on an edge hit.
+     */
+    readonly target: SelectionTarget;
+}
+
+/**
+ * One element the text found. `kind` narrows the rest.
+ *
+ * OPEN UNION: later releases add kinds (runs, layers, notes), so switch on `kind` with a default
+ * branch. The type lists today's kinds, so the default branch sees `never`: skip the hit there.
+ */
+export type FindHit =
+    | (FindHitBase & {
+          /** A node. */
+          readonly kind: "node";
+          /** Its id. */
+          readonly id: NodeId;
+          /** Its label column's value (`data.knownFields.nodeLabelPath`), else its id as text. */
+          readonly name: string;
+      })
+    | (FindHitBase & {
+          /** An edge, found by its own attribute values only, never by its id or its ends. */
+          readonly kind: "edge";
+          /** Its element-assigned id. */
+          readonly id: EdgeId;
+          /** The nodes it joins: `source` is the one it leaves on a directed graph. */
+          readonly ends: { readonly source: FindEnd; readonly target: FindEnd };
+      });
+
+/** One attribute value the text matched, with how many elements in scope carry it. */
+export interface FindValueRow {
+    /** Whether nodes or edges carry it. */
+    readonly kind: FindKind;
+    /** The attribute's literal column key, such as `"data.group"`. */
+    readonly path: Path;
+    /** The value. */
+    readonly value: string | number | boolean;
+    /** How many elements `target` selects: every one in scope carrying exactly this value. */
+    readonly count: number;
+    /** A selection target naming exactly those elements, for `selection.apply`. */
+    readonly target: SelectionTarget;
+}
+
+/** What {@link GraphSession.find} answers: a page of hits, in the `RecordPage` shape, and value rows. */
+export interface FindResult {
+    /** The hits in this window, best first. */
+    readonly records: readonly FindHit[];
+    /** Where the window starts. */
+    readonly offset: number;
+    /** How many hits there are in all. */
+    readonly total: number;
+    /** The input revision the answer was read at; a different one means it is stale. */
+    readonly revision: string;
+    /** At most three matched attribute values, commonest first. */
+    readonly values: readonly FindValueRow[];
+    /**
+     * Set when the text is a pattern to run on commit, not text to find: a `regex:` or `=`
+     * query. Find does not run it and lists nothing; `selection.apply({ text })` runs it.
+     */
+    readonly notSearchable?: "regex" | "expression";
+}
+
+/**
+ * Which neighbors of a node a {@link SessionDataApi.neighbors} page lists, how they are weighed,
+ * and in what order. Every field is optional.
+ */
+export interface NeighborOptions {
+    /**
+     * Which edges to follow: arriving (`"in"`), leaving (`"out"`) or both (`"all"`), as the
+     * Neighborhood selection takes it. On an undirected graph all three are the same. Default
+     * `"all"`.
+     */
+    readonly direction?: SelectionDirection;
+    /**
+     * The edge weight, as runs take it: the literal name of an edge column, and whether a larger
+     * value means a stronger tie (`"strength"`, whose edges add up) or a longer one
+     * (`"distance"`, whose shortest edge counts). An edge with no number there weighs 1, as in a
+     * run, and is counted in {@link NeighborPage.missing}. `null` counts edges. Absent, the
+     * weight the graph was loaded with, read as a strength; counts when it was loaded with none.
+     */
+    readonly weight?: WeightMeaning | null;
+    /** Which neighbors are listed: any scope, such as `"selection"`. Default `"graph"`. */
+    readonly scope?: ScopeInput;
+    /**
+     * The order. Absent: strongest first when the page has a weight (largest first for a
+     * strength, smallest first for a distance), else by name. Rows that sort equal keep the
+     * graph's own order.
+     */
+    readonly sort?: NeighborSort;
+    /** The position of the page's first row in the ordered list. Default 0. */
+    readonly offset?: number;
+    /** The most rows the page holds; `Infinity` reads to the end. Default 100. */
+    readonly limit?: number;
+}
+
+/**
+ * What a neighbor page is sorted by: its `weight` or its `name`, smallest first unless
+ * `descending`. The direction is absolute, whatever the weight means: the default order is
+ * `{ by: "weight", descending: true }` for a strength and `{ by: "weight" }` for a distance.
+ */
+export interface NeighborSort {
+    readonly by: "weight" | "name";
+    /** Largest first. Default false. */
+    readonly descending?: boolean;
+}
+
+/** One neighbor of a node. */
+export interface Neighbor {
+    /** The neighbor's record, deep-frozen. */
+    readonly node: NodeRecord;
+    /**
+     * The value at `data.knownFields.nodeLabelPath`, as text, else `String(node.id)`. Untrusted
+     * text from the data: render it as text, never as markup.
+     */
+    readonly name: string;
+    /**
+     * The edges' combined weight. When {@link NeighborPage.measuredBy} is null the page counts
+     * edges, and this equals {@link Neighbor.edgeCount}.
+     */
+    readonly weight: number;
+    /** How many edges join the two along the direction followed, each counted once. */
+    readonly edgeCount: number;
+    /**
+     * Present when the neighbor is in the data but the session's visibility filter hides it.
+     * `"filter"` covers `visibility.set()` and `visibility.setWindow()` alike: the time window is
+     * part of the one visibility filter. Open: more kinds may be added.
+     */
+    readonly excludedBy?: { readonly kind: "filter" };
+}
+
+/** A {@link RecordPage} of neighbors, plus what the numbers measured. */
+export interface NeighborPage extends RecordPage<Neighbor> {
+    /** The weight the rows were combined by, or null when every row's `weight` is an edge count. */
+    readonly measuredBy: WeightMeaning | null;
+    /**
+     * How many EDGES walked (not neighbors) had no number at the weight column and so weighed 1,
+     * as in a run. 0 when {@link measuredBy} is null.
+     */
+    readonly missing: number;
 }
 
 /**
@@ -431,9 +616,10 @@ export interface SessionRecordSource {
  *
  * Every verb here is synchronous, because every verb here is either an O(1) lookup or a walk
  * whose answer is cached against the snapshot it was computed from, except {@link nodes} and
- * {@link edges}, which list every record and walk the graph to do it. The verbs that walk a part
- * of the graph -- id listings over a scope, neighbour pages, search -- are asynchronous by
- * construction and are not part of this surface yet.
+ * {@link edges}, which list every record and walk the graph to do it, and {@link neighbors}, which
+ * walks one node's adjacency. Reads stay synchronous up to the element's load limits; a read that
+ * may need more later gets an `...Async` twin.
+ * Finding by text is `session.find`, synchronous too: it reads an index built once per revision.
  */
 export interface SessionDataApi {
     /** The store this session reads, read-only: its snapshot is the one {@link snapshot} returns. */
@@ -505,6 +691,21 @@ export interface SessionDataApi {
         options: EdgePageOptions & { readonly columns: readonly ResultColumn[] },
     ): RecordPage<EdgeRecord> & { readonly columns: readonly PageColumn[] };
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
+    /**
+     * Each distinct neighbor of a node once, with the combined weight of the edges between them.
+     *
+     * A neighbor is exactly a node `selection.apply({ neighborsOf: [id], direction })` selects,
+     * other than `id` itself: a self-loop never makes a node its own neighbor, and A->B with
+     * B->A under `"all"` is one neighbor with `edgeCount` 2. `total` counts neighbors, not edges.
+     * One walk of the node's adjacency, the order cached per revision.
+     * @param id - the node
+     * @param options - the direction, the weight, the scope, the order and the window
+     * @returns the page, with what it measured and the revision it was read at
+     * @throws A `GraphtyError` with `E_UNKNOWN_ELEMENT` (`details: { kind: "node", id }`) for an
+     *     id the graph does not hold, `E_UNKNOWN_ATTRIBUTE` for a weight column no edge carries,
+     *     and `E_OPTION_RANGE` for a bad `offset` or `limit`.
+     */
+    neighbors(id: NodeId, options?: NeighborOptions): NeighborPage;
     /**
      * What the last load did: which endpoint spelling the element resolved, how many repeated
      * edges it saw and what the policy did with them, and how many edges the graph actually holds.
@@ -1366,6 +1567,30 @@ export interface GraphSession {
      * @returns the fingerprint
      */
     fingerprint(): string;
+    /**
+     * What a find box lists as the reader types: the nodes and edges whose values contain the
+     * text, best first, and the commonest matched values. Selects nothing and records no step;
+     * hand a hit's or a row's `target` to `selection.apply` for that.
+     *
+     * Matching ignores case and accents and reads the text box grammar of
+     * `selection.apply({ text })`: plain text matches anywhere in a value, `exact:` only a whole
+     * value, and `<attribute>:` (`id:`, `type:`) only that attribute. `regex:` and a leading `=`
+     * are not run while typing; they set `notSearchable` and list nothing.
+     *
+     * A node is found by its id, its name and its attribute values; an edge by its own attribute
+     * values only. A number or boolean value matches only whole. Ranking promises only this: an
+     * exact name or id first, name and id matches before attribute values, ties in graph order.
+     *
+     * Synchronous: the first call after a change builds an index in one walk of the graph, and
+     * every later call in the same revision reads it. At the load limit (50,000 nodes with 20
+     * attributes each, 100,000 edges) the build takes about half a second and a later call 2 to
+     * 9 ms.
+     * @param text - What was typed. Blank text finds nothing.
+     * @param options - The window, the kinds and the scope.
+     * @returns A page of hits and at most three value rows.
+     * @throws A `GraphtyError` coded `E_OPTION_RANGE` for a bad `limit`, `offset` or kind.
+     */
+    find(text: string, options?: FindOptions): FindResult;
     /**
      * Do one thing, as a command.
      *

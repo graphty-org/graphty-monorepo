@@ -82,7 +82,7 @@ import {
     TARGET_NAMES,
     TYPE_NAME,
 } from "./header.js";
-import { type CsvReaderOptions, CsvRecordReader, sniffDelimiter, sniffNewline } from "./records.js";
+import { type CsvReaderOptions, CsvRecordReader, sniffDelimiter, sniffNewline, stripLeadingComments } from "./records.js";
 import { InferredColumn } from "./values.js";
 
 /** The format-specific options of the CSV importer. */
@@ -1207,10 +1207,12 @@ class TableReader {
 }
 
 const HEAD_BYTES = 4096;
-const OTHER_FORMAT = /^\s*(<|[[{]|(strict\s+)?(di)?graph(\s+\S+)?\s*\{|\*vertices|creator\b|graph\s*\[)/i;
+const OTHER_FORMAT = /^\s*(<|[[{]|\/[*/]|(strict\s+)?(di)?graph(\s+\S+)?\s*\{|\*vertices|\*network\b|creator\b|graph\s*\[)/i;
 
 /**
- * Sniff confidence for the registry: 0 for XML, JSON, GML, DOT and Pajek openings; otherwise a
+ * Sniff confidence for the registry: 0 for XML, JSON, GML, DOT (also a leading C comment) and Pajek
+ * openings after the leading `#` / `%` comment lines the reader skips, and 0 for a head that is
+ * only such comments (the comments of another format, too long to see past); otherwise a
  * delimited first row with endpoint headers is 0.9, with an id header 0.6, any consistently
  * delimited rows 0.3, a single column 0.
  * @param head - the first bytes of the input
@@ -1218,7 +1220,10 @@ const OTHER_FORMAT = /^\s*(<|[[{]|(strict\s+)?(di)?graph(\s+\S+)?\s*\{|\*vertice
  */
 function sniff(head: Uint8Array): number {
     const text = new TextDecoder("utf-8").decode(head.subarray(0, HEAD_BYTES));
-    const body = text.startsWith(String.fromCharCode(0xfeff)) ? text.slice(1) : text;
+    const body = stripLeadingComments(
+        text.startsWith(String.fromCharCode(0xfeff)) ? text.slice(1) : text,
+        COMMENT_CHARS,
+    );
     if (body.trim().length === 0 || OTHER_FORMAT.test(body)) {
         return 0;
     }

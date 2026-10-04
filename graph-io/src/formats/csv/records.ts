@@ -213,7 +213,7 @@ function splitRecords(
  * @param comments - the comment characters
  * @returns the text from the first non-comment line on
  */
-function stripLeadingComments(text: string, comments: readonly string[]): string {
+export function stripLeadingComments(text: string, comments: readonly string[]): string {
     if (comments.length === 0) {
         return text;
     }

@@ -1483,7 +1483,8 @@ function firstVertexOption(value: unknown): 0 | 1 | "auto" {
     );
 }
 
-const HEAD_PATTERN = /^\s*\*(vertices|network)\b/i;
+/** The start of a Pajek network: `*Vertices` or `*Network`, after blank lines and `%` comment lines. */
+const HEAD_PATTERN = /^(\s*%[^\r\n]*)*\s*\*(vertices|network)\b/i;
 
 /** The Pajek NET importer. */
 export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
@@ -1492,17 +1493,18 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
     mimeTypes: Object.freeze(["text/x-pajek", "text/plain"]),
 
     /**
-     * Confidence that the input is a Pajek network: it starts with `*Vertices` (or `*Network`).
+     * Confidence that the input is a Pajek network: it starts with `*Vertices` (or `*Network`),
+     * after any `%` comment lines.
      * @param head - the first bytes
      * @returns 0.9 for a `*Vertices` start, 0.8 for `*Network`, 0 otherwise
      */
     sniff(head: Uint8Array): number {
-        const text = new TextDecoder("utf-8").decode(head.subarray(0, Math.min(head.byteLength, 512)));
+        const text = new TextDecoder("utf-8").decode(head);
         const match = HEAD_PATTERN.exec(text.startsWith(String.fromCharCode(0xfeff)) ? text.slice(1) : text);
         if (match === null) {
             return 0;
         }
-        return match[1].toLowerCase() === "vertices" ? 0.9 : 0.8;
+        return match[2].toLowerCase() === "vertices" ? 0.9 : 0.8;
     },
 
     /**

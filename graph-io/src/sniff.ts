@@ -91,12 +91,14 @@ export interface SniffResult {
 }
 
 /**
- * The lower-cased extension of a file name or path, with its dot.
- * @param filename - the name or path
+ * The lower-cased extension of a file name, path or URL, with its dot; a URL's `?query` and
+ * `#fragment` are not part of it.
+ * @param filename - the name, path or URL
  * @returns the extension (`.gexf`), or null when the name has none
  */
 export function extensionOf(filename: string): string | null {
-    const base = filename.slice(Math.max(filename.lastIndexOf("/"), filename.lastIndexOf("\\")) + 1);
+    const path = filename.replace(/[?#].*$/s, "");
+    const base = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
     const dot = base.lastIndexOf(".");
     if (dot <= 0 || dot === base.length - 1) {
         return null;
@@ -151,7 +153,13 @@ export function rankFormats(hints: SniffHints, importers: Iterable<GraphImporter
         const mimeMatch = mime !== null && importer.mimeTypes.some((m) => m.toLowerCase() === mime);
         let content = 0;
         if (head !== null && head.byteLength > 0 && typeof importer.sniff === "function") {
-            content = clamp(importer.sniff(head));
+            try {
+                content = clamp(importer.sniff(head));
+            } catch {
+                // a plugin's sniffer that throws does not recognise the head: one buggy importer
+                // must not break the detection of every other format
+                content = 0;
+            }
         }
         let confidence: number;
         if (content > 0) {

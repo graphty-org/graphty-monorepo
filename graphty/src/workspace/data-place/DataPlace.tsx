@@ -2,7 +2,7 @@ import "./data-place.css";
 
 import { ContextMenu, ControlSection, SearchInput, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Box, Menu, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import {
     Calendar,
     CaseSensitive,
@@ -329,9 +329,10 @@ export function DataPlace(): React.JSX.Element {
             <h2 className="dp-title">{graphName}</h2>
             <ContextMenu
                 target={
-                    // A plain box that catches the context-menu click and key bubbling up from the
-                    // trees' rows, which are the controls.
-                    <Box
+                    // The trees' rows are the controls; compact-mantine's Tree has no per-row menu
+                    // hook, so this container catches their context-menu click and its keyboard
+                    // equivalent (Shift+F10, the menu key) as they bubble up.
+                    <div // NOSONAR(S6848): delegates bubbled context-menu events from the focusable tree rows
                         onContextMenu={(event) => {
                             const id = rowIdOf(event);
                             setMenuFor(id);
@@ -361,7 +362,7 @@ export function DataPlace(): React.JSX.Element {
                             )}
                         </ControlSection>
                         <AttributesSection />
-                    </Box>
+                    </div>
                 }
             >
                 {menuFor?.startsWith("source") === true ? (

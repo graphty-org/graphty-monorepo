@@ -256,6 +256,8 @@ for this milestone", gives the reason for each.
 - **A local preview (`serve --results`) is look only.** It is the target "local", titled "Local
   preview", never master or a seed: no Accept, Reject or Exclude, no Finish, and the API refuses
   every decision and Finish on it, because Finish accepts only CI captures. `--branch` is gone.
+  Superseded for pull requests by `local-previews.md` (local captures of a pull request's merge
+  tree become reviewable and finishable; the gate is unchanged).
 - **The signing key and how to replace it.** The targets screen and Finish's confirmation name the
   key, where git found it (`git config --show-origin`), and the committer, and print the exact
   command that starts the same server from the owner's own shell.
@@ -996,6 +998,11 @@ it as "Local preview", never as master or a seed, and it is look only: no decisi
 Finish, and the API refuses every decision and Finish on it. A local capture records `local`
 (describe and diff hash); its fonts and graphics stack are not CI's, so a preview can never
 become a baseline.
+
+**Local previews of a pull request.** `local-previews.md` replaces the rule above for one case: a
+local capture of a pull request's merge tree with the pinned fonts can be reviewed and finished,
+and the unchanged gate passes it only when CI's capture matches. It also adds the pending-approvals
+inbox and the quiet notifier.
 
 **How captures and baselines move.** CI uploads each capture as an artifact. The review server
 lists open pull requests and their newest CI runs with `gh` and downloads the artifacts with `gh

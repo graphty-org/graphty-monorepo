@@ -1,7 +1,6 @@
 /**
  * What the XGMML importer and exporter share: the namespaces, the format facts, the fixed column
- * names, the `meta.extra` key, and the issue and loss code tables (design
- * `design/graph-io/cytoscape-and-obo/design.md` section 1.1).
+ * names, the `meta.extra` key, and the issue and loss code tables.
  */
 
 import {
@@ -115,7 +114,7 @@ export const XGMML_ORIGIN_NAMESPACE = "xgmml";
 export const CYTOSCAPE_ORIGIN_NAMESPACE = "cytoscape";
 
 /**
- * The issue codes the XGMML importer records (design section 8.6), by name: the codes shared with
+ * The issue codes the XGMML importer records, by name: the codes shared with
  * the other importers (src/common/codes.ts) and the XGMML-specific ones. A key is the code without
  * its severity and format prefixes.
  */

@@ -77,7 +77,7 @@ export const PAJEK_LOSS = Object.freeze({
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
     /** Under sanitizeIds "mangle": an original id whose text reads back as the other type under ids "canonical". */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
-    /** Parameter text that looks like a number or a boolean reads back as one (parameters are untyped, design 5.1). */
+    /** Parameter text that looks like a number or a boolean reads back as one (parameters are untyped). */
     TEXT_INFERRED: LOSS.TEXT_INFERRED,
 });
 

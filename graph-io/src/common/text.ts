@@ -23,7 +23,7 @@ const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;
 
 /**
- * The dtype a text cell parses as under the design section 5.1 grammar.
+ * The dtype a text cell parses as under the fixed text grammar.
  * Consumed by the per-format importers and exporters under src/formats.
  * @public
  */
@@ -115,7 +115,7 @@ function textDtypeRank(dtype: TextDtype): number {
 }
 
 /**
- * The inferred-column writer of the untyped text formats (CSV, DOT, Pajek; design section 5.1):
+ * The inferred-column writer of the untyped text formats (CSV, DOT, Pajek):
  * parses every cell by the fixed grammar and pushes the scalar, and keeps the COLUMN's dtype the
  * one the grammar implies rather than the one the values happen to imply:
  *

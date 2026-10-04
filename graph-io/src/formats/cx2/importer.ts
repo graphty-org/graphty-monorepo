@@ -114,7 +114,7 @@ export interface Cx2ImportOptions {
 }
 
 /**
- * The issue codes the CX2 importer records (design section 1.3), by name: the codes shared with
+ * The issue codes the CX2 importer records, by name: the codes shared with
  * the other importers (src/common/codes.ts) and the CX2-specific ones. A key is the code without
  * its severity and format prefixes.
  */
@@ -2142,7 +2142,7 @@ export function zAsOption(value: unknown): "column" | "position" {
 }
 
 /**
- * The CX2 importer plugin (design section 1.3).
+ * The CX2 importer plugin.
  */
 export const cx2Importer: GraphImporter<Cx2ImportOptions> = Object.freeze({
     format: CX2_FORMAT,

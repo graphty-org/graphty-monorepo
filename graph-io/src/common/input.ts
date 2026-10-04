@@ -570,7 +570,7 @@ export async function readBytes(input: ImportInput, options: ReadOptions = {}): 
 }
 
 /**
- * Read the whole input as one string (the GML / DOT / JSON path, design section 8.4).
+ * Read the whole input as one string (what the GML, DOT and JSON importers do).
  * @param input - the input
  * @param report - the report the decode error is recorded in
  * @param options - cancellation and progress

@@ -5,8 +5,8 @@
  * the ids the format cannot hold and hands the exporter the originals to write into its
  * `graphty:originalId` attribute).
  *
- * Every exporter's check() calls checkCapabilities() first and appends its format-specific notes
- * (design section 8.5 names W_GML_RECORD_NUMBER_TYPE and W_OPEN_INTERVAL); export() calls
+ * Every exporter's check() calls checkCapabilities() first and appends its format-specific notes;
+ * export() calls
  * sanitizeIds() before writing anything.
  */
 
@@ -78,7 +78,7 @@ export const LOSS = Object.freeze({
     HIERARCHY: "W_HIERARCHY_DROPPED",
     /** A start / end / timestamp column in a format without temporal support. */
     TEMPORAL: TEMPORAL_DROPPED_CODE,
-    /** A `<column>.text` companion (design section 5.1) the format cannot carry. */
+    /** A `<column>.text` companion the format cannot carry. */
     TEMPORAL_TEXT: TEMPORAL_TEXT_DROPPED_CODE,
     /** A role column the format has no slot for; written as a plain attribute, the role lost. */
     ROLE: ROLE_DROPPED_CODE,
@@ -114,7 +114,7 @@ export const LOSS = Object.freeze({
     SPELLS: "W_SPELLS_DROPPED",
     /** Dynamic attribute values (extension tables) in a format without them. */
     DYNAMIC_VALUES: "W_DYNAMIC_VALUES_DROPPED",
-    /** An open-interval column in a format without open intervals (design section 5.1). */
+    /** An open-interval column in a format without open intervals. */
     OPEN_INTERVAL: "W_OPEN_INTERVAL",
     /** Graph-level attributes in a format without them. */
     GRAPH_ATTRIBUTES: "W_GRAPH_ATTRIBUTES_DROPPED",
@@ -157,7 +157,7 @@ export function capabilities(supported: Partial<ExportCapabilities>): ExportCapa
 }
 
 /**
- * Format facts checkCapabilities() needs that the 12.4 table does not carry.
+ * Format facts checkCapabilities() needs that the capabilities table does not carry.
  * Consumed by the per-format importers and exporters under src/formats.
  * @public
  */
@@ -165,7 +165,7 @@ export interface CheckExtras {
     /** Whether the format can write open intervals (GEXF 1.2 startopen / endopen); default false. */
     readonly openIntervals?: boolean | undefined;
     /**
-     * Whether the format carries the `<column>.text` companions of design section 5.1 (the lexical
+     * Whether the format carries the `<column>.text` companion columns (the lexical
      * form of a temporal value); default false, and every companion is then reported as
      * W_TEMPORAL_TEXT_DROPPED.
      */
@@ -198,7 +198,7 @@ const TEMPORAL_ROLES: ReadonlySet<string> = new Set(["start", "end", "timestamp"
 const HIERARCHY_ROLES: ReadonlySet<string> = new Set(["parent", "parents"]);
 
 /**
- * The generic pre-flight of design section 8.5: compare a snapshot with a format's capabilities
+ * The generic pre-flight check: compare a snapshot with a format's capabilities
  * and return one LossNote per gap, with the shared codes of LOSS. Format-specific notes are the
  * exporter's to append.
  * @param snapshot - the snapshot about to be exported
@@ -561,7 +561,7 @@ export function countParallelArcs(snapshot: GraphSnapshot): number {
 export type IdCharset = ExportCapabilities["idCharset"];
 
 /**
- * The ids to write for every node after sanitising (design section 8.5).
+ * The ids to write for every node after sanitising.
  * Consumed by the per-format importers and exporters under src/formats.
  * @public
  */
@@ -704,7 +704,7 @@ export function countUnrepresentableIds(snapshot: GraphSnapshot, charset: IdChar
 }
 
 /**
- * Sanitise the node ids for a charset (design section 8.5). Under "error" any id the charset
+ * Sanitise the node ids for a charset. Under "error" any id the charset
  * cannot hold is E_INVALID_ID (details.reason "charset") and nothing is written; under "mangle"
  * such ids are rewritten deterministically and uniquely: NMTOKEN by replacing every other
  * character with `_` (an empty result becomes `_`) and suffixing `_2`, `_3`... on collision;

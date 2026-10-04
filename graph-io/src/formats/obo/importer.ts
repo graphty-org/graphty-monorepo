@@ -79,7 +79,7 @@ export interface OboImportOptions {
     typedefs?: "metadata" | "nodes" | undefined;
 }
 
-/** Issue codes of the OBO importer (design section 4.3). */
+/** Issue codes of the OBO importer. */
 export const OBO_ISSUE = Object.freeze({
     /** The input is empty or whitespace (fatal). */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
@@ -1615,7 +1615,7 @@ function sniffObo(head: Uint8Array): number {
 }
 
 /**
- * The OBO importer plugin (design section 4).
+ * The OBO importer plugin.
  */
 export const oboImporter: GraphImporter<OboImportOptions> = Object.freeze({
     format: "obo",

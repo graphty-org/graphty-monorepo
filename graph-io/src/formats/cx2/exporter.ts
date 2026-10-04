@@ -28,7 +28,7 @@ import { BYPASS_NAMESPACE, CX2_FORMAT, cx2Type, ORIGINAL_ID_ATTRIBUTE } from "./
 export type Cx2ExportOptions = Readonly<Record<never, never>>;
 
 /**
- * The loss notes the CX2 exporter's check() returns (design section 1.3), by name. A key is the
+ * The loss notes the CX2 exporter's check() returns, by name. A key is the
  * code without its severity and format prefixes.
  */
 export const CX2_LOSS = Object.freeze({
@@ -59,7 +59,7 @@ export const CX2_LOSS = Object.freeze({
 });
 
 /**
- * What CX2 keeps (design section 1.3): directed multigraphs with self-loops, integer node ids,
+ * What CX2 keeps: directed multigraphs with self-loops, integer node ids,
  * required integer edge ids, declared string / double / integer / boolean columns and lists of
  * them, declared defaults, network attributes and the position role. f32, u32, u8 and dict columns
  * are written as the nearest declared type and read back as it.
@@ -998,7 +998,7 @@ function bypassValues(columns: readonly Column[], row: number): Record<string, u
 }
 
 /**
- * The CX2 exporter plugin (design section 1.3).
+ * The CX2 exporter plugin.
  */
 export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
     format: CX2_FORMAT,

@@ -167,7 +167,14 @@ export class GmlTokens {
             return text;
         }
         const report = this.onUnknownEntity;
-        return decodeGmlString(text, report === null ? undefined : (entity) => { report(entity, this.line[i]); });
+        return decodeGmlString(
+            text,
+            report === null
+                ? undefined
+                : (entity) => {
+                      report(entity, this.line[i]);
+                  },
+        );
     }
 
     /**

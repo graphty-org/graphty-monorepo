@@ -40,7 +40,7 @@ export interface MutableCounts {
     skippedNodes: number;
     /** Edges skipped after an error. */
     skippedEdges: number;
-    /** Source edges expanded into two logical edges (design section 3.6). */
+    /** Source edges expanded into two logical edges. */
     expandedMixed: number;
 }
 
@@ -70,8 +70,7 @@ export const PARSE_ERROR_CODE = "E_PARSE";
 /**
  * Accumulates an ImportReport while an importer runs. Errors count toward the error limit; the
  * error that takes the count beyond the limit is still recorded, `truncated` is set, and an
- * ImportError carrying the report so far is thrown (design section 8.4: "beyond it the importer
- * aborts with E_IMPORT"). Warnings never abort.
+ * ImportError carrying the report so far is thrown. Warnings never abort.
  */
 export class ImportReportBuilder {
     /** The importer's format name. */
@@ -226,7 +225,7 @@ export class ImportReportBuilder {
     }
 
     /**
-     * The per-element catch of design section 8.6: record a thrown GraphFormatError as an error
+     * The per-element catch: record a thrown GraphFormatError as an error
      * issue with its code and the category the code implies. Anything else is re-thrown unchanged:
      * an ImportError (the import already aborted), an abort reason, and any other thrown value (a
      * TypeError or RangeError is a programming error in the importer or the sink, never a defect of

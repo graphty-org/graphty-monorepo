@@ -63,7 +63,7 @@ export const GEXF_LOSS = Object.freeze({
     LIST_SEPARATOR: "W_LIST_SEPARATOR",
     /** A role column of a shape GEXF cannot map (a string `start`, a 2-component color); written as a plain attribute. */
     ROLE_SHAPE: "W_ROLE_SHAPE",
-    /** A temporal extension table without the element / start / end / value columns of design section 5.10. */
+    /** A temporal extension table without the element / start / end / value columns. */
     TEMPORAL_TABLE_SHAPE: "W_TEMPORAL_TABLE_SHAPE",
     /** An attribute whose title the importer would rename on re-import (a reserved name). */
     ATTRIBUTE_RENAMED: "W_ATTRIBUTE_RENAMED",
@@ -71,7 +71,7 @@ export const GEXF_LOSS = Object.freeze({
     VALUE_UNWRITABLE: "W_VALUE_UNWRITABLE",
     /** A declared type the target version lacks (1.2: date, dateTime, typed lists...); the canonical type is written. */
     DECLARED_TYPE: "W_DECLARED_TYPE",
-    /** A node id whose text reads back as the other type under the canonical rule (design section 4.1): a non-integer number, a string of integer text. */
+    /** A node id whose text reads back as the other type under the canonical rule: a non-integer number, a string of integer text. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /** A numeric edge id column: GEXF edge ids read back as strings. */
     EDGE_ID_TEXT: "W_GEXF_EDGE_ID_TEXT",
@@ -1730,7 +1730,7 @@ function graphExtraText(snapshot: GraphSnapshot, key: string): string | null {
     return typeof value === "string" ? value : null;
 }
 
-/** The GEXF exporter (design section 8.5); `capabilities` describes the default 1.3 output. */
+/** The GEXF exporter; `capabilities` describes the default 1.3 output. */
 export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
     format: GEXF_FORMAT,
     capabilities: CAPABILITIES_1_3,

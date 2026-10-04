@@ -1,5 +1,5 @@
 /**
- * The `@graphty/graph-io/cx2` subpath (design/graph-io/cytoscape-and-obo/design.md section 1.3):
+ * The `@graphty/graph-io/cx2` subpath:
  * the CX2 importer and exporter with their option types and code tables.
  */
 

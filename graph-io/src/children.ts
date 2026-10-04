@@ -1,5 +1,5 @@
 /**
- * The children CSR over a containment column (design sections 5.10, 7.1 and 8.2): containment
+ * The children CSR over a containment column: containment
  * (GEXF `pid` / `<parents>`, Cytoscape `parent`, DOT clusters, GraphML nested graphs) is a node
  * column with the `parent` role (u32, refersTo node) or the `parents` role (list of u32) and never
  * enters the CSR of the snapshot. Importers and exporters that need to walk containers top-down
@@ -41,7 +41,7 @@ export interface DepthFirstOrder {
 }
 
 /**
- * The children CSR of a snapshot's containment column (design sections 5.10 and 7.1): the inverse
+ * The children CSR of a snapshot's containment column: the inverse
  * of the parent relation as a compressed sparse row structure over node indices.
  */
 export class ChildrenCsr {
@@ -247,7 +247,7 @@ export class ChildrenCsr {
 }
 
 /**
- * Build the children CSR of a snapshot (design section 7.1: a graph-io helper, not a core view).
+ * Build the children CSR of a snapshot.
  * @param snapshot - the snapshot
  * @param options - which column to read; the `parent` role, then `parents`, by default
  * @returns the CSR; empty (every node a root) when the snapshot has no containment column

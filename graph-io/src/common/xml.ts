@@ -73,8 +73,7 @@ export class XmlSyntaxError extends Error {
 }
 
 /**
- * Opt-in repairs of two defects the Cytoscape XGMML writer is known to produce (research note
- * `research-xgmml.md` 3.8 and 5). Each is off unless its callback is given; GEXF and GraphML never
+ * Opt-in repairs of two defects the Cytoscape XGMML writer is known to produce. Each is off unless its callback is given; GEXF and GraphML never
  * pass them, so their documents stay strictly well-formed. The callback is told the line of each
  * repair, so the importer can warn per occurrence.
  */

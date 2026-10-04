@@ -161,7 +161,7 @@ const SKIPPED_GRAPH_ROLES: ReadonlySet<string> = new Set(["position", "color", "
 const TEXT_ROLES: ReadonlySet<string> = new Set(["label", "id", "sourcePort", "targetPort"]);
 
 /**
- * The exporter plugin for DOT / Graphviz text (design section 12.4).
+ * The exporter plugin for DOT / Graphviz text.
  */
 export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
     format: DOT_FORMAT,

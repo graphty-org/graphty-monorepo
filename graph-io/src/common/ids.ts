@@ -115,8 +115,7 @@ function invalidId(value: unknown, reason: string): GraphFormatError {
 
 /**
  * A stateful coercer for one import call: applies the rule and, under "number", detects merges
- * (two distinct texts mapping to one number) so the importer can report them as coercion issues
- * (design section 4.1).
+ * (two distinct texts mapping to one number) so the importer can report them as coercion issues.
  */
 export class IdCoercer {
     /** The rule. */
@@ -129,7 +128,14 @@ export class IdCoercer {
     private readonly firstText: Map<number, string> | null;
 
     /** The merge detected by the most recent text() call, or null. */
-    lastMerge: { readonly id: number; readonly text: string; readonly previousText: string } | null = null;
+    lastMerge: {
+        /** The number both texts became. */
+        readonly id: number;
+        /** The text just read. */
+        readonly text: string;
+        /** The first text that became the same number. */
+        readonly previousText: string;
+    } | null = null;
 
     /**
      * Create a coercer.

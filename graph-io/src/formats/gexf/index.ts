@@ -1,5 +1,5 @@
 /**
- * The GEXF subpath entry (`@graphty/graph-io/gexf`, design section 8.2): the importer and exporter
+ * The GEXF subpath entry (`@graphty/graph-io/gexf`): the importer and exporter
  * objects with their format-specific option types, the exporter's loss-note codes and the
  * importer's issue codes grouped in one table.
  */
@@ -57,7 +57,7 @@ export { gexfImporter, type GexfImportOptions } from "./importer.js";
 export { type GexfVersion } from "./schema.js";
 
 /**
- * The issue codes the GEXF importer records (design section 8.6), by name: the codes shared with
+ * The issue codes the GEXF importer records, by name: the codes shared with
  * the other importers (src/common/codes.ts) and the GEXF-specific ones. A key is the code without
  * its severity and format prefixes.
  */
@@ -108,7 +108,7 @@ export const GEXF_ISSUE = Object.freeze({
     BAD_DEFAULT: BAD_DEFAULT_CODE,
     /** Options that do not parse as the declared type. */
     BAD_OPTIONS: BAD_OPTIONS_CODE,
-    /** A column renamed `<name>#<id>` because the name was taken (design section 5.6). */
+    /** A column renamed `<name>#<id>` because the name was taken. */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /** A column declared without its role because the table already holds it. */
     ROLE_TAKEN: ROLE_TAKEN_CODE,

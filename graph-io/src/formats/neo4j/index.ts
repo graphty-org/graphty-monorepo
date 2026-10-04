@@ -1,6 +1,6 @@
 /**
- * The `@graphty/graph-io/neo4j` subpath: the Neo4j importer and exporter with their option types
- * (design section 8.2), the names of the reserved columns and the issue and loss-note codes
+ * The `@graphty/graph-io/neo4j` subpath: the Neo4j importer and exporter with their option types,
+ * the names of the reserved columns and the issue and loss-note codes
  * grouped in two tables.
  */
 
@@ -54,7 +54,7 @@ export {
 } from "./importer.js";
 
 /**
- * The issue codes the Neo4j importer records (design section 8.6), by name: the codes shared with
+ * The issue codes the Neo4j importer records, by name: the codes shared with
  * the other importers (src/common/codes.ts, the CSV record reader) and the Neo4j-specific ones.
  * A key is the code without its severity and format prefixes.
  */
@@ -93,7 +93,7 @@ export const NEO4J_ISSUE = Object.freeze({
     UNKNOWN_ATTR_TYPE: UNKNOWN_ATTR_TYPE_CODE,
     /** A long value beyond 2^53 rounded. */
     PRECISION: PRECISION_CODE,
-    /** A column renamed `<name>#<id>` because the name was taken (design section 5.6). */
+    /** A column renamed `<name>#<id>` because the name was taken. */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /** A role the caller's sink already holds. */
     ROLE_TAKEN: ROLE_TAKEN_CODE,

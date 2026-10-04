@@ -83,7 +83,10 @@ export interface GmlImportOptions {
      * (default true); false keeps the whole record in the `graphics` json column.
      */
     positions?: boolean | undefined;
-    /** Apply the dictionary heuristic of design section 5.4 to string columns (default true). */
+    /**
+     * Store a string column whose values repeat a lot (fewer distinct values than half the rows) as a
+     * dictionary column (default true).
+     */
     dictionaries?: boolean | undefined;
 }
 

@@ -1439,7 +1439,7 @@ function* writeNodeSubtree(
 }
 
 /**
- * The GraphML exporter (design section 8.5).
+ * The GraphML exporter.
  */
 export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freeze({
     format: FORMAT,

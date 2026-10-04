@@ -161,7 +161,7 @@ export interface JsonImportOptions extends GraphChoiceOptions {
 }
 
 /**
- * The issue codes the JSON importer records (design section 8.6), by name: the codes shared with
+ * The issue codes the JSON importer records, by name: the codes shared with
  * the other importers (src/common/codes.ts) and the JSON-specific ones. A key is the code without
  * its severity and format prefixes.
  */
@@ -2857,7 +2857,7 @@ function writeElementKeys(writer: AttributeWriter, row: number, record: JsonReco
 // ============================================================ the plugin
 
 /**
- * The JSON importer plugin (design section 8.4).
+ * The JSON importer plugin.
  */
 export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
     format: "json",

@@ -1,5 +1,5 @@
 /**
- * The importer / exporter registry (design sections 8.2 and 8.4): the eight built-in formats
+ * The importer / exporter registry: the eight built-in formats
  * registered by name, `sniff()` over them, and the two conveniences for callers who do not own a
  * sink: `importGraph()` sniffs the format, creates a builder seeded from the common options
  * (`directed: true` as a placeholder; the importer sets the real value), imports and freezes;
@@ -56,7 +56,7 @@ export type BuilderSeed = Omit<
 
 /**
  * The options of importGraph(): the common import options (which also seed the registry's
- * builder, design section 8.4), the format choice and the hints sniffing uses, the builder and
+ * builder), the format choice and the hints sniffing uses, the builder and
  * freeze options, and any format-specific option (`delimiter`, `dialect`, ...) passed through to
  * the importer unchanged. `graphIndex` / `graphName` choose one graph of an input that holds
  * several, for the formats that list their graphs.
@@ -77,13 +77,14 @@ export interface ImportGraphOptions extends CommonImportOptions, GraphChoiceOpti
      * E_TOO_MANY_EMPTY_CELLS. Every attribute is a column with one slot per node (or edge), so a file
      * whose nodes each have a differently named attribute would otherwise need nodes x attributes
      * memory. Default 2^24 (16,777,216); Infinity turns the check off. Dense files are never stopped.
+     * @default 16777216
      */
     readonly maxEmptyCells?: number | undefined;
     /** Format-specific options, passed to the importer as they are. */
     readonly [formatOption: string]: unknown;
 }
 
-/** What importGraph() returns (design section 8.4). */
+/** What importGraph() returns. */
 export interface ImportGraphResult {
     /** The format the input was read as. */
     readonly format: string;
@@ -93,7 +94,7 @@ export interface ImportGraphResult {
     readonly snapshot: GraphSnapshot;
     /** The importer's report. */
     readonly report: ImportReport;
-    /** The freeze report (design section 6.6). */
+    /** The freeze report. */
     readonly freeze: FreezeReport;
 }
 
@@ -115,7 +116,7 @@ const REGISTRY_KEYS: ReadonlySet<string> = new Set([
 
 /**
  * A registry of importers and exporters by format name. Registration order is the tie-break
- * order of sniffing (design section 8.2); the default registry lists the built-in formats in the
+ * order of sniffing; the default registry lists the built-in formats in the
  * order of GRAPH_FORMATS.
  */
 export class FormatRegistry {
@@ -213,8 +214,7 @@ export class FormatRegistry {
     }
 
     /**
-     * Rank the registered importers for an input (design section 8.2; the successor of
-     * graphty-element's detectFormat()).
+     * Rank the registered importers for an input.
      * @param hints - the filename, MIME type and / or head of the input
      * @returns the candidates, best first; empty when nothing matches
      */
@@ -233,8 +233,7 @@ export class FormatRegistry {
     }
 
     /**
-     * Read an input into a fresh builder and freeze it (design section 8.4: for callers who do not
-     * own a sink). The format is the one named in the options, else sniffed from the filename,
+     * Read an input into a fresh builder and freeze it. The format is the one named in the options, else sniffed from the filename,
      * the MIME type and the first bytes of the content; the builder is seeded from the common
      * options with `directed: true` as a placeholder that the importer overrides from the file.
      * An input holding several graphs yields the first, with a warning naming how many were
@@ -338,7 +337,7 @@ export class FormatRegistry {
     }
 
     /**
-     * Write a snapshot in a format, as UTF-8 chunks (design section 8.5).
+     * Write a snapshot in a format, as UTF-8 chunks.
      * @param snapshot - the snapshot
      * @param format - the format name
      * @param options - the exporter's common and format-specific options
@@ -406,8 +405,7 @@ export function createRegistry(): FormatRegistry {
 export const registry: FormatRegistry = createRegistry();
 
 /**
- * Read an input into a fresh builder and freeze it, through the default registry (design section
- * 8.4: `importGraph(input, { format?, ...options })`).
+ * Read an input into a fresh builder and freeze it, through the default registry.
  * @param input - the text, bytes, stream or chunks to read
  * @param options - the format, hints, common and format-specific import options
  * @returns the snapshot, the import report and the freeze report

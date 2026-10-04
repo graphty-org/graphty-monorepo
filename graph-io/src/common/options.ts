@@ -18,7 +18,7 @@ import {
 import { canonicalEncoding } from "./input.js";
 import { type ImportReportBuilder } from "./report.js";
 
-/** The defaults an importer supplies for the options whose default is per format (design section 8.4). */
+/** The defaults an importer supplies for the options whose default is per format. */
 export interface ImportFormatDefaults {
     /** "canonical" for text-cell formats, "keep" for JSON. */
     readonly ids: IdCoercion;
@@ -31,7 +31,7 @@ export interface ImportFormatDefaults {
 }
 
 /**
- * CommonImportOptions with every field present (design section 8.4 defaults applied).
+ * CommonImportOptions with every field present.
  * Consumed by the per-format importers and exporters under src/formats.
  * @public
  */
@@ -70,7 +70,7 @@ export interface ResolvedImportOptions {
     readonly encoding: string | null;
 }
 
-/** CommonExportOptions with every field present (design section 8.5 defaults applied). */
+/** CommonExportOptions with every field present. */
 export interface ResolvedExportOptions {
     /** "error" never renames a node; "mangle" rewrites and keeps the original. */
     readonly sanitizeIds: "error" | "mangle";
@@ -89,7 +89,7 @@ const LONG_MODES: ReadonlySet<string> = new Set(["f64", "string"]);
 const HYPEREDGE_POLICIES: ReadonlySet<string> = new Set(["error", "skip", "star", "clique"]);
 const SANITIZE_MODES: ReadonlySet<string> = new Set(["error", "mangle"]);
 
-/** The default error limit of design section 8.4. */
+/** The default error limit: errors tolerated before an import aborts. */
 export const DEFAULT_ERROR_LIMIT = 100;
 
 export { SINK_OPTION_CODE };
@@ -98,8 +98,8 @@ export { SINK_OPTION_CODE };
 const SINK_OPTION_NAMES = ["addMissingNodes", "duplicateEdges", "selfLoops", "weightDtype"] as const;
 
 /**
- * Report every builder-policy option the caller explicitly requested that the sink does not use
- * (design section 8.4 precedence), one `W_SINK_OPTION` warning per option with the option name as
+ * Report every builder-policy option the caller explicitly requested that the sink does not use,
+ * one `W_SINK_OPTION` warning per option with the option name as
  * the element. Options left undefined are never reported: they are defaults, not requests. On the
  * registry's builder, which is seeded from the same options, nothing is ever reported.
  * @param sink - the sink the importer pushes into
@@ -158,7 +158,7 @@ const IGNORABLE_OPTION_NAMES = [
 
 /**
  * Report every common option the caller set to a non-default value that the format has no use
- * for (design section 8.4: "the importer reports every option it could not honour"): one
+ * for: one
  * `W_OPTION_IGNORED` warning (category `unsupported`) per option, the option name as the element.
  * The builder-policy options are reportSinkOptions()'s and are skipped here.
  * @param options - the caller's raw options, possibly undefined
@@ -265,7 +265,7 @@ export function chooseGraph(
 }
 
 /**
- * Apply the design section 8.4 defaults to an importer's common options and check every enum
+ * Apply the documented defaults to an importer's common options and check every enum
  * value. Format-specific options in the same object are ignored here.
  * @param options - the caller's options, possibly undefined
  * @param defaults - the importer's per-format defaults
@@ -297,7 +297,7 @@ export function resolveImportOptions(
 }
 
 /**
- * Apply the design section 8.5 defaults to an exporter's common options and check the enum values.
+ * Apply the documented defaults to an exporter's common options and check the enum values.
  * @param options - the caller's options, possibly undefined
  * @returns the resolved options; E_UNSUPPORTED for a value outside its set
  */

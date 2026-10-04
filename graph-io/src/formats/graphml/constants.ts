@@ -1,6 +1,6 @@
 /**
  * What the GraphML importer and exporter share: the namespace, the format facts, the reserved
- * column names of the XML-attribute-derived columns (design section 5.6), the `meta.extra`
+ * column names of the XML-attribute-derived columns, the `meta.extra`
  * keys the importer records for the exporter, and the issue and loss codes.
  */
 
@@ -60,10 +60,10 @@ export const EXTENSIONS: readonly string[] = Object.freeze([".graphml", ".xml"])
 /** MIME types. */
 export const MIME_TYPES: readonly string[] = Object.freeze(["application/graphml+xml", "application/xml", "text/xml"]);
 
-/** The `attr.name` of the node key that carries ids rewritten by `sanitizeIds: "mangle"` (design section 8.5). */
+/** The `attr.name` of the node key that carries ids rewritten by `sanitizeIds: "mangle"`. */
 export const ORIGINAL_ID_ATTRIBUTE = "graphty:originalId";
 
-/** The node column that keeps original ids when `restoreMangledIds` is off (design section 5.6). */
+/** The node column that keeps original ids when `restoreMangledIds` is off. */
 export const ORIGINAL_ID_COLUMN = "graphty.originalId";
 
 /** The edge column of the `id` XML attribute (role id, unique). */
@@ -108,7 +108,7 @@ export interface GraphmlMeta {
 }
 
 /**
- * The issue codes the GraphML importer records (design section 8.6), by name: the codes shared
+ * The issue codes the GraphML importer records, by name: the codes shared
  * with the other importers (src/common/codes.ts) and the GraphML-specific ones. A key is the code
  * without its severity and format prefixes.
  */
@@ -191,7 +191,7 @@ export const GRAPHML_ISSUE = Object.freeze({
     OPTION_IGNORED: OPTION_IGNORED_CODE,
     /** A yFiles key under `yfiles: "skip"`. */
     YFILES_SKIPPED: "W_GRAPHML_YFILES_SKIPPED",
-    /** A key renamed `<name>#<id>` because the name was taken (design section 5.6). */
+    /** A key renamed `<name>#<id>` because the name was taken. */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /** A key declared without its role because the table already holds it. */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
@@ -229,7 +229,7 @@ export const GRAPHML_LOSS = Object.freeze({
     HIERARCHY_REORDERED: "W_GRAPHML_HIERARCHY_REORDERED",
     /** Nodes whose parent chain never reaches a root are written at the top level. */
     PARENT_CYCLE: "W_GRAPHML_PARENT_CYCLE",
-    /** Node ids that change type after a round trip under the canonical rule (design section 4.1). */
+    /** Node ids that change type after a round trip under the canonical rule. */
     ID_TEXT_TYPE: ID_TEXT_TYPE_CODE,
     /** A numeric edge id column reads back as string. */
     EDGE_ID_TEXT: "W_GRAPHML_EDGE_ID_TEXT",

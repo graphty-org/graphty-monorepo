@@ -1,5 +1,5 @@
 /**
- * The `@graphty/graph-io/graphml` subpath: the GraphML importer and exporter (design section 8.2),
+ * The `@graphty/graph-io/graphml` subpath: the GraphML importer and exporter,
  * their option types and their issue and loss-note code tables.
  */
 

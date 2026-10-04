@@ -37,7 +37,7 @@ export { type CsvColumnRef } from "./header.js";
 export { csvImporter, type CsvImportOptions } from "./importer.js";
 
 /**
- * The issue codes the CSV importer records (design section 8.6), by name: the codes shared with
+ * The issue codes the CSV importer records, by name: the codes shared with
  * the other importers (src/common/codes.ts) and the CSV-specific ones. A key is the code without
  * its severity and format prefixes.
  */

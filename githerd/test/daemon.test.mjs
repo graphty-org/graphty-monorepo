@@ -929,6 +929,51 @@ describe("the poll loop", () => {
         expect(gate.posted).toEqual({});
     });
 
+    it("holds a pull request a job made until a review passed on its patch, and knows the job by its branch", async () => {
+        scene.prs = [{ ...gatedPr(), id: "PR_7" }];
+        const daemon = await start();
+        const job = newJob({ kind: "issue", target: "#3", id: "issue-3" }, clock);
+        move(job, "starting", clock);
+        move(job, "working", clock);
+        job.branch = "fix/x";
+        daemon.state.jobs = { "issue-3": job };
+        await poll(daemon);
+        expect(job.pr).toBe(7);
+        // The test's root is no git repository, so the patch id stays unread: pending, then held.
+        expect(daemon.state.mergeGate.posted["7"]).toMatchObject({ state: "pending" });
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect(daemon.state.mergeGate.posted["7"]).toMatchObject({
+            state: "failure",
+            description: "held: githerd could not read its patch id",
+        });
+        // With the patch read and a passing review on it, the job's line holds.
+        daemon.state.prs["7"].patchId = "p1";
+        daemon.state.prs["7"].patchFor = B;
+        const review = newJob({ kind: "review", target: "#7", id: "review-7", facts: { pr: 7, patchId: "p1" } }, clock);
+        for (const to of ["starting", "working", "verifying", "done"]) move(review, to, clock);
+        review.report = { result: { verdict: "pass", patchId: "p1" } };
+        daemon.state.jobs["review-7"] = review;
+        clock = new Date("2026-10-02T12:06:00Z");
+        await poll(daemon);
+        expect(daemon.state.mergeGate.posted["7"]).toMatchObject({ state: "success" });
+    });
+
+    it("holds every pull request while the green commit is over 6 hours old and merges go on past it", async () => {
+        scene.prs = [{ ...gatedPr(), id: "PR_7" }];
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/x"), commit(A, null, "first")];
+        scene.ci = [run(101, B, null), run(100, A, "success")];
+        clock = new Date("2026-10-02T19:00:00Z");
+        const daemon = await start();
+        await poll(daemon);
+        expect(daemon.state.master).toMatchObject({ greenSha: A, pending: true });
+        expect(daemon.state.mergeGate.posted["7"]).toMatchObject({
+            state: "failure",
+            description: expect.stringMatching(/^held: starvation hold \(the green commit a{9} is over 6 hours old/),
+        });
+    });
+
     it("holds a pull request that changes a package the owner holds, until the policy ends", async () => {
         scene.prs = [{ ...gatedPr(), id: "PR_7" }];
         const daemon = await start();

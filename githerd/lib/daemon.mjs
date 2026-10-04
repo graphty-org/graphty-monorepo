@@ -84,10 +84,10 @@ import { createMcpServer, servedProtocols } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
-import { activePolicies, ownerCommand, resumeAnswered } from "./owner.mjs";
+import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
 import { containerStart, identify } from "./proc.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
-import { patchId, updatePrs, whyStuck } from "./prs.mjs";
+import { patchId, RELEASE_INPUTS, touches, updatePrs, whyStuck } from "./prs.mjs";
 import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
 import { NEXT, SKIP } from "./queue.mjs";
 import {
@@ -119,8 +119,12 @@ import { ring as ringWorker, running } from "./tmux.mjs";
 import { readVersion } from "./version.mjs";
 import { endRetired, watchPass } from "./watchdog.mjs";
 import { codeEnv, readSigningEnv } from "./worker-settings.mjs";
-import { removeJobWorktree } from "./worktrees.mjs";
+import { referenceAudit, referenceDryRun, referenceGate, refreshReference, removeJobWorktree } from "./worktrees.mjs";
 
+/** A green commit older than this, while merges go on past it, holds merges (design 4.7). */
+const STARVATION_MS = 6 * 3_600_000;
+/** How the reference worktree is installed and built (design 4.9). */
+const REFERENCE_SETUP = ["sh", "-c", "pnpm install --frozen-lockfile && pnpm exec nx run-many -t build"];
 /** How often the watchdog looks at the workers (design 7.5). */
 const WATCH_MS = 60_000;
 
@@ -751,12 +755,24 @@ export async function startDaemon({
 
     /**
      * What `githerd_done` and the verification poll read: git in the root, the GitHub client, npm.
-     * ponytail: release and local-gate incidents stay undecided until the daemon stores its release
-     * truth and the reference gate's result and passes them here as `releaseOpen` and `localGate`.
      * @returns {import("./done.mjs").DoneIo} the reader
      */
     const doneReader = () =>
-        doneIo({ root, repo: config.repo, github: github(), branch: state.master.branch ?? "master" });
+        doneIo({
+            root,
+            repo: config.repo,
+            github: github(),
+            branch: state.master.branch ?? "master",
+            // A release incident's key is its escalation's; it holds while the escalation is open.
+            releaseOpen: () =>
+                Object.values(state.escalations ?? {})
+                    .filter((e) => !e.resolvedAt && ["release-failed", "release-stalled"].includes(e.kind))
+                    .map((e) => e.key),
+            localGate: () => {
+                const gate = state.reference?.gate;
+                return gate ? { sha: gate.sha, passed: gate.verdict === "pass" } : null;
+            },
+        });
 
     /**
      * Raises the owner item of a red master that needs him: no worker can take its incident job, or
@@ -1322,9 +1338,12 @@ export async function startDaemon({
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);
         if (pace.level === "normal") await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
         // Holds post at every rate tier; the client's budget refuses a success below its floor.
+        // The merge gate reads each githerd-made pull request's patch id (decision line 6).
+        await linkJobPrs(branch, t);
         await mergeGate(gh, prList.repository.pullRequests.nodes, branch);
         // No owner, no jobs: every job acts only on the owner's issues and pull requests.
-        if (state.trust.login) await jobsFromFacts(branch, t);
+        if (state.trust.login) jobsFromFacts(t);
+        referenceWork();
         await workerPass();
         escalationItems();
         await ownerItemsPoll({
@@ -1365,13 +1384,13 @@ export async function startDaemon({
     }
 
     /**
-     * Turns this poll's facts into job records (jobs.mjs): first links each job to the pull request
-     * on the branch it pushed, and reads the patch id of each new head of a pull request a job made,
-     * which a review job is keyed on.
+     * Links each job to the pull request on the branch it pushed, reads the patch id of each new
+     * head of a pull request a job made (a review job and merge line 6 are keyed on it), and tells
+     * an issue job's worker when its issue changed.
      * @param {string} branch the default branch
      * @param {Date} t the poll's time
      */
-    async function jobsFromFacts(branch, t) {
+    async function linkJobPrs(branch, t) {
         for (const job of Object.values(state.jobs ?? {})) {
             if (job.pr || !job.branch) continue;
             const hit = Object.entries(state.prs ?? {}).find(([, p]) => p.headRef === job.branch);
@@ -1394,6 +1413,25 @@ export async function startDaemon({
                 });
             }
         }
+        // An issue edited since its worker last read it: the worker reads it again (line 8).
+        for (const job of Object.values(state.jobs ?? {})) {
+            if (job.kind !== "issue" || board.TERMINAL.includes(job.state) || job.state === "queued") continue;
+            const at = state.issues?.byNumber?.[String(job.target).slice(1)]?.updatedAt;
+            if (!at || at === job.acknowledgedRevision || at === job.revisionNews) continue;
+            job.revisionNews = at;
+            job.news.push({
+                at: t.toISOString(),
+                text: `issue ${job.target} changed; read it again with githerd_read`,
+                acked: false,
+            });
+        }
+    }
+
+    /**
+     * Turns this poll's facts into job records (jobs.mjs).
+     * @param {Date} t the poll's time
+     */
+    function jobsFromFacts(t) {
         const synced = syncJobs(state, { config, now: t });
         for (const id of synced.created) {
             void ledger({ kind: "job-created", job: id, reason: state.jobs[id].reason, target: state.jobs[id].target });
@@ -1549,8 +1587,10 @@ export async function startDaemon({
         for (const node of nodes) {
             gate.heads[node.number] = foldHead(gate.heads[node.number], node);
             await readDependencies(gate.heads[node.number], npm);
+            const head = gate.heads[node.number];
             const ownerItemOpen = items.some((i) => i.target === `pr:${node.number}`);
-            prs.push(openPr(node, gate.heads[node.number], { ownerItemOpen }));
+            const job = madeBy(node.number, head);
+            prs.push(openPr(node, head, { ownerItemOpen, job, releaseBumps: head.releaseBumps ?? null }));
         }
         const fixPrs = incidentFixPrs();
         // Only a code-red lane holds merges; a lane parked for paid capacity, a credential, an
@@ -1568,7 +1608,7 @@ export async function startDaemon({
             releaseRunning: Object.keys(m.lanes.release?.inFlight ?? {}).length > 0,
             freezeMerges: activePolicies(state, "freeze-merges").length > 0,
             heldPackages: activePolicies(state, "hold-package").map((/** @type {any} */ p) => String(p.value)),
-            starvation: null,
+            starvation: starvation(),
         };
         const posted = await postMergeStatuses({ github: gh, repo: config.repo, branch, prs, ctx, record: gate });
         for (const error of posted.errors) void ledger({ kind: "error", where: "githerd/merge", error });
@@ -1579,6 +1619,130 @@ export async function startDaemon({
             record: gate,
             mergify: mergify ?? null,
             acting: gh.acting("statuses"),
+        });
+    }
+
+    /**
+     * The merge decision's facts about the githerd job that made a pull request (design 4.6, lines
+     * 6 and 8): its kind, the head's patch id (null until read), the patch ids a review passed on,
+     * whether it changes githerd's own code or settings, and for an issue job the issue's current
+     * revision and the one its worker read. Null for a pull request no job made: the owner's own,
+     * and the owner's pull requests a `pr` job only fixed.
+     * ponytail: a passing review counts as the security review too; the rubric holds a security
+     * finding as its own verdict. Split them if a reviewer ever passes a diff with a security note.
+     * @param {number} n the pull request
+     * @param {any} head its head facts
+     * @returns {import("./prs.mjs").JobFacts | null} the facts
+     */
+    function madeBy(n, head) {
+        const jobs = Object.values(state.jobs ?? {});
+        const maker = jobs.find((j) => j.pr === n && j.kind !== "review" && j.kind !== "pr" && j.kind !== "title");
+        if (!maker) return null;
+        const rec = state.prs?.[String(n)];
+        const reviewed = jobs
+            .filter((j) => j.kind === "review" && j.facts?.pr === n && j.state === "done")
+            .filter((j) => j.report?.result?.verdict === "pass")
+            .map((j) => j.facts.patchId);
+        const issue = maker.kind === "issue" ? state.issues?.byNumber?.[String(maker.target).slice(1)] : null;
+        return {
+            kind: maker.kind,
+            patchId: rec && rec.patchFor === rec.headSha ? (rec.patchId ?? null) : null,
+            reviewed,
+            securityReviewed: reviewed,
+            workerPushedOwnerPaths: Boolean(head.files && touches(head.files, ["githerd/", ".claude/"])),
+            issueRevision: issue?.updatedAt ?? null,
+            acknowledgedRevision: maker.kind === "issue" ? (maker.acknowledgedRevision ?? null) : null,
+        };
+    }
+
+    /**
+     * The starvation hold (design 4.7): the green commit is older than 6 hours while merges go on
+     * past it and every gating lane is progressing, so merges wait until the slowest lane completes
+     * on master's head. A lane that is not progressing (queued past its bound, out of balance, an
+     * outage) never causes it.
+     * @returns {string | null} the hold's reason, or null
+     */
+    function starvation() {
+        const m = state.master;
+        if (!m.greenSha || !m.pending || m.verdict === "red") return null;
+        const green = commits.find((c) => c.sha === m.greenSha);
+        // Not among the recent commits: more merges than the commit list holds went on past it.
+        const at = Date.parse(green?.commit?.committer?.date ?? "");
+        if (green && !(now().getTime() - at >= STARVATION_MS)) return null;
+        const lanes = Object.entries(m.lanes).filter(([name]) => gatingLane(name));
+        const stuck = lanes.some(([, l]) => l.notProgressing || (l.verdict === "red" && !codeRed(l)));
+        if (stuck) return null;
+        return `the green commit ${m.greenSha.slice(0, 9)} is over 6 hours old; merges wait for every lane on master's head`;
+    }
+
+    /** @type {Promise<void> | null} the reference worktree's work, while it runs */
+    let refWork = null;
+
+    /**
+     * The reference worktree's work (design 4.9), in the background so the reconcile goes on: when
+     * the green commit moves it is moved, installed and built, and the audit runs on it; the
+     * release dry-run runs for each open pull request head that changes release inputs (merge line
+     * 7); and once a push's gate failed, the gate runs once on the green commit, so a failure that
+     * is the green commit's own becomes a shared local incident. A check that cannot run is a
+     * platform fault, ledgered by the check. It runs only while the statuses or workers group acts,
+     * the two that read its answers.
+     */
+    function referenceWork() {
+        const sha = state.master.greenSha;
+        // Only what acts reads its answers: the posted merge statuses and the workers' incidents.
+        const acting = writeMode("statuses") === "acting" || writeMode("workers") === "acting";
+        if (refWork || !sha || !config || env.GITHERD_DEV || !workersOn || !acting) return;
+        const heads = state.mergeGate?.heads ?? {};
+        const dryRuns = Object.entries(heads).filter(
+            ([, h]) => h.files && h.releaseFor !== h.sha && touches(h.files, RELEASE_INPUTS),
+        );
+        const ref = state.reference;
+        const fresh = ref?.ready && ref.sha === sha;
+        const gate = state.referenceGateWanted && ref?.gate?.sha !== sha;
+        if (fresh && ref.audit?.sha === sha && !dryRuns.length && !gate) return;
+        const opts = { root, state, env: pushEnv(), ledger };
+        refWork = (async () => {
+            const ready = await refreshReference({ ...opts, sha, setup: REFERENCE_SETUP });
+            if (ready.verdict !== "ready") return;
+            if (state.reference.audit?.sha !== sha) state.reference.audit = { sha, ...(await referenceAudit(opts)) };
+            for (const [n, h] of dryRuns) {
+                const head = h.sha;
+                const d = await referenceDryRun({ ...opts, merge: { sha: head, ref: `refs/pull/${n}/head` } });
+                if (h.sha !== head) continue;
+                h.releaseFor = head;
+                h.releaseBumps =
+                    d.verdict === "conflict" ? [] : d.verdict === "answer" ? bumps(ready.dir, d.bumps) : null;
+            }
+            if (gate) {
+                await referenceGate(opts);
+                state.referenceGateWanted = false;
+            }
+        })()
+            .catch(
+                (err) => void ledger({ kind: "error", where: "reference", error: /** @type {Error} */ (err).message }),
+            )
+            .finally(() => {
+                refWork = null;
+                if (!stopping) void save();
+            });
+    }
+
+    /**
+     * The release dry-run's bumps as the merge decision reads them: each project's directory, its
+     * version on the green commit and the version it would publish.
+     * @param {string} dir the reference worktree
+     * @param {{dir: string, version: string}[]} list the dry-run's bumps
+     * @returns {{project: string, from: string, to: string}[]} the bumps
+     */
+    function bumps(dir, list) {
+        return list.map((b) => {
+            let from = "0.0.0";
+            try {
+                from = JSON.parse(readFileSync(join(dir, b.dir, "package.json"), "utf8")).version ?? from;
+            } catch {
+                // a new package: from nothing
+            }
+            return { project: b.dir, from, to: b.version };
         });
     }
 
@@ -1814,7 +1978,7 @@ export async function startDaemon({
             const pauses = {
                 unknown: Boolean(state.github.downSince),
                 usage: state.apiStop?.kind === "usage",
-                paused: mode() === "paused",
+                paused: mode() === "paused" || Boolean(state.settings?.paused),
             };
             const steps = [...tickJobs(state, t, pauses), ...settleWaits(state, t)];
             noteGitHubChanges(state, t);
@@ -1897,7 +2061,9 @@ export async function startDaemon({
             waitPending: (job) =>
                 Boolean(job.waitingFor?.push || job.waitingFor?.verify || job.waitingFor?.local) ||
                 waitNews(state, job) === null,
-            itemOpen: (item) => Boolean(state.ownerItems?.[item] && !state.ownerItems[item].endedAt),
+            itemOpen: (item) =>
+                item.startsWith("stopped-by-owner:") ||
+                Boolean(state.ownerItems?.[item] && !state.ownerItems[item].endedAt),
         };
     }
 
@@ -1935,6 +2101,17 @@ export async function startDaemon({
             const pass = await watchPass(state, now(), { pushQueued: queued });
             for (const line of pass.ledger) void ledger(line);
             for (const id of pass.dead) {
+                const job = state.jobs[id];
+                // A steered session the owner ended parks its job until githerd release (design 7.6).
+                if (job.steeredAt && job.state === "working") {
+                    job.holder = null;
+                    board.move(job, "parked", now(), {
+                        waitingFor: { owner: `stopped-by-owner:${id}` },
+                        reason: "stopped by the owner; githerd release gives it back",
+                    });
+                    void ledger({ kind: "stopped-by-owner", job: id });
+                    continue;
+                }
                 // Resume only when the last self-test verified it on the installed Claude Code
                 // (design 11.4); otherwise the next session starts fresh.
                 await recoverDeath({
@@ -2160,7 +2337,14 @@ export async function startDaemon({
         }
         if (["answer", "order", "policy", "policy-end"].includes(cmd?.op))
             return ownerCommand(state, cmd, now(), worker);
-        return { status: 400, text: "op must be ack, veto, answer, order, policy or policy-end" };
+        if (CONTROL_OPS.has(cmd?.op)) {
+            if (worker) return { status: 403, text: `${cmd.op} is the owner's: a worker cannot run it` };
+            return controlCommand(state, cmd, now());
+        }
+        return {
+            status: 400,
+            text: "op must be ack, veto, answer, order, policy, policy-end, pause, resume, workers, keep or release",
+        };
     }
 
     /**
@@ -2214,6 +2398,7 @@ export async function startDaemon({
             await ledger(answer.entry);
         }
         for (const r of answer.resumed ?? []) await ringJob(state.jobs[r.job]);
+        if (answer.entry?.kind === "control") setImmediate(() => void retire().then(() => workerPass()));
         return [answer.status, { ok: answer.status === 200, text: answer.text }];
     }
 
@@ -2463,13 +2648,6 @@ export async function startDaemon({
      */
     function ensurePushQueue() {
         if (pushQueue || !config || fatal || loaded.readOnly || fenced || stopping) return pushQueue;
-        /** @type {Record<string, string>} */
-        let signing = {};
-        try {
-            signing = readSigningEnv(env.HOME ?? homedir());
-        } catch (err) {
-            say("error", `push queue: no signing variables: ${/** @type {Error} */ (err).message}`);
-        }
         pushQueue = createPushQueue({
             root,
             state,
@@ -2479,12 +2657,29 @@ export async function startDaemon({
             ring: ringJob,
             credentialBlocked: () => (state.apiStop?.kind === "credential" ? state.apiStop.error : null),
             defaultBranch: state.master.branch ?? "master",
-            env: codeEnv({ env, path: env.PATH ?? "", signing }),
+            env: pushEnv(),
             secrets,
             protectedPaths: () => config?.protectedPaths ?? [],
             now,
         });
         return pushQueue;
+    }
+
+    /**
+     * The environment of anything that runs a branch's code for githerd (a push and its gate, the
+     * reference worktree's checks): `codeEnv`, with the owner's signing variables, never the
+     * daemon's own environment, which holds the notify command's keys.
+     * @returns {Record<string, string>} the environment
+     */
+    function pushEnv() {
+        /** @type {Record<string, string>} */
+        let signing = {};
+        try {
+            signing = readSigningEnv(env.HOME ?? homedir());
+        } catch (err) {
+            say("error", `no signing variables: ${/** @type {Error} */ (err).message}`);
+        }
+        return codeEnv({ env, path: env.PATH ?? "", signing });
     }
 
     /**
@@ -2494,7 +2689,8 @@ export async function startDaemon({
      */
     async function ringJob(job) {
         const h = job.holder;
-        if (!h?.pane || !h.nonce) return;
+        // `githerd pause` stops every doorbell (design 7.6).
+        if (!h?.pane || !h.nonce || state.settings?.paused) return;
         try {
             const window = { socket: h.socket, window: h.window, pane: h.pane, pid: h.pid, name: h.name };
             await ringWorker(window, { nonce: h.nonce, job: job.id });
@@ -2553,6 +2749,8 @@ export async function startDaemon({
             });
             if (left.length) say("error", `self-update: left behind: ${left.join("; ")}`);
         }
+        await refWork;
+        await Promise.all(tasks.values());
         // A push killed here reaches its job as a failed push; the next start finds nothing running.
         pushQueue?.stop();
         await pushQueue?.drain();

@@ -329,3 +329,124 @@ export function ownerCommand(state, cmd, now, worker = null) {
         return { status: 409, text: /** @type {Error} */ (err).message };
     }
 }
+
+/** The owner's control commands (design 7.6 and 11.2). */
+export const CONTROL_OPS = new Set(["pause", "resume", "workers", "keep", "release"]);
+
+/**
+ * Hands a session to the owner (design 7.6): a worker's session githerd started is put on
+ * `state.retiring` and the job leaves it, keeping its state; it continues in a new window.
+ * @param {any} state the daemon state, mutated
+ * @param {any} job the job
+ * @param {string} reason why, for the ledger
+ * @param {Date} now the current time
+ */
+function retireSession(state, job, reason, now) {
+    state.retiring = [...(state.retiring ?? []), { job: job.id, holder: job.holder, reason, at: now.toISOString() }];
+    job.holder = null;
+    job.fresh = true;
+}
+
+/**
+ * The job whose window is `name`: a window id (`@3`), its name (`githerd-<job>`) or the job id.
+ * @param {any} state the daemon state
+ * @param {string} name what the owner typed
+ * @returns {any} the job, or undefined
+ */
+function jobOfWindow(state, name) {
+    return Object.values(state.jobs ?? {}).find(
+        (j) => j.holder?.pane && (j.holder.window === name || j.holder.name === name || j.id === name),
+    );
+}
+
+/**
+ * The owner's control commands, from the CLI (design 7.6 and 11.2):
+ * - `pause` / `resume`: stop / restart every worker start and doorbell.
+ * - `workers <n>`: the working sessions (0 keeps only the urgent slot); `workers --stop` ends every
+ *   worker githerd started without charging an attempt, and starts none until `workers <n>`.
+ * - `keep <window>`: hands the window to the owner for good; the job continues in a new window.
+ *   With `withJob` the job goes with it: the owner's session holds it, and githerd neither rings
+ *   nor ends that session.
+ * - `release <job>`: a job the owner stopped (or kept with its window) goes back to githerd.
+ * @param {any} state the daemon state, mutated
+ * @param {any} cmd `{op, slots?, stop?, window?, withJob?, job?}`
+ * @param {Date} now the current time
+ * @returns {{status: number, text: string, entry?: LedgerEntry}} the answer
+ */
+export function controlCommand(state, cmd, now) {
+    const settings = (state.settings ??= {});
+    const entry = (/** @type {Record<string, unknown>} */ fields) => ({ kind: "control", op: cmd.op, ...fields });
+    if (cmd.op === "pause" || cmd.op === "resume") {
+        settings.paused = cmd.op === "pause";
+        const text = settings.paused
+            ? "paused: no worker starts and no doorbell rings until githerd resume"
+            : "resumed: workers start and doorbells ring again";
+        return { status: 200, text, entry: entry({}) };
+    }
+    if (cmd.op === "workers") return workersCommand(state, settings, cmd, now, entry);
+    if (cmd.op === "keep") {
+        const job = jobOfWindow(state, String(cmd.window ?? ""));
+        if (!job) return { status: 404, text: `no worker window ${cmd.window}` };
+        const window = job.holder.name ?? job.holder.window;
+        if (cmd.withJob) {
+            job.holder = { session: job.holder.session ?? null, window: job.holder.window, startedBy: "owner" };
+            job.kept = true;
+            return {
+                status: 200,
+                text: `${window} and job ${job.id} are yours; githerd release ${job.id} gives the job back`,
+                entry: entry({ job: job.id, withJob: true }),
+            };
+        }
+        state.kept = [...(state.kept ?? []), { job: job.id, window: job.holder.window, at: now.toISOString() }];
+        job.holder = null;
+        job.fresh = true;
+        return {
+            status: 200,
+            text: `${window} is yours; job ${job.id} continues in a new window`,
+            entry: entry({ job: job.id }),
+        };
+    }
+    if (cmd.op === "release") {
+        const job = state.jobs?.[String(cmd.job ?? "")];
+        if (!job) return { status: 404, text: `no job ${cmd.job}` };
+        const stopped = job.state === "parked" && String(job.waitingFor?.owner ?? "").startsWith("stopped-by-owner:");
+        if (!stopped && !job.kept)
+            return { status: 409, text: `${job.id} is ${job.state}: neither stopped by you nor kept` };
+        if (stopped) move(job, "working", now, { reason: "released by the owner" });
+        if (job.kept) job.holder = null;
+        job.kept = false;
+        job.steeredAt = null;
+        job.fresh = true;
+        return { status: 200, text: `released ${job.id}; githerd continues it`, entry: entry({ job: job.id }) };
+    }
+    return { status: 400, text: `op must be one of ${[...CONTROL_OPS].join(", ")}` };
+}
+
+/**
+ * `workers <n>` and `workers --stop`.
+ * @param {any} state the daemon state, mutated
+ * @param {any} settings `state.settings`
+ * @param {any} cmd the command
+ * @param {Date} now the current time
+ * @param {(fields: Record<string, unknown>) => LedgerEntry} entry makes the ledger entry
+ * @returns {{status: number, text: string, entry?: LedgerEntry}} the answer
+ */
+function workersCommand(state, settings, cmd, now, entry) {
+    if (cmd.stop) {
+        const ended = Object.values(state.jobs ?? {}).filter((j) => j.holder?.pane && j.holder.startedBy === "githerd");
+        for (const job of ended) retireSession(state, job, "githerd workers --stop", now);
+        settings.stopped = true;
+        return {
+            status: 200,
+            text: `ended ${ended.length} workers without charging an attempt; none starts until githerd workers <n>`,
+            entry: entry({ ended: ended.map((j) => j.id) }),
+        };
+    }
+    const n = Number(cmd.slots);
+    if (!Number.isInteger(n) || n < 0 || n > 8)
+        return { status: 400, text: "workers takes a count from 0 to 8, or --stop" };
+    settings.slots = n;
+    settings.stopped = false;
+    const urgent = n === 0 ? "; only the urgent slot stays" : "";
+    return { status: 200, text: `${n} working sessions${urgent}`, entry: entry({ slots: n }) };
+}

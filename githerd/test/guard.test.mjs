@@ -298,6 +298,9 @@ const REFUSED = [
     ["githerd mode paused", /githerd mode is the owner's/],
     ["node githerd/bin/githerd.mjs answer ask-pr-7 yes", /githerd answer is the owner's/],
     ["pnpm exec githerd policy end policy-1", /githerd policy is the owner's/],
+    ["githerd workers --stop", /githerd workers is the owner's/],
+    ["githerd pause", /githerd pause is the owner's/],
+    ["githerd release issue-7", /githerd release is the owner's/],
     // workers never start or change githerd (design 9.4)
     ["node githerd/bin/githerd.mjs restart", /githerd restart: workers never start or change githerd/],
     ["githerd install", /githerd install: workers never start or change githerd/],

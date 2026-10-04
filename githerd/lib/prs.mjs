@@ -359,7 +359,7 @@ const SECURITY_PATHS = [".github/workflows/", ".husky/", "tools/prepush.sh", ".n
  * ponytail: a fixed list of the published packages; read the private flags of the workspace's
  * package.json files when a package is added often enough to forget this list.
  */
-const RELEASE_INPUTS = [
+export const RELEASE_INPUTS = [
     "algorithms/",
     "compact-mantine/",
     "graph-format/",

@@ -173,6 +173,21 @@ describe("syncJobs: pull requests", () => {
     });
 });
 
+describe("syncJobs: titles and the local gate", () => {
+    it("makes a title job when only Lint PR Title fails, and a local incident when the gate fails on green", () => {
+        const state = base();
+        failingPr(state, 4, { required: { "Lint PR Title": "FAILURE", "All Checks Pass": "SUCCESS" } });
+        state.master.greenSha = "g".repeat(40);
+        state.reference = { gate: { verdict: "fail", sha: "g".repeat(40), steps: ["Knip"] }, at: "x" };
+        expect(sync(state).created).toEqual(["incident-local-Knip", "title-4"]);
+        expect(state.jobs["title-4"]).toMatchObject({ kind: "title", pr: 4 });
+        expect(state.jobs["incident-local-Knip"]).toMatchObject({ target: "gate: Knip", facts: { scope: "local" } });
+        state.reference.gate = { verdict: "pass", sha: "g".repeat(40) };
+        state.prs[4].required["Lint PR Title"] = "SUCCESS";
+        expect(sync(state).cancelled.map((c) => c.job)).toEqual(["incident-local-Knip", "title-4"]);
+    });
+});
+
 describe("syncJobs: reviews", () => {
     it("makes a review for each new patch of a pull request a job made, and moves a queued one to the new patch", () => {
         const state = base();

@@ -5,6 +5,7 @@ import { planPages, readAnswers } from "../lib/notify.mjs";
 import {
     activePolicies,
     askOwner,
+    controlCommand,
     endPolicy,
     orderPosition,
     ownerCommand,
@@ -325,5 +326,71 @@ describe("the owner's CLI", () => {
         const answered = ownerCommand(state, { op: "answer", item: "ask-issue-737", text: "rename it" }, at(MIN));
         expect(answered).toMatchObject({ status: 200, text: "answered ask-issue-737; back at work: issue-737" });
         expect(answered.entry).toMatchObject({ by: "owner" });
+    });
+});
+
+describe("controlCommand", () => {
+    const T = new Date("2026-10-04T12:00:00Z");
+    /**
+     * A state with one working job whose worker githerd started.
+     * @returns {any} the state
+     */
+    const withWorker = () => {
+        const job = newJob({ kind: "issue", target: "#7", id: "issue-7" }, T);
+        move(job, "starting", T);
+        move(job, "working", T);
+        job.holder = { session: "s1", window: "@3", pane: "%3", name: "githerd-issue-7", startedBy: "githerd" };
+        return { jobs: { "issue-7": job } };
+    };
+
+    it("pauses and resumes every start and doorbell", () => {
+        const state = {};
+        expect(controlCommand(state, { op: "pause" }, T)).toMatchObject({ status: 200, entry: { kind: "control" } });
+        expect(state.settings.paused).toBe(true);
+        controlCommand(state, { op: "resume" }, T);
+        expect(state.settings.paused).toBe(false);
+    });
+
+    it("sets the working sessions, and --stop ends every worker without charging an attempt", () => {
+        const state = withWorker();
+        expect(controlCommand(state, { op: "workers", slots: 0 }, T).text).toBe(
+            "0 working sessions; only the urgent slot stays",
+        );
+        expect(controlCommand(state, { op: "workers", slots: 9 }, T).status).toBe(400);
+        const stop = controlCommand(state, { op: "workers", stop: true }, T);
+        expect(stop.text).toMatch(/^ended 1 workers without charging an attempt/);
+        const job = state.jobs["issue-7"];
+        expect(job).toMatchObject({ state: "working", holder: null, attempts: [] });
+        expect(state.retiring.map((r) => r.job)).toEqual(["issue-7"]);
+        expect(state.settings).toMatchObject({ slots: 0, stopped: true });
+        controlCommand(state, { op: "workers", slots: 2 }, T);
+        expect(state.settings).toMatchObject({ slots: 2, stopped: false });
+    });
+
+    it("keeps a window for the owner, with or without its job, and release gives the job back", () => {
+        let state = withWorker();
+        expect(controlCommand(state, { op: "keep", window: "githerd-issue-7" }, T).text).toBe(
+            "githerd-issue-7 is yours; job issue-7 continues in a new window",
+        );
+        expect(state.jobs["issue-7"]).toMatchObject({ holder: null, fresh: true, state: "working" });
+        expect(controlCommand(state, { op: "keep", window: "nope" }, T).status).toBe(404);
+        state = withWorker();
+        controlCommand(state, { op: "keep", window: "@3", withJob: true }, T);
+        expect(state.jobs["issue-7"]).toMatchObject({ kept: true, holder: { session: "s1", startedBy: "owner" } });
+        expect(state.jobs["issue-7"].holder.pane).toBeUndefined();
+        expect(controlCommand(state, { op: "release", job: "issue-7" }, T).status).toBe(200);
+        expect(state.jobs["issue-7"]).toMatchObject({ kept: false, holder: null });
+        expect(controlCommand(state, { op: "release", job: "issue-7" }, T).status).toBe(409);
+    });
+
+    it("releases a job parked because the owner stopped its steered session", () => {
+        const state = withWorker();
+        const job = state.jobs["issue-7"];
+        job.holder = null;
+        move(job, "parked", T, { waitingFor: { owner: "stopped-by-owner:issue-7" } });
+        expect(controlCommand(state, { op: "release", job: "issue-7" }, T).text).toBe(
+            "released issue-7; githerd continues it",
+        );
+        expect(job.state).toBe("working");
     });
 });

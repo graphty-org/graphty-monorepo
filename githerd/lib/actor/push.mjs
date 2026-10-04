@@ -493,6 +493,8 @@ export function createPushQueue({
         ).size;
         const green = state.reference?.gate;
         const failsOnGreen = green?.verdict === "fail" && green.steps.includes(f.steps[0]);
+        // A failed gate asks for the gate on the green commit, which tells a shared failure apart.
+        if (gate) state.referenceGateWanted = true;
         const v = r.timedOut
             ? { class: "outside", key, reason: `timed out after ${Math.round((2 * gateMs()) / 60_000)} minutes` }
             : classify(f, { others, failsOnGreen });

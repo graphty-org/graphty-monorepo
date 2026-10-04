@@ -132,6 +132,10 @@ export function sessionToolSet(ctx) {
                 }
                 const news = job.news.filter((/** @type {any} */ n) => !n.acked).map((/** @type {any} */ n) => n.text);
                 for (const n of job.news) n.acked = true;
+                // The worker read its issue's current revision (merge decision line 8).
+                if (job.kind === "issue") {
+                    job.acknowledgedRevision = state.issues?.byNumber?.[String(job.target).slice(1)]?.updatedAt ?? null;
+                }
                 if (job.holder?.session === session) job.steeredAt = null;
                 await ctx.commit({ kind: "next", job: job.id, session, news: news.length });
                 const instructions =

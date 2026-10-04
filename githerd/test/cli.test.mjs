@@ -643,6 +643,14 @@ describe("ensure and restart", () => {
         expect(JSON.parse(readFileSync(join(stateDir(), "daemon-env.json"), "utf8")).PUSHOVER_USER_KEY).toBe("k");
     });
 
+    it("names the usage of a worker control that lacks its argument", async () => {
+        for (const verb of ["workers", "keep", "release"]) {
+            const r = await cli([verb]);
+            expect(r.code, verb).toBe(2);
+            expect(r.err).toMatch(new RegExp(`^usage: ${verb} `));
+        }
+    });
+
     it("refuses install, ensure, restart, dev and selftest to a worker", async () => {
         for (const verb of ["install", "ensure", "restart", "dev", "selftest"]) {
             const r = await cli([verb], { extraEnv: { GITHERD_JOB: "issue-7" } });

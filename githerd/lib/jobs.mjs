@@ -7,9 +7,11 @@
  *
  * - `incident-<key>`: every code-red key of the open master incident whose procedure did not end
  *   intermittent, and every open release escalation (a failed or stalled release).
+ * - `incident-local-<step>`: the pre-push gate failing on the green commit (the reference worktree).
  * - `pr-<n>`: the owner's non-draft, non-stacked pull requests with an own failing required check,
  *   a conflict seen twice, or the owner's visual reject; never one that changes githerd's own
  *   config, hooks or worker instructions (those are listed for the owner's sessions).
+ * - `title-<n>`: such a pull request whose only failing check is `Lint PR Title`.
  * - `review-<n>`: a pull request a githerd job made, at a patch id no review has seen.
  * - `triage-<scope>-<seq>`: one triage job at a time, 20 issues at most: unlabeled issues first
  *   (`new`), then a refresh of the issues the last 20 merges touched, and a full pass over every
@@ -32,6 +34,8 @@ const TRIAGE_BATCH = 20;
 /** Merges between two refresh passes, and between two full passes (design 5.1). */
 const REFRESH_MERGES = 20;
 const FULL_MERGES = 100;
+/** The required check that runs commitlint on a pull request's title. */
+const TITLE_CHECK = "Lint PR Title";
 /** Escalation kinds of a release that did not publish (`checkRelease` in the daemon). */
 const RELEASE_KINDS = new Set(["release-failed", "release-stalled"]);
 /**
@@ -117,11 +121,27 @@ function incidentJobs(state, add, cancel) {
         });
         live.add(job.id);
     }
+    // The pre-push gate fails on the green commit itself: a shared local failure (design 4.9).
+    const gate = state.reference?.gate;
+    if (gate?.verdict === "fail" && gate.sha === state.master?.greenSha && gate.steps?.length) {
+        const job = add({
+            id: `incident-local-${slug(gate.steps[0])}`,
+            kind: "incident",
+            target: `gate: ${gate.steps.join(", ")}`,
+            priority: "urgent",
+            reason: `the pre-push gate fails on the green commit ${gate.sha.slice(0, 9)}`,
+            facts: { scope: "local", since: state.reference.at ?? null },
+        });
+        live.add(job.id);
+    }
+    const ended = {
+        master: "master's incident ended or went intermittent",
+        release: "the release recovered",
+        local: "the gate passes on the green commit",
+    };
     for (const job of Object.values(state.jobs)) {
         const scope = job.facts?.scope;
-        if (job.kind === "incident" && (scope === "master" || scope === "release") && !live.has(job.id)) {
-            cancel(job, scope === "master" ? "master's incident ended or went intermittent" : "the release recovered");
-        }
+        if (job.kind === "incident" && scope in ended && !live.has(job.id)) cancel(job, ended[scope]);
     }
 }
 
@@ -139,6 +159,21 @@ function prJobs(state, add, cancel) {
         const files = heads[n]?.files;
         // Its files not read yet: wait a reconcile rather than hand githerd's own code to a worker.
         if (!need || !files || heads[n]?.filesTruncated || touches(files, OWNER_ONLY)) continue;
+        const failing = Object.keys(rec.required ?? {}).filter((k) => rec.required[k] === "FAILURE");
+        if (failing.length === 1 && failing[0] === TITLE_CHECK) {
+            // Only the title fails commitlint: a title job, which needs no worktree (design 5.1).
+            add(
+                {
+                    id: `title-${n}`,
+                    kind: "title",
+                    target: `#${n}`,
+                    reason: `${TITLE_CHECK} fails`,
+                    facts: { since: rec.createdAt ?? null },
+                },
+                { pr: Number(n) },
+            );
+            continue;
+        }
         add(
             {
                 id: `pr-${n}`,
@@ -156,7 +191,7 @@ function prJobs(state, add, cancel) {
         );
     }
     for (const job of Object.values(state.jobs)) {
-        if (job.kind !== "pr") continue;
+        if (job.kind !== "pr" && job.kind !== "title") continue;
         const rec = state.prs?.[String(job.pr)];
         if (!rec) cancel(job, `#${job.pr} closed or merged`);
         else if (!prWork(String(job.pr), rec, state)) cancel(job, `#${job.pr} no longer needs a worker`);

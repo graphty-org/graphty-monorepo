@@ -210,6 +210,9 @@ export function resetAt(text, at) {
 function blocker(ctx, version) {
     const { state, now } = ctx;
     const stop = state.apiStop;
+    if (state.settings?.paused) return { reason: "githerd pause (githerd resume ends it)", canary: false };
+    if (state.settings?.stopped)
+        return { reason: "githerd workers --stop (githerd workers <n> ends it)", canary: false };
     if (stop?.kind === "credential") return { reason: `credential stop: ${stop.error}`, canary: false };
     const item = Object.values(state.ownerItems ?? {}).find((i) => !i.endedAt && i.blocks === "workers");
     if (item) return { reason: `owner item ${item.id} blocks every worker start`, canary: false };
@@ -330,7 +333,7 @@ export async function fillSlots(ctx) {
     );
     let routine = held.filter((j) => !isUrgent(j)).length;
     let urgent = held.filter((j) => isUrgent(j)).length;
-    const slots = config.workers?.slots ?? 3;
+    const slots = state.settings?.slots ?? config.workers?.slots ?? 3;
     const overflow = config.workers?.urgent ?? 1;
     const admitted = [];
     for (const job of candidates) {

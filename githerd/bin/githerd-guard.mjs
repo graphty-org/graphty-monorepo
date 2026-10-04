@@ -244,7 +244,19 @@ function checkReviewTool(name, args) {
 }
 
 /** The githerd CLI's commands that are the owner's to run. */
-const OWNER_COMMANDS = new Set(["answer", "order", "policy", "ack", "veto", "mode"]);
+const OWNER_COMMANDS = new Set([
+    "answer",
+    "order",
+    "policy",
+    "ack",
+    "veto",
+    "mode",
+    "pause",
+    "resume",
+    "workers",
+    "keep",
+    "release",
+]);
 /**
  * The githerd CLI's commands that start, restart, reinstall or self-test the shared daemon
  * (design 9.4): never a worker's, which would repoint `current/`, rewrite `daemon-env.json` from
@@ -253,7 +265,8 @@ const OWNER_COMMANDS = new Set(["answer", "order", "policy", "ack", "veto", "mod
 const SERVICE_COMMANDS = new Set(["install", "ensure", "restart", "dev", "selftest"]);
 
 /**
- * The githerd CLI's owner commands (`answer`, `order`, `policy`, `ack`, `veto`, `mode`) are the
+ * The githerd CLI's owner commands (`answer`, `order`, `policy`, `ack`, `veto`, `mode`, and the
+ * worker controls `pause`, `resume`, `workers`, `keep`, `release`) are the
  * owner's, and its service commands (`install`, `ensure`, `restart`, `dev`, `selftest`) are never
  * a worker's, however the CLI is reached: `githerd` on the PATH or `node .../githerd.mjs`.
  * @param {string} name the program

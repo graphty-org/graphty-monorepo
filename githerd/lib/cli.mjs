@@ -55,6 +55,12 @@ const USAGE = `usage: githerd <command>
                                            record a policy: a switch, or free text for every worker
   policy end <id>                          end a policy
   attach                                   attach to githerd's tmux server, one window per worker
+  pause | resume                           stop / restart every worker start and doorbell
+  workers <n> | workers --stop             set the working sessions (0 keeps only the urgent slot);
+                                           --stop ends every worker without charging an attempt
+  keep <window> [--with-job]               hand a worker's window to you; the job continues in a
+                                           new window, or goes with it
+  release <job>                            give githerd back a job you stopped or kept
   install                                  prepare the daemon's code and environment, and print
                                            the servherd command that starts it
   ensure                                   find or start the daemon, then exit
@@ -177,8 +183,8 @@ async function post(port, path, body, headers = {}) {
 }
 
 /**
- * Splits arguments into positionals and `--flag value` pairs (`--json` and `--send-test` take no
- * value).
+ * Splits arguments into positionals and `--flag value` pairs (`--json`, `--send-test`, `--stop` and
+ * `--with-job` take no value).
  * @param {string[]} args the arguments after the command
  * @returns {{positional: string[], flags: Record<string, string | true>}} the parts
  */
@@ -190,7 +196,7 @@ function parseArgs(args) {
     const rest = [...args];
     for (let a = rest.shift(); a !== undefined; a = rest.shift()) {
         if (!a.startsWith("--")) positional.push(a);
-        else if (a === "--json" || a === "--send-test") flags[a.slice(2)] = true;
+        else if (["--json", "--send-test", "--stop", "--with-job"].includes(a)) flags[a.slice(2)] = true;
         else flags[a.slice(2)] = rest.shift() ?? "";
     }
     return { positional, flags };
@@ -473,6 +479,35 @@ async function cmdRecord(c) {
 }
 
 /**
+ * `pause`, `resume`, `workers <n>|--stop`, `keep <window> [--with-job]` and `release <job>`: the
+ * owner's control of the workers (design 7.6), as `POST /owner` takes them.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdControl(c) {
+    const [arg] = c.positional;
+    /** @type {Record<string, unknown> | null} */
+    let cmd = { op: c.name };
+    if (c.name === "workers")
+        cmd = c.flags.stop ? { op: "workers", stop: true } : arg ? { op: "workers", slots: Number(arg) } : null;
+    else if (c.name === "keep") cmd = arg ? { op: "keep", window: arg, withJob: Boolean(c.flags["with-job"]) } : null;
+    else if (c.name === "release") cmd = arg ? { op: "release", job: arg } : null;
+    if (!cmd) {
+        c.err(
+            `usage: ${USAGE.split("\n")
+                .find((l) => l.trimStart().startsWith(c.name))
+                ?.trim()}`,
+        );
+        return 2;
+    }
+    const port = await daemonPort(c);
+    if (port === null) return 1;
+    const answer = await post(port, "/owner", cmd, callerHeader(c.env));
+    (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
+    return answer.ok ? 0 : 1;
+}
+
+/**
  * `attach`: githerd's tmux server, where every worker has a window (design 7.6). Typing into a
  * worker's window steers it.
  * @param {Command} c the command
@@ -679,6 +714,11 @@ const HANDLERS = {
     order: cmdRecord,
     policy: cmdRecord,
     attach: cmdAttach,
+    pause: cmdControl,
+    resume: cmdControl,
+    workers: cmdControl,
+    keep: cmdControl,
+    release: cmdControl,
     ledger: cmdLedger,
     mode: cmdMode,
     install: cmdService,

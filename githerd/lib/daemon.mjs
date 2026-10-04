@@ -2037,6 +2037,13 @@ export async function startDaemon({
     });
 
     /**
+     * The MCP server a caller is answered by: a judgment run's, or every other session's.
+     * @param {any} caller the transport's context
+     * @returns {ReturnType<typeof createMcpServer>} the server
+     */
+    const serverFor = (caller) => (caller?.run ? runMcp : sessionMcp);
+
+    /**
      * Hands a code-editing run's branch to the actor (design section 8.3): checked, then pushed in
      * acting mode with `actions.runWrites` on, recorded as `would-do` otherwise.
      * @param {string} id the run
@@ -2162,7 +2169,7 @@ export async function startDaemon({
             if (!auth.ok) return [401, { error: /** @type {{error: string}} */ (auth).error }];
             caller = { run: /** @type {{run: string}} */ (auth).run };
         }
-        const reply = await (caller.run ? runMcp : sessionMcp).handle(await body(req), caller);
+        const reply = await serverFor(caller).handle(await body(req), caller);
         return reply === null ? [202] : [200, reply];
     }
 
@@ -2583,8 +2590,7 @@ export async function startDaemon({
         watch,
         drainHooks,
         shutdown,
-        rpc: (message, context) =>
-            (context?.run ? runMcp : sessionMcp).handle(message, context ?? { session: "local" }),
+        rpc: (message, context = { session: "local" }) => serverFor(context).handle(message, context),
         flushNotifications: () => notifier.flush(),
         runner,
     };

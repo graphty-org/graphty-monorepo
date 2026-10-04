@@ -37,7 +37,13 @@ const contentMap = [
     {
         src: "graph-io/docs",
         dest: "graph-io",
-        exclude: [".vitepress", "decisions"],
+        exclude: [".vitepress", "decisions", "/docs/samples"],
+    },
+    // The sample files the graph-io guide loads by URL, served as they are at /docs/graph-io/samples/.
+    {
+        src: "graph-io/docs/samples",
+        dest: "public/graph-io/samples",
+        exclude: [],
     },
     // One page, index.md, which includes visual-review/README.md when the site is built.
     {

@@ -7,10 +7,9 @@ const env = loadEnv("development", process.cwd(), "");
 
 // Try to load typedoc sidebars if they exist
 function loadTypedocSidebar(path: string): Array<{ text: string; link: string }> {
-    if (existsSync(path)) {
-        return JSON.parse(readFileSync(path, "utf-8"));
-    }
-    return [];
+    // a file that is missing, or empty because a TypeDoc run was interrupted, gives no sidebar
+    const text = existsSync(path) ? readFileSync(path, "utf-8").trim() : "";
+    return text === "" ? [] : JSON.parse(text);
 }
 
 const graphtyTypedoc = loadTypedocSidebar("./docs/graphty-element/api/generated/typedoc-sidebar.json");
@@ -200,6 +199,7 @@ export default defineConfig({
                     text: "Using graph-io",
                     items: [
                         { text: "Loading graphs", link: "/graph-io/guide/loading" },
+                        { text: "Reading the graph", link: "/graph-io/guide/reading" },
                         { text: "Saving graphs", link: "/graph-io/guide/saving" },
                         { text: "The import report and errors", link: "/graph-io/guide/report" },
                         { text: "Format detection", link: "/graph-io/guide/detection" },

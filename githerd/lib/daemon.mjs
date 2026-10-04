@@ -10,7 +10,7 @@
  *   with 401, and a valid one gets the run tools of its kind.
  * - `POST /heartbeat`: `{session, cwd, branch}` registers or refreshes a session.
  * - `POST /owner`: the owner's CLI. `{op: "ack", key}` clears an escalation, `{op: "veto", id}`
- *   vetoes a pending proposal.
+ *   vetoes closing an issue or pull request (`issue:<n>` or `pr:<n>`) for good.
  *
  * With `GITHERD_DEV` set (the development daemon of `githerd dev`), the mode never rises above
  * dry-run, whatever the config says, and pages go to the ledger only (as `delivered: false`), so
@@ -67,10 +67,11 @@ import { dispatch } from "./dispatch.mjs";
 import { createMcpServer } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
-import { createNotifier, notePresence, ownerItemsPoll } from "./notify.mjs";
+import { createNotifier, notePresence, ownerItemsPoll, presentDays } from "./notify.mjs";
 import { pagesFor } from "./paging.mjs";
 import { containerStart, identify } from "./proc.mjs";
 import { buildPrompt } from "./prompts.mjs";
+import { advanceProposals, veto } from "./proposals.mjs";
 import { updatePrs, whyStuck } from "./prs.mjs";
 import { NEXT, SKIP } from "./queue.mjs";
 import { createRetriage } from "./retriage.mjs";
@@ -896,6 +897,16 @@ export async function startDaemon({
             digestHourUtc: config.digest.hourUtc,
             ledger,
         });
+        if (state.trust.login) {
+            await advanceProposals(state, {
+                gitHub: gh,
+                repo: config.repo,
+                login: state.trust.login,
+                now: t,
+                presentDays: (/** @type {string} */ from) => presentDays(state, from),
+                ledger,
+            });
+        }
 
         // No owner, no runs: every run kind acts only on the owner's items.
         if (runner && state.trust.login) await runs(t);
@@ -1525,7 +1536,7 @@ export async function startDaemon({
 
     /**
      * The owner's CLI commands that change state: `ack` and `veto`.
-     * @param {any} cmd `{op: "ack", key}` or `{op: "veto", id}`
+     * @param {any} cmd `{op: "ack", key}` or `{op: "veto", id}` with `id` `issue:<n>` or `pr:<n>`
      * @returns {{status: number, text: string, entry?: {kind: string} & Record<string, unknown>}} the
      *   answer, and the ledger entry when something changed
      */
@@ -1540,15 +1551,15 @@ export async function startDaemon({
             };
         }
         if (cmd?.op === "veto") {
-            const proposal = state.proposals?.[String(cmd.id)];
-            if (!proposal) return { status: 404, text: `no proposal ${cmd.id}` };
-            if (proposal.status !== "pending") return { status: 409, text: `${cmd.id} is ${proposal.status}` };
-            proposal.status = "vetoed";
-            proposal.vetoedAt = now().toISOString();
+            const target = String(cmd.id);
+            if (!/^(issue|pr):\d+$/.test(target))
+                return { status: 400, text: `veto takes issue:<n> or pr:<n>, not ${target}` };
+            if (state.vetoes?.[target]) return { status: 409, text: `${target} is already vetoed` };
+            const ended = veto(state, target, { by: "owner", reason: "githerd veto", at: now().toISOString() });
             return {
                 status: 200,
-                text: `vetoed ${cmd.id}: ${proposal.kind} of ${proposal.target}`,
-                entry: { kind: "veto", proposal: cmd.id, target: proposal.target, by: "owner" },
+                text: `vetoed ${target}${ended ? `: its ${ended.kind} proposal ended` : ""}; githerd will never propose closing it`,
+                entry: { kind: "veto", target, by: "owner" },
             };
         }
         return { status: 400, text: "op must be ack or veto" };

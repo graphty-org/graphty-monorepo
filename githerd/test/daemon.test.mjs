@@ -188,6 +188,8 @@ function respond({ args, input }) {
         return ok({ steps: [{ name: "Check visual changes were accepted", conclusion: "failure" }] });
     }
     if (/\/issues\/\d+\/comments\?/.test(path)) return ok(scene.comments ?? []);
+    const issue = /\/issues\/(\d+)$/.exec(path);
+    if (issue && !args.includes("-X")) return ok({ number: Number(issue[1]), state: "open" });
     if (args.includes("-X")) {
         scene.posted = (scene.posted ?? 0) + 1;
         return httpOutput({ status: 201, body: { id: 5, url: "https://api.github.com/repos/o/r/issues/comments/5" } });
@@ -828,6 +830,18 @@ describe("the poll loop", () => {
         });
         expect(res.status).toBe(404);
         expect(daemon.state.presence).toMatchObject({ lastAt: clock.toISOString(), source: "cli" });
+    });
+
+    it("advances a confirmed close proposal: the comment is a would-do in dry-run", async () => {
+        const daemon = await start();
+        daemon.state.proposals = {
+            "issue:4": { id: "issue:4", kind: "duplicate", target: "issue:4", of: 3, status: "confirmed" },
+        };
+        await poll(daemon);
+        expect(daemon.state.proposals["issue:4"]).toMatchObject({ status: "commented", dryRun: true });
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        expect(wouldDo.map((e) => [e.group, e.situation])).toEqual([["proposals", "propose duplicate"]]);
+        expect(gh.writes()).toEqual([]);
     });
 
     it("takes the reject marker from the owner's comments only", async () => {

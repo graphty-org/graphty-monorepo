@@ -404,19 +404,23 @@ describe("ack and veto", () => {
         expect((await cli(["ack"])).code).toBe(2);
     });
 
-    it("veto stops a pending proposal and saves it", async () => {
+    it("veto ends the proposal on a target, vetoes the target for good, and saves it", async () => {
         const d = await daemon();
         d.state.proposals = {
-            "prop-1": { id: "prop-1", kind: "close-issue", target: "issue:4", status: "pending" },
+            "issue:4": { id: "issue:4", kind: "duplicate", target: "issue:4", status: "commented" },
         };
-        const r = await cli(["veto", "prop-1"]);
-        expect(r).toMatchObject({ code: 0, out: "vetoed prop-1: close-issue of issue:4" });
+        const r = await cli(["veto", "issue:4"]);
+        expect(r).toMatchObject({
+            code: 0,
+            out: "vetoed issue:4: its duplicate proposal ended; githerd will never propose closing it",
+        });
         const saved = JSON.parse(readFileSync(join(d.stateDir, "state.json"), "utf8"));
-        expect(saved.proposals["prop-1"].status).toBe("vetoed");
-        expect((await readLedger(d.stateDir)).at(-1)).toMatchObject({ kind: "veto", proposal: "prop-1", by: "owner" });
-        const again = await cli(["veto", "prop-1"]);
-        expect(again).toMatchObject({ code: 1, err: "prop-1 is vetoed" });
-        expect((await cli(["veto", "prop-9"])).err).toBe("no proposal prop-9");
+        expect(saved.proposals["issue:4"].status).toBe("vetoed");
+        expect(saved.vetoes["issue:4"]).toMatchObject({ by: "owner" });
+        expect((await readLedger(d.stateDir)).at(-1)).toMatchObject({ kind: "veto", target: "issue:4", by: "owner" });
+        expect(await cli(["veto", "issue:4"])).toMatchObject({ code: 1, err: "issue:4 is already vetoed" });
+        expect((await cli(["veto", "pr:9"])).out).toBe("vetoed pr:9; githerd will never propose closing it");
+        expect((await cli(["veto", "prop-9"])).err).toBe("veto takes issue:<n> or pr:<n>, not prop-9");
         expect((await cli(["veto"])).code).toBe(2);
     });
 

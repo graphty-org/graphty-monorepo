@@ -47,7 +47,7 @@ const USAGE = `usage: githerd <command>
   run <id>                                 one run's record and files
   mode dry-run|paused|clear                lower the mode locally, or remove the override
   ack <key>                                clear an escalation
-  veto <proposal id>                       stop a pending proposal
+  veto <issue:N|pr:N>                      never let githerd close this issue or pull request
   install                                  prepare the daemon's code and environment, and print
                                            the servherd command that starts it
   ensure                                   find or start the daemon, then exit
@@ -341,7 +341,7 @@ async function cmdWhy(c) {
 }
 
 /**
- * `ack <key>` and `veto <proposal id>`: the owner's answers, through the daemon.
+ * `ack <key>` and `veto <issue:N|pr:N>`: the owner's answers, through the daemon.
  * @param {Command} c the command
  * @returns {Promise<number>} the exit code
  */
@@ -349,7 +349,7 @@ async function cmdOwner(c) {
     const [target] = c.positional;
     const ack = c.name === "ack";
     if (!target) {
-        c.err(`usage: githerd ${c.name} <${ack ? "key" : "proposal id"}>`);
+        c.err(`usage: githerd ${c.name} <${ack ? "key" : "issue:N|pr:N"}>`);
         return 2;
     }
     const port = await daemonPort(c);

@@ -1,0 +1,88 @@
+{
+  "version": 2,
+  "pr": 981,
+  "subject": {
+    "builtMerge": "c8446465775f6604692396a79eef00e4cd5efb1d",
+    "head": "74cd6e0cc368da82a820465e769c403a4b6dc819",
+    "runId": 37182717339,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+      "emojiFont": true,
+      "tool": "c8446465775f6604692396a79eef00e4cd5efb1d"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/compact-mantine/components-data-display-datatable--rich-headers.dark.png",
+      "from": null,
+      "to": "28294fe090da556ede2f49015ed67b0ee9c39c65d190e1ff98204e31beaa453f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-data-display-datatable--rich-headers.light.png",
+      "from": null,
+      "to": "adbbb344a09bf011ede3b1f34d6bb1268f33f179be8d3f11190537470492893c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-lists-and-trees-pagelist--second-line-value-and-menu.dark.png",
+      "from": null,
+      "to": "2ea275edf5bf0ae12937421e05286daeebca36e0db6b96d0071dd47cc6be7df7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-lists-and-trees-pagelist--second-line-value-and-menu.light.png",
+      "from": null,
+      "to": "ebe70a375092f20c1e75188538bb6243892d5a30330f1ba358d0ca13cbbc92e0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-lists-and-trees-tree--row-parts.dark.png",
+      "from": null,
+      "to": "a79e2e5b2ede9a21ed902e1423a2876b56bcd9a05ed39bdffd34428235176d50",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-lists-and-trees-tree--row-parts.light.png",
+      "from": null,
+      "to": "b6dbd3bfee0bf1b0ddd21ba5f3b785a166178a7cb7597d70ee31a11479434a66",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-panels-and-rows-controlsection--with-summary.dark.png",
+      "from": null,
+      "to": "9c3d9197e7efdf8dcd7bad454b80afb19a657cbb27170dd032f3ccd9a86dd38a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-panels-and-rows-controlsection--with-summary.light.png",
+      "from": null,
+      "to": "d2bd7af8516615831f19a19c10c0e8caa05c23fbcdad60341c2dd2600faeda57",
+      "reason": null
+    }
+  ],
+  "rejects": [
+    {
+      "path": "visual-baselines/compact-mantine/components-app-shell-quickactions--field-chooser.dark.png",
+      "capture": "d396434388c7df6789a7a8796dd998ca6a521359b1eeed195b9a0c8c23bd4626",
+      "reason": "match Figma: always show search, focus stays in the search field, no ring on the panel"
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-app-shell-quickactions--field-chooser.light.png",
+      "capture": "ce8e773ae3ecdf45f2a3fa41bfc239549be388d0f76abcbace0e91a8b648e522",
+      "reason": "match Figma: always show search, focus stays in the search field, no ring on the panel"
+    }
+  ],
+  "reviewedAt": "2026-10-04T14:33:17.779Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoic2JaM09fVzg3UkY5RFhKTVd3aXFvNGxJLUlPb0R2MHRWSzFVZDVLM1VpZyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCIFVZHtPxfI5lfUDDaDvzguZHOc47rP2U_zlpdm2Uca4rAiEA5kOrpFnxE7pVjjQEB12FlZ6swlDdMNTl5nA5RHkK8Ds"
+  }
+}

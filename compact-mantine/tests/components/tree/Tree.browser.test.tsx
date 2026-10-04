@@ -471,6 +471,78 @@ describe("PageList: keyboard and pointer", () => {
     });
 });
 
+describe("PageList: second line, value and row menu", () => {
+    const RECENT = [
+        {
+            id: "les",
+            name: "Les Miserables",
+            value: "77 nodes",
+            description: "Saved 2 minutes ago",
+            menu: <button type="button">More for Les Miserables</button>,
+        },
+        {
+            id: "gone",
+            name: "Karate club",
+            value: "34 nodes",
+            description: "This file can no longer be read",
+            descriptionTone: "danger" as const,
+        },
+        { id: "plain", name: "Plain" },
+    ];
+
+    it("names each row by its visible text and draws the second line under the name", async () => {
+        await renderThemed(<PageList label="Recent projects" items={RECENT} />);
+        const cell = screen.getByRole("gridcell", { name: "Les Miserables 77 nodes Saved 2 minutes ago" });
+        const name = within(cell).getByText("Les Miserables").getBoundingClientRect();
+        const value = within(cell).getByText("77 nodes").getBoundingClientRect();
+        const second = within(cell).getByText("Saved 2 minutes ago").getBoundingClientRect();
+        expect(value.left).toBeGreaterThan(name.right);
+        expect(value.top).toBeCloseTo(name.top, 0);
+        expect(second.top).toBeGreaterThanOrEqual(name.bottom);
+        expect(cell.getBoundingClientRect().height).toBeGreaterThan(32);
+        const danger = screen.getByText("This file can no longer be read");
+        expect(getComputedStyle(danger).color).not.toBe(
+            getComputedStyle(within(cell).getByText("Saved 2 minutes ago")).color,
+        );
+        expect(screen.getByRole("gridcell", { name: "Plain" }).getBoundingClientRect().height).toBeCloseTo(32, 0);
+    });
+
+    it("keeps the menu out of the row's name and out of switching, and reaches it with ArrowRight", async () => {
+        const onCurrentChange = vi.fn();
+        await renderThemed(<PageList label="Recent projects" items={RECENT} onCurrentChange={onCurrentChange} />);
+        const more = screen.getByRole("button", { name: "More for Les Miserables" });
+        await tabIn();
+        const cell = screen.getByRole("gridcell", { name: /^Les Miserables/ });
+        expect(document.activeElement).toBe(cell);
+        await userEvent.keyboard("{ArrowRight}");
+        expect(document.activeElement).toBe(more);
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(document.activeElement).toBe(cell);
+        // A row without a menu ignores ArrowRight.
+        await userEvent.keyboard("{ArrowDown}{ArrowRight}");
+        expect(document.activeElement).toBe(screen.getByRole("gridcell", { name: /^Karate club/ }));
+
+        await userEvent.click(more);
+        expect(onCurrentChange).not.toHaveBeenCalled();
+    });
+
+    it("stays one Tab stop: Tab from the focused row leaves the list, past every row menu", async () => {
+        const items = [...RECENT, { id: "two", name: "Second", menu: <button type="button">More for Second</button> }];
+        await renderThemed(
+            <>
+                <PageList label="Recent projects" items={items} />
+                <button type="button">after</button>
+            </>,
+        );
+        await tabIn();
+        expect(document.activeElement).toBe(screen.getByRole("gridcell", { name: /^Les Miserables/ }));
+        await userEvent.tab();
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }));
+        await userEvent.tab({ shift: true });
+        expect(document.activeElement).toBe(screen.getByRole("gridcell", { name: /^Les Miserables/ }));
+    });
+});
+
 describe("InlineRename", () => {
     it("commits on blur without taking focus back", async () => {
         const onCommit = vi.fn();
@@ -485,6 +557,91 @@ describe("InlineRename", () => {
         expect(onCommit).toHaveBeenCalledTimes(1);
         expect(onCommit).toHaveBeenCalledWith("New");
         expect(document.activeElement).toBe(screen.getByRole("button", { name: "elsewhere" }));
+    });
+});
+
+describe("Tree: row parts and row keys", () => {
+    const PARTS: TreeNodeData[] = [
+        {
+            id: "pr",
+            name: "PageRank",
+            icon: <span data-testid="kind" />,
+            swatch: <span data-testid="ramp" style={{ display: "block", width: 16, height: 8 }} />,
+            count: "77",
+            progress: 0.25,
+            description: "Running",
+            actions: <button type="button">Hide PageRank</button>,
+        },
+        { id: "deg", name: "Degree", progress: "indeterminate", description: "Failed: no edges" },
+    ];
+
+    it("draws the swatch between the glyph and the name, and the count before the toggles", async () => {
+        await renderThemed(<Tree items={PARTS} />);
+        const pr = row("PageRank");
+        const kind = within(pr).getByTestId("kind").getBoundingClientRect();
+        const ramp = within(pr).getByTestId("tree-swatch").getBoundingClientRect();
+        const name = pr.querySelector(".cm-tree-name")!.getBoundingClientRect();
+        const count = within(pr).getByTestId("tree-count");
+        const toggles = pr.querySelector(".cm-tree-actions")!.getBoundingClientRect();
+
+        expect(ramp.left).toBeGreaterThanOrEqual(kind.right);
+        expect(name.left).toBeGreaterThanOrEqual(ramp.right);
+        expect(count.getBoundingClientRect().left).toBeGreaterThanOrEqual(name.right);
+        expect(count.getBoundingClientRect().right).toBeLessThanOrEqual(toggles.left);
+        // The toggles hide until hover; the count does not.
+        await userEvent.unhover(pr);
+        expect(getComputedStyle(count).opacity).toBe("1");
+    });
+
+    it("describes the row by its count and its state, and keeps the name alone as its name", async () => {
+        await renderThemed(<Tree items={PARTS} />);
+        expect(row("PageRank")).toHaveAccessibleDescription("77 Running");
+        expect(row("Degree")).toHaveAccessibleDescription("Failed: no edges");
+    });
+
+    it("draws a progress line, determinate or not", async () => {
+        await renderThemed(<Tree items={PARTS} />);
+        const determinate = within(row("PageRank")).getByRole("progressbar", { name: "PageRank" });
+        expect(determinate).toHaveAttribute("aria-valuenow", "25");
+        const box = determinate.getBoundingClientRect();
+        expect(box.height).toBeCloseTo(2, 1);
+        const fill = determinate.firstElementChild!.getBoundingClientRect();
+        expect(fill.width / box.width).toBeCloseTo(0.25, 2);
+        const indeterminate = within(row("Degree")).getByRole("progressbar", { name: "Degree" });
+        expect(indeterminate).not.toHaveAttribute("aria-valuenow");
+    });
+
+    it("hands each key on a row to onRowKeyDown first, and lets it claim the key", async () => {
+        const onSelect = vi.fn();
+        const seen: string[] = [];
+        await renderThemed(
+            <Tree
+                items={PARTS}
+                onSelect={onSelect}
+                onRowKeyDown={(id, event) => {
+                    seen.push(`${id}:${event.key}`);
+                    if (event.key === " ") {
+                        event.preventDefault();
+                    }
+                }}
+            />,
+        );
+        await tabIn();
+        await userEvent.keyboard(" ");
+        expect(onSelect).not.toHaveBeenCalled();
+        await userEvent.keyboard("{ArrowDown}");
+        expect(focused()).toBe("deg");
+        await userEvent.keyboard("{Enter}");
+        expect(onSelect).toHaveBeenCalledWith(["deg"], expect.anything());
+        expect(seen).toEqual(["pr: ", "pr:ArrowDown", "deg:Enter"]);
+    });
+
+    it("does not hand it keys pressed on a control inside the row", async () => {
+        const onRowKeyDown = vi.fn();
+        await renderThemed(<Tree items={PARTS} onRowKeyDown={onRowKeyDown} />);
+        screen.getByRole("button", { name: "Hide PageRank" }).focus();
+        await userEvent.keyboard(" ");
+        expect(onRowKeyDown).not.toHaveBeenCalled();
     });
 });
 

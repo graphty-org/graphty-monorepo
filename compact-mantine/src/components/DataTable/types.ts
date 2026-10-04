@@ -86,6 +86,28 @@ export interface DataTableColumn<TRow extends object> {
     filterable?: boolean;
     /** Whether this column may be hidden. Defaults to `true`. */
     hideable?: boolean;
+    /**
+     * Keeps the column at the start of the table while the other columns scroll sideways: the
+     * key column, such as a node's id or an edge's From and To. Pinned columns are drawn first,
+     * in their own order, whatever `columnOrder` says.
+     */
+    pinned?: "start";
+    /**
+     * A small glyph drawn before the header's name, such as the column's data type. It is
+     * decoration: the header is still named by `header` alone.
+     */
+    icon?: React.ReactNode;
+    /**
+     * A tooltip on the header, shown on hover and on keyboard focus and linked to the header
+     * as its description: the column's profile, such as "77 values, 1 to 36".
+     */
+    headerTooltip?: React.ReactNode;
+    /**
+     * The column's menu: the `Menu.Item`s (and `Menu.Divider`s) of a Mantine `Menu`. The table
+     * draws a caret at the end of the header, shown on hover and focus, that opens them; from
+     * the keyboard, Alt+ArrowDown, Shift+F10 or the context-menu key on the header opens it.
+     */
+    menu?: React.ReactNode;
 }
 
 /**

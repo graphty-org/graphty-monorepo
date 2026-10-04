@@ -20,15 +20,28 @@ So:
 - a file named `graph.graphml` that is really an HTML error page is refused with `E_UNKNOWN_FORMAT`
   and the message "it is an HTML document (likely an error page saved in place of the file)"
 
+Some formats can only guess from the content. A few lines of text with commas or tabs between short
+values could be a CSV edge list, so CSV claims them with low confidence. Such a weak guess never
+beats the extension of another format: a file named `session.cys` that holds a sentence is read as
+a Cytoscape session, and fails because it is not a zip archive, rather than being read as a
+one-edge CSV graph. Plain sentences are not claimed by any format.
+
 When the content is not recognized, the extension and the MIME type decide on their own. When
-nothing matches, the load throws an `ImportError` whose `err.issue.code` is `E_UNKNOWN_FORMAT`.
+nothing matches, the load throws an `ImportError` whose `err.issue?.code` is `E_UNKNOWN_FORMAT`.
 graph-io also refuses PDF files, images and compressed or archived data by their first bytes, and
 says what they are; a Cytoscape session is the one zip file it reads.
 
 ## Asking without loading
 
-`sniff()` runs the same detection without reading the file. It returns the best match, or `null`
-when no format matches:
+`sniff(hints)` runs the same detection without loading the file. Pass what you know, any of:
+
+- `filename`: a file name or path
+- `mimeType`: a MIME type
+- `head`: the first bytes (a `Uint8Array`) or characters (a string) of the file. Detection reads at
+  most `SNIFF_HEAD_BYTES` (8192) of it, so slice a large buffer first.
+
+It returns the best match, or `null` when no format matches. It knows every format of the default
+registry, including the ones you registered.
 
 <!-- generated:begin example:detection/sniff -->
 
@@ -78,8 +91,8 @@ cytoscape
 The result has:
 
 - `format`: the format name
-- `confidence`: from 0 to 1. A content match scores between 0.5 and 1. A name or MIME type alone
-  scores at most 0.4.
+- `confidence`: from 0 to 1. A clear content match scores between 0.5 and 1; a name or MIME type
+  alone scores at most 0.4; a weak content guess that a name contradicts scores below 0.25.
 - `content`: how sure the format was about the content, from 0 to 1; 0 when no content was given
   or the format did not recognize it
 - `extension` and `mimeType`: whether the file name and the MIME type matched
@@ -87,15 +100,42 @@ The result has:
   `"jgf"`, `"cytoscape"`, `"graphology"`, `"vis"`, `"adjacency"`, `"tree"` or `"obographs"`); `null`
   for every other format
 
-`rankFormats()` returns every candidate, best first, if you want to offer the user a choice.
+To offer the user a choice, `registry.sniffAll(hints)` takes the same hints and returns every
+candidate, best first:
+
+<!-- generated:begin example:detection/rank -->
+
+```ts
+import { registry, SNIFF_HEAD_BYTES } from "@graphty/graph-io";
+
+const text = "id,label\nn1,Alice\nn2,Bob\n";
+const head = new TextEncoder().encode(text).subarray(0, SNIFF_HEAD_BYTES);
+
+// every format that could be the file, best first
+for (const candidate of registry.sniffAll({ filename: "people.csv", head })) {
+    console.log(`${candidate.format}: ${candidate.confidence.toFixed(2)}`);
+}
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:detection/rank -->
+
+```text
+csv: 0.81
+neo4j: 0.30
+```
+
+<!-- generated:end -->
 
 ## JSON dialects
 
 All JSON graph documents share the format name `json`. After the file is parsed, the JSON importer
 decides which dialect it is from the document's shape: a `nodes` array with `links`, an `elements`
 object, a `graphs` array, and so on. The `dialect` that `sniff()` reports from the first 8 KiB is a
-guess; the importer's decision on the whole document is the one that counts. Pass the `dialect`
-option to choose the dialect yourself. The [JSON page](./formats/json.md) describes each one.
+guess; the importer's decision on the whole document is the one that counts, and it is kept in
+`snapshot.meta.extra.json.dialect` whether you named the format or not. Pass the `dialect` option
+to choose the dialect yourself. The [JSON page](./formats/json.md) describes each one.
 
 ## When to name the format
 
@@ -106,6 +146,7 @@ Detection is right for files that carry their own clues. Pass `format` when:
 - the URL has no extension and the server sends a generic `Content-Type` such as
   `application/octet-stream`
 - you only accept one format and want any other file refused
+- the text comes from a user (see [Checking text a user typed or pasted](./report.md#checking-text-a-user-typed-or-pasted))
 
 An adjacency-list CSV (each row a node followed by its neighbors) is never detected, because
 nothing in its rows tells it apart from an edge list. Read it with `format: "csv"` and

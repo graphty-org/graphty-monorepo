@@ -1,1 +1,1 @@
-Read gml: 34 nodes, 78 edges
+Read graphml: 107 nodes, 352 edges

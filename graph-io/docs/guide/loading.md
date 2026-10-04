@@ -9,9 +9,15 @@ result:
 | `loadFromFile(file, options)` | a `File` or `Blob`: a file the user picked or dropped, or a Blob you made |
 | `importGraph(input, options)` | a string, bytes, or a stream you already have                             |
 
-Each returns a promise of `{ snapshot, format, report }`: the graph, the format it was read as, and
-the [import report](./report.md). The result also has `sniff` and `freeze`, which say how the
-format was detected and how the graph was built; most programs ignore them.
+Each returns a promise of `{ snapshot, format, report, sniff, freeze }`:
+
+- `snapshot`: the graph. [Reading the graph](./reading.md) shows how to use it.
+- `format`: the format the input was read as, such as `"graphml"`.
+- `report`: the [import report](./report.md), which lists everything that was skipped or changed.
+- `sniff`: how the format was detected (its `confidence` and whether the content, the file name or
+  the MIME type matched), or `null` when you named the format.
+- `freeze`: what the last step of the import changed (`mergedEdges`, `droppedSelfLoops`). Both are
+  also reported as warnings, so you rarely need it.
 
 ## What you can pass in
 
@@ -64,12 +70,14 @@ Anything else is refused with a message that says what to pass instead. For an `
 it as `new Uint8Array(buffer)`. For a `Blob` or a `File`, call `loadFromFile()`. For a `fetch()`
 `Response`, call `loadFromUrl()` instead of `fetch()`, or pass `response.body`.
 
+A Blob from `fs.openAsBlob()` has no file name, so pass `filename` as the example does. Without it
+graph-io can only detect the format from the content, which a format without a content check (a
+plugin of your own, for example) cannot match. `fs.openAsBlob()` needs Node 20 or later; in Node 18,
+read the file with `readFile()` and pass the bytes to `importGraph()`.
+
 Streams are read as they arrive, and most formats are parsed as they stream in. JSON, DOT and GML
 documents are decoded whole before they are parsed, so a file in one of those formats is held in
 memory as one string while it is read.
-
-`fs.openAsBlob()` needs Node 20 or later. In Node 18, read the file with `readFile()` and pass the
-bytes to `importGraph()`.
 
 ## Downloading with headers or credentials
 
@@ -82,6 +90,7 @@ reading.
 ```ts
 import { loadFromUrl } from "@graphty/graph-io";
 
+// an API of your own that needs a token
 const { snapshot, format } = await loadFromUrl("https://example.com/api/graphs/42/export", {
     request: { headers: { Authorization: "Bearer my-token" } }, // passed to fetch()
     format: "graphml", // the URL has no file extension, so say what the file is
@@ -92,10 +101,13 @@ console.log(`${format}: ${snapshot.nodeCount} nodes`);
 
 <!-- generated:end -->
 
-A failed download throws an `ImportError` whose `err.issue.code` is `"E_FETCH"`. `err.details.status`
-holds the HTTP status, or `null` when the request never got a response (a network failure or a
-CORS refusal). A relative URL works in a browser, where it is resolved against the page. In Node,
-pass an absolute URL.
+A failed download throws an `ImportError` whose `err.issue?.code` is `"E_FETCH"`.
+`err.details.status` holds the HTTP status, or `null` when the request never got a response (a
+network failure or a CORS refusal).
+
+A relative URL works in a browser, where it is resolved against the page. In Node, pass an absolute
+`http:` or `https:` URL (`data:` URLs work too). Node's `fetch()` cannot read `file:` URLs, so for a
+local file use `loadFromFile(await openAsBlob(path), { filename: path })`.
 
 ## Choosing the format
 
@@ -105,8 +117,10 @@ Blob's `type`), and the first 8 KiB of the content. The content counts most, so 
 read as GraphML or GEXF by its root element, and a `.csv` file with a `neo4j-admin` header is read
 as Neo4j CSV. [Format detection](./detection.md) explains the ranking.
 
-Name the format when the input has no file name and its content could be several formats, or when
-you want to be sure:
+An input that no format recognizes fails with an `ImportError` whose `err.issue?.code` is
+`"E_UNKNOWN_FORMAT"`; plain sentences are not taken for a graph. Detection can still read a file
+as the closest format it recognizes: a few lines of words separated by commas look like a CSV edge
+list. When the format matters, name it. The import then fails if the file is not in that format.
 
 <!-- generated:begin example:loading/options -->
 
@@ -164,8 +178,26 @@ Every function takes one options object, and every option goes where it belongs:
 
 You can pass a format's options without knowing the format in advance: an option only matters
 when the file turns out to be in that format. A common option that the chosen format has no use
-for is reported in the import report as `W_OPTION_IGNORED`, so a typo or a wrong assumption does
-not pass silently.
+for is reported in the import report as `W_OPTION_IGNORED`.
+
+A misspelled option name is not reported, because any name could be some format's option. In
+TypeScript, build the format's options with `satisfies` and its options type, which every format
+entry point exports, so a typo does not compile:
+
+<!-- generated:begin example:loading/typed-options -->
+
+```ts
+import { importGraph } from "@graphty/graph-io";
+import { type CsvImportOptions } from "@graphty/graph-io/csv";
+
+// `satisfies` checks the names: a typo such as `delimeter` does not compile
+const csv = { delimiter: ";", header: true } satisfies CsvImportOptions;
+
+const { snapshot } = await importGraph("from;to\nA;B\n", { format: "csv", ...csv });
+console.log(`${snapshot.nodeCount} nodes`);
+```
+
+<!-- generated:end -->
 
 ## Text encodings
 
@@ -230,12 +262,13 @@ document with a `graphs` array, a CX collection, an XGMML session file, and a Cy
 
 - `importGraph()` reads the first graph and adds the warning `W_MULTIPLE_GRAPHS`, which says how
   many it skipped.
-- `listGraphs(input, options)` lists the graphs without reading them: each entry has an `index`, a
-  `name`, and node and edge counts when the file states them. It returns `null` for a format that
-  cannot list its graphs.
-- `graphIndex` (0-based) or `graphName` chooses which graph `importGraph()` and the load functions
-  read.
+- `graphIndex` (0-based) or `graphName` chooses another graph, in every one of these formats. One
+  that names no graph fails with `E_GRAPH_NOT_FOUND`.
 - `importAllGraphs(input, options)` reads every graph and returns one result per graph.
+- `listGraphs(input, options)` lists the graphs without reading them: each entry has an `index`, a
+  `name`, and node and edge counts when the file states them. JSON, CX, XGMML and Cytoscape
+  sessions can list their graphs. For DOT, GML and Pajek it returns `null`; use
+  `importAllGraphs()` to see what they hold.
 
 <!-- generated:begin example:loading/several-graphs -->
 
@@ -253,8 +286,12 @@ for (const g of graphs ?? []) {
 const alpha = await importGraph(session, { filename: "authored-3x.cys", graphName: "Alpha" });
 console.log(`Alpha: ${alpha.snapshot.nodeCount} nodes`);
 
-// Or read every graph of a file at once
+// DOT cannot list its graphs, but graphIndex and graphName still choose one
 const dot = "digraph first { a -> b }\ndigraph second { x -> y; y -> z }";
+const second = await importGraph(dot, { format: "dot", graphIndex: 1 });
+console.log(`${second.snapshot.meta.name}: ${second.snapshot.edgeCount} edges`);
+
+// Or read every graph of a file at once
 for (const { snapshot } of await importAllGraphs(dot, { format: "dot" })) {
     console.log(`${snapshot.meta.name}: ${snapshot.edgeCount} edges`);
 }
@@ -268,13 +305,17 @@ for (const { snapshot } of await importAllGraphs(dot, { format: "dot" })) {
 #0 Beta: 3 nodes, 2 edges
 #1 Alpha: 4 nodes, 2 edges
 Alpha: 4 nodes
+second: 2 edges
 first: 1 edges
 second: 2 edges
 ```
 
 <!-- generated:end -->
 
-The [All formats](./formats/index.md) table shows which formats can hold several graphs.
+The counts in a listing are the file's, and the snapshot an import builds can have more edges.
+The listing above says Alpha has 2 edges, and the snapshot has 3: Alpha has one directed and one
+undirected edge, and under the default `onMixedDirection: "expand"` the undirected edge is stored as
+two directed edges, one each way. `report.counts.expandedMixed` counts such edges.
 
 ## Cancelling and progress
 
@@ -282,9 +323,10 @@ Pass an `AbortSignal` as `signal` to stop a load. The import stops within a few 
 the promise rejects with the signal's reason: a `DOMException` named `"AbortError"`, or
 `"TimeoutError"` for `AbortSignal.timeout()`. Catch it separately from `GraphFormatError`.
 
-`onProgress(bytesDone, bytesTotal)` is called as the input is read. `bytesTotal` is known for a
-string or a `Uint8Array` and `undefined` for a stream; when it is known, the last call has
-`bytesDone === bytesTotal`.
+`onProgress(bytesDone, bytesTotal)` is called as the input is read. For a string or a
+`Uint8Array`, `bytesTotal` is known from the first call. For a stream, including `loadFromUrl()` and
+`loadFromFile()`, it is `undefined` until the last call. The last call always has
+`bytesDone === bytesTotal`, so a progress bar can show the bytes read and finish on that call.
 
 <!-- generated:begin example:loading/cancel -->
 
@@ -329,6 +371,55 @@ stopped: AbortError
 
 <!-- generated:end -->
 
+## Keeping your bundle small
+
+The `@graphty/graph-io` entry point registers every format, because format detection needs them
+all. A browser bundle that uses `loadFromUrl()`, `loadFromFile()` or `downloadGraph()` from it is
+about 1.6 MB minified, or 440 kB gzipped, including `@graphty/graph-format`.
+
+Every format also has its own entry point, `@graphty/graph-io/<format>`, which exports its importer
+(`graphmlImporter`), its exporter, its option types and its code tables. To ship only the formats
+you need, register them in a `FormatRegistry` of your own and call its methods, which are the same
+functions: `importGraph()`, `loadFromUrl()`, `loadFromFile()`, `exportGraphToBytes()`,
+`exportGraphToBlob()`, `checkExport()` and the rest. A bundle with CSV alone is about 560 kB
+minified, or 150 kB gzipped, most of it graph-format.
+
+<!-- generated:begin example:loading/small-bundle -->
+
+```ts
+import { readFile } from "node:fs/promises";
+
+import { FormatRegistry } from "@graphty/graph-io";
+import { csvExporter, csvImporter } from "@graphty/graph-io/csv";
+import { graphmlImporter } from "@graphty/graph-io/graphml";
+
+// Only the formats you register end up in your bundle
+const io = new FormatRegistry()
+    .registerImporter(graphmlImporter)
+    .registerImporter(csvImporter)
+    .registerExporter(csvExporter);
+
+const { snapshot, format } = await io.importGraph(await readFile("got-network.graphml"), {
+    filename: "got-network.graphml",
+});
+const csv = await io.exportGraphToString(snapshot, "csv");
+console.log(`${format} -> csv: ${csv.split("\n")[0]}`);
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:loading/small-bundle -->
+
+```text
+graphml -> csv: Source,Target,Type,id,Weight,Edge Label
+```
+
+<!-- generated:end -->
+
+Detection on such a registry only knows the formats you registered. `downloadGraph()` always uses
+the full set; with your own registry, build the file with `exportGraphToBlob()` and start the
+download yourself, as [Saving graphs](./saving.md#uploads-and-downloads) shows.
+
 ## Loading into your own graph builder
 
 The load functions create a graph builder, read the file into it, and return the finished
@@ -372,11 +463,6 @@ node columns: Label
 ```
 
 <!-- generated:end -->
-
-Every format has its own entry point, `@graphty/graph-io/<format>`, which exports its importer
-(`csvImporter`), its exporter (`csvExporter`), its option types and its code tables. Importing a
-format this way keeps the other formats' code out of your bundle. The `@graphty/graph-io` entry
-point includes every format, because format detection needs them all.
 
 An importer called directly takes the same options as `importGraph()`, minus the ones that belong
 to the load functions (`format`, `filename`, `mimeType`, `builder`, `freeze`, `maxEmptyCells`). It

@@ -14,7 +14,6 @@ import {
     ImportReportBuilder,
     joinText,
     LineReader,
-    LOSS,
     type LossNote,
     pairFolding,
     parseWeightText,
@@ -25,12 +24,18 @@ import {
     throwIfAborted,
 } from "@graphty/graph-io";
 
-// The "pairs" format: one node or one edge per line, a "# undirected" line for undirected graphs.
+// The "pairs" format: one node or one edge per line, and a first line that gives the direction.
 //
 //   # undirected
-//   alice
+//   alice = Alice Liddell
 //   alice bob 2.5
 //   bob carol
+
+/** The format's own options, for reading and writing. */
+export interface PairsOptions {
+    /** The character between the ids and the weight of an edge line; whitespace by default. */
+    separator?: string | undefined;
+}
 
 /** The codes the pairs importer records, keyed like the built-in tables. */
 export const PAIRS_ISSUE = Object.freeze({
@@ -39,17 +44,36 @@ export const PAIRS_ISSUE = Object.freeze({
 
 /** The codes the pairs exporter's check() returns besides the shared ones. */
 export const PAIRS_LOSS = Object.freeze({
-    BAD_ID: "E_PAIRS_BAD_ID",
-    COLUMN_DROPPED: "W_PAIRS_COLUMN_DROPPED",
+    BAD_TEXT: "E_PAIRS_BAD_TEXT",
 });
-
-/** Column roles the format writes (the weight) or that only describe how edges are stored. */
-const STRUCTURAL_ROLES = new Set(["weight", "directed", "pair", "mutual", "id"]);
 
 /** The common options the importer reads; any other one the caller sets is reported as ignored. */
 const USED = new Set<keyof CommonImportOptions>(["ids", "defaultDirected", "onMixedDirection"]);
 
-export const pairsImporter: GraphImporter = {
+/**
+ * The separator option, checked.
+ * @param options - the caller's options
+ * @returns the separator, or null for whitespace
+ */
+function separatorOf(options: PairsOptions | undefined): string | null {
+    const separator = options?.separator;
+    if (separator === undefined) {
+        return null;
+    }
+    if (typeof separator !== "string" || separator.length !== 1 || /[\s#=]/.test(separator)) {
+        throw new GraphFormatError(
+            "E_UNSUPPORTED",
+            `option separator: ${JSON.stringify(separator)} is not one character`,
+            {
+                option: "separator",
+                found: separator,
+            },
+        );
+    }
+    return separator;
+}
+
+export const pairsImporter: GraphImporter<PairsOptions> = {
     format: "pairs",
     extensions: [".pairs"],
     mimeTypes: ["text/x-pairs"],
@@ -62,6 +86,7 @@ export const pairsImporter: GraphImporter = {
 
     async import(input, sink, options) {
         const opts = resolveImportOptions(options, { ids: "canonical", defaultDirected: true, weightFrom: null });
+        const separator = separatorOf(options);
         const report = new ImportReportBuilder("pairs", opts.errorLimit);
         reportSinkOptions(sink, options, report);
         reportUnusedOptions(options, report, USED);
@@ -74,7 +99,7 @@ export const pairsImporter: GraphImporter = {
             const line = lines.line;
             const text = raw.trim();
             if (line === 1) {
-                // a direction line, when there is one, is the first line
+                // the direction line, when there is one, is the first line; set the direction either way
                 const declared = /^# (directed|undirected)$/.exec(text);
                 if (declared !== null) {
                     kind = declared[1] === "directed" ? "directed" : "undirected";
@@ -87,10 +112,17 @@ export const pairsImporter: GraphImporter = {
             if (text.length === 0 || text.startsWith("#")) {
                 continue;
             }
-            const fields = text.split(/\s+/);
             try {
-                if (fields.length === 1) {
-                    sink.addNode(ids.text(fields[0]));
+                const node = /^(\S+)(?:\s*=\s*(.*))?$/.exec(text);
+                const fields = separator === null ? text.split(/\s+/) : text.split(separator).map((f) => f.trim());
+                if (node !== null && (fields.length === 1 || node[2] !== undefined)) {
+                    // a node line: an id, and an optional label after "="
+                    const index = sink.addNode(ids.text(node[1])); // the node's index, new or existing
+                    if (node[2] !== undefined) {
+                        // declaring the same column again returns the same column
+                        const label = sink.declareNodeColumn({ name: "label", dtype: "string", role: "label" });
+                        sink.setNodeValue(label, index, node[2]);
+                    }
                     report.counts.nodes++;
                 } else if (fields.length <= 3) {
                     const weight = fields.length === 3 ? parseWeightText(fields[2]) : undefined;
@@ -112,66 +144,45 @@ export const pairsImporter: GraphImporter = {
     },
 };
 
+/** What a pairs file can hold: one direction, parallel edges, self-loops, text labels. */
 const PAIRS_CAPABILITIES = capabilities({
     mixedDirection: false,
     multiEdges: true,
     selfLoops: true,
     edgeIds: "none",
     idCharset: "any",
+    dtypes: ["string"],
 });
 
 /**
- * What a pairs file would not keep: the shared checks, plus the ids the format cannot spell.
+ * What a pairs file would not keep.
  * @param snapshot - the graph to write
  * @param options - the export options
  * @returns the loss notes; any E_ note makes export() throw
  */
-function check(snapshot: GraphSnapshot, options?: CommonExportOptions): LossNote[] {
-    // checkCapabilities() covers direction, edge ids and node ids. Its column notes describe columns written
-    // with another type or role; this format writes no columns at all, so it reports each one itself.
-    const notes = checkCapabilities(snapshot, PAIRS_CAPABILITIES, resolveExportOptions(options)).filter(
-        (n) => n.code !== LOSS.DTYPE && n.code !== LOSS.ROLE,
-    );
-    for (const [what, table] of [
-        ["node", snapshot.nodes],
-        ["edge", snapshot.edges],
-    ] as const) {
-        for (const column of table) {
-            if (!STRUCTURAL_ROLES.has(column.meta.role ?? "")) {
-                notes.push({
-                    code: PAIRS_LOSS.COLUMN_DROPPED,
-                    message: `${what} column "${column.meta.name}" is not written`,
-                    column: column.meta.name,
-                    count: column.length - column.nullCount,
-                });
-            }
-        }
-    }
+function check(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOptions): LossNote[] {
+    const notes = checkCapabilities(snapshot, PAIRS_CAPABILITIES, resolveExportOptions(options), {
+        attributes: false, // the format writes no attributes...
+        roles: new Set(["label"]), // ...except the node label, which it has a place for
+        roleNames: { label: "label" }, // and which the importer reads back as "label"
+        idsReadBack: "canonical", // the importer turns the id text "7" into the number 7
+    });
+    const separator = separatorOf(options) ?? " ";
+    const label = snapshot.nodes.byRole("label");
     let bad = 0;
-    let retyped = 0;
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const id = snapshot.ids.idOf(i);
-        const text = String(id);
-        if (text === "" || /\s/.test(text) || text.startsWith("#")) {
+        const id = String(snapshot.ids.idOf(i));
+        const text = label === null ? undefined : snapshot.nodes.value(label.meta.name, i);
+        if (id === "" || /[\s#=]/.test(id) || id.includes(separator) || /[\r\n]/.test(String(text ?? ""))) {
             bad++;
-        } else if (new IdCoercer("canonical").text(text) !== id) {
-            retyped++;
         }
     }
     if (bad > 0) {
         notes.push({
-            code: PAIRS_LOSS.BAD_ID,
-            message: `${bad} node id(s) are empty, hold whitespace or start with #`,
+            code: PAIRS_LOSS.BAD_TEXT,
+            message: `${bad} node(s) have an id that is empty or holds a space, "#", "=" or the separator, or a label with a line break`,
             column: null,
             count: bad,
-        });
-    }
-    if (retyped > 0) {
-        notes.push({
-            code: LOSS.ID_TEXT_TYPE,
-            message: `${retyped} node id(s) read back as the other type (a number as text, or the reverse)`,
-            column: null,
-            count: retyped,
         });
     }
     return notes;
@@ -184,16 +195,20 @@ function check(snapshot: GraphSnapshot, options?: CommonExportOptions): LossNote
  * @param options - the export options
  * @yields one line at a time
  */
-function* lines(snapshot: GraphSnapshot, options?: CommonExportOptions): Generator<string> {
+function* lines(snapshot: GraphSnapshot, options?: PairsOptions & CommonExportOptions): Generator<string> {
     const refused = check(snapshot, options).find((n) => n.code.startsWith("E_"));
     if (refused !== undefined) {
         throw new GraphFormatError("E_UNSUPPORTED", refused.message, { code: refused.code });
     }
+    const separator = separatorOf(options) ?? " ";
     const { onMixedDirection } = resolveExportOptions(options);
     const directed = snapshot.directed && onMixedDirection !== "undirected";
     yield directed ? "# directed\n" : "# undirected\n";
+    const label = snapshot.nodes.byRole("label");
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        yield `${String(snapshot.ids.idOf(i))}\n`;
+        const id = String(snapshot.ids.idOf(i));
+        const text = label === null ? undefined : snapshot.nodes.value(label.meta.name, i);
+        yield text === undefined ? `${id}\n` : `${id} = ${String(text)}\n`;
     }
     const weights = explicitWeights(snapshot);
     const folding = pairFolding(snapshot); // an undirected edge of a mixed graph is stored twice; write it once
@@ -201,14 +216,13 @@ function* lines(snapshot: GraphSnapshot, options?: CommonExportOptions): Generat
         if (folding.folded(e)) {
             continue;
         }
-        const source = String(snapshot.ids.idOf(snapshot.edgeSource(e)));
-        const target = String(snapshot.ids.idOf(snapshot.edgeTarget(e)));
+        const ends = [snapshot.edgeSource(e), snapshot.edgeTarget(e)].map((i) => String(snapshot.ids.idOf(i)));
         const weight = weights.text(e);
-        yield weight === null ? `${source} ${target}\n` : `${source} ${target} ${weight}\n`;
+        yield `${[...ends, ...(weight === null ? [] : [weight])].join(separator)}\n`;
     }
 }
 
-export const pairsExporter: GraphExporter = {
+export const pairsExporter: GraphExporter<PairsOptions> = {
     format: "pairs",
     extensions: [".pairs"],
     mimeTypes: ["text/x-pairs"],

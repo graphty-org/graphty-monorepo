@@ -1,11 +1,18 @@
-import { type GraphImporter, importGraph, ImportReportBuilder, LineReader, registry } from "@graphty/graph-io";
+import {
+    DEFAULT_ERROR_LIMIT,
+    type GraphImporter,
+    importGraph,
+    ImportReportBuilder,
+    LineReader,
+    registry,
+} from "@graphty/graph-io";
 
 const pairsImporter: GraphImporter = {
     format: "pairs",
     extensions: [".pairs"],
     mimeTypes: [],
     async import(input, sink, options) {
-        const report = new ImportReportBuilder("pairs", options?.errorLimit ?? 100);
+        const report = new ImportReportBuilder("pairs", options?.errorLimit ?? DEFAULT_ERROR_LIMIT);
         sink.setDirected(false);
         const lines = new LineReader(input, report, options);
         for await (const text of lines) {

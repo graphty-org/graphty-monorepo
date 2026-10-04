@@ -1,9 +1,9 @@
 # The import report and errors
 
-Real graph files have problems: a row with a missing cell, a weight that is not a number, an edge
-to a node that does not exist. graph-io does not stop at the first one, and it does not skip
-anything silently. It skips the element it cannot read, keeps going, and lists every problem in
-the import report.
+Graph files often have problems: a row with a missing cell, a weight that is not a number, an edge
+to a node that does not exist. When graph-io meets one, it skips the element it cannot read, keeps
+going, and lists the problem in the import report. Anything it changes on the way, such as a value
+it rounds or two edges it merges, is listed too.
 
 ## Reading the report
 
@@ -38,7 +38,7 @@ console.log(`rows with a missing cell: ${short.map((i) => i.line).join(", ")}`);
 
 ```text
 3 nodes and 2 edges read, 2 skipped
-error E_CSV_FIELD_COUNT line 3: line 3: 2 field(s), the header has 3
+error E_CSV_FIELD_COUNT line 3: line 3: 2 field(s), expected 3
 error E_INVALID_WEIGHT line 4: invalid edge weight "heavy"
 the snapshot holds 2 edges
 rows with a missing cell: 3
@@ -50,16 +50,16 @@ The two bad rows were skipped, and the snapshot holds the two edges that could b
 
 The report has these fields:
 
-| Field          | Meaning                                                                                                                                                                                                                            |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format`       | The format the input was read as.                                                                                                                                                                                                  |
-| `counts`       | `nodes` and `edges` read, `skippedNodes` and `skippedEdges` left out after an error, and `expandedMixed`: undirected edges stored as two directed edges in a [mixed graph](./saving.md#graphs-with-directed-and-undirected-edges). |
-| `issues`       | Every problem, in the order it was found.                                                                                                                                                                                          |
-| `errorCount`   | How many issues are errors.                                                                                                                                                                                                        |
-| `warningCount` | How many issues are warnings.                                                                                                                                                                                                      |
-| `truncated`    | `true` when the import stopped because of the error limit. You only see it on `err.report`.                                                                                                                                        |
-| `lossy`        | Parts of the file the snapshot does not hold at all, as `{ code, message, column, count }` notes: hyperedges that were skipped, yEd graphics kept as a JSON tree, and similar.                                                     |
-| `durationMs`   | How long reading took, in milliseconds.                                                                                                                                                                                            |
+| Field          | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`       | The format the input was read as.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `counts`       | `nodes` and `edges` read from the file, `skippedNodes` and `skippedEdges` left out after an error, and `expandedMixed`: undirected edges stored as two directed edges in a [mixed graph](./saving.md#graphs-with-directed-and-undirected-edges). The counts are taken while reading, so the snapshot can hold fewer edges when `duplicateEdges` merges them or `selfLoops: "drop"` removes them; both are reported as warnings (`W_EDGES_MERGED`, `W_SELF_LOOPS_DROPPED`). |
+| `issues`       | Every problem, in the order it was found.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `errorCount`   | How many issues are errors.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `warningCount` | How many issues are warnings.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `truncated`    | `true` when the import stopped because of the error limit. You only see it on `err.report`.                                                                                                                                                                                                                                                                                                                                                                                |
+| `lossy`        | Parts of the file the snapshot does not hold at all, as `{ code, message, column, count }` notes: hyperedges that were skipped, yEd graphics kept as a JSON tree, and similar.                                                                                                                                                                                                                                                                                             |
+| `durationMs`   | How long reading took, in milliseconds.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ## Issues
 
@@ -91,8 +91,58 @@ as possible whatever the file holds.
 
 Some problems stop an import at once, whatever the limit: a file that is not valid in its own
 syntax (unbalanced XML, an unterminated quote in CSV, a JSON syntax error), invalid bytes in the
-file's encoding, an empty file, and a file that is not a graph format at all. These are recorded
-as the last issue of the report, with an `E_` code, and thrown as an `ImportError`.
+file's encoding, an empty file, and a file no format recognizes (`E_UNKNOWN_FORMAT`). These are
+recorded as the last issue of the report, with an `E_` code, and thrown as an `ImportError`.
+
+## Checking text a user typed or pasted
+
+Detection does not insist on a perfect file, so text a user pasted can be read as the closest
+format: a few comma-separated lines become a small CSV graph. To accept only input that is clearly
+a graph, check the result as well as catching the error:
+
+<!-- generated:begin example:report/pasted -->
+
+```ts
+import { GraphFormatError, importGraph } from "@graphty/graph-io";
+
+/**
+ * Read text a user pasted, accepting only input that is clearly a graph.
+ * @param text - what the user pasted
+ * @returns a message for the user
+ */
+async function readPasted(text: string): Promise<string> {
+    try {
+        const { snapshot, report, format } = await importGraph(text);
+        if (snapshot.nodeCount === 0 || report.errorCount > 0) {
+            return `read as ${format}, but: ${report.issues.map((i) => i.message).join("; ") || "no nodes"}`;
+        }
+        return `${format}: ${snapshot.nodeCount} nodes`;
+    } catch (err) {
+        if (err instanceof GraphFormatError) {
+            return err.message;
+        }
+        throw err;
+    }
+}
+
+console.log(await readPasted("graph { a -- b }"));
+console.log(await readPasted("Please find the network attached."));
+console.log(await readPasted("source,target\na,b\nc\n"));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:report/pasted -->
+
+```text
+dot: 2 nodes
+no registered importer recognizes the input; pass the format explicitly
+read as csv, but: line 3: 1 field(s), expected 2
+```
+
+<!-- generated:end -->
+
+Pass `format` too when you know which format the user means.
 
 ## When the import stops: ImportError
 
@@ -100,9 +150,11 @@ Everything graph-io throws on purpose is a `GraphFormatError`. `ImportError` is 
 when the input could not be loaded, and it carries the report:
 
 - `err.code` is always `"E_IMPORT"`.
-- `err.issue` is the issue that stopped the import. Switch on `err.issue.code`: `"E_FETCH"` for a
+- `err.issue` is the issue that stopped the import. Switch on `err.issue?.code`: `"E_FETCH"` for a
   failed download, `"E_UNKNOWN_FORMAT"` for a file graph-io does not recognize, and otherwise the
-  code of the parse error or of the error that went over the limit.
+  code of the parse error or of the error that went over the limit. (`err.issue` is typed as
+  possibly `null` only for an `ImportError` you construct yourself; every one graph-io throws has
+  it.)
 - `err.report` is the report up to the point the import stopped.
 - `err.message` is a sentence you can show to people.
 
@@ -152,7 +204,7 @@ try {
 <!-- generated:begin output:report/errors -->
 
 ```text
-E_IMPORT: error limit of 0 exceeded: line 3: 1 field(s), the header has 2
+E_IMPORT: error limit of 0 exceeded: line 3: 1 field(s), expected 2
 stopped by E_CSV_FIELD_COUNT on line 3
 1 edges had been read
 not a graph file: no registered importer recognizes the input (filename "graph.graphml"): it is an HTML document (likely an error page saved in place of the file); pass the format explicitly
@@ -160,8 +212,15 @@ not a graph file: no registered importer recognizes the input (filename "graph.g
 
 <!-- generated:end -->
 
-A `GraphFormatError` that is not an `ImportError` means the call itself was wrong: a `format` that
-names no format graph-io knows, or an option with a value it does not accept (both `E_UNSUPPORTED`).
+A `GraphFormatError` that is not an `ImportError` comes from the call itself:
+
+| `err.code`      | When                                                                                                                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_UNSUPPORTED` | A `format` no importer or exporter is registered for, an option value that is not allowed (`err.details.option` names it), `downloadGraph()` outside a browser, or a binary format passed to `exportGraphToString()`. |
+| `E_INVALID_ID`  | A save, when the format cannot write the node ids (`checkExport()` returned `E_ID_CHARSET` or `E_ID_TEXT_COLLISION`).                                                                                                 |
+| `E_DIRECTED`    | A save, when the graph has both edge directions and the format holds one (`E_MIXED_DIRECTION`).                                                                                                                       |
+| `E_COLUMN_TYPE` | A save, when an attribute value cannot be written in the format (the `E_` note names the attribute).                                                                                                                  |
+
 An aborted `signal` rejects with the signal's own reason, which is not a `GraphFormatError`.
 
 For a failed download, `err.details` also holds `url`, `status` (the HTTP status, or `null` when no
@@ -182,7 +241,8 @@ turn the check off.
 Every code has a constant, so you do not need to type the strings:
 
 - Each format exports a table of the codes its import can record, such as `CSV_ISSUE` from
-  `@graphty/graph-io/csv`, and a table of the codes its `check()` can return, such as `CSV_LOSS`.
+  `@graphty/graph-io/csv`, and a table of the codes `checkExport()` can return for it, such as
+  `CSV_LOSS`.
   The key is the code without its `E_` or `W_` prefix and without the format name:
   `CSV_ISSUE.FIELD_COUNT` is `"E_CSV_FIELD_COUNT"`.
 - Codes that several formats share, such as `E_MISSING_ID` or `W_DUPLICATE_NODE`, are the same

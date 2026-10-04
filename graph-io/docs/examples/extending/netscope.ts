@@ -25,16 +25,22 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
     sniff: (head) => (PREAMBLE.test(new TextDecoder().decode(head)) ? 0.9 : 0),
 
     async import(input, sink, options) {
-        // Decode the input the way every graph-io importer does, then cut the preamble off
+        // Decode the input the way every graph-io importer does, keeping what decoding reports
         const opts = resolveImportOptions(options, { ids: "canonical", defaultDirected: true, weightFrom: "weight" });
-        const text = await readText(input, new ImportReportBuilder("netscope", opts.errorLimit), opts);
-        const blank = text.search(/\r?\n\r?\n/);
-        const preamble = blank < 0 ? "" : text.slice(0, blank);
-        const table = blank < 0 ? text : text.slice(blank).trimStart();
+        const decoding = new ImportReportBuilder("netscope", opts.errorLimit);
+        const text = await readText(input, decoding, opts);
 
-        const report = await csvImporter.import(table, sink, options);
-        const instrument = /^Instrument: (.*)$/m.exec(preamble)?.[1] ?? "unknown";
-        const note: ImportIssue = {
+        // Turn the preamble into comment lines, which the CSV importer skips; the lines keep their numbers
+        const blank = /\r?\n\s*\r?\n/.exec(text);
+        const end = blank === null ? 0 : blank.index + blank[0].length;
+        const instrument = /^Instrument: (.*)$/m.exec(text.slice(0, end))?.[1] ?? "unknown";
+        const lines = text.slice(0, end).split("\n"); // the last entry is the empty rest after the blank line
+        const table = lines.map((line, i) => (i < lines.length - 1 ? "#" : line)).join("\n") + text.slice(end);
+
+        const csv = await csvImporter.import(table, sink, options);
+
+        // One report: the decoding warnings, the preamble, then the table's issues
+        const preamble: ImportIssue = {
             category: "unsupported",
             severity: "warning",
             code: "W_NETSCOPE_PREAMBLE",
@@ -42,11 +48,12 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
             line: 1,
             element: null,
         };
+        const decoded = decoding.finish().issues;
         return {
-            ...report,
+            ...csv,
             format: "netscope",
-            issues: [note, ...report.issues],
-            warningCount: report.warningCount + 1,
+            issues: [...decoded, preamble, ...csv.issues],
+            warningCount: csv.warningCount + decoded.length + 1,
         };
     },
 };

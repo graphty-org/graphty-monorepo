@@ -27,10 +27,31 @@
     "excludeExternals": true,
     "hideGenerator": true,
     "sanitizeComments": true,
-    "categorizeByGroup": true,
+    "categorizeByGroup": false,
     "sort": ["alphabetical"],
     "kindSortOrder": ["Class", "Interface", "TypeAlias", "Function", "Variable"],
-    "validation": { "notExported": true, "invalidLink": true, "notDocumented": true },
+    "validation": {
+        "notExported": true,
+        "invalidLink": true,
+        "notDocumented": true
+    },
     "treatValidationWarningsAsErrors": true,
-    "docsRoot": "./docs"
+    "docsRoot": "./docs",
+    "defaultCategory": "Re-exports",
+    "categoryOrder": [
+        "Loading",
+        "Saving",
+        "Reports and errors",
+        "Formats and detection",
+        "Built-in formats",
+        "Issue and loss codes",
+        "Plugin helpers",
+        "Re-exports",
+        "*"
+    ],
+    "externalPattern": ["**/node_modules/**", "**/graph-format/**"],
+    "navigation": {
+        "includeCategories": true,
+        "includeGroups": false
+    }
 }

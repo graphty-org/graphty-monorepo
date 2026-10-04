@@ -1,5 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`documentation examples > detection/rank runs 1`] = `[]`;
+
 exports[`documentation examples > detection/sniff runs 1`] = `[]`;
 
 exports[`documentation examples > extending/csv-defaults runs 1`] = `[]`;
@@ -109,13 +111,18 @@ exports[`documentation examples > loading/own-builder runs 1`] = `[]`;
 
 exports[`documentation examples > loading/several-graphs runs 1`] = `[]`;
 
+exports[`documentation examples > loading/small-bundle runs 1`] = `[]`;
+
+exports[`documentation examples > loading/typed-options runs 1`] = `[]`;
+
 exports[`documentation examples > loading/url-request runs 1`] = `[]`;
 
 exports[`documentation examples > quick-start/download runs 1`] = `
 [
-  "[confirm] edge id column "id" cannot be written
-77 node id(s) are not their 1-based index; nodes are numbered 1..N, the originals kept in the exporter's originalId attribute (restored by restoreMangledIds) and as labels of the nodes without a label value",
-  "[download] les-miserables.net (text/x-pajek, 4660 bytes)",
+  "[confirm] 107 node id(s) outside the integer charset are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back
+edge column "Edge Label" is written as "Edge_Label"
+edge column "Edge Label" has no set cell and is not written: GML writes cells, never declarations",
+  "[download] got.gml (text/x-gml, 31748 bytes)",
 ]
 `;
 
@@ -125,19 +132,33 @@ exports[`documentation examples > quick-start/load-url runs 1`] = `[]`;
 
 exports[`documentation examples > quick-start/readme runs 1`] = `
 [
-  "[wrote] lesmiserables.graphml (24658 bytes)",
+  "[wrote] got-network.gexf (27806 bytes)",
 ]
 `;
 
 exports[`documentation examples > quick-start/save-node runs 1`] = `
 [
-  "[wrote] lesmiserables.csv (6670 bytes)",
+  "[wrote] got-edges-out.csv (11096 bytes)",
 ]
 `;
+
+exports[`documentation examples > quick-start/use-data runs 1`] = `[]`;
+
+exports[`documentation examples > reading/attributes runs 1`] = `[]`;
+
+exports[`documentation examples > reading/degree runs 1`] = `[]`;
+
+exports[`documentation examples > reading/edges runs 1`] = `[]`;
+
+exports[`documentation examples > reading/exact-weights runs 1`] = `[]`;
+
+exports[`documentation examples > reading/rename runs 1`] = `[]`;
 
 exports[`documentation examples > report/errors runs 1`] = `[]`;
 
 exports[`documentation examples > report/issues runs 1`] = `[]`;
+
+exports[`documentation examples > report/pasted runs 1`] = `[]`;
 
 exports[`documentation examples > saving/check runs 1`] = `
 [
@@ -145,7 +166,15 @@ exports[`documentation examples > saving/check runs 1`] = `
 ]
 `;
 
+exports[`documentation examples > saving/download-own runs 1`] = `
+[
+  "[download] edges.csv (text/csv, 8728 bytes)",
+]
+`;
+
 exports[`documentation examples > saving/mixed runs 1`] = `[]`;
+
+exports[`documentation examples > saving/options-error runs 1`] = `[]`;
 
 exports[`documentation examples > saving/pick-format runs 1`] = `
 [

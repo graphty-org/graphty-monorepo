@@ -1,7 +1,7 @@
 {
     "name": "@graphty/graph-io",
     "version": "0.3.20",
-    "description": "Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the @graphty/graph-format snapshot",
+    "description": "Read and write graph files (GraphML, GEXF, CSV, JSON, GML, DOT, Pajek, Neo4j CSV, XGMML, CX, CX2, OBO, Cytoscape sessions) as @graphty/graph-format snapshots",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
     "main": "dist/graph-io.js",

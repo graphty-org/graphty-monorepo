@@ -53,7 +53,7 @@ default `registry`, as the next examples do.
 
 Some tools write a known format with something extra around it. NetScope, an imaginary lab
 instrument, writes a CSV edge table after a few lines about the run. A new format, `netscope`,
-cuts those lines off and hands the table to the CSV importer:
+hides those lines from the CSV importer and hands it the table. Save this as `netscope.ts`:
 
 <!-- generated:begin example:extending/netscope -->
 
@@ -85,16 +85,22 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
     sniff: (head) => (PREAMBLE.test(new TextDecoder().decode(head)) ? 0.9 : 0),
 
     async import(input, sink, options) {
-        // Decode the input the way every graph-io importer does, then cut the preamble off
+        // Decode the input the way every graph-io importer does, keeping what decoding reports
         const opts = resolveImportOptions(options, { ids: "canonical", defaultDirected: true, weightFrom: "weight" });
-        const text = await readText(input, new ImportReportBuilder("netscope", opts.errorLimit), opts);
-        const blank = text.search(/\r?\n\r?\n/);
-        const preamble = blank < 0 ? "" : text.slice(0, blank);
-        const table = blank < 0 ? text : text.slice(blank).trimStart();
+        const decoding = new ImportReportBuilder("netscope", opts.errorLimit);
+        const text = await readText(input, decoding, opts);
 
-        const report = await csvImporter.import(table, sink, options);
-        const instrument = /^Instrument: (.*)$/m.exec(preamble)?.[1] ?? "unknown";
-        const note: ImportIssue = {
+        // Turn the preamble into comment lines, which the CSV importer skips; the lines keep their numbers
+        const blank = /\r?\n\s*\r?\n/.exec(text);
+        const end = blank === null ? 0 : blank.index + blank[0].length;
+        const instrument = /^Instrument: (.*)$/m.exec(text.slice(0, end))?.[1] ?? "unknown";
+        const lines = text.slice(0, end).split("\n"); // the last entry is the empty rest after the blank line
+        const table = lines.map((line, i) => (i < lines.length - 1 ? "#" : line)).join("\n") + text.slice(end);
+
+        const csv = await csvImporter.import(table, sink, options);
+
+        // One report: the decoding warnings, the preamble, then the table's issues
+        const preamble: ImportIssue = {
             category: "unsupported",
             severity: "warning",
             code: "W_NETSCOPE_PREAMBLE",
@@ -102,11 +108,12 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
             line: 1,
             element: null,
         };
+        const decoded = decoding.finish().issues;
         return {
-            ...report,
+            ...csv,
             format: "netscope",
-            issues: [note, ...report.issues],
-            warningCount: report.warningCount + 1,
+            issues: [...decoded, preamble, ...csv.issues],
+            warningCount: csv.warningCount + decoded.length + 1,
         };
     },
 };
@@ -116,6 +123,8 @@ registry.registerImporter(netscopeImporter);
 
 <!-- generated:end -->
 
+Then load a NetScope file:
+
 <!-- generated:begin example:extending/netscope-usage -->
 
 ```ts
@@ -123,10 +132,18 @@ import { importGraph } from "@graphty/graph-io";
 
 import "./netscope.js";
 
-const file = "Exported by NetScope 4.2\nInstrument: bench-3\n\nsource,target,weight\nA,B,0.5\nB,C,0.25\n";
+const file = [
+    "Exported by NetScope 4.2",
+    "Instrument: bench-3",
+    "",
+    "source,target,weight",
+    "A,B,0.5",
+    "B,C,0.25",
+    "C,D", // a row with a missing cell, on line 7 of the file
+].join("\n");
 const { format, snapshot, report } = await importGraph(file, { filename: "run-12.nsc" });
 console.log(`${format}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
-console.log(report.issues.map((i) => `${i.code}: ${i.message}`));
+console.log(report.issues.map((i) => `${i.code} (line ${i.line ?? "-"}): ${i.message}`));
 ```
 
 <!-- generated:end -->
@@ -136,24 +153,30 @@ console.log(report.issues.map((i) => `${i.code}: ${i.message}`));
 ```text
 netscope: 3 nodes, 2 edges
 [
-  'W_NETSCOPE_PREAMBLE: skipped the NetScope preamble (instrument bench-3)'
+  'W_NETSCOPE_PREAMBLE (line 1): skipped the NetScope preamble (instrument bench-3)',
+  'E_CSV_FIELD_COUNT (line 7): line 7: 2 field(s), expected 3'
 ]
 ```
 
 <!-- generated:end -->
 
-A few things to notice:
+The format has its own name, extension and `sniff()`, so `.nsc` files, and any file that starts
+with the NetScope preamble, are read with it. Its detection outranks CSV's because it recognizes
+the content with more confidence.
 
-- The format has its own name, extension and `sniff()`, so `.nsc` files, and any file that starts
-  with the NetScope preamble, are read with it. Its detection outranks CSV's because it recognizes
-  the content with more confidence.
-- `readText()` decodes the input with the same rules as every built-in format (byte order mark,
-  `encoding` option, UTF-8, windows-1252 fallback), so the wrapper handles bytes and streams, not
-  only strings.
-- The report the CSV importer returns is a plain object. The wrapper returns a copy with its own
-  warning added, so the preamble is not dropped silently, and with its own format name.
-- Every CSV option still works, and so does every CSV issue code: a bad row in a NetScope file is
-  reported as `CSV_ISSUE.FIELD_COUNT`, as it would be in a CSV file.
+`readText()` decodes the input with the same rules as every built-in format (byte order mark,
+`encoding` option, UTF-8, windows-1252 fallback), so the wrapper handles bytes and streams, not
+only strings. It records what it noticed, such as `W_ENCODING_FALLBACK`, in the report you pass
+it, and the wrapper copies those issues into the report it returns, so none is lost.
+
+The preamble lines are replaced by `#` lines rather than cut off. The CSV importer skips leading
+`#` lines as comments, and every row keeps its line number, so the bad row above is reported on
+line 7, where it is in the file.
+
+The report the CSV importer returns is a plain object. The wrapper returns a copy with its own
+format name and its own warning, so the preamble is not dropped silently. Every CSV option still
+works, and so does every CSV issue code: a bad row in a NetScope file is reported as
+`CSV_ISSUE.FIELD_COUNT`, as it would be in a CSV file.
 
 ## Changing what an exporter writes
 
@@ -205,9 +228,9 @@ b,c,Directed
 <!-- generated:end -->
 
 The CSV importer skips leading `#` lines, so the stamped file still reads back as the same graph,
-and `check()` (copied from the CSV exporter) is still correct. If your change means the file reads
-back differently, wrap `check()` too and add a note that says how; see the rules on
-[Writing a format plugin](./new-format.md#rules-every-plugin-keeps).
+and `check()` (copied from the CSV exporter, and what `checkExport()` calls) is still correct. If
+your change means the file reads back differently, wrap `check()` too and add a note that says how;
+see the rules on [Writing a format plugin](./new-format.md#rules-every-plugin-keeps).
 
 ## Reusing a format's codes and options
 
@@ -215,7 +238,8 @@ Each format's entry point also exports:
 
 - its option types (`CsvImportOptions`, `CsvExportOptions`), to type a wrapper as
   `GraphImporter<CsvImportOptions>` so that callers get the format's options in their editor
-- its code tables (`CSV_ISSUE`, `CSV_LOSS`), to recognize codes in a report or in `check()` notes
+- its code tables (`CSV_ISSUE`, `CSV_LOSS`), to recognize codes in a report or in `checkExport()`
+  notes
 - for some formats, its capabilities table (`CSV_CAPABILITIES`), to build an exporter that
   supports the same features
 

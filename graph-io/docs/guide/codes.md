@@ -1,402 +1,428 @@
 # Issue and loss codes
 
-Every code graph-io records, in two lists. An import records codes in its
-[report](./report.md); `checkExport()` returns codes before a [save](./saving.md). Codes starting
-with `E_` are errors: an import skips the element, or a save refuses to write. Codes starting with
-`W_` are warnings: the element is kept or the file is written, with the change the meaning
-describes. Each entry names the formats that use the code.
+Every code graph-io records. An import records codes in its [report](./report.md);
+`checkExport()` returns codes before a [save](./saving.md). Codes starting with `E_` are errors: an
+import skips the element, or a save refuses to write. Codes starting with `W_` are warnings: the
+element is kept or the file is written, with the change the entry describes. Each entry names the
+formats that use the code, so you can switch on the codes you expect.
+
+A refused save throws a `GraphFormatError` whose code names the kind of failure rather than the
+note: `E_INVALID_ID` for ids, `E_DIRECTED` for edge direction, and `E_COLUMN_TYPE` or
+`E_UNSUPPORTED` for values. [Saving graphs](./saving.md#what-a-refused-save-throws) has the details.
+
+Some entries name attribute types: `i32` and `u32` are 32-bit integers (signed and unsigned), `u8`
+a byte, `f32` and `f64` 32- and 64-bit floating-point numbers (`f64` is a JavaScript number),
+`bool` true or false, `string` text, `dict` text stored once per distinct value (for values that
+repeat), and `list` and `json` lists and nested JSON values. A role is the meaning a file gives an
+attribute: the node label, the edge weight, a position. See
+[Reading the graph](./reading.md#attributes).
 
 <!-- generated:begin codes -->
 
 ## Errors
 
-- `E_AMBIGUOUS_GRAPH_NAME`: `graphName` names more than one graph of the input; the message lists their indexes (fatal). Import: [json](./formats/json.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `E_BAD_ASPECT_BLOCK`: A CX array member that is not a one-key object holding an array or an object; the block is skipped. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `E_BAD_ELEMENT`: A node record or an element is not an object. Import: [json](./formats/json.md).
-- `E_BAD_INDEX`: An index endpoint is not an integer below the node count, or names a skipped node. Import: [json](./formats/json.md).
-- `E_BAD_VALUE`: A value does not parse as its declared type; the cell is left unset. Import: [json](./formats/json.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `E_CSV_BAD_TYPE`: A Type cell outside Directed / Undirected / Mutual. Import: [csv](./formats/csv.md).
-- `E_CSV_FIELD_COUNT`: A row with a different field count than the header. Import: [csv](./formats/csv.md).
-- `E_CSV_NO_ENDPOINT_COLUMNS`: The header names neither endpoint columns nor an id column (fatal). Import: [csv](./formats/csv.md).
-- `E_CSV_NO_ID_COLUMN`: A node table without an id column (fatal). Import: [csv](./formats/csv.md).
-- `E_CSV_OTHER_FORMAT`: The input opens like another format (XML / HTML, JSON, GML, DOT, Pajek) (fatal). Import: [csv](./formats/csv.md).
-- `E_CSV_QUOTE`: Text after a closing quote (fatal). Import: [csv](./formats/csv.md), [neo4j](./formats/neo4j.md).
-- `E_CSV_UNCLOSED_QUOTE`: An unterminated quoted field (fatal). Import: [csv](./formats/csv.md), [neo4j](./formats/neo4j.md).
-- `E_CX2_ALIAS_CONFLICT`: An alias that is another attribute's name or another attribute's alias; the alias is ignored. Import: [cx2](./formats/cx2.md).
-- `E_CX2_DECLARATION_CONFLICT`: An attribute declared twice with two different types; the first declaration wins. Import: [cx2](./formats/cx2.md).
-- `E_CX2_NO_DESCRIPTOR`: The document is not an array or does not start with a descriptor holding CXVersion (fatal). Import: [cx2](./formats/cx2.md).
-- `E_CX2_NO_STATUS`: The document has no status block, or a malformed one. Import: [cx2](./formats/cx2.md).
-- `E_CX2_VERSION`: CXVersion names a major version other than 2 (fatal); "1.x" says the file is CX1. Import: [cx2](./formats/cx2.md).
-- `E_CX_NOT_CX`: The document is not a CX array, or it is CX2 (fatal; the message names CX2). Import: [cx](./formats/cx.md).
-- `E_CYS_CORRUPT`: The archive is damaged: no end record, offsets outside the file, a bad CRC, truncated data. Import: [cys](./formats/cys.md).
-- `E_CYS_NOT_SESSION`: A zip without a session marker (`<x.y.z>.version` or `cysession.xml`). Import: [cys](./formats/cys.md).
-- `E_CYS_NOT_ZIP`: The input is not a zip archive (or is text). Import: [cys](./formats/cys.md).
-- `E_CYS_TABLE`: A table or a virtual column that cannot be read at all; it is skipped. Import: [cys](./formats/cys.md).
-- `E_CYS_UNSUPPORTED`: A zip feature the reader does not support: encryption, a compression method, split archives. Import: [cys](./formats/cys.md).
-- `E_CYS_VERSION`: A session version graph-io cannot read: a major above 3, or the 2011 3.0 pre-release layout. Import: [cys](./formats/cys.md).
-- `E_DOT_NESTING`: Subgraphs or braces nested deeper than the parser's limit; fatal. Import: [dot](./formats/dot.md).
-- `E_DOT_TRAILING_BACKSLASH`: An id, name or text with a backslash before a quote or a line break, or at its end, cannot be written as a DOT quoted string; export() throws. Save: [dot](./formats/dot.md).
-- `E_DUPLICATE_EDGE`: The freeze refused a parallel edge under `duplicateEdges: "error"` (fatal): graph-format's E_DUPLICATE_EDGE, recorded on the import report by importGraph().
-- `E_DUPLICATE_EDGE_ID`: A repeated edge id in a format whose edge ids are unique; the second edge is skipped. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `E_DUPLICATE_KEY`: A declaration's key / attribute id is declared twice. Import: [graphml](./formats/graphml.md).
-- `E_EMPTY_INPUT`: The input is empty (fatal). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `E_FETCH`: Issue code: the URL could not be fetched (network failure, CORS refusal or a non-2xx status).
-- `E_FOREIGN_FORMAT`: The input is a known file type that is no graph format at all (an HTML page, a PDF, gzip or zip data, a PNG image), so it is not read as the format asked for (fatal). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `E_GEXF_ATTRIBUTES_CLASS`: An `<attributes class>` outside node / edge. Import: [gexf](./formats/gexf.md).
-- `E_GEXF_ATTRIBUTE_ID`: An `<attribute>` without an id. Import: [gexf](./formats/gexf.md).
-- `E_GEXF_EDGE_TYPE`: An edge `type` outside directed / undirected / mutual. Import: [gexf](./formats/gexf.md).
-- `E_GEXF_MISSING_NODES`: `<edges>` without `<nodes>`. Import: [gexf](./formats/gexf.md).
-- `E_GML_ELEMENT_TYPE`: A `node` / `edge` key whose value is not a record. Import: [gml](./formats/gml.md).
-- `E_GML_FLAG_TYPE`: A `directed` / `multigraph` flag that is not an integer. Import: [gml](./formats/gml.md).
-- `E_GML_GRAPHICS_CONFLICT`: A graphics record that cannot hold the position. Save: [gml](./formats/gml.md).
-- `E_GML_ID_TYPE`: A node id, source or target that is neither an integer nor a string. Import: [gml](./formats/gml.md).
-- `E_GML_INVALID_KEY`: A column name or record key outside the GML key grammar. Save: [gml](./formats/gml.md).
-- `E_GML_MISSING_LABEL`: A node without a `label` under nodeIdFrom "label". Import: [gml](./formats/gml.md).
-- `E_GML_NESTED_ARRAY`: An array inside an array; export() throws. Save: [gml](./formats/gml.md).
-- `E_GML_REPEATED_KEY`: A structural key repeated in one element. Import: [gml](./formats/gml.md).
-- `E_GML_RESERVED_KEY`: A column named like a structural key. Save: [gml](./formats/gml.md).
-- `E_GRAPHML_DATA_MISSING_KEY`: A `<data>` without a key attribute. Import: [graphml](./formats/graphml.md).
-- `E_GRAPHML_DATA_NESTED`: Nested elements in the `<data>` of a typed (non-yfiles) key. Import: [graphml](./formats/graphml.md).
-- `E_GRAPHML_HYPEREDGE_ENDPOINT`: An endpoint of a hyperedge without a node, or with an unknown type. Import: [graphml](./formats/graphml.md).
-- `E_GRAPHML_INVALID_DIRECTED`: A `directed` attribute that is neither true nor false. Import: [graphml](./formats/graphml.md).
-- `E_GRAPHML_INVALID_EDGEDEFAULT`: An `edgedefault` that is neither directed nor undirected. Import: [graphml](./formats/graphml.md).
-- `E_GRAPHML_KEY_FOR_INVALID`: A `<key>` whose `for` is not a GraphML domain. Import: [graphml](./formats/graphml.md).
-- `E_GRAPHML_KEY_MISSING_ID`: A `<key>` without an id. Import: [graphml](./formats/graphml.md).
-- `E_GRAPHML_UNKNOWN_KEY`: A `<data>` whose key was never declared. Import: [graphml](./formats/graphml.md).
-- `E_GRAPHML_YFILES_TREE`: A yfiles json value that is not a serializable tree: export() will throw E_COLUMN_TYPE. Save: [graphml](./formats/graphml.md).
-- `E_GRAPH_NOT_FOUND`: `graphIndex` is beyond the graphs of the input, or `graphName` names none of them (fatal). Import: [json](./formats/json.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `E_HYPEREDGE`: A hyperedge under the `hyperedges: "error"` policy (fatal). Import: [json](./formats/json.md), [graphml](./formats/graphml.md).
-- `E_HYPEREDGE_SHAPE`: A JGF hyperedge with neither a nodes array nor source / target arrays. Import: [json](./formats/json.md).
-- `E_ID_CHARSET`: Node ids that are not integers under the default sanitizeIds "error": export() throws E_INVALID_ID. Save: [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `E_ID_TEXT_COLLISION`: Two node ids share one written text; export() throws E_INVALID_ID. Save: [json](./formats/json.md), [csv](./formats/csv.md), [neo4j](./formats/neo4j.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `E_INVALID_ENCODING`: Bytes that are not valid in the encoding a BOM, a declaration or the `encoding` option chose (fatal). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `E_INVALID_ID`: An id that is not an integer. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `E_INVALID_UTF8`: An invalid UTF-8 sequence in the input (fatal). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `E_INVALID_WEIGHT`: A weight that is not a number. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `E_JSON_DIALECT`: No dialect matches the document's top-level shape. Import: [json](./formats/json.md).
-- `E_JSON_SHAPE`: A section (nodes, edges, elements, graph) has the wrong JSON type. Import: [json](./formats/json.md).
-- `E_MISSING_ENDPOINT`: An edge has no source or no target. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `E_MISSING_ID`: The element (node, attribute, key, ...) has no id where the format requires one. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `E_MISSING_SECTION`: A node-link document lacks its nodes or its edges array, or a Cytoscape document its elements. Import: [json](./formats/json.md).
-- `E_MIXED_DIRECTION`: A mixed-direction file under onMixedDirection "error" (import), or a mixed snapshot under the same export policy. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md). Save: [obo](./formats/obo.md).
-- `E_NEO4J_COLUMN_COUNT`: A row with a different field count than the header. Import: [neo4j](./formats/neo4j.md).
-- `E_NEO4J_ENDPOINT_SPACE`: A spaced relationship endpoint `Space:id` that names a node declared without a space; the row is skipped. Import: [neo4j](./formats/neo4j.md).
-- `E_NEO4J_HEADER`: No header or a malformed header (fatal). Import: [neo4j](./formats/neo4j.md).
-- `E_NEO4J_ID_COLUMN_TAKEN`: The id column name is taken by a node column; export() throws. Save: [neo4j](./formats/neo4j.md).
-- `E_NEO4J_ID_SPACE_COLLISION`: A spaced node id `Space:id` that equals the text of an id declared without a space. Import: [neo4j](./formats/neo4j.md).
-- `E_NEO4J_WEIGHT_COLUMN_TAKEN`: The weight column name is taken by an edge column; export() throws. Save: [neo4j](./formats/neo4j.md).
-- `E_NOT_GEXF`: The root element is not `<gexf>` (fatal). Import: [gexf](./formats/gexf.md).
-- `E_NOT_GRAPHML`: Fatal: the root element is not `<graphml>`. Import: [graphml](./formats/graphml.md).
-- `E_NO_GRAPH`: The document declares no graph at all (fatal). Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [gml](./formats/gml.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `E_OBO_NOT_OBO`: Nothing in the input is OBO: no frame header and no valid header tag (fatal; an HTML page, a JSON or GML file, UTF-16 without a BOM). Import: [obo](./formats/obo.md).
-- `E_PAJEK_INTERVAL`: A malformed time interval token. Import: [pajek](./formats/pajek.md).
-- `E_PAJEK_LINE`: A line (arc, edge, list, matrix row, partition or vector value) the grammar does not accept. Import: [pajek](./formats/pajek.md).
-- `E_PAJEK_MATRIX_ROWS`: A `*Matrix` section with the wrong number of rows (N, or N1 in a two-mode network). Import: [pajek](./formats/pajek.md).
-- `E_PAJEK_NO_VERTICES`: Fatal: no `*Vertices` section (an empty file, or not a Pajek network). Import: [pajek](./formats/pajek.md).
-- `E_PAJEK_OBJECT_COUNT`: A `*Partition` or `*Vector` whose value count differs from the network's vertex count; values beyond it are dropped, vertices without one are unset. Import: [pajek](./formats/pajek.md).
-- `E_PAJEK_OUTSIDE_SECTION`: A data line before the first section header. Import: [pajek](./formats/pajek.md).
-- `E_PAJEK_TEXT`: A label or text value holds a double quote or a line break; export() will throw E_UNSUPPORTED. Save: [pajek](./formats/pajek.md).
-- `E_PAJEK_UNTERMINATED_QUOTE`: A double quote not closed before the end of the line. Import: [pajek](./formats/pajek.md).
-- `E_PAJEK_VERTEX_LINE`: A vertex line the grammar does not accept. Import: [pajek](./formats/pajek.md).
-- `E_PAJEK_VERTEX_RANGE`: A vertex number outside the declared range. Import: [pajek](./formats/pajek.md).
-- `E_PAJEK_VERTICES_COUNT`: Fatal: `*Vertices` without a vertex count, one the sink cannot hold, or a first-mode count outside 0..N. Import: [pajek](./formats/pajek.md).
-- `E_PARENT_CYCLE`: A containment link would close a parent cycle; that one link is dropped. Import: [json](./formats/json.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `E_PARSE`: The code a report used to give a thrown value that was not a GraphFormatError. Since audit round 1 such a value (a TypeError, a RangeError: a bug in an importer or a sink, never a defect of the input) propagates out of import() untouched, so no importer records this code any more; the constant stays for consumers that switch on the codes of earlier reports.
-- `E_SELF_LOOP`: The freeze refused a self-loop under `selfLoops: "error"` (fatal): graph-format's E_SELF_LOOP, recorded on the import report by importGraph().
-- `E_STATUS_FAILED`: The producer marked the document as failed (CX `status.success: false`): it is incomplete (fatal). Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `E_SYNTAX`: The text grammar of the format is violated (fatal; the message carries the detail). Import: [json](./formats/json.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `E_TOO_LARGE`: The input is beyond a size limit (a zip's uncompressed total or ratio, a document longer than one string); the same string as graph-format's E_TOO_LARGE, recorded with category "unsupported". Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `E_UNKNOWN_FORMAT`: The issue code of an input whose format no registered importer recognizes.
-- `E_UNKNOWN_NODE`: An edge endpoint that names no declared node under `addMissingNodes: false`; the edge is skipped. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [pajek](./formats/pajek.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `E_UNKNOWN_PARENT`: A `pid` / parent reference names a node the document never declares. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `E_UNSUPPORTED_ID`: A node id is a JSON boolean or null (legal in NetworkX, not a NodeId); coerced only under ids "string". Import: [json](./formats/json.md).
-- `E_XGMML_VIEW_DOCUMENT`: Fatal: a session view document (`cy:view="1"`): view SUIDs and no topology. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `E_XML_ILLEGAL_CHAR`: A string cell holding a character XML 1.0 forbids; export() throws E_COLUMN_TYPE. Save: [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md).
-- `E_XML_SYNTAX`: The XML is not well-formed (fatal; the message carries the detail and the line). Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="E_AMBIGUOUS_GRAPH_NAME"></a>`E_AMBIGUOUS_GRAPH_NAME`: `graphName` names more than one graph of the input; the message lists their indexes (fatal). Import: [json](./formats/json.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="E_BAD_ASPECT_BLOCK"></a>`E_BAD_ASPECT_BLOCK`: A CX array member that is not a one-key object holding an array or an object; the block is skipped. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="E_BAD_ELEMENT"></a>`E_BAD_ELEMENT`: A node record or an element is not an object. Import: [json](./formats/json.md).
+- <a id="E_BAD_INDEX"></a>`E_BAD_INDEX`: An index endpoint is not an integer below the node count, or names a skipped node. Import: [json](./formats/json.md).
+- <a id="E_BAD_VALUE"></a>`E_BAD_VALUE`: A value does not parse as its declared type; the cell is left unset. Import: [json](./formats/json.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="E_CSV_BAD_TYPE"></a>`E_CSV_BAD_TYPE`: A Type cell outside Directed / Undirected / Mutual. Import: [csv](./formats/csv.md).
+- <a id="E_CSV_FIELD_COUNT"></a>`E_CSV_FIELD_COUNT`: A row with a different field count than the header. Import: [csv](./formats/csv.md).
+- <a id="E_CSV_NO_ENDPOINT_COLUMNS"></a>`E_CSV_NO_ENDPOINT_COLUMNS`: The header names neither endpoint columns nor an id column (fatal). Import: [csv](./formats/csv.md).
+- <a id="E_CSV_NO_ID_COLUMN"></a>`E_CSV_NO_ID_COLUMN`: A node table without an id column (fatal). Import: [csv](./formats/csv.md).
+- <a id="E_CSV_OTHER_FORMAT"></a>`E_CSV_OTHER_FORMAT`: The input opens like another format (XML / HTML, JSON, GML, DOT, Pajek) (fatal). Import: [csv](./formats/csv.md).
+- <a id="E_CSV_QUOTE"></a>`E_CSV_QUOTE`: Text after a closing quote (fatal). Import: [csv](./formats/csv.md), [neo4j](./formats/neo4j.md).
+- <a id="E_CSV_UNCLOSED_QUOTE"></a>`E_CSV_UNCLOSED_QUOTE`: An unterminated quoted field (fatal). Import: [csv](./formats/csv.md), [neo4j](./formats/neo4j.md).
+- <a id="E_CX2_ALIAS_CONFLICT"></a>`E_CX2_ALIAS_CONFLICT`: An alias that is another attribute's name or another attribute's alias; the alias is ignored. Import: [cx2](./formats/cx2.md).
+- <a id="E_CX2_DECLARATION_CONFLICT"></a>`E_CX2_DECLARATION_CONFLICT`: An attribute declared twice with two different types; the first declaration wins. Import: [cx2](./formats/cx2.md).
+- <a id="E_CX2_NO_DESCRIPTOR"></a>`E_CX2_NO_DESCRIPTOR`: The document is not an array or does not start with a descriptor holding CXVersion (fatal). Import: [cx2](./formats/cx2.md).
+- <a id="E_CX2_NO_STATUS"></a>`E_CX2_NO_STATUS`: The document has no status block, or a malformed one. Import: [cx2](./formats/cx2.md).
+- <a id="E_CX2_VERSION"></a>`E_CX2_VERSION`: CXVersion names a major version other than 2 (fatal); "1.x" says the file is CX1. Import: [cx2](./formats/cx2.md).
+- <a id="E_CX_NOT_CX"></a>`E_CX_NOT_CX`: The document is not a CX array, or it is CX2 (fatal; the message names CX2). Import: [cx](./formats/cx.md).
+- <a id="E_CYS_CORRUPT"></a>`E_CYS_CORRUPT`: The archive is damaged: no end record, offsets outside the file, a bad CRC, truncated data. Import: [cys](./formats/cys.md).
+- <a id="E_CYS_NOT_SESSION"></a>`E_CYS_NOT_SESSION`: A zip without a session marker (`<x.y.z>.version` or `cysession.xml`). Import: [cys](./formats/cys.md).
+- <a id="E_CYS_NOT_ZIP"></a>`E_CYS_NOT_ZIP`: The input is not a zip archive (or is text). Import: [cys](./formats/cys.md).
+- <a id="E_CYS_TABLE"></a>`E_CYS_TABLE`: A table or a virtual column that cannot be read at all; it is skipped. Import: [cys](./formats/cys.md).
+- <a id="E_CYS_UNSUPPORTED"></a>`E_CYS_UNSUPPORTED`: A zip feature the reader does not support: encryption, a compression method, split archives. Import: [cys](./formats/cys.md).
+- <a id="E_CYS_VERSION"></a>`E_CYS_VERSION`: A session version graph-io cannot read: a major above 3, or the 2011 3.0 pre-release layout. Import: [cys](./formats/cys.md).
+- <a id="E_DOT_NESTING"></a>`E_DOT_NESTING`: Subgraphs or braces nested deeper than the parser's limit; fatal. Import: [dot](./formats/dot.md).
+- <a id="E_DOT_TRAILING_BACKSLASH"></a>`E_DOT_TRAILING_BACKSLASH`: An id, name or text with a backslash before a quote or a line break, or at its end, cannot be written as a DOT quoted string; the save fails. Save: [dot](./formats/dot.md).
+- <a id="E_DUPLICATE_EDGE"></a>`E_DUPLICATE_EDGE`: A second edge between the same two nodes under `duplicateEdges: "error"`; the import stops.
+- <a id="E_DUPLICATE_EDGE_ID"></a>`E_DUPLICATE_EDGE_ID`: A repeated edge id in a format whose edge ids are unique; the second edge is skipped. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="E_DUPLICATE_KEY"></a>`E_DUPLICATE_KEY`: A declaration's key / attribute id is declared twice. Import: [graphml](./formats/graphml.md).
+- <a id="E_EMPTY_INPUT"></a>`E_EMPTY_INPUT`: The input is empty (fatal). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="E_FETCH"></a>`E_FETCH`: Issue code: the URL could not be fetched (network failure, CORS refusal or a non-2xx status).
+- <a id="E_FOREIGN_FORMAT"></a>`E_FOREIGN_FORMAT`: The input is a known file type that is no graph format at all (an HTML page, a PDF, gzip or zip data, a PNG image), so it is not read as the format asked for (fatal). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="E_GEXF_ATTRIBUTES_CLASS"></a>`E_GEXF_ATTRIBUTES_CLASS`: An `<attributes class>` outside node / edge. Import: [gexf](./formats/gexf.md).
+- <a id="E_GEXF_ATTRIBUTE_ID"></a>`E_GEXF_ATTRIBUTE_ID`: An `<attribute>` without an id. Import: [gexf](./formats/gexf.md).
+- <a id="E_GEXF_EDGE_TYPE"></a>`E_GEXF_EDGE_TYPE`: An edge `type` outside directed / undirected / mutual. Import: [gexf](./formats/gexf.md).
+- <a id="E_GEXF_MISSING_NODES"></a>`E_GEXF_MISSING_NODES`: `<edges>` without `<nodes>`. Import: [gexf](./formats/gexf.md).
+- <a id="E_GML_ELEMENT_TYPE"></a>`E_GML_ELEMENT_TYPE`: A `node` / `edge` key whose value is not a record. Import: [gml](./formats/gml.md).
+- <a id="E_GML_FLAG_TYPE"></a>`E_GML_FLAG_TYPE`: A `directed` / `multigraph` flag that is not an integer. Import: [gml](./formats/gml.md).
+- <a id="E_GML_GRAPHICS_CONFLICT"></a>`E_GML_GRAPHICS_CONFLICT`: A graphics record that cannot hold the position. Save: [gml](./formats/gml.md).
+- <a id="E_GML_ID_TYPE"></a>`E_GML_ID_TYPE`: A node id, source or target that is neither an integer nor a string. Import: [gml](./formats/gml.md).
+- <a id="E_GML_INVALID_KEY"></a>`E_GML_INVALID_KEY`: A column name or record key outside the GML key grammar. Save: [gml](./formats/gml.md).
+- <a id="E_GML_MISSING_LABEL"></a>`E_GML_MISSING_LABEL`: A node without a `label` under nodeIdFrom "label". Import: [gml](./formats/gml.md).
+- <a id="E_GML_NESTED_ARRAY"></a>`E_GML_NESTED_ARRAY`: An attribute holds an array inside an array, which GML cannot write; the save fails. Save: [gml](./formats/gml.md).
+- <a id="E_GML_REPEATED_KEY"></a>`E_GML_REPEATED_KEY`: A structural key repeated in one element. Import: [gml](./formats/gml.md).
+- <a id="E_GML_RESERVED_KEY"></a>`E_GML_RESERVED_KEY`: A column named like a structural key. Save: [gml](./formats/gml.md).
+- <a id="E_GRAPHML_DATA_MISSING_KEY"></a>`E_GRAPHML_DATA_MISSING_KEY`: A `<data>` without a key attribute. Import: [graphml](./formats/graphml.md).
+- <a id="E_GRAPHML_DATA_NESTED"></a>`E_GRAPHML_DATA_NESTED`: Nested elements in the `<data>` of a typed (non-yfiles) key. Import: [graphml](./formats/graphml.md).
+- <a id="E_GRAPHML_HYPEREDGE_ENDPOINT"></a>`E_GRAPHML_HYPEREDGE_ENDPOINT`: An endpoint of a hyperedge without a node, or with an unknown type. Import: [graphml](./formats/graphml.md).
+- <a id="E_GRAPHML_INVALID_DIRECTED"></a>`E_GRAPHML_INVALID_DIRECTED`: A `directed` attribute that is neither true nor false. Import: [graphml](./formats/graphml.md).
+- <a id="E_GRAPHML_INVALID_EDGEDEFAULT"></a>`E_GRAPHML_INVALID_EDGEDEFAULT`: An `edgedefault` that is neither directed nor undirected. Import: [graphml](./formats/graphml.md).
+- <a id="E_GRAPHML_KEY_FOR_INVALID"></a>`E_GRAPHML_KEY_FOR_INVALID`: A `<key>` whose `for` is not a GraphML domain. Import: [graphml](./formats/graphml.md).
+- <a id="E_GRAPHML_KEY_MISSING_ID"></a>`E_GRAPHML_KEY_MISSING_ID`: A `<key>` without an id. Import: [graphml](./formats/graphml.md).
+- <a id="E_GRAPHML_UNKNOWN_KEY"></a>`E_GRAPHML_UNKNOWN_KEY`: A `<data>` whose key was never declared. Import: [graphml](./formats/graphml.md).
+- <a id="E_GRAPHML_YFILES_TREE"></a>`E_GRAPHML_YFILES_TREE`: A yEd graphics value that is not valid XML; the save fails with E_COLUMN_TYPE. Save: [graphml](./formats/graphml.md).
+- <a id="E_GRAPH_NOT_FOUND"></a>`E_GRAPH_NOT_FOUND`: `graphIndex` is beyond the graphs of the input, or `graphName` names none of them (fatal). Import: [json](./formats/json.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="E_HYPEREDGE"></a>`E_HYPEREDGE`: A hyperedge under the `hyperedges: "error"` policy (fatal). Import: [json](./formats/json.md), [graphml](./formats/graphml.md).
+- <a id="E_HYPEREDGE_SHAPE"></a>`E_HYPEREDGE_SHAPE`: A JGF hyperedge with neither a nodes array nor source / target arrays. Import: [json](./formats/json.md).
+- <a id="E_ID_CHARSET"></a>`E_ID_CHARSET`: Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with E_INVALID_ID. Pass `sanitizeIds: "mangle"` to rewrite them. Save: any format.
+- <a id="E_ID_TEXT_COLLISION"></a>`E_ID_TEXT_COLLISION`: Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with E_INVALID_ID. Save: any format.
+- <a id="E_INVALID_ENCODING"></a>`E_INVALID_ENCODING`: Bytes that are not valid in the encoding a BOM, a declaration or the `encoding` option chose (fatal). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="E_INVALID_ID"></a>`E_INVALID_ID`: An id that is not an integer. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="E_INVALID_UTF8"></a>`E_INVALID_UTF8`: An invalid UTF-8 sequence in the input (fatal). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="E_INVALID_WEIGHT"></a>`E_INVALID_WEIGHT`: A weight that is not a number. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="E_JSON_DIALECT"></a>`E_JSON_DIALECT`: No dialect matches the document's top-level shape. Import: [json](./formats/json.md).
+- <a id="E_JSON_SHAPE"></a>`E_JSON_SHAPE`: A section (nodes, edges, elements, graph) has the wrong JSON type. Import: [json](./formats/json.md).
+- <a id="E_MISSING_ENDPOINT"></a>`E_MISSING_ENDPOINT`: An edge has no source or no target. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="E_MISSING_ID"></a>`E_MISSING_ID`: The element (node, attribute, key, ...) has no id where the format requires one. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="E_MISSING_SECTION"></a>`E_MISSING_SECTION`: A node-link document lacks its nodes or its edges array, or a Cytoscape document its elements. Import: [json](./formats/json.md).
+- <a id="E_MIXED_DIRECTION"></a>`E_MIXED_DIRECTION`: The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write it anyway. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md). Save: any format.
+- <a id="E_NEO4J_COLUMN_COUNT"></a>`E_NEO4J_COLUMN_COUNT`: A row with a different field count than the header. Import: [neo4j](./formats/neo4j.md).
+- <a id="E_NEO4J_ENDPOINT_SPACE"></a>`E_NEO4J_ENDPOINT_SPACE`: A spaced relationship endpoint `Space:id` that names a node declared without a space; the row is skipped. Import: [neo4j](./formats/neo4j.md).
+- <a id="E_NEO4J_HEADER"></a>`E_NEO4J_HEADER`: No header or a malformed header (fatal). Import: [neo4j](./formats/neo4j.md).
+- <a id="E_NEO4J_ID_COLUMN_TAKEN"></a>`E_NEO4J_ID_COLUMN_TAKEN`: The `idColumn` name is already a node attribute; the save fails. Save: [neo4j](./formats/neo4j.md).
+- <a id="E_NEO4J_ID_SPACE_COLLISION"></a>`E_NEO4J_ID_SPACE_COLLISION`: A spaced node id `Space:id` that equals the text of an id declared without a space. Import: [neo4j](./formats/neo4j.md).
+- <a id="E_NEO4J_WEIGHT_COLUMN_TAKEN"></a>`E_NEO4J_WEIGHT_COLUMN_TAKEN`: The `weightColumn` name is already an edge attribute; the save fails. Save: [neo4j](./formats/neo4j.md).
+- <a id="E_NOT_GEXF"></a>`E_NOT_GEXF`: The root element is not `<gexf>` (fatal). Import: [gexf](./formats/gexf.md).
+- <a id="E_NOT_GRAPHML"></a>`E_NOT_GRAPHML`: Fatal: the root element is not `<graphml>`. Import: [graphml](./formats/graphml.md).
+- <a id="E_NO_GRAPH"></a>`E_NO_GRAPH`: The document declares no graph at all (fatal). Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [gml](./formats/gml.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="E_OBO_NOT_OBO"></a>`E_OBO_NOT_OBO`: Nothing in the input is OBO: no frame header and no valid header tag (fatal; an HTML page, a JSON or GML file, UTF-16 without a BOM). Import: [obo](./formats/obo.md).
+- <a id="E_PAJEK_INTERVAL"></a>`E_PAJEK_INTERVAL`: A malformed time interval token. Import: [pajek](./formats/pajek.md).
+- <a id="E_PAJEK_LINE"></a>`E_PAJEK_LINE`: A line (arc, edge, list, matrix row, partition or vector value) the grammar does not accept. Import: [pajek](./formats/pajek.md).
+- <a id="E_PAJEK_MATRIX_ROWS"></a>`E_PAJEK_MATRIX_ROWS`: A `*Matrix` section with the wrong number of rows (N, or N1 in a two-mode network). Import: [pajek](./formats/pajek.md).
+- <a id="E_PAJEK_NO_VERTICES"></a>`E_PAJEK_NO_VERTICES`: Fatal: no `*Vertices` section (an empty file, or not a Pajek network). Import: [pajek](./formats/pajek.md).
+- <a id="E_PAJEK_OBJECT_COUNT"></a>`E_PAJEK_OBJECT_COUNT`: A `*Partition` or `*Vector` whose value count differs from the network's vertex count; values beyond it are dropped, vertices without one are unset. Import: [pajek](./formats/pajek.md).
+- <a id="E_PAJEK_OUTSIDE_SECTION"></a>`E_PAJEK_OUTSIDE_SECTION`: A data line before the first section header. Import: [pajek](./formats/pajek.md).
+- <a id="E_PAJEK_TEXT"></a>`E_PAJEK_TEXT`: A label or text value holds a double quote or a line break, which Pajek cannot write; the save fails with E_UNSUPPORTED. Save: [pajek](./formats/pajek.md).
+- <a id="E_PAJEK_UNTERMINATED_QUOTE"></a>`E_PAJEK_UNTERMINATED_QUOTE`: A double quote not closed before the end of the line. Import: [pajek](./formats/pajek.md).
+- <a id="E_PAJEK_VERTEX_LINE"></a>`E_PAJEK_VERTEX_LINE`: A vertex line the grammar does not accept. Import: [pajek](./formats/pajek.md).
+- <a id="E_PAJEK_VERTEX_RANGE"></a>`E_PAJEK_VERTEX_RANGE`: A vertex number outside the declared range. Import: [pajek](./formats/pajek.md).
+- <a id="E_PAJEK_VERTICES_COUNT"></a>`E_PAJEK_VERTICES_COUNT`: `*Vertices` without a vertex count, with a count too large to hold, or with a first-mode count outside 0 to N; the import stops. Import: [pajek](./formats/pajek.md).
+- <a id="E_PARENT_CYCLE"></a>`E_PARENT_CYCLE`: A containment link would close a parent cycle; that one link is dropped. Import: [json](./formats/json.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="E_PARSE"></a>`E_PARSE`: No longer recorded; kept so code that switches on older reports still compiles.
+- <a id="E_SELF_LOOP"></a>`E_SELF_LOOP`: An edge from a node to itself under `selfLoops: "error"`; the import stops.
+- <a id="E_STATUS_FAILED"></a>`E_STATUS_FAILED`: The producer marked the document as failed (CX `status.success: false`): it is incomplete (fatal). Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="E_SYNTAX"></a>`E_SYNTAX`: The text grammar of the format is violated (fatal; the message carries the detail). Import: [json](./formats/json.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="E_TOO_LARGE"></a>`E_TOO_LARGE`: The input is beyond a size limit (a zip's uncompressed total or ratio, a document longer than one string); the same string as graph-format's E_TOO_LARGE, recorded with category "unsupported". Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="E_UNKNOWN_FORMAT"></a>`E_UNKNOWN_FORMAT`: The issue code of an input whose format no registered importer recognizes.
+- <a id="E_UNKNOWN_NODE"></a>`E_UNKNOWN_NODE`: An edge endpoint that names no declared node under `addMissingNodes: false`; the edge is skipped. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [pajek](./formats/pajek.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="E_UNKNOWN_PARENT"></a>`E_UNKNOWN_PARENT`: A `pid` / parent reference names a node the document never declares. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="E_UNSUPPORTED_ID"></a>`E_UNSUPPORTED_ID`: A node id is a JSON boolean or null (legal in NetworkX, not a NodeId); coerced only under ids "string". Import: [json](./formats/json.md).
+- <a id="E_XGMML_VIEW_DOCUMENT"></a>`E_XGMML_VIEW_DOCUMENT`: Fatal: a session view document (`cy:view="1"`): view SUIDs and no topology. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="E_XML_ILLEGAL_CHAR"></a>`E_XML_ILLEGAL_CHAR`: A text value holds a character XML 1.0 forbids (most control characters); the save fails with E_COLUMN_TYPE. Save: any format.
+- <a id="E_XML_SYNTAX"></a>`E_XML_SYNTAX`: The XML is not well-formed (fatal; the message carries the detail and the line). Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
 
 ## Warnings
 
-- `W_ASPECT_ORDER`: A CX aspect out of its place (after the post-metadata, a status that is not last, a block buffered for what it depends on). Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `W_ATTRIBUTE_RENAMED`: An attribute whose title the importer would rename on re-import (a reserved name). Save: [gexf](./formats/gexf.md).
-- `W_BAD_DEFAULT`: The declared default does not parse as the declared type; the column has no default. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [cx2](./formats/cx2.md).
-- `W_BAD_FLAG`: A graph-level flag (`directed`, `multigraph`, graphology `options`) has the wrong type; the default is used. Import: [json](./formats/json.md).
-- `W_BAD_OPTIONS`: A declared option does not parse as the declared type; the options are dropped. Import: [gexf](./formats/gexf.md).
-- `W_COLUMN_AS_PROPERTY_VALUE`: An ontology exporter (OBO, OBO Graphs) writes a node column outside its vocabulary as property values; it reads back inside the `property_value` column. Save: [json](./formats/json.md), [obo](./formats/obo.md).
-- `W_COLUMN_NAME_CHANGED`: A role column written into the format's slot reads back under the importer's fixed name. Save: [json](./formats/json.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_COLUMN_RENAMED`: A column was renamed `<name>#<origin.id>` because the name was taken in the sink's table. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_COMPONENTS_FLATTENED`: A multi-component column (a second view's `position@2`, a vector) is written as a list of doubles. Save: [cx](./formats/cx.md).
-- `W_CONTROL_CHARACTER`: The text holds a control character (C0 other than TAB, LF, FF and CR; DEL; C1) or a stray U+FEFF that is kept in the id or value it is part of, or a trailing Ctrl-Z end-of-file marker that was ignored; recorded once per import. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_COUNT_HINT`: A `count` / `parse.nodes` hint the sink cannot reserve (ignored). Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md).
-- `W_COUNT_MISMATCH`: A declared element count disagrees with what was read. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `W_CSV_AMBIGUOUS_COLUMN`: Several header columns name one role; the one not chosen is a plain attribute. Import: [csv](./formats/csv.md).
-- `W_CSV_COLUMN_MISSING`: An explicitly named weight column the file does not have. Import: [csv](./formats/csv.md).
-- `W_CSV_COMMENT_DIRECTION`: A leading comment's direction disagrees with defaultDirected or an earlier comment. Import: [csv](./formats/csv.md).
-- `W_CSV_COMMENT_LIKE_RECORD`: A leading # / % line skipped as a comment has the fields of a record. Import: [csv](./formats/csv.md).
-- `W_CSV_DIRECTION_DROPPED`: The generic dialect has no direction column; an undirected or mixed graph reads back as directed. The Gephi dialect loses the direction of an undirected graph without edges (no row carries a Type cell). Save: [csv](./formats/csv.md).
-- `W_CSV_EDGE_COLUMNS`: An adjacency table holds no edge column but the weight: edge ids, labels and attributes are not written. Save: [csv](./formats/csv.md).
-- `W_CSV_ISOLATED_NODES`: The edge table carries no node without an edge: isolated nodes vanish on re-import. Save: [csv](./formats/csv.md).
-- `W_CSV_NODE_ORDER`: The edge table lists nodes by first appearance; the node order (and indices) change on re-import. Save: [csv](./formats/csv.md).
-- `W_CSV_NODE_TABLE`: Node attributes are written by a `table: "nodes"` export only. Save: [csv](./formats/csv.md).
-- `W_CSV_NONFINITE`: NaN / Infinity in a numeric column read back as text. Save: [csv](./formats/csv.md).
-- `W_CSV_NO_DATA_ROWS`: A header and no data rows. Import: [csv](./formats/csv.md).
-- `W_CSV_PADDED_ID`: An unquoted id with leading or trailing whitespace, kept as written (once per import). Import: [csv](./formats/csv.md).
-- `W_CSV_RESERVED_NAME`: An attribute column named like a reserved header is not written. Save: [csv](./formats/csv.md).
-- `W_CSV_ROLE_NAME`: A role column (id, label) whose name the importer does not recognize; the role is lost. Save: [csv](./formats/csv.md).
-- `W_CSV_SINGLE_COLUMN`: Every row is one cell another delimiter would split (a likely wrong delimiter option). Import: [csv](./formats/csv.md).
-- `W_CSV_STRAY_QUOTE`: A quote inside an unquoted field, kept as text (once per import). Import: [csv](./formats/csv.md).
-- `W_CSV_TEXT_ROLE`: A role column (id, label) that is not string / dict reads back as string. Save: [csv](./formats/csv.md).
-- `W_CSV_TRAILING_DELIMITER`: Data rows end in one extra empty cell (a trailing delimiter); dropped (once per import). Import: [csv](./formats/csv.md).
-- `W_CSV_TRAILING_HEADER_DELIMITER`: The header ends in a delimiter; rows without the empty last cell are complete. Import: [csv](./formats/csv.md).
-- `W_CSV_TYPE_COLUMN_IGNORED`: A column named like Type holds direction words but is a plain attribute (once per import). Import: [csv](./formats/csv.md).
-- `W_CSV_WEIGHT_AS_ATTRIBUTE`: A headerless three-column table's text third column is an attribute, not the weight (once per import). Import: [csv](./formats/csv.md).
-- `W_CX2_ALIAS_BYPASSED`: A full attribute name used where its alias is declared; read as the same attribute. Import: [cx2](./formats/cx2.md).
-- `W_CX2_EXTRA_ELEMENTS`: An aspect that holds one element holds several; the first is read. Import: [cx2](./formats/cx2.md).
-- `W_CX2_JSON_AS_STRING`: A nested (json) column is written as a string attribute holding its JSON text. Save: [cx2](./formats/cx2.md).
-- `W_CX2_LEGACY_LAYOUT`: A CX1 cartesianLayout aspect next to node coordinates; kept, not applied. Import: [cx2](./formats/cx2.md).
-- `W_CX2_MINOR_VERSION`: CXVersion is a 2.x other than "2.0" (or not a string); the document is read. Import: [cx2](./formats/cx2.md).
-- `W_CX2_NETWORK_DECLARATION`: A network attribute declaration with an alias or a default, which CX2 forbids; both ignored. Import: [cx2](./formats/cx2.md).
-- `W_CX2_NONFINITE_AS_NULL`: NaN and the infinities cannot be written; they are written as null and read back unset. Save: [cx2](./formats/cx2.md).
-- `W_CX2_PARTIAL_LAYOUT`: Some nodes have coordinates and others none, or a node has x without y. Import: [cx2](./formats/cx2.md).
-- `W_CX2_RESERVED_KEY`: A node or edge attribute named `id`, which the specification reserves. Import: [cx2](./formats/cx2.md).
-- `W_CX2_UNDECLARED_ATTRIBUTE`: An attribute value whose name no declaration covers; its column is inferred. Import: [cx2](./formats/cx2.md).
-- `W_CX2_UNDECLARED_FRAGMENTS`: An aspect appears in several blocks although the descriptor does not declare fragments. Import: [cx2](./formats/cx2.md).
-- `W_CX2_UNDIRECTED_AS_DIRECTED`: Every edge is written directed: an undirected snapshot, or the undirected pairs of a mixed one. Save: [cx2](./formats/cx2.md).
-- `W_CX_GROUP_NODE_ADDED`: A cyGroups group whose id is not a node: the group node is added. Import: [cx](./formats/cx.md).
-- `W_CX_JSON_AS_STRING`: A nested (json) column is written as a string attribute holding its JSON text. Save: [cx](./formats/cx.md).
-- `W_CX_NUMBER_VERIFICATION`: numberVerification holds another value than 2^48 - 1, or comes twice. Import: [cx](./formats/cx.md).
-- `W_CX_OLD_ASPECT_NAME`: An old Cytoscape aspect name (visualProperties, subNetworks, ...) read under its cy name. Import: [cx](./formats/cx.md).
-- `W_CX_ROOT_ONLY`: Nodes or edges of the root network that no subnetwork holds: Cytoscape shows them in no network; not read. Import: [cx](./formats/cx.md).
-- `W_CX_UNDIRECTED_AS_DIRECTED`: Every edge is written directed: an undirected snapshot, or the undirected pairs of a mixed one. Save: [cx](./formats/cx.md).
-- `W_CYS_COLLAPSED_GROUP`: A collapsed group's members are not in the network; they are recorded in meta.extra. Import: [cys](./formats/cys.md).
-- `W_CYS_DUPLICATE_ENTRY`: Two entries with one name; the first is read. Import: [cys](./formats/cys.md).
-- `W_CYS_ENTRY_SKIPPED`: Entries the importer does not read (apps, global tables, properties, images, thumbnails). Import: [cys](./formats/cys.md).
-- `W_CYS_JSON_AS_STRING`: A nested (json) column is written as a text column holding its JSON text. Save: [cys](./formats/cys.md).
-- `W_CYS_LIST_ITEMS`: List cells CyCSV cannot hold exactly: an unset or empty list of text reads back as [""], an empty list of numbers or booleans reads back unset, trailing empty text items vanish, and an item holding a newline splits in two. Save: [cys](./formats/cys.md).
-- `W_CYS_POSITION`: A position that cannot be written as it is: another shape, a non-finite coordinate, a z read back in the z column. Save: [cys](./formats/cys.md).
-- `W_CYS_SESSION_RECORD`: A cysession.xml network record without an id, or naming a file an earlier record names. Import: [cys](./formats/cys.md).
-- `W_CYS_TABLE_ROW`: Table rows with too few or too many cells, a repeated key, or a key matching no element. Import: [cys](./formats/cys.md).
-- `W_CYS_TEXT_AS_EQUATION`: A text cell starting with "=" is a formula to Cytoscape (an error cell there); graph-io reads it back as text. Save: [cys](./formats/cys.md).
-- `W_CYS_UNSET_AS_EMPTY_STRING`: CyCSV has no unset text cell: an unset cell of a text column reads back as "". Save: [cys](./formats/cys.md).
-- `W_DANGLING_REFERENCE`: A reference that is not a containment link (an attribute's element id, a layout or bypass entry, a subnetwork member, a view's network, an undeclared target) names nothing; reported once per kind with the count. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_DECLARED_TYPE`: A declared type the target version lacks (1.2: date, dateTime, typed lists...); the canonical type is written. Save: [gexf](./formats/gexf.md).
-- `W_DEFAULT_DROPPED`: A declared default: CX has none. Save: [cx](./formats/cx.md), [obo](./formats/obo.md).
-- `W_DIRECTION_DROPPED`: The file carries no direction (or only directed edges); the snapshot's undirected edges read back directed, or the whole graph with the reader's default. Save: [json](./formats/json.md).
-- `W_DIRECTION_FORCED`: Edges of the other direction were forced to the policy's direction. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `W_DIRECTION_REFUSED`: The sink refused the file's direction (locked or non-empty); the file is read as the sink's. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `W_DOT_ATTRIBUTE_CLASH`: A plain column named like an attribute the exporter writes for a role (weight, key, pos) is not written. Save: [dot](./formats/dot.md).
-- `W_DOT_BAD_POS`: A node `pos` that is not a point, or one beyond the f32 range of the position column; the value was dropped. Import: [dot](./formats/dot.md).
-- `W_DOT_CLUSTER_CONFLICT`: A node mentioned in two unrelated clusters keeps the first. Import: [dot](./formats/dot.md).
-- `W_DOT_CLUSTER_MARKED`: A parent that is a plain node is written as a node and a cluster of one name; it reads back marked as a cluster. Save: [dot](./formats/dot.md).
-- `W_DOT_CLUSTER_NODE_MERGED`: A plain node and a cluster share a name and were merged into one container node. Import: [dot](./formats/dot.md).
-- `W_DOT_COMPASS_POINT`: The second part of a port (`a:p:zz`) is not a compass point; kept as written, as Graphviz warns. Import: [dot](./formats/dot.md).
-- `W_DOT_EDGE_OPERATOR`: An edge operator contradicting the graph keyword (warning under "operator" / "header"). Import: [dot](./formats/dot.md).
-- `W_DOT_KEY_MERGED`: An edge merged into an earlier one with the same endpoints and `key`. Import: [dot](./formats/dot.md).
-- `W_DOT_LATE_CHARSET`: A `charset` attribute beyond the head the decoder reads it from; the input was decoded without it. Import: [dot](./formats/dot.md).
-- `W_DOT_NODE_PORT_DROPPED`: A port on a node statement has no meaning and was dropped. Import: [dot](./formats/dot.md).
-- `W_DOT_NON_FINITE`: A non-finite f32 / f64 cell has no numeric DOT spelling and reads back as text. Save: [dot](./formats/dot.md).
-- `W_DOT_NUMERAL_AMBIGUITY`: A badly delimited numeral (`1e3`) split into two tokens, as Graphviz does with a warning. Import: [dot](./formats/dot.md).
-- `W_DOT_POSITION_SHAPE`: A position column that is not a node column of 2 or 3 components is not written. Save: [dot](./formats/dot.md).
-- `W_DOT_POS_DIMS`: Node `pos` values mix two and three coordinates; the position column records the first's. Import: [dot](./formats/dot.md).
-- `W_DOT_STRICT_MERGED`: A parallel edge merged into an earlier one under `strict`. Import: [dot](./formats/dot.md).
-- `W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED`: Attributes of a subgraph that is not a cluster (rank=same and the like) cannot be represented. Import: [dot](./formats/dot.md).
-- `W_DTYPE_UNSUPPORTED`: obographs: a vocabulary column of the other text dtype reads back as the vocabulary's. Save: [json](./formats/json.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_DUPLICATE_ATTRIBUTE`: The same attribute twice on one element; one value is kept (the later, unless the format's specification says the first). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_DUPLICATE_NODE`: A node id declared twice; the second declaration merges into the first. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_EDGES_MERGED`: The freeze merged parallel edges under a merging `duplicateEdges` policy: each group keeps one edge, so the attributes (an OBO relation, a label) of the others are lost. Recorded once by importGraph() with the count from the freeze report.
-- `W_EDGE_IDS_DROPPED`: node-link / d3 have no edge id slot; the id column is written as a plain attribute. Save: [json](./formats/json.md), [obo](./formats/obo.md).
-- `W_EDGE_IDS_GENERATED`: Edges without a usable id get generated integer ids. Save: [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `W_EDGE_ID_STRINGIFIED`: Edge ids of mixed JSON types were stored as text. Import: [json](./formats/json.md).
-- `W_EMPTY_COLUMN_DROPPED`: A declared column whose every row is unset is not written by a format without declarations. Import: [json](./formats/json.md). Save: [json](./formats/json.md), [dot](./formats/dot.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_ENCODING_CONFLICT`: A byte order mark, the `encoding` option and the encoding the file declares disagree, or the file declares UTF-16 over bytes that are not UTF-16; the message names which one applied (a BOM wins over the option and the declaration, the option over the declaration). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_ENCODING_FALLBACK`: Bytes that are not valid UTF-8 (and declare no other encoding) were read as windows-1252. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_EQUATION_AS_TEXT`: A formula (Cytoscape's `=ABS($x)`) is kept as its text; it is never evaluated. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_EXTENSION_TABLE_DROPPED`: An extension table other than the `cx:citations` / `cx:supports` tables a CX import creates. Save: [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_GEXF_ATTRIBUTE_TYPE`: An attribute type the importer maps to string. Import: [gexf](./formats/gexf.md).
-- `W_GEXF_ATTVALUE_SHAPE`: An `<attvalue>` without a value. Import: [gexf](./formats/gexf.md).
-- `W_GEXF_EDGE_ID_TEXT`: A numeric edge id column: GEXF edge ids read back as strings. Save: [gexf](./formats/gexf.md).
-- `W_GEXF_HEADER_VALUE`: A `<graph>` header attribute with an unknown value. Import: [gexf](./formats/gexf.md).
-- `W_GEXF_KIND_DROPPED`: GEXF 1.2 has no parallel-edge `kind`; the kind column is dropped. Save: [gexf](./formats/gexf.md).
-- `W_GEXF_OPEN_BOUND_CONFLICT`: Both `start` and `startopen` (or `end` and `endopen`) on one element. Import: [gexf](./formats/gexf.md).
-- `W_GEXF_SPELL_OPEN_DROPPED`: Deprecated and no longer recorded: open spells are kept in the spells.open column. Import: [gexf](./formats/gexf.md).
-- `W_GEXF_TIMED_VALUE_ON_STATIC`: A timed value on an attribute of a static group. Import: [gexf](./formats/gexf.md).
-- `W_GEXF_TIMESTAMP_CONFLICT`: Both `timestamp` and `start` / `end` on one element or value. Import: [gexf](./formats/gexf.md).
-- `W_GEXF_UNKNOWN_ATTRIBUTE`: An `<attvalue for>` naming an undeclared attribute. Import: [gexf](./formats/gexf.md).
-- `W_GEXF_VALUE_OUTSIDE_OPTIONS`: A value outside the declared `<options>` (kept). Import: [gexf](./formats/gexf.md).
-- `W_GEXF_VIZ_DTYPE`: A viz role column (position, color, size, thickness) that is not f32; the importer reads viz values as f32. Save: [gexf](./formats/gexf.md).
-- `W_GEXF_VIZ_DYNAMIC_DROPPED`: A 1.2 dynamic viz element whose bounds were dropped. Import: [gexf](./formats/gexf.md).
-- `W_GEXF_VIZ_SKIPPED`: viz elements skipped under viz: false. Import: [gexf](./formats/gexf.md).
-- `W_GEXF_VIZ_VALUE`: A viz value that could not be read. Import: [gexf](./formats/gexf.md).
-- `W_GEXF_WEIGHT_IGNORED`: The XML weight attribute ignored under weightFrom null. Import: [gexf](./formats/gexf.md).
-- `W_GML_FLAG_VALUE`: A `directed` / `multigraph` flag outside 0 / 1, or repeated. Import: [gml](./formats/gml.md).
-- `W_GML_GRAPHICS`: A node's graphics value that cannot give a position as written; kept in the graphics json column. Import: [gml](./formats/gml.md).
-- `W_GML_GRAPHICS_OVERRIDDEN`: A graphics record whose x / y / z the position column overrides. Save: [gml](./formats/gml.md).
-- `W_GML_GROUPS`: yEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment. Import: [gml](./formats/gml.md).
-- `W_GML_ID_DROPPED`: Under nodeIdFrom "label" / "index" the integer ids are not kept (a loss note). Import: [gml](./formats/gml.md).
-- `W_GML_JSON_ARRAY`: A json row that is an array, written as repeated keys. Save: [gml](./formats/gml.md).
-- `W_GML_KEY_MANGLED`: A key rewritten under sanitizeKeys "mangle". Save: [gml](./formats/gml.md).
-- `W_GML_NESTED_ELEMENT`: A graph, node or edge record nested in a node or edge; kept as json, not read as structure. Import: [gml](./formats/gml.md).
-- `W_GML_POSITION_COMPONENTS`: A position column with more than three components. Save: [gml](./formats/gml.md).
-- `W_GML_RECORD_BOOLEAN`: A json column holds booleans, written 1 / 0. Save: [gml](./formats/gml.md).
-- `W_GML_RECORD_NULL`: A json column holds nulls, omitted. Save: [gml](./formats/gml.md).
-- `W_GML_RECORD_NUMBER_TYPE`: A json column holds numbers; GML records cannot keep int versus real. Save: [gml](./formats/gml.md).
-- `W_GML_STRING_ID`: String node ids, sources or targets (outside the spec's integers), kept under the ids rule; warned once. Import: [gml](./formats/gml.md).
-- `W_GML_UNKNOWN_ENTITY`: A named entity no table decodes, or a numeric reference beyond U+10FFFF; kept as written. Import: [gml](./formats/gml.md).
-- `W_GRAPHML_DESC_DROPPED`: A `<desc>` of a node, an edge or a hyperedge. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_EDGEDEFAULT_MISSING`: A `<graph>` without edgedefault; the `defaultDirected` option applies. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_EDGE_GRAPH_DROPPED`: A `<graph>` inside an `<edge>` (legal GraphML): it and the nodes and edges it holds are dropped. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_EDGE_ID_TEXT`: A numeric edge id column reads back as string. Save: [graphml](./formats/graphml.md).
-- `W_GRAPHML_GRAPH_ENDPOINT`: An edge endpoint that names a nested `<graph>`, not a node; a node of that id is created. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_HIERARCHY_REORDERED`: Containment order differs from index order; node indices change after a round trip. Save: [graphml](./formats/graphml.md).
-- `W_GRAPHML_HUB_ID_CLASH`: A `<node>` whose id is that of a hub `hyperedges: "star"` created; the node is merged into the hub. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_HYPEREDGE_DATA_DROPPED`: Data of a hyperedge expanded to a star or clique. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_HYPEREDGE_SKIPPED`: Hyperedges skipped under `hyperedges: "skip"`. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_KEY_DECLARED_LATE`: A `<key>` declared after `<data>` that used it; those values were already reported and dropped. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_KEY_DOMAIN`: A `<data>` whose key is declared for another domain. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_KEY_DOMAIN_UNSUPPORTED`: A key declared for hyperedges, ports or endpoints (never used). Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_LOCATOR_DROPPED`: A `<locator>` element. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_NAMESPACE`: The `<graphml>` root is in a namespace other than GraphML's; it is read as GraphML. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_NESTED_GRAPH_DATA`: Data of a nested `<graph>`; only the top-level graph has attributes. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_ORIGINAL_ID_IGNORED`: A `graphty:originalId` value that is not text, or arrives after the node was added (after its nested graph). Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_PARENT_CYCLE`: Nodes whose parent chain never reaches a root are written at the top level. Save: [graphml](./formats/graphml.md).
-- `W_GRAPHML_PARSE_HINT_IGNORED`: A GraphML `parse.*` hint on `<graph>`, `<node>` or `<edge>` the importer does not act on (parse.nodeids, parse.order, ...). Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_PORT_DECLARATION`: `<port>` declarations (and their data) are not kept; sourceport / targetport edge attributes are. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_YFILES_GRAPHICS_STALE`: A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. Save: [graphml](./formats/graphml.md).
-- `W_GRAPHML_YFILES_JSON`: yFiles nested XML kept as a JSON tree: structure preserved, not byte-exact. Save: [graphml](./formats/graphml.md).
-- `W_GRAPHML_YFILES_SKIPPED`: A yFiles key under `yfiles: "skip"`. Import: [graphml](./formats/graphml.md).
-- `W_GRAPHML_YFILES_VALUE`: A yFiles graphics value (a geometry coordinate, a width) that is not a number; it is not mapped. Import: [graphml](./formats/graphml.md).
-- `W_GRAPH_COLUMN_AS_METADATA`: A graph column is written into the file's metadata and reads back in `meta.extra`, not as a column. Save: [json](./formats/json.md), [obo](./formats/obo.md).
-- `W_HIERARCHY_DROPPED`: A parent / parents column: CX2 has no containment. Save: [cx2](./formats/cx2.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_HYPEREDGES_SKIPPED`: JGF hyperedges skipped under the default "skip" policy. Import: [json](./formats/json.md).
-- `W_ID_MANGLED`: Node ids that are not integers under sanitizeIds "mangle": renumbered, originals kept. Save: [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_ID_MERGED`: Two distinct id texts became one number under ids "number". Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_ID_TEXT_TYPE`: Node ids whose written text reads back as the other type under the importer's id rule. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md). Save: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_INTEGRAL_F64_AS_I32`: An f64 column whose set values are all integral reads back as i32 through an untyped format. Save: [json](./formats/json.md).
-- `W_ISSUES_SUPPRESSED`: More warnings of one code than a report keeps: the first ones are kept and this one warning (the suppressed code as its element) counts the rest. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_JSON_BIG_INTEGER`: Integer literals beyond 2^53 were read as their exact digits (strings), not as rounded numbers. Import: [json](./formats/json.md).
-- `W_JSON_INCONSISTENT`: The document contradicts itself: a declared option its edges break (multigraph false with parallel links, graphology's options), a record whose section disagrees with its shape, a JGF inner id other than its key, the two listings of one adjacency edge. Import: [json](./formats/json.md).
-- `W_JSON_INDEX_LINKS`: indexLinks "auto" read integer endpoints as array positions although they also name node ids. Import: [json](./formats/json.md).
-- `W_JSON_NONSTANDARD_NUMBER`: The document uses the bare tokens NaN, Infinity or -Infinity (Python's json writes them), which strict JSON does not allow; read as the numbers. Import: [json](./formats/json.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `W_JSON_OBOGRAPHS_SUBJ`: obographs: an edge uses the outdated `subj` key of the OBO Graphs README; it is read as `sub`. Import: [json](./formats/json.md).
-- `W_JSON_UNREAD_KEY`: A node-link / d3 top-level key the importer does not read (the other of edges / links, an unknown key); it is dropped. Import: [json](./formats/json.md).
-- `W_LIST_SEPARATOR`: GEXF 1.2 liststring items are separated by `\|`; an item containing one cannot be split back. Save: [gexf](./formats/gexf.md).
-- `W_MIXED_DIRECTION`: Undirected edges of a directed snapshot under onMixedDirection "directed" / "undirected". Save: [obo](./formats/obo.md).
-- `W_MULTIPLE_GRAPHS`: A second graph in one document is merged into the first. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `W_MULTI_ASPECT_FRAGMENT`: A CX array member holding several aspects (`{"nodes": [...], "edges": [...]}`); each array-valued key is read as its own fragment. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `W_MUTUAL_AS_UNDIRECTED`: A mutual pair is written as one undirected edge; the pair reads back undirected, the mark is lost. Save: [graphml](./formats/graphml.md), [pajek](./formats/pajek.md).
-- `W_MUTUAL_EXPANDED`: A mutual pair is written as two directed edges without the mutual mark. Save: [json](./formats/json.md), [csv](./formats/csv.md), [dot](./formats/dot.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_NEO4J_ARRAY_DELIMITER`: A list item containing the array delimiter, which Neo4j cannot escape. Save: [neo4j](./formats/neo4j.md).
-- `W_NEO4J_DECLARED_TYPE_CHANGED`: An integer-typed column with non-integral values written as double. Save: [neo4j](./formats/neo4j.md).
-- `W_NEO4J_HEADER_OPTION_IGNORED`: A header brace option the importer does not apply. Import: [neo4j](./formats/neo4j.md).
-- `W_NEO4J_IGNORED_COLUMNS`: `:IGNORE` columns skipped on import. Save: [neo4j](./formats/neo4j.md).
-- `W_NEO4J_MISSING_TYPE`: A relationship with an empty :TYPE cell (neo4j-admin requires one); kept without a type. Import: [neo4j](./formats/neo4j.md).
-- `W_NEO4J_MULTIPLE_ID_PROPERTIES`: Several stored-id properties; one becomes the `:ID` column. Save: [neo4j](./formats/neo4j.md).
-- `W_NEO4J_SECTION_KIND`: A file under the nodes option holds a relationship header, or the reverse; read by its header. Import: [neo4j](./formats/neo4j.md).
-- `W_NEO4J_UNDIRECTED_AS_DIRECTED`: Undirected edges (an undirected snapshot, the folded pairs of a mixed one) written as directed relationships. Save: [neo4j](./formats/neo4j.md).
-- `W_NODE_ORDER`: The nodes read back in another order than the snapshot's. Save: [json](./formats/json.md), [obo](./formats/obo.md).
-- `W_NONFINITE_AS_NULL`: NaN and the infinities cannot be written; they are written as null and read back unset. Save: [json](./formats/json.md), [cx](./formats/cx.md).
-- `W_NUMERIC_IDS_STRINGIFIED`: JGF keys its nodes by string; numeric ids re-import as text unless ids: "canonical". Save: [json](./formats/json.md).
-- `W_OBOGRAPHS_DATATYPE_DROPPED`: obographs: a property_value's xsd datatype has no place in basicPropertyValues and reads back unset. Save: [json](./formats/json.md).
-- `W_OBOGRAPHS_EDGE_COLUMN_AS_META`: obographs: an edge column (or the explicit weights) is written into each edge's meta and reads back inside the meta column. Save: [json](./formats/json.md).
-- `W_OBOGRAPHS_ID_CHANGED`: obographs: a node id or relation is written as an IRI the importer's default oboIds "curie" reads back as another id. Save: [json](./formats/json.md).
-- `W_OBO_CARDINALITY`: Fewer than two `intersection_of` or `union_of` clauses on a frame. Import: [obo](./formats/obo.md).
-- `W_OBO_DEPRECATED_SYNTAX`: A backslash line continuation (deprecated in 1.4). Import: [obo](./formats/obo.md).
-- `W_OBO_DEPRECATED_TAG`: An OBO 1.0 / 1.2 tag read as its 1.4 meaning (exact_synonym, xref_analog, use_term, typeref, version). Import: [obo](./formats/obo.md).
-- `W_OBO_DUPLICATE_CLAUSE`: Two identical clauses on one frame (parallel edges with one relation and the same qualifiers, a repeated list item) read back as one. Save: [obo](./formats/obo.md).
-- `W_OBO_EDGE_COLUMN_AS_QUALIFIER`: An edge column (or the explicit weights) reads back inside the `qualifiers` column. Save: [obo](./formats/obo.md).
-- `W_OBO_EDGE_ORDER`: Edges are written on their source's frame, so a re-import lists them grouped by source, in node order. Save: [obo](./formats/obo.md).
-- `W_OBO_FORMAT_VERSION`: The header has no format-version (required by 1.2 and 1.4), or one that is not 1.0, 1.2 or 1.4; the file is read as the union. Import: [obo](./formats/obo.md).
-- `W_OBO_HEADER_NOT_APPLIED`: A header clause kept in `meta.extra.obo.header` whose meaning is not applied (import, id-mapping, the treat-xrefs macros, owl-axioms). Import: [obo](./formats/obo.md).
-- `W_OBO_ID_KIND_CLASH`: One id for a Term and a Typedef (or an Instance); the Term (the first node frame) is the node. Import: [obo](./formats/obo.md).
-- `W_OBO_ID_NOT_FIRST`: The frame's `id` is not its first clause; it is used anyway. Import: [obo](./formats/obo.md).
-- `W_OBO_LINE_END`: A carriage return or form feed in a text cannot be written; it is written as a line feed. Save: [obo](./formats/obo.md).
-- `W_OBO_OBSOLETE_DROPPED`: Obsolete terms and their edges left out under obsolete: "drop". Import: [obo](./formats/obo.md).
-- `W_OBO_OBSOLETION`: An obsolete term with is_a / relationship, or replaced_by / consider on a term that is not obsolete. Import: [obo](./formats/obo.md).
-- `W_OBO_ONTOLOGY_NAME`: The graph name is not an ontology id; the header `ontology` is written with `_` in place of the other characters. Save: [obo](./formats/obo.md).
-- `W_OBO_RELATION_RENAMED`: A relation that is not an OBO id (empty, or holding a space, `!`, `{` or `}`) is written with `_` in place of those characters. Save: [obo](./formats/obo.md).
-- `W_OBO_SYNONYM_SCOPE`: A synonym without a scope in a file that does not say 1.2, or with a scope that is not one of the four. Import: [obo](./formats/obo.md).
-- `W_OBO_SYNTAX`: A line without a colon, an unterminated quote, a def without its xref list, a qualifier block that does not parse, an unescaped brace. Import: [obo](./formats/obo.md).
-- `W_OBO_UNDECLARED`: A relation, subset or synonym type that nothing declares. Import: [obo](./formats/obo.md).
-- `W_OBO_UNDIRECTED_AS_DIRECTED`: Every edge is written from its source to its target: an undirected snapshot reads back directed. Save: [obo](./formats/obo.md).
-- `W_OPTIONS_DROPPED`: Declared options: CX has no enumerations. Save: [cx](./formats/cx.md), [obo](./formats/obo.md).
-- `W_OPTIONS_GAINED`: A dict column without declared options gains one from its dictionary on re-import. Save: [gexf](./formats/gexf.md).
-- `W_OPTION_IGNORED`: A common option the format has no use for (or cannot honor) was given a non-default value. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_PAJEK_COORD_DIMS`: Vertex lines mix two and three coordinates. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_FIRST_MODE_DROPPED`: meta.extra.pajek.firstMode is not a count within 0..N; the two-mode header is not written. Save: [pajek](./formats/pajek.md).
-- `W_PAJEK_HEADER_EXTRA`: Tokens after a section header the grammar does not account for. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_KEY_DROPPED`: A column whose name cannot be a parameter key (whitespace, a quote, numeric, a shape keyword); skipped. Save: [pajek](./formats/pajek.md).
-- `W_PAJEK_LABEL_AS_TEXT`: A label role column that is not text; its values are written as text and re-import as string. Save: [pajek](./formats/pajek.md).
-- `W_PAJEK_LABEL_GAINED`: A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label. Save: [pajek](./formats/pajek.md).
-- `W_PAJEK_LABEL_MERGED`: Two vertices share a label under nodeIdFrom "label" and became one node. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_MATRIX_EXTRA`: `*Matrix` rows longer than the column count; the extra values are ignored. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_NEGATIVE_LIST_ENTRY`: A negative vertex number in an adjacency list, read as its absolute value. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_NONFINITE_AS_TEXT`: A non-finite f64 value; written as Infinity / NaN text, which re-imports as string. Save: [pajek](./formats/pajek.md).
-- `W_PAJEK_NO_LINES`: The file declares vertices but no line section. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_NUMERIC_LABEL`: A bare non-integer number read as a vertex label before two coordinates (`1 0.1 0.2 0.3`); it may be an x y z line without a label. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_ORIGINAL_ID_MERGED`: Two vertices carry the same `graphty_originalId` under restoreMangledIds and became one node. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_ORIGINAL_ID_UNRESTORED`: A vertex line's `graphty_originalId` came after a later vertex's line had created it under its number. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_POSITION_STRIDE`: A position column with a stride other than 2 or 3. Save: [pajek](./formats/pajek.md).
-- `W_PAJEK_QUOTE_IN_TOKEN`: A double quote inside a token (a CSV-style doubled quote, a quote mid-word): removed and the parts joined. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_REFERENCE_RANGE`: A character reference beyond U+10FFFF in a label; kept as written. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_RELATION_RENAMED`: A relation number given a second name by a later `*Arcs :k "name"` header. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_SHAPE_AS_PARAMETER`: A `shape` column with a value outside the shape keywords is written as a parameter (a string on re-import). Save: [pajek](./formats/pajek.md).
-- `W_PAJEK_TWO_MODE_LINE`: A line of a two-mode network whose endpoints are both in one mode. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_UNSUPPORTED_SECTION`: A project-file section (`*Events`, `*Permutation`, ...) the importer does not read; its lines are skipped. Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_VERTEX_COUNT`: Fewer vertex lines than `*Vertices` declares, which the Pajek manual allows (vertices without a line have no label). Import: [pajek](./formats/pajek.md).
-- `W_PAJEK_ZERO_BASED`: Vertex numbering starts at 0 rather than 1. Import: [pajek](./formats/pajek.md).
-- `W_PARENTS_DROPPED`: A parents (multi-parent) column in a format with single containment only. Save: [json](./formats/json.md), [graphml](./formats/graphml.md), [dot](./formats/dot.md), [xgmml](./formats/xgmml.md).
-- `W_POSITIONAL_NODES`: The nodes have no id key at all; array positions became the ids. Import: [json](./formats/json.md).
-- `W_POSITIONS_DROPPED`: A position column without a slot (every dialect but Cytoscape) is a plain array attribute; the role is lost. Save: [json](./formats/json.md), [obo](./formats/obo.md).
-- `W_POSITION_Z_DROPPED`: Cytoscape positions are 2D; non-zero z values are dropped. Save: [json](./formats/json.md).
-- `W_PRECISION`: A long value beyond 2^53 was stored as the nearest f64. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `W_RELATION_ASSUMED`: An ontology exporter writes an edge without a relation as `is_a` (or the relation the caller chose). Save: [json](./formats/json.md), [obo](./formats/obo.md).
-- `W_RESERVED_KEY`: A column named like a reserved key of the dialect (id, source, target, ...) is skipped. Save: [json](./formats/json.md).
-- `W_ROLE_ASSUMED`: A role-less column whose written name the importer maps to a role. Save: [json](./formats/json.md), [csv](./formats/csv.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_ROLE_DROPPED`: A role column the format has no slot for is written as a plain attribute (the role is lost). Save: [json](./formats/json.md), [graphml](./formats/graphml.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_ROLE_SHAPE`: A role column of a shape GEXF cannot map (a string `start`, a 2-component color); written as a plain attribute. Save: [gexf](./formats/gexf.md).
-- `W_ROLE_TAKEN`: A column's role was dropped because another column of the table already holds it. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_SINGLE_OBJECT_ASPECT`: A CX aspect, an array of elements, written as one object (`{"nodes": {"@id": 1}}`); read as one element. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `W_SINK_OPTION`: A builder-policy option the caller asked for that the sink does not honor. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_SNIFF_FAILED`: The issue code of a registered importer whose sniff() threw while the format was being chosen; that importer was treated as not recognizing the input (a defect in that importer).
-- `W_STATUS_WARNING`: The producer marked the document as successful but attached an error text. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `W_STORAGE_CLASS_CHANGED`: A string / dict column whose cardinality makes the importer read it back as the other storage class. Save: [csv](./formats/csv.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_STRAY_TEXT`: Text where the format allows only elements was ignored. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_STYLES_NOT_IMPORTED`: The file's style rules (defaults, mappings, dependencies, visual property aspects) are not applied to the snapshot; recorded once per import, the message names what was not applied. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `W_TEMPORAL_DROPPED`: A start / end / timestamp column in a format without temporal support. Save: [pajek](./formats/pajek.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_TEMPORAL_TABLE_SHAPE`: A temporal extension table without the element / start / end / value columns. Save: [gexf](./formats/gexf.md).
-- `W_TEMPORAL_TEXT_DROPPED`: A `<column>.text` companion the format cannot carry. Save: [xgmml](./formats/xgmml.md).
-- `W_TEXT_INFERRED`: A text cell that reads back as a number or boolean under the 5.1 grammar (its lexical form may change). Save: [csv](./formats/csv.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md).
-- `W_TIMESTAMP_AS_INTERVAL`: GEXF 1.2 has no timestamps; a timestamp becomes a closed interval [t, t]. Save: [gexf](./formats/gexf.md).
-- `W_TYPEDEF_NODES`: An ontology exporter writes Typedef (property) nodes; they read back as nodes only under the importer's `typedefs: "nodes"`. Save: [json](./formats/json.md), [obo](./formats/obo.md).
-- `W_UNKNOWN_ATTR_TYPE`: The declared type is not one the format defines; the column is kept as string. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `W_UNKNOWN_ELEMENT`: An element the format does not define at that place was skipped. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_UNKNOWN_ENCODING`: The file declares an encoding the platform's TextDecoder does not know; the declaration is ignored. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_UNKNOWN_XML_ATTRIBUTE`: An XML attribute the format does not define (or does not keep) on that element; it is not kept. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md).
-- `W_VALUE_UNWRITABLE`: A cell, default or option the declared type cannot express (skipped). Save: [gexf](./formats/gexf.md).
-- `W_VIZ_DROPPED`: Visual columns (color, size, shape, thickness roles): CX keeps style as visual properties, not roles. Save: [cx](./formats/cx.md), [obo](./formats/obo.md).
-- `W_WEIGHT_KEY_CLASH`: A plain column named like the importer's weight key reads back as THE weight. Save: [json](./formats/json.md), [gexf](./formats/gexf.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `W_WIDENED`: A column's dtype was widened because a later value did not fit: an i32 column meeting a value above 2^31, two declared types for one attribute. Import: [gml](./formats/gml.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
-- `W_WIDENING_UNSUPPORTED`: Issue code: the sink has no widening call, so a text column keeps the dtype its values imply. Import: [csv](./formats/csv.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md).
-- `W_XGMML_AMPERSAND_REPAIRED`: A bare `&` read as `&amp;` under repairBareAmpersands. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_BACKSLASH_ESCAPE`: Strings holding a literal backslash-n or backslash-t read back as newline / tab (Cytoscape's escapes). Save: [xgmml](./formats/xgmml.md).
-- `W_XGMML_BAD_ATT`: A malformed `<att>`: a list with a value, a scalar with child atts, an att with no name. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_BAD_DIRECTED`: A `directed` or `cy:directed` value other than 0 / 1. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_CROSS_FILE_REFERENCE`: A pointer into another file (`file.xgmml#id`); kept as text. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_DOCUMENT_VERSION`: A `documentVersion` that does not parse; the dialect is chosen from the content. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_EDGE_ID_TEXT`: An edge id column of another dtype written as text; it reads back as strings. Save: [xgmml](./formats/xgmml.md).
-- `W_XGMML_EDGE_NESTED_GRAPH`: A graph nested in an edge's att; there is no model for it. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_EMPTY_LIST_TYPE`: An empty list whose element type nothing states; a list of strings is assumed. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_GROUP_DUPLICATE_EDGE`: A meta-edge the 2.x writer repeats inside a group; the copy is dropped. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_ID_AND_HREF`: A node or edge with both an id and an `xlink:href`; it is read as the reference. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_ID_FROM_LABEL`: A node without an id; its label is used as the id. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_INTERACTION_FROM_LABEL`: Edge labels shaped `a (i) b` read back with an `interaction` column (Cytoscape's label alias). Save: [xgmml](./formats/xgmml.md).
-- `W_XGMML_JSON_AS_STRING`: A json or nested-list column written as a string att. Save: [xgmml](./formats/xgmml.md).
-- `W_XGMML_LABEL_ALIAS`: Endpoints resolved through Cytoscape's `"a (pp) b"` label aliases; interactions filled from labels. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_NO_NAMESPACE`: A root `<graph>` with neither the XGMML namespace nor an XGMML DOCTYPE. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_PARENT_CYCLE`: Nodes whose parent chain never reaches a root are written at the top level. Save: [xgmml](./formats/xgmml.md).
-- `W_XGMML_POSITION`: A position that cannot be written as it is: another shape, a non-finite coordinate, a z read back in the z column. Save: [xgmml](./formats/xgmml.md).
-- `W_XGMML_RECORD_LIST`: A record list, a list of lists, a 2.x map or foreign XML in an att, kept as json. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_ROOT_ONLY_ELEMENTS`: Elements of a session network declared outside every registered subnetwork. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_SURROGATE_PAIRED`: Two surrogate character references joined under pairSurrogateReferences. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
-- `W_XGMML_WIDENED_TYPE`: A dtype written as a wider Cytoscape type (f32 as Double, u32 above i32 as Long, u8 as Integer, dict as String). Save: [xgmml](./formats/xgmml.md).
+- <a id="W_ASPECT_ORDER"></a>`W_ASPECT_ORDER`: A CX aspect out of its place (after the post-metadata, a status that is not last, a block buffered for what it depends on). Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="W_ATTRIBUTE_RENAMED"></a>`W_ATTRIBUTE_RENAMED`: An attribute whose title the importer would rename on re-import (a reserved name). Save: [gexf](./formats/gexf.md).
+- <a id="W_BAD_DEFAULT"></a>`W_BAD_DEFAULT`: The declared default does not parse as the declared type; the column has no default. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [cx2](./formats/cx2.md).
+- <a id="W_BAD_FLAG"></a>`W_BAD_FLAG`: A graph-level flag (`directed`, `multigraph`, graphology `options`) has the wrong type; the default is used. Import: [json](./formats/json.md).
+- <a id="W_BAD_OPTIONS"></a>`W_BAD_OPTIONS`: A declared option does not parse as the declared type; the options are dropped. Import: [gexf](./formats/gexf.md).
+- <a id="W_COLUMN_AS_PROPERTY_VALUE"></a>`W_COLUMN_AS_PROPERTY_VALUE`: An ontology exporter (OBO, OBO Graphs) writes a node column outside its vocabulary as property values; it reads back inside the `property_value` column. Save: [json](./formats/json.md), [obo](./formats/obo.md).
+- <a id="W_COLUMN_DROPPED"></a>`W_COLUMN_DROPPED`: A node or edge attribute is not written, because the format has nowhere to put it. Save: any format.
+- <a id="W_COLUMN_NAME_CHANGED"></a>`W_COLUMN_NAME_CHANGED`: An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the name the format's importer gives it. Save: any format.
+- <a id="W_COLUMN_RENAMED"></a>`W_COLUMN_RENAMED`: An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_COMPONENTS_FLATTENED"></a>`W_COMPONENTS_FLATTENED`: A multi-component column in a format without strides. Save: any format.
+- <a id="W_CONTROL_CHARACTER"></a>`W_CONTROL_CHARACTER`: The text holds a control character (C0 other than TAB, LF, FF and CR; DEL; C1) or a stray U+FEFF that is kept in the id or value it is part of, or a trailing Ctrl-Z end-of-file marker that was ignored; recorded once per import. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_COUNT_HINT"></a>`W_COUNT_HINT`: A node or edge count the file announces is too large to reserve room for; it is ignored and the elements are read as they come. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md).
+- <a id="W_COUNT_MISMATCH"></a>`W_COUNT_MISMATCH`: A declared element count disagrees with what was read. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="W_CSV_AMBIGUOUS_COLUMN"></a>`W_CSV_AMBIGUOUS_COLUMN`: Several header columns name one role; the one not chosen is a plain attribute. Import: [csv](./formats/csv.md).
+- <a id="W_CSV_COLUMN_MISSING"></a>`W_CSV_COLUMN_MISSING`: An explicitly named weight column the file does not have. Import: [csv](./formats/csv.md).
+- <a id="W_CSV_COMMENT_DIRECTION"></a>`W_CSV_COMMENT_DIRECTION`: A leading comment's direction disagrees with defaultDirected or an earlier comment. Import: [csv](./formats/csv.md).
+- <a id="W_CSV_COMMENT_LIKE_RECORD"></a>`W_CSV_COMMENT_LIKE_RECORD`: A leading # / % line skipped as a comment has the fields of a record. Import: [csv](./formats/csv.md).
+- <a id="W_CSV_DIRECTION_DROPPED"></a>`W_CSV_DIRECTION_DROPPED`: The generic dialect has no direction column; an undirected or mixed graph reads back as directed. The Gephi dialect loses the direction of an undirected graph without edges (no row carries a Type cell). Save: [csv](./formats/csv.md).
+- <a id="W_CSV_EDGE_COLUMNS"></a>`W_CSV_EDGE_COLUMNS`: An adjacency table holds no edge column but the weight: edge ids, labels and attributes are not written. Save: [csv](./formats/csv.md).
+- <a id="W_CSV_ISOLATED_NODES"></a>`W_CSV_ISOLATED_NODES`: The edge table carries no node without an edge: isolated nodes vanish on re-import. Save: [csv](./formats/csv.md).
+- <a id="W_CSV_NODE_ORDER"></a>`W_CSV_NODE_ORDER`: The edge table lists nodes by first appearance; the node order (and indices) change on re-import. Save: [csv](./formats/csv.md).
+- <a id="W_CSV_NODE_TABLE"></a>`W_CSV_NODE_TABLE`: Node attributes are written by a `table: "nodes"` export only. Save: [csv](./formats/csv.md).
+- <a id="W_CSV_NONFINITE"></a>`W_CSV_NONFINITE`: NaN / Infinity in a numeric column read back as text. Save: [csv](./formats/csv.md).
+- <a id="W_CSV_NO_DATA_ROWS"></a>`W_CSV_NO_DATA_ROWS`: A header and no data rows. Import: [csv](./formats/csv.md).
+- <a id="W_CSV_PADDED_ID"></a>`W_CSV_PADDED_ID`: An unquoted id with leading or trailing whitespace, kept as written (once per import). Import: [csv](./formats/csv.md).
+- <a id="W_CSV_RESERVED_NAME"></a>`W_CSV_RESERVED_NAME`: An attribute column named like a reserved header is not written. Save: [csv](./formats/csv.md).
+- <a id="W_CSV_ROLE_NAME"></a>`W_CSV_ROLE_NAME`: A role column (id, label) whose name the importer does not recognize; the role is lost. Save: [csv](./formats/csv.md).
+- <a id="W_CSV_SINGLE_COLUMN"></a>`W_CSV_SINGLE_COLUMN`: Every row is one cell another delimiter would split (a likely wrong delimiter option). Import: [csv](./formats/csv.md).
+- <a id="W_CSV_STRAY_QUOTE"></a>`W_CSV_STRAY_QUOTE`: A quote inside an unquoted field, kept as text (once per import). Import: [csv](./formats/csv.md).
+- <a id="W_CSV_TEXT_ROLE"></a>`W_CSV_TEXT_ROLE`: An id or label attribute that is not text reads back as text. Save: [csv](./formats/csv.md).
+- <a id="W_CSV_TRAILING_DELIMITER"></a>`W_CSV_TRAILING_DELIMITER`: Data rows end in one extra empty cell (a trailing delimiter); dropped (once per import). Import: [csv](./formats/csv.md).
+- <a id="W_CSV_TRAILING_HEADER_DELIMITER"></a>`W_CSV_TRAILING_HEADER_DELIMITER`: The header ends in a delimiter; rows without the empty last cell are complete. Import: [csv](./formats/csv.md).
+- <a id="W_CSV_TYPE_COLUMN_IGNORED"></a>`W_CSV_TYPE_COLUMN_IGNORED`: A column named like Type holds direction words but is a plain attribute (once per import). Import: [csv](./formats/csv.md).
+- <a id="W_CSV_WEIGHT_AS_ATTRIBUTE"></a>`W_CSV_WEIGHT_AS_ATTRIBUTE`: A headerless three-column table's text third column is an attribute, not the weight (once per import). Import: [csv](./formats/csv.md).
+- <a id="W_CX2_ALIAS_BYPASSED"></a>`W_CX2_ALIAS_BYPASSED`: A full attribute name used where its alias is declared; read as the same attribute. Import: [cx2](./formats/cx2.md).
+- <a id="W_CX2_EXTRA_ELEMENTS"></a>`W_CX2_EXTRA_ELEMENTS`: An aspect that holds one element holds several; the first is read. Import: [cx2](./formats/cx2.md).
+- <a id="W_CX2_JSON_AS_STRING"></a>`W_CX2_JSON_AS_STRING`: A nested (json) column is written as a string attribute holding its JSON text. Save: [cx2](./formats/cx2.md).
+- <a id="W_CX2_LEGACY_LAYOUT"></a>`W_CX2_LEGACY_LAYOUT`: A CX1 cartesianLayout aspect next to node coordinates; kept, not applied. Import: [cx2](./formats/cx2.md).
+- <a id="W_CX2_MINOR_VERSION"></a>`W_CX2_MINOR_VERSION`: CXVersion is a 2.x other than "2.0" (or not a string); the document is read. Import: [cx2](./formats/cx2.md).
+- <a id="W_CX2_NETWORK_DECLARATION"></a>`W_CX2_NETWORK_DECLARATION`: A network attribute declaration with an alias or a default, which CX2 forbids; both ignored. Import: [cx2](./formats/cx2.md).
+- <a id="W_CX2_NONFINITE_AS_NULL"></a>`W_CX2_NONFINITE_AS_NULL`: NaN and the infinities cannot be written; they are written as null and read back unset. Save: [cx2](./formats/cx2.md).
+- <a id="W_CX2_PARTIAL_LAYOUT"></a>`W_CX2_PARTIAL_LAYOUT`: Some nodes have coordinates and others none, or a node has x without y. Import: [cx2](./formats/cx2.md).
+- <a id="W_CX2_RESERVED_KEY"></a>`W_CX2_RESERVED_KEY`: A node or edge attribute named `id`, which the specification reserves. Import: [cx2](./formats/cx2.md).
+- <a id="W_CX2_UNDECLARED_ATTRIBUTE"></a>`W_CX2_UNDECLARED_ATTRIBUTE`: An attribute value whose name no declaration covers; its column is inferred. Import: [cx2](./formats/cx2.md).
+- <a id="W_CX2_UNDECLARED_FRAGMENTS"></a>`W_CX2_UNDECLARED_FRAGMENTS`: An aspect appears in several blocks although the descriptor does not declare fragments. Import: [cx2](./formats/cx2.md).
+- <a id="W_CX2_UNDIRECTED_AS_DIRECTED"></a>`W_CX2_UNDIRECTED_AS_DIRECTED`: Every edge is written directed: an undirected snapshot, or the undirected pairs of a mixed one. Save: [cx2](./formats/cx2.md).
+- <a id="W_CX_GROUP_NODE_ADDED"></a>`W_CX_GROUP_NODE_ADDED`: A cyGroups group whose id is not a node: the group node is added. Import: [cx](./formats/cx.md).
+- <a id="W_CX_JSON_AS_STRING"></a>`W_CX_JSON_AS_STRING`: A nested (json) column is written as a string attribute holding its JSON text. Save: [cx](./formats/cx.md).
+- <a id="W_CX_NUMBER_VERIFICATION"></a>`W_CX_NUMBER_VERIFICATION`: numberVerification holds another value than 2^48 - 1, or comes twice. Import: [cx](./formats/cx.md).
+- <a id="W_CX_OLD_ASPECT_NAME"></a>`W_CX_OLD_ASPECT_NAME`: An old Cytoscape aspect name (visualProperties, subNetworks, ...) read under its cy name. Import: [cx](./formats/cx.md).
+- <a id="W_CX_ROOT_ONLY"></a>`W_CX_ROOT_ONLY`: Nodes or edges of the root network that no subnetwork holds: Cytoscape shows them in no network; not read. Import: [cx](./formats/cx.md).
+- <a id="W_CX_UNDIRECTED_AS_DIRECTED"></a>`W_CX_UNDIRECTED_AS_DIRECTED`: Every edge is written directed: an undirected snapshot, or the undirected pairs of a mixed one. Save: [cx](./formats/cx.md).
+- <a id="W_CYS_COLLAPSED_GROUP"></a>`W_CYS_COLLAPSED_GROUP`: A collapsed group's members are not in the network; they are recorded in meta.extra. Import: [cys](./formats/cys.md).
+- <a id="W_CYS_DUPLICATE_ENTRY"></a>`W_CYS_DUPLICATE_ENTRY`: Two entries with one name; the first is read. Import: [cys](./formats/cys.md).
+- <a id="W_CYS_ENTRY_SKIPPED"></a>`W_CYS_ENTRY_SKIPPED`: Entries the importer does not read (apps, global tables, properties, images, thumbnails). Import: [cys](./formats/cys.md).
+- <a id="W_CYS_JSON_AS_STRING"></a>`W_CYS_JSON_AS_STRING`: A nested (json) column is written as a text column holding its JSON text. Save: [cys](./formats/cys.md).
+- <a id="W_CYS_LIST_ITEMS"></a>`W_CYS_LIST_ITEMS`: List cells CyCSV cannot hold exactly: an unset or empty list of text reads back as [""], an empty list of numbers or booleans reads back unset, trailing empty text items vanish, and an item holding a newline splits in two. Save: [cys](./formats/cys.md).
+- <a id="W_CYS_POSITION"></a>`W_CYS_POSITION`: A position that cannot be written as it is: another shape, a non-finite coordinate, a z read back in the z column. Save: [cys](./formats/cys.md).
+- <a id="W_CYS_SESSION_RECORD"></a>`W_CYS_SESSION_RECORD`: A cysession.xml network record without an id, or naming a file an earlier record names. Import: [cys](./formats/cys.md).
+- <a id="W_CYS_TABLE_ROW"></a>`W_CYS_TABLE_ROW`: Table rows with too few or too many cells, a repeated key, or a key matching no element. Import: [cys](./formats/cys.md).
+- <a id="W_CYS_TEXT_AS_EQUATION"></a>`W_CYS_TEXT_AS_EQUATION`: A text cell starting with "=" is a formula to Cytoscape (an error cell there); graph-io reads it back as text. Save: [cys](./formats/cys.md).
+- <a id="W_CYS_UNSET_AS_EMPTY_STRING"></a>`W_CYS_UNSET_AS_EMPTY_STRING`: CyCSV has no unset text cell: an unset cell of a text column reads back as "". Save: [cys](./formats/cys.md).
+- <a id="W_DANGLING_REFERENCE"></a>`W_DANGLING_REFERENCE`: A reference that is not a containment link (an attribute's element id, a layout or bypass entry, a subnetwork member, a view's network, an undeclared target) names nothing; reported once per kind with the count. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_DECLARED_TYPE"></a>`W_DECLARED_TYPE`: A declared type the target version lacks (1.2: date, dateTime, typed lists...); the canonical type is written. Save: [gexf](./formats/gexf.md).
+- <a id="W_DEFAULT_DROPPED"></a>`W_DEFAULT_DROPPED`: A declared default in a format without defaults. Save: any format.
+- <a id="W_DIRECTION_DROPPED"></a>`W_DIRECTION_DROPPED`: The file cannot record direction: an undirected graph's edges read back as directed, or the whole graph reads back with the importer's default direction. Save: [json](./formats/json.md).
+- <a id="W_DIRECTION_FORCED"></a>`W_DIRECTION_FORCED`: Edges of the other direction were forced to the policy's direction. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="W_DIRECTION_REFUSED"></a>`W_DIRECTION_REFUSED`: You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="W_DOT_ATTRIBUTE_CLASH"></a>`W_DOT_ATTRIBUTE_CLASH`: A plain column named like an attribute the exporter writes for a role (weight, key, pos) is not written. Save: [dot](./formats/dot.md).
+- <a id="W_DOT_BAD_POS"></a>`W_DOT_BAD_POS`: A node's `pos` is not a point, or is too large for a 32-bit float position; the value was dropped. Import: [dot](./formats/dot.md).
+- <a id="W_DOT_CLUSTER_CONFLICT"></a>`W_DOT_CLUSTER_CONFLICT`: A node mentioned in two unrelated clusters keeps the first. Import: [dot](./formats/dot.md).
+- <a id="W_DOT_CLUSTER_MARKED"></a>`W_DOT_CLUSTER_MARKED`: A parent that is a plain node is written as a node and a cluster of one name; it reads back marked as a cluster. Save: [dot](./formats/dot.md).
+- <a id="W_DOT_CLUSTER_NODE_MERGED"></a>`W_DOT_CLUSTER_NODE_MERGED`: A plain node and a cluster share a name and were merged into one container node. Import: [dot](./formats/dot.md).
+- <a id="W_DOT_COMPASS_POINT"></a>`W_DOT_COMPASS_POINT`: The second part of a port (`a:p:zz`) is not a compass point; kept as written, as Graphviz warns. Import: [dot](./formats/dot.md).
+- <a id="W_DOT_EDGE_OPERATOR"></a>`W_DOT_EDGE_OPERATOR`: An edge operator contradicting the graph keyword (warning under "operator" / "header"). Import: [dot](./formats/dot.md).
+- <a id="W_DOT_KEY_MERGED"></a>`W_DOT_KEY_MERGED`: An edge merged into an earlier one with the same endpoints and `key`. Import: [dot](./formats/dot.md).
+- <a id="W_DOT_LATE_CHARSET"></a>`W_DOT_LATE_CHARSET`: A `charset` attribute beyond the head the decoder reads it from; the input was decoded without it. Import: [dot](./formats/dot.md).
+- <a id="W_DOT_NODE_PORT_DROPPED"></a>`W_DOT_NODE_PORT_DROPPED`: A port on a node statement has no meaning and was dropped. Import: [dot](./formats/dot.md).
+- <a id="W_DOT_NON_FINITE"></a>`W_DOT_NON_FINITE`: NaN or an infinity has no DOT number spelling; it is written as text and reads back as text. Save: [dot](./formats/dot.md).
+- <a id="W_DOT_NUMERAL_AMBIGUITY"></a>`W_DOT_NUMERAL_AMBIGUITY`: A badly delimited numeral (`1e3`) split into two tokens, as Graphviz does with a warning. Import: [dot](./formats/dot.md).
+- <a id="W_DOT_POSITION_SHAPE"></a>`W_DOT_POSITION_SHAPE`: A position column that is not a node column of 2 or 3 components is not written. Save: [dot](./formats/dot.md).
+- <a id="W_DOT_POS_DIMS"></a>`W_DOT_POS_DIMS`: Node `pos` values mix two and three coordinates; the position column records the first's. Import: [dot](./formats/dot.md).
+- <a id="W_DOT_STRICT_MERGED"></a>`W_DOT_STRICT_MERGED`: A parallel edge merged into an earlier one under `strict`. Import: [dot](./formats/dot.md).
+- <a id="W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED"></a>`W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED`: Attributes of a subgraph that is not a cluster (rank=same and the like) cannot be represented. Import: [dot](./formats/dot.md).
+- <a id="W_DTYPE_UNSUPPORTED"></a>`W_DTYPE_UNSUPPORTED`: A column dtype the format does not keep as declared. Save: any format.
+- <a id="W_DUPLICATE_ATTRIBUTE"></a>`W_DUPLICATE_ATTRIBUTE`: The same attribute twice on one element; one value is kept (the later, unless the format's specification says the first). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_DUPLICATE_NODE"></a>`W_DUPLICATE_NODE`: A node id declared twice; the second declaration merges into the first. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_DYNAMIC_VALUES_DROPPED"></a>`W_DYNAMIC_VALUES_DROPPED`: Dynamic attribute values (extension tables) in a format without them. Save: any format.
+- <a id="W_EDGES_MERGED"></a>`W_EDGES_MERGED`: The `duplicateEdges` option merged parallel edges into one edge per pair, so whatever told them apart (an OBO relation, a label) is lost. Recorded once, with the number merged.
+- <a id="W_EDGE_IDS_DROPPED"></a>`W_EDGE_IDS_DROPPED`: The snapshot has an edge id column and the format cannot write one. Save: any format.
+- <a id="W_EDGE_IDS_GENERATED"></a>`W_EDGE_IDS_GENERATED`: The format requires edge ids and the snapshot has none; canonical e0..e{E-1} are generated. Save: any format.
+- <a id="W_EDGE_ID_STRINGIFIED"></a>`W_EDGE_ID_STRINGIFIED`: Edge ids of mixed JSON types were stored as text. Import: [json](./formats/json.md).
+- <a id="W_EMPTY_COLUMN_DROPPED"></a>`W_EMPTY_COLUMN_DROPPED`: A declared column whose every row is unset is not written by a format without declarations. Import: [json](./formats/json.md). Save: any format.
+- <a id="W_ENCODING_CONFLICT"></a>`W_ENCODING_CONFLICT`: A byte order mark, the `encoding` option and the encoding the file declares disagree, or the file declares UTF-16 over bytes that are not UTF-16; the message names which one applied (a BOM wins over the option and the declaration, the option over the declaration). Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_ENCODING_FALLBACK"></a>`W_ENCODING_FALLBACK`: Bytes that are not valid UTF-8 (and declare no other encoding) were read as windows-1252. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_EQUATION_AS_TEXT"></a>`W_EQUATION_AS_TEXT`: A formula (Cytoscape's `=ABS($x)`) is kept as its text; it is never evaluated. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_EXTENSION_TABLE_DROPPED"></a>`W_EXTENSION_TABLE_DROPPED`: An extension table the format cannot carry. Save: any format.
+- <a id="W_GEXF_ATTRIBUTE_TYPE"></a>`W_GEXF_ATTRIBUTE_TYPE`: An attribute type the importer maps to string. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_ATTVALUE_SHAPE"></a>`W_GEXF_ATTVALUE_SHAPE`: An `<attvalue>` without a value. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_EDGE_ID_TEXT"></a>`W_GEXF_EDGE_ID_TEXT`: A numeric edge id column: GEXF edge ids read back as strings. Save: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_HEADER_VALUE"></a>`W_GEXF_HEADER_VALUE`: A `<graph>` header attribute with an unknown value. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_KIND_DROPPED"></a>`W_GEXF_KIND_DROPPED`: GEXF 1.2 has no parallel-edge `kind`; the kind column is dropped. Save: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_OPEN_BOUND_CONFLICT"></a>`W_GEXF_OPEN_BOUND_CONFLICT`: Both `start` and `startopen` (or `end` and `endopen`) on one element. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_SPELL_OPEN_DROPPED"></a>`W_GEXF_SPELL_OPEN_DROPPED`: Deprecated and no longer recorded: open spells are kept in the spells.open column. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_TIMED_VALUE_ON_STATIC"></a>`W_GEXF_TIMED_VALUE_ON_STATIC`: A timed value on an attribute of a static group. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_TIMESTAMP_CONFLICT"></a>`W_GEXF_TIMESTAMP_CONFLICT`: Both `timestamp` and `start` / `end` on one element or value. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_UNKNOWN_ATTRIBUTE"></a>`W_GEXF_UNKNOWN_ATTRIBUTE`: An `<attvalue for>` naming an undeclared attribute. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_VALUE_OUTSIDE_OPTIONS"></a>`W_GEXF_VALUE_OUTSIDE_OPTIONS`: A value outside the declared `<options>` (kept). Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_VIZ_DTYPE"></a>`W_GEXF_VIZ_DTYPE`: A visual attribute (position, color, size, thickness) is stored at more precision than GEXF keeps; it reads back as a 32-bit float. Save: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_VIZ_DYNAMIC_DROPPED"></a>`W_GEXF_VIZ_DYNAMIC_DROPPED`: A 1.2 dynamic viz element whose bounds were dropped. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_VIZ_SKIPPED"></a>`W_GEXF_VIZ_SKIPPED`: viz elements skipped under viz: false. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_VIZ_VALUE"></a>`W_GEXF_VIZ_VALUE`: A viz value that could not be read. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_WEIGHT_IGNORED"></a>`W_GEXF_WEIGHT_IGNORED`: The XML weight attribute ignored under weightFrom null. Import: [gexf](./formats/gexf.md).
+- <a id="W_GML_FLAG_VALUE"></a>`W_GML_FLAG_VALUE`: A `directed` / `multigraph` flag outside 0 / 1, or repeated. Import: [gml](./formats/gml.md).
+- <a id="W_GML_GRAPHICS"></a>`W_GML_GRAPHICS`: A node's graphics value that cannot give a position as written; kept in the graphics json column. Import: [gml](./formats/gml.md).
+- <a id="W_GML_GRAPHICS_OVERRIDDEN"></a>`W_GML_GRAPHICS_OVERRIDDEN`: A graphics record whose x / y / z the position column overrides. Save: [gml](./formats/gml.md).
+- <a id="W_GML_GROUPS"></a>`W_GML_GROUPS`: yEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment. Import: [gml](./formats/gml.md).
+- <a id="W_GML_ID_DROPPED"></a>`W_GML_ID_DROPPED`: Under nodeIdFrom "label" / "index" the integer ids are not kept (a loss note). Import: [gml](./formats/gml.md).
+- <a id="W_GML_JSON_ARRAY"></a>`W_GML_JSON_ARRAY`: A json row that is an array, written as repeated keys. Save: [gml](./formats/gml.md).
+- <a id="W_GML_KEY_MANGLED"></a>`W_GML_KEY_MANGLED`: A key rewritten under sanitizeKeys "mangle". Save: [gml](./formats/gml.md).
+- <a id="W_GML_NESTED_ELEMENT"></a>`W_GML_NESTED_ELEMENT`: A graph, node or edge record nested in a node or edge; kept as json, not read as structure. Import: [gml](./formats/gml.md).
+- <a id="W_GML_POSITION_COMPONENTS"></a>`W_GML_POSITION_COMPONENTS`: A position column with more than three components. Save: [gml](./formats/gml.md).
+- <a id="W_GML_RECORD_BOOLEAN"></a>`W_GML_RECORD_BOOLEAN`: A json column holds booleans, written 1 / 0. Save: [gml](./formats/gml.md).
+- <a id="W_GML_RECORD_NULL"></a>`W_GML_RECORD_NULL`: A json column holds nulls, omitted. Save: [gml](./formats/gml.md).
+- <a id="W_GML_RECORD_NUMBER_TYPE"></a>`W_GML_RECORD_NUMBER_TYPE`: A json column holds numbers; GML records cannot keep int versus real. Save: [gml](./formats/gml.md).
+- <a id="W_GML_STRING_ID"></a>`W_GML_STRING_ID`: String node ids, sources or targets (outside the spec's integers), kept under the ids rule; warned once. Import: [gml](./formats/gml.md).
+- <a id="W_GML_UNKNOWN_ENTITY"></a>`W_GML_UNKNOWN_ENTITY`: A named entity no table decodes, or a numeric reference beyond U+10FFFF; kept as written. Import: [gml](./formats/gml.md).
+- <a id="W_GRAPHML_DESC_DROPPED"></a>`W_GRAPHML_DESC_DROPPED`: A `<desc>` of a node, an edge or a hyperedge. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_EDGEDEFAULT_MISSING"></a>`W_GRAPHML_EDGEDEFAULT_MISSING`: A `<graph>` without edgedefault; the `defaultDirected` option applies. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_EDGE_GRAPH_DROPPED"></a>`W_GRAPHML_EDGE_GRAPH_DROPPED`: A `<graph>` inside an `<edge>` (legal GraphML): it and the nodes and edges it holds are dropped. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_EDGE_ID_TEXT"></a>`W_GRAPHML_EDGE_ID_TEXT`: A numeric edge id column reads back as string. Save: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_GRAPH_ENDPOINT"></a>`W_GRAPHML_GRAPH_ENDPOINT`: An edge endpoint that names a nested `<graph>`, not a node; a node of that id is created. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_HIERARCHY_REORDERED"></a>`W_GRAPHML_HIERARCHY_REORDERED`: Containment order differs from index order; node indices change after a round trip. Save: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_HUB_ID_CLASH"></a>`W_GRAPHML_HUB_ID_CLASH`: A `<node>` whose id is that of a hub `hyperedges: "star"` created; the node is merged into the hub. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_HYPEREDGE_DATA_DROPPED"></a>`W_GRAPHML_HYPEREDGE_DATA_DROPPED`: Data of a hyperedge expanded to a star or clique. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_HYPEREDGE_SKIPPED"></a>`W_GRAPHML_HYPEREDGE_SKIPPED`: Hyperedges skipped under `hyperedges: "skip"`. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_KEY_DECLARED_LATE"></a>`W_GRAPHML_KEY_DECLARED_LATE`: A `<key>` declared after `<data>` that used it; those values were already reported and dropped. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_KEY_DOMAIN"></a>`W_GRAPHML_KEY_DOMAIN`: A `<data>` whose key is declared for another domain. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_KEY_DOMAIN_UNSUPPORTED"></a>`W_GRAPHML_KEY_DOMAIN_UNSUPPORTED`: A key declared for hyperedges, ports or endpoints (never used). Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_LOCATOR_DROPPED"></a>`W_GRAPHML_LOCATOR_DROPPED`: A `<locator>` element. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_NAMESPACE"></a>`W_GRAPHML_NAMESPACE`: The `<graphml>` root is in a namespace other than GraphML's; it is read as GraphML. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_NESTED_GRAPH_DATA"></a>`W_GRAPHML_NESTED_GRAPH_DATA`: Data of a nested `<graph>`; only the top-level graph has attributes. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_ORIGINAL_ID_IGNORED"></a>`W_GRAPHML_ORIGINAL_ID_IGNORED`: A `graphty:originalId` value that is not text, or arrives after the node was added (after its nested graph). Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_PARENT_CYCLE"></a>`W_GRAPHML_PARENT_CYCLE`: Nodes whose parent chain never reaches a root are written at the top level. Save: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_PARSE_HINT_IGNORED"></a>`W_GRAPHML_PARSE_HINT_IGNORED`: A GraphML `parse.*` hint on `<graph>`, `<node>` or `<edge>` the importer does not act on (parse.nodeids, parse.order, ...). Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_PORT_DECLARATION"></a>`W_GRAPHML_PORT_DECLARATION`: `<port>` declarations (and their data) are not kept; sourceport / targetport edge attributes are. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_YFILES_GRAPHICS_STALE"></a>`W_GRAPHML_YFILES_GRAPHICS_STALE`: A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. Save: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_YFILES_JSON"></a>`W_GRAPHML_YFILES_JSON`: yFiles nested XML kept as a JSON tree: structure preserved, not byte-exact. Save: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_YFILES_SKIPPED"></a>`W_GRAPHML_YFILES_SKIPPED`: A yFiles key under `yfiles: "skip"`. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_YFILES_VALUE"></a>`W_GRAPHML_YFILES_VALUE`: A yFiles graphics value (a geometry coordinate, a width) that is not a number; it is not mapped. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPH_ATTRIBUTES_DROPPED"></a>`W_GRAPH_ATTRIBUTES_DROPPED`: Graph-level attributes in a format without them. Save: any format.
+- <a id="W_GRAPH_COLUMN_AS_METADATA"></a>`W_GRAPH_COLUMN_AS_METADATA`: A graph column is written into the file's metadata and reads back in `meta.extra`, not as a column. Save: [json](./formats/json.md), [obo](./formats/obo.md).
+- <a id="W_HIERARCHY_DROPPED"></a>`W_HIERARCHY_DROPPED`: A parent / parents column in a format without containment. Save: any format.
+- <a id="W_HYPEREDGES_SKIPPED"></a>`W_HYPEREDGES_SKIPPED`: JGF hyperedges skipped under the default "skip" policy. Import: [json](./formats/json.md).
+- <a id="W_ID_MANGLED"></a>`W_ID_MANGLED`: Ids outside the format's charset are rewritten (sanitizeIds "mangle"). Save: any format.
+- <a id="W_ID_MERGED"></a>`W_ID_MERGED`: Two distinct id texts became one number under ids "number". Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_ID_RENUMBERED"></a>`W_ID_RENUMBERED`: The format numbers nodes 1..N; ids that are not their 1-based index are kept as labels only. Save: any format.
+- <a id="W_ID_TEXT_TYPE"></a>`W_ID_TEXT_TYPE`: Node ids whose written text reads back as the other type under the importer's id rule. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md). Save: any format.
+- <a id="W_INTEGRAL_F64_AS_I32"></a>`W_INTEGRAL_F64_AS_I32`: A number attribute whose values are all whole numbers reads back as integers, because the format does not record the type. Save: any format.
+- <a id="W_ISSUES_SUPPRESSED"></a>`W_ISSUES_SUPPRESSED`: More warnings of one code than a report keeps: the first ones are kept and this one warning (the suppressed code as its element) counts the rest. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_JSON_BIG_INTEGER"></a>`W_JSON_BIG_INTEGER`: Integer literals beyond 2^53 were read as their exact digits (strings), not as rounded numbers. Import: [json](./formats/json.md).
+- <a id="W_JSON_INCONSISTENT"></a>`W_JSON_INCONSISTENT`: The document contradicts itself: a declared option its edges break (multigraph false with parallel links, graphology's options), a record whose section disagrees with its shape, a JGF inner id other than its key, the two listings of one adjacency edge. Import: [json](./formats/json.md).
+- <a id="W_JSON_INDEX_LINKS"></a>`W_JSON_INDEX_LINKS`: indexLinks "auto" read integer endpoints as array positions although they also name node ids. Import: [json](./formats/json.md).
+- <a id="W_JSON_NONSTANDARD_NUMBER"></a>`W_JSON_NONSTANDARD_NUMBER`: The document uses the bare tokens NaN, Infinity or -Infinity (Python's json writes them), which strict JSON does not allow; read as the numbers. Import: [json](./formats/json.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="W_JSON_OBOGRAPHS_SUBJ"></a>`W_JSON_OBOGRAPHS_SUBJ`: obographs: an edge uses the outdated `subj` key of the OBO Graphs README; it is read as `sub`. Import: [json](./formats/json.md).
+- <a id="W_JSON_UNREAD_KEY"></a>`W_JSON_UNREAD_KEY`: A node-link / d3 top-level key the importer does not read (the other of edges / links, an unknown key); it is dropped. Import: [json](./formats/json.md).
+- <a id="W_JSON_UNSUPPORTED"></a>`W_JSON_UNSUPPORTED`: A json column in a format without nested values. Save: any format.
+- <a id="W_LIST_SEPARATOR"></a>`W_LIST_SEPARATOR`: GEXF 1.2 liststring items are separated by `\|`; an item containing one cannot be split back. Save: [gexf](./formats/gexf.md).
+- <a id="W_LIST_UNSUPPORTED"></a>`W_LIST_UNSUPPORTED`: A list column in a format without lists. Save: any format.
+- <a id="W_MIXED_DIRECTION"></a>`W_MIXED_DIRECTION`: The format has no mixed direction; expanded pairs are written per onMixedDirection. Save: any format.
+- <a id="W_MULTIPLE_GRAPHS"></a>`W_MULTIPLE_GRAPHS`: The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="W_MULTI_ASPECT_FRAGMENT"></a>`W_MULTI_ASPECT_FRAGMENT`: A CX array member holding several aspects (`{"nodes": [...], "edges": [...]}`); each array-valued key is read as its own fragment. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="W_MULTI_EDGES"></a>`W_MULTI_EDGES`: Parallel edges in a format without them. Save: any format.
+- <a id="W_MUTUAL_AS_UNDIRECTED"></a>`W_MUTUAL_AS_UNDIRECTED`: A mutual pair is written as one undirected edge; the pair reads back undirected, the mark is lost. Save: any format.
+- <a id="W_MUTUAL_EXPANDED"></a>`W_MUTUAL_EXPANDED`: A mutual pair is written as two directed edges without the mutual mark. Save: any format.
+- <a id="W_NEO4J_ARRAY_DELIMITER"></a>`W_NEO4J_ARRAY_DELIMITER`: A list item containing the array delimiter, which Neo4j cannot escape. Save: [neo4j](./formats/neo4j.md).
+- <a id="W_NEO4J_DECLARED_TYPE_CHANGED"></a>`W_NEO4J_DECLARED_TYPE_CHANGED`: An integer-typed column with non-integral values written as double. Save: [neo4j](./formats/neo4j.md).
+- <a id="W_NEO4J_HEADER_OPTION_IGNORED"></a>`W_NEO4J_HEADER_OPTION_IGNORED`: A header brace option the importer does not apply. Import: [neo4j](./formats/neo4j.md).
+- <a id="W_NEO4J_IGNORED_COLUMNS"></a>`W_NEO4J_IGNORED_COLUMNS`: `:IGNORE` columns skipped on import. Save: [neo4j](./formats/neo4j.md).
+- <a id="W_NEO4J_MISSING_TYPE"></a>`W_NEO4J_MISSING_TYPE`: A relationship with an empty :TYPE cell (neo4j-admin requires one); kept without a type. Import: [neo4j](./formats/neo4j.md).
+- <a id="W_NEO4J_MULTIPLE_ID_PROPERTIES"></a>`W_NEO4J_MULTIPLE_ID_PROPERTIES`: Several stored-id properties; one becomes the `:ID` column. Save: [neo4j](./formats/neo4j.md).
+- <a id="W_NEO4J_SECTION_KIND"></a>`W_NEO4J_SECTION_KIND`: A file under the nodes option holds a relationship header, or the reverse; read by its header. Import: [neo4j](./formats/neo4j.md).
+- <a id="W_NEO4J_UNDIRECTED_AS_DIRECTED"></a>`W_NEO4J_UNDIRECTED_AS_DIRECTED`: Undirected edges (an undirected snapshot, the folded pairs of a mixed one) written as directed relationships. Save: [neo4j](./formats/neo4j.md).
+- <a id="W_NODE_ORDER"></a>`W_NODE_ORDER`: The nodes read back in a different order. Save: [json](./formats/json.md), [obo](./formats/obo.md).
+- <a id="W_NONFINITE_AS_NULL"></a>`W_NONFINITE_AS_NULL`: NaN and the infinities cannot be written; they are written as null and read back unset. Save: any format.
+- <a id="W_NUMERIC_IDS_STRINGIFIED"></a>`W_NUMERIC_IDS_STRINGIFIED`: JGF keys its nodes by string; numeric ids re-import as text unless ids: "canonical". Save: [json](./formats/json.md).
+- <a id="W_OBOGRAPHS_DATATYPE_DROPPED"></a>`W_OBOGRAPHS_DATATYPE_DROPPED`: obographs: a property_value's xsd datatype has no place in basicPropertyValues and reads back unset. Save: [json](./formats/json.md).
+- <a id="W_OBOGRAPHS_EDGE_COLUMN_AS_META"></a>`W_OBOGRAPHS_EDGE_COLUMN_AS_META`: obographs: an edge column (or the explicit weights) is written into each edge's meta and reads back inside the meta column. Save: [json](./formats/json.md).
+- <a id="W_OBOGRAPHS_ID_CHANGED"></a>`W_OBOGRAPHS_ID_CHANGED`: obographs: a node id or relation is written as an IRI the importer's default oboIds "curie" reads back as another id. Save: [json](./formats/json.md).
+- <a id="W_OBO_CARDINALITY"></a>`W_OBO_CARDINALITY`: Fewer than two `intersection_of` or `union_of` clauses on a frame. Import: [obo](./formats/obo.md).
+- <a id="W_OBO_DEPRECATED_SYNTAX"></a>`W_OBO_DEPRECATED_SYNTAX`: A backslash line continuation (deprecated in 1.4). Import: [obo](./formats/obo.md).
+- <a id="W_OBO_DEPRECATED_TAG"></a>`W_OBO_DEPRECATED_TAG`: An OBO 1.0 / 1.2 tag read as its 1.4 meaning (exact_synonym, xref_analog, use_term, typeref, version). Import: [obo](./formats/obo.md).
+- <a id="W_OBO_DUPLICATE_CLAUSE"></a>`W_OBO_DUPLICATE_CLAUSE`: Two identical clauses on one frame (parallel edges with one relation and the same qualifiers, a repeated list item) read back as one. Save: [obo](./formats/obo.md).
+- <a id="W_OBO_EDGE_COLUMN_AS_QUALIFIER"></a>`W_OBO_EDGE_COLUMN_AS_QUALIFIER`: An edge column (or the explicit weights) reads back inside the `qualifiers` column. Save: [obo](./formats/obo.md).
+- <a id="W_OBO_EDGE_ORDER"></a>`W_OBO_EDGE_ORDER`: Edges are written on their source's frame, so a re-import lists them grouped by source, in node order. Save: [obo](./formats/obo.md).
+- <a id="W_OBO_FORMAT_VERSION"></a>`W_OBO_FORMAT_VERSION`: The header has no format-version (required by 1.2 and 1.4), or one that is not 1.0, 1.2 or 1.4; the file is read as the union. Import: [obo](./formats/obo.md).
+- <a id="W_OBO_HEADER_NOT_APPLIED"></a>`W_OBO_HEADER_NOT_APPLIED`: A header clause kept in `meta.extra.obo.header` whose meaning is not applied (import, id-mapping, the treat-xrefs macros, owl-axioms). Import: [obo](./formats/obo.md).
+- <a id="W_OBO_ID_KIND_CLASH"></a>`W_OBO_ID_KIND_CLASH`: One id for a Term and a Typedef (or an Instance); the Term (the first node frame) is the node. Import: [obo](./formats/obo.md).
+- <a id="W_OBO_ID_NOT_FIRST"></a>`W_OBO_ID_NOT_FIRST`: The frame's `id` is not its first clause; it is used anyway. Import: [obo](./formats/obo.md).
+- <a id="W_OBO_LINE_END"></a>`W_OBO_LINE_END`: A carriage return or form feed in a text cannot be written; it is written as a line feed. Save: [obo](./formats/obo.md).
+- <a id="W_OBO_OBSOLETE_DROPPED"></a>`W_OBO_OBSOLETE_DROPPED`: Obsolete terms and their edges left out under obsolete: "drop". Import: [obo](./formats/obo.md).
+- <a id="W_OBO_OBSOLETION"></a>`W_OBO_OBSOLETION`: An obsolete term with is_a / relationship, or replaced_by / consider on a term that is not obsolete. Import: [obo](./formats/obo.md).
+- <a id="W_OBO_ONTOLOGY_NAME"></a>`W_OBO_ONTOLOGY_NAME`: The graph name is not an ontology id; the header `ontology` is written with `_` in place of the other characters. Save: [obo](./formats/obo.md).
+- <a id="W_OBO_RELATION_RENAMED"></a>`W_OBO_RELATION_RENAMED`: A relation that is not an OBO id (empty, or holding a space, `!`, `{` or `}`) is written with `_` in place of those characters. Save: [obo](./formats/obo.md).
+- <a id="W_OBO_SYNONYM_SCOPE"></a>`W_OBO_SYNONYM_SCOPE`: A synonym without a scope in a file that does not say 1.2, or with a scope that is not one of the four. Import: [obo](./formats/obo.md).
+- <a id="W_OBO_SYNTAX"></a>`W_OBO_SYNTAX`: A line without a colon, an unterminated quote, a def without its xref list, a qualifier block that does not parse, an unescaped brace. Import: [obo](./formats/obo.md).
+- <a id="W_OBO_UNDECLARED"></a>`W_OBO_UNDECLARED`: A relation, subset or synonym type that nothing declares. Import: [obo](./formats/obo.md).
+- <a id="W_OBO_UNDIRECTED_AS_DIRECTED"></a>`W_OBO_UNDIRECTED_AS_DIRECTED`: Every edge is written from its source to its target: an undirected snapshot reads back directed. Save: [obo](./formats/obo.md).
+- <a id="W_OPEN_INTERVAL"></a>`W_OPEN_INTERVAL`: An open-interval column in a format without open intervals. Save: any format.
+- <a id="W_OPTIONS_DROPPED"></a>`W_OPTIONS_DROPPED`: Declared options in a format without enumerations. Save: any format.
+- <a id="W_OPTIONS_GAINED"></a>`W_OPTIONS_GAINED`: A dictionary attribute without a declared list of allowed values gains one, its distinct values, on re-import. Save: any format.
+- <a id="W_OPTION_IGNORED"></a>`W_OPTION_IGNORED`: You set an option this format does not use; it had no effect. The message names the option. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_PAJEK_COORD_DIMS"></a>`W_PAJEK_COORD_DIMS`: Vertex lines mix two and three coordinates. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_FIRST_MODE_DROPPED"></a>`W_PAJEK_FIRST_MODE_DROPPED`: meta.extra.pajek.firstMode is not a count within 0..N; the two-mode header is not written. Save: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_HEADER_EXTRA"></a>`W_PAJEK_HEADER_EXTRA`: Tokens after a section header the grammar does not account for. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_KEY_DROPPED"></a>`W_PAJEK_KEY_DROPPED`: A column whose name cannot be a parameter key (whitespace, a quote, numeric, a shape keyword); skipped. Save: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_LABEL_AS_TEXT"></a>`W_PAJEK_LABEL_AS_TEXT`: A label role column that is not text; its values are written as text and re-import as string. Save: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_LABEL_GAINED"></a>`W_PAJEK_LABEL_GAINED`: A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label. Save: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_LABEL_MERGED"></a>`W_PAJEK_LABEL_MERGED`: Two vertices share a label under nodeIdFrom "label" and became one node. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_MATRIX_EXTRA"></a>`W_PAJEK_MATRIX_EXTRA`: `*Matrix` rows longer than the column count; the extra values are ignored. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_NEGATIVE_LIST_ENTRY"></a>`W_PAJEK_NEGATIVE_LIST_ENTRY`: A negative vertex number in an adjacency list, read as its absolute value. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_NONFINITE_AS_TEXT"></a>`W_PAJEK_NONFINITE_AS_TEXT`: NaN or an infinity is written as the text Infinity or NaN, which reads back as text. Save: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_NO_LINES"></a>`W_PAJEK_NO_LINES`: The file declares vertices but no line section. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_NUMERIC_LABEL"></a>`W_PAJEK_NUMERIC_LABEL`: A bare non-integer number read as a vertex label before two coordinates (`1 0.1 0.2 0.3`); it may be an x y z line without a label. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_ORIGINAL_ID_MERGED"></a>`W_PAJEK_ORIGINAL_ID_MERGED`: Two vertices carry the same `graphty_originalId` under restoreMangledIds and became one node. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_ORIGINAL_ID_UNRESTORED"></a>`W_PAJEK_ORIGINAL_ID_UNRESTORED`: A vertex line's `graphty_originalId` came after a later vertex's line had created it under its number. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_POSITION_STRIDE"></a>`W_PAJEK_POSITION_STRIDE`: A position column with a stride other than 2 or 3. Save: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_QUOTE_IN_TOKEN"></a>`W_PAJEK_QUOTE_IN_TOKEN`: A double quote inside a token (a CSV-style doubled quote, a quote mid-word): removed and the parts joined. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_REFERENCE_RANGE"></a>`W_PAJEK_REFERENCE_RANGE`: A character reference beyond U+10FFFF in a label; kept as written. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_RELATION_RENAMED"></a>`W_PAJEK_RELATION_RENAMED`: A relation number given a second name by a later `*Arcs :k "name"` header. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_SHAPE_AS_PARAMETER"></a>`W_PAJEK_SHAPE_AS_PARAMETER`: A `shape` column with a value outside the shape keywords is written as a parameter (a string on re-import). Save: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_TWO_MODE_LINE"></a>`W_PAJEK_TWO_MODE_LINE`: A line of a two-mode network whose endpoints are both in one mode. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_UNSUPPORTED_SECTION"></a>`W_PAJEK_UNSUPPORTED_SECTION`: A project-file section (`*Events`, `*Permutation`, ...) the importer does not read; its lines are skipped. Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_VERTEX_COUNT"></a>`W_PAJEK_VERTEX_COUNT`: Fewer vertex lines than `*Vertices` declares, which the Pajek manual allows (vertices without a line have no label). Import: [pajek](./formats/pajek.md).
+- <a id="W_PAJEK_ZERO_BASED"></a>`W_PAJEK_ZERO_BASED`: Vertex numbering starts at 0 rather than 1. Import: [pajek](./formats/pajek.md).
+- <a id="W_PARENTS_DROPPED"></a>`W_PARENTS_DROPPED`: A parents (multi-parent) column in a format with single containment only. Save: any format.
+- <a id="W_POSITIONAL_NODES"></a>`W_POSITIONAL_NODES`: The nodes have no id key at all; array positions became the ids. Import: [json](./formats/json.md).
+- <a id="W_POSITIONS_DROPPED"></a>`W_POSITIONS_DROPPED`: A position column in a format without positions. Save: any format.
+- <a id="W_POSITION_Z_DROPPED"></a>`W_POSITION_Z_DROPPED`: Cytoscape positions are 2D; non-zero z values are dropped. Save: [json](./formats/json.md).
+- <a id="W_PRECISION"></a>`W_PRECISION`: An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="W_RELATION_ASSUMED"></a>`W_RELATION_ASSUMED`: An ontology exporter writes an edge without a relation as `is_a` (or the relation the caller chose). Save: [json](./formats/json.md), [obo](./formats/obo.md).
+- <a id="W_RESERVED_KEY"></a>`W_RESERVED_KEY`: A column named like a reserved key of the dialect (id, source, target, ...) is skipped. Save: [json](./formats/json.md).
+- <a id="W_ROLE_ASSUMED"></a>`W_ROLE_ASSUMED`: An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and reads back with that role. Save: any format.
+- <a id="W_ROLE_DROPPED"></a>`W_ROLE_DROPPED`: An attribute with a role the format has no place for is written as a plain attribute; the role is lost. Save: any format.
+- <a id="W_ROLE_SHAPE"></a>`W_ROLE_SHAPE`: A role column of a shape GEXF cannot map (a string `start`, a 2-component color); written as a plain attribute. Save: [gexf](./formats/gexf.md).
+- <a id="W_ROLE_TAKEN"></a>`W_ROLE_TAKEN`: You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_SELF_LOOPS"></a>`W_SELF_LOOPS`: Self-loops in a format without them. Save: any format.
+- <a id="W_SELF_LOOPS_DROPPED"></a>`W_SELF_LOOPS_DROPPED`: Self-loops were removed by the `selfLoops: "drop"` option. Recorded once by importGraph() with the number removed.
+- <a id="W_SINGLE_OBJECT_ASPECT"></a>`W_SINGLE_OBJECT_ASPECT`: A CX aspect, an array of elements, written as one object (`{"nodes": {"@id": 1}}`); read as one element. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="W_SINK_OPTION"></a>`W_SINK_OPTION`: You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_SNIFF_FAILED"></a>`W_SNIFF_FAILED`: The issue code of a registered importer whose sniff() threw while the format was being chosen; that importer was treated as not recognizing the input (a defect in that importer).
+- <a id="W_SPELLS_DROPPED"></a>`W_SPELLS_DROPPED`: A spells column in a format without spells. Save: any format.
+- <a id="W_STATUS_WARNING"></a>`W_STATUS_WARNING`: The producer marked the document as successful but attached an error text. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
+- <a id="W_STORAGE_CLASS_CHANGED"></a>`W_STORAGE_CLASS_CHANGED`: A text attribute reads back as a dictionary attribute, or the reverse, because the importer chooses by how often its values repeat. The values are the same. Save: any format.
+- <a id="W_STRAY_TEXT"></a>`W_STRAY_TEXT`: Text where the format allows only elements was ignored. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_STYLES_NOT_IMPORTED"></a>`W_STYLES_NOT_IMPORTED`: The file's style rules (defaults, mappings, dependencies, visual property aspects) are not applied to the snapshot; recorded once per import, the message names what was not applied. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="W_TEMPORAL_DROPPED"></a>`W_TEMPORAL_DROPPED`: A start / end / timestamp column in a format without temporal support. Save: any format.
+- <a id="W_TEMPORAL_TABLE_SHAPE"></a>`W_TEMPORAL_TABLE_SHAPE`: A temporal extension table without the element / start / end / value columns. Save: [gexf](./formats/gexf.md).
+- <a id="W_TEMPORAL_TEXT_DROPPED"></a>`W_TEMPORAL_TEXT_DROPPED`: A `<column>.text` companion the format cannot carry. Save: any format.
+- <a id="W_TEXT_INFERRED"></a>`W_TEXT_INFERRED`: A text value that reads back as a number or a boolean, because the format does not record that it was text (the text "42" reads back as the number 42). Save: any format.
+- <a id="W_TIMESTAMP_AS_INTERVAL"></a>`W_TIMESTAMP_AS_INTERVAL`: GEXF 1.2 has no timestamps; a timestamp becomes a closed interval [t, t]. Save: [gexf](./formats/gexf.md).
+- <a id="W_TYPEDEF_NODES"></a>`W_TYPEDEF_NODES`: An ontology exporter writes Typedef (property) nodes; they read back as nodes only under the importer's `typedefs: "nodes"`. Save: [json](./formats/json.md), [obo](./formats/obo.md).
+- <a id="W_UNKNOWN_ATTR_TYPE"></a>`W_UNKNOWN_ATTR_TYPE`: The declared type is not one the format defines; the column is kept as string. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="W_UNKNOWN_ELEMENT"></a>`W_UNKNOWN_ELEMENT`: An element the format does not define at that place was skipped. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_UNKNOWN_ENCODING"></a>`W_UNKNOWN_ENCODING`: The file declares an encoding the platform's TextDecoder does not know; the declaration is ignored. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- <a id="W_UNKNOWN_XML_ATTRIBUTE"></a>`W_UNKNOWN_XML_ATTRIBUTE`: An XML attribute the format does not define (or does not keep) on that element; it is not kept. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md).
+- <a id="W_VALUE_UNWRITABLE"></a>`W_VALUE_UNWRITABLE`: A cell, default or option the declared type cannot express (skipped). Save: [gexf](./formats/gexf.md).
+- <a id="W_VIZ_DROPPED"></a>`W_VIZ_DROPPED`: Visual columns in a format without them. Save: any format.
+- <a id="W_WEIGHT_KEY_CLASH"></a>`W_WEIGHT_KEY_CLASH`: A plain column named like the importer's weight key reads back as THE weight. Save: any format.
+- <a id="W_WIDENED"></a>`W_WIDENED`: An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column, or two declared types for one attribute. Import: [gml](./formats/gml.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
+- <a id="W_WIDENING_UNSUPPORTED"></a>`W_WIDENING_UNSUPPORTED`: Your graph builder cannot change an attribute's type after its first value, so a text column keeps the type of its first values. Import: [csv](./formats/csv.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md).
+- <a id="W_XGMML_AMPERSAND_REPAIRED"></a>`W_XGMML_AMPERSAND_REPAIRED`: A bare `&` read as `&amp;` under repairBareAmpersands. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_BACKSLASH_ESCAPE"></a>`W_XGMML_BACKSLASH_ESCAPE`: Strings holding a literal backslash-n or backslash-t read back as newline / tab (Cytoscape's escapes). Save: [xgmml](./formats/xgmml.md).
+- <a id="W_XGMML_BAD_ATT"></a>`W_XGMML_BAD_ATT`: A malformed `<att>`: a list with a value, a scalar with child atts, an att with no name. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_BAD_DIRECTED"></a>`W_XGMML_BAD_DIRECTED`: A `directed` or `cy:directed` value other than 0 / 1. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_CROSS_FILE_REFERENCE"></a>`W_XGMML_CROSS_FILE_REFERENCE`: A pointer into another file (`file.xgmml#id`); kept as text. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_DOCUMENT_VERSION"></a>`W_XGMML_DOCUMENT_VERSION`: A `documentVersion` that does not parse; the dialect is chosen from the content. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_EDGE_ID_TEXT"></a>`W_XGMML_EDGE_ID_TEXT`: An edge id column of another dtype written as text; it reads back as strings. Save: [xgmml](./formats/xgmml.md).
+- <a id="W_XGMML_EDGE_NESTED_GRAPH"></a>`W_XGMML_EDGE_NESTED_GRAPH`: A graph nested in an edge's att; there is no model for it. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_EMPTY_LIST_TYPE"></a>`W_XGMML_EMPTY_LIST_TYPE`: An empty list whose element type nothing states; a list of strings is assumed. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_GROUP_DUPLICATE_EDGE"></a>`W_XGMML_GROUP_DUPLICATE_EDGE`: A meta-edge the 2.x writer repeats inside a group; the copy is dropped. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_ID_AND_HREF"></a>`W_XGMML_ID_AND_HREF`: A node or edge with both an id and an `xlink:href`; it is read as the reference. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_ID_FROM_LABEL"></a>`W_XGMML_ID_FROM_LABEL`: A node without an id; its label is used as the id. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_INTERACTION_FROM_LABEL"></a>`W_XGMML_INTERACTION_FROM_LABEL`: Edge labels shaped `a (i) b` read back with an `interaction` column (Cytoscape's label alias). Save: [xgmml](./formats/xgmml.md).
+- <a id="W_XGMML_JSON_AS_STRING"></a>`W_XGMML_JSON_AS_STRING`: A json or nested-list column written as a string att. Save: [xgmml](./formats/xgmml.md).
+- <a id="W_XGMML_LABEL_ALIAS"></a>`W_XGMML_LABEL_ALIAS`: Endpoints resolved through Cytoscape's `"a (pp) b"` label aliases; interactions filled from labels. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_NO_NAMESPACE"></a>`W_XGMML_NO_NAMESPACE`: A root `<graph>` with neither the XGMML namespace nor an XGMML DOCTYPE. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_PARENT_CYCLE"></a>`W_XGMML_PARENT_CYCLE`: Nodes whose parent chain never reaches a root are written at the top level. Save: [xgmml](./formats/xgmml.md).
+- <a id="W_XGMML_POSITION"></a>`W_XGMML_POSITION`: A position that cannot be written as it is: another shape, a non-finite coordinate, a z read back in the z column. Save: [xgmml](./formats/xgmml.md).
+- <a id="W_XGMML_RECORD_LIST"></a>`W_XGMML_RECORD_LIST`: A record list, a list of lists, a 2.x map or foreign XML in an att, kept as json. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_ROOT_ONLY_ELEMENTS"></a>`W_XGMML_ROOT_ONLY_ELEMENTS`: Elements of a session network declared outside every registered subnetwork. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_SURROGATE_PAIRED"></a>`W_XGMML_SURROGATE_PAIRED`: Two surrogate character references joined under pairSurrogateReferences. Import: [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
+- <a id="W_XGMML_WIDENED_TYPE"></a>`W_XGMML_WIDENED_TYPE`: An attribute type Cytoscape does not have is written as a wider one (a 32-bit float as Double, a large unsigned integer as Long, a byte as Integer, a dictionary as String). Save: [xgmml](./formats/xgmml.md).
+
+## Shared loss codes
+
+Any format's `checkExport()` can return these, when the graph has something the format's [capabilities](./formats/index.md#what-the-capabilities-mean) do not cover: [`E_ID_CHARSET`](#E_ID_CHARSET), [`E_ID_TEXT_COLLISION`](#E_ID_TEXT_COLLISION), [`E_MIXED_DIRECTION`](#E_MIXED_DIRECTION), [`E_XML_ILLEGAL_CHAR`](#E_XML_ILLEGAL_CHAR), [`W_COLUMN_DROPPED`](#W_COLUMN_DROPPED), [`W_COLUMN_NAME_CHANGED`](#W_COLUMN_NAME_CHANGED), [`W_COMPONENTS_FLATTENED`](#W_COMPONENTS_FLATTENED), [`W_DEFAULT_DROPPED`](#W_DEFAULT_DROPPED), [`W_DTYPE_UNSUPPORTED`](#W_DTYPE_UNSUPPORTED), [`W_DYNAMIC_VALUES_DROPPED`](#W_DYNAMIC_VALUES_DROPPED), [`W_EDGE_IDS_DROPPED`](#W_EDGE_IDS_DROPPED), [`W_EDGE_IDS_GENERATED`](#W_EDGE_IDS_GENERATED), [`W_EMPTY_COLUMN_DROPPED`](#W_EMPTY_COLUMN_DROPPED), [`W_EXTENSION_TABLE_DROPPED`](#W_EXTENSION_TABLE_DROPPED), [`W_GRAPH_ATTRIBUTES_DROPPED`](#W_GRAPH_ATTRIBUTES_DROPPED), [`W_HIERARCHY_DROPPED`](#W_HIERARCHY_DROPPED), [`W_ID_MANGLED`](#W_ID_MANGLED), [`W_ID_RENUMBERED`](#W_ID_RENUMBERED), [`W_ID_TEXT_TYPE`](#W_ID_TEXT_TYPE), [`W_INTEGRAL_F64_AS_I32`](#W_INTEGRAL_F64_AS_I32), [`W_JSON_UNSUPPORTED`](#W_JSON_UNSUPPORTED), [`W_LIST_UNSUPPORTED`](#W_LIST_UNSUPPORTED), [`W_MIXED_DIRECTION`](#W_MIXED_DIRECTION), [`W_MULTI_EDGES`](#W_MULTI_EDGES), [`W_MUTUAL_AS_UNDIRECTED`](#W_MUTUAL_AS_UNDIRECTED), [`W_MUTUAL_EXPANDED`](#W_MUTUAL_EXPANDED), [`W_NONFINITE_AS_NULL`](#W_NONFINITE_AS_NULL), [`W_OPEN_INTERVAL`](#W_OPEN_INTERVAL), [`W_OPTIONS_DROPPED`](#W_OPTIONS_DROPPED), [`W_OPTIONS_GAINED`](#W_OPTIONS_GAINED), [`W_PARENTS_DROPPED`](#W_PARENTS_DROPPED), [`W_POSITIONS_DROPPED`](#W_POSITIONS_DROPPED), [`W_ROLE_ASSUMED`](#W_ROLE_ASSUMED), [`W_ROLE_DROPPED`](#W_ROLE_DROPPED), [`W_SELF_LOOPS`](#W_SELF_LOOPS), [`W_SPELLS_DROPPED`](#W_SPELLS_DROPPED), [`W_STORAGE_CLASS_CHANGED`](#W_STORAGE_CLASS_CHANGED), [`W_TEMPORAL_DROPPED`](#W_TEMPORAL_DROPPED), [`W_TEMPORAL_TEXT_DROPPED`](#W_TEMPORAL_TEXT_DROPPED), [`W_TEXT_INFERRED`](#W_TEXT_INFERRED), [`W_VIZ_DROPPED`](#W_VIZ_DROPPED), [`W_WEIGHT_KEY_CLASH`](#W_WEIGHT_KEY_CLASH).
 
 <!-- generated:end -->

@@ -19,26 +19,26 @@ whose values change over time.
 | Several graphs per file | no                                                    |
 | Lists its graphs        | no                                                    |
 
-What a saved file can hold:
+What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):
 
-| Capability        | Value                             | Meaning                                                                                                                            |
-| ----------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `mixedDirection`  | yes                               | Directed and undirected edges in one file.                                                                                         |
-| `multiEdges`      | yes                               | Parallel edges.                                                                                                                    |
-| `selfLoops`       | yes                               | Self-loops.                                                                                                                        |
-| `edgeIds`         | optional                          | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
-| `idCharset`       | any                               | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
-| `dtypes`          | f32, f64, i32, bool, dict, string | The column types the format keeps exactly.                                                                                         |
-| `components`      | no                                | Columns with several numbers per row, such as a position.                                                                          |
-| `lists`           | yes                               | List columns.                                                                                                                      |
-| `json`            | no                                | Nested JSON values.                                                                                                                |
-| `defaults`        | yes                               | Columns' declared default values.                                                                                                  |
-| `options`         | yes                               | Declared lists of allowed values (GEXF options).                                                                                   |
-| `hierarchy`       | yes                               | Nesting: nodes inside other nodes (parent columns).                                                                                |
-| `temporal`        | dynamic-values                    | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
-| `graphAttributes` | no                                | Graph-level attributes.                                                                                                            |
-| `positions`       | yes                               | Node positions.                                                                                                                    |
-| `viz`             | yes                               | Visual columns: color, size, shape and thickness.                                                                                  |
+| Capability                                      | Value                             |
+| ----------------------------------------------- | --------------------------------- |
+| [`mixedDirection`](./index.md#mixeddirection)   | yes                               |
+| [`multiEdges`](./index.md#multiedges)           | yes                               |
+| [`selfLoops`](./index.md#selfloops)             | yes                               |
+| [`edgeIds`](./index.md#edgeids)                 | optional                          |
+| [`idCharset`](./index.md#idcharset)             | any                               |
+| [`dtypes`](./index.md#dtypes)                   | f32, f64, i32, bool, dict, string |
+| [`components`](./index.md#components)           | no                                |
+| [`lists`](./index.md#lists)                     | yes                               |
+| [`json`](./index.md#json)                       | no                                |
+| [`defaults`](./index.md#defaults)               | yes                               |
+| [`options`](./index.md#options)                 | yes                               |
+| [`hierarchy`](./index.md#hierarchy)             | yes                               |
+| [`temporal`](./index.md#temporal)               | dynamic-values                    |
+| [`graphAttributes`](./index.md#graphattributes) | no                                |
+| [`positions`](./index.md#positions)             | yes                               |
+| [`viz`](./index.md#viz)                         | yes                               |
 
 <!-- generated:end -->
 
@@ -122,101 +122,97 @@ does not survive:
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option | Type      | Default | Meaning                                                                                                                                                                             |
-| ------ | --------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `viz`  | `boolean` | `true`  | Whether the viz namespace elements (color, position, size, shape, thickness) are imported as role columns (default true); false ignores them and records one `unsupported` warning. |
+| Option | Type      | Default | Meaning                                                                                                                                                                                        |
+| ------ | --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `viz`  | `boolean` | `true`  | Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape, thickness) into node and edge attributes; false skips them, with one W_GEXF_VIZ_SKIPPED warning. |
 
 ## Export options
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option    | Type          | Default | Meaning                                              |
-| --------- | ------------- | ------- | ---------------------------------------------------- |
-| `version` | `GexfVersion` | `"1.3"` | The GEXF version to write: "1.3" (default) or "1.2". |
+| Option    | Type             | Default | Meaning                    |
+| --------- | ---------------- | ------- | -------------------------- |
+| `version` | `"1.2" \| "1.3"` | `"1.3"` | The GEXF version to write. |
 
 ## Import issue codes
 
 The codes this format's import report can hold, also exported as `GEXF_ISSUE` from `@graphty/graph-io/gexf`.
 
-| Code                           | Key                     | Severity | Meaning                                                                                                       |
-| ------------------------------ | ----------------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
-| `E_EMPTY_INPUT`                | `EMPTY_INPUT`           | error    | The input holds no markup at all: empty, whitespace or a byte order mark only (fatal).                        |
-| `E_TOO_LARGE`                  | `TOO_LARGE`             | error    | The input is longer than one JavaScript string, or holds a line that is (fatal).                              |
-| `W_ENCODING_CONFLICT`          | `ENCODING_CONFLICT`     | warning  | A declared encoding the byte order mark contradicts (the mark wins).                                          |
-| `W_CONTROL_CHARACTER`          | `CONTROL_CHARACTER`     | warning  | A control character or a stray U+FEFF in the text, or an ignored trailing Ctrl-Z.                             |
-| `E_FOREIGN_FORMAT`             | `FOREIGN_FORMAT`        | error    | The input is an HTML page, a PDF, compressed or archived data or an image (fatal).                            |
-| `W_ISSUES_SUPPRESSED`          | `ISSUES_SUPPRESSED`     | warning  | Warnings of one code beyond the number a report keeps, counted in one warning.                                |
-| `E_XML_SYNTAX`                 | `XML_SYNTAX`            | error    | The XML is not well-formed (fatal).                                                                           |
-| `E_INVALID_UTF8`               | `INVALID_UTF8`          | error    | The input holds invalid UTF-8 (fatal).                                                                        |
-| `E_INVALID_ENCODING`           | `INVALID_ENCODING`      | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).                      |
-| `W_ENCODING_FALLBACK`          | `ENCODING_FALLBACK`     | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                                   |
-| `W_UNKNOWN_ENCODING`           | `UNKNOWN_ENCODING`      | warning  | A declared encoding the platform cannot decode was ignored.                                                   |
-| `E_NOT_GEXF`                   | `NOT_GEXF`              | error    | The root element is not `<gexf>` (fatal).                                                                     |
-| `E_NO_GRAPH`                   | `NO_GRAPH`              | error    | The document has no `<graph>` (fatal).                                                                        |
-| `W_MULTIPLE_GRAPHS`            | `MULTIPLE_GRAPHS`       | warning  | A second `<graph>`; its nodes and edges are merged into the first, its header is ignored.                     |
-| `E_GEXF_MISSING_NODES`         | `MISSING_NODES`         | error    | `<edges>` without `<nodes>`.                                                                                  |
-| `E_MISSING_ID`                 | `MISSING_ID`            | error    | A node without an id.                                                                                         |
-| `E_MISSING_ENDPOINT`           | `MISSING_ENDPOINT`      | error    | An edge without a source or target.                                                                           |
-| `E_UNKNOWN_NODE`               | `UNKNOWN_NODE`          | error    | An edge endpoint that names no declared node (addMissingNodes false, the GEXF default).                       |
-| `E_GEXF_EDGE_TYPE`             | `EDGE_TYPE`             | error    | An edge `type` outside directed / undirected / mutual.                                                        |
-| `E_UNKNOWN_PARENT`             | `UNKNOWN_PARENT`        | error    | A `pid` / `<parent for>` naming an unknown node, a `<parent>` without for, or the children of a skipped node. |
-| `E_PARENT_CYCLE`               | `PARENT_CYCLE`          | error    | A `pid` / nested containment that would close a parent cycle; that link is dropped.                           |
-| `E_BAD_VALUE`                  | `BAD_VALUE`             | error    | An inverted interval (start after end) of an element, a spell or a value; it is not kept.                     |
-| `E_GEXF_ATTRIBUTES_CLASS`      | `ATTRIBUTES_CLASS`      | error    | An `<attributes class>` outside node / edge.                                                                  |
-| `E_GEXF_ATTRIBUTE_ID`          | `ATTRIBUTE_ID`          | error    | An `<attribute>` without an id.                                                                               |
-| `W_GEXF_HEADER_VALUE`          | `HEADER_VALUE`          | warning  | A `<graph>` header attribute with an unknown value.                                                           |
-| `W_COUNT_HINT`                 | `COUNT_HINT`            | warning  | A `count` hint the sink cannot reserve (ignored).                                                             |
-| `W_COUNT_MISMATCH`             | `COUNT_MISMATCH`        | warning  | A `count` hint that disagrees with the elements of its section.                                               |
-| `W_DUPLICATE_NODE`             | `DUPLICATE_NODE`        | warning  | A node id declared twice.                                                                                     |
-| `E_DUPLICATE_EDGE_ID`          | `DUPLICATE_EDGE_ID`     | error    | An edge id declared twice (the second edge is skipped).                                                       |
-| `W_DUPLICATE_ATTRIBUTE`        | `DUPLICATE_ATTRIBUTE`   | warning  | An attribute id declared twice in one class.                                                                  |
-| `W_GEXF_ATTRIBUTE_TYPE`        | `ATTRIBUTE_TYPE`        | warning  | An attribute type the importer maps to string.                                                                |
-| `W_UNKNOWN_ATTR_TYPE`          | `UNKNOWN_ATTR_TYPE`     | warning  | A declared type the format does not define (kept as string).                                                  |
-| `W_BAD_DEFAULT`                | `BAD_DEFAULT`           | warning  | A default that does not parse as the declared type.                                                           |
-| `W_BAD_OPTIONS`                | `BAD_OPTIONS`           | warning  | Options that do not parse as the declared type.                                                               |
-| `W_COLUMN_RENAMED`             | `COLUMN_RENAMED`        | warning  | A column renamed `<name>#<id>` because the name was taken.                                                    |
-| `W_ROLE_TAKEN`                 | `ROLE_TAKEN`            | warning  | A column declared without its role because the table already holds it.                                        |
-| `W_GEXF_UNKNOWN_ATTRIBUTE`     | `UNKNOWN_ATTRIBUTE`     | warning  | An `<attvalue for>` naming an undeclared attribute.                                                           |
-| `W_GEXF_ATTVALUE_SHAPE`        | `ATTVALUE_SHAPE`        | warning  | An `<attvalue>` without a value.                                                                              |
-| `W_GEXF_TIMED_VALUE_ON_STATIC` | `TIMED_VALUE_ON_STATIC` | warning  | A timed value on an attribute of a static group.                                                              |
-| `W_PRECISION`                  | `PRECISION`             | warning  | A long value beyond 2^53 rounded.                                                                             |
-| `W_ID_MERGED`                  | `ID_MERGED`             | warning  | Two id texts merged into one number under ids "number".                                                       |
-| `W_GEXF_WEIGHT_IGNORED`        | `WEIGHT_IGNORED`        | warning  | The XML weight attribute ignored under weightFrom null.                                                       |
-| `W_GEXF_VIZ_SKIPPED`           | `VIZ_SKIPPED`           | warning  | viz elements skipped under viz: false.                                                                        |
-| `W_GEXF_VIZ_DYNAMIC_DROPPED`   | `VIZ_DYNAMIC_DROPPED`   | warning  | A 1.2 dynamic viz element whose bounds were dropped.                                                          |
-| `W_GEXF_SPELL_OPEN_DROPPED`    | `SPELL_OPEN_DROPPED`    | warning  | Deprecated and no longer recorded: open spells are kept in the spells.open column.                            |
-| `W_GEXF_VIZ_VALUE`             | `VIZ_VALUE`             | warning  | A viz value that could not be read.                                                                           |
-| `W_GEXF_OPEN_BOUND_CONFLICT`   | `OPEN_BOUND_CONFLICT`   | warning  | Both `start` and `startopen` (or `end` and `endopen`) on one element.                                         |
-| `W_GEXF_TIMESTAMP_CONFLICT`    | `TIMESTAMP_CONFLICT`    | warning  | Both `timestamp` and `start` / `end` on one element or value.                                                 |
-| `W_GEXF_VALUE_OUTSIDE_OPTIONS` | `VALUE_OUTSIDE_OPTIONS` | warning  | A value outside the declared `<options>` (kept).                                                              |
-| `W_UNKNOWN_ELEMENT`            | `UNKNOWN_ELEMENT`       | warning  | An element GEXF does not define at that place was skipped.                                                    |
-| `W_UNKNOWN_XML_ATTRIBUTE`      | `UNKNOWN_XML_ATTRIBUTE` | warning  | An XML attribute GEXF does not define on that element was ignored.                                            |
-| `W_STRAY_TEXT`                 | `STRAY_TEXT`            | warning  | Text where GEXF allows only elements was ignored.                                                             |
-| `W_OPTION_IGNORED`             | `OPTION_IGNORED`        | warning  | A common option the importer has no use for was given.                                                        |
-| `W_SINK_OPTION`                | `SINK_OPTION`           | warning  | A builder-policy option the sink does not honor.                                                              |
-| `W_DIRECTION_REFUSED`          | `DIRECTION_REFUSED`     | warning  | The sink refused the file's direction.                                                                        |
-| `W_DIRECTION_FORCED`           | `DIRECTION_FORCED`      | warning  | Edges forced to the policy's direction.                                                                       |
-| `E_MIXED_DIRECTION`            | `MIXED_DIRECTION`       | error    | A mixed file under onMixedDirection "error" (fatal).                                                          |
+| Code                           | Key                     | Severity | Meaning                                                                                                                                                                                                                                      |
+| ------------------------------ | ----------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_XML_SYNTAX`                 | `XML_SYNTAX`            | error    | The XML is not well-formed (fatal).                                                                                                                                                                                                          |
+| `E_INVALID_UTF8`               | `INVALID_UTF8`          | error    | The input holds invalid UTF-8 (fatal).                                                                                                                                                                                                       |
+| `E_INVALID_ENCODING`           | `INVALID_ENCODING`      | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).                                                                                                                                                     |
+| `W_ENCODING_FALLBACK`          | `ENCODING_FALLBACK`     | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                                                                                                                                                                  |
+| `W_UNKNOWN_ENCODING`           | `UNKNOWN_ENCODING`      | warning  | A declared encoding the platform cannot decode was ignored.                                                                                                                                                                                  |
+| `E_NOT_GEXF`                   | `NOT_GEXF`              | error    | The root element is not `<gexf>` (fatal).                                                                                                                                                                                                    |
+| `E_NO_GRAPH`                   | `NO_GRAPH`              | error    | The document has no `<graph>` (fatal).                                                                                                                                                                                                       |
+| `W_MULTIPLE_GRAPHS`            | `MULTIPLE_GRAPHS`       | warning  | The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose. `importAllGraphs()` reads every one.                                                                                           |
+| `E_GEXF_MISSING_NODES`         | `MISSING_NODES`         | error    | `<edges>` without `<nodes>`.                                                                                                                                                                                                                 |
+| `E_MISSING_ID`                 | `MISSING_ID`            | error    | A node without an id.                                                                                                                                                                                                                        |
+| `E_MISSING_ENDPOINT`           | `MISSING_ENDPOINT`      | error    | An edge without a source or target.                                                                                                                                                                                                          |
+| `E_UNKNOWN_NODE`               | `UNKNOWN_NODE`          | error    | An edge endpoint that names no declared node (addMissingNodes false, the GEXF default).                                                                                                                                                      |
+| `E_GEXF_EDGE_TYPE`             | `EDGE_TYPE`             | error    | An edge `type` outside directed / undirected / mutual.                                                                                                                                                                                       |
+| `E_UNKNOWN_PARENT`             | `UNKNOWN_PARENT`        | error    | A `pid` / `<parent for>` naming an unknown node, a `<parent>` without for, or the children of a skipped node.                                                                                                                                |
+| `E_PARENT_CYCLE`               | `PARENT_CYCLE`          | error    | A `pid` / nested containment that would close a parent cycle; that link is dropped.                                                                                                                                                          |
+| `E_BAD_VALUE`                  | `BAD_VALUE`             | error    | An inverted interval (start after end) of an element, a spell or a value; it is not kept.                                                                                                                                                    |
+| `E_GEXF_ATTRIBUTES_CLASS`      | `ATTRIBUTES_CLASS`      | error    | An `<attributes class>` outside node / edge.                                                                                                                                                                                                 |
+| `E_GEXF_ATTRIBUTE_ID`          | `ATTRIBUTE_ID`          | error    | An `<attribute>` without an id.                                                                                                                                                                                                              |
+| `W_GEXF_HEADER_VALUE`          | `HEADER_VALUE`          | warning  | A `<graph>` header attribute with an unknown value.                                                                                                                                                                                          |
+| `W_COUNT_HINT`                 | `COUNT_HINT`            | warning  | A node or edge count the file announces is too large to reserve room for; it is ignored and the elements are read as they come.                                                                                                              |
+| `W_COUNT_MISMATCH`             | `COUNT_MISMATCH`        | warning  | A `count` hint that disagrees with the elements of its section.                                                                                                                                                                              |
+| `W_DUPLICATE_NODE`             | `DUPLICATE_NODE`        | warning  | A node id declared twice.                                                                                                                                                                                                                    |
+| `E_DUPLICATE_EDGE_ID`          | `DUPLICATE_EDGE_ID`     | error    | An edge id declared twice (the second edge is skipped).                                                                                                                                                                                      |
+| `W_DUPLICATE_ATTRIBUTE`        | `DUPLICATE_ATTRIBUTE`   | warning  | An attribute id declared twice in one class.                                                                                                                                                                                                 |
+| `W_GEXF_ATTRIBUTE_TYPE`        | `ATTRIBUTE_TYPE`        | warning  | An attribute type the importer maps to string.                                                                                                                                                                                               |
+| `W_UNKNOWN_ATTR_TYPE`          | `UNKNOWN_ATTR_TYPE`     | warning  | A declared type the format does not define (kept as string).                                                                                                                                                                                 |
+| `W_BAD_DEFAULT`                | `BAD_DEFAULT`           | warning  | A default that does not parse as the declared type.                                                                                                                                                                                          |
+| `W_BAD_OPTIONS`                | `BAD_OPTIONS`           | warning  | Options that do not parse as the declared type.                                                                                                                                                                                              |
+| `W_COLUMN_RENAMED`             | `COLUMN_RENAMED`        | warning  | An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.                                                                                                             |
+| `W_ROLE_TAKEN`                 | `ROLE_TAKEN`            | warning  | You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.                                                                                                          |
+| `W_GEXF_UNKNOWN_ATTRIBUTE`     | `UNKNOWN_ATTRIBUTE`     | warning  | An `<attvalue for>` naming an undeclared attribute.                                                                                                                                                                                          |
+| `W_GEXF_ATTVALUE_SHAPE`        | `ATTVALUE_SHAPE`        | warning  | An `<attvalue>` without a value.                                                                                                                                                                                                             |
+| `W_GEXF_TIMED_VALUE_ON_STATIC` | `TIMED_VALUE_ON_STATIC` | warning  | A timed value on an attribute of a static group.                                                                                                                                                                                             |
+| `W_PRECISION`                  | `PRECISION`             | warning  | An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.                                                                                                                                    |
+| `W_ID_MERGED`                  | `ID_MERGED`             | warning  | Two id texts merged into one number under ids "number".                                                                                                                                                                                      |
+| `W_GEXF_WEIGHT_IGNORED`        | `WEIGHT_IGNORED`        | warning  | The XML weight attribute ignored under weightFrom null.                                                                                                                                                                                      |
+| `W_GEXF_VIZ_SKIPPED`           | `VIZ_SKIPPED`           | warning  | viz elements skipped under viz: false.                                                                                                                                                                                                       |
+| `W_GEXF_VIZ_DYNAMIC_DROPPED`   | `VIZ_DYNAMIC_DROPPED`   | warning  | A 1.2 dynamic viz element whose bounds were dropped.                                                                                                                                                                                         |
+| `W_GEXF_SPELL_OPEN_DROPPED`    | `SPELL_OPEN_DROPPED`    | warning  | Deprecated and no longer recorded: open spells are kept in the spells.open column.                                                                                                                                                           |
+| `W_GEXF_VIZ_VALUE`             | `VIZ_VALUE`             | warning  | A viz value that could not be read.                                                                                                                                                                                                          |
+| `W_GEXF_OPEN_BOUND_CONFLICT`   | `OPEN_BOUND_CONFLICT`   | warning  | Both `start` and `startopen` (or `end` and `endopen`) on one element.                                                                                                                                                                        |
+| `W_GEXF_TIMESTAMP_CONFLICT`    | `TIMESTAMP_CONFLICT`    | warning  | Both `timestamp` and `start` / `end` on one element or value.                                                                                                                                                                                |
+| `W_GEXF_VALUE_OUTSIDE_OPTIONS` | `VALUE_OUTSIDE_OPTIONS` | warning  | A value outside the declared `<options>` (kept).                                                                                                                                                                                             |
+| `W_UNKNOWN_ELEMENT`            | `UNKNOWN_ELEMENT`       | warning  | An element GEXF does not define at that place was skipped.                                                                                                                                                                                   |
+| `W_UNKNOWN_XML_ATTRIBUTE`      | `UNKNOWN_XML_ATTRIBUTE` | warning  | An XML attribute GEXF does not define on that element was ignored.                                                                                                                                                                           |
+| `W_STRAY_TEXT`                 | `STRAY_TEXT`            | warning  | Text where GEXF allows only elements was ignored.                                                                                                                                                                                            |
+| `W_OPTION_IGNORED`             | `OPTION_IGNORED`        | warning  | You set an option this format does not use; it had no effect. The message names the option.                                                                                                                                                  |
+| `W_SINK_OPTION`                | `SINK_OPTION`           | warning  | You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.                                        |
+| `W_DIRECTION_REFUSED`          | `DIRECTION_REFUSED`     | warning  | You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.                                                                             |
+| `W_DIRECTION_FORCED`           | `DIRECTION_FORCED`      | warning  | Edges forced to the policy's direction.                                                                                                                                                                                                      |
+| `E_MIXED_DIRECTION`            | `MIXED_DIRECTION`       | error    | The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write it anyway. |
+
+Like every format, it can also record the codes for unreadable input: [`E_EMPTY_INPUT`](../codes.md#E_EMPTY_INPUT), [`E_TOO_LARGE`](../codes.md#E_TOO_LARGE), [`W_ENCODING_CONFLICT`](../codes.md#W_ENCODING_CONFLICT), [`W_CONTROL_CHARACTER`](../codes.md#W_CONTROL_CHARACTER), [`E_FOREIGN_FORMAT`](../codes.md#E_FOREIGN_FORMAT), [`W_ISSUES_SUPPRESSED`](../codes.md#W_ISSUES_SUPPRESSED).
 
 ## Loss codes
 
-The codes `check()` can return before a save, also exported as `GEXF_LOSS` from `@graphty/graph-io/gexf`. An `E_` code means the save throws unless you change the graph or the options.
+The codes `checkExport(snapshot, "gexf", options)` can return before a save, also exported as `GEXF_LOSS` from `@graphty/graph-io/gexf`. An `E_` code means the save throws unless you change the graph or the options. A save can also return the [shared loss codes](../codes.md#shared-loss-codes) that any format can.
 
-| Code                      | Key                     | Severity            | Meaning                                                                                                                     |
-| ------------------------- | ----------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `W_GEXF_KIND_DROPPED`     | `KIND_DROPPED`          | warning             | GEXF 1.2 has no parallel-edge `kind`; the kind column is dropped.                                                           |
-| `W_TIMESTAMP_AS_INTERVAL` | `TIMESTAMP_AS_INTERVAL` | warning             | GEXF 1.2 has no timestamps; a timestamp becomes a closed interval [t, t].                                                   |
-| `W_LIST_SEPARATOR`        | `LIST_SEPARATOR`        | warning             | GEXF 1.2 liststring items are separated by `\|`; an item containing one cannot be split back.                               |
-| `W_ROLE_SHAPE`            | `ROLE_SHAPE`            | warning             | A role column of a shape GEXF cannot map (a string `start`, a 2-component color); written as a plain attribute.             |
-| `W_TEMPORAL_TABLE_SHAPE`  | `TEMPORAL_TABLE_SHAPE`  | warning             | A temporal extension table without the element / start / end / value columns.                                               |
-| `W_ATTRIBUTE_RENAMED`     | `ATTRIBUTE_RENAMED`     | warning             | An attribute whose title the importer would rename on re-import (a reserved name).                                          |
-| `W_VALUE_UNWRITABLE`      | `VALUE_UNWRITABLE`      | warning             | A cell, default or option the declared type cannot express (skipped).                                                       |
-| `W_DECLARED_TYPE`         | `DECLARED_TYPE`         | warning             | A declared type the target version lacks (1.2: date, dateTime, typed lists...); the canonical type is written.              |
-| `W_ID_TEXT_TYPE`          | `ID_TEXT_TYPE`          | warning             | A node id whose text reads back as the other type under the canonical rule: a non-integer number, a string of integer text. |
-| `W_GEXF_EDGE_ID_TEXT`     | `EDGE_ID_TEXT`          | warning             | A numeric edge id column: GEXF edge ids read back as strings.                                                               |
-| `W_GEXF_VIZ_DTYPE`        | `VIZ_DTYPE`             | warning             | A viz role column (position, color, size, thickness) that is not f32; the importer reads viz values as f32.                 |
-| `W_WEIGHT_KEY_CLASH`      | `WEIGHT_KEY_CLASH`      | warning             | A plain `weight` edge column reads back as THE weight (the importer's weightFrom default).                                  |
-| `W_OPTIONS_GAINED`        | `OPTIONS_GAINED`        | warning             | A dict column without declared options gains one from its dictionary on re-import.                                          |
-| `E_XML_ILLEGAL_CHAR`      | `XML_ILLEGAL_CHAR`      | error (save throws) | A string cell holding a character XML 1.0 forbids; export() throws E_COLUMN_TYPE.                                           |
+| Code                      | Key                     | Severity            | Meaning                                                                                                                             |
+| ------------------------- | ----------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `W_GEXF_KIND_DROPPED`     | `KIND_DROPPED`          | warning             | GEXF 1.2 has no parallel-edge `kind`; the kind column is dropped.                                                                   |
+| `W_TIMESTAMP_AS_INTERVAL` | `TIMESTAMP_AS_INTERVAL` | warning             | GEXF 1.2 has no timestamps; a timestamp becomes a closed interval [t, t].                                                           |
+| `W_LIST_SEPARATOR`        | `LIST_SEPARATOR`        | warning             | GEXF 1.2 liststring items are separated by `\|`; an item containing one cannot be split back.                                       |
+| `W_ROLE_SHAPE`            | `ROLE_SHAPE`            | warning             | A role column of a shape GEXF cannot map (a string `start`, a 2-component color); written as a plain attribute.                     |
+| `W_TEMPORAL_TABLE_SHAPE`  | `TEMPORAL_TABLE_SHAPE`  | warning             | A temporal extension table without the element / start / end / value columns.                                                       |
+| `W_ATTRIBUTE_RENAMED`     | `ATTRIBUTE_RENAMED`     | warning             | An attribute whose title the importer would rename on re-import (a reserved name).                                                  |
+| `W_VALUE_UNWRITABLE`      | `VALUE_UNWRITABLE`      | warning             | A cell, default or option the declared type cannot express (skipped).                                                               |
+| `W_DECLARED_TYPE`         | `DECLARED_TYPE`         | warning             | A declared type the target version lacks (1.2: date, dateTime, typed lists...); the canonical type is written.                      |
+| `W_ID_TEXT_TYPE`          | `ID_TEXT_TYPE`          | warning             | A node id whose text reads back as the other type under the canonical rule: a non-integer number, a string of integer text.         |
+| `W_GEXF_EDGE_ID_TEXT`     | `EDGE_ID_TEXT`          | warning             | A numeric edge id column: GEXF edge ids read back as strings.                                                                       |
+| `W_GEXF_VIZ_DTYPE`        | `VIZ_DTYPE`             | warning             | A visual attribute (position, color, size, thickness) is stored at more precision than GEXF keeps; it reads back as a 32-bit float. |
+| `W_WEIGHT_KEY_CLASH`      | `WEIGHT_KEY_CLASH`      | warning             | A plain `weight` edge column reads back as THE weight (the importer's weightFrom default).                                          |
+| `W_OPTIONS_GAINED`        | `OPTIONS_GAINED`        | warning             | A dictionary attribute without a declared list of allowed values gains one, its distinct values, on re-import.                      |
+| `E_XML_ILLEGAL_CHAR`      | `XML_ILLEGAL_CHAR`      | error (save throws) | A text value holds a character XML 1.0 forbids (most control characters); the save fails with E_COLUMN_TYPE.                        |
 
 <!-- generated:end -->

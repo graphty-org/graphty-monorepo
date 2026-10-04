@@ -75,13 +75,19 @@ interface FormatFacts {
  * @returns the cell text
  */
 function cell(s: string): string {
-    return s
-        .replace(/\s+/g, " ")
-        .replace(/ ?\((?:see |per )?(?:design|research note)\b[^)]*\)/gi, "")
-        .replace(/\{@link ([^}\s|]+)(?:[\s|][^}]*)?\}/g, "`$1`")
-        .split("|")
-        .join(ESCAPED_PIPE)
-        .trim();
+    return (
+        s
+            .replace(/\s+/g, " ")
+            .replace(/ ?\((?:see |per )?(?:design|research note)\b[^)]*\)/gi, "")
+            .replace(/\{@link ([^}\s|]+)(?:[\s|][^}]*)?\}/g, "`$1`")
+            // outside code spans, `<name>` would be read as an HTML tag by the docs site
+            .split("`")
+            .map((part, i) => (i % 2 === 0 ? part.replace(/</g, "&lt;").replace(/>/g, "&gt;") : part))
+            .join("`")
+            .split("|")
+            .join(ESCAPED_PIPE)
+            .trim()
+    );
 }
 
 /**
@@ -208,18 +214,13 @@ class Source {
             .getPropertiesOfType(type)
             .filter((p) => !skip.has(p.name))
             .map((p) => {
-                const t = this.checker.getNonNullableType(this.checker.getTypeOfSymbol(p));
                 const doc = this.doc(p);
                 const tagged = p
                     .getJsDocTags(this.checker)
                     .find((tag) => tag.name === "defaultValue" || tag.name === "default");
                 return {
                     name: p.name,
-                    type: this.checker.typeToString(
-                        t,
-                        undefined,
-                        ts.TypeFormatFlags.NoTruncation | ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope,
-                    ),
+                    type: this.typeText(this.checker.getTypeOfSymbol(p)),
                     defaultValue:
                         tagged === undefined
                             ? statedDefault(doc)
@@ -227,6 +228,44 @@ class Source {
                     doc,
                 };
             });
+    }
+
+    /**
+     * A property type as a reader needs it: `undefined` left out (every option is optional), `null` kept, and a
+     * named union or literal type spelled out (`"canonical" | "string" | "number"`, not `IdCoercion`); an
+     * object, function or class type keeps its name.
+     * @param type - the property type
+     * @returns the type text
+     */
+    typeText(type: ts.Type): string {
+        const flags = ts.TypeFormatFlags.NoTruncation | ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope;
+        const members = type.isUnion() ? type.types : [type];
+        const parts: string[] = [];
+        for (const m of members) {
+            if (m.flags & ts.TypeFlags.Undefined) {
+                continue;
+            }
+            const text =
+                m.isUnion() || m.isLiteral() || m.flags & ts.TypeFlags.BooleanLiteral
+                    ? this.checker.typeToString(m, undefined, flags | ts.TypeFormatFlags.InTypeAlias)
+                    : this.checker.typeToString(m, undefined, flags);
+            parts.push(text);
+        }
+        // `<ArrayBufferLike>` is noise to a reader
+        for (let i = 0; i < parts.length; i++) {
+            parts[i] = parts[i]
+                .replace(/<ArrayBufferLike>/g, "")
+                .replace(
+                    /\bImportInput\b/g,
+                    "(string | Uint8Array | ReadableStream<Uint8Array> | AsyncIterable<string | Uint8Array>)",
+                );
+        }
+        // a format name accepts any registered name; listing the built-in ones here would read as the whole set
+        if (parts.includes("string & {}")) {
+            return parts.includes('"auto"') ? '"auto" | string' : "string";
+        }
+        // `true | false` reads better as boolean
+        return parts.join(" | ").replace(/\bfalse \| true\b|\btrue \| false\b/, "boolean");
     }
 
     /**
@@ -413,6 +452,39 @@ interface Context {
     readonly formats: readonly FormatFacts[];
     readonly capabilityDocs: ReadonlyMap<string, string>;
     readonly jsonDialects: readonly { readonly dialect: string; readonly caps: ExportCapabilities }[];
+    /** The codes of the shared input layer, which every importer can record. */
+    readonly inputCodes: ReadonlySet<string>;
+    /** The loss codes any exporter's capability check can return (the root `LOSS` table). */
+    readonly sharedLosses: readonly CodeRow[];
+    /** The common import options each format reads, by format name. */
+    readonly usedOptions: ReadonlyMap<string, ReadonlySet<string>>;
+}
+
+/**
+ * The common import options each built-in importer reads: the string literals of its `USED_OPTIONS` sets (the
+ * sets reportUnusedOptions() checks, so an option outside them is reported as W_OPTION_IGNORED).
+ * @param formats - the format names
+ * @returns the option names per format; a format whose importer declares no set is left out
+ */
+function usedOptionsOf(formats: readonly string[]): Map<string, Set<string>> {
+    const out = new Map<string, Set<string>>();
+    for (const f of formats) {
+        const file = `${pkg}src/formats/${f}/importer.ts`;
+        if (!existsSync(file)) {
+            continue;
+        }
+        const text = readFileSync(file, "utf8");
+        const names = new Set<string>();
+        for (const m of text.matchAll(/const USED_OPTIONS\w*\b[^=]*=\s*new Set[^(]*\(\[([^\]]*)\]/g)) {
+            for (const lit of m[1].matchAll(/"(\w+)"/g)) {
+                names.add(lit[1]);
+            }
+        }
+        if (names.size > 0) {
+            out.set(f, names);
+        }
+    }
+    return out;
 }
 
 /**
@@ -427,11 +499,15 @@ async function context(): Promise<Context> {
     const json = (await import(`../${entryOf("json")}`)) as Record<string, unknown>;
     const dialects = (json.JSON_DIALECTS ?? []) as readonly string[];
     const dialectCaps = json.dialectCapabilities as ((d: string) => ExportCapabilities) | undefined;
+    const formats = withRelayedDocs(await collectFormats(src), src, index, runtime);
     return {
         src,
         index,
         runtime,
-        formats: withRelayedDocs(await collectFormats(src), src, index, runtime),
+        formats,
+        inputCodes: new Set(Object.values(runtime.INPUT_ISSUE as Readonly<Record<string, string>>)),
+        sharedLosses: src.codes(index.get("LOSS") as ts.Symbol, runtime.LOSS as Readonly<Record<string, unknown>>),
+        usedOptions: usedOptionsOf(formats.map((f) => f.name)),
         capabilityDocs: src.capabilityDocs(index),
         jsonDialects:
             dialectCaps === undefined ? [] : dialects.map((dialect) => ({ dialect, caps: dialectCaps(dialect) })),
@@ -450,7 +526,7 @@ function capabilityCell(v: unknown): string {
         return v ? "yes" : "no";
     }
     if (Array.isArray(v)) {
-        return v.join(", ");
+        return v.length === 0 ? "none" : v.join(", ");
     }
     return String(v);
 }
@@ -491,7 +567,7 @@ function fidelityTable(ctx: Context): string[] {
  * @returns the markdown lines
  */
 function capabilityLegend(ctx: Context): string[] {
-    return [...ctx.capabilityDocs].map(([k, doc]) => `- ${code(k)}: ${cell(doc)}`);
+    return [...ctx.capabilityDocs].flatMap(([k, doc]) => [`#### ${k}`, "", cell(doc), ""]);
 }
 
 /**
@@ -516,6 +592,8 @@ function matrixBlock(ctx: Context): string[] {
         "### What each writer keeps",
         "",
         ...fidelityTable(ctx),
+        "",
+        "### What the capabilities mean",
         "",
         ...capabilityLegend(ctx),
     ];
@@ -545,14 +623,18 @@ function glanceBlock(ctx: Context, f: FormatFacts): string[] {
     if (f.exporter === undefined) {
         return out;
     }
-    out.push("", "What a saved file can hold:", "");
+    out.push(
+        "",
+        "What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-mean) explain each row):",
+        "",
+    );
     const fields = [...ctx.capabilityDocs.keys()];
     if (f.name === "json" && ctx.jsonDialects.length > 0) {
         out.push(
             ...table(
                 ["Capability", ...ctx.jsonDialects.map((d) => code(d.dialect))],
                 fields.map((k) => [
-                    `${code(k)}: ${cell(ctx.capabilityDocs.get(k) ?? "")}`,
+                    `[${code(k)}](./index.md#${k.toLowerCase()})`,
                     ...ctx.jsonDialects.map((d) => capabilityCell(d.caps[k as keyof ExportCapabilities])),
                 ]),
             ),
@@ -561,11 +643,10 @@ function glanceBlock(ctx: Context, f: FormatFacts): string[] {
         const caps = f.exporter.capabilities;
         out.push(
             ...table(
-                ["Capability", "Value", "Meaning"],
+                ["Capability", "Value"],
                 fields.map((k) => [
-                    code(k),
+                    `[${code(k)}](./index.md#${k.toLowerCase()})`,
                     capabilityCell(caps[k as keyof ExportCapabilities]),
-                    cell(ctx.capabilityDocs.get(k) ?? ""),
                 ]),
             ),
         );
@@ -574,17 +655,37 @@ function glanceBlock(ctx: Context, f: FormatFacts): string[] {
 }
 
 /**
+ * A default as a cell: a literal value (`"auto"`, `100`, `true`) as code, a sentence (`per format`) as text.
+ * @param value - the default as the doc comment states it
+ * @returns the cell text
+ */
+function defaultCell(value: string): string {
+    if (value === "") {
+        return "";
+    }
+    return /^(?:"[^"]*"|'[^']*'|-?\d[\d.e+-]*|true|false|null|\[.*\]|\{.*\})$/.test(value) ? code(value) : cell(value);
+}
+
+/**
  * An options table.
  * @param rows - the options
+ * @param usedBy - for the common import options: which formats read each option
  * @returns the markdown lines
  */
-function optionsTable(rows: readonly OptionRow[]): string[] {
+function optionsTable(rows: readonly OptionRow[], usedBy?: (name: string) => string): string[] {
     if (rows.length === 0) {
-        return ["No options of its own."];
+        return ["This format has no options of its own."];
     }
+    const head = ["Option", "Type", "Default", ...(usedBy === undefined ? [] : ["Read by"]), "Meaning"];
     return table(
-        ["Option", "Type", "Default", "Meaning"],
-        rows.map((o) => [code(o.name), code(o.type), o.defaultValue === "" ? "" : code(o.defaultValue), cell(o.doc)]),
+        head,
+        rows.map((o) => [
+            code(o.name),
+            code(o.type),
+            defaultCell(o.defaultValue),
+            ...(usedBy === undefined ? [] : [usedBy(o.name)]),
+            cell(o.doc),
+        ]),
     );
 }
 
@@ -615,7 +716,7 @@ function tablePrefix(f: FormatFacts): string {
  * @param f - the format
  * @returns the markdown lines
  */
-function referenceBlock(f: FormatFacts): string[] {
+function referenceBlock(ctx: Context, f: FormatFacts): string[] {
     const out: string[] = [];
     if (f.importer !== undefined) {
         out.push(
@@ -638,20 +739,28 @@ function referenceBlock(f: FormatFacts): string[] {
         );
     }
     if (f.issues.length > 0) {
+        const own = f.issues.filter((r) => !ctx.inputCodes.has(r.code));
+        const shared = f.issues.filter((r) => ctx.inputCodes.has(r.code));
         out.push(
             "## Import issue codes",
             "",
             `The codes this format's import report can hold, also exported as \`${tablePrefix(f)}_ISSUE\` from \`${f.subpath}\`.`,
             "",
-            ...codesTable(f.issues, "error"),
+            ...(own.length > 0 ? codesTable(own, "error") : ["This format records no codes of its own."]),
             "",
         );
+        if (shared.length > 0) {
+            out.push(
+                `Like every format, it can also record the codes for unreadable input: ${shared.map((r) => `[${code(r.code)}](../codes.md#${r.code})`).join(", ")}.`,
+                "",
+            );
+        }
     }
     if (f.losses.length > 0) {
         out.push(
             "## Loss codes",
             "",
-            `The codes \`check()\` can return before a save, also exported as \`${tablePrefix(f)}_LOSS\` from \`${f.subpath}\`. An \`E_\` code means the save throws unless you change the graph or the options.`,
+            `The codes \`checkExport(snapshot, "${f.name}", options)\` can return before a save, also exported as \`${tablePrefix(f)}_LOSS\` from \`${f.subpath}\`. An \`E_\` code means the save throws unless you change the graph or the options. A save can also return the [shared loss codes](../codes.md#shared-loss-codes) that any format can.`,
             "",
             ...codesTable(f.losses, "error (save throws)"),
             "",
@@ -676,12 +785,43 @@ function optionsBlock(ctx: Context): string[] {
     const commonImport = ctx.src.options(sym("CommonImportOptions"));
     const commonExport = ctx.src.options(sym("CommonExportOptions"));
     const inherited = new Set([...commonImport, ...commonExport].map((o) => o.name));
+    const importers = ctx.formats.filter((f) => f.importer !== undefined).map((f) => f.name);
+    const usedBy = (option: string): string => {
+        const readers = importers.filter((f) => ctx.usedOptions.get(f)?.has(option) ?? true);
+        if (readers.length === importers.length) {
+            return "every format";
+        }
+        return readers.length === 0 ? "none" : readers.map((f) => `[${f}](./formats/${f}.md)`).join(", ");
+    };
+    // only the options reportUnusedOptions() may report as ignored differ by format; the builder's policies
+    // (duplicateEdges, selfLoops, ...) apply while the graph is built, whatever the importer reads
+    const optionsSource = readFileSync(`${pkg}src/common/options.ts`, "utf8");
+    const listed = (name: string): Set<string> =>
+        new Set(
+            [
+                ...(new RegExp(`const ${name}\\b[^=]*=\\s*\\[([^\\]]*)\\]`).exec(optionsSource)?.[1] ?? "").matchAll(
+                    /"(\w+)"/g,
+                ),
+            ].map((m) => m[1]),
+        );
+    const ignorable = listed("IGNORABLE_OPTION_NAMES");
+    const sinkPolicies = listed("SINK_OPTION_NAMES");
+    if (ignorable.size === 0) {
+        throw new Error("src/common/options.ts no longer lists IGNORABLE_OPTION_NAMES");
+    }
+    const builderPolicies = new Set(
+        [...commonImport.map((o) => o.name)].filter((n) => !ignorable.has(n) || sinkPolicies.has(n)),
+    );
+    const own = (name: string, base: ReadonlySet<string>): OptionRow[] =>
+        ctx.src.options(sym(name), base).filter((o) => o.name !== "__index");
+    const importGraphOwn = own("ImportGraphOptions", inherited);
+    const importNames = new Set([...inherited, ...importGraphOwn.map((o) => o.name)]);
     return [
         "## Every importer",
         "",
-        "`CommonImportOptions`: every importer accepts these next to its own options.",
+        "`CommonImportOptions`: every importer accepts these next to its own options. An option a format does not read is reported in the import report as `W_OPTION_IGNORED` when you set it.",
         "",
-        ...optionsTable(commonImport),
+        ...optionsTable(commonImport, (n) => (builderPolicies.has(n) ? "every format" : usedBy(n))),
         "",
         "## Every exporter",
         "",
@@ -693,13 +833,25 @@ function optionsBlock(ctx: Context): string[] {
         "",
         "`ImportGraphOptions`: everything above, plus these, plus the chosen format's own import options.",
         "",
-        ...optionsTable(ctx.src.options(sym("ImportGraphOptions"), inherited).filter((o) => o.name !== "__index")),
+        ...optionsTable(importGraphOwn),
         "",
-        "## exportGraph and checkExport",
+        "## loadFromUrl",
         "",
-        "`ExportGraphOptions`: everything above, plus these, plus the chosen format's own export options.",
+        "`LoadFromUrlOptions`: everything `importGraph()` takes, plus:",
         "",
-        ...optionsTable(ctx.src.options(sym("ExportGraphOptions"), inherited).filter((o) => o.name !== "__index")),
+        ...optionsTable(own("LoadFromUrlOptions", importNames)),
+        "",
+        "`loadFromFile()` takes the same options as `importGraph()`.",
+        "",
+        "## Saving: exportGraph, exportGraphToBytes, checkExport and the others",
+        "",
+        "`ExportGraphOptions`: the options every exporter takes, above, plus the chosen format's own export options in the same object.",
+        "",
+        "## downloadGraph",
+        "",
+        "`DownloadGraphOptions`: everything the other save functions take, plus:",
+        "",
+        ...optionsTable(own("DownloadGraphOptions", inherited)),
         "",
         "## Each format's own options",
         "",
@@ -723,6 +875,8 @@ interface CodeUse {
     doc: string;
     readonly importers: string[];
     readonly exporters: string[];
+    /** Whether any exporter's capability check can return it (the root `LOSS` table). */
+    anyExporter: boolean;
 }
 
 /**
@@ -735,7 +889,7 @@ function codesBlock(ctx: Context): string[] {
     const use = (c: string): CodeUse => {
         let u = uses.get(c);
         if (u === undefined) {
-            u = { doc: "", importers: [], exporters: [] };
+            u = { doc: "", importers: [], exporters: [], anyExporter: false };
             uses.set(c, u);
         }
         return u;
@@ -749,6 +903,11 @@ function codesBlock(ctx: Context): string[] {
                 u.doc = ctx.src.doc(sym);
             }
         }
+    }
+    for (const r of ctx.sharedLosses) {
+        const u = use(r.code);
+        u.anyExporter = true;
+        u.doc ||= r.doc;
     }
     for (const f of ctx.formats) {
         for (const r of f.issues) {
@@ -773,15 +932,28 @@ function codesBlock(ctx: Context): string[] {
             .map(([c, u]) => {
                 const where = [
                     u.importers.length > 0 ? `Import: ${list(u.importers)}.` : "",
-                    u.exporters.length > 0 ? `Save: ${list(u.exporters)}.` : "",
+                    u.anyExporter ? "Save: any format." : "",
+                    !u.anyExporter && u.exporters.length > 0 ? `Save: ${list(u.exporters)}.` : "",
                 ]
                     .filter((s) => s !== "")
                     .join(" ");
-                return `- ${code(c)}: ${cell(u.doc)}${where === "" ? "" : ` ${where}`}`;
+                return `- <a id="${c}"></a>${code(c)}: ${cell(u.doc)}${where === "" ? "" : ` ${where}`}`;
             }),
         "",
     ];
-    return [...section("## Errors", "E_"), ...section("## Warnings", "W_")];
+    return [
+        ...section("## Errors", "E_"),
+        ...section("## Warnings", "W_"),
+        "## Shared loss codes",
+        "",
+        `Any format's \`checkExport()\` can return these, when the graph has something the format's [capabilities](./formats/index.md#what-the-capabilities-mean) do not cover: ${[
+            ...new Set(ctx.sharedLosses.map((r) => r.code)),
+        ]
+            .sort(byCodeUnit)
+            .map((c) => `[${code(c)}](#${c})`)
+            .join(", ")}.`,
+        "",
+    ];
 }
 
 // ============================================================ pages
@@ -833,11 +1005,14 @@ function skeleton(name: string): string {
  * @returns the markdown
  */
 function exampleBlock(name: string): string {
-    const file = `${docsDir}examples/${name}.ts`;
-    if (!existsSync(file)) {
-        throw new Error(`example ${name}: ${file} does not exist`);
+    // a browser example is plain JavaScript, so it runs pasted into a page or a notebook as it is
+    for (const lang of ["ts", "js"]) {
+        const file = `${docsDir}examples/${name}.${lang}`;
+        if (existsSync(file)) {
+            return [`\`\`\`${lang}`, readFileSync(file, "utf8").trim(), "```"].join("\n");
+        }
     }
-    return ["```ts", readFileSync(file, "utf8").trim(), "```"].join("\n");
+    throw new Error(`example ${name}: ${docsDir}examples/${name}.ts does not exist`);
 }
 
 /**
@@ -867,7 +1042,7 @@ function markdownPages(dir = ""): string[] {
     return readdirSync(`${docsDir}${dir}`, { withFileTypes: true }).flatMap((e) => {
         const rel = `${dir}${e.name}`;
         if (e.isDirectory()) {
-            return rel === "api" || rel === "examples" ? [] : markdownPages(`${rel}/`);
+            return rel === "api" || rel === "examples" || rel === "samples" ? [] : markdownPages(`${rel}/`);
         }
         return e.name.endsWith(".md") ? [rel] : [];
     });
@@ -902,7 +1077,7 @@ function render(ctx: Context, block: string): string {
             break;
         case "reference":
             if (f !== undefined) {
-                return referenceBlock(f).join("\n");
+                return referenceBlock(ctx, f).join("\n");
             }
             break;
         default:
@@ -1027,7 +1202,7 @@ export async function undocumented(): Promise<string[]> {
 
 /** What a published doc comment must not mention: the package's internal design documents and process. */
 export const INTERNAL_REFERENCE =
-    /design\s+sections?\b|\bdesign\s+\d+\.\d|research\s+note|STATUS\.md|decision\s+D-[A-Z]|\bissue\s+#\d+/i;
+    /design\s+sections?\b|\bdesign\s+\d+\.\d|research\s+note|STATUS\.md|decision\s+D-[A-Z]|\bissue\s+#\d+|\binvariant\s+I\d|\bsrc\/|audit\s+round/i;
 
 /**
  * Every published doc comment that mentions the package's internal design documents.

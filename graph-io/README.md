@@ -21,21 +21,22 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { exportGraphToBytes, importGraph } from "@graphty/graph-io";
 
-const { snapshot, format, report } = await importGraph(await readFile("lesmiserables.gexf"), {
-    filename: "lesmiserables.gexf",
+const { snapshot, format, report } = await importGraph(await readFile("got-network.graphml"), {
+    filename: "got-network.graphml",
 });
 console.log(`${format}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
 for (const issue of report.issues) {
     console.warn(`${issue.code} line ${issue.line ?? "-"}: ${issue.message}`);
 }
-await writeFile("lesmiserables.graphml", await exportGraphToBytes(snapshot, "graphml"));
+await writeFile("got-network.gexf", await exportGraphToBytes(snapshot, "gexf"));
 ```
 
 <!-- generated:end -->
 
-**Read the [Quick start](https://graphty.app/docs/graph-io/guide/quick-start)**
-([docs/guide/quick-start.md](./docs/guide/quick-start.md) in the repository) to load files from URLs
-and file pickers, check what a save would lose, and handle errors. The full documentation is at
+**Start with the [Quick start](https://graphty.app/docs/graph-io/guide/quick-start)**
+([docs/guide/quick-start.md](./docs/guide/quick-start.md) in the repository): load files from URLs
+and file pickers, use the graph data, check what a save would lose, and handle errors. The full
+documentation, including how to add a format of your own, is at
 [graphty.app/docs/graph-io](https://graphty.app/docs/graph-io/).
 
 Formats: [JSON](https://graphty.app/docs/graph-io/guide/formats/json) (NetworkX, d3, JGF,

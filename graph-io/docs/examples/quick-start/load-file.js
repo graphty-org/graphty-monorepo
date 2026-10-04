@@ -1,13 +1,14 @@
 import { GraphFormatError, listFormats, loadFromFile } from "@graphty/graph-io";
 
-const input = document.querySelector("#graph-file") as HTMLInputElement;
-input.accept = listFormats()
+// <input type="file" id="graph-file">
+const input = document.querySelector("#graph-file");
+const extensions = listFormats()
     .filter((f) => f.canImport)
-    .flatMap((f) => f.extensions)
-    .join(",");
+    .flatMap((f) => f.extensions);
+input.accept = [...new Set(extensions)].join(",");
 
 input.addEventListener("change", async () => {
-    const file = input.files?.[0];
+    const file = input.files[0];
     if (!file) {
         return;
     }

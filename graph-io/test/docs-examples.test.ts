@@ -11,7 +11,16 @@
  * downloads it starts are compared with a snapshot.
  */
 
-import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+    copyFileSync,
+    existsSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +31,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const DOCS = fileURLToPath(new URL("../docs/", import.meta.url));
 const EXAMPLES = join(DOCS, "examples");
 const CORPUS = fileURLToPath(new URL("corpus/", import.meta.url));
+const SAMPLES = join(DOCS, "samples");
 const PICKED_FILE = "lesmiserables.gexf";
 
 /**
@@ -150,6 +160,10 @@ async function runExample(file: string): Promise<Run> {
             }
         }
     }
+    // the sample files the guide publishes, which a reader can download
+    for (const f of readdirSync(SAMPLES)) {
+        copyFileSync(join(SAMPLES, f), join(dir, f));
+    }
     const before = new Set(readdirSync(dir));
     const run: Run = { printed: [], effects: [] };
     const cwd = process.cwd();
@@ -167,7 +181,9 @@ async function runExample(file: string): Promise<Run> {
             }
             await el.fire("click");
         }
-        for (const f of readdirSync(dir).filter((x) => !before.has(x)).sort()) {
+        for (const f of readdirSync(dir)
+            .filter((x) => !before.has(x))
+            .sort()) {
             run.effects.push(`[wrote] ${f} (${String(statSync(join(dir, f)).size)} bytes)`);
         }
         return run;
@@ -184,7 +200,7 @@ afterEach(() => {
 
 describe("documentation examples", () => {
     const files = walk(EXAMPLES)
-        .filter((f) => f.endsWith(".ts"))
+        .filter((f) => f.endsWith(".ts") || f.endsWith(".js"))
         .sort();
 
     it("exist", () => {
@@ -192,7 +208,7 @@ describe("documentation examples", () => {
     });
 
     for (const file of files) {
-        const name = relative(EXAMPLES, file).replace(/\.ts$/, "");
+        const name = relative(EXAMPLES, file).replace(/\.[jt]s$/, "");
         it(`${name} runs`, async () => {
             const { printed, effects } = await runExample(file);
             if (!/^export /m.test(readFileSync(file, "utf8"))) {
@@ -200,7 +216,7 @@ describe("documentation examples", () => {
                 expect(printed.length + effects.length, "an example shows what it did").toBeGreaterThan(0);
             }
             expect(effects).toMatchSnapshot();
-            const expectedFile = file.replace(/\.ts$/, ".txt");
+            const expectedFile = file.replace(/\.[jt]s$/, ".txt");
             const text = printed.length === 0 ? "" : `${printed.join("\n")}\n`;
             if (process.env.UPDATE_EXAMPLES === "1") {
                 if (text === "") {

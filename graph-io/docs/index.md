@@ -13,7 +13,7 @@ graph-io tells you: an import returns a report that lists every skipped or chang
 npm install @graphty/graph-io
 ```
 
-Start with the [Quick start](./guide/quick-start.md). It takes about five minutes.
+Start with the [Quick start](./guide/quick-start.md).
 
 ## Formats
 
@@ -39,11 +39,17 @@ one keeps.
 ## Where to go next
 
 - [Loading graphs](./guide/loading.md): every kind of input, format options, files with several
-  graphs, cancelling.
+  graphs, cancelling, keeping a browser bundle small.
+- [Reading the graph](./guide/reading.md): nodes, attributes, labels, edges, weights.
 - [Saving graphs](./guide/saving.md): checking a save, streaming, downloads, ids a format cannot hold.
 - [The import report and errors](./guide/report.md): what went wrong, and where.
+- [Format detection](./guide/detection.md): how graph-io tells formats apart, and when to name one.
+- [Options reference](./guide/options.md): every option, with its default.
+- [Issue and loss codes](./guide/codes.md): every code an import or a save can report.
 - [Writing a format plugin](./guide/extending/new-format.md): teach graph-io a format of your own.
-- [API reference](https://graphty.app/docs/graph-io/api/generated/): every export, generated from the source.
+- [Extending an existing format](./guide/extending/existing-format.md): change how a built-in
+  format reads or writes.
+- [API reference](https://graphty.app/docs/graph-io/api/generated/): every export, grouped by task.
 
 If you display graphs with [graphty-element](https://graphty.app/docs/graphty-element/), you
 already use graph-io: `element.loadFromUrl()` and `element.loadFromFile()` read files through it.

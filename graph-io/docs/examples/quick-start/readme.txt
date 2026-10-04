@@ -1,1 +1,1 @@
-gexf: 77 nodes, 254 edges
+graphml: 107 nodes, 352 edges

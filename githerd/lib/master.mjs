@@ -439,6 +439,26 @@ export const LANE_CODE = /** @type {Record<string, string[]>} */ ({
 });
 
 /**
+ * The changed files that can change what a lane builds or runs: every file but a Markdown document
+ * and a package.json whose only change is its `version` line (what a release commit changes in
+ * every package it bumps).
+ * @param {{filename: string, patch?: string}[]} files the files of a compare, with their patches
+ * @returns {string[]} their paths
+ */
+export function buildFiles(files) {
+    const versionOnly = (/** @type {string | undefined} */ patch) =>
+        patch !== undefined &&
+        patch
+            .split("\n")
+            .filter((l) => (l.startsWith("+") || l.startsWith("-")) && !l.startsWith("+++") && !l.startsWith("---"))
+            .every((l) => l.slice(1).trimStart().startsWith('"version":'));
+    return files
+        .filter((f) => !f.filename.endsWith(".md"))
+        .filter((f) => !(f.filename.endsWith("package.json") && versionOnly(f.patch)))
+        .map((f) => f.filename);
+}
+
+/**
  * Whether a range of changes leaves every one of some lanes' code alone, so none of its commits
  * can be a code suspect for them.
  * @param {string[] | null} files every path the range changes; null when the list is not whole

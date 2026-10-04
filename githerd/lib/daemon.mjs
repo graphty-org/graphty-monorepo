@@ -82,7 +82,15 @@ import {
     retireStrayWindows,
     tidyEndedJobs,
 } from "./start.mjs";
-import { LANE_CODE, findSuspects, masterVerdict, rangeMissesLanes, releaseState, updateLane } from "./master.mjs";
+import {
+    LANE_CODE,
+    buildFiles,
+    findSuspects,
+    masterVerdict,
+    rangeMissesLanes,
+    releaseState,
+    updateLane,
+} from "./master.mjs";
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
 import { doneIo, pollVerifying } from "./done.mjs";
 import { classify, isNoLog } from "./classify.mjs";
@@ -1348,8 +1356,9 @@ export async function startDaemon({
      * Reads what the open incident's change range touches (the compare of the last green commit and
      * the red one), once per set of code-red lanes. When it leaves every one of those lanes' code
      * alone, no commit in it is a code suspect: the suspects are dropped, so nothing is reverted, and
-     * the incident says why. A lane that can be broken by any file (CI) keeps them, and so does a
-     * list GitHub cut short (300 files). A read that fails is tried again next poll.
+     * the incident says why. Markdown and version-only package.json changes (a release commit) do
+     * not count. A lane that can be broken by any file (CI) keeps them, and so does a list GitHub
+     * cut short (300 files). A read that fails is tried again next poll.
      * @param {[string, any][]} codeLanes the code-red gating lanes
      */
     async function readRange(codeLanes) {
@@ -1360,7 +1369,8 @@ export async function startDaemon({
         if (workflows.every((w) => LANE_CODE[w])) {
             const path = `repos/${config.repo}/compare/${inc.lastGreenSha}...${inc.redSha}`;
             const listed = (await github().get(path)).body?.files;
-            if (Array.isArray(listed) && listed.length < 300) files = listed.map((/** @type {any} */ f) => f.filename);
+            // A release commit's version bumps and changelogs build nothing.
+            if (Array.isArray(listed) && listed.length < 300) files = buildFiles(listed);
         }
         inc.rangeFor = workflows.join(",");
         if (rangeMissesLanes(files, workflows)) {

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { normalizeConfig } from "../lib/config.mjs";
 import {
+    buildFiles,
+    rangeMissesLanes,
     findSuspects,
     masterVerdict,
     releaseState,
@@ -271,6 +273,29 @@ describe("findSuspects", () => {
             { sha: "m1", pr: null },
             { sha: "m0", pr: null },
         ]);
+    });
+});
+
+describe("buildFiles and rangeMissesLanes", () => {
+    it("leaves out docs and a release commit's version bumps, and nothing a lane builds", () => {
+        const files = [
+            { filename: "layout/CHANGELOG.md", patch: "+## 1.3.3" },
+            {
+                filename: "layout/package.json",
+                patch: '@@ -3 +3 @@\n-    "version": "1.3.2",\n+    "version": "1.3.3",',
+            },
+            {
+                filename: "graph-format/package.json",
+                patch: '@@ -9 +9 @@\n-    "tslib": "^2.6.0"\n+    "tslib": "^2.7.0"',
+            },
+            { filename: "algorithms/package.json" },
+        ];
+        expect(buildFiles(files)).toEqual(["graph-format/package.json", "algorithms/package.json"]);
+        expect(rangeMissesLanes(buildFiles(files.slice(0, 2)), ["GPU"])).toBe(true);
+        expect(rangeMissesLanes(["graph-format/package.json"], ["GPU"])).toBe(false);
+        // CI can be broken by any file; an unread or cut list never clears a suspect.
+        expect(rangeMissesLanes([], ["GPU", "CI"])).toBe(false);
+        expect(rangeMissesLanes(null, ["GPU"])).toBe(false);
     });
 });
 

@@ -117,7 +117,7 @@ let clock;
 /**
  * @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null,
  *   events?: Record<string, any[]>, merged?: any[], release?: any[], annotations?: any[], gpu?: any[],
- *   jobs?: Record<string, any[]>, logs?: Record<string, string>, compare?: string[]}}
+ *   jobs?: Record<string, any[]>, logs?: Record<string, string>, compare?: {filename: string, patch?: string}[]}}
  */
 let scene;
 /** @type {ReturnType<typeof createFakeGh>} */
@@ -213,7 +213,7 @@ function respond({ args, input }) {
         return httpOutput({ status: 201, body: { id: 5, url: "https://api.github.com/repos/o/r/issues/comments/5" } });
     }
     if (path === "repos/o/r/issues/comments/5") return ok({ id: 5 });
-    if (path.includes("/compare/")) return ok({ files: (scene.compare ?? []).map((filename) => ({ filename })) });
+    if (path.includes("/compare/")) return ok({ files: scene.compare ?? [] });
     throw new Error(`unexpected gh call: ${args.join(" ")}`);
 }
 
@@ -1464,7 +1464,15 @@ describe("failure classes on master", () => {
                 },
             ],
         };
-        scene.compare = ["design/notes.md", "README.md"];
+        // The range of 22f8785..7fd13ca: docs, and a release commit's changelogs and version bumps.
+        scene.compare = [
+            { filename: "design/ci/ci-cd-plan.md", patch: "@@ -1 +1 @@\n-a\n+b" },
+            { filename: "webgpu-graph-algorithms/CHANGELOG.md", patch: "@@ -1 +1,3 @@\n+## 0.6.32" },
+            {
+                filename: "webgpu-graph-algorithms/package.json",
+                patch: '@@ -2,3 +2,3 @@\n     "name": "@graphty/webgpu-graph-algorithms",\n-    "version": "0.6.31",\n+    "version": "0.6.32",',
+            },
+        ];
         for (const at of ["12:03", "12:06"]) {
             clock = new Date(`2026-10-02T${at}:00Z`);
             await poll(daemon);
@@ -1473,7 +1481,7 @@ describe("failure classes on master", () => {
         expect(incident).toMatchObject({ status: "open", lastGreenSha: A, redSha: B, suspects: [] });
         expect(incident.rangeNote).toBe("no commit since aaaaaaa touches the GPU lane's code");
         // A range that touches the lane keeps its suspects.
-        scene.compare = ["graph-format/src/a.ts"];
+        scene.compare = [{ filename: "graph-format/src/a.ts", patch: "@@ -1 +1 @@\n-a\n+b" }];
         delete incident.rangeFor;
         delete incident.rangeNote;
         incident.suspects = [{ sha: B, pr: 2 }];

@@ -91,6 +91,23 @@ export interface SniffResult {
 }
 
 /**
+ * Where the query or fragment of a name starts: at the first `?` or `#` of a URL; in a plain name, at
+ * the first `?` or `#` that no dot follows.
+ * @param filename - the name, path or URL
+ * @param url - whether the name is a URL
+ * @returns the offset, or the name's length when it has neither
+ */
+function queryStart(filename: string, url: boolean): number {
+    const from = url ? 0 : filename.lastIndexOf(".") + 1;
+    for (let i = from; i < filename.length; i++) {
+        if (filename[i] === "?" || filename[i] === "#") {
+            return i;
+        }
+    }
+    return filename.length;
+}
+
+/**
  * The lower-cased extension of a file name, path or URL, with its dot. A URL's `?query` and
  * `#fragment` are not part of it; in a plain name, `?` and `#` are ordinary characters (`net#2.gexf`)
  * unless no dot follows them (`g.graphml#v2`).
@@ -100,7 +117,7 @@ export interface SniffResult {
 export function extensionOf(filename: string): string | null {
     // a scheme of two or more letters, so a Windows drive (`C:`) is not one
     const url = /^[a-z][a-z\d+.-]+:/i.test(filename);
-    const path = filename.replace(url ? /[?#].*$/s : /[?#][^.]*$/s, "");
+    const path = filename.slice(0, queryStart(filename, url));
     const base = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
     const dot = base.lastIndexOf(".");
     if (dot <= 0 || dot === base.length - 1) {

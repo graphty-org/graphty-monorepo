@@ -1400,8 +1400,13 @@ async function listCysGraphs(
  * A session's marker or folder name in the head of the archive, or an entry only a session has
  * (Cytoscape's app state, a network, view or table file), for a session whose folder was renamed.
  */
-const SESSION_NAME =
-    /CytoscapeSession|cysession\.xml|\d+\.\d+\.\d+\.version|(^|\/)apps\/org\.cytoscape\.|(^|\/)(networks|views)\/\d+-[^/]*\.xgmml|(^|\/)tables\/\d+-[^/]*\/[^/]+\.cytable/;
+const SESSION_NAMES: readonly RegExp[] = [
+    /CytoscapeSession|cysession\.xml/,
+    /(?<!\d)\d+\.\d+\.\d+\.version/,
+    /(?:^|\/)apps\/org\.cytoscape\./,
+    /(?:^|\/)(?:networks|views)\/\d+-[^/]*\.xgmml/,
+    /(?:^|\/)tables\/\d+-[^/]*\/[^/]+\.cytable/,
+];
 
 /**
  * Confidence that a head of bytes is a Cytoscape session: 0.95 for a zip whose head names the
@@ -1414,7 +1419,7 @@ const SESSION_NAME =
 export function sniffCys(head: Uint8Array): number {
     for (let at = 0; at + 4 <= head.byteLength; at++) {
         if (startsLikeZip(head.subarray(at))) {
-            return SESSION_NAME.test(decodeEntryName(head.subarray(at))) ? 0.95 : 0;
+            return SESSION_NAMES.some((r) => r.test(decodeEntryName(head.subarray(at)))) ? 0.95 : 0;
         }
     }
     return 0;

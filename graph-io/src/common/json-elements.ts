@@ -35,6 +35,7 @@ import {
     STATUS_WARNING_CODE,
 } from "./codes.js";
 import { type ImportReportBuilder } from "./report.js";
+import { trimTrailingZeros } from "./text.js";
 
 // ============================================================ exact integers
 
@@ -156,7 +157,7 @@ function isInexactLiteral(literal: string): boolean {
     if (m === null) {
         return false;
     }
-    const digits = (m[2] + (m[3] ?? "")).replace(/0+$/, "");
+    const digits = trimTrailingZeros(m[2] + (m[3] ?? ""));
     const exponent = Number(m[4] ?? "0") - (m[3] ?? "").length + ((m[2] + (m[3] ?? "")).length - digits.length);
     if (digits.replace(/^0+/, "").length <= 15 || exponent < 0) {
         // up to 15 significant digits the nearest double reads back as the same text (1e39 is the

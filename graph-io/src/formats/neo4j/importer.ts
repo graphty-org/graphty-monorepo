@@ -1517,11 +1517,16 @@ function overflows(spec: DeclaredTypeSpec, value: unknown, text: string): boolea
  * @returns the text to parse
  */
 function withZoneOffset(text: string, spec: DeclaredTypeSpec): string {
-    const m = /^(.*)\[([^\]]+)\]$/.exec(text.trim());
-    if (m === null || spec.temporal !== "dateTime") {
+    const trimmed = text.trim();
+    const open = trimmed.lastIndexOf("[");
+    if (spec.temporal !== "dateTime" || open < 0 || !trimmed.endsWith("]")) {
         return text;
     }
-    const [, local, zone] = m;
+    const local = trimmed.slice(0, open);
+    const zone = trimmed.slice(open + 1, -1);
+    if (zone === "" || zone.includes("]") || /[\n\r\u2028\u2029]/.test(local)) {
+        return text;
+    }
     let format: Intl.DateTimeFormat;
     try {
         format = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longOffset" });

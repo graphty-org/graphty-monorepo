@@ -205,7 +205,8 @@ const ABORT_CHECK_INTERVAL = 64;
 const FIRST_VERTEX_VALUES: ReadonlySet<unknown> = new Set([0, 1, "auto"]);
 
 /** A numeral that is not a finite number (`1e999`, `NaN`, `Infinity`): never a parameter key. */
-const NON_FINITE_NUMERAL = /^[+-]?(?:(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|nan|inf|infinity)$/i;
+const NUMERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+const NON_FINITE_WORD = /^[+-]?(?:nan|inf|infinity)$/i;
 
 const LABEL_DECL: ColumnDecl = {
     name: LABEL_COLUMN,
@@ -1106,7 +1107,11 @@ class PajekParser {
         k: number,
         line: number,
     ): void {
-        if (i < tokens.length && NON_FINITE_NUMERAL.test(tokens[i]) && !isNumericText(tokens[i])) {
+        if (
+            i < tokens.length &&
+            (NUMERAL.test(tokens[i]) || NON_FINITE_WORD.test(tokens[i])) &&
+            !isNumericText(tokens[i])
+        ) {
             this.report.counts.skippedNodes++;
             throw new LineError(
                 "parse-error",
@@ -1694,8 +1699,19 @@ function firstVertexOption(value: unknown): 0 | 1 | "auto" {
     );
 }
 
-/** The start of a Pajek network: `*Vertices` or `*Network`, after blank lines and `%` comment lines. */
-const HEAD_PATTERN = /^(\s*%[^\r\n]*)*\s*\*(vertices|network)\b/i;
+/**
+ * The section a Pajek network starts with, after blank lines and `%` comment lines.
+ * @param text - the head of the input
+ * @returns "vertices" or "network" (lower case), or null when the text starts otherwise
+ */
+function headSection(text: string): string | null {
+    let rest = text.trimStart();
+    while (rest.startsWith("%")) {
+        const end = rest.search(/[\r\n]/);
+        rest = end < 0 ? "" : rest.slice(end).trimStart();
+    }
+    return /^\*(vertices|network)\b/i.exec(rest)?.[1].toLowerCase() ?? null;
+}
 
 /** The Pajek NET importer. */
 export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
@@ -1711,11 +1727,11 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
      */
     sniff(head: Uint8Array): number {
         const text = new TextDecoder("utf-8").decode(head);
-        const match = HEAD_PATTERN.exec(text.startsWith(String.fromCharCode(0xfeff)) ? text.slice(1) : text);
-        if (match === null) {
+        const section = headSection(text.startsWith("\ufeff") ? text.slice(1) : text);
+        if (section === null) {
             return 0;
         }
-        return match[2].toLowerCase() === "vertices" ? 0.9 : 0.8;
+        return section === "vertices" ? 0.9 : 0.8;
     },
 
     /**

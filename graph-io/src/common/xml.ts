@@ -948,7 +948,7 @@ export class XmlTokenizer {
                         buffer.indexOf(";", amp) < 0 &&
                         // ponytail: a zero-padded reference longer than MAX_ENTITY_LENGTH is held back
                         // whole, so an absurdly long run of zeros is re-scanned once per chunk
-                        (amp >= length - MAX_ENTITY_LENGTH || /^&#[xX]?0+[0-9a-fA-F]*$/.test(buffer.slice(amp)))
+                        (amp >= length - MAX_ENTITY_LENGTH || /^&#[xX]?0[\da-fA-F]*$/.test(buffer.slice(amp)))
                     ) {
                         end = amp;
                     }

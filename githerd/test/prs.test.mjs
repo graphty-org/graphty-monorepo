@@ -159,6 +159,12 @@ describe("decideBreaking", () => {
         expect(decideBreaking("fix: a", ["fix: a\n\nBREAKING-CHANGE: the option is gone"], false)).toBe(true);
     });
 
+    it("is false when a body only mentions the words BREAKING CHANGE inside a sentence", () => {
+        const body =
+            "fix: a\n\nnx makes a major only from a breaking commit (a `!` subject or a BREAKING CHANGE\nfooter) or a release config change.";
+        expect(decideBreaking("fix: a", [body], false)).toBe(false);
+    });
+
     it("is true for a list cut off at 250 commits", () => {
         const many = Array.from({ length: 250 }, (_, i) => `fix: commit ${i}`);
         expect(decideBreaking("fix: big", many, true)).toBe(true);

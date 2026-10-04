@@ -43,7 +43,9 @@ import { execFileSync } from "node:child_process";
 const FAILED = new Set(["FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "ERROR"]);
 const PASSED = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
 const BREAKING_SUBJECT = /^[a-z]+(\([^)]*\))?!:/;
-const BREAKING_FOOTER = /BREAKING[ -]CHANGE/;
+// A footer, as the conventional-commits parser nx release uses reads one: the keyword at the start of a
+// line. The words inside a sentence of the body ("... or a BREAKING CHANGE footer") are not a footer.
+const BREAKING_FOOTER = /^[\s|*]*BREAKING[ -]CHANGE[:\s]/m;
 
 /**
  * Whether a PR is breaking, from its title and the full commit list of its head.

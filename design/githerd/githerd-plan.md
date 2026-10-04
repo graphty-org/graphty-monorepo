@@ -151,6 +151,49 @@ actually happened.
 | 2.2 Install, launcher and `ensure` (`launcher.mjs`) | `githerd install` (servherd command with fixed cwd and `env -i`); `githerd ensure`; the MCP server's and the session launcher's `alive` check and restart lock; the pm2 re-creation workaround removed | Launcher tests with a fake servherd | One daemon after concurrent starts from three cwds and from `githerd ensure` |
 | 2.3 Two busy days in dry-run | Run the daemon; review the ledger's would-dos against the record: red-master detection, classification, holds, merge decisions, release truth | A written comparison in the pull request description | No would-do a person judges wrong remains unexplained |
 
+#### How to run 2.3
+
+The shared daemon runs only master's copy of `githerd/`, and this branch is not on master, so the
+two days run this worktree's code as the development daemon (`githerd dev`: its own servherd name
+`githerd-dev`, its state in `<worktree>/.githerd-dev/`, never above dry-run, pages to the ledger
+only). Nothing in it writes to GitHub; every write is a `would-do` ledger line.
+
+1. **Pick the days.** Two weekdays the owner expects to be busy (at least 40 master commits a day,
+   R17). Before starting: `uptime` (load below 16), `gh auth status` logged in as the owner, and
+   `gh api rate_limit` with more than 3,000 core calls left.
+2. **Start it** from the worktree:
+   `GITHERD_CONFIG=$PWD/githerd.config.json node githerd/bin/githerd.mjs dev`. Check with
+   `GITHERD_STATE_DIR=.githerd-dev node githerd/bin/githerd.mjs mode` that every write group is
+   dry-run, and with `... status` that the first poll completed and the trust login is the
+   owner's.
+3. **Watch it twice a day** (`GITHERD_STATE_DIR=.githerd-dev` on each command): `githerd status`;
+   the ages of `.githerd-dev/alive` (under 20 s) and `.githerd-dev/progress`; no `FATAL` file;
+   `githerd ledger --since 12h --kind fault` empty or explained. A daemon that died is a finding:
+   record its log (`servherd logs githerd-dev`) before starting it again.
+4. **After 48 hours, collect both sides** into `tmp/githerd/two-days/`:
+   - githerd's view: `githerd ledger --since 2d > ledger.jsonl`, and `state.json`.
+   - the record: master's runs of every workflow in the window
+     (`gh api "repos/graphty-org/graphty-monorepo/actions/runs?branch=master&created=>=<start>" --paginate`),
+     the failed jobs' names, steps and annotations, the pull requests merged in the window
+     (`gh pr list --state merged --search "merged:>=<start>" --json number,mergedAt,headRefOid`),
+     the tags and npm versions published (`git tag --contains <start commit>`,
+     `npm view <package> time --json`), and the issues opened.
+5. **Compare, category by category**, one table each:
+   - red-master detection: every red stretch of a gating lane, its true first red run and green
+     end against githerd's red-since and green, and how many polls late githerd was;
+   - classification: every failed job, githerd's class against the class a person gives it after
+     reading the log;
+   - holds: every would-hold and would-release against what was merged meanwhile;
+   - merge decisions: every `githerd/merge` would-do status per pull request head, and every merge
+     that landed while githerd's status for that head would have been `failure`;
+   - release truth: every release run, tag and npm version against githerd's release state, and
+     any half-state it raised.
+6. **Judge.** Every row a person judges wrong is fixed in a commit on this branch with a replay
+   test from the recorded answers, or explained in the table with the reason it is acceptable.
+   Paste the tables into pull request #739's description.
+7. **Stop it**: `servherd stop githerd-dev`, then `servherd remove githerd-dev`; check that no
+   `githerd-daemon.mjs` process is left (`pgrep -f githerd-daemon.mjs`).
+
 ### Milestone 3: the daemon's own actions on GitHub
 
 Each task adds its write group in dry-run first; it acts only in milestone 8.

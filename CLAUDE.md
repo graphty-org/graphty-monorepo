@@ -457,15 +457,24 @@ The target flow:
 - A red master freezes the queue and opens a `priority:critical` revert automatically.
 - Releases go out once a day as a release pull request, plus an ad hoc release on demand.
 
-**Live today:** none of the target flow. The workflows below, the serial in-place queue under
-"Merging" and the release on every merge under "Release versioning" are still what runs. The
-plan's section 16 is the order of the migration. Update this paragraph as each step lands.
+**Live today:** the pull request half of the target flow. A draft pull request runs no CI; a ready
+one runs the affected suite with the screenshots and the gate; `Cost Estimate Accuracy` runs on
+every pull request that affects graphty-element and gates it; the short test shards run as two
+grouped jobs. ci.yml also knows a Mergify merge-queue run (a draft on a `mergify/merge-queue/*`
+branch): it runs the full suite there and reports `Queue Checks Pass`, and `Lint PR Title` passes
+it. Mergify itself still checks one pull request at a time in place (`.mergify.yml`), the visual
+gate does not yet accept a batch, and the release still runs on every merge. The plan's section 15
+is the order of the migration. Update this paragraph as each step lands.
+
+**Open pull requests as drafts while you iterate** (`gh pr create --draft`); the local pre-push gate
+still runs on every push. Mark it ready (`gh pr ready <n>`) when the work is done: that starts its
+CI, and Mergify queues only ready pull requests.
 
 ### Workflows (`.github/workflows/`)
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push/PR | Build, lint, sharded tests (22 parallel jobs), dead links (the `Links` job) |
+| `ci.yml` | Push to master, ready (non-draft) PRs, Mergify queue drafts, dispatch | Build, lint, sharded tests (13 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | Called by `release.yml` after a release | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
@@ -541,7 +550,13 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 22 parallel test jobs on a push to master or a manual dispatch:
+The CI runs 22 test shards on a push to master, a manual dispatch or a merge-queue run. The
+short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
+full run is 13 test jobs: `small-node` (graph-format, graph-io, graph-samples, layout,
+algorithms-default) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
+graphty, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
+even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
+shard. The shards:
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
@@ -943,6 +958,16 @@ two sessions. Until the limit resets, every `gh` call fails with HTTP 403 and me
       commits(last: 1) { nodes { commit { statusCheckRollup { state
         contexts(first: 100) { nodes { ... on CheckRun { name status conclusion } } } } } } }
     } } } }'
+  ```
+
+- **Read pull request status from the local broker, not from GitHub.** `tools/pr-status-broker.mjs`
+  runs under servherd and writes every open pull request's labels, draft and merge state, rollup
+  and checks to `<main checkout>/tmp/pr-status/status.json` once a minute, in one GraphQL query.
+  Read that file (check `fetchedAt` and `error`). If `servherd_list` does not show
+  `pr-status-broker`, start it from the main checkout:
+
+  ```jsonc
+  servherd_start({ name: "pr-status-broker", cwd: "<repo>", command: "node tools/pr-status-broker.mjs" })
   ```
 
 - **Poll every 5 minutes or slower.** A loop that waits for a pull request or a run to finish

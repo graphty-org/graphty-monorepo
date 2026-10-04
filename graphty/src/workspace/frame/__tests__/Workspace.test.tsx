@@ -90,9 +90,8 @@ describe("the workspace frame", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: "New project" }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /Keyboard shortcuts/ }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: "Help" }));
-        // Save and Export... are stubs until the Project and Export packages land.
+        // Save is a stub until the Project package lands.
         assert.isNull(within(menu).queryByRole("menuitem", { name: /Save/ }));
-        assert.isNull(within(menu).queryByRole("menuitem", { name: /Export/ }));
     });
 
     it("draws a File list command in both menus once its package builds it", async () => {

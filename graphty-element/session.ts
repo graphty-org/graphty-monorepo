@@ -299,6 +299,7 @@ export type {
     ProjectStatus,
     SavedProject,
 } from "./src/session/projectFile";
+export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 
 // ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session

@@ -1,10 +1,11 @@
 /**
- * A project file keeps the graph's direction: an undirected graph reopens undirected, with the
- * same fingerprint, so the saved runs come back with their edge values.
+ * A project file keeps the graph's direction (an undirected graph reopens undirected, with the
+ * same fingerprint, so the saved runs come back with their edge values), and its file name gives
+ * the project its name back.
  */
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession } from "../../src/session";
+import { createGraphSession, PROJECT_FILE, projectFileName } from "../../session";
 
 const UNDIRECTED_GML = `graph [
   node [ id 1 label "a" ]
@@ -55,5 +56,24 @@ describe("the project file and the graph's direction", () => {
         );
         assert.notProperty(data?.graph, "directed");
         saved.dispose();
+    });
+});
+
+describe("the project file's name and type", () => {
+    it("names a project's file the way an open reads the name back", async () => {
+        assert.strictEqual(projectFileName("Florentine families"), "Florentine families.graphty.json");
+        assert.strictEqual(projectFileName(null), "project.graphty.json");
+        assert.strictEqual(projectFileName("  "), "project.graphty.json");
+        assert.isTrue(projectFileName("x").endsWith(PROJECT_FILE.extension));
+        assert.strictEqual(PROJECT_FILE.mediaType, "application/vnd.graphty+json");
+
+        const saved = createGraphSession();
+        await saved.data.addNodes([{ id: "a" }]);
+        const { text } = await saved.project.save();
+        const opened = createGraphSession();
+        await opened.project.open(text, { fileName: projectFileName("Pioneers") });
+        assert.strictEqual(opened.project.name, "Pioneers");
+        saved.dispose();
+        opened.dispose();
     });
 });

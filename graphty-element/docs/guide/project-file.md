@@ -112,6 +112,28 @@ A change made while the file was being written leaves the project dirty after `m
 undo back to the saved state clears it again. Marking a save older than one already marked, or
 older than the last `open`, does nothing.
 
+## Naming the file yourself
+
+When you save through something other than `downloadProject` -- a save picker, Node's `fs`, an
+upload -- take the file's name and type from the element rather than spelling them out:
+
+```typescript
+import { PROJECT_FILE, projectFileName } from "@graphty/graphty-element/session";
+
+const handle = await window.showSaveFilePicker({
+    suggestedName: projectFileName(session.project.name), // "Pioneers.graphty.json"
+    types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
+});
+```
+
+- **`projectFileName(name)`** is the name `downloadProject` gives the file: `<name>.graphty.json`,
+  or `project.graphty.json` when the project has no name. Opening a file of that name gives the
+  project its name back.
+- **`PROJECT_FILE.extension`** is `".graphty.json"` and **`PROJECT_FILE.mediaType`** is
+  `"application/vnd.graphty+json"`.
+
+Both come from `@graphty/graphty-element/session`, which loads in Node, and from the main entry.
+
 ## The name and unsaved changes
 
 ```typescript

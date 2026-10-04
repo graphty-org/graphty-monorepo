@@ -1150,6 +1150,34 @@ function rowsOf<Key, Id extends NodeId>(
 }
 
 /**
+ * How a project file is named and typed: what `element.downloadProject()` gives the file, and
+ * what to hand a save picker (`showSaveFilePicker`'s `suggestedName` and `accept`) or a server.
+ * @example
+ * ```typescript
+ * const handle = await showSaveFilePicker({
+ *     suggestedName: projectFileName(session.project.name),
+ *     types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
+ * });
+ * ```
+ */
+export const PROJECT_FILE = Object.freeze({
+    /** The file name's ending, with its leading dot. */
+    extension: ".graphty.json",
+    /** The file's media type. */
+    mediaType: "application/vnd.graphty+json",
+} as const);
+
+/**
+ * The file name the element gives a project: `<name>.graphty.json`, or `project.graphty.json`
+ * for a project with no name. Opening a file with that name gives the project its name back.
+ * @param name - The project's name, such as `session.project.name`; blank or null for none.
+ * @returns The file name.
+ */
+export function projectFileName(name: string | null | undefined): string {
+    return `${name === null || name === undefined || name.trim() === "" ? "project" : name}${PROJECT_FILE.extension}`;
+}
+
+/**
  * The project's name from a file's name: without `.graphty.json` or `.json`.
  * @param fileName - The file's name.
  * @returns The name, or null for none.

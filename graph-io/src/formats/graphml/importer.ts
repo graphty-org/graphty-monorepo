@@ -1067,15 +1067,10 @@ class GraphmlReader implements XmlHandler {
      * @param line - the line
      */
     private unknownElement(name: string, line: number): void {
-        this.report.warnOnce(
-            "unsupported",
-            GRAPHML_ISSUE.UNKNOWN_ELEMENT,
-            `element <${name}> is not GraphML and was skipped`,
-            {
-                line,
-                element: name,
-            },
-        );
+        this.report.warnOnce("unsupported", GRAPHML_ISSUE.UNKNOWN_ELEMENT, unknownElementMessage(name), {
+            line,
+            element: name,
+        });
         this.ctx.push(Ctx.Skip);
     }
 
@@ -2702,3 +2697,33 @@ export const graphmlImporter: GraphImporter<GraphmlImportOptions> = Object.freez
     sniff: sniffGraphml,
     import: importGraphml,
 });
+
+/** The elements GraphML defines, for telling a misplaced one from a foreign one. */
+const GRAPHML_ELEMENTS = new Set([
+    "graphml",
+    "key",
+    "default",
+    "graph",
+    "node",
+    "edge",
+    "hyperedge",
+    "endpoint",
+    "port",
+    "data",
+    "desc",
+    "locator",
+]);
+
+/**
+ * The message of an element skipped where it stands.
+ * @param name - the element name
+ * @returns a message that says where a GraphML element belongs, or that a foreign one is not GraphML
+ */
+function unknownElementMessage(name: string): string {
+    if (name === "key") {
+        return "element <key> is only allowed as a child of <graphml>, before the first <graph>; it was skipped";
+    }
+    return GRAPHML_ELEMENTS.has(name)
+        ? `element <${name}> is not allowed at this place in a GraphML file and was skipped`
+        : `element <${name}> is not GraphML and was skipped`;
+}

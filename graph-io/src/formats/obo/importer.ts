@@ -34,6 +34,7 @@ import {
     DANGLING_REFERENCE_CODE,
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_NODE_CODE,
+    ELEMENT_ISSUE,
     EMPTY_INPUT_CODE,
     ENCODING_FALLBACK_CODE,
     INPUT_ISSUE,
@@ -99,6 +100,7 @@ export interface OboImportOptions extends CommonImportOptions {
  */
 export const OBO_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
     /** The input is empty or whitespace. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The input is not valid UTF-8. The import stops. */

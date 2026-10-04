@@ -7,6 +7,7 @@ import {
     COLUMN_RENAMED_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
+    ELEMENT_ISSUE,
     ENCODING_FALLBACK_CODE,
     INPUT_ISSUE,
     INVALID_ENCODING_CODE,
@@ -58,6 +59,7 @@ export { csvImporter, type CsvImportOptions } from "./importer.js";
  */
 export const CSV_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
     /** An integer beyond 2^53 was stored as the nearest 64-bit float; reported once per column. */
     PRECISION: PRECISION_CODE,
     /** The input is empty. The import stops. */

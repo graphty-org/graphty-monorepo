@@ -527,7 +527,7 @@ function planWeight(
         if (plan.attrName === attrName) {
             note(
                 LOSS.WEIGHT_KEY_CLASH,
-                `edge column "${plan.column.meta.name}" is written as a key titled "${attrName}", which the importer reads as THE weight (weightFrom); it reads back as the weight, not as a column`,
+                `edge column "${plan.column.meta.name}" is written as a key titled "${attrName}", which the importer reads as the edge weight (weightFrom); it reads back as the weight, not as a column`,
                 plan.column.meta.name,
                 plan.column.length - plan.column.nullCount,
             );

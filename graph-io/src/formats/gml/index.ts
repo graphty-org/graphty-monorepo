@@ -8,6 +8,7 @@ import {
     COLUMN_RENAMED_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
+    ELEMENT_ISSUE,
     ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
     INPUT_ISSUE,
@@ -66,6 +67,7 @@ export { gmlImporter, type GmlImportOptions } from "./importer.js";
  */
 export const GML_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
     /**
      * The text breaks GML's syntax: a word that is not a key or a value, an unclosed string or `[`, a stray `]`, or a
      * key without a value. The import stops.

@@ -61,7 +61,10 @@ export const LOSS = Object.freeze({
      * (`CheckExtras.attributes` false).
      */
     COLUMN_DROPPED: COLUMN_DROPPED_CODE,
-    /** The format has no mixed direction; expanded pairs are written per onMixedDirection. */
+    /**
+     * The graph has both directed and undirected edges, the format holds one direction per file, and
+     * `onMixedDirection` is "directed" or "undirected": every edge is written with that direction.
+     */
     MIXED_DIRECTION: "W_MIXED_DIRECTION",
     /**
      * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
@@ -350,14 +353,14 @@ export function checkCapabilities(
         if (options.onMixedDirection === "error") {
             note(
                 LOSS.MIXED_DIRECTION_ERROR,
-                `${mixed} undirected edge(s) in a directed graph; the format has no mixed direction and onMixedDirection is "error"`,
+                `${mixed} undirected edge(s) in a directed graph, and the format holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"`,
                 null,
                 mixed,
             );
         } else {
             note(
                 LOSS.MIXED_DIRECTION,
-                `${mixed} undirected edge(s) in a directed graph written as ${options.onMixedDirection}`,
+                `${mixed} undirected edge(s) in a directed graph are written as ${options.onMixedDirection} (onMixedDirection), and the format holds one direction per file`,
                 null,
                 mixed,
             );
@@ -408,14 +411,14 @@ export function checkCapabilities(
         } else if (options.sanitizeIds === "mangle") {
             note(
                 LOSS.ID_MANGLED,
-                `${unrepresentable} node id(s) ${charsetText(caps.idCharset)} are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
+                `${unrepresentable} node id(s) ${charsetText(caps.idCharset)}, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
                 null,
                 unrepresentable,
             );
         } else {
             note(
                 LOSS.ID_CHARSET,
-                `${unrepresentable} node id(s) ${charsetText(caps.idCharset)}; the save fails unless sanitizeIds is "mangle"`,
+                `${unrepresentable} node id(s) ${charsetText(caps.idCharset)}, so the save fails unless sanitizeIds is "mangle"`,
                 null,
                 unrepresentable,
             );

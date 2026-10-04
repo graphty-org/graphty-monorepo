@@ -27,7 +27,7 @@
  *   as the DOT grammar says).
  *
  * The whole text is read first (design section 8.4 allows it for DOT). A grammar violation is
- * fatal, as it is for Graphviz itself: the import aborts with ImportError (code E_DOT_SYNTAX)
+ * fatal, as it is for Graphviz itself: the import aborts with ImportError (issue code E_SYNTAX)
  * carrying the partial report. Errors the sink raises for one element are recorded and the element
  * is skipped (section 8.6).
  */
@@ -47,6 +47,7 @@ import {
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
     DUPLICATE_ATTRIBUTE_CODE,
+    ELEMENT_ISSUE,
     EMPTY_INPUT_CODE,
     ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
@@ -100,8 +101,8 @@ export interface DotImportOptions extends CommonImportOptions {
      * What an edge operator that contradicts the graph keyword means (`--` in a digraph, `->` in a
      * graph; Graphviz refuses such a file): "operator" reads the edge with the operator's
      * direction, so the graph has both directions and `onMixedDirection` decides, with a warning;
-     * "header" reads it with the graph's direction, with a warning; "error" stops the import, as
-     * Graphviz does.
+     * "header" reads it with the graph's direction, with a warning; "error" stops the import with an
+     * ImportError whose `issue.code` is E_SYNTAX, as Graphviz does.
      * @defaultValue "operator"
      */
     mismatchedEdgeOperator?: "operator" | "header" | "error" | undefined;
@@ -121,6 +122,7 @@ export interface DotImportOptions extends CommonImportOptions {
  */
 export const DOT_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
     /** The text breaks DOT's syntax; the message says where. The import stops. */
     SYNTAX: SYNTAX_CODE,
     /** The input holds no graph: it is empty or only comments. The import stops. */
@@ -140,7 +142,10 @@ export const DOT_ISSUE = Object.freeze({
     ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
     /** Subgraphs or braces are nested deeper than graph-io reads. The import stops. */
     NESTING: "E_DOT_NESTING",
-    /** An edge operator contradicting the graph keyword (warning under "operator" / "header"). */
+    /**
+     * An edge operator contradicting the graph keyword, read under mismatchedEdgeOperator "operator" or "header".
+     * Under "error" the import stops with E_SYNTAX instead.
+     */
     EDGE_OPERATOR: "W_DOT_EDGE_OPERATOR",
     /**
      * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
@@ -1323,7 +1328,7 @@ class DotParser {
                 this.report.warnOnce(
                     "coercion",
                     DOT_ISSUE.EDGE_OPERATOR,
-                    `${message}; read with the operator's direction and resolved per onMixedDirection`,
+                    `${message}; read with the operator's direction, and onMixedDirection decides how the mixed graph is stored`,
                     { line: op.line },
                 );
                 return operatorDirected ? "directed" : "undirected";

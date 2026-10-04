@@ -7,6 +7,7 @@
 
 import {
     COLUMN_RENAMED_CODE,
+    ELEMENT_ISSUE,
     ENCODING_FALLBACK_CODE,
     INPUT_ISSUE,
     INVALID_ENCODING_CODE,
@@ -66,6 +67,7 @@ export {
  */
 export const NEO4J_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
     /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
     /**

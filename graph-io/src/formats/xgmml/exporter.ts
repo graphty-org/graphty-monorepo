@@ -600,7 +600,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
     const weights = explicitWeights(snapshot);
     for (const column of snapshot.edges) {
         if (column.meta.name === "weight" && column.meta.role === null && !weights.weighted) {
-            note(LOSS.WEIGHT_KEY_CLASH, `edge column "weight" reads back as THE weight`, "weight", null);
+            note(LOSS.WEIGHT_KEY_CLASH, `edge column "weight" reads back as the edge weight, not as a column`, "weight", null);
         }
     }
     return {

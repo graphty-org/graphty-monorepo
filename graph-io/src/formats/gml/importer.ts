@@ -90,7 +90,9 @@ export interface GmlImportOptions extends CommonImportOptions {
     positions?: boolean | undefined;
     /**
      * Store a text attribute whose values repeat a lot (fewer distinct values than half the rows)
-     * as a dictionary column, which uses less memory and reads the same.
+     * as a dictionary column, which uses less memory and reads the same. Such a column reports
+     * `meta.dtype` "dict" instead of "string". A column with a role, such as the `label` column,
+     * always stays "string".
      * @defaultValue true
      */
     dictionaries?: boolean | undefined;

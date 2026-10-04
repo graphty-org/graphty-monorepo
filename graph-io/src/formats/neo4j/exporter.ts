@@ -698,7 +698,7 @@ class ExportPlan {
         } else if (taken !== undefined && name === DEFAULT_WEIGHT_COLUMN) {
             this.note(
                 LOSS.WEIGHT_KEY_CLASH,
-                `edge column "${name}" is written under the property the importer reads THE weight from (weightFrom "${name}"); it reads back as the weight, not as a column`,
+                `edge column "${name}" is written under the property the importer reads edge weights from (weightFrom "${name}"); it reads back as the weight, not as a column`,
                 name,
                 taken.column.length - taken.column.nullCount,
             );

@@ -50,6 +50,7 @@ import {
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
+    ELEMENT_ISSUE,
     EMPTY_COLUMN_DROPPED_CODE,
     EMPTY_INPUT_CODE,
     ENCODING_FALLBACK_CODE,
@@ -206,6 +207,7 @@ export interface JsonImportOptions extends GraphChoiceOptions, CommonImportOptio
  */
 export const JSON_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
     /** The text is empty or whitespace. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The text is not valid JSON. The import stops. */

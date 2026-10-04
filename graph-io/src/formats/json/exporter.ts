@@ -951,7 +951,7 @@ function planWeights(ctx: PlanContext, edges: readonly ColumnPlan[]): (e: number
         if (clash !== undefined) {
             ctx.note(
                 LOSS.WEIGHT_KEY_CLASH,
-                `edge column "${clash.column.meta.name}" is written under "${clash.key}", the key the importer reads THE weight from; it reads back as the weight, not as a column`,
+                `edge column "${clash.column.meta.name}" is written under "${clash.key}", the key the importer reads edge weights from; it reads back as the weight, not as a column`,
                 clash.column.meta.name,
                 clash.column.length - clash.column.nullCount,
             );

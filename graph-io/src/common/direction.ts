@@ -54,19 +54,21 @@ export interface EdgeLocation {
 }
 
 /**
- * The name of the bool edge column marking source-directed edges.
+ * The name of the bool edge column that, in a graph with both directed and undirected edges, says
+ * which edges were directed in the file (true) and which were undirected (false).
  * @category Plugin helpers
  */
 export const DIRECTED_COLUMN = "graphty.directed";
 
 /**
- * The name of the u32 edge column pairing the halves of an expanded edge.
+ * The name of the edge column that links the two edges an undirected edge is stored as, in a graph
+ * with both directed and undirected edges: each holds the index of the other.
  * @category Plugin helpers
  */
 export const PAIR_COLUMN = "graphty.pair";
 
 /**
- * The name of the bool edge column marking GEXF mutual edges.
+ * The name of the bool edge column that marks a GEXF `mutual` edge.
  * @category Plugin helpers
  */
 export const MUTUAL_COLUMN = "graphty.mutual";
@@ -78,8 +80,10 @@ const PAIR_DECL: ColumnDecl = { name: PAIR_COLUMN, dtype: "u32", role: "pair", r
 const MUTUAL_DECL: ColumnDecl = { name: MUTUAL_COLUMN, dtype: "bool", role: "mutual" };
 
 /**
- * Pushes edges into a sink while resolving each edge's direction. One instance per
- * import call; `setHeader()` before the first `addEdge()`.
+ * Adds edges to the sink and handles files whose edges have different directions, the way
+ * `onMixedDirection` asks. Make one per import call, call `setHeader()` once with the direction the
+ * file declares, then `addEdge()` for each edge. In a directed graph an undirected edge is stored as
+ * two edges, one each way, linked so an exporter writes them back as one.
  * @category Writing a format
  */
 export class DirectionResolver {
@@ -128,20 +132,19 @@ export class DirectionResolver {
     }
 
     /**
-     * Whether the reserved direction columns exist (the sink holds expanded edges).
-     * @returns true once graphty.pair was declared or adopted
+     * Whether the graph holds undirected edges stored as two edges.
+     * @returns true once the first such edge was added
      */
     get expanded(): boolean {
         return this.pairHandle !== INVALID_INDEX;
     }
 
     /**
-     * Set the sink's direction from the file's header (or the
-     * `defaultDirected` option for a file that declares none) before the first edge. Under the
-     * "directed" / "undirected" policies the policy's direction is used instead and the difference
-     * is reported. A refusal (E_DIRECTED: locked, or a non-empty directed sink for an undirected
-     * header) is recorded as a coercion issue and the sink's direction stands; a non-empty unlocked
-     * undirected sink with a directed header is expanded in place.
+     * Set the graph's direction before the first edge: the direction the file declares, or the
+     * `defaultDirected` option for a file that declares none. Under `onMixedDirection` "directed" or
+     * "undirected" that direction is used instead, with a warning when it differs. When the sink
+     * cannot change direction (a caller's builder that already holds edges or was locked), the
+     * sink's direction stands and a warning is recorded.
      * @param headerDirected - the direction the file declares (or the default)
      * @param where - the line of the header, when known
      */
@@ -198,24 +201,27 @@ export class DirectionResolver {
     }
 
     /**
-     * The mirror half of the edge most recently pushed by addEdge(), when it was expanded into a
-     * pair; INVALID_INDEX otherwise. An importer that learns an edge's weight after pushing it
-     * (a GEXF attvalue) sets it on both halves.
-     * @returns the mirror's logical index, or INVALID_INDEX
+     * The second edge of the edge the last addEdge() call added, when that edge was stored as two;
+     * otherwise INVALID_INDEX (4294967295). An edge attribute or weight you set after addEdge()
+     * belongs on both: set it on the index addEdge() returned and, when this is not INVALID_INDEX,
+     * on this index too.
+     * @returns the second edge's index, or INVALID_INDEX
      */
     get lastMirror(): number {
         return this.mirrorOfLast;
     }
 
     /**
-     * Push one source edge. An edge whose direction equals the
-     * sink's is one addEdge; one that differs is expanded, forced or refused per the policy.
+     * Add one edge. An edge with the graph's direction is added as it is; one with the other
+     * direction is stored as two edges, given the graph's direction, or refused, as
+     * `onMixedDirection` says. When it is stored as two, the return value is the first and
+     * `lastMirror` the second.
      * @param source - the source id
      * @param target - the target id
      * @param kind - the edge's direction in the file
      * @param weight - the weight, or undefined when the file gives none
      * @param where - the line and element, for issues
-     * @returns the logical index of the (primary) edge
+     * @returns the index of the edge added (the first one, when it was stored as two)
      */
     addEdge(source: NodeId, target: NodeId, kind: EdgeKind, weight?: number, where?: EdgeLocation): number {
         if (!this.headerSet) {
@@ -273,7 +279,8 @@ export class DirectionResolver {
     }
 
     /**
-     * How many edges were pushed with a direction other than their own under the forcing policies.
+     * How many edges were given a direction other than their own, under `onMixedDirection`
+     * "directed" or "undirected".
      * @returns the count
      */
     get forced(): number {
@@ -417,41 +424,44 @@ function direction(directed: boolean): string {
 // ============================================================ the exporter side
 
 /**
- * The expanded-pair view of a snapshot's logical edges for exporters: which edges are the mirror half of an expanded pair (and are folded back into their
- * primary), which were undirected in the source, and which carry the GEXF mutual mark. One
- * implementation for every exporter; the only per-format choice is whether a mutual pair folds
- * back into one edge (`foldMutual`, for formats with a mutual or undirected slot) or is written as
- * two directed edges (the default).
+ * What an exporter needs to know about edge direction, from `pairFolding(snapshot)`. In a graph
+ * with both directed and undirected edges, each undirected edge is stored as two edges, one each
+ * way. `folded(e)` tells you which of the two to skip, so the edge is written once, and
+ * `sourceDirected(e)` whether an edge was directed. A GEXF `mutual` edge is also stored as two
+ * edges; it is written as two directed edges unless you pass `foldMutual: true`.
  * @public
  * @category Plugin helpers
  */
 export interface PairFolding {
-    /** Whether the snapshot carries expanded pairs at all (the pair role column exists). */
+    /** Whether the graph holds any edge stored as two edges. When false, every method answers as for a plain edge. */
     readonly expanded: boolean;
-    /** The number of mutual primaries (edges with the mutual mark whose mirror exists). */
+    /** How many GEXF mutual edges the graph holds, each counted once. */
     readonly mutualCount: number;
     /**
-     * Whether an edge is the mirror half of a pair the exporter folds (its primary is written).
-     * @param e - the logical edge index
+     * Whether to skip an edge: true for the second of the two edges an undirected edge (or, with
+     * `foldMutual`, a mutual edge) is stored as. Write the first and skip this one.
+     * @param e - the edge index
      * @returns true when the edge must be skipped
      */
     folded(e: number): boolean;
     /**
-     * The other half of an expanded pair.
-     * @param e - the logical edge index
-     * @returns the mate's index, or INVALID_INDEX when the edge is not paired
+     * The other of the two edges an undirected or mutual edge is stored as.
+     * @param e - the edge index
+     * @returns the other edge's index, or INVALID_INDEX (4294967295) for an edge stored once
      */
     mateOf(e: number): number;
     /**
-     * Whether an edge was directed in the source (true for every edge of a snapshot without the
-     * directed role column, and for an undirected snapshot's edges as far as the column says).
-     * @param e - the logical edge index
-     * @returns the source direction
+     * Whether an edge was directed in the file it was read from: false for an undirected edge of a
+     * graph with both kinds. It is true for every edge of a graph without mixed direction, an
+     * undirected graph included, so the direction to write for edge `e` is
+     * `snapshot.directed && sourceDirected(e)`.
+     * @param e - the edge index
+     * @returns whether the edge is directed
      */
     sourceDirected(e: number): boolean;
     /**
-     * Whether an edge is a mutual primary or mirror (the GEXF `mutual` type).
-     * @param e - the logical edge index
+     * Whether an edge is either of the two edges a GEXF `mutual` edge is stored as.
+     * @param e - the edge index
      * @returns true for a mutual edge
      */
     isMutual(e: number): boolean;
@@ -463,17 +473,18 @@ export interface PairFolding {
  */
 export interface PairFoldingOptions {
     /**
-     * Fold a mutual pair back into its primary (a format with a mutual or undirected slot);
-     * false (the default) writes both halves as directed edges, and the caller reports the mark.
+     * Write a GEXF mutual edge once, for a format that can say an edge goes both ways. When false
+     * (the default), `folded()` keeps both of its edges, so it is written as two directed edges.
      */
     readonly foldMutual?: boolean | undefined;
 }
 
 /**
- * Build the pair-folding view of a snapshot (one pass over the role columns).
- * @param snapshot - the snapshot
- * @param options - the per-format choice
- * @returns the view
+ * Read how a snapshot stores edge direction, for an exporter: which edges to skip so each
+ * undirected edge is written once, and which edges were directed.
+ * @param snapshot - the graph to write
+ * @param options - whether a GEXF mutual edge is written once
+ * @returns the answers, per edge
  * @category Writing a format
  */
 export function pairFolding(snapshot: GraphSnapshot, options: PairFoldingOptions = {}): PairFolding {

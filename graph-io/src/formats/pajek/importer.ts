@@ -31,6 +31,7 @@ import { declareResolved, RENAMED_CODE, ROLE_TAKEN_CODE, uniqueColumnName } from
 import {
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_NODE_CODE,
+    ELEMENT_ISSUE,
     ENCODING_FALLBACK_CODE,
     INPUT_ISSUE,
     INVALID_ENCODING_CODE,
@@ -101,6 +102,7 @@ export interface PajekImportOptions extends CommonImportOptions {
  */
 export const PAJEK_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
     /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
     /**

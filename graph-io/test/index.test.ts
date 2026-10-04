@@ -181,6 +181,7 @@ const VALUE_EXPORTS = [
     "EMPTY_INPUT_CODE",
     "ENCODING_CONFLICT_CODE",
     "ENCODING_FALLBACK_CODE",
+    "ELEMENT_ISSUE",
     "EDGES_MERGED_CODE",
     "EQUATION_AS_TEXT_CODE",
     "FOREIGN_FORMAT_CODE",
@@ -330,6 +331,17 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(new Set(values).size, name).toBe(values.length);
             for (const value of values) {
                 expect(value, `${name}: ${value}`).toMatch(/^[EW]_[A-Z0-9_]+$/);
+            }
+        }
+    });
+
+    it("lists the codes of refused elements, which any importer can record, in every format's issue table", () => {
+        const tables = Object.entries(graphIo).filter(([name]) => name.endsWith("_ISSUE") && name !== "INPUT_ISSUE");
+        expect(tables.length).toBeGreaterThan(10);
+        for (const [name, table] of tables) {
+            const codes = new Set(Object.values(table as Record<string, string>));
+            for (const code of Object.values(graphIo.ELEMENT_ISSUE)) {
+                expect(codes.has(code), `${name} lacks ${code}`).toBe(true);
             }
         }
     });

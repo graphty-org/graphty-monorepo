@@ -972,7 +972,7 @@ function collectAttributes(
         if (domain === "edge" && column !== null && column.meta.role === null && title === DEFAULT_WEIGHT_TITLE) {
             note(
                 GEXF_LOSS.WEIGHT_KEY_CLASH,
-                `edge column "${name}" is written as an attribute titled "${title}", which the importer reads as THE weight (weightFrom); it reads back as the weight, not as a column`,
+                `edge column "${name}" is written as an attribute titled "${title}", which the importer reads as the edge weight (weightFrom); it reads back as the weight, not as a column`,
                 name,
                 column.length - column.nullCount,
             );

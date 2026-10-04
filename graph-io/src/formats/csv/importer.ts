@@ -102,13 +102,13 @@ import { InferredColumn } from "./values.js";
 export interface CsvImportOptions extends CommonImportOptions {
     /**
      * The field delimiter. The default is to detect it from the first rows: `,`, tab, `;`, `|` or
-     * space.
+     * space. It applies to the `nodes` table too.
      * @defaultValue detected
      */
     delimiter?: string | undefined;
     /**
      * Whether the first row is a header; "auto" decides from its content (a header names columns, a
-     * data row holds ids and numbers).
+     * data row holds ids and numbers). It applies to the `nodes` table too.
      * @defaultValue "auto"
      */
     header?: boolean | "auto" | undefined;
@@ -122,14 +122,17 @@ export interface CsvImportOptions extends CommonImportOptions {
      */
     table?: "edges" | "nodes" | "adjacency" | "auto" | undefined;
     /**
-     * The source column, by name or 0-based position. The default is the column the header names
-     * `source` (or `src`, `from`, ...); in a file without a header, the first column.
+     * The source column, by name or 0-based position. The default is the column whose header is a
+     * recognized source name (`source`, `from`, `src` and others; the CSV format page lists them
+     * all); in a file without a header, the first column. A header with no recognized source and
+     * target names needs this option and `targetColumn`.
      * @defaultValue from the header
      */
     sourceColumn?: CsvColumnRef | undefined;
     /**
-     * The target column, by name or 0-based position. The default is the column the header names
-     * `target` (or `dst`, `to`, ...); in a file without a header, the second column.
+     * The target column, by name or 0-based position. The default is the column whose header is a
+     * recognized target name (`target`, `to`, `dst` and others; the CSV format page lists them
+     * all); in a file without a header, the second column.
      * @defaultValue from the header
      */
     targetColumn?: CsvColumnRef | undefined;
@@ -154,8 +157,9 @@ export interface CsvImportOptions extends CommonImportOptions {
     /**
      * Give the nodes of a node table without an id column the row number as id (0 for the first
      * data row, turned into an id by `ids`), instead of failing with E_CSV_NO_ID_COLUMN. It applies
-     * to the `nodes` table when you pass one, else to the input; that table's first row is then
-     * always a header.
+     * to the `nodes` table when you pass one, else to the input. Under `header: "auto"` that
+     * table's first row is then read as a header; under `header: false` the option is ignored with
+     * a warning, because a table without a header takes its ids from its first column.
      * @defaultValue false
      */
     rowNumberIds?: boolean | undefined;

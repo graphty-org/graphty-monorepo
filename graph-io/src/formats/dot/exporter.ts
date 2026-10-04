@@ -313,6 +313,20 @@ function isTextualDtype(column: Column): boolean {
 }
 
 /**
+ * The E_UNSUPPORTED error of a DOT option with a value of the wrong type.
+ * @param option - the option name
+ * @param found - the caller's value
+ * @param expected - what the option takes, in words
+ * @returns the error
+ */
+function badOption(option: string, found: unknown, expected: string): GraphFormatError {
+    return new GraphFormatError("E_UNSUPPORTED", `option ${option} of the DOT exporter: expected ${expected}, got ${JSON.stringify(found)}`, {
+        option,
+        found,
+    });
+}
+
+/**
  * Everything one export needs to know about a snapshot, computed once and shared by check() and
  * write(): the output direction, the columns written per table, the cluster structure, and the
  * format-specific loss notes.
@@ -369,9 +383,19 @@ class ExportPlan {
     constructor(snapshot: GraphSnapshot, resolved: ResolvedExportOptions, options?: DotExportOptions) {
         this.snapshot = snapshot;
         this.resolved = resolved;
-        this.indent = options?.indent ?? DEFAULT_INDENT;
-        this.name = options?.name === undefined ? snapshot.meta.name : options.name;
-        this.strict = options?.strict ?? isStrictMeta(snapshot);
+        const { indent, name, strict } = options ?? {};
+        if (indent !== undefined && (typeof indent !== "string" || !/^[ \t]*$/.test(indent))) {
+            throw badOption("indent", indent, "a string of spaces or tabs");
+        }
+        if (name !== undefined && name !== null && typeof name !== "string") {
+            throw badOption("name", name, "a string or null");
+        }
+        if (strict !== undefined && typeof strict !== "boolean") {
+            throw badOption("strict", strict, "a boolean");
+        }
+        this.indent = indent ?? DEFAULT_INDENT;
+        this.name = name === undefined ? snapshot.meta.name : name;
+        this.strict = strict ?? isStrictMeta(snapshot);
         this.mixed = countMixedEdges(snapshot);
         if (this.mixed > 0 && resolved.onMixedDirection !== "error") {
             this.directed = resolved.onMixedDirection === "directed";
@@ -614,7 +638,7 @@ class ExportPlan {
         if (this.mixed > 0 && this.resolved.onMixedDirection === "error") {
             throw new GraphFormatError(
                 "E_DIRECTED",
-                `${this.mixed} undirected edge(s) in a directed graph; DOT has no mixed direction and onMixedDirection is "error"`,
+                `${this.mixed} undirected edge(s) in a directed graph, and DOT holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"`,
                 { reason: LOSS.MIXED_DIRECTION_ERROR, count: this.mixed },
             );
         }

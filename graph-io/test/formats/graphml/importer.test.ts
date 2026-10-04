@@ -477,6 +477,15 @@ describe("graphmlImporter keys and data", () => {
         expect(column(snapshot, "edges", "targetport")).toEqual(["p2"]);
     });
 
+    it("says where a misplaced GraphML element belongs instead of calling it foreign", async () => {
+        const message = async (body: string): Promise<string | undefined> =>
+            (await load(doc(body))).report.issues.find((i) => i.code === GRAPHML_ISSUE.UNKNOWN_ELEMENT)?.message;
+        expect(await message(`<key id="k" for="node" attr.name="k"/><node id="a"/>`)).toBe(
+            "element <key> is only allowed as a child of <graphml>, before the first <graph>; it was skipped",
+        );
+        expect(await message(`<node id="a"><bogus/></node>`)).toBe("element <bogus> is not GraphML and was skipped");
+    });
+
     it("reports stray text and data of a nested graph", async () => {
         const body = `stray words
 <node id="a"><graph id="a:" edgedefault="directed"><data key="k">1</data><node id="b"/></graph></node>`;

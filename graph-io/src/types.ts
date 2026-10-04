@@ -46,10 +46,12 @@ export interface CommonImportOptions {
      */
     ids?: IdCoercion | undefined;
     /**
-     * Which field becomes the node id: "id", the node's "label", or its position in the file
-     * ("index"). Useful for GML, Pajek and d3 files whose ids are missing or meaningless. Under
-     * "index", edges must name their ends by that position, as numbers. CSV reads this option only
-     * when there is a node table.
+     * Which value becomes the node id: the file's own id ("id"), the node's label ("label"), or its
+     * position among the nodes, counting from 0 ("index"). Use it when a file's ids are meaningless
+     * numbers and the labels are the real names. In d3 JSON, "index" also reads edges whose ends are
+     * node positions. In GML and Pajek it only renames: every node still needs its id key or vertex
+     * number, because edges refer to nodes by it, and a GML node without an `id` key is skipped
+     * with E_MISSING_ID. CSV reads this option only when there is a node table.
      * @defaultValue "id"
      */
     nodeIdFrom?: "id" | "label" | "index" | undefined;
@@ -119,8 +121,13 @@ export interface CommonImportOptions {
     restoreMangledIds?: boolean | undefined;
     /**
      * What to do with a GraphML or JGF hyperedge (an edge with more than two ends): "skip" leaves it
-     * out with a warning, "error" stops the import, "star" adds a hub node joined to every end, and
-     * "clique" joins every pair of ends. "star" and "clique" keep everything, so they add no warning.
+     * out with a warning, "error" stops the import, and "star" and "clique" turn it into ordinary
+     * edges. "clique" joins every pair of ends. "star" works differently per format: GraphML adds a
+     * new hub node joined to every end, while JGF makes the hyperedge's first node the hub, so no
+     * node is added. A directed JGF hyperedge (`source` and `target` arrays) becomes one edge from
+     * every source to every target under both. In JGF every edge made from a hyperedge carries the
+     * hyperedge's id, label, relation and metadata; GraphML drops a hyperedge's `<data>` and its
+     * `<desc>`, with a warning.
      * @defaultValue "skip"
      */
     hyperedges?: "error" | "skip" | "star" | "clique" | undefined;

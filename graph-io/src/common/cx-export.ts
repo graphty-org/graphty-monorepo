@@ -176,8 +176,8 @@ export function planNodeIds(
         note(
             common.sanitizeIds === "mangle" ? LOSS.ID_MANGLED : LOSS.ID_CHARSET,
             common.sanitizeIds === "mangle"
-                ? `${unwritable} node id(s) that are not integers are renumbered; the original ids are written to the ${attribute} attribute, and an import with restoreMangledIds: true reads them back`
-                : `${unwritable} node id(s) that are not integers; the save fails unless sanitizeIds is "mangle"`,
+                ? `${unwritable} node id(s) are not integers, so they are renumbered; the original ids are written to the ${attribute} attribute, and an import with restoreMangledIds: true reads them back`
+                : `${unwritable} node id(s) are not integers, so the save fails unless sanitizeIds is "mangle"`,
             null,
             unwritable,
         );

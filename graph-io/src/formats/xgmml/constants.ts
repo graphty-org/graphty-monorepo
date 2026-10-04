@@ -14,6 +14,7 @@ import {
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
+    ELEMENT_ISSUE,
     EMPTY_INPUT_CODE,
     ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
@@ -186,6 +187,7 @@ export const CYTOSCAPE_ORIGIN_NAMESPACE = "cytoscape";
  */
 export const XGMML_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
     /** The input is not well-formed XML. The import stops. */
     XML_SYNTAX: XML_SYNTAX_CODE,
     /** The input is empty or whitespace only. The import stops. */

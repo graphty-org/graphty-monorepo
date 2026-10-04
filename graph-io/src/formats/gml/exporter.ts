@@ -802,7 +802,7 @@ function check(snapshot: GraphSnapshot, options?: GmlExportOptions & CommonExpor
             notes.push(
                 note(
                     LOSS.WEIGHT_KEY_CLASH,
-                    `edge column "${clash.column.meta.name}" is written under "${plan.weightKey}", the key the importer reads THE weight from; it reads back as the weight, not as a column`,
+                    `edge column "${clash.column.meta.name}" is written under "${plan.weightKey}", the key the importer reads edge weights from; it reads back as the weight, not as a column`,
                     clash.column.meta.name,
                     clash.column.length - clash.column.nullCount,
                 ),
@@ -1214,7 +1214,7 @@ function contextOf(
     if (mixed > 0 && plan.common.onMixedDirection === "error") {
         throw new GraphFormatError(
             "E_DIRECTED",
-            `${mixed} undirected edge(s) in a directed graph; GML has no mixed direction (onMixedDirection: "error")`,
+            `${mixed} undirected edge(s) in a directed graph, and GML holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"`,
             {
                 reason: "mixed direction",
                 count: mixed,

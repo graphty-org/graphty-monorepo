@@ -46,6 +46,7 @@ import {
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
+    ELEMENT_ISSUE,
     EMPTY_INPUT_CODE,
     ENCODING_FALLBACK_CODE,
     GRAPH_NOT_FOUND_CODE,
@@ -146,6 +147,7 @@ export interface CxImportOptions extends GraphChoiceOptions, CommonImportOptions
  */
 export const CX_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
     /** The input is empty. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The text is not valid JSON. The import stops. */

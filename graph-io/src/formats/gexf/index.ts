@@ -17,6 +17,7 @@ import {
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
+    ELEMENT_ISSUE,
     EMPTY_INPUT_CODE,
     ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
@@ -75,6 +76,7 @@ export { type GexfVersion } from "./schema.js";
  */
 export const GEXF_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
     /** The XML is not well-formed. The import stops. */
     XML_SYNTAX: XML_SYNTAX_CODE,
     /** The input is not valid UTF-8. The import stops. */

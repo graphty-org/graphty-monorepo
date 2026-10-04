@@ -561,6 +561,32 @@ export const NODE_ORDER_CODE = "W_NODE_ORDER";
  */
 export const OPTIONS_GAINED_CODE = "W_OPTIONS_GAINED";
 
+// ============================================================ the graph builder
+
+/**
+ * The issue codes every importer can record when the graph refuses an element, by name; every
+ * format's `<FMT>_ISSUE` table includes them. Each one skips that element and counts toward
+ * `errorLimit`.
+ * @category Issue and loss codes
+ */
+export const ELEMENT_ISSUE = Object.freeze({
+    /** A node id of a type the graph cannot hold (an empty id, a non-finite number, an object). The node is skipped. */
+    INVALID_ID: "E_INVALID_ID",
+    /** An edge names a node the file never declares, while `addMissingNodes` is false. The edge is skipped. */
+    UNKNOWN_NODE: "E_UNKNOWN_NODE",
+    /**
+     * An edge weight that is not a number (text such as "2,5" with a decimal comma, NaN, a boolean). The whole edge is
+     * skipped, not only its weight.
+     */
+    INVALID_WEIGHT: "E_INVALID_WEIGHT",
+    /** A second edge between the same two nodes, while `duplicateEdges` is "error". The edge is skipped. */
+    DUPLICATE_EDGE: DUPLICATE_EDGE_CODE,
+    /** An edge from a node to itself, while `selfLoops` is "error". The edge is skipped. */
+    SELF_LOOP: SELF_LOOP_CODE,
+    /** An edge id declared twice. The second edge is skipped. */
+    DUPLICATE_EDGE_ID: DUPLICATE_EDGE_ID_CODE,
+});
+
 // ============================================================ the input layer
 
 /**

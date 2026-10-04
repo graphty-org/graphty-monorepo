@@ -228,7 +228,21 @@ describe("design 12.4: the io contract types are exported with the listed shapes
 
 // ============================================================ 8.2 / 13.1 surfaces
 
-const FORMATS = ["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j", "xgmml", "cx2", "obo", "cx", "cys"] as const;
+const FORMATS = [
+    "gexf",
+    "graphml",
+    "gml",
+    "dot",
+    "pajek",
+    "csv",
+    "json",
+    "neo4j",
+    "xgmml",
+    "cx2",
+    "obo",
+    "cx",
+    "cys",
+] as const;
 const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     gexf,
     graphml,

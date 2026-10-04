@@ -130,12 +130,12 @@ describe("oboExporter: files read from OBO", () => {
     it("writes every vocabulary tag back: qualifiers, descriptions, synonyms, unknown tags", async () => {
         const doc = [
             "format-version: 1.2",
-            "synonymtypedef: ABBR \"abbreviation\" EXACT",
+            'synonymtypedef: ABBR "abbreviation" EXACT',
             "default-namespace: test",
             "",
             "[Term]",
             "id: T:1",
-            "name: one {source=\"a\"}",
+            'name: one {source="a"}',
             'def: "first \\"term\\"" [X:1 "the source", X:2 {note="q"}]',
             'synonym: "uno" EXACT ABBR [X:3 "three"] {by="me"}',
             "xref: X:1",
@@ -145,7 +145,7 @@ describe("oboExporter: files read from OBO", () => {
             "property_value: IAO:1 T:2",
             "intersection_of: T:2",
             "intersection_of: part_of T:3",
-            "is_a: T:2 {why=\"x\", why=\"y\"}",
+            'is_a: T:2 {why="x", why="y"}',
             "my_tag: some value",
             "",
             "[Term]",
@@ -221,7 +221,11 @@ describe("oboExporter: any graph", () => {
 
     it("writes the extra columns as typed property values with declared relations, the edge columns as qualifiers", async () => {
         const text = await oboExporter.exportToString(graph());
-        expect(text.startsWith("format-version: 1.4\ndate: 03:10:2026 12:30\nsaved-by: me\nontology: My_graph\nproperty_value: version \"7\" xsd:string\n")).toBe(true);
+        expect(
+            text.startsWith(
+                'format-version: 1.4\ndate: 03:10:2026 12:30\nsaved-by: me\nontology: My_graph\nproperty_value: version "7" xsd:string\n',
+            ),
+        ).toBe(true);
         expect(text).toContain(
             [
                 "[Term]",
@@ -264,7 +268,9 @@ describe("oboExporter: any graph", () => {
 
     it("writes the ontology option, and refuses one that is not an ontology id", async () => {
         const g = build({ ids: ["a"], meta: { name: "x y" } });
-        expect(await oboExporter.exportToString(g, { ontology: "go/slim" })).toBe("format-version: 1.4\nontology: go/slim\n\n[Term]\nid: a\n");
+        expect(await oboExporter.exportToString(g, { ontology: "go/slim" })).toBe(
+            "format-version: 1.4\nontology: go/slim\n\n[Term]\nid: a\n",
+        );
         expect(codes(g, { ontology: "go" })).toEqual([]);
         expect(codes(g)).toEqual([OBO_LOSS.ONTOLOGY_NAME]);
         expect(() => oboExporter.check(g, { ontology: "a b" })).toThrow(/ontology id/);
@@ -293,10 +299,15 @@ describe("oboExporter: any graph", () => {
     });
 
     it("writes a name with surrounding space as a property value (the reader trims a tag value)", async () => {
-        const g = build({ ids: ["a"], nodeColumns: [{ name: "label", dtype: "string", role: "label", values: [" A "] }] });
+        const g = build({
+            ids: ["a"],
+            nodeColumns: [{ name: "label", dtype: "string", role: "label", values: [" A "] }],
+        });
         expect(codes(g)).toEqual([OBO_LOSS.COLUMN_AS_PROPERTY_VALUE]);
         const back = await read(await oboExporter.exportToString(g));
-        expect(back.nodes.get("property_value")?.value(0)).toEqual([{ relation: "label", value: " A ", datatype: "xsd:string" }]);
+        expect(back.nodes.get("property_value")?.value(0)).toEqual([
+            { relation: "label", value: " A ", datatype: "xsd:string" },
+        ]);
     });
 
     it("escapes what would end a value, and reports a carriage return", async () => {
@@ -314,16 +325,21 @@ describe("oboExporter: any graph", () => {
         expect(text).not.toContain("\\W");
         const back = await read(text);
         expect(back.nodes.get("name")?.value(0)).toBe(name);
-        expect(back.nodes.get("property_value")?.value(0)).toEqual([{ relation: "note", value: "x\ny", datatype: "xsd:string" }]);
+        expect(back.nodes.get("property_value")?.value(0)).toEqual([
+            { relation: "note", value: "x\ny", datatype: "xsd:string" },
+        ]);
     });
 
     it("refuses ids that are not OBO ids, and under mangle writes them with the originals restored on import", async () => {
         const g = build({ ids: ["a b", "a_b", "c{1}", 'd"', "[e"], edges: [[0, 2]] });
         expect(codes(g)).toContain(OBO_LOSS.ID_CHARSET);
-        await expect(oboExporter.exportToString(g)).rejects.toMatchObject({ code: "E_INVALID_ID", details: { reason: "charset" } });
+        await expect(oboExporter.exportToString(g)).rejects.toMatchObject({
+            code: "E_INVALID_ID",
+            details: { reason: "charset" },
+        });
         expect(codes(g, { sanitizeIds: "mangle" })).toContain(OBO_LOSS.ID_MANGLED);
         const text = await oboExporter.exportToString(g, { sanitizeIds: "mangle" });
-        expect(text).toContain("id: a_b_2\nproperty_value: graphty:originalId \"\\\"a b\\\"\" xsd:string\nis_a: c_1_");
+        expect(text).toContain('id: a_b_2\nproperty_value: graphty:originalId "\\"a b\\"" xsd:string\nis_a: c_1_');
         expect(text).toContain('id: d\\"');
         expect(text).toContain("id: \\[e");
         const back = await read(text);
@@ -378,16 +394,28 @@ describe("oboExporter: any graph", () => {
 
     it("writes a placeholder without a frame, and reports the node order a re-import gives it", async () => {
         const placeholder = { name: "graphty.placeholder", dtype: "bool" as const };
-        const last = build({ ids: ["a", "p"], edges: [[0, 1]], nodeColumns: [{ ...placeholder, values: [undefined, true] }] });
+        const last = build({
+            ids: ["a", "p"],
+            edges: [[0, 1]],
+            nodeColumns: [{ ...placeholder, values: [undefined, true] }],
+        });
         const text = await oboExporter.exportToString(last);
         expect(text).not.toContain("id: p");
         expect(codes(last)).toEqual([OBO_LOSS.RELATION_ASSUMED]);
         const back = await read(text);
         expect(compareSnapshots(last, back).filter((d) => !d.path.startsWith("edges.relation"))).toEqual([]);
-        const first = build({ ids: ["p", "a"], edges: [[1, 0]], nodeColumns: [{ ...placeholder, values: [true, undefined] }] });
+        const first = build({
+            ids: ["p", "a"],
+            edges: [[1, 0]],
+            nodeColumns: [{ ...placeholder, values: [true, undefined] }],
+        });
         expect(codes(first)).toContain(OBO_LOSS.NODE_ORDER);
         // a placeholder with an edge of its own needs its frame
-        const source = build({ ids: ["p", "a"], edges: [[0, 1]], nodeColumns: [{ ...placeholder, values: [true, undefined] }] });
+        const source = build({
+            ids: ["p", "a"],
+            edges: [[0, 1]],
+            nodeColumns: [{ ...placeholder, values: [true, undefined] }],
+        });
         expect(await oboExporter.exportToString(source)).toContain("id: p");
         expect(codes(source)).toContain(OBO_LOSS.COLUMN_AS_PROPERTY_VALUE);
     });

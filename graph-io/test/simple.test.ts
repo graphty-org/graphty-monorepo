@@ -96,7 +96,9 @@ describe("loadFromUrl", () => {
     });
 
     it("detects the format from the Content-Type when the URL has no extension", async () => {
-        stubFetch(() => Promise.resolve(bytesResponse(CSV, { headers: { "content-type": "text/csv; charset=utf-8" } })));
+        stubFetch(() =>
+            Promise.resolve(bytesResponse(CSV, { headers: { "content-type": "text/csv; charset=utf-8" } })),
+        );
         const result = await loadFromUrl(new URL("https://example.com/api/graph"));
         expect(result.format).toBe("csv");
         expect(result.sniff?.mimeType).toBe(true);
@@ -341,7 +343,10 @@ describe("downloadGraph", () => {
      * Stub a document whose anchors record their clicks, and the object URL functions.
      * @returns the anchors created and the revoke mock
      */
-    function stubDocument(): { anchors: { href: string; download: string; clicked: number }[]; revoke: ReturnType<typeof vi.fn> } {
+    function stubDocument(): {
+        anchors: { href: string; download: string; clicked: number }[];
+        revoke: ReturnType<typeof vi.fn>;
+    } {
         const anchors: { href: string; download: string; clicked: number }[] = [];
         vi.stubGlobal("document", {
             createElement: (tag: string) => {
@@ -427,7 +432,14 @@ describe("ImportError.issue", () => {
             lossy: [],
             durationMs: 0,
         };
-        const error = { category: "parse-error", severity: "error", code: "E_X", message: "x", line: 1, element: null } as const;
+        const error = {
+            category: "parse-error",
+            severity: "error",
+            code: "E_X",
+            message: "x",
+            line: 1,
+            element: null,
+        } as const;
         const warning = { ...error, severity: "warning", code: "W_Y" } as const;
         expect(new ImportError("m", { ...base, issues: [error, warning] }).issue).toBe(error);
         expect(new ImportError("m", { ...base, issues: [warning] }).issue).toBeNull();

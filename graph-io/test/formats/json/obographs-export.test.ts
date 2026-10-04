@@ -25,7 +25,10 @@ async function load(bytes: Uint8Array | string, format: string, options = {}): P
 const codes = (snapshot: GraphSnapshot, options: Options = OBO_GRAPHS): string[] =>
     jsonExporter.check(snapshot, options).map((n) => n.code);
 
-async function roundTrip(snapshot: GraphSnapshot, options: Options = OBO_GRAPHS): Promise<{ text: string; back: GraphSnapshot }> {
+async function roundTrip(
+    snapshot: GraphSnapshot,
+    options: Options = OBO_GRAPHS,
+): Promise<{ text: string; back: GraphSnapshot }> {
     const text = await jsonExporter.exportToString(snapshot, options);
     return { text, back: await load(text, "json") };
 }
@@ -92,13 +95,23 @@ describe("the obographs dialect: files read from OBO Graphs", () => {
         const [graph] = doc.graphs;
         expect(graph.id).toBe(`${PURL}test.owl`);
         expect(graph.nodes.map((n) => n.id)).toContain(`${PURL}UBERON_0002398`);
-        expect(graph.edges).toContainEqual({ sub: `${PURL}UBERON_0002398`, pred: `${PURL}BFO_0000050`, obj: `${PURL}UBERON_0002102` });
-        expect(graph.edges).toContainEqual({ sub: `${PURL}UBERON_0002398`, pred: "is_a", obj: `${PURL}UBERON_0002470` });
+        expect(graph.edges).toContainEqual({
+            sub: `${PURL}UBERON_0002398`,
+            pred: `${PURL}BFO_0000050`,
+            obj: `${PURL}UBERON_0002102`,
+        });
+        expect(graph.edges).toContainEqual({
+            sub: `${PURL}UBERON_0002398`,
+            pred: "is_a",
+            obj: `${PURL}UBERON_0002470`,
+        });
     });
 
     it("streams the same bytes as exportToString, and indents on request", async () => {
         const first = await load(new Uint8Array(readFileSync(join(dir, "nucleus.json"))), "json");
-        expect(await decodeChunks(jsonExporter.export(first, OBO_GRAPHS))).toBe(await jsonExporter.exportToString(first, OBO_GRAPHS));
+        expect(await decodeChunks(jsonExporter.export(first, OBO_GRAPHS))).toBe(
+            await jsonExporter.exportToString(first, OBO_GRAPHS),
+        );
         const indented = await jsonExporter.exportToString(first, { ...OBO_GRAPHS, indent: 2 });
         expect(indented).toContain('\n  {"id":');
         expectSameSnapshot(first, await load(indented, "json"));
@@ -109,16 +122,27 @@ describe("the obographs dialect: files read from OBO Graphs", () => {
         expect(codes(iri)).toContain(JSON_LOSS.OBOGRAPHS_ID_CHANGED);
         const { back } = await roundTrip(iri);
         expect(back.ids.toArray()).toContain("UBERON:0002398");
-        expectSameSnapshot(iri, await load(await jsonExporter.exportToString(iri, OBO_GRAPHS), "json", { oboIds: "iri" }));
+        expectSameSnapshot(
+            iri,
+            await load(await jsonExporter.exportToString(iri, OBO_GRAPHS), "json", { oboIds: "iri" }),
+        );
     });
 });
 
 describe("the obographs dialect: files read from OBO", () => {
     it("goslim_generic.obo written as OBO Graphs reads back like goslim_generic.json", async () => {
-        const fromObo = await load(new Uint8Array(readFileSync(join(FIXTURES, "obo", "go", "goslim_generic.obo"))), "obo");
-        const fromJson = await load(new Uint8Array(readFileSync(join(FIXTURES, "json", "obographs", "goslim_generic.json"))), "json");
+        const fromObo = await load(
+            new Uint8Array(readFileSync(join(FIXTURES, "obo", "go", "goslim_generic.obo"))),
+            "obo",
+        );
+        const fromJson = await load(
+            new Uint8Array(readFileSync(join(FIXTURES, "json", "obographs", "goslim_generic.json"))),
+            "json",
+        );
         const notes = codes(fromObo);
-        expect(new Set(notes)).toEqual(new Set([JSON_LOSS.COLUMN_AS_PROPERTY_VALUE, JSON_LOSS.OBOGRAPHS_DATATYPE_DROPPED]));
+        expect(new Set(notes)).toEqual(
+            new Set([JSON_LOSS.COLUMN_AS_PROPERTY_VALUE, JSON_LOSS.OBOGRAPHS_DATATYPE_DROPPED]),
+        );
         const { back } = await roundTrip(fromObo);
         expect(back.ids.toArray()).toEqual(fromObo.ids.toArray());
         expect(back.edgeCount).toBe(fromObo.edgeCount);
@@ -129,7 +153,16 @@ describe("the obographs dialect: files read from OBO", () => {
             return Array.isArray(v) ? [...(v as string[])].sort() : v;
         };
         for (const id of fromObo.ids.toArray() as string[]) {
-            for (const column of ["name", "namespace", "def", "def.xrefs", "subset", "is_obsolete", "alt_id", "synonym"]) {
+            for (const column of [
+                "name",
+                "namespace",
+                "def",
+                "def.xrefs",
+                "subset",
+                "is_obsolete",
+                "alt_id",
+                "synonym",
+            ]) {
                 expect(cell(back, column, id), `${id} ${column}`).toEqual(cell(fromObo, column, id));
                 if (column !== "synonym") {
                     expect(cell(back, column, id), `${id} ${column}`).toEqual(cell(fromJson, column, id));
@@ -139,7 +172,9 @@ describe("the obographs dialect: files read from OBO", () => {
     });
 
     it("writes Typedef nodes as PROPERTY nodes with their shorthand", async () => {
-        const first = await load(new Uint8Array(readFileSync(join(FIXTURES, "obo", "obographs", "basic.obo"))), "obo", { typedefs: "nodes" });
+        const first = await load(new Uint8Array(readFileSync(join(FIXTURES, "obo", "obographs", "basic.obo"))), "obo", {
+            typedefs: "nodes",
+        });
         expect(codes(first)).toContain(JSON_LOSS.TYPEDEF_NODES);
         const { text } = await roundTrip(first);
         expect(text).toContain('"type":"PROPERTY"');
@@ -184,7 +219,13 @@ describe("the obographs dialect: any graph", () => {
     it("writes ids under the ontology IRI, extra columns as basicPropertyValues, edge columns in meta", async () => {
         const { text, back } = await roundTrip(graph());
         const doc = JSON.parse(text) as {
-            graphs: { id: string; lbl: string; meta: unknown; nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }[];
+            graphs: {
+                id: string;
+                lbl: string;
+                meta: unknown;
+                nodes: Record<string, unknown>[];
+                edges: Record<string, unknown>[];
+            }[];
         };
         const [g] = doc.graphs;
         expect(g.id).toBe(`${PURL}g.owl`);
@@ -195,7 +236,12 @@ describe("the obographs dialect: any graph", () => {
             type: "CLASS",
             meta: { basicPropertyValues: [{ pred: "score", val: "1.5" }] },
         });
-        expect(g.edges[0]).toEqual({ sub: `${PURL}g.owl#1`, pred: `${PURL}g.owl#part_of`, obj: `${PURL}g.owl#b`, meta: { n: 4, weight: 2.5 } });
+        expect(g.edges[0]).toEqual({
+            sub: `${PURL}g.owl#1`,
+            pred: `${PURL}g.owl#part_of`,
+            obj: `${PURL}g.owl#b`,
+            meta: { n: 4, weight: 2.5 },
+        });
         expect(g.edges[1]).toEqual({ sub: `${PURL}g.owl#b`, pred: "is_a", obj: `${PURL}g.owl#c` });
         expect(back.ids.toArray()).toEqual(["1", "b", "c"]);
         expect(back.edges.get("relation")?.value(0)).toBe("part_of");
@@ -211,11 +257,17 @@ describe("the obographs dialect: any graph", () => {
         const other = await roundTrip(graph(), { ...OBO_GRAPHS, ontologyIri: "http://example.org/onto" });
         expect(other.text).toContain('"id":"b"');
         expect(other.back.ids.toArray()).toEqual(["1", "b", "c"]);
-        expect(codes(graph(), { ...OBO_GRAPHS, ontologyIri: "http://example.org/onto" })).not.toContain(JSON_LOSS.OBOGRAPHS_ID_CHANGED);
+        expect(codes(graph(), { ...OBO_GRAPHS, ontologyIri: "http://example.org/onto" })).not.toContain(
+            JSON_LOSS.OBOGRAPHS_ID_CHANGED,
+        );
     });
 
     it("writes CURIEs as OBO PURLs", async () => {
-        const g = build({ ids: ["GO:1", "my_x:2"], edges: [[0, 1]], edgeColumns: [{ name: "relation", dtype: "string", values: ["BFO:0000050"] }] });
+        const g = build({
+            ids: ["GO:1", "my_x:2"],
+            edges: [[0, 1]],
+            edgeColumns: [{ name: "relation", dtype: "string", values: ["BFO:0000050"] }],
+        });
         const { text, back } = await roundTrip(g);
         expect(text).toContain(`"id":"${PURL}GO_1"`);
         expect(text).toContain(`"pred":"${PURL}BFO_0000050"`);

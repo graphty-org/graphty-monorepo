@@ -365,7 +365,9 @@ function canonOfSnapshot(s: GraphSnapshot, relax: ReadonlySet<Relax>): Canon {
                 if (c !== undefined) {
                     // OBO Graphs keeps no datatype: the text reads back as the column's dtype
                     out[c.name] =
-                        item.datatype === null ? qualifierValue(String(item.value), c.dtype) : xsdValue(String(item.value), item.datatype);
+                        item.datatype === null
+                            ? qualifierValue(String(item.value), c.dtype)
+                            : xsdValue(String(item.value), item.datatype);
                 }
             }
         }

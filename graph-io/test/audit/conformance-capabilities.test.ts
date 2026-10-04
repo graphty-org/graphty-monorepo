@@ -66,26 +66,28 @@ interface Target {
     readonly aliases: Readonly<Record<string, readonly string[]>>;
 }
 
-const JSON_TARGETS: Target[] = JSON_DIALECTS.map((dialect: JsonDialect): Target => ({
-    name: `json:${dialect}`,
-    exporter: jsonExporter,
-    importer: jsonImporter,
-    caps: jsonCapabilities(dialect),
-    exportOptions: { dialect },
-    importOptions: { dialect },
-    attrDomain: "node",
-    // OBO Graphs keeps the OBO vocabulary only: every other column is reported where it goes
-    aliases:
-        dialect === "obographs"
-            ? {
-                  [LOSS.DTYPE]: ["W_COLUMN_AS_PROPERTY_VALUE"],
-                  [LOSS.LIST]: ["W_COLUMN_AS_PROPERTY_VALUE"],
-                  [LOSS.JSON]: ["W_COLUMN_AS_PROPERTY_VALUE"],
-                  [LOSS.COMPONENTS]: ["W_COLUMN_AS_PROPERTY_VALUE"],
-                  [LOSS.GRAPH_ATTRIBUTES]: ["W_GRAPH_COLUMN_AS_METADATA"],
-              }
-            : {},
-}));
+const JSON_TARGETS: Target[] = JSON_DIALECTS.map(
+    (dialect: JsonDialect): Target => ({
+        name: `json:${dialect}`,
+        exporter: jsonExporter,
+        importer: jsonImporter,
+        caps: jsonCapabilities(dialect),
+        exportOptions: { dialect },
+        importOptions: { dialect },
+        attrDomain: "node",
+        // OBO Graphs keeps the OBO vocabulary only: every other column is reported where it goes
+        aliases:
+            dialect === "obographs"
+                ? {
+                      [LOSS.DTYPE]: ["W_COLUMN_AS_PROPERTY_VALUE"],
+                      [LOSS.LIST]: ["W_COLUMN_AS_PROPERTY_VALUE"],
+                      [LOSS.JSON]: ["W_COLUMN_AS_PROPERTY_VALUE"],
+                      [LOSS.COMPONENTS]: ["W_COLUMN_AS_PROPERTY_VALUE"],
+                      [LOSS.GRAPH_ATTRIBUTES]: ["W_GRAPH_COLUMN_AS_METADATA"],
+                  }
+                : {},
+    }),
+);
 
 const TARGETS: readonly Target[] = [
     {

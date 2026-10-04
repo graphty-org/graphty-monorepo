@@ -35,7 +35,9 @@ expectTypeOf(graphmlImporter.format).toBeString();
 expectTypeOf(graphmlExporter.format).toBeString();
 expectTypeOf(jsonImporter.format).toBeString();
 expectTypeOf(jsonExporter.format).toBeString();
-expectTypeOf<JsonDialect>().toEqualTypeOf<"node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis" | "obographs">();
+expectTypeOf<JsonDialect>().toEqualTypeOf<
+    "node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis" | "obographs"
+>();
 expectTypeOf(neo4jImporter.format).toBeString();
 expectTypeOf(neo4jExporter.format).toBeString();
 expectTypeOf(oboImporter.format).toBeString();

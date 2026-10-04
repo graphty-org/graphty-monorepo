@@ -15,6 +15,13 @@
             "@graphty/graph-format": ["../graph-format/src/index.ts"]
         }
     },
-    "include": ["src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.ts", "docs/examples/**/*.ts", "../graph-format/src/**/*.ts"],
+    "include": [
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "benchmarks/**/*.ts",
+        "scripts/**/*.ts",
+        "docs/examples/**/*.ts",
+        "../graph-format/src/**/*.ts"
+    ],
     "exclude": ["node_modules", "dist", "coverage", "tmp"]
 }

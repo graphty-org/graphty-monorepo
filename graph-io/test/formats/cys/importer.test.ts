@@ -72,11 +72,11 @@ function table(path: string, lines: readonly string[]): ZipInput {
 const NODE_TABLE = "2-Net/LOCAL_ATTRS-org.cytoscape.model.CyNode-Net+default+node.cytable";
 
 describe("cysImporter: the archive", () => {
-    it("is registered as a read-only format with a session sniff", () => {
+    it("is registered with a session sniff", () => {
         expect(cysImporter.format).toBe("cys");
         expect(cysImporter.extensions).toEqual([".cys"]);
         expect(registry.importer("cys")).toBe(cysImporter);
-        expect(registry.hasExporter("cys")).toBe(false);
+        expect(registry.hasExporter("cys")).toBe(true);
         expect(sniffCys(fixture("authored/base-3x.cys"))).toBe(0.95);
         expect(sniffCys(fixture("session2x/v270session.cys"))).toBe(0.95);
         expect(sniffCys(fixture("authored/self-extracting-stub.cys").subarray(0, 8192))).toBe(0.95);
@@ -377,6 +377,26 @@ describe("cysImporter: a 3.x network", () => {
         const added = await importGraph(bytes, { format: "cys", addMissingNodes: true });
         expect(added.snapshot.ids.has("23")).toBe(true);
         expect(added.snapshot.edgeCount).toBe(2);
+    });
+
+    it("reads the table's name as the label, and the XGMML label only when no element has a name", async () => {
+        const named = session('<node id="5" label="xg5"/><node id="6" label="xg6"/>', [
+            table(NODE_TABLE, [
+                '"SUID","name"',
+                '"java.lang.Long","java.lang.String"',
+                '"Net default node",""',
+                '"5","Five"',
+            ]),
+        ]);
+        const { snapshot } = await importGraph(named, { format: "cys" });
+        expect(snapshot.nodes.byRole("label")?.meta.name).toBe("name");
+        expect(cell(snapshot, "nodes", "name", "5")).toBe("Five");
+        expect(cell(snapshot, "nodes", "name", "6")).toBeUndefined();
+        expect(snapshot.nodes.get("label")).toBeNull();
+        const unnamed = session('<node id="5" label="xg5"/>');
+        const plain = (await importGraph(unnamed, { format: "cys" })).snapshot;
+        expect(plain.nodes.byRole("label")?.meta.name).toBe("label");
+        expect(cell(plain, "nodes", "label", "5")).toBe("xg5");
     });
 
     it("reads a table of schema version 0 and rejects an unknown list item class", async () => {

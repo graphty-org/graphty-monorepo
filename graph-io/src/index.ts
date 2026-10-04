@@ -110,7 +110,15 @@ export {
     cx2Importer,
     type Cx2ImportOptions,
 } from "./formats/cx2/index.js";
-export { CYS_ISSUE, cysImporter, type CysImportOptions } from "./formats/cys/index.js";
+export {
+    CYS_CAPABILITIES,
+    CYS_ISSUE,
+    CYS_LOSS,
+    cysExporter,
+    type CysExportOptions,
+    cysImporter,
+    type CysImportOptions,
+} from "./formats/cys/index.js";
 export {
     DOT_ISSUE,
     DOT_LOSS,

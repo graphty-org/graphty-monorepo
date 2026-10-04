@@ -44,19 +44,17 @@ function edges(s: GraphSnapshot): string[] {
     );
 }
 
-/** The built-in formats graph-io reads but does not write. */
-const READ_ONLY_FORMATS: ReadonlySet<string> = new Set(["cys"]);
 
 describe("FormatRegistry", () => {
-    it("holds the built-in formats in GRAPH_FORMATS order; every one is read, all but the read-only ones are written", () => {
+    it("holds the built-in formats in GRAPH_FORMATS order; every one is read and written", () => {
         expect(registry).toBeInstanceOf(FormatRegistry);
         expect(registry.formats()).toEqual([...GRAPH_FORMATS]);
         expect(registry.importers().map((i) => i.format)).toEqual([...GRAPH_FORMATS]);
-        const written = GRAPH_FORMATS.filter((format) => !READ_ONLY_FORMATS.has(format));
+        const written = GRAPH_FORMATS;
         expect(registry.exporters().map((e) => e.format)).toEqual(written);
         for (const format of GRAPH_FORMATS) {
             expect(registry.hasImporter(format)).toBe(true);
-            expect(registry.hasExporter(format)).toBe(!READ_ONLY_FORMATS.has(format));
+            expect(registry.hasExporter(format)).toBe(true);
             expect(registry.importer(format).format).toBe(format);
         }
         for (const format of written) {
@@ -67,7 +65,7 @@ describe("FormatRegistry", () => {
     });
 
     it("rejects an unknown format with E_UNSUPPORTED naming the known ones", () => {
-        const written = GRAPH_FORMATS.filter((format) => !READ_ONLY_FORMATS.has(format));
+        const written = GRAPH_FORMATS;
         for (const [fn, supported] of [
             [(): unknown => registry.importer("nope"), GRAPH_FORMATS],
             [(): unknown => registry.exporter("nope"), written],

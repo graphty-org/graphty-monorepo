@@ -76,6 +76,14 @@ export interface EmitExtras {
      * session): the session records it instead of E_UNKNOWN_PARENT.
      */
     readonly onMissingMember?: ((group: string, member: string) => void) | undefined;
+    /**
+     * A 3.x session: the label of a node or edge is its table's `name` (what Cytoscape shows), in
+     * a label column named `name`; the XGMML `label` attribute is read only when no element of
+     * the table has a `name`.
+     */
+    readonly labelFromName?: boolean | undefined;
+    /** Node ids to read in place of the written ones (ids an exporter mangled, by written id). */
+    readonly restoredIds?: ReadonlyMap<string, string> | undefined;
 }
 
 /** The dialect facts the rules depend on. */
@@ -323,10 +331,11 @@ export class XgmmlEmitter {
         this.coercer = new IdCoercer(options.ids);
         this.direction = new DirectionResolver(sink, report, options.onMixedDirection);
         const base = { unescape: settings.cytoscapeEscapes, long: options.long };
+        const label = extras.labelFromName === true ? [] : [LABEL_COLUMN];
         this.nodeColumns = new ColumnSet("node", report, {
             ...base,
             reserved: new Set([
-                LABEL_COLUMN,
+                ...label,
                 POSITION_COLUMN,
                 Z_COLUMN,
                 GRAPHICS_COLUMN,
@@ -340,7 +349,7 @@ export class XgmmlEmitter {
         });
         this.edgeColumns = new ColumnSet("edge", report, {
             ...base,
-            reserved: new Set([EDGE_ID_COLUMN, LABEL_COLUMN, GRAPHICS_COLUMN]),
+            reserved: new Set([EDGE_ID_COLUMN, ...label, GRAPHICS_COLUMN]),
         });
         this.graphColumns = new ColumnSet("graph", report, { ...base, reserved: new Set([GRAPHICS_COLUMN]) });
     }
@@ -609,13 +618,46 @@ export class XgmmlEmitter {
     }
 
     /**
+     * The sink id of a node's written id: the restored original, else the written id, coerced.
+     * @param text - the written id
+     * @returns the id
+     */
+    private idOf(text: string): NodeId {
+        return this.coercer.text(this.extras.restoredIds?.get(text) ?? text);
+    }
+
+    /** Per table: the label is the `name` att (labelFromName and some element has one). */
+    private readonly nameLabel = { node: false, edge: false };
+
+    /**
+     * Decide whether a table's label comes from its `name` atts.
+     * @param domain - node or edge
+     * @param records - the table's records
+     */
+    private decideNameLabel(domain: "node" | "edge", records: readonly (NodeRec | EdgeRec)[]): void {
+        this.nameLabel[domain] = this.extras.labelFromName === true && records.some((r) => r.atts.some(isNameAtt));
+    }
+
+    /**
+     * The label of a record: its `name` att, or its XGMML label.
+     * @param record - the node or edge
+     * @returns the label, or undefined
+     */
+    private labelOf(record: NodeRec | EdgeRec): string | undefined {
+        if (this.nameLabel[record.kind]) {
+            return record.atts.find(isNameAtt)?.value ?? undefined;
+        }
+        return record.label ?? undefined;
+    }
+
+    /**
      * The coerced id of a node text.
      * @param text - the id text
      * @param line - the line
      * @returns the id
      */
     private nodeId(text: string, line: number): NodeId {
-        const id = this.coercer.text(text);
+        const id = this.idOf(text);
         const merge = this.coercer.lastMerge;
         if (merge !== null) {
             this.report.warning(
@@ -690,11 +732,15 @@ export class XgmmlEmitter {
         const positions = new Positions(this, this.dialect.cytoscape ? this.settings.zAs : "position");
         const graphics = new JsonColumn(this, "node", GRAPHICS_COLUMN, XGMML_ORIGIN_NAMESPACE, "graphics");
         const pointers = new Pointers(this, this.groupTest());
+        this.decideNameLabel(
+            "node",
+            this.rowList.flatMap((r) => r.records),
+        );
         for (const row of this.rowList) {
             const where = { line: row.records[0].line, element: row.id };
             const seen = new Set<string>();
             for (const record of row.records) {
-                labels[row.row] ??= record.label ?? undefined;
+                labels[row.row] ??= this.labelOf(record);
                 this.addElementColumns(this.nodeColumns, row.row, record, seen, where);
                 positions.add(row, record);
                 if (record.graphics !== null && Object.keys(record.graphics).length > 0) {
@@ -743,7 +789,11 @@ export class XgmmlEmitter {
             names.add(key);
         }
         for (const att of record.atts) {
-            if (this.skipAtt(record, att) || (merging && att.name !== null && seen.has(att.name))) {
+            if (
+                this.skipAtt(record, att) ||
+                (this.nameLabel[record.kind] && isNameAtt(att)) ||
+                (merging && att.name !== null && seen.has(att.name))
+            ) {
                 continue;
             }
             if (record.kind === "node" && att.name === "__isGroup" && record.nested.length > 0 && isCyTrue(att.value)) {
@@ -801,7 +851,7 @@ export class XgmmlEmitter {
             return;
         }
         const handle = this.declare(domain, {
-            name: LABEL_COLUMN,
+            name: this.nameLabel[domain] ? "name" : LABEL_COLUMN,
             dtype: "string",
             role: "label",
             nullable: true,
@@ -874,6 +924,7 @@ export class XgmmlEmitter {
         const edgeIds: (string | undefined)[] = [];
         const graphics: [number, Record<string, unknown>][] = [];
         let row = 0;
+        this.decideNameLabel("edge", records);
         for (const record of records) {
             const where = { line: record.line, element: record.id ?? record.label };
             // a repeat has the same id, or without one the same label and endpoints
@@ -894,7 +945,7 @@ export class XgmmlEmitter {
                 continue;
             }
             this.edgeIndex[row] = index;
-            labels[row] = record.label ?? undefined;
+            labels[row] = this.labelOf(record);
             edgeIds[row] = record.id ?? undefined;
             this.addElementColumns(this.edgeColumns, row, record, new Set(), where);
             this.fillInteraction(record, row, where);
@@ -1009,14 +1060,14 @@ export class XgmmlEmitter {
         if (text !== null) {
             const row = this.rows.get(text);
             if (row !== undefined && row.index >= 0) {
-                return this.coercer.text(text);
+                return this.idOf(text);
             }
         }
         if (alias !== null) {
             const resolved = this.aliasRow(alias);
             if (resolved !== null) {
                 this.aliasResolved++;
-                return this.coercer.text(resolved.id);
+                return this.idOf(resolved.id);
             }
         }
         if (text === null) {
@@ -1205,6 +1256,21 @@ export class XgmmlEmitter {
             },
         });
     }
+}
+
+/**
+ * Whether an att is a session table's own `name` cell (a text value; a formula is kept as its text).
+ * @param att - the att
+ * @returns true for the name
+ */
+function isNameAtt(att: AttRec): boolean {
+    return (
+        att.name === "name" &&
+        (att.namespace ?? null) === null &&
+        att.value !== null &&
+        att.children.length === 0 &&
+        (att.cyType ?? "String") === "String"
+    );
 }
 
 /**

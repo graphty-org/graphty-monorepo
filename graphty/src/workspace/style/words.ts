@@ -187,8 +187,8 @@ export function resultWord(runLabel: string, field: string, primary: boolean): s
  */
 export function enumWords(value: string): string {
     const spaced = value
-        .replace(/[-_]/g, " ")
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replaceAll(/[-_]/g, " ")
+        .replaceAll(/([a-z])([A-Z])/g, "$1 $2")
         .toLowerCase();
     return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }

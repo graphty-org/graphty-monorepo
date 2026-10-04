@@ -136,7 +136,7 @@ export async function writeLine(
     write: { readonly value: ChannelValue } | { readonly binding: DataBinding },
 ): Promise<LayerId> {
     const layers = rowLayers(session, ids, target);
-    const own = layers.filter((layer) => !layer.locked).at(-1);
+    const own = [...layers].reverse().find((layer) => !layer.locked);
     const set = "value" in write ? { [channel]: write.value } : undefined;
     const encode = "binding" in write ? { [channel]: write.binding } : undefined;
     if (own === undefined) {

@@ -66,7 +66,7 @@ function documentColors(session: GraphSession): string[] {
  * @param props.layers - the row's style layers
  * @returns The tab, or nothing before the element has come up
  */
-export function StyleTab({ layers }: StyleTabProps): React.JSX.Element | null {
+export function StyleTab({ layers }: Readonly<StyleTabProps>): React.JSX.Element | null {
     const { session, element } = useWorkspace();
     useStyleVersion(session, element);
     const inspected = useWorkspaceState((state) => state.inspected?.id);
@@ -88,7 +88,7 @@ export function StyleTab({ layers }: StyleTabProps): React.JSX.Element | null {
  * @param props.row - the row's layers
  * @returns The tab
  */
-function RowStyle({ session, row }: { session: GraphSession; row: readonly LayerId[] }): React.JSX.Element {
+function RowStyle({ session, row }: Readonly<{ session: GraphSession; row: readonly LayerId[] }>): React.JSX.Element {
     // The reader's own lines only: the element's locked base layers set something on both sides
     // of the Everything row, which would make the dot say nothing.
     const sets = (target: Target): boolean =>
@@ -156,13 +156,13 @@ function Section({
     row,
     layers,
     documentColors: colors,
-}: {
+}: Readonly<{
     section: StyleSection;
     target: Target;
     row: readonly LayerId[];
     layers: readonly Layer[];
     documentColors: readonly string[];
-}): React.JSX.Element | null {
+}>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     if (session === null) {
         return null;

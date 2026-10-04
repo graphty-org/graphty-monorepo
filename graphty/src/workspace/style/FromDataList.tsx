@@ -1,5 +1,6 @@
 import { type QuickAction, QuickActions } from "@graphty/compact-mantine";
 import type { Channel } from "@graphty/graphty-element/schema";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import type React from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -31,31 +32,13 @@ interface Entry {
 }
 
 /**
- * The From data list (tier1-design.md section 2.8): the element's attributes, then each run's
- * results under the run's name. What the property cannot take is listed last, disabled, with the
- * element's reason in words; "In use" comes first. The Style tab's bind icon, the label line and
- * the table's Columns chooser open it.
- * @param props - Component props
- * @param props.target - nodes or edges
- * @param props.channel - the property the pick goes on
- * @param props.inUse - paths in use on this row
- * @param props.onPick - called with the pick
- * @param props.onClose - called by Escape
- * @returns The list, or nothing before the element has come up
+ * Everything the list offers, in the element's order: the attributes, then each finished run's
+ * results under the run's name.
+ * @param session - the element's session.
+ * @param target - nodes or edges.
+ * @returns the entries.
  */
-export function FromDataList({
-    target = "node",
-    channel,
-    inUse = [],
-    onPick,
-    onClose,
-}: FromDataListProps): React.JSX.Element | null {
-    const { session, element } = useWorkspace();
-    useStyleVersion(session, element);
-    if (session === null) {
-        return null;
-    }
-
+function entriesOf(session: GraphSession, target: Target): Entry[] {
     const entries: Entry[] = [];
     for (const column of session.data.attributes()) {
         if (column.kind === target) {
@@ -68,28 +51,38 @@ export function FromDataList({
             });
         }
     }
-    for (const run of session.runs.list()) {
-        if (run.status !== "succeeded") {
-            continue;
-        }
+    for (const run of session.runs.list().filter((r) => r.status === "succeeded")) {
         const primary = session.results.path(run.id);
-        for (const field of run.fields) {
-            if (field.kind === target) {
-                const path = session.results.path(run.id, field.name);
-                entries.push({
-                    key: `result:${run.id}:${field.name}`,
-                    name: resultWord(run.label, field.name, path === primary),
-                    path,
-                    section: run.label,
-                    choice: { kind: "result", runId: run.id, field: field.name },
-                });
-            }
+        for (const field of run.fields.filter((f) => f.kind === target)) {
+            const path = session.results.path(run.id, field.name);
+            entries.push({
+                key: `result:${run.id}:${field.name}`,
+                name: resultWord(run.label, field.name, path === primary),
+                path,
+                section: run.label,
+                choice: { kind: "result", runId: run.id, field: field.name },
+            });
         }
     }
+    return entries;
+}
 
-    // In use first, then the rest in the element's order, then what the property cannot take,
-    // under its reason. ponytail: the reason is a section heading because QuickActions has no
-    // second line per item (#934); move it onto the item's second line when it does.
+/**
+ * The palette rows: In use first, then the rest in the element's order, then what the property
+ * cannot take, under its reason. ponytail: the reason is a section heading because QuickActions
+ * has no second line per item (#934); move it onto the item's second line when it does.
+ * @param session - the element's session.
+ * @param entries - the entries.
+ * @param channel - the property the pick goes on, if any.
+ * @param inUse - paths in use on this row.
+ * @returns the rows.
+ */
+function actionsOf(
+    session: GraphSession,
+    entries: readonly Entry[],
+    channel: Channel | undefined,
+    inUse: readonly string[],
+): QuickAction[] {
     const inUseItems: QuickAction[] = [];
     const usable: QuickAction[] = [];
     const refused: QuickAction[] = [];
@@ -108,6 +101,36 @@ export function FromDataList({
             usable.push({ value: entry.key, label: entry.name, section: entry.section });
         }
     }
+    return [...inUseItems, ...usable, ...refused];
+}
+
+/**
+ * The From data list (tier1-design.md section 2.8): the element's attributes, then each run's
+ * results under the run's name. What the property cannot take is listed last, disabled, with the
+ * element's reason in words; "In use" comes first. The Style tab's bind icon, the label line and
+ * the table's Columns chooser open it.
+ * @param props - Component props
+ * @param props.target - nodes or edges
+ * @param props.channel - the property the pick goes on
+ * @param props.inUse - paths in use on this row
+ * @param props.onPick - called with the pick
+ * @param props.onClose - called by Escape
+ * @returns The list, or nothing before the element has come up
+ */
+export function FromDataList({
+    target = "node",
+    channel,
+    inUse = [],
+    onPick,
+    onClose,
+}: Readonly<FromDataListProps>): React.JSX.Element | null {
+    const { session, element } = useWorkspace();
+    useStyleVersion(session, element);
+    if (session === null) {
+        return null;
+    }
+
+    const entries = entriesOf(session, target);
 
     return (
         <QuickActions
@@ -115,7 +138,7 @@ export function FromDataList({
             placeholder="Find an attribute"
             width={240}
             height={320}
-            actions={[...inUseItems, ...usable, ...refused]}
+            actions={actionsOf(session, entries, channel, inUse)}
             filter={(action, query) => matchesWordStart(action.label, query)}
             onRun={(key) => {
                 const entry = entries.find((e) => e.key === key);

@@ -75,7 +75,7 @@ export function BindingPopover({
     onSource,
     onDetach,
     onClose,
-}: BindingPopoverProps): React.JSX.Element | null {
+}: Readonly<BindingPopoverProps>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const [choosing, setChoosing] = useState(false);
     if (session === null) {
@@ -204,11 +204,11 @@ function Range({
     descriptor,
     range,
     patch,
-}: {
+}: Readonly<{
     descriptor: ChannelDescriptor;
     range: DataBinding["range"];
     patch: (change: Partial<DataBinding>) => void;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     const [draft, setDraft] = useState<readonly [number | undefined, number | undefined]>(
         range ?? [undefined, undefined],
     );
@@ -256,11 +256,11 @@ function ValuesFrom({
     binding,
     extent,
     patch,
-}: {
+}: Readonly<{
     binding: DataBinding;
     extent: { readonly min: number; readonly max: number } | undefined;
     patch: (change: Partial<DataBinding>) => void;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     const domain = Array.isArray(binding.domain) ? binding.domain : null;
     return (
         <Stack gap={4}>
@@ -313,11 +313,11 @@ function NoValue({
     descriptor,
     missing,
     patch,
-}: {
+}: Readonly<{
     descriptor: ChannelDescriptor;
     missing: NonNullable<DataBinding["missing"]>;
     patch: (change: Partial<DataBinding>) => void;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     const given = missing === "skip" ? null : missing.value;
     // One value starts where a new line of this property would: the element's default for it.
     const raw = startingValue(descriptor);

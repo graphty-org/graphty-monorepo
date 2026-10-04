@@ -64,7 +64,7 @@ function colorOf(value: ChannelValue | undefined): { hexa: string; hex: string; 
  * @param props.documentColors - colors the document uses
  * @returns The line
  */
-export function SetLine({ descriptor, line, row, documentColors }: SetLineProps): React.JSX.Element | null {
+export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetLineProps>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const [binding, setBinding] = useState(false);
     if (session === null) {
@@ -194,13 +194,13 @@ function BoundValue({
     binding,
     write,
     bind,
-}: {
+}: Readonly<{
     descriptor: ChannelDescriptor;
     layer: Line["layer"];
     binding: DataBinding;
     write: (next: { value: ChannelValue } | { binding: DataBinding }) => void;
     bind: (choice: DataChoice) => void;
-}): React.JSX.Element | null {
+}>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const [open, setOpen] = useState(false);
     if (session === null) {
@@ -283,12 +283,12 @@ function ValueEditor({
     value,
     documentColors,
     write,
-}: {
+}: Readonly<{
     descriptor: ChannelDescriptor;
     value: ChannelValue | undefined;
     documentColors: readonly string[];
     write: (next: { value: ChannelValue }) => void;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     const label = channelWord(descriptor.channel);
     switch (descriptor.accepts) {
         case "color":
@@ -378,12 +378,12 @@ function ColorValue({
     value,
     documentColors,
     write,
-}: {
+}: Readonly<{
     name: string;
     value: ChannelValue | undefined;
     documentColors: readonly string[];
     write: (next: { value: ChannelValue }) => void;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     const color = colorOf(value) ?? { hexa: "#000000FF", hex: "#000000", percent: 100 };
     const [draft, setDraft] = useState<string | null>(null);
     // ponytail: one write per pause while dragging, so a drag is a few undo steps, not hundreds.
@@ -446,11 +446,11 @@ function ShapeValue({
     descriptor,
     value,
     write,
-}: {
+}: Readonly<{
     descriptor: ChannelDescriptor;
     value: ChannelValue | undefined;
     write: (next: { value: ChannelValue }) => void;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     const [open, setOpen] = useState(false);
     const current = typeof value === "string" ? value : "";
     return (

@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "pr": 981,
+  "subject": {
+    "builtMerge": "55531cbfbcec812f3970075af0efb6740d1f0a4e",
+    "head": "e2c2f0f705ef111184570afd22e167c6b3b041f0",
+    "runId": 37211246136,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V45 96-Core Processor",
+      "emojiFont": true,
+      "tool": "55531cbfbcec812f3970075af0efb6740d1f0a4e"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/compact-mantine/components-app-shell-quickactions--field-chooser.dark.png",
+      "from": null,
+      "to": "cb16e7677c40199a249812bc2fabca4aa7b3aff6a8ad1251c6f7448e4aa2b8c7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-app-shell-quickactions--field-chooser.light.png",
+      "from": null,
+      "to": "a892e864ac92e5441b6816b5ac0b500d36824a9f8877e79936c3d679b09c3aa9",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-04T15:46:05.580Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoienZEYWppcHBpQTY4cDdNUW4zTjJzaW9ZNHl3VDlXc1EzUWxpdUl3b09YayIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCICuj9pG2KpQOTXJ7hUST5RLHPIaqPSIe-y3WXEYs5dOYAiAoEkXrgL9tVGeWy-8trbijZl6AIH5vgRGmPvo0Lwxo-g"
+  }
+}

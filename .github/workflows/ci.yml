@@ -4,8 +4,9 @@ on:
     push:
         branches: [master]
     pull_request:
-        # "labeled" re-runs CI when a label is added. (Chromatic, which used a label, is switched off.)
-        types: [opened, synchronize, reopened, labeled]
+        # No "labeled": no job reads labels any more (Chromatic's label is switched off), and Mergify adds
+        # and removes labels (queued, dequeued) on every queued pull request, each of which re-ran all of CI.
+        types: [opened, synchronize, reopened]
     # Manual trigger. GitHub twice declined to queue a run for a push to master
     # (4ca5f8a and 756117b both reached the remote with zero runs created for
     # their SHA, while every workflow showed state=active). Without a dispatch
@@ -18,9 +19,22 @@ on:
                 type: boolean
                 default: false
 
+# A new commit on a pull request cancels that pull request's older run: its result can no longer
+# merge anything, and the runners it holds are what every other pull request is queued behind.
+# A push to master never cancels (each master commit is released and deployed from its own run).
+concurrency:
+    group: ci-${{ github.event.pull_request.number || github.sha }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Note: We use local Nx caching only (no Nx Cloud)
 # Cache is stored in .nx/cache and persisted via actions/cache
 
+# Every job names ubuntu-24.04 rather than ubuntu-latest. The label is not a constant: it became 24.04 during
+# 2026 with no change here, which is how the webgpu-graph-algorithms node shard came to judge its kernels on a
+# Mesa software rasteriser (25.2.8 / LLVM 20) two major versions newer than the one every gate record measured
+# (23.2.1 / LLVM 15) -- see webgpu-graph-algorithms/docs/decisions/G-ENV.md. GitHub has announced the same move
+# again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
+# that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
 jobs:
     # Build job - runs once, shares artifacts with test shards
     build:
@@ -119,10 +133,19 @@ jobs:
               if: github.event_name == 'pull_request'
               run: pnpm exec nx affected -t lint --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
-            # Master: Build then lint (build first for type dependencies)
-            # graphty build needs Sentry env vars for error tracking
-            - name: Build all (master)
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+            # Master and every manual dispatch: build then lint (build first for type dependencies).
+            # graphty build needs Sentry env vars for error tracking.
+            #
+            # The dispatch clause stands on its own rather than sitting inside the master test, because each
+            # trigger has to reach exactly one build: a pull request builds in the steps above, a push to master
+            # builds here, and a dispatch builds here whatever ref it names. The earlier shape, master AND (push
+            # OR dispatch), left a dispatch against a BRANCH matching neither group -- nothing was built, the
+            # uploads below found no files to attach, and all twenty test shards failed at their first artifact
+            # download (run 35943267536, this branch). A branch dispatch cannot take the pull request's
+            # `nx affected` path, which needs a base ref to diff against and a dispatch has none, so it takes
+            # this one and builds every project -- which is what the shards need from it anyway.
+            - name: Build all (master or a manual dispatch)
+              if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/master' && github.event_name == 'push')
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   NODE_OPTIONS: "--max-old-space-size=8192"
@@ -132,8 +155,8 @@ jobs:
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
-            - name: Lint all (master)
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+            - name: Lint all (master or a manual dispatch)
+              if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/master' && github.event_name == 'push')
               run: pnpm exec nx run-many -t lint --parallel=3
 
             # Every package is built by now on both paths (PR builds the rest above). knip reads
@@ -432,6 +455,18 @@ jobs:
             - name: Install Mesa lavapipe
               if: matrix.needs-lavapipe
               run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
+
+            # The software rasteriser this lane judges every kernel on is whatever apt resolves on the day, and it
+            # moved two major Mesa versions (23.2.1 / LLVM 15 -> 25.2.8 / LLVM 20) without anything recording it.
+            # Print the image, the C library and the installed Mesa version so a lane's environment is readable
+            # from its own log instead of inferred from the runner label. Never fails the step.
+            - name: Record the image, glibc and rasteriser versions
+              if: matrix.needs-lavapipe
+              run: |
+                  { grep PRETTY_NAME /etc/os-release
+                    ldd --version | head -1
+                    dpkg-query -W -f '${Package} ${Version}\n' mesa-vulkan-drivers libvulkan1 libegl1
+                  } || true
 
             - name: Locate the lavapipe ICD and export the lane's environment
               if: matrix.needs-lavapipe

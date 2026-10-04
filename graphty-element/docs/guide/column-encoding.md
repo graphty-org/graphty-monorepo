@@ -25,6 +25,10 @@ A column is named with a [`ColumnRef`](./vocabulary#a-column-of-your-data-column
 `attributes()` lists the columns of the data loaded now: it is empty before the first load, so
 await the load first. `declare` and `encode` name a column the graph already has.
 
+A swatch's `value` is the value as your data holds it: department code 3 is the number `3`, not
+the text `"3"`, so it compares with `===` to a record's value, and a run's group is spelled the
+same in the legend as in the run's summary and its per-node values.
+
 `encode` returns a run you can await; it resolves to the layer it added, whose `id` names it in
 `styles.get(id)`, `styles.remove(id)` and the legend. `styles.legend()` returns one entry per layer
 and channel, so match yours by `layerId`.

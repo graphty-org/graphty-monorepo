@@ -55,6 +55,11 @@ export interface WorkspaceState {
     readonly dockOpen: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
+    /**
+     * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
+     * edges table. The table dock's Export... sets the table that is showing.
+     */
+    readonly exportOn: "image" | "nodes" | "edges";
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
@@ -84,6 +89,7 @@ const INITIAL: WorkspaceState = {
     dockHeight: 240,
     dockOpen: false,
     legendShown: true,
+    exportOn: "image",
     singleKeyShortcuts: true,
     notice: null,
     opening: null,

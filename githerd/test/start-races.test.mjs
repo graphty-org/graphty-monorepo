@@ -61,6 +61,7 @@ function platform(over = {}) {
 }
 
 /**
+ * A start context over a state.
  * @param {any} state the state
  * @param {any} [over] overrides of the context
  * @returns {any} the start context
@@ -83,6 +84,7 @@ function ctxOf(state, over = {}) {
 }
 
 /**
+ * A state with queued jobs.
  * @param {...any} specs newJob arguments
  * @returns {any} a state with those queued jobs and a green commit
  */
@@ -91,12 +93,18 @@ function stateWith(...specs) {
     return { trust: { login: "owner" }, master: { greenSha: GREEN }, prs: {}, jobs };
 }
 
-/** @param {any} ctx the context */
+/**
+ * Waits until every start task ended.
+ * @param {any} ctx the context
+ */
 async function settle(ctx) {
     while (ctx.tasks.size) await Promise.all([...ctx.tasks.values()]);
 }
 
-/** @param {() => boolean} cond waits until it holds */
+/**
+ * Waits until a condition holds.
+ * @param {() => boolean} cond the condition
+ */
 async function until(cond) {
     for (let i = 0; i < 1000 && !cond(); i++) await new Promise((r) => setImmediate(r));
     if (!cond()) throw new Error("condition never held");
@@ -107,7 +115,7 @@ async function until(cond) {
  * @returns {{start: any, release: () => void}} the platform's start and its release
  */
 function slowStart() {
-    /** @type {() => void} */
+    /** Opens the gate. @type {() => void} */
     let release = () => {};
     const gate = new Promise((r) => (release = () => r(undefined)));
     return {
@@ -212,7 +220,12 @@ describe("a worker that joins its job into another", () => {
         move(other, "working", T0);
         const result = claimJob(
             state,
-            { job: "issue-1", snapshotVersion: 1, plan: "p", overlap: { decision: "join", with: "issue-2", reason: "same" } },
+            {
+                job: "issue-1",
+                snapshotVersion: 1,
+                plan: "p",
+                overlap: { decision: "join", with: "issue-2", reason: "same" },
+            },
             { session: "s1" },
             { version: 1 },
             T0,
@@ -226,6 +239,7 @@ describe("a worker that joins its job into another", () => {
 
 describe("tidyEndedJobs", () => {
     /**
+     * A tidy context whose removal records what it was asked.
      * @param {any} state the state
      * @param {any[]} did what the fakes were asked
      * @returns {any} the tidy context

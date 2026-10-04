@@ -594,7 +594,13 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
     if (job.holder?.nonce !== nonce) {
         // The job left this start meanwhile (a deadline, a cancel): end the window that opened.
         if (started.ok) {
-            const holder = { nonce, socket: "githerd", startedBy: "githerd", ...started.window, startTime: started.startTime };
+            const holder = {
+                nonce,
+                socket: "githerd",
+                startedBy: "githerd",
+                ...started.window,
+                startTime: started.startTime,
+            };
             state.retiring = [
                 ...(state.retiring ?? []),
                 { job: job.id, holder, reason: "the job left its start", at: now().toISOString() },

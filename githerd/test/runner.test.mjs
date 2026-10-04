@@ -178,7 +178,16 @@ describe("pure parts", () => {
 
     it("builds the environment from the allowlist only", () => {
         const env = runEnv(
-            { PATH: "/bin", HOME: "/h", GH_TOKEN: "t", PUSHOVER_USER: "u", GITHERD_NAME: "n", GPG_TTY: "/dev/pts/1" },
+            {
+                PATH: "/bin",
+                HOME: "/h",
+                GH_TOKEN: "t",
+                PUSHOVER_USER: "u",
+                GITHERD_NAME: "n",
+                GPG_TTY: "/dev/pts/1",
+                // Never passed on: with it, Nx reports cache hits and restores nothing (design 4.8).
+                NX_CACHE_DIRECTORY: "/c",
+            },
             { gitconfig: "/g", npmrc: "/n", run: { GITHERD_RUN_ID: "r" } },
         );
         expect(env).toEqual({

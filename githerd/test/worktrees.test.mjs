@@ -86,6 +86,33 @@ describe("createWorktree", () => {
         expect(entries.at(-1).kind).toBe("worktree-failed");
     });
 
+    it("fails a setup that leaves a package with a build script and no dist, and never passes NX_CACHE_DIRECTORY", async () => {
+        put(join(repo.root, "built", "package.json"), JSON.stringify({ scripts: { build: "tsc" } }));
+        put(join(repo.root, "unbuilt", "package.json"), JSON.stringify({ scripts: { build: "tsc" } }));
+        put(join(repo.root, "tooling", "package.json"), JSON.stringify({ scripts: { test: "vitest" } }));
+        put(join(repo.root, "notes", "readme.txt"), "no package here\n");
+        put(join(repo.root, "broken", "package.json"), "{ not json");
+        green = commitAll(repo.root, "chore: packages");
+        // The setup "builds" one package, and records whether it saw the variable.
+        const setup = [
+            process.execPath,
+            "-e",
+            "const fs = require('fs'); fs.mkdirSync('built/dist'); fs.writeFileSync('nx-env', String(process.env.NX_CACHE_DIRECTORY))",
+        ];
+        const before = process.env.NX_CACHE_DIRECTORY;
+        process.env.NX_CACHE_DIRECTORY = "/elsewhere";
+        let r;
+        try {
+            r = await createWorktree({ root: repo.root, state: {}, target: "issue:7", greenSha: green, setup, ledger });
+        } finally {
+            if (before === undefined) delete process.env.NX_CACHE_DIRECTORY;
+            else process.env.NX_CACHE_DIRECTORY = before;
+        }
+        expect(r).toMatchObject({ ok: false, reason: "worktree setup left no dist in unbuilt" });
+        expect(readFileSync(join(/** @type {string} */ (r.dir), "nx-env"), "utf8")).toBe("undefined");
+        expect(entries.at(-1).kind).toBe("worktree-failed");
+    });
+
     it("checks out a pull request branch, with its head as the base", async () => {
         const head = pushPrBranch("feat/x", { "src/a.txt": "a\n" });
         const state = {};

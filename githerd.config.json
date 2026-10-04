@@ -32,7 +32,7 @@
         "CLAUDE.md"
     ],
     "noAutoMergePaths": ["githerd/", "githerd.config.json", ".mcp.json", ".claude/", ".github/", "visual-review/"],
-    "worktreeSetup": ["pnpm", "install", "--frozen-lockfile"],
+    "worktreeSetup": ["sh", "-c", "pnpm install --frozen-lockfile && pnpm exec nx run-many -t build"],
     "runRulesFile": ".claude/githerd-rules.md",
     "actions": {
         "statuses": false,

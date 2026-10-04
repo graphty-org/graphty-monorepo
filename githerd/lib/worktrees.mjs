@@ -10,7 +10,7 @@
  * githerd never runs git stash, reset, checkout of a file, clean or rebase.
  */
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const GIT_TIMEOUT_MS = 5 * 60_000;
@@ -23,6 +23,39 @@ const SETUP_TIMEOUT_MS = 20 * 60_000;
  * them gets no run, because the run would follow the pull request's instructions.
  */
 const STEERING_PATHS = [".claude", ".mcp.json", ":(glob)**/CLAUDE.md"];
+
+/**
+ * The environment githerd starts a command with: its own, without `NX_CACHE_DIRECTORY`. Every
+ * worktree already shares the main checkout's Nx cache; with the variable set, Nx reported cache
+ * hits and restored no output (evidence/platform-facts.md section 8.1).
+ * @param {Record<string, string | undefined>} env the environment
+ * @returns {Record<string, string | undefined>} the same without the variable
+ */
+function withoutNxCache(env) {
+    const out = { ...env };
+    delete out.NX_CACHE_DIRECTORY;
+    return out;
+}
+
+/**
+ * The packages one level under `dir` that have a `build` script but no `dist` directory: a setup
+ * that reports success with any of them is a broken build, not a prepared worktree.
+ * @param {string} dir the worktree
+ * @returns {string[]} the package directories, sorted
+ */
+function missingDist(dir) {
+    return readdirSync(dir, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && !existsSync(join(dir, d.name, "dist")))
+        .map((d) => d.name)
+        .filter((name) => {
+            try {
+                return Boolean(JSON.parse(readFileSync(join(dir, name, "package.json"), "utf8")).scripts?.build);
+            } catch {
+                return false;
+            }
+        })
+        .sort((a, b) => a.localeCompare(b));
+}
 
 /**
  * @typedef {{code: number, stdout: string, stderr: string}} RunResult
@@ -176,10 +209,18 @@ export async function createWorktree({
         }
     }
     if (setup && setup.length > 0) {
-        const r = await run(setup[0], setup.slice(1), { cwd: dir, timeoutMs: SETUP_TIMEOUT_MS });
+        const r = await run(setup[0], setup.slice(1), {
+            cwd: dir,
+            timeoutMs: SETUP_TIMEOUT_MS,
+            env: withoutNxCache(process.env),
+        });
         if (r.code !== 0) {
             const tail = (r.stderr || r.stdout).trim().split("\n").slice(-5).join("\n");
             return fail(ledger, target, dir, `worktree setup ${setup.join(" ")} exited ${r.code}: ${tail}`);
+        }
+        const missing = missingDist(dir);
+        if (missing.length > 0) {
+            return fail(ledger, target, dir, `worktree setup left no dist in ${missing.join(", ")}`);
         }
     }
     return { ok: true, dir, branch, pushBranch: pushBranch || branch, base };

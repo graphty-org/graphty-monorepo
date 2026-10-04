@@ -37,6 +37,20 @@ Build order and per-task done-criteria: `design/githerd/githerd-plan.md`.
   runs by hand (the container has no cron and no systemd). A restarter starts the daemon only when
   `alive` is older than 60 s and the daemon's lock names a process that is gone, holding
   `restart.lock`. Every start uses the command `githerd install` prints, from the state directory.
+- **The Nx cache needs no setup, and `NX_CACHE_DIRECTORY` is never set.** Nx 22.7 resolves
+  `.nx/cache` to the main checkout's from every git worktree, so a fresh job worktree's build hits
+  what any other worktree built and restores its outputs (measured 2026-10-03,
+  `design/githerd/evidence/platform-facts.md` section 8.1). With `NX_CACHE_DIRECTORY` set, Nx
+  reported cache hits and restored no output. So no environment githerd starts carries it: the
+  daemon's and a run's environments are allow-lists without it, and the worktree setup command
+  runs with it removed. A worktree's preparation (`worktreeSetup`: install and the Nx build) fails
+  when a package with a `build` script has no `dist` afterwards, whatever the exit code said. Never
+  delete or move the main checkout's `.nx`: it is every worktree's cache.
+- **The pre-push gate holds a lock.** `tools/prepush.sh` takes `flock` on `prepush.lock` in the
+  git common directory, so gates from every worktree run one at a time, and writes its pid,
+  worktree and branch to `prepush.lock.holder`. `gateLock` in `lib/proc.mjs` reads the holder and
+  the waiting gates from `/proc/<pid>/fdinfo`; `/proc/locks` hides a lock a script takes
+  (platform facts section 8.2).
 
 ## Verified against the real claude (Claude Code 2.1.287, 2026-10-02)
 

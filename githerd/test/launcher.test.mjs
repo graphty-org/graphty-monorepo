@@ -501,7 +501,13 @@ describe("install and the daemon's environment", () => {
 
     it("keeps the file the owner wrote unless told to replace it, and loads only allow-listed unset variables", () => {
         const sd = join(dir, "sd");
-        writeDaemonEnv(sd, { HOME: "/h", PUSHOVER_APP_TOKEN: "t", CLAUDECODE: "1", GITHERD_URL: "x" });
+        writeDaemonEnv(sd, {
+            HOME: "/h",
+            PUSHOVER_APP_TOKEN: "t",
+            CLAUDECODE: "1",
+            GITHERD_URL: "x",
+            NX_CACHE_DIRECTORY: "/c",
+        });
         writeDaemonEnv(sd, { HOME: "/worker" });
         expect(JSON.parse(readFileSync(join(sd, "daemon-env.json"), "utf8"))).toEqual({
             HOME: "/h",

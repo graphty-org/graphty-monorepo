@@ -80,7 +80,7 @@ const facts = (over = {}) => ({
  */
 function workingState() {
     const job = newJob({ kind: "pr", target: "7" }, T0);
-    move(job, "starting", T0, { phase: "worktree", holder: { session: "s-0" } });
+    move(job, "starting", T0, { phase: "worktree", holder: { session: "s-0", nonce: "n0nce-77" } });
     move(job, "working", T0);
     return { jobs: { [job.id]: job } };
 }
@@ -201,7 +201,15 @@ describe("answerHook: SessionStart", () => {
     it("ends a worker session on a disallowed model, and counts a failed start", () => {
         const state = /** @type {any} */ (workingState());
         const job = state.jobs["pr-7"];
-        job.holder = { session: "s-0", socket: "githerd", window: "@1", pane: "%1", pid: 42, startedBy: "githerd" };
+        job.holder = {
+            session: "s-0",
+            nonce: "n0nce-77",
+            socket: "githerd",
+            window: "@1",
+            pane: "%1",
+            pid: 42,
+            startedBy: "githerd",
+        };
         // The recorded probe ran Haiku, which no worker may.
         const wrong = answerHook(state, worker(REC.startStartup), facts(), T0);
         expect(wrong.answer.message).toBe(
@@ -214,7 +222,7 @@ describe("answerHook: SessionStart", () => {
         expect(state.startFailures).toBe(1);
         // A resumed session is checked too.
         const again = /** @type {any} */ (workingState());
-        again.jobs["pr-7"].holder = { session: "s-0", pane: "%2" };
+        again.jobs["pr-7"].holder = { session: "s-0", nonce: "n0nce-77", pane: "%2" };
         const resumed = answerHook(again, worker(REC.startResume, { model: "claude-sonnet-4-5" }), facts(), T0);
         expect(resumed.end).toBe(true);
     });
@@ -222,7 +230,7 @@ describe("answerHook: SessionStart", () => {
     it("marks a disallowed model whose window is not known yet, for the start to end", () => {
         const state = /** @type {any} */ (workingState());
         const job = state.jobs["pr-7"];
-        job.holder = { nonce: "n", session: null, startedBy: "githerd" };
+        job.holder = { nonce: "n0nce-77", session: null, startedBy: "githerd" };
         const r = answerHook(state, worker(REC.startStartup), facts(), T0);
         expect(r.end).toBeUndefined();
         expect(job.holder.wrongModel).toBe("claude-haiku-4-5-20251001");

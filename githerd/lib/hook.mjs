@@ -369,8 +369,15 @@ function sessionStart(state, job, req, facts, now) {
     const { session_id: session, source, model } = req.input;
     const line = statusLine(facts.status ?? {});
     if (!job) return { answer: { message: line, context: line }, ledger: [] };
+    // A window started with another nonce is not the job's current start: it links nothing.
+    if (!req.nonce || job.holder?.nonce !== req.nonce) {
+        return {
+            answer: { message: line, context: line },
+            ledger: [{ kind: "hook-session-stale", job: job.id, session }],
+        };
+    }
     if (!job.sessions.includes(session)) job.sessions.push(session);
-    if (job.holder) job.holder.session = session;
+    job.holder.session = session;
     /** @type {any[]} */
     const ledger = [{ kind: "hook-session", job: job.id, session, source }];
     // The reported id can carry a suffix such as `[1m]`, so the allowed id is a prefix (as selftest).

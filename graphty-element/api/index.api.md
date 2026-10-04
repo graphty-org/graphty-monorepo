@@ -1384,6 +1384,68 @@ export interface ExportResult {
 }
 
 // @public
+export interface FindEnd {
+    readonly id: NodeId_2;
+    readonly name: string;
+}
+
+// @public
+export type FindHit = (FindHitBase & {
+    readonly kind: "node";
+    readonly id: NodeId_2;
+    readonly name: string;
+}) | (FindHitBase & {
+    readonly kind: "edge";
+    readonly id: EdgeId;
+    readonly ends: {
+        readonly source: FindEnd;
+        readonly target: FindEnd;
+    };
+});
+
+// @public
+export interface FindHitBase {
+    readonly excludedBy?: {
+        readonly kind: "filter";
+    };
+    readonly match: {
+        readonly path: Path;
+        readonly value: string | number | boolean;
+    };
+    readonly target: SelectionTarget;
+}
+
+// @public
+export type FindKind = "node" | "edge";
+
+// @public
+export interface FindOptions {
+    readonly kinds?: readonly FindKind[];
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly scope?: ScopeInput;
+}
+
+// @public
+export interface FindResult {
+    readonly notSearchable?: "regex" | "expression";
+    readonly offset: number;
+    readonly records: readonly FindHit[];
+    readonly revision: string;
+    readonly total: number;
+    readonly values: readonly FindValueRow[];
+}
+
+// @public
+export interface FindValueRow {
+    readonly count: number;
+    readonly kind: FindKind;
+    readonly path: Path;
+    readonly target: SelectionTarget;
+    readonly value: string | number | boolean;
+}
+
+// @public
 export interface FormatWriterRegistration {
     readonly descriptor: FormatDescriptor;
     readonly exporter: GraphExporter<Record<string, unknown> & CommonExportOptions>;
@@ -1518,8 +1580,10 @@ export class Graph implements GraphContext {
     // (undocumented)
     needRays: boolean;
     needsRayUpdate(): boolean;
+    get nodeLabelCounts(): NodeLabelCounts;
     on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
+    readonly onNodeLabelCounts: Observable<NodeLabelCounts>;
     // (undocumented)
     pinOnDrag?: boolean;
     removeCameraPreset(name: string): Promise<void>;
@@ -1679,6 +1743,7 @@ export interface GraphContext {
     is2D(): boolean;
     isRunning(): boolean;
     needsRayUpdate(): boolean;
+    readonly onNodeLabelCounts?: Observable<NodeLabelCounts>;
     setRunning(running: boolean): void;
 }
 
@@ -1920,6 +1985,7 @@ export class Graphty extends LitElement {
     set nodeData(value: Record<string, unknown>[] | undefined);
     get nodeIdPath(): string | undefined;
     set nodeIdPath(value: string | undefined);
+    get nodeLabelCounts(): NodeLabelCounts;
     get nodeLabelPath(): string | undefined;
     set nodeLabelPath(value: string | undefined);
     on(type: EventType, callback: EventCallbackType): void;
@@ -2689,6 +2755,40 @@ export interface ManagerContext {
 }
 
 // @public
+export interface Neighbor {
+    readonly edgeCount: number;
+    readonly excludedBy?: {
+        readonly kind: "filter";
+    };
+    readonly name: string;
+    readonly node: NodeRecord;
+    readonly weight: number;
+}
+
+// @public
+export interface NeighborOptions {
+    readonly direction?: SelectionDirection;
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly scope?: ScopeInput;
+    readonly sort?: NeighborSort;
+    readonly weight?: WeightMeaning | null;
+}
+
+// @public
+export interface NeighborPage extends RecordPage<Neighbor> {
+    readonly measuredBy: WeightMeaning | null;
+    readonly missing: number;
+}
+
+// @public
+export interface NeighborSort {
+    // (undocumented)
+    readonly by: "weight" | "name";
+    readonly descending?: boolean;
+}
+
+// @public
 class Node_2 {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
@@ -2832,8 +2932,18 @@ export interface NodeHoverEvent {
     type: "node-hover";
 }
 
+// @public
+export type NodeId = string | number;
+
 // @public (undocumented)
 export type NodeIdType = string | number;
+
+// @public
+export interface NodeLabelCounts {
+    readonly hiddenByOverlap: number;
+    readonly labeled: number;
+    readonly nodeHidden: number;
+}
 
 // @public
 export const NodeShapes: z.ZodEnum<{
@@ -4136,6 +4246,12 @@ export type ViewMode = (typeof VIEW_MODE_VALUES)[number];
 
 // @public
 export const VIRIDIS_COLORS: readonly ["#440154", "#482878", "#3e4989", "#31688e", "#26828e", "#1f9e89", "#35b779", "#6ece58", "#b5de2b", "#fde724"];
+
+// @public
+export interface WeightMeaning {
+    readonly attribute: string;
+    readonly meaning: "distance" | "strength";
+}
 
 // @public
 export interface WorkerCapability {

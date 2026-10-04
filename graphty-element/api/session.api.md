@@ -552,6 +552,68 @@ export interface FilterResult {
 }
 
 // @public
+export interface FindEnd {
+    readonly id: NodeId_2;
+    readonly name: string;
+}
+
+// @public
+export type FindHit = (FindHitBase & {
+    readonly kind: "node";
+    readonly id: NodeId_2;
+    readonly name: string;
+}) | (FindHitBase & {
+    readonly kind: "edge";
+    readonly id: EdgeId;
+    readonly ends: {
+        readonly source: FindEnd;
+        readonly target: FindEnd;
+    };
+});
+
+// @public
+export interface FindHitBase {
+    readonly excludedBy?: {
+        readonly kind: "filter";
+    };
+    readonly match: {
+        readonly path: Path;
+        readonly value: string | number | boolean;
+    };
+    readonly target: SelectionTarget;
+}
+
+// @public
+export type FindKind = "node" | "edge";
+
+// @public
+export interface FindOptions {
+    readonly kinds?: readonly FindKind[];
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly scope?: ScopeInput;
+}
+
+// @public
+export interface FindResult {
+    readonly notSearchable?: "regex" | "expression";
+    readonly offset: number;
+    readonly records: readonly FindHit[];
+    readonly revision: string;
+    readonly total: number;
+    readonly values: readonly FindValueRow[];
+}
+
+// @public
+export interface FindValueRow {
+    readonly count: number;
+    readonly kind: FindKind;
+    readonly path: Path;
+    readonly target: SelectionTarget;
+    readonly value: string | number | boolean;
+}
+
+// @public
 export interface GraphAccelerator {
     [algorithmOrLayout: string]: unknown;
     readonly backend: "webgpu" | (string & {});
@@ -577,6 +639,7 @@ export interface GraphSession {
     dispose(): void;
     estimate(command: SessionCommand): CostEstimate;
     execute<C extends SessionCommand>(command: C): CommandOutcome<C>;
+    find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
     readonly history: SessionHistory;
     readonly layout: SessionLayout;
@@ -1350,6 +1413,40 @@ export interface Memberships {
 }
 
 // @public
+export interface Neighbor {
+    readonly edgeCount: number;
+    readonly excludedBy?: {
+        readonly kind: "filter";
+    };
+    readonly name: string;
+    readonly node: NodeRecord;
+    readonly weight: number;
+}
+
+// @public
+export interface NeighborOptions {
+    readonly direction?: SelectionDirection;
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly scope?: ScopeInput;
+    readonly sort?: NeighborSort;
+    readonly weight?: WeightMeaning | null;
+}
+
+// @public
+export interface NeighborPage extends RecordPage<Neighbor> {
+    readonly measuredBy: WeightMeaning | null;
+    readonly missing: number;
+}
+
+// @public
+export interface NeighborSort {
+    // (undocumented)
+    readonly by: "weight" | "name";
+    readonly descending?: boolean;
+}
+
+// @public
 export type NodeId = string | number;
 
 // @public
@@ -1532,6 +1629,16 @@ export interface NumericColumnView {
     readonly mean: number;
     readonly median: number;
     readonly min: number;
+}
+
+// @public
+export interface PageColumn {
+    readonly field: string;
+    readonly path: Path;
+    readonly pending: boolean;
+    readonly run: RunId;
+    readonly type: "number" | "integer" | "boolean" | "string";
+    readonly values: readonly ResultCell[];
 }
 
 // @public
@@ -1817,6 +1924,7 @@ export function recommendLayout(statistics: GraphStatistics, options?: LayoutRec
 
 // @public
 export interface RecordPage<TRecord> {
+    readonly columns?: readonly PageColumn[];
     readonly offset: number;
     readonly records: readonly TRecord[];
     readonly revision: string;
@@ -1825,10 +1933,11 @@ export interface RecordPage<TRecord> {
 
 // @public
 export interface RecordPageOptions {
+    readonly columns?: readonly ResultColumn[];
     readonly limit?: number;
     readonly offset?: number;
     readonly scope?: ScopeInput;
-    readonly sort?: RecordSort;
+    readonly sort?: RecordSort | ResultSort;
 }
 
 // @public
@@ -1989,6 +2098,12 @@ export const RESULT_SHAPE_CONTRACTS: {
 export const RESULT_SHAPES: readonly ["node-metric", "edge-metric", "community", "layered-grouping", "category-table", "path", "node-set", "edge-set", "pair-list", "temporal", "fact"];
 
 // @public
+export type ResultCell = number | string | boolean | undefined;
+
+// @public
+export type ResultColumn = RunRef | ResultRef;
+
+// @public
 export type ResultId = RunId;
 
 // @public
@@ -2018,6 +2133,11 @@ export interface ResultsApi {
 
 // @public
 export type ResultShape = (typeof RESULT_SHAPES)[number];
+
+// @public
+export interface ResultSort extends ResultRef {
+    readonly descending?: boolean;
+}
 
 // @public
 export interface ResultSummary {
@@ -2575,12 +2695,25 @@ export interface SessionDataApi {
     clear(): Promise<void>;
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     edge(id: EdgeId): EdgeRecord | undefined;
+    edgePage(options: EdgePageOptions & {
+        readonly columns: readonly ResultColumn[];
+    }): RecordPage<EdgeRecord> & {
+        readonly columns: readonly PageColumn[];
+    };
+    // (undocumented)
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(): readonly EdgeRecord[];
     fingerprint(): string;
     import(source: DataSourceInput, options?: ImportOptions): Promise<void>;
     lastImport(): ImportReport | null;
+    neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;
+    nodePage(options: RecordPageOptions & {
+        readonly columns: readonly ResultColumn[];
+    }): RecordPage<NodeRecord> & {
+        readonly columns: readonly PageColumn[];
+    };
+    // (undocumented)
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     nodes(): readonly NodeRecord[];
     removeEdges(ids: readonly EdgeId[]): Promise<void>;

@@ -14,6 +14,7 @@ RULES:
   - Never stash, reset, check out a file, clean or rebase, never use --no-verify, never put an attribution line in a commit message, and never weaken a test, limit or threshold to make it pass.
   - Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines.
   - githerd never merges and you cannot: Mergify merges once checks and githerd/merge pass.
+  - Never comment on, react to, or open an issue or pull request in any Cytoscape.js repository; reading them is fine.
   - When your turn ends without the job done, take one of four ways forward: keep working, githerd_wait, githerd_ask_owner, or githerd_done with outcome failed and your findings.
 REVIEW RUBRIC (pick one verdict):
   - pass: nothing below applies.

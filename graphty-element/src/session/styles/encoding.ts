@@ -1317,7 +1317,11 @@ function overflowKeep(descriptor: ChannelDescriptor, binding: RuleBinding, numer
         );
     }
 
-    const capacity = overflowCapacity(binding.palette);
+    // A channel of a fixed list folds past the values it has; a color, past its palette.
+    const capacity =
+        overflow === "other" && descriptor.accepts === "enum"
+            ? (descriptor.values?.length ?? null)
+            : overflowCapacity(binding.palette);
 
     if (numeric || capacity === null || (overflow !== "other" && overflow !== "shape")) {
         return Number.POSITIVE_INFINITY;

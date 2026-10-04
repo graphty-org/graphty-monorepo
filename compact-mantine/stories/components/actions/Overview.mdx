@@ -1,0 +1,38 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Components/Actions/Overview" />
+
+# Actions
+
+Icon buttons that do more than fire once. Each is built on Mantine's `ActionIcon`, so hover,
+press, focus ring, disabled and Enter / Space activation come from the same theme as every other
+button in your app. What each one adds is a piece of state a plain icon button cannot show: an
+on/off value, a menu of alternatives, or "something behind me has been changed".
+
+All three are ghost icon buttons 24px or 32px tall, carry a tooltip that is also their accessible
+name, and sit in a panel row's 24px trailing slot or in a header. For a plain one-off icon action,
+use Mantine's `ActionIcon` directly; the theme already draws it the same way (see
+Themed Mantine / Actions / ActionIcon).
+
+## Reach for
+
+- **`ToggleIconButton`** when the button holds an on/off state the reader must see: lock aspect
+  ratio, use as mask, show or hide a layer. It is a toggle button with `aria-pressed`, and it
+  flips on pointer down so a drag down a column of them sets them all.
+- **`SplitButton`** when there is one default action and a few variations of it: the main half
+  runs the default, the chevron opens a menu of the rest.
+- **`AdvancedButton`** when a row or a section has rarely-changed settings behind a gear, usually
+  in a pop-out, and the reader must be told when any of them is no longer at its default.
+
+## And outside this group
+
+- **Mantine `ActionIcon`** -- an icon action that does its job once and holds no state (add,
+  delete, close).
+- **Mantine `Menu` on a `Button`** -- a button whose only job is to open a list, with no default
+  action of its own.
+- **`PopoutButton`** (Components / Overlays) -- an icon button that opens a pop-out that is not
+  "more settings for this row", so it needs no changed state.
+- **`ToggleRow`** (Components / Selection) -- an on/off setting that deserves a whole row with a
+  visible name and a switch, rather than an icon.
+- **Mantine `SegmentedControl`** (Themed Mantine / Selection) -- one choice out of two to six,
+  such as alignment or view mode, rather than a single on/off.

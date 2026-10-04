@@ -378,7 +378,7 @@ export async function readXmlTree(
     const stack: XmlNode[] = [{ name: "", attrs: new Map(), children: [] }];
     try {
         await tokenizeXml(
-            textChunks(bytes, scratch, { signal: common.signal, declaredEncoding: xmlDeclaredEncoding }),
+            textChunks(bytes, scratch, { signal: common.signal, declaredEncoding: xmlDeclaredEncoding, xml: true }),
             {
                 start(name, attrs): void {
                     const node: XmlNode = { name: name.slice(name.lastIndexOf(":") + 1), attrs, children: [] };
@@ -398,6 +398,12 @@ export async function readXmlTree(
             report.fail(CYS_ISSUE.CORRUPT, `${entry}: ${err.message}`);
         }
         throw err;
+    }
+    // the decoder's warnings (an encoding fallback, an unknown declared encoding) name the entry
+    for (const issue of scratch.issues) {
+        if (issue.severity === "warning") {
+            report.warning(issue.category, issue.code, `${entry}: ${issue.message}`, { element: entry });
+        }
     }
     const [root] = stack[0].children;
     if (root === undefined) {

@@ -1,0 +1,54 @@
+# Throwaway: records which fonts the visual job's runner resolves (design/visual-testing/local-previews.md
+# section 10 step 1). Runs only on a push to this branch; the branch is deleted after the measurement.
+name: visual font probe
+on:
+    push:
+        branches: [tmp/visual-font-probe]
+jobs:
+    probe:
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+            - run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+            - run: pnpm exec visual-review install-browser
+            - name: Record font resolution
+              run: |
+                  out="$RUNNER_TEMP/probe"; mkdir -p "$out"
+                  {
+                      cat /etc/os-release; uname -a; grep -m1 "model name" /proc/cpuinfo; nproc
+                      echo "--- ImageOS=$ImageOS ImageVersion=$ImageVersion"
+                      fc-match --version 2>&1
+                  } > "$out/system.txt"
+                  dpkg -l 'fonts-*' 'fontconfig*' 'xfonts-*' '*-font*' 2>/dev/null | grep '^ii' > "$out/packages.txt" || true
+                  fc-list : file family style fontformat | sort > "$out/fc-list.txt"
+                  fc-conflist > "$out/fc-conflist.txt" 2>&1 || true
+                  for f in sans-serif serif monospace emoji system-ui cursive fantasy math ui-monospace ui-sans-serif ui-serif \
+                      Roboto Helvetica "Helvetica Neue" Arial Verdana Tahoma "Segoe UI" "Segoe UI Emoji" "Segoe UI Symbol" \
+                      "Apple Color Emoji" "Noto Color Emoji" "Courier New" Courier "Times New Roman" Times Georgia Inter \
+                      "Inter Variable" Menlo Monaco Consolas "Liberation Mono" SFMono-Regular -apple-system \
+                      BlinkMacSystemFont Ubuntu Cantarell "Fira Sans" "Droid Sans" "Open Sans" "Noto Sans" "DejaVu Sans" \
+                      "Lucida Console" "Comic Sans MS" Impact; do
+                      printf '%s\t%s\n' "$f" "$(fc-match -f '%{file}\t%{family}\t%{style}' "$f")"
+                  done > "$out/fc-match.txt"
+                  for c in 1f680 1f4cb 4e2d 3042 0627 05d0 0e01 2713 2605; do
+                      printf '%s\t%s\n' "$c" "$(fc-match -f '%{file}\t%{family}' ":charset=$c")"
+                  done > "$out/fc-match-charset.txt"
+                  fc-list : file | sed 's/: *$//' | sort -u > "$out/files.txt"
+                  xargs -d '\n' sha256sum < "$out/files.txt" > "$out/files.sha256"
+                  du -cb $(cat "$out/files.txt") | tail -1 > "$out/total-bytes.txt"
+                  tar -chzf "$out/fonts.tgz" -T "$out/files.txt" 2>/dev/null
+                  tar -chzf "$out/etc-fonts.tgz" /etc/fonts 2>/dev/null
+                  ls -la "$out"
+                  cat "$out/fc-match.txt" "$out/fc-match-charset.txt" "$out/packages.txt" "$out/total-bytes.txt"
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: visual-font-probe
+                  path: ${{ runner.temp }}/probe/
+                  retention-days: 30

@@ -18,7 +18,8 @@
  *   index (details.index), or a requireIndex miss.
  * - E_INDEX_RANGE: ids.idOf / table.value out of range; inducedSubgraph with a repeated or
  *   out-of-range index.
- * - E_TOO_LARGE: nodeCount, edgeCount or arcCount would exceed MAX_COUNT.
+ * - E_TOO_LARGE: nodeCount, edgeCount or arcCount would exceed MAX_COUNT, or the builder would hold
+ *   more than 2^24 nodes with explicit ids (the engine's Map limit).
  * - E_INVALID_WEIGHT: a NaN weight at addEdge / setEdgeWeight / addEdges.
  * - E_DIRECTED: mate() on a directed snapshot; setDirected() refused (locked, or a change the edge
  *   set does not allow).

@@ -166,6 +166,8 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
     /** @type {Record<string, any>} */
     const out = {
         banner: alertBanner(state),
+        // The invariant check's faults (design 9.5) lead every surface.
+        faults: [...(state.invariants?.faults ?? []), ...(state.mergeGate?.checks?.faults ?? [])],
         githerd: {
             version: ctx.version,
             mode: ctx.mode,
@@ -440,6 +442,7 @@ export function statusText(data, now) {
     const polled = g.polledAt ? `polled ${span(now.getTime() - Date.parse(g.polledAt))} ago` : "not polled yet";
     const next = g.nextPollAt ? `, next in ${span(Date.parse(g.nextPollAt) - now.getTime())}` : "";
     const lines = [`githerd ${g.version} (${g.mode}) -- ${polled}${next}`];
+    for (const f of data.faults ?? []) lines.push(`FAULT ${f.record}: ${f.problem}`);
     if (data.master) lines.push(...masterLines(data.master, now));
     if (data.prs) lines.push(...prLines(data.prs));
     if (data.queue) lines.push(...queueLines(data.queue));

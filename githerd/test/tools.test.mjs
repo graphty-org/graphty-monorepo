@@ -239,7 +239,7 @@ describe("githerd_status", () => {
 
     it("answers JSON with only the requested section", () => {
         const data = json(exampleState(), { section: "master" });
-        expect(Object.keys(data)).toEqual(["banner", "githerd", "master"]);
+        expect(Object.keys(data)).toEqual(["banner", "faults", "githerd", "master"]);
         expect(data.master).toMatchObject({ verdict: "red", greenSha: "dc12f9ad4000", newerInFlight: 2 });
         expect(data.master.incident.suspects).toEqual([{ sha: "abc1234567", pr: 718 }]);
     });
@@ -355,6 +355,18 @@ describe("githerd_status", () => {
         );
         // With no owner, no title is shown at all.
         expect(status(state, { section: "prs" })).toContain("#704 (author: apowers313)");
+    });
+});
+
+describe("faults", () => {
+    it("lead the status, the invariant check's and the merge gate's", () => {
+        const state = exampleState();
+        state.invariants = { faults: [{ record: "job pr-704", problem: "working with no deadline" }] };
+        state.mergeGate = { checks: { faults: [{ record: "pr 519", problem: "no current githerd/merge status" }] } };
+        expect(status(state, { section: "master" }).split("\n").slice(1, 3)).toEqual([
+            "FAULT job pr-704: working with no deadline",
+            "FAULT pr 519: no current githerd/merge status",
+        ]);
     });
 });
 

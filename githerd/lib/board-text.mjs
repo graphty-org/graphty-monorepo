@@ -112,7 +112,7 @@ function bannerLines(v) {
                 `WRITE DID NOT STICK: ${w.op} (${w.group}), sent ${w.retried ? "twice" : "once"}, wrong since ${when(w.mismatch)}`,
             );
     }
-    for (const f of [...(v.faults ?? []), ...(gate?.faults ?? [])])
+    for (const f of [...(v.faults ?? []), ...(v.state?.invariants?.faults ?? []), ...(gate?.faults ?? [])])
         lines.push(`FAULT ${f.record}: ${f.problem} (githerd why ${f.record.split(" ").at(-1)})`);
     return lines;
 }

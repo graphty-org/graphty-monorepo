@@ -78,7 +78,7 @@ import {
 } from "../../common/options.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
-import { sniffJsonDialectHead } from "../../sniff.js";
+import { headBytes, sniffJsonDialectHead } from "../../sniff.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -2872,7 +2872,8 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
      * @returns the confidence
      */
     sniff(head: Uint8Array): number {
-        const text = new TextDecoder("utf-8").decode(head.subarray(0, SNIFF_BYTES));
+        // headBytes transcodes a UTF-16 head with a BOM, which import() decodes too
+        const text = new TextDecoder("utf-8").decode(headBytes(head).subarray(0, SNIFF_BYTES));
         const trimmed = (text.startsWith(BOM) ? text.slice(1) : text).trimStart();
         if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
             return 0;

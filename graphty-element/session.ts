@@ -72,6 +72,13 @@ export type {
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
+    FindEnd,
+    FindHit,
+    FindHitBase,
+    FindKind,
+    FindOptions,
+    FindResult,
+    FindValueRow,
     GraphSession,
     GraphStatistics,
     HistoryCause,
@@ -79,8 +86,13 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    Neighbor,
+    NeighborOptions,
+    NeighborPage,
+    NeighborSort,
     NodeRecord,
     NodeRecordInput,
+    PageColumn,
     PendingId,
     PendingStep,
     PositionEntry,
@@ -90,6 +102,9 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    ResultCell,
+    ResultColumn,
+    ResultSort,
     RowUpdate,
     SessionAttributes,
     SessionCatalogApi,
@@ -161,6 +176,7 @@ export type {
     RunExecutor,
     RunOptions,
     RunOutcome,
+    RunPainting,
     RunPhase,
     RunProgressReport,
     RunQueue,
@@ -173,6 +189,7 @@ export type {
     RunStyle,
     StaleNote,
     StartOptions,
+    SuggestionOutcome,
     WeightMeaning,
 } from "./src/session/runs";
 export {
@@ -185,6 +202,12 @@ export {
     RUN_STATUSES,
     TERMINAL_RUN_STATUSES,
 } from "./src/session/runs";
+
+// ---------------------------------------------------------------------------------------------
+// The shapes every verb names things with: a column, a run's result column, a coded fact, progress
+// ---------------------------------------------------------------------------------------------
+
+export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
 
 // ---------------------------------------------------------------------------------------------
 // Reading what a run produced
@@ -262,6 +285,22 @@ export type {
 } from "./src/session/notes/types";
 
 // ---------------------------------------------------------------------------------------------
+// The project file: the whole session saved to one file and opened again, as `session.project`
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    ProjectApi,
+    ProjectOpenOptions,
+    ProjectOpenReport,
+    ProjectProblem,
+    ProjectSaveOptions,
+    ProjectSaveReport,
+    ProjectSource,
+    ProjectStatus,
+    SavedProject,
+} from "./src/session/projectFile";
+
+// ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
 // ---------------------------------------------------------------------------------------------
 
@@ -314,6 +353,7 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
+    AttributeDescriptor,
     Binding,
     BindingOverflow,
     Channel,
@@ -330,6 +370,9 @@ export type {
     LayerKind,
     LayerSource,
     LayerSpec,
+    Measurement,
+    MeasurementDeclaration,
+    MeasurementSource,
     NodeId,
     Path,
     PathKind,
@@ -360,12 +403,18 @@ export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 
 export type {
     ChannelExplanation,
+    ColumnEncodingSpec,
     ElementLayerSpec,
+    EncodingOptions,
+    EncodingProposal,
+    EncodingRefusalCode,
     EncodingRun,
     EncodingSpec,
+    EncodingSuggestion,
     ExplainTarget,
     FieldWords,
     HighlightSpec,
+    HighlightSuggestion,
     Layer,
     LayerPosition,
     LayerProblem,
@@ -378,6 +427,7 @@ export type {
     StyleContribution,
     StyleExplanation,
     StylesApi,
+    StyleSuggestion,
     TemplateOptions,
     TemplateReport,
     UnboundLayer,

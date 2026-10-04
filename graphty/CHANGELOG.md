@@ -1,3 +1,34 @@
+## 0.8.41 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.29
+- Updated graphty-element to 3.9.0
+
+## 0.8.40 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** encode by a data column from what it measures ([6cf1ec4e](https://github.com/graphty-org/graphty-monorepo/commit/6cf1ec4e))
+
+### 🩹 Fixes
+
+- **graphty:** let the test session's fake page ignore a result sort ([c4d170bf](https://github.com/graphty-org/graphty-monorepo/commit/c4d170bf))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.8.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.39 (2026-10-03)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.7.0
+
 ## 0.8.38 (2026-10-03)
 
 ### 🚀 Features

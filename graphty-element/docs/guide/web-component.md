@@ -96,9 +96,9 @@ element.selectionStyle = {
 Merged over what is already set, so naming one field leaves the others alone, and it takes effect
 on a selection that is already on screen.
 
-### Expanding a node's neighbourhood on demand
+### Expanding a node's neighborhood on demand
 
-Double-clicking a node asks you for that node's neighbours and adds what comes back, so a graph
+Double-clicking a node asks you for that node's neighbors and adds what comes back, so a graph
 too large to load at once can be explored a step at a time. Hand over the two functions through
 `layoutBehavior`:
 
@@ -143,6 +143,9 @@ label's. It is off by default, so every label a style asks for is drawn; see
 ```javascript
 element.layoutBehavior = { labels: { declutter: true } };
 ```
+
+Assigning `layoutBehavior` is merged over what is already set, section by section, so this line
+leaves `layout`, `node` and the two fetch functions as they were.
 
 ## Basic Usage
 

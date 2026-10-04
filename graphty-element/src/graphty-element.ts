@@ -2,15 +2,21 @@ import type { DuplicatePolicy } from "@graphty/graph-format";
 import { css, LitElement } from "lit";
 import { property } from "lit/decorators.js";
 
-import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
+import {
+    type AccelerationCapabilities,
+    type AccelerationController,
+    type AccelerationPolicy,
+    isAccelerationPolicy,
+} from "./acceleration";
 import { layoutIdForEngine } from "./catalog/layouts";
 import type { AlgorithmKey, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
-import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
+import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, type NodeEventDetail, nodeEventDetail } from "./events";
 import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
+import type { NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -25,9 +31,12 @@ import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf } from "./session/GraphSession";
+import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
+import type { ProjectSaveOptions, ProjectSaveReport, ProjectStatus } from "./session/projectFile";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import type { ProgressChange } from "./session/shared";
 import type { DefaultPalettes } from "./session/styles";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
@@ -98,7 +107,10 @@ export class Graphty extends LitElement {
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
     #unwatchHistory: (() => void) | null = null;
+    #unwatchProjectStatus: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
+    #unwatchProgress: (() => void) | null = null;
+    readonly #progressAt = new Map<string, number>();
     #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
@@ -114,6 +126,12 @@ export class Graphty extends LitElement {
         // anchors the absolutely positioned XR UI overlay.
         this.#element.setAttribute("style", "position: absolute; inset: 0; display: block;");
         this.#graph = new Graph(this.#element);
+        // The graph is never rebuilt, so this subscription lives as long as the element.
+        this.#graph.onNodeLabelCounts.add((counts) => {
+            this.dispatchEvent(
+                new CustomEvent("graphty-label-change", { detail: counts, bubbles: true, composed: true }),
+            );
+        });
     }
 
     /**
@@ -140,6 +158,30 @@ export class Graphty extends LitElement {
      */
     get session(): GraphSession {
         return this.#graph.getSession();
+    }
+
+    /**
+     * Save the project (`session.project.save`) and hand it to the reader as a download named
+     * `<project name>.graphty.json`. Lives on the element, not the session, because the session
+     * also runs in Node, where there is nothing to download to.
+     * @param options - What to leave out, your own extensions, and the file's name.
+     * @returns What the file holds.
+     * @example
+     * ```typescript
+     * saveButton.onclick = () => element.downloadProject();
+     * ```
+     */
+    async downloadProject(
+        options: ProjectSaveOptions & { readonly fileName?: string } = {},
+    ): Promise<ProjectSaveReport> {
+        const { text, report } = await this.session.project.save(options);
+        const url = URL.createObjectURL(new Blob([text], { type: "application/vnd.graphty+json" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = options.fileName ?? `${this.session.project.name ?? "project"}.graphty.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        return report;
     }
 
     /**
@@ -251,6 +293,31 @@ export class Graphty extends LitElement {
                 bubbles: true,
                 composed: true,
             }),
+        );
+    }
+
+    /**
+     * Mirror one progress report onto the DOM as `graphty-progress-change`.
+     *
+     * Steps are coalesced per task, at the run mirror's interval, so a fast load does not flood
+     * the page; the end of a task always arrives.
+     * @param change - What moved on, or stopped.
+     */
+    #mirrorProgressChange(change: ProgressChange): void {
+        const key = `${change.task}:${change.run ?? ""}`;
+        if (change.phase === "end") {
+            this.#progressAt.delete(key);
+        } else {
+            const now = Date.now();
+            if (now - (this.#progressAt.get(key) ?? 0) < RUN_PROGRESS_INTERVAL_MS) {
+                return;
+            }
+
+            this.#progressAt.set(key, now);
+        }
+
+        this.dispatchEvent(
+            new CustomEvent("graphty-progress-change", { detail: change, bubbles: true, composed: true }),
         );
     }
 
@@ -411,6 +478,15 @@ export class Graphty extends LitElement {
                 }),
             );
         });
+        this.#unwatchProgress ??= session.on("progress:changed", (change) => {
+            this.#mirrorProgressChange(change);
+        });
+        // The project's name and unsaved state, for a title bar or a Save button beside the tag.
+        this.#unwatchProjectStatus ??= session.on("project:status", (change) => {
+            this.dispatchEvent(
+                new CustomEvent("graphty-project-status", { detail: change, bubbles: true, composed: true }),
+            );
+        });
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -526,8 +602,12 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility = null;
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
+        this.#unwatchProjectStatus?.();
+        this.#unwatchProjectStatus = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
+        this.#unwatchProgress?.();
+        this.#unwatchProgress = null;
 
         this.#graph.shutdown();
         super.disconnectedCallback();
@@ -1437,6 +1517,26 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * How many node labels the element is drawing, and why the rest are not, as of the last drawn
+     * frame. All zeros before data loads. Reading it never forces a frame.
+     *
+     * The `graphty-label-change` DOM event (detail: the same counts) fires when a count changes,
+     * once the view has stopped changing: never during a camera gesture or while a layout is
+     * still moving nodes. It also fires once after the first frame that has labels.
+     * @since 3.7.0
+     * @example
+     * ```typescript
+     * element.addEventListener("graphty-label-change", () => {
+     *     const { labeled, hiddenByOverlap } = element.nodeLabelCounts;
+     * });
+     * ```
+     * @returns The counts.
+     */
+    get nodeLabelCounts(): NodeLabelCounts {
+        return this.#graph.nodeLabelCounts;
+    }
+
+    /**
      * How the element DRIVES the layout, as distinct from what the layout engine is configured
      * with.
      * @remarks
@@ -1449,6 +1549,7 @@ export class Graphty extends LitElement {
      * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
      * label whose words would be drawn over another label's, keeping a selected node's label
      * first and then the label of the node with more edges; it takes effect on the next frame.
+     * {@link Graphty.nodeLabelCounts} says how many it hid.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
@@ -1730,7 +1831,7 @@ export class Graphty extends LitElement {
     /**
      * How far the camera starts from the graph, in scene units.
      * @remarks
-     * Set, it places the 3D camera at this distance from the orbit centre (never closer than the
+     * Set, it places the 3D camera at this distance from the orbit center (never closer than the
      * minimum zoom distance) and gives the 2D camera the same view height, and the element stops
      * framing the graph on its own after a data load or a layout change. `zoomToFit()` still
      * frames it when called. Unset (the default), every load is framed to fit. Setting it on a
@@ -2229,7 +2330,8 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Centre the camera on the selected nodes, keeping where it stands. With nothing selected
+     * Center the camera on the selection -- its nodes and the ends of its edges -- keeping where
+     * it stands. With nothing selected
      * the camera does not move. Not an undoable step: the camera is view state.
      * @param options - Animation options
      * @returns Promise that resolves when the camera has moved
@@ -3926,4 +4028,43 @@ declare global {
     interface HTMLElementTagNameMap {
         "graphty-element": Graphty;
     }
+
+    // The DOM events the element dispatches about itself. Every one is prefixed, so declaring them
+    // on every element names nothing a page could already be using, and
+    // `element.addEventListener("graphty-run-change", (e) => e.detail)` type-checks without a cast.
+    interface HTMLElementEventMap {
+        "graphty-run-change": CustomEvent<Pick<RunChange, "run" | "phase">>;
+        "graphty-progress-change": CustomEvent<ProgressChange>;
+        "graphty-selection-change": CustomEvent<SelectionDelta>;
+        "graphty-visibility-change": CustomEvent<VisibilityChange>;
+        "graphty-history-change": CustomEvent<{
+            readonly reason: SessionEventMap["history:changed"]["reason"];
+            readonly version: number;
+            readonly position: number;
+            readonly steps: number;
+            readonly canUndo: boolean;
+            readonly canRedo: boolean;
+        }>;
+        "graphty-note-change": CustomEvent<Pick<NoteChange, "id" | "change" | "fields" | "cause">>;
+        "graphty-project-status": CustomEvent<ProjectStatus>;
+        "graphty-capabilities-change": CustomEvent<{ readonly capabilities: AccelerationCapabilities }>;
+        "graphty-node-click": CustomEvent<NodeEventDetail>;
+        "graphty-node-hover": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
+        "graphty-label-change": CustomEvent<NodeLabelCounts>;
+    }
+
+    // It bubbles and is composed, so a listener on the document is typed the same way.
+    interface DocumentEventMap {
+        "graphty-label-change": CustomEvent<NodeLabelCounts>;
+    }
 }
+
+/**
+ * The DOM events `<graphty-element>` dispatches about itself, by name. Each one bubbles, crosses
+ * shadow roots, and carries plain values as its `detail`.
+ */
+export type GraphtyElementEventMap = {
+    [K in keyof HTMLElementEventMap as K extends `graphty-${string}` ? K : never]: HTMLElementEventMap[K];
+};

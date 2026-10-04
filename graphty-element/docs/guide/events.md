@@ -176,6 +176,9 @@ element.addEventListener("selection-changed", (e) => {
 
 ### Three more the element mirrors on its own account
 
+In TypeScript every `graphty-*` event's `detail` is typed: `addEventListener("graphty-run-change", (e) => e.detail.run)`
+compiles without a cast. The names and their details are listed in `GraphtyElementEventMap`.
+
 Beside the node events, `<graphty-element>` publishes three facts about itself. All three carry
 ids, counts and words -- never a node, an edge or a layer -- for the same reason the node events
 do: a `CustomEvent` detail crosses to listeners that may structure-clone it or post it to a
@@ -206,6 +209,41 @@ element.addEventListener("graphty-visibility-change", (e) => {
 });
 ```
 
+### graphty-progress-change
+
+A load or an algorithm run moved on, or stopped. The detail is `{ task, run?, phase, completed,
+total, fraction }`: `task` is `"load"` or `"run"`, `phase` is `"progress"` or, once at the end,
+`"end"`, and `fraction` is null when the total is not known.
+
+```javascript
+element.addEventListener("graphty-progress-change", (e) => {
+    const { task, phase, fraction } = e.detail;
+    bar.hidden = phase === "end";
+    bar.value = fraction ?? 0;
+});
+```
+
+On the session the same report is `progress:changed`, which a session with no view publishes
+too. See [Columns, Runs and Progress](./vocabulary#progress).
+
+### graphty-label-change
+
+How many node labels the element draws, and why the rest are not, changed. The detail is
+`{ labeled, nodeHidden, hiddenByOverlap }` (the exported type `NodeLabelCounts`), the same
+as `element.nodeLabelCounts`. It bubbles and is composed. It fires once the view has stopped
+changing, never during a camera gesture or while a layout is moving nodes, and not when a label's
+text changes without changing a count.
+
+```javascript
+element.addEventListener("graphty-label-change", (e) => {
+    const { labeled, nodeHidden, hiddenByOverlap } = e.detail;
+    const drawn = labeled - nodeHidden - hiddenByOverlap;
+    status.textContent = `${drawn} labels drawn, ${hiddenByOverlap} hidden`;
+});
+```
+
+See [Labels](./labels).
+
 ### graphty-history-change
 
 The undo history changed: a step was recorded, merged, undone or redone, or pending work started
@@ -224,6 +262,20 @@ On the session the same change is `history:changed`. The session also publishes
 changed it, and `style:changed`, `visibility:changed` and `run:changed` carry a `cause` of
 `"command"`, `"undo"`, `"redo"`, `"restore"` or `"rollback"`. See
 [Undo and History](./undo#following-changes).
+
+### graphty-project-status
+
+The project's name, or whether it has unsaved changes, changed. The detail is `{ name, dirty }`,
+the same as `session.project.name` and `session.project.dirty`:
+
+```javascript
+element.addEventListener("graphty-project-status", (e) => {
+    const { name, dirty } = e.detail;
+    saveButton.disabled = !dirty;
+});
+```
+
+On the session the same change is `project:status`. See [Project Files](./project-file).
 
 ### graphty-note-change
 

@@ -224,37 +224,41 @@ describe("the Style tab on the real element", () => {
             // The bind edited the PageRank row; no new row.
             assert.lengthOf(readerLayers(session), 1);
 
-            // The Binding popover: Square root, from 1 to 3. With no range stored (#915) one end
-            // alone writes nothing; both ends write the pair.
-            const pill = await within(styleTab()).findByRole("button", { name: `Size, variable ${runLabel}` });
-            await userEvent.click(pill);
-            const popover = await screen.findByRole("group", { name: "Size binding" });
-            await userEvent.click(within(popover).getByRole("combobox", { name: "Scale" }));
-            await userEvent.click(await screen.findByRole("option", { name: "Square root" }));
             const sizeOf = (): unknown => {
                 const size = session.styles.get(measure.id)?.encode?.["node.size"];
                 return size !== undefined && "by" in size ? size : undefined;
             };
+            // Sizing by a result stores the element's size range, 1 to 3, as sizing by a column does
+            // (#915), and the pill states it.
+            await waitFor(() => {
+                assert.deepEqual((sizeOf() as { range?: unknown } | undefined)?.range, [1, 3]);
+            });
+
+            // The Binding popover: Square root, then a wider range, 1 to 5.
+            const pill = await within(styleTab()).findByRole("button", { name: `1 to 3, variable ${runLabel}` });
+            await userEvent.click(pill);
+            const popover = await screen.findByRole("group", { name: "Size binding" });
+            await userEvent.click(within(popover).getByRole("combobox", { name: "Scale" }));
+            await userEvent.click(await screen.findByRole("option", { name: "Square root" }));
             await waitFor(() => {
                 assert.equal((sizeOf() as { scale?: string } | undefined)?.scale, "sqrt");
             });
             const range = within(screen.getByRole("group", { name: "Size binding" })).getByRole("group", {
                 name: "Range",
             });
-            await userEvent.type(within(range).getByRole("combobox", { name: "From" }), "1{Enter}");
-            assert.isUndefined((sizeOf() as { range?: unknown } | undefined)?.range, "one end alone is not written");
-            await userEvent.type(within(range).getByRole("combobox", { name: "To" }), "3{Enter}");
+            const to = within(range).getByRole("combobox", { name: "To" });
+            await userEvent.clear(to);
+            await userEvent.type(to, "5{Enter}");
             await waitFor(() => {
-                assert.deepEqual((sizeOf() as { range?: unknown } | undefined)?.range, [1, 3]);
+                assert.deepEqual((sizeOf() as { range?: unknown } | undefined)?.range, [1, 5]);
             });
         },
         TIMEOUT_MS * 2,
     );
 
     // Plan T9: sizing by a result stores the element's size range, 1 to 3, as sizing by a column
-    // does. It does not yet (#915); this fails loudly once the element is fixed, to be turned into
-    // a plain test.
-    it.fails(
+    // does (#915).
+    it(
         "T9: sizing a measure row by its result stores the range 1 to 3 (#915)",
         async () => {
             const { session } = await openWithGraph();

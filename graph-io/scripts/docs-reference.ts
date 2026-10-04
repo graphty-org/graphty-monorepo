@@ -96,8 +96,8 @@ function prose(s: string): string {
             .map((part, i) =>
                 i % 2 === 0
                     ? part
-                          .replaceAll(/</g, "&lt;")
-                          .replaceAll(/>/g, "&gt;")
+                          .replaceAll("<", "&lt;")
+                          .replaceAll(">", "&gt;")
                           .replaceAll(/\b([EW]_[A-Z0-9_]*[A-Z0-9])\b/g, "`$1`")
                     : part,
             )
@@ -115,6 +115,15 @@ function code(v: string): string {
     return `\`${v.split("|").join(ESCAPED_PIPE)}\``;
 }
 
+/**
+ * An issue code as a link to its entry on the codes page.
+ * @param c - the code
+ * @returns the link, the code shown as inline code
+ */
+function codeLink(c: string): string {
+    return `[${code(c)}](../codes.md#${c})`;
+}
+
 /** A default as a doc comment writes it: a quoted string, a number, or true / false / null. */
 const VALUE = String.raw`("[^"]*"|-?\d[\d.e+-]*(?![\w^,])|true|false|null)`;
 
@@ -126,8 +135,8 @@ const VALUE = String.raw`("[^"]*"|-?\d[\d.e+-]*(?![\w^,])|true|false|null)`;
  */
 function statedDefault(doc: string): string {
     const patterns = [
-        new RegExp(`${VALUE} \\(default\\)`, "i"),
-        new RegExp(`\\bdefaults?(?: is| to)?:? ${VALUE}`, "i"),
+        new RegExp(String.raw`${VALUE} \(default\)`, "i"),
+        new RegExp(String.raw`\bdefaults?(?: is| to)?:? ${VALUE}`, "i"),
         new RegExp(`${VALUE} by default`, "i"),
     ];
     for (const re of patterns) {
@@ -240,7 +249,10 @@ class Source {
                     defaultValue:
                         tagged === undefined
                             ? statedDefault(doc)
-                            : ts.displayPartsToString(tagged.text).replaceAll(/^`|`$/g, "").trim(),
+                            : ts
+                                  .displayPartsToString(tagged.text)
+                                  .replaceAll(/(?:^`)|(?:`$)/g, "")
+                                  .trim(),
                     doc,
                 };
             });
@@ -270,7 +282,7 @@ class Source {
         // `<ArrayBufferLike>` is noise to a reader
         for (let i = 0; i < parts.length; i++) {
             parts[i] = parts[i]
-                .replaceAll(/<ArrayBufferLike>/g, "")
+                .replaceAll("<ArrayBufferLike>", "")
                 .replaceAll(
                     /\bImportInput\b/g,
                     "(string | Uint8Array | ReadableStream<Uint8Array> | AsyncIterable<string | Uint8Array>)",
@@ -326,7 +338,7 @@ class Source {
                 // a function's or a frozen table's own members are what a reader sees; skip library types
                 for (const p of type.getProperties()) {
                     const decl = p.declarations?.[0];
-                    if (decl !== undefined && decl.getSourceFile().fileName.startsWith(`${pkg}src/`)) {
+                    if (decl?.getSourceFile().fileName.startsWith(`${pkg}src/`) === true) {
                         out.set(`${entry}: ${name}.${p.name}`, full(p));
                     }
                 }
@@ -386,7 +398,7 @@ class Source {
  * @returns the source entry, relative to the package
  */
 function entryOf(name: string): string {
-    const entry = (ENTRIES as Readonly<Record<string, string>>)[name];
+    const entry = ENTRIES[name];
     if (entry === undefined) {
         throw new Error(`format "${name}" has no subpath entry in scripts/entries.js`);
     }
@@ -753,6 +765,9 @@ function capabilitiesBlock(ctx: Context, f: FormatFacts): string[] {
     return out;
 }
 
+/** A default written as code: a quoted string, a number, a keyword, an array or an object. */
+const LITERAL = [/^"[^"]*"$/, /^'[^']*'$/, /^-?\d[\d.e+-]*$/, /^(?:true|false|null)$/, /^\[.*\]$/, /^\{.*\}$/];
+
 /**
  * A default as a cell: a literal value (`"auto"`, `100`, `true`) as code, a sentence (`per format`) as text.
  * @param value - the default as the doc comment states it
@@ -762,7 +777,7 @@ function defaultCell(value: string): string {
     if (value === "") {
         return "";
     }
-    return /^(?:"[^"]*"|'[^']*'|-?\d[\d.e+-]*|true|false|null|\[.*\]|\{.*\})$/.test(value) ? code(value) : cell(value);
+    return LITERAL.some((r) => r.test(value)) ? code(value) : cell(value);
 }
 
 /**
@@ -867,7 +882,7 @@ function referenceBlock(ctx: Context, f: FormatFacts): string[] {
         );
         if (shared.length > 0) {
             out.push(
-                `Like every format, it can also record the codes for unreadable input and for elements the graph refuses: ${shared.map((r) => `[${code(r.code)}](../codes.md#${r.code})`).join(", ")}.`,
+                `Like every format, it can also record the codes for unreadable input and for elements the graph refuses: ${shared.map((r) => codeLink(r.code)).join(", ")}.`,
                 "",
             );
         }
@@ -923,9 +938,9 @@ function optionsBlock(ctx: Context): string[] {
     const listed = (name: string): Set<string> =>
         new Set(
             [
-                ...(new RegExp(`const ${name}\\b[^=]*=\\s*\\[([^\\]]*)\\]`).exec(optionsSource)?.[1] ?? "").matchAll(
-                    /"(\w+)"/g,
-                ),
+                ...(
+                    new RegExp(String.raw`const ${name}\b[^=]*=\s*\[([^\]]*)\]`).exec(optionsSource)?.[1] ?? ""
+                ).matchAll(/"(\w+)"/g),
             ].map((m) => m[1]),
         );
     const ignorable = listed("IGNORABLE_OPTION_NAMES");
@@ -934,7 +949,7 @@ function optionsBlock(ctx: Context): string[] {
         throw new Error("src/common/options.ts no longer lists IGNORABLE_OPTION_NAMES");
     }
     const builderPolicies = new Set(
-        [...commonImport.map((o) => o.name)].filter((n) => !ignorable.has(n) || sinkPolicies.has(n)),
+        commonImport.map((o) => o.name).filter((n) => !ignorable.has(n) || sinkPolicies.has(n)),
     );
     const own = (name: string, base: ReadonlySet<string>): OptionRow[] =>
         ctx.src.options(sym(name), base).filter((o) => o.name !== "__index");
@@ -1144,7 +1159,7 @@ function codesBlock(ctx: Context): string[] {
                 ]
                     .filter((s) => s !== "")
                     .join(" ");
-                return `- <a id="${c}"></a>${code(c)}: ${prose(u.doc)}${where === "" ? "" : ` ${where}`}`;
+                return [`- <a id="${c}"></a>${code(c)}: ${prose(u.doc)}`, where].filter((s) => s !== "").join(" ");
             }),
         "",
     ];
@@ -1335,7 +1350,13 @@ async function regenerate(ctx: Context, page: string, text: string, blocks: read
     const extra = found.filter((b) => !blocks.includes(b) && !isExampleBlock(b));
     if (missing.length > 0 || extra.length > 0) {
         throw new Error(
-            `${page}: generated blocks ${missing.length > 0 ? `missing ${missing.join(", ")}` : ""}${extra.length > 0 ? ` unexpected ${extra.join(", ")}` : ""}`,
+            [
+                `${page}: generated blocks`,
+                missing.length > 0 ? "missing " + missing.join(", ") : "",
+                extra.length > 0 ? "unexpected " + extra.join(", ") : "",
+            ]
+                .filter((s) => s !== "")
+                .join(" "),
         );
     }
     let out = text;
@@ -1457,15 +1478,33 @@ export async function optionNames(): Promise<{
 }
 
 /** What a published doc comment must not mention: the package's internal design documents and process. */
-export const INTERNAL_REFERENCE =
-    /design\s+sections?\b|\bdesign\s+\d+\.\d|research\s+note|STATUS\.md|decision\s+D-[A-Z]|\bissue\s+#\d+|\binvariant\s+I\d|\bsrc\/|audit\s+round/i;
+const INTERNAL_PATTERNS = [
+    /design\s+sections?\b/i,
+    /\bdesign\s+\d+\.\d/i,
+    /research\s+note/i,
+    /STATUS\.md/i,
+    /decision\s+D-[A-Z]/i,
+    /\bissue\s+#\d+/i,
+    /\binvariant\s+I\d/i,
+    /\bsrc\//i,
+    /audit\s+round/i,
+];
+
+/**
+ * Whether a text mentions the package's internal design documents or process.
+ * @param text - a doc comment or a generated page
+ * @returns true when it does
+ */
+export function mentionsInternals(text: string): boolean {
+    return INTERNAL_PATTERNS.some((r) => r.test(text));
+}
 
 /**
  * Every published doc comment that mentions the package's internal design documents.
  * @returns `<entry>: <name>` per offending comment
  */
 export function internalReferences(): string[] {
-    return [...new Source().publishedDocs()].filter(([, doc]) => INTERNAL_REFERENCE.test(doc)).map(([k]) => k);
+    return [...new Source().publishedDocs()].filter(([, doc]) => mentionsInternals(doc)).map(([k]) => k);
 }
 
 /**
@@ -1494,8 +1533,10 @@ async function main(check: boolean): Promise<void> {
 }
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {
-    main(process.argv.includes("--check")).catch((e: unknown) => {
+    try {
+        await main(process.argv.includes("--check"));
+    } catch (e) {
         console.error(e);
         process.exitCode = 1;
-    });
+    }
 }

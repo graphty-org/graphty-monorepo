@@ -75,14 +75,14 @@ import { csvImporter, type CsvImportOptions } from "@graphty/graph-io/csv";
 //
 //   source,target,weight
 //   ...
-const PREAMBLE = /^Exported by NetScope/;
+const PREAMBLE = "Exported by NetScope";
 
 export const netscopeImporter: GraphImporter<CsvImportOptions> = {
     format: "netscope",
     extensions: [".nsc"],
     mimeTypes: [],
 
-    sniff: (head) => (PREAMBLE.test(new TextDecoder().decode(head)) ? 0.9 : 0),
+    sniff: (head) => (new TextDecoder().decode(head).startsWith(PREAMBLE) ? 0.9 : 0),
 
     async import(input, sink, options) {
         // Decode the input the way every graph-io importer does, into this importer's own report
@@ -93,7 +93,7 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
         // Turn the preamble (the lines before the first blank line) into comment lines, which the CSV importer
         // skips; the lines keep their numbers. A file without a preamble is passed on as it is.
         let table = text;
-        if (PREAMBLE.test(text)) {
+        if (text.startsWith(PREAMBLE)) {
             const blank = /\r?\n\s*\r?\n/.exec(text);
             const end = blank === null ? text.length : blank.index + blank[0].length;
             const instrument = /^Instrument: (.*)$/m.exec(text.slice(0, end))?.[1] ?? "unknown";

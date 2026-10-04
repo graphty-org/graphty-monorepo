@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { INTERNAL_REFERENCE, internalReferences, optionNames, pages, undocumented } from "../scripts/docs-reference.js";
+import { internalReferences, mentionsInternals, optionNames, pages, undocumented } from "../scripts/docs-reference.js";
 import { importGraph, registry } from "../src/registry.js";
 
 // The format tables, options and codes in docs/ are generated from the source by scripts/docs-reference.ts. A new
@@ -29,7 +29,7 @@ describe("generated documentation", () => {
     it("never sends a reader to the internal design documents", async () => {
         // the published doc comments and the generated pages are read by users, who have neither
         expect(internalReferences()).toEqual([]);
-        const leaking = (await pages()).filter((r) => INTERNAL_REFERENCE.test(r.expected)).map((r) => r.page);
+        const leaking = (await pages()).filter((r) => mentionsInternals(r.expected)).map((r) => r.page);
         expect(leaking).toEqual([]);
     }, 120_000);
 

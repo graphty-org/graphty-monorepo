@@ -360,6 +360,7 @@ import {
     type GraphExporter,
     GraphFormatError,
     type GraphImporter,
+    type GraphSink,
     type GraphSnapshot,
     IdCoercer,
     ImportReportBuilder,
@@ -433,6 +434,73 @@ function separatorOf(options: { separator?: string | undefined } | undefined): s
     return separator;
 }
 
+/**
+ * The direction a first line declares.
+ * @param text - the first line, trimmed
+ * @returns the direction, or null when the line is not a direction line
+ */
+function directionOf(text: string): "directed" | "undirected" | null {
+    if (text === "# directed") {
+        return "directed";
+    }
+    return text === "# undirected" ? "undirected" : null;
+}
+
+/**
+ * A node line ("id" or "id = label").
+ * @param text - the line, trimmed
+ * @returns the id and the label, or null when the line is not a node line
+ */
+function nodeLine(text: string): { id: string; label?: string } | null {
+    const eq = text.indexOf("=");
+    const id = (eq < 0 ? text : text.slice(0, eq)).trim();
+    if (id === "" || /\s/.test(id)) {
+        return null;
+    }
+    return eq < 0 ? { id } : { id, label: text.slice(eq + 1).trim() };
+}
+
+/** What the importer needs to add one line to the graph. */
+interface LineTarget {
+    sink: GraphSink;
+    report: ImportReportBuilder;
+    ids: IdCoercer;
+    edges: DirectionResolver;
+    kind: "directed" | "undirected";
+    addNode: (id: string | number) => number;
+}
+
+/**
+ * Add one line, a node or an edge, to the graph.
+ * @param to - where the line goes
+ * @param text - the line, trimmed
+ * @param separator - the separator option, or null for whitespace
+ * @param line - the line number
+ */
+function readLine(to: LineTarget, text: string, separator: string | null, line: number): void {
+    const node = nodeLine(text);
+    const fields = separator === null ? text.split(/\s+/) : text.split(separator).map((f) => f.trim());
+    if (node !== null && (fields.length === 1 || node.label !== undefined)) {
+        const index = to.addNode(to.ids.text(node.id)); // the node's index, new or existing
+        if (node.label !== undefined) {
+            // declaring the same column again returns the same column
+            const label = to.sink.declareNodeColumn({ name: "label", dtype: "string", role: "label" });
+            to.sink.setNodeValue(label, index, node.label);
+        }
+    } else if (fields.length === 2 || fields.length === 3) {
+        const weight = fields.length === 3 ? parseWeightText(fields[2]) : undefined;
+        const [source, target] = [to.ids.text(fields[0]), to.ids.text(fields[1])];
+        to.addNode(source);
+        to.addNode(target);
+        to.edges.addEdge(source, target, to.kind, weight, { line });
+        to.report.counts.edges++;
+    } else {
+        // also a line written with another separator than the one passed ("a b 2" under ",")
+        to.report.error("parse-error", PAIRS_ISSUE.BAD_LINE, "expected a node id, or two ids and a weight", { line });
+        to.report.counts.skippedEdges++;
+    }
+}
+
 export const pairsImporter: GraphImporter<PairsImportOptions> = {
     format: "pairs",
     extensions: [".pairs"],
@@ -468,10 +536,7 @@ export const pairsImporter: GraphImporter<PairsImportOptions> = {
             const text = raw.trim();
             if (line === 1) {
                 // the direction line, when there is one, is the first line; set the direction either way
-                const declared = /^# (directed|undirected)$/.exec(text);
-                if (declared !== null) {
-                    kind = declared[1] === "directed" ? "directed" : "undirected";
-                }
+                kind = directionOf(text) ?? kind;
                 edges.setHeader(kind === "directed", { line });
             }
             if (line % 64 === 0) {
@@ -481,30 +546,7 @@ export const pairsImporter: GraphImporter<PairsImportOptions> = {
                 continue;
             }
             try {
-                const node = /^(\S+)(?:\s*=\s*(.*))?$/.exec(text);
-                const fields = separator === null ? text.split(/\s+/) : text.split(separator).map((f) => f.trim());
-                if (node !== null && (fields.length === 1 || node[2] !== undefined)) {
-                    // a node line: an id, and an optional label after "="
-                    const index = addNode(ids.text(node[1])); // the node's index, new or existing
-                    if (node[2] !== undefined) {
-                        // declaring the same column again returns the same column
-                        const label = sink.declareNodeColumn({ name: "label", dtype: "string", role: "label" });
-                        sink.setNodeValue(label, index, node[2]);
-                    }
-                } else if (fields.length === 2 || fields.length === 3) {
-                    const weight = fields.length === 3 ? parseWeightText(fields[2]) : undefined;
-                    const [source, target] = [ids.text(fields[0]), ids.text(fields[1])];
-                    addNode(source);
-                    addNode(target);
-                    edges.addEdge(source, target, kind, weight, { line });
-                    report.counts.edges++;
-                } else {
-                    // also a line written with another separator than the one passed ("a b 2" under ",")
-                    report.error("parse-error", PAIRS_ISSUE.BAD_LINE, "expected a node id, or two ids and a weight", {
-                        line,
-                    });
-                    report.counts.skippedEdges++;
-                }
+                readLine({ sink, report, ids, edges, kind, addNode }, text, separator, line);
             } catch (err) {
                 report.recordError(err, { line }); // rethrows anything that is not a problem with this line
                 report.counts.skippedEdges++;
@@ -524,6 +566,21 @@ const PAIRS_CAPABILITIES = capabilities({
     idCharset: "any",
     dtypes: ["string"],
 });
+
+/**
+ * A node's label as text.
+ * @param snapshot - the graph
+ * @param label - the label column, or null when the graph has none
+ * @param i - the node's index
+ * @returns the label, or undefined when the node has none
+ */
+function labelOf(snapshot: GraphSnapshot, label: { meta: { name: string } } | null, i: number): string | undefined {
+    const value = label === null ? undefined : snapshot.nodes.value(label.meta.name, i);
+    if (value === undefined || value === null) {
+        return undefined;
+    }
+    return typeof value === "string" ? value : JSON.stringify(value);
+}
 
 /**
  * What a pairs file would not keep.
@@ -547,8 +604,7 @@ function check(snapshot: GraphSnapshot, options?: PairsExportOptions): LossNote[
         if (id === "" || /[\s#=]/.test(id) || id.includes(separator)) {
             badIds++;
         }
-        const text = label === null ? undefined : snapshot.nodes.value(label.meta.name, i);
-        if (/[\r\n]/.test(String(text ?? ""))) {
+        if (/[\r\n]/.test(labelOf(snapshot, label, i) ?? "")) {
             badLabels++;
         }
     }
@@ -591,8 +647,8 @@ function* lines(snapshot: GraphSnapshot, options?: PairsExportOptions): Generato
     const label = snapshot.nodes.byRole("label");
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const id = String(snapshot.ids.idOf(i));
-        const text = label === null ? undefined : snapshot.nodes.value(label.meta.name, i);
-        yield text === undefined ? `${id}\n` : `${id} = ${String(text)}\n`;
+        const text = labelOf(snapshot, label, i);
+        yield text === undefined ? `${id}\n` : `${id} = ${text}\n`;
     }
     const weights = explicitWeights(snapshot);
     const folding = pairFolding(snapshot); // an undirected edge of a mixed graph is stored twice; write it once
@@ -1084,6 +1140,7 @@ import {
     encodeChunks,
     type GraphExporter,
     type GraphImporter,
+    type GraphSink,
     type GraphSnapshot,
     ImportReportBuilder,
     INVALID_INDEX,
@@ -1154,6 +1211,78 @@ export const numbersExporter: GraphExporter = {
     exportToString: (snapshot, options) => joinText(lines(snapshot, options)),
 };
 
+/** What the importer keeps while it reads: where nodes go, what went wrong, and each written id's node. */
+interface ReadState {
+    sink: GraphSink;
+    report: ImportReportBuilder;
+    restoreMangledIds: boolean;
+    nodeOf: Map<string, string | number>; // the id written in the file -> the node's id
+}
+
+/**
+ * Read a node line: "node <number>", then the original id as JSON when there is one (it can hold spaces).
+ * @param state - the import state
+ * @param written - the number the line gives the node
+ * @param json - the original id as JSON, or undefined
+ */
+function readNode(state: ReadState, written: string, json: string | undefined): void {
+    const { sink, report } = state;
+    const original = json === undefined ? null : (JSON.parse(json) as string | number);
+    // restoreMangledIds (on by default) gives the node its original id back
+    const id = original !== null && state.restoreMangledIds ? original : Number(written);
+    state.nodeOf.set(written, id);
+    if (sink.indexOf(id) === INVALID_INDEX) {
+        report.counts.nodes++; // a node listed twice is one node
+    }
+    const index = sink.addNode(id);
+    if (original !== null && !state.restoreMangledIds) {
+        // keep the original where every format keeps it, so nothing is lost
+        const column = sink.declareNodeColumn({ name: "graphty.originalId", dtype: "string", role: "originalId" });
+        sink.setNodeValue(column, index, String(original));
+    }
+}
+
+/**
+ * Read an edge line. An edge names nodes by their written ids: look up the id each node was given.
+ * @param state - the import state
+ * @param from - the written id of the source
+ * @param to - the written id of the target
+ * @param line - the line number, for the report
+ */
+function readEdge(state: ReadState, from: string, to: string, line: number): void {
+    const source = state.nodeOf.get(from);
+    const target = state.nodeOf.get(to);
+    if (source === undefined || target === undefined) {
+        state.report.error("missing-value", "E_UNKNOWN_NODE", "the edge names a node no node line declares", { line });
+        state.report.counts.skippedEdges++;
+        return;
+    }
+    state.sink.addEdge(source, target);
+    state.report.counts.edges++;
+}
+
+/**
+ * Read one line of a numbers file.
+ * @param state - the import state
+ * @param text - the line, trimmed
+ * @param line - the line number
+ */
+function readLine(state: ReadState, text: string, line: number): void {
+    const node = /^node (-?\d+)(?: (.+))?$/.exec(text);
+    const edge = /^edge (-?\d+) (-?\d+)$/.exec(text);
+    if (text === "directed" || text === "undirected") {
+        state.sink.setDirected(text === "directed");
+    } else if (node !== null) {
+        readNode(state, node[1], node[2]);
+    } else if (edge !== null) {
+        readEdge(state, edge[1], edge[2], line);
+    } else if (text !== "") {
+        state.report.error("parse-error", "E_NUMBERS_BAD_LINE", "expected a node line or an edge between two nodes", {
+            line,
+        });
+    }
+}
+
 export const numbersImporter: GraphImporter = {
     format: "numbers",
     extensions: [".numbers"],
@@ -1163,61 +1292,15 @@ export const numbersImporter: GraphImporter = {
         const opts = resolveImportOptions(options, { ids: "number", defaultDirected: false, weightFrom: null });
         const report = new ImportReportBuilder("numbers", opts.errorLimit);
         reportUnusedOptions(options, report, new Set(["restoreMangledIds"]));
-        const nodeOf = new Map<string, string | number>(); // the id written in the file -> the node's id
+        const state: ReadState = { sink, report, restoreMangledIds: opts.restoreMangledIds, nodeOf: new Map() };
         const lines = new LineReader(input, report, opts);
         for await (const raw of lines) {
             const { line } = lines;
             if (line % 64 === 0) {
                 throwIfAborted(opts.signal);
             }
-            const text = raw.trim();
-            // "node <number>", then the original id as JSON when there is one (it can hold spaces)
-            const node = /^node (-?\d+)(?: (.+))?$/.exec(text);
-            const edge = /^edge (-?\d+) (-?\d+)$/.exec(text);
             try {
-                if (text === "directed" || text === "undirected") {
-                    sink.setDirected(text === "directed");
-                } else if (node !== null) {
-                    const original = node[2] === undefined ? null : (JSON.parse(node[2]) as string | number);
-                    // restoreMangledIds (on by default) gives the node its original id back
-                    const id = original !== null && opts.restoreMangledIds ? original : Number(node[1]);
-                    nodeOf.set(node[1], id);
-                    if (sink.indexOf(id) === INVALID_INDEX) {
-                        report.counts.nodes++; // a node listed twice is one node
-                    }
-                    const index = sink.addNode(id);
-                    if (original !== null && !opts.restoreMangledIds) {
-                        // keep the original where every format keeps it, so nothing is lost
-                        const column = sink.declareNodeColumn({
-                            name: "graphty.originalId",
-                            dtype: "string",
-                            role: "originalId",
-                        });
-                        sink.setNodeValue(column, index, String(original));
-                    }
-                } else if (edge !== null) {
-                    // an edge names nodes by their written ids: look up the id each node was given
-                    const source = nodeOf.get(edge[1]);
-                    const target = nodeOf.get(edge[2]);
-                    if (source === undefined || target === undefined) {
-                        report.error("missing-value", "E_UNKNOWN_NODE", "the edge names a node no node line declares", {
-                            line,
-                        });
-                        report.counts.skippedEdges++;
-                    } else {
-                        sink.addEdge(source, target);
-                        report.counts.edges++;
-                    }
-                } else if (text !== "") {
-                    report.error(
-                        "parse-error",
-                        "E_NUMBERS_BAD_LINE",
-                        "expected a node line or an edge between two nodes",
-                        {
-                            line,
-                        },
-                    );
-                }
+                readLine(state, raw.trim(), line);
             } catch (err) {
                 report.recordError(err, { line }); // rethrows anything that is not a problem with this line
             }

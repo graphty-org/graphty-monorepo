@@ -9,6 +9,7 @@ import {
     type GraphExporter,
     GraphFormatError,
     type GraphImporter,
+    type GraphSink,
     type GraphSnapshot,
     IdCoercer,
     ImportReportBuilder,
@@ -82,6 +83,73 @@ function separatorOf(options: { separator?: string | undefined } | undefined): s
     return separator;
 }
 
+/**
+ * The direction a first line declares.
+ * @param text - the first line, trimmed
+ * @returns the direction, or null when the line is not a direction line
+ */
+function directionOf(text: string): "directed" | "undirected" | null {
+    if (text === "# directed") {
+        return "directed";
+    }
+    return text === "# undirected" ? "undirected" : null;
+}
+
+/**
+ * A node line ("id" or "id = label").
+ * @param text - the line, trimmed
+ * @returns the id and the label, or null when the line is not a node line
+ */
+function nodeLine(text: string): { id: string; label?: string } | null {
+    const eq = text.indexOf("=");
+    const id = (eq < 0 ? text : text.slice(0, eq)).trim();
+    if (id === "" || /\s/.test(id)) {
+        return null;
+    }
+    return eq < 0 ? { id } : { id, label: text.slice(eq + 1).trim() };
+}
+
+/** What the importer needs to add one line to the graph. */
+interface LineTarget {
+    sink: GraphSink;
+    report: ImportReportBuilder;
+    ids: IdCoercer;
+    edges: DirectionResolver;
+    kind: "directed" | "undirected";
+    addNode: (id: string | number) => number;
+}
+
+/**
+ * Add one line, a node or an edge, to the graph.
+ * @param to - where the line goes
+ * @param text - the line, trimmed
+ * @param separator - the separator option, or null for whitespace
+ * @param line - the line number
+ */
+function readLine(to: LineTarget, text: string, separator: string | null, line: number): void {
+    const node = nodeLine(text);
+    const fields = separator === null ? text.split(/\s+/) : text.split(separator).map((f) => f.trim());
+    if (node !== null && (fields.length === 1 || node.label !== undefined)) {
+        const index = to.addNode(to.ids.text(node.id)); // the node's index, new or existing
+        if (node.label !== undefined) {
+            // declaring the same column again returns the same column
+            const label = to.sink.declareNodeColumn({ name: "label", dtype: "string", role: "label" });
+            to.sink.setNodeValue(label, index, node.label);
+        }
+    } else if (fields.length === 2 || fields.length === 3) {
+        const weight = fields.length === 3 ? parseWeightText(fields[2]) : undefined;
+        const [source, target] = [to.ids.text(fields[0]), to.ids.text(fields[1])];
+        to.addNode(source);
+        to.addNode(target);
+        to.edges.addEdge(source, target, to.kind, weight, { line });
+        to.report.counts.edges++;
+    } else {
+        // also a line written with another separator than the one passed ("a b 2" under ",")
+        to.report.error("parse-error", PAIRS_ISSUE.BAD_LINE, "expected a node id, or two ids and a weight", { line });
+        to.report.counts.skippedEdges++;
+    }
+}
+
 export const pairsImporter: GraphImporter<PairsImportOptions> = {
     format: "pairs",
     extensions: [".pairs"],
@@ -117,10 +185,7 @@ export const pairsImporter: GraphImporter<PairsImportOptions> = {
             const text = raw.trim();
             if (line === 1) {
                 // the direction line, when there is one, is the first line; set the direction either way
-                const declared = /^# (directed|undirected)$/.exec(text);
-                if (declared !== null) {
-                    kind = declared[1] === "directed" ? "directed" : "undirected";
-                }
+                kind = directionOf(text) ?? kind;
                 edges.setHeader(kind === "directed", { line });
             }
             if (line % 64 === 0) {
@@ -130,30 +195,7 @@ export const pairsImporter: GraphImporter<PairsImportOptions> = {
                 continue;
             }
             try {
-                const node = /^(\S+)(?:\s*=\s*(.*))?$/.exec(text);
-                const fields = separator === null ? text.split(/\s+/) : text.split(separator).map((f) => f.trim());
-                if (node !== null && (fields.length === 1 || node[2] !== undefined)) {
-                    // a node line: an id, and an optional label after "="
-                    const index = addNode(ids.text(node[1])); // the node's index, new or existing
-                    if (node[2] !== undefined) {
-                        // declaring the same column again returns the same column
-                        const label = sink.declareNodeColumn({ name: "label", dtype: "string", role: "label" });
-                        sink.setNodeValue(label, index, node[2]);
-                    }
-                } else if (fields.length === 2 || fields.length === 3) {
-                    const weight = fields.length === 3 ? parseWeightText(fields[2]) : undefined;
-                    const [source, target] = [ids.text(fields[0]), ids.text(fields[1])];
-                    addNode(source);
-                    addNode(target);
-                    edges.addEdge(source, target, kind, weight, { line });
-                    report.counts.edges++;
-                } else {
-                    // also a line written with another separator than the one passed ("a b 2" under ",")
-                    report.error("parse-error", PAIRS_ISSUE.BAD_LINE, "expected a node id, or two ids and a weight", {
-                        line,
-                    });
-                    report.counts.skippedEdges++;
-                }
+                readLine({ sink, report, ids, edges, kind, addNode }, text, separator, line);
             } catch (err) {
                 report.recordError(err, { line }); // rethrows anything that is not a problem with this line
                 report.counts.skippedEdges++;
@@ -173,6 +215,21 @@ const PAIRS_CAPABILITIES = capabilities({
     idCharset: "any",
     dtypes: ["string"],
 });
+
+/**
+ * A node's label as text.
+ * @param snapshot - the graph
+ * @param label - the label column, or null when the graph has none
+ * @param i - the node's index
+ * @returns the label, or undefined when the node has none
+ */
+function labelOf(snapshot: GraphSnapshot, label: { meta: { name: string } } | null, i: number): string | undefined {
+    const value = label === null ? undefined : snapshot.nodes.value(label.meta.name, i);
+    if (value === undefined || value === null) {
+        return undefined;
+    }
+    return typeof value === "string" ? value : JSON.stringify(value);
+}
 
 /**
  * What a pairs file would not keep.
@@ -196,8 +253,7 @@ function check(snapshot: GraphSnapshot, options?: PairsExportOptions): LossNote[
         if (id === "" || /[\s#=]/.test(id) || id.includes(separator)) {
             badIds++;
         }
-        const text = label === null ? undefined : snapshot.nodes.value(label.meta.name, i);
-        if (/[\r\n]/.test(String(text ?? ""))) {
+        if (/[\r\n]/.test(labelOf(snapshot, label, i) ?? "")) {
             badLabels++;
         }
     }
@@ -240,8 +296,8 @@ function* lines(snapshot: GraphSnapshot, options?: PairsExportOptions): Generato
     const label = snapshot.nodes.byRole("label");
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const id = String(snapshot.ids.idOf(i));
-        const text = label === null ? undefined : snapshot.nodes.value(label.meta.name, i);
-        yield text === undefined ? `${id}\n` : `${id} = ${String(text)}\n`;
+        const text = labelOf(snapshot, label, i);
+        yield text === undefined ? `${id}\n` : `${id} = ${text}\n`;
     }
     const weights = explicitWeights(snapshot);
     const folding = pairFolding(snapshot); // an undirected edge of a mixed graph is stored twice; write it once

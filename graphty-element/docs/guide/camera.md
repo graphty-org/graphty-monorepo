@@ -69,8 +69,9 @@ names a node the camera stays where it is:
 await graph.zoomToNodes(["alice", "bob"], { animate: true });
 ```
 
-`zoomToSelection()` turns the camera to look at the middle of the selected nodes, keeping
-where it stands.
+`zoomToSelection()` turns the camera to look at the middle of the selection, keeping where it
+stands. A selected edge counts by its two ends, so selecting only an edge frames that edge. With
+nothing selected the camera does not move.
 
 None of these is an undoable step: the camera is view state, not part of a project.
 

@@ -708,17 +708,33 @@ export async function startDaemon({
         config = r.config;
         state.config = r.config;
         configError = null;
+        let revertError = r.revertError;
+        if (r.revert && r.refusal) {
+            const branch = state.master.branch ?? "master";
+            try {
+                const number = await openConfigRevert({
+                    github: github(),
+                    repo: config.repo,
+                    root,
+                    branch,
+                    reasons: r.revert,
+                });
+                configGate.recordRevert(r.refusal, { number, error: null });
+                revertError = null;
+            } catch (err) {
+                revertError = /** @type {Error} */ (err).message;
+                configGate.recordRevert(r.refusal, { number: null, error: revertError });
+                say("error", `config revert: ${revertError}`);
+            }
+        }
         if (r.banner) {
             raise({ key: "config-refused", kind: "blocked", summary: r.banner, detail: r.banner });
+            // The revert's failure shows on the board, not only in the log; the next check tries again.
+            const open = state.escalations["config-refused"];
+            open.detail = revertError ? `${r.banner}; the revert pull request failed to open: ${revertError}` : r.banner;
             say("error", `config: ${r.banner}`);
         } else if (state.escalations?.["config-refused"] && !state.escalations["config-refused"].resolvedAt) {
             board.resolve(state, { key: "config-refused" }, now());
-        }
-        if (r.revert) {
-            const branch = state.master.branch ?? "master";
-            openConfigRevert({ github: github(), repo: config.repo, root, branch, reasons: r.revert }).catch((err) =>
-                say("error", `config revert: ${err.message}`),
-            );
         }
         return null;
     }

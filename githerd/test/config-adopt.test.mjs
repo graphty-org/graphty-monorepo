@@ -9,7 +9,9 @@ import {
     LAST_GOOD,
     openConfigRevert,
     readLastGood,
+    readRefused,
     redStretches,
+    REFUSED,
     refusals,
     workflowName,
     writeLastGood,
@@ -146,10 +148,36 @@ describe("createConfigGate", () => {
                 "statuses yet; githerd runs the last good config, adopted 2026-10-01T09:30 UTC",
         );
         // Coverage arriving later does not change a refused text's answer, and no second revert.
+        g.recordRevert(/** @type {string} */ (first.refusal), { number: 31, error: null });
         ledger = [{ kind: "would-do", group: "statuses" }];
         const second = await g.check();
         expect(second).toMatchObject({ config: HARMLESS, revert: null, banner: first.banner });
         expect(readLastGood(dir)?.source).toBe("before");
+    });
+
+    it("keeps a refusal and its revert across a restart, and tries a revert that failed again", async () => {
+        writeLastGood(dir, { config: HARMLESS, source: "before", adoptedAt: "2026-10-01T09:30:00.000Z" });
+        write({ ...BASE, mode: "acting", actions: { statuses: true } });
+        const first = await gate().check();
+        expect(first.revert).toHaveLength(1);
+        // Opening the revert failed: the next check, after a restart, asks for it again with the error.
+        gate().recordRevert(/** @type {string} */ (first.refusal), { number: null, error: "HTTP 502" });
+        let replays = 0;
+        const counting = () =>
+            gate({
+                readLedger: async () => {
+                    replays += 1;
+                    return [];
+                },
+            });
+        const retry = await counting().check();
+        expect(retry).toMatchObject({ revert: first.revert, refusal: first.refusal, revertError: "HTTP 502" });
+        // Once it opened, a restart neither gates the text again nor asks for a second revert.
+        counting().recordRevert(/** @type {string} */ (first.refusal), { number: 31, error: null });
+        const later = await counting().check();
+        expect(later).toMatchObject({ revert: null, revertError: null, banner: first.banner });
+        expect(replays).toBe(0);
+        expect(readRefused(dir)[/** @type {string} */ (first.refusal)].revert).toMatchObject({ number: 31 });
     });
 
     it("enters fatal mode only with no good config ever", async () => {
@@ -187,6 +215,8 @@ describe("createConfigGate", () => {
             /^it stops gpu.yml gating, and the recorded month has \d+ red stretches of it \(first run \d+\)/,
         );
 
+        // The same text in a state directory that never refused it.
+        rmSync(join(dir, REFUSED));
         const quiet = gate({ nameOf: () => "No such workflow" });
         expect((await quiet.check()).config).toEqual(GPU_WATCHED);
     });

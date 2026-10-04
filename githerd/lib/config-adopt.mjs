@@ -13,12 +13,14 @@
  *   hold more, and pass.
  *
  * A refused config keeps the last good one in use with a banner, and the daemon opens a revert
- * pull request of the config's pull request. With no good config ever, the caller enters fatal
- * mode; that is the only way a config problem stops githerd.
+ * pull request of the config's pull request, once per refused text: the refusals and their reverts
+ * live in `config-refused.json`, so a restart neither gates the same text again nor opens a second
+ * revert, while a revert that failed to open is tried again on each check. With no good config
+ * ever, the caller enters fatal mode; that is the only way a config problem stops githerd.
  */
 
 import { execFileSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -27,6 +29,8 @@ import { CONFIG_FILE, resolveConfig } from "./config.mjs";
 import { updateLane } from "./master.mjs";
 
 export const LAST_GOOD = "config.last-good.json";
+/** The refused config texts, by hash: their reasons and their revert pull request. */
+export const REFUSED = "config-refused.json";
 
 const MINUTE = 60_000;
 
@@ -41,6 +45,9 @@ const REVERT = `mutation($id: ID!, $title: String!, $body: String!) {
 /**
  * @typedef {import("./config.mjs").Config} Config
  * @typedef {{config: Config, source: string, adoptedAt: string}} LastGood
+ * @typedef {{reasons: string[], at: string,
+ *   revert: {number: number | null, error: string | null, at: string} | null}} Refusal a refused
+ *   config text: why, when, and its revert pull request (`error` set while opening it fails)
  * @typedef {{record: {master: {run: {id: number, name: string}, created: number,
  *   attempts: {start: number, end: number}[]}[]}, answer: (path: string, at: number) => {body: any}}} Replay
  *   the recorded month as `createReplay()` serves it
@@ -61,15 +68,39 @@ export function readLastGood(stateDir) {
 }
 
 /**
+ * Writes a JSON file of the state directory whole, by a rename.
+ * @param {string} stateDir the state directory
+ * @param {string} name the file
+ * @param {unknown} value what to save
+ */
+function writeWhole(stateDir, name, value) {
+    const file = join(stateDir, name);
+    const tmp = `${file}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
+    writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`);
+    renameSync(tmp, file);
+}
+
+/**
  * Saves a config as the last good one, whole, by a rename.
  * @param {string} stateDir the state directory
  * @param {LastGood} good what to save
  */
 export function writeLastGood(stateDir, good) {
-    const file = join(stateDir, LAST_GOOD);
-    const tmp = `${file}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
-    writeFileSync(tmp, `${JSON.stringify(good, null, 2)}\n`);
-    renameSync(tmp, file);
+    writeWhole(stateDir, LAST_GOOD, good);
+}
+
+/**
+ * The refused config texts, as `config-refused.json` keeps them.
+ * @param {string} stateDir the state directory
+ * @returns {Record<string, Refusal>} the refusals by text hash; empty when there is no file
+ */
+export function readRefused(stateDir) {
+    try {
+        const saved = JSON.parse(readFileSync(join(stateDir, REFUSED), "utf8"));
+        return saved && typeof saved === "object" ? saved : {};
+    } catch {
+        return {};
+    }
 }
 
 /**
@@ -176,15 +207,19 @@ async function loadRecord() {
 
 /**
  * The config gate for one daemon. `check()` reads the default branch's config and decides which
- * config is in use. A refused config is refused once per text: the replay runs once, `revert`
- * carries the reasons only on that first refusal (the caller opens the revert then), and later
- * checks of the same text answer from memory.
+ * config is in use. A refused config is refused once per text, across restarts: the replay runs
+ * once, and later checks of the same text answer from `config-refused.json`. `revert` carries the
+ * reasons while the text has no revert pull request yet (none tried, or the last try failed); the
+ * caller opens it and reports how that went with `recordRevert(refusal, ...)`.
  * @param {{root: string, stateDir: string, env?: Record<string, string | undefined>,
  *   readLedger: () => Promise<any[]>, record?: () => Promise<Replay>,
  *   nameOf?: (file: string) => string | null, now?: () => Date}} options where to read, the ledger
  *   reader, and (for tests) the record, the workflow names and the clock
  * @returns {{check: () => Promise<{config: Config | null, source: string | null,
- *   banner: string | null, revert: string[] | null, fatal: string | null}>}} the gate
+ *   banner: string | null, revert: string[] | null, refusal: string | null,
+ *   revertError: string | null, fatal: string | null}>,
+ *   recordRevert: (refusal: string, result: {number: number | null, error: string | null}) => void}}
+ *   the gate
  */
 export function createConfigGate({
     root,
@@ -195,8 +230,8 @@ export function createConfigGate({
     nameOf = (file) => workflowName(root, file),
     now = () => new Date(),
 }) {
-    /** @type {Map<string, string[]>} reasons by refused config text */
-    const refused = new Map();
+    /** The refused config texts by hash, seeded from disk. */
+    const refused = readRefused(stateDir);
     /** @type {Promise<Replay> | null} */
     let loaded = null;
 
@@ -224,8 +259,9 @@ export function createConfigGate({
     /**
      * Reads the default branch's config and gates it.
      * @param {LastGood | null} good the last good config
-     * @returns {Promise<{adopted: {config: Config, source: string}} | {problem: string, revert: string[] | null}>}
-     *   the config to use, or why there is none
+     * @returns {Promise<{adopted: {config: Config, source: string}} | {problem: string,
+     *   revert: string[] | null, refusal?: string, revertError?: string | null}>} the config to
+     *   use, or why there is none
      */
     async function decide(good) {
         let r;
@@ -238,16 +274,22 @@ export function createConfigGate({
         const adopted = { config: r.config, source: r.source };
         const text = JSON.stringify(r.config);
         if (good && text === JSON.stringify(good.config)) return { adopted };
-        const known = refused.get(text);
-        const reasons = known ?? (await gate(r.config, good?.config ?? null));
+        const key = createHash("sha256").update(text).digest("hex");
+        const reasons = refused[key]?.reasons ?? (await gate(r.config, good?.config ?? null));
         if (reasons.length === 0) {
             writeLastGood(stateDir, { ...adopted, adoptedAt: now().toISOString() });
             return { adopted };
         }
-        refused.set(text, reasons);
+        if (!refused[key]) {
+            refused[key] = { reasons, at: now().toISOString(), revert: null };
+            writeWhole(stateDir, REFUSED, refused);
+        }
+        const revert = refused[key].revert;
         return {
             problem: `${CONFIG_FILE} on ${r.source} is refused: ${reasons.join("; ")}`,
-            revert: known ? null : reasons,
+            revert: revert && !revert.error ? null : reasons,
+            refusal: key,
+            revertError: revert?.error ?? null,
         };
     }
 
@@ -255,18 +297,25 @@ export function createConfigGate({
         async check() {
             const good = readLastGood(stateDir);
             const d = await decide(good);
-            if ("adopted" in d) return { ...d.adopted, banner: null, revert: null, fatal: null };
+            const none = { banner: null, revert: null, refusal: null, revertError: null, fatal: null };
+            if ("adopted" in d) return { ...d.adopted, ...none };
+            const refusal = { revert: d.revert, refusal: d.refusal ?? null, revertError: d.revertError ?? null };
             if (!good) {
                 const fatal = `no good ${CONFIG_FILE} was ever loaded: ${d.problem}`;
-                return { config: null, source: null, banner: null, revert: d.revert, fatal };
+                return { config: null, source: null, ...none, ...refusal, fatal };
             }
             return {
                 config: good.config,
                 source: good.source,
+                ...none,
+                ...refusal,
                 banner: `${d.problem}; githerd runs the last good config, adopted ${good.adoptedAt.slice(0, 16)} UTC`,
-                revert: d.revert,
-                fatal: null,
             };
+        },
+        recordRevert(key, { number, error }) {
+            if (!refused[key]) return;
+            refused[key].revert = { number, error, at: now().toISOString() };
+            writeWhole(stateDir, REFUSED, refused);
         },
     };
 }

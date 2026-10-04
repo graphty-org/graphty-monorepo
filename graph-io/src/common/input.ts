@@ -101,6 +101,9 @@ class ByteDecoder {
     /** Bytes decoded so far, for error positions. */
     private offset = 0;
 
+    /** Set while flushing because a text chunk follows: a sequence cut there is not the end of the input. */
+    private textFollows = false;
+
     /**
      * Create the decoder of one import.
      * @param report - where warnings and the fatal decode error go
@@ -133,6 +136,15 @@ class ByteDecoder {
         if (bom !== null) {
             this.use(bom, false);
             return;
+        }
+        const utf16 = bomlessUtf16(head);
+        if (utf16 !== null) {
+            this.report.fail(
+                INVALID_ENCODING_CODE,
+                `the input looks like ${utf16.toUpperCase()} text without a byte order mark (every other byte is NUL); pass the encoding option "${utf16}"`,
+                undefined,
+                { byteOffset: 0 },
+            );
         }
         const declared = this.options.declaredEncoding?.(new TextDecoder("windows-1252").decode(head)) ?? null;
         if (declared !== null) {
@@ -187,39 +199,80 @@ class ByteDecoder {
     }
 
     /**
+     * Flush the bytes held back because a text chunk follows (the input switches from bytes to
+     * strings): a multi-byte sequence cut there is invalid UTF-8, never windows-1252 text.
+     * @returns the text of the held-back bytes
+     */
+    flushBeforeText(): string {
+        this.textFollows = true;
+        try {
+            return this.decode(new Uint8Array(0), false);
+        } finally {
+            this.textFollows = false;
+        }
+    }
+
+    /**
      * A decode failed: switch to windows-1252 when allowed, else fail the import.
      * @param bytes - the bytes that failed
      * @param stream - whether more bytes follow
      * @returns the bytes decoded as windows-1252
      */
     private recover(bytes: Uint8Array, stream: boolean): string {
-        const where = { byteOffset: this.offset };
         const all = this.carry.byteLength === 0 ? bytes : concatBytes([this.carry, bytes]);
+        // `all` starts where the held-back carry started; the failing byte is located in it
+        const start = this.offset - this.carry.byteLength;
+        const bad = invalidUtf8At(all);
+        const at = start + Math.max(bad.index, 0);
+        const where = { byteOffset: at };
+        const cut = bad.truncated && this.textFollows;
+        const nul = all.includes(0);
         // a NUL byte never occurs in windows-1252 text: it marks binary data (or BOM-less UTF-16)
-        if (this.mayFallBack && this.asciiSoFar && !all.includes(0) && !startsWithUtf8(all)) {
+        if (this.mayFallBack && this.asciiSoFar && !nul && !cut && !startsWithUtf8(all)) {
+            const truncated = bad.truncated
+                ? ": it ends inside a multi-byte UTF-8 sequence, so it may be truncated"
+                : "";
             this.report.warning(
                 "coercion",
                 ENCODING_FALLBACK_CODE,
-                `the input is not valid UTF-8 (near byte ${this.offset}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
+                `the input is not valid UTF-8 (near byte ${at}${truncated}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
             );
             this.use("windows-1252", false);
             return (this.decoder as TextDecoder).decode(all, { stream });
         }
         if (this.encoding === "utf-8") {
-            const after = this.mayFallBack ? " after valid non-ASCII UTF-8 text; pass the encoding option" : "";
-            return this.report.fail(
-                INVALID_UTF8_CODE,
-                `invalid UTF-8 near byte ${this.offset}${after}`,
-                undefined,
-                where,
-            );
+            return this.report.fail(INVALID_UTF8_CODE, `invalid UTF-8 near byte ${at}${this.whyNot(all, cut, nul)}`, undefined, where);
         }
         return this.report.fail(
             INVALID_ENCODING_CODE,
-            `the bytes near byte ${this.offset} are not valid ${this.encoding}`,
+            `the bytes near byte ${at} are not valid ${this.encoding}`,
             undefined,
             where,
         );
+    }
+
+    /**
+     * Why invalid UTF-8 was not read as windows-1252, for the fatal message.
+     * @param all - the bytes that failed (carry included)
+     * @param cut - whether a byte chunk ended inside a sequence and a text chunk followed
+     * @param nul - whether the bytes hold a NUL
+     * @returns the message suffix
+     */
+    private whyNot(all: Uint8Array, cut: boolean, nul: boolean): string {
+        if (!this.mayFallBack) {
+            return "";
+        }
+        if (cut) {
+            return ": a byte chunk ends inside a multi-byte sequence and a text chunk follows";
+        }
+        const magic = this.offset === 0 ? compressedMagic(all) : null;
+        if (magic !== null) {
+            return `: the input looks like ${magic} data; decompress it first`;
+        }
+        if (nul) {
+            return ": the input holds a NUL byte, so it is binary data or UTF-16 text, not windows-1252; pass the encoding option";
+        }
+        return " after valid non-ASCII UTF-8 text; pass the encoding option";
     }
 
     /**
@@ -260,6 +313,92 @@ function startsWithUtf8(bytes: Uint8Array): boolean {
     } catch {
         return false;
     }
+}
+
+/**
+ * Where a byte sequence stops being valid UTF-8 (a scan for the error position only; decoding is
+ * TextDecoder's job).
+ * @param bytes - bytes that failed to decode
+ * @returns the index of the first byte of the first invalid sequence (-1 when none), and whether
+ * that sequence is only cut short by the end of the bytes
+ */
+function invalidUtf8At(bytes: Uint8Array): { index: number; truncated: boolean } {
+    const n = bytes.byteLength;
+    for (let i = 0; i < n; ) {
+        const b = bytes[i];
+        let length = 0;
+        let min = 0x80;
+        let max = 0xbf;
+        if (b < 0x80) {
+            i++;
+            continue;
+        } else if (b >= 0xc2 && b <= 0xdf) {
+            length = 2;
+        } else if (b >= 0xe0 && b <= 0xef) {
+            length = 3;
+            min = b === 0xe0 ? 0xa0 : 0x80;
+            max = b === 0xed ? 0x9f : 0xbf;
+        } else if (b >= 0xf0 && b <= 0xf4) {
+            length = 4;
+            min = b === 0xf0 ? 0x90 : 0x80;
+            max = b === 0xf4 ? 0x8f : 0xbf;
+        } else {
+            return { index: i, truncated: false };
+        }
+        for (let k = 1; k < length; k++) {
+            if (i + k >= n) {
+                return { index: i, truncated: true };
+            }
+            const c = bytes[i + k];
+            if (c < (k === 1 ? min : 0x80) || c > (k === 1 ? max : 0xbf)) {
+                return { index: i, truncated: false };
+            }
+        }
+        i += length;
+    }
+    return { index: -1, truncated: false };
+}
+
+/**
+ * The compressed container a head of bytes starts with, for the message of a failed decode.
+ * @param bytes - the first bytes of the input
+ * @returns "gzip" or "zip", or null
+ */
+function compressedMagic(bytes: Uint8Array): string | null {
+    if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+        return "gzip";
+    }
+    if (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
+        return "zip";
+    }
+    return null;
+}
+
+/**
+ * Whether a BOM-less head is UTF-16 by its byte pattern: ASCII text in UTF-16 has a NUL in every
+ * other byte, which no ASCII-compatible encoding of text produces.
+ * @param head - the first bytes
+ * @returns "utf-16le" or "utf-16be", or null
+ */
+function bomlessUtf16(head: Uint8Array): string | null {
+    const pairs = head.byteLength >>> 1;
+    if (pairs < 2) {
+        return null;
+    }
+    let evenNul = 0;
+    let oddNul = 0;
+    for (let i = 0; i < pairs * 2; i += 2) {
+        evenNul += head[i] === 0 ? 1 : 0;
+        oddNul += head[i + 1] === 0 ? 1 : 0;
+    }
+    // mostly-ASCII text: three of four pairs carry their NUL on the same side, the other side almost never
+    if (oddNul >= pairs * 0.75 && evenNul <= pairs * 0.1) {
+        return "utf-16le";
+    }
+    if (evenNul >= pairs * 0.75 && oddNul <= pairs * 0.1) {
+        return "utf-16be";
+    }
+    return null;
 }
 
 /**
@@ -448,9 +587,9 @@ export async function* textChunks(
             // finish any byte sequence still pending in the decoder before switching to text
             let pending = "";
             if (!decoder.started && headLength > 0) {
-                pending = flushHead(false);
+                pending = flushHead(true) + decoder.flushBeforeText();
             } else if (decoder.started) {
-                pending = decoder.decode(new Uint8Array(0), false);
+                pending = decoder.flushBeforeText();
             }
             text = emit(pending + chunk);
             done += chunk.length;

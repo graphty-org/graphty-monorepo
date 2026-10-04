@@ -177,7 +177,9 @@ run settings and no config copy.
    owner's.
 3. **Watch it twice a day** (`GITHERD_STATE_DIR=.githerd-dev` on each command): `githerd status`;
    the ages of `.githerd-dev/alive` (under 20 s) and `.githerd-dev/progress`; no `FATAL` file;
-   `githerd ledger --since 12h --kind fault` empty or explained. A daemon that died is a finding:
+   `githerd ledger --since 12h --kind error,exception,watch-error,fatal,doorbell-failed,fault` empty
+   or explained (the kinds the daemon's failures are written as; `ledger` refuses a kind githerd
+   never writes). A daemon that died is a finding:
    record its log (`servherd logs githerd-dev`) before starting it again.
 4. **After 48 hours, collect both sides** into `tmp/githerd/two-days/`:
    - githerd's view: `githerd ledger --since 2d > ledger.jsonl`, and `state.json`.

@@ -580,8 +580,8 @@ describe("ledger", () => {
         const now = new Date();
         const old = new Date(now.getTime() - 3 * 86_400_000);
         await appendLedger(state, { kind: "event", event: "x", target: "pr:1" }, { now: () => old });
-        await appendLedger(state, { kind: "run-end", run: "r1", target: "pr:704" }, { now: () => now });
-        await appendLedger(state, { kind: "report", targets: ["pr:704", "issue:2"] }, { now: () => now });
+        await appendLedger(state, { kind: "error", run: "r1", target: "pr:704" }, { now: () => now });
+        await appendLedger(state, { kind: "fatal", targets: ["pr:704", "issue:2"] }, { now: () => now });
 
         const lines = (/** @type {{out: string}} */ r) =>
             r.out
@@ -589,8 +589,15 @@ describe("ledger", () => {
                 .filter(Boolean)
                 .map((l) => JSON.parse(l));
         expect(lines(await cli(["ledger"]))).toHaveLength(3);
-        expect(lines(await cli(["ledger", "--kind", "run-end"])).map((e) => e.run)).toEqual(["r1"]);
-        expect(lines(await cli(["ledger", "--target", "pr:704"])).map((e) => e.kind)).toEqual(["run-end", "report"]);
+        expect(lines(await cli(["ledger", "--kind", "error"])).map((e) => e.run)).toEqual(["r1"]);
+        expect(lines(await cli(["ledger", "--kind", "error,fatal,watch-error"])).map((e) => e.kind)).toEqual([
+            "error",
+            "fatal",
+        ]);
+        expect(lines(await cli(["ledger", "--target", "pr:704"])).map((e) => e.kind)).toEqual(["error", "fatal"]);
+        // A kind githerd never writes would print nothing forever: it is refused.
+        const never = await cli(["ledger", "--kind", "error,run-end"]);
+        expect(never).toMatchObject({ code: 2, err: expect.stringContaining("no entry of kind run-end") });
         expect(lines(await cli(["ledger", "--since", "1d"], { now: () => now }))).toHaveLength(2);
         const bad = await cli(["ledger", "--since", "soon"]);
         expect(bad.code).toBe(2);

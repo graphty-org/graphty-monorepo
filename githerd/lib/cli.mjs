@@ -45,7 +45,7 @@ const USAGE = `usage: githerd <command>
   board                                    the board, redrawn when the state file changes
   why <item>                               the records and ledger lines that put an item in its state
   mode                                     each write group's mode and its ledger coverage
-  ledger [--since 1d] [--target pr:704] [--kind run-end]
+  ledger [--since 1d] [--target pr:704] [--kind error,fatal]
                                            ledger entries, one JSON line each
   mode dry-run|paused|clear                lower the mode locally, or remove the override
   ack <key>                                clear an escalation
@@ -548,12 +548,19 @@ function namesTarget(e, target) {
 }
 
 /**
- * `ledger [--since] [--target] [--kind]`: ledger entries, one JSON line each.
+ * `ledger [--since] [--target] [--kind a,b]`: ledger entries, one JSON line each. A kind githerd
+ * never writes is refused: filtering on it would print nothing and look like a clean ledger.
  * @param {Command} c the command
  * @returns {Promise<number>} the exit code
  */
 async function cmdLedger(c) {
     const { flags } = c;
+    const kinds = typeof flags.kind === "string" ? flags.kind.split(",") : null;
+    const unknown = kinds?.filter((k) => !writtenKinds().has(k)) ?? [];
+    if (unknown.length) {
+        c.err(`githerd ledger: githerd writes no entry of kind ${unknown.join(", ")}`);
+        return 2;
+    }
     let since;
     if (typeof flags.since === "string") {
         since = parseSince(flags.since, c.now());
@@ -564,9 +571,24 @@ async function cmdLedger(c) {
     }
     const entries = await readLedger(c.stateDir, since ? { since } : {});
     for (const e of entries) {
-        if ((!flags.kind || e.kind === flags.kind) && namesTarget(e, flags.target)) c.out(JSON.stringify(e));
+        if ((!kinds || kinds.includes(e.kind)) && namesTarget(e, flags.target)) c.out(JSON.stringify(e));
     }
     return 0;
+}
+
+/**
+ * Every `kind: "..."` githerd's code names: the ledger kinds it writes, read from its own source so
+ * the list never falls behind.
+ * @returns {Set<string>} the kinds
+ */
+function writtenKinds() {
+    const dirs = [join(PACKAGE_DIR, "lib"), join(PACKAGE_DIR, "lib", "actor")];
+    const text = dirs.flatMap((d) =>
+        readdirSync(d)
+            .filter((f) => f.endsWith(".mjs"))
+            .map((f) => readFileSync(join(d, f), "utf8")),
+    );
+    return new Set(text.flatMap((t) => [...t.matchAll(/kind: "([a-z-]+)"/g)].map((m) => m[1])));
 }
 
 /**

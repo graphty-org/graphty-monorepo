@@ -188,6 +188,11 @@ function respond({ args, input }) {
         return ok({ steps: [{ name: "Check visual changes were accepted", conclusion: "failure" }] });
     }
     if (/\/issues\/\d+\/comments\?/.test(path)) return ok(scene.comments ?? []);
+    if (args.includes("-X")) {
+        scene.posted = (scene.posted ?? 0) + 1;
+        return httpOutput({ status: 201, body: { id: 5, url: "https://api.github.com/repos/o/r/issues/comments/5" } });
+    }
+    if (path === "repos/o/r/issues/comments/5") return ok({ id: 5 });
     throw new Error(`unexpected gh call: ${args.join(" ")}`);
 }
 
@@ -413,6 +418,30 @@ describe("HTTP endpoints", () => {
         expect(reply.result.isError).toBe(true);
         expect(reply.result.content[0].text).toContain("contains the value of environment variable SONAR_TOKEN");
         expect(reply.result.content[0].text).not.toContain("sqp_0123456789abcdef");
+    });
+
+    it("sends a write of an acting group, reads it back, and confirms it on the next poll", async () => {
+        writeConfig({ mode: "acting", actions: { runWrites: true } });
+        const daemon = await start();
+        await poll(daemon);
+        daemon.state.runs["run-1"] = { status: "running", kind: "triage", target: "issue:12" };
+        const reply = await daemon.rpc(
+            {
+                jsonrpc: "2.0",
+                id: 1,
+                method: "tools/call",
+                params: { name: "githerd_comment", arguments: { target: "issue:12", body: "hello" } },
+            },
+            { run: "run-1" },
+        );
+        expect(reply.result.content[0].text).toMatch(/^done/);
+        expect(scene.posted).toBe(1);
+        expect(daemon.state.writes.pending).toHaveLength(1);
+        await poll(daemon);
+        expect(daemon.state.writes.pending).toEqual([]);
+        const kinds = (await readLedger(join(dir, ".githerd"))).map((e) => e.kind);
+        expect(kinds.filter((k) => k.startsWith("write-") || k === "action")).toEqual(["action", "write-confirmed"]);
+        expect(scene.posted).toBe(1);
     });
 
     it("persists a claim before replying, and a notification gets 202", async () => {

@@ -285,7 +285,8 @@ export function runTools(ctx) {
     /**
      * Records or performs the writes of one tool call.
      * @param {string} group the `actions` group the writes belong to
-     * @param {[string, string, unknown][]} writes `[method, path, body]` each
+     * @param {[string, string, unknown, import("./github.mjs").CheckSpec][]} writes
+     *   `[method, path, body, check]` each: the check reads the write back (see `github.mjs`)
      * @param {Record<string, unknown>} fields extra ledger fields (run-written ones get `untrusted`)
      * @returns {Promise<string>} `would-do` or `done`
      */
@@ -307,7 +308,9 @@ export function runTools(ctx) {
             return "would-do";
         }
         await ctx.save();
-        for (const [method, path, body] of writes) await github.write(method, path, body);
+        for (const [method, path, body, check] of writes) {
+            await github.write(method, path, body, { group: "workers", check });
+        }
         return "done";
     }
 
@@ -542,7 +545,7 @@ export function runTools(ctx) {
                     outgoing(body, "comment");
                     const done = await perform(
                         "runWrites",
-                        [["POST", `repos/${repo}/issues/${number}/comments`, { body }]],
+                        [["POST", `repos/${repo}/issues/${number}/comments`, { body }, "created"]],
                         {
                             target: args.target,
                         },
@@ -578,14 +581,19 @@ export function runTools(ctx) {
                             throw new Error(`label ${l} is not a type, priority or effort label runs may change`);
                         }
                     }
-                    /** @type {[string, string, unknown][]} */
+                    const labelsPath = `repos/${repo}/issues/${number}/labels`;
+                    /** @type {[string, string, unknown, import("./github.mjs").CheckSpec][]} */
                     const writes = [];
-                    if (add.length) writes.push(["POST", `repos/${repo}/issues/${number}/labels`, { labels: add }]);
+                    if (add.length) {
+                        const expect = add.map((name) => ({ name }));
+                        writes.push(["POST", labelsPath, { labels: add }, { path: labelsPath, expect }]);
+                    }
                     for (const l of remove) {
                         writes.push([
                             "DELETE",
-                            `repos/${repo}/issues/${number}/labels/${encodeURIComponent(l)}`,
+                            `${labelsPath}/${encodeURIComponent(l)}`,
                             undefined,
+                            { path: labelsPath, lacks: [{ name: l }] },
                         ]);
                     }
                     if (!writes.length) throw new Error("nothing to add or remove");
@@ -731,7 +739,17 @@ export function runTools(ctx) {
                 if (spent) throw new Error(`${spent} was already rerun 3 times`);
                 const done = await perform(
                     "runWrites",
-                    [["POST", `repos/${repo}/actions/runs/${args.runId}/rerun-failed-jobs`, {}]],
+                    [
+                        [
+                            "POST",
+                            `repos/${repo}/actions/runs/${args.runId}/rerun-failed-jobs`,
+                            {},
+                            {
+                                path: `repos/${repo}/actions/runs/${args.runId}`,
+                                expect: { run_attempt: (wf.run_attempt ?? 1) + 1 },
+                            },
+                        ],
+                    ],
                     {
                         target: run.target,
                         mechanism: args.mechanism,
@@ -785,17 +803,17 @@ export function runTools(ctx) {
                 const labels = (state.issues?.byNumber?.[number]?.labels ?? []).filter(
                     (/** @type {string} */ l) => sets.has(l) && !ACTOR_LABELS.has(l),
                 );
-                /** @type {[string, string, unknown][]} */
+                /** @type {[string, string, unknown, import("./github.mjs").CheckSpec][]} */
                 const writes = args.parts.map((/** @type {{title: string, body: string}} */ p) => {
                     const body = `${p.body}\n\nSplit from #${number}.\n\n${marker}`;
                     outgoing(p.title, "title");
                     outgoing(body, "body");
-                    return ["POST", `repos/${repo}/issues`, { title: p.title, body, labels }];
+                    return ["POST", `repos/${repo}/issues`, { title: p.title, body, labels }, "created"];
                 });
                 const titles = args.parts.map((/** @type {{title: string}} */ p) => `- ${p.title}`).join("\n");
                 const comment = `Split into ${args.parts.length} issues (${args.reason}):\n\n${titles}\n\n${marker}`;
                 outgoing(comment, "comment");
-                writes.push(["POST", `repos/${repo}/issues/${number}/comments`, { body: comment }]);
+                writes.push(["POST", `repos/${repo}/issues/${number}/comments`, { body: comment }, "created"]);
                 const done = await perform("runWrites", writes, { target: run.target, reason: args.reason });
                 return `${done}: ${run.target} split into ${args.parts.length} issues labeled ${labels.join(", ") || "nothing"}`;
             },

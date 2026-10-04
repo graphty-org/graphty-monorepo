@@ -390,6 +390,7 @@ export async function startDaemon({
     state.issues ??= { since: null, byNumber: {} };
     state.merged ??= { lastScanAt: null, pendingPaths: {}, closed: [] };
     state.rate ??= {};
+    state.writes ??= { pending: [] };
     state.github ??= { downSince: null, lastError: null };
     state.schedule ??= {};
     state.runs ??= {};
@@ -433,6 +434,16 @@ export async function startDaemon({
         if (!config) return "dry-run";
         const local = effectiveMode(config, readOverride(stateDir));
         return env.GITHERD_DEV ? effectiveMode({ mode: local }, "dry-run") : local;
+    };
+    /**
+     * One write group's mode: the daemon's mode, lowered to `dry-run` for a group the config does
+     * not switch on.
+     * @param {string} group the write group
+     * @returns {string} the mode
+     */
+    const writeMode = (group) => {
+        const m = mode();
+        return m === "acting" ? (groupModes(config, null)[group] ?? "dry-run") : m;
     };
 
     /**
@@ -581,10 +592,11 @@ export async function startDaemon({
         (client ??= createGitHub({
             repo: config.repo,
             exec,
-            mode,
+            mode: writeMode,
             ledger,
             rate: state.rate,
             etags: readEtags(),
+            writes: state.writes,
             env: secrets,
             now: () => now().getTime(),
         }));
@@ -842,6 +854,8 @@ export async function startDaemon({
             raise(args);
         };
         await resolveLogin(gh, iso, derived);
+        // The next poll's confirmation of every write the last reconciles sent (design 3.6).
+        await gh.confirm();
 
         // The pull request list is essential (design 3.2); its per-pull-request reads are not.
         const prList = await gh.graphql(PRS_QUERY, { owner, name }, { purpose: "essential" });

@@ -49,8 +49,8 @@ function fakeGitHub(answers = {}) {
             calls.push(["GRAPHQL", query, variables]);
             return { repository: { ok: true } };
         },
-        async write(method, path, body) {
-            calls.push([method, path, body]);
+        async write(method, path, body, options) {
+            calls.push([method, path, body, options]);
             return { performed: true };
         },
     };
@@ -263,6 +263,13 @@ describe("write tools", () => {
         const { call, github } = setup({ kind: "triage" }, { mode: "acting", config });
         expect((await call("githerd_comment", { target: "issue:12", body: "hi" })).text).toMatch(/^done/);
         expect(github.calls[0][0]).toBe("POST");
+        expect(github.calls[0][3]).toEqual({ group: "workers", check: "created" });
+        await call("githerd_label", { target: "issue:12", add: ["bug"], remove: ["priority:low"] });
+        const labels = `repos/${REPO}/issues/12/labels`;
+        expect(github.calls.slice(1).map((c) => c[3].check)).toEqual([
+            { path: labels, expect: [{ name: "bug" }] },
+            { path: labels, lacks: [{ name: "priority:low" }] },
+        ]);
         const off = setup({ kind: "triage" }, { mode: "acting" });
         expect((await off.call("githerd_comment", { target: "issue:12", body: "hi" })).text).toMatch(/^would-do/);
     });

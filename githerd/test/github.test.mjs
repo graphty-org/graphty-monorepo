@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { createGitHub, GitHubError, MAX_ETAGS } from "../lib/github.mjs";
+import { renderBoard } from "../lib/board-text.mjs";
+import { createGitHub, GitHubError, holds, MAX_ETAGS } from "../lib/github.mjs";
 import { createFakeGh, fixture, httpOutput } from "./helpers/fake-gh.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
 const RUNS = `repos/${REPO}/actions/workflows/ci.yml/runs?branch=master&per_page=10&exclude_pull_requests=true`;
 const NOW = 1790958000_000; // before the fixtures' X-Ratelimit-Reset
+/** Write options whose read-back holds for any object answer. */
+const ANY = { group: "statuses", check: { path: `repos/${REPO}/commits/abc/status`, expect: {} } };
 
 /**
  * A client over the fake gh, in dry-run at a fixed clock, with an array for a ledger.
@@ -197,9 +200,9 @@ describe("rate rules", () => {
             essential: () => gitHub.get(RUNS, { purpose: "essential" }),
             poll: () => gitHub.get(RUNS, { purpose: "poll" }),
             read: () => gitHub.get(RUNS),
-            success: () => gitHub.write("POST", STATUS, { state: "success", context: "githerd/merge" }),
-            hold: () => gitHub.write("POST", STATUS, { state: "failure", context: "githerd/merge" }),
-            write: () => gitHub.write("POST", `repos/${REPO}/issues/1/comments`, { body: "x" }),
+            success: () => gitHub.write("POST", STATUS, { state: "success", context: "githerd/merge" }, ANY),
+            hold: () => gitHub.write("POST", STATUS, { state: "failure", context: "githerd/merge" }, ANY),
+            write: () => gitHub.write("POST", `repos/${REPO}/issues/1/comments`, { body: "x" }, ANY),
         };
         /** @type {Record<number, string[]>} */
         const allowed = {};
@@ -239,7 +242,7 @@ describe("rate rules", () => {
         const { gitHub } = client(gh, { mode: "acting" });
         await gitHub.graphql("query { viewer { login } }", {}, { purpose: "essential" });
         await expect(gitHub.graphql("query { viewer { login } }")).rejects.toMatchObject({ kind: "rate" });
-        await expect(gitHub.mutate("mutation M { x }")).rejects.toMatchObject({ kind: "rate" });
+        await expect(gitHub.mutate("mutation M { x }", {}, ANY)).rejects.toMatchObject({ kind: "rate" });
         expect(gh.calls).toHaveLength(1);
         expect(gitHub.pace().level).toBe("reserve");
     });
@@ -403,18 +406,24 @@ describe("writes", () => {
         it(`records would-do and never calls gh in ${typeof mode === "function" ? "a mode function" : mode}`, async () => {
             const gh = createFakeGh(() => httpOutput({ status: 201, body: {} }));
             const { gitHub, ledger } = client(gh, { mode });
-            const out = await gitHub.write("POST", STATUS, BODY);
+            const out = await gitHub.write("POST", STATUS, BODY, ANY);
             await gitHub.mutate(
                 "mutation Enable($id: ID!) { enablePullRequestAutoMerge(input:{pullRequestId:$id}) { clientMutationId } }",
                 {
                     id: "x",
                 },
+                ANY,
             );
             expect(out.performed).toBe(false);
             expect(gh.calls).toHaveLength(0);
             expect(gh.writes()).toHaveLength(0);
             expect(ledger).toEqual([
-                { kind: "would-do", op: "POST statuses/3e38b709e9452081eb1ee20d6441da676dfd500b", body: BODY },
+                {
+                    kind: "would-do",
+                    op: "POST statuses/3e38b709e9452081eb1ee20d6441da676dfd500b",
+                    group: "statuses",
+                    body: BODY,
+                },
                 expect.objectContaining({ kind: "would-do", op: "graphql mutation Enable" }),
             ]);
         });
@@ -423,20 +432,27 @@ describe("writes", () => {
     it("performs and logs an action in acting mode", async () => {
         const gh = createFakeGh(() => httpOutput({ status: 201, headers: rate(4000), body: { id: 1 } }));
         const { gitHub, ledger } = client(gh, { mode: "acting" });
-        const out = await gitHub.write("POST", STATUS, BODY);
-        expect(out).toMatchObject({ performed: true, status: 201 });
+        const out = await gitHub.write("POST", STATUS, BODY, ANY);
+        expect(out).toMatchObject({ performed: true, status: 201, stuck: true });
         expect(gh.writes()).toHaveLength(1);
         expect(gh.calls[0].args).toEqual(["api", "-i", "-X", "POST", STATUS, "--input", "-"]);
         expect(JSON.parse(gh.calls[0].input)).toEqual(BODY);
         expect(ledger).toEqual([
-            { kind: "action", op: "POST statuses/3e38b709e9452081eb1ee20d6441da676dfd500b", result: 201 },
+            {
+                kind: "action",
+                op: "POST statuses/3e38b709e9452081eb1ee20d6441da676dfd500b",
+                group: "statuses",
+                result: 201,
+            },
         ]);
     });
 
     it("sends a bodiless DELETE without stdin and logs a failed write", async () => {
         const gh = createFakeGh(() => httpOutput({ status: 422, body: { message: "Validation Failed" } }));
         const { gitHub, ledger } = client(gh, { mode: "acting" });
-        await expect(gitHub.write("DELETE", `repos/${REPO}/issues/5/labels/x`)).rejects.toMatchObject({ kind: "http" });
+        await expect(gitHub.write("DELETE", `repos/${REPO}/issues/5/labels/x`, undefined, ANY)).rejects.toMatchObject({
+            kind: "http",
+        });
         expect(gh.calls[0].args).toEqual(["api", "-i", "-X", "DELETE", `repos/${REPO}/issues/5/labels/x`]);
         expect(ledger[0]).toMatchObject({ kind: "action", op: "DELETE issues/5/labels/x", result: 422 });
     });
@@ -448,8 +464,14 @@ describe("writes", () => {
         ];
         const gh = createFakeGh(() => answers.shift());
         const { gitHub, ledger } = client(gh, { mode: "acting" });
-        expect(await gitHub.mutate("mutation { x }")).toMatchObject({ performed: true, body: { data: { x: 1 } } });
-        await expect(gitHub.mutate("mutation { x }")).rejects.toMatchObject({ kind: "graphql" });
+        const check = { group: "upkeep", check: { path: `repos/${REPO}/pulls/1`, expect: { auto_merge: null } } };
+        answers.splice(1, 0, httpOutput({ status: 200, body: { auto_merge: null } }));
+        expect(await gitHub.mutate("mutation { x }", {}, check)).toMatchObject({
+            performed: true,
+            body: { data: { x: 1 } },
+            stuck: true,
+        });
+        await expect(gitHub.mutate("mutation { x }", {}, check)).rejects.toMatchObject({ kind: "graphql" });
         expect(ledger.map((e) => e.op)).toEqual(["graphql mutation anonymous", "graphql mutation anonymous"]);
         expect(gh.writes()).toHaveLength(2);
     });
@@ -458,11 +480,13 @@ describe("writes", () => {
         const gh = createFakeGh(() => httpOutput({ status: 201, body: {} }));
         const { gitHub, ledger } = client(gh, { mode: "acting" });
         await expect(
-            gitHub.write("POST", `repos/${REPO}/issues/5/comments`, { body: "token ghp_abc123" }),
+            gitHub.write("POST", `repos/${REPO}/issues/5/comments`, { body: "token ghp_abc123" }, ANY),
         ).rejects.toMatchObject({
             kind: "refused",
         });
-        await expect(gitHub.mutate('mutation { x(body: "ghp_abc123") }')).rejects.toMatchObject({ kind: "refused" });
+        await expect(gitHub.mutate('mutation { x(body: "ghp_abc123") }', {}, ANY)).rejects.toMatchObject({
+            kind: "refused",
+        });
         expect(gh.calls).toHaveLength(0);
         expect(ledger).toHaveLength(0);
     });
@@ -471,11 +495,13 @@ describe("writes", () => {
         const gh = createFakeGh(() => httpOutput({ status: 201, body: {} }));
         const { gitHub } = client(gh, { mode: "acting", env: { MY_TOKEN: "s3cr3tvalue42" } });
         const path = `repos/${REPO}/issues/5/comments`;
-        await expect(gitHub.write("POST", path, { body: "Co-Authored-By: x" })).rejects.toMatchObject({
+        await expect(gitHub.write("POST", path, { body: "Co-Authored-By: x" }, ANY)).rejects.toMatchObject({
             kind: "refused",
         });
-        await expect(gitHub.write("POST", path, { body: "leak s3cr3tvalue42" })).rejects.toThrow(/MY_TOKEN/);
-        await expect(gitHub.write("POST", path, { body: `caf${String.fromCharCode(0xe9)}` })).rejects.toMatchObject({
+        await expect(gitHub.write("POST", path, { body: "leak s3cr3tvalue42" }, ANY)).rejects.toThrow(/MY_TOKEN/);
+        await expect(
+            gitHub.write("POST", path, { body: `caf${String.fromCharCode(0xe9)}` }, ANY),
+        ).rejects.toMatchObject({
             kind: "refused",
         });
         expect(gh.calls).toHaveLength(0);
@@ -485,12 +511,259 @@ describe("writes", () => {
         const gh = createFakeGh(() => httpOutput({ status: 201, body: {} }));
         const { gitHub } = client(gh, { mode: "acting" });
         await expect(
-            gitHub.write("POST", "repos/cytoscape/cytoscape.js/issues/1/comments", { body: "x" }),
+            gitHub.write("POST", "repos/cytoscape/cytoscape.js/issues/1/comments", { body: "x" }, ANY),
         ).rejects.toBeInstanceOf(GitHubError);
-        await expect(gitHub.write("POST", `repos/${REPO}/../../other/r/issues`, {})).rejects.toThrow(
+        await expect(gitHub.write("POST", `repos/${REPO}/../../other/r/issues`, {}, ANY)).rejects.toThrow(
             /only writes under/,
         );
-        await expect(gitHub.write("GET", `repos/${REPO}/issues`)).rejects.toThrow(/does not send GET/);
+        await expect(gitHub.write("GET", `repos/${REPO}/issues`, undefined, ANY)).rejects.toThrow(/does not send GET/);
         expect(gh.calls).toHaveLength(0);
+    });
+});
+
+describe("holds", () => {
+    it("matches primitives, object subsets and array elements", () => {
+        expect(holds(1, 1)).toBe(true);
+        expect(holds(null, null)).toBe(true);
+        expect(holds(undefined, null)).toBe(false);
+        expect(holds({ a: 1, b: 2 }, { a: 1 })).toBe(true);
+        expect(holds({ a: 1 }, { a: 2 })).toBe(false);
+        expect(holds("x", { a: 1 })).toBe(false);
+        expect(holds(null, {})).toBe(false);
+        expect(holds([{ name: "a" }, { name: "b" }], [{ name: "b" }])).toBe(true);
+        expect(holds([{ name: "a" }], [{ name: "b" }])).toBe(false);
+        expect(holds({ statuses: [{ context: "c", state: "success" }] }, { statuses: [{ state: "success" }] })).toBe(
+            true,
+        );
+        expect(holds({ a: [1] }, { a: [1, 2] })).toBe(false);
+        expect(holds("not a list", [1])).toBe(false);
+    });
+});
+
+describe("read-back and next-poll confirmation", () => {
+    const SHA = "3e38b709e9452081eb1ee20d6441da676dfd500b";
+    const STATUS = `repos/${REPO}/statuses/${SHA}`;
+    const COMBINED = `repos/${REPO}/commits/${SHA}/status`;
+    const BODY = { state: "failure", context: "githerd/merge", description: "master red" };
+    const OPTS = {
+        group: "statuses",
+        check: { path: COMBINED, expect: { statuses: [{ context: "githerd/merge", state: "failure" }] } },
+        fields: { situation: "red-lane" },
+    };
+
+    /**
+     * A fake GitHub that keeps posted statuses and answers the combined status with an ETag.
+     * `drop` posts that many writes without keeping them; `lost` loses what was kept.
+     * @returns {{gh: ReturnType<typeof createFakeGh>, fake: {drop: number, statuses: any[], fail: boolean}}}
+     *   the fake gh and its knobs
+     */
+    function statusFake() {
+        const fake = { drop: 0, statuses: /** @type {any[]} */ ([]), fail: false };
+        const gh = createFakeGh(({ args, input }) => {
+            if (args.includes("-X")) {
+                if (fake.drop > 0) fake.drop -= 1;
+                else fake.statuses = [JSON.parse(input ?? "{}")];
+                return httpOutput({ status: 201, headers: rate(4000), body: {} });
+            }
+            if (fake.fail) return httpOutput({ status: 502, body: "bad gateway" });
+            const etag = `"${JSON.stringify(fake.statuses).length}-${fake.statuses[0]?.state ?? "none"}"`;
+            if (args.includes(`If-None-Match: ${etag}`)) return httpOutput({ status: 304, headers: rate(4000) });
+            return httpOutput({
+                status: 200,
+                headers: { ...rate(4000), ETag: etag },
+                body: { statuses: fake.statuses },
+            });
+        });
+        return { gh, fake };
+    }
+
+    it("makes zero calls in dry-run, even when another group is acting", async () => {
+        const { gh } = statusFake();
+        const writes = {};
+        const { gitHub, ledger } = client(gh, {
+            mode: (/** @type {string} */ g) => (g === "upkeep" ? "acting" : "dry-run"),
+            writes,
+        });
+        expect(await gitHub.write("POST", STATUS, BODY, OPTS)).toEqual({
+            performed: false,
+            op: `POST statuses/${SHA}`,
+        });
+        await gitHub.confirm();
+        expect(gh.calls).toHaveLength(0);
+        expect(writes).toEqual({ pending: [] });
+        expect(ledger).toEqual([
+            { kind: "would-do", op: `POST statuses/${SHA}`, group: "statuses", body: BODY, situation: "red-lane" },
+        ]);
+    });
+
+    it("reads a write back at once and confirms it on the next poll with a 304", async () => {
+        const { gh } = statusFake();
+        const writes = {};
+        const { gitHub, ledger } = client(gh, { mode: "acting", writes });
+        expect(await gitHub.write("POST", STATUS, BODY, OPTS)).toMatchObject({ performed: true, stuck: true });
+        expect(gh.calls[1].args).toEqual(["api", "-i", COMBINED]);
+        expect(writes.pending).toHaveLength(1);
+        await gitHub.confirm();
+        expect(gh.calls[2].args).toContain("-H");
+        expect(writes.pending).toEqual([]);
+        expect(gh.writes()).toHaveLength(1);
+        expect(ledger.map((e) => e.kind)).toEqual(["action", "write-confirmed"]);
+        expect(ledger[1]).toEqual({
+            kind: "write-confirmed",
+            op: `POST statuses/${SHA}`,
+            group: "statuses",
+            after: "sent",
+        });
+    });
+
+    it("retries a write that did not stick once, and shows it when the retry does not stick", async () => {
+        const { gh, fake } = statusFake();
+        fake.drop = 2;
+        const writes = {};
+        const { gitHub, ledger } = client(gh, { mode: "acting", writes });
+        expect(await gitHub.write("POST", STATUS, BODY, OPTS)).toMatchObject({ performed: true, stuck: false });
+        expect(gh.writes()).toHaveLength(2);
+        expect(ledger.map((e) => e.kind)).toEqual(["action", "write-retry", "action", "write-mismatch"]);
+        expect(writes.pending[0]).toMatchObject({ retried: true, mismatch: new Date(NOW).toISOString() });
+        const board = renderBoard(
+            { state: { writes }, liveness: { alive: null, progress: null, fatal: null }, down: null },
+            new Date(NOW),
+            "health",
+        );
+        expect(board).toContain(`WRITE DID NOT STICK: POST statuses/${SHA} (statuses), sent twice, wrong since`);
+
+        // The next poll reads it again but never sends it a third time, and logs the mismatch once.
+        await gitHub.confirm();
+        expect(gh.writes()).toHaveLength(2);
+        expect(ledger.filter((e) => e.kind === "write-mismatch")).toHaveLength(1);
+        expect(writes.pending).toHaveLength(1);
+
+        // Once it holds (someone posted it), it is confirmed and leaves the board.
+        fake.statuses = [BODY];
+        await gitHub.confirm();
+        expect(writes.pending).toEqual([]);
+        expect(ledger.at(-1)).toMatchObject({ kind: "write-confirmed", after: "mismatch" });
+    });
+
+    it("retries once when the next poll finds the write undone, and it sticks", async () => {
+        const { gh, fake } = statusFake();
+        const writes = {};
+        const { gitHub, ledger } = client(gh, { mode: "acting", writes });
+        await gitHub.write("POST", STATUS, BODY, OPTS);
+        fake.statuses = [];
+        await gitHub.confirm();
+        expect(gh.writes()).toHaveLength(2);
+        expect(writes.pending).toEqual([]);
+        expect(ledger.map((e) => e.kind)).toEqual(["action", "write-retry", "action", "write-confirmed"]);
+    });
+
+    it("keeps a write for the poll after when its read fails, without sending it again", async () => {
+        const { gh, fake } = statusFake();
+        const writes = {};
+        const { gitHub } = client(gh, { mode: "acting", writes });
+        fake.fail = true;
+        expect(await gitHub.write("POST", STATUS, BODY, OPTS)).toMatchObject({ performed: true, stuck: null });
+        await gitHub.confirm();
+        expect(gh.writes()).toHaveLength(1);
+        expect(writes.pending).toHaveLength(1);
+        expect(writes.pending[0].retried).toBe(false);
+        fake.fail = false;
+        await gitHub.confirm();
+        expect(writes.pending).toEqual([]);
+    });
+
+    it("marks a mismatch when the retry itself fails", async () => {
+        let posts = 0;
+        const gh = createFakeGh(({ args }) => {
+            if (!args.includes("-X")) return httpOutput({ status: 200, body: { statuses: [] } });
+            posts += 1;
+            return posts === 1 ? httpOutput({ status: 201, body: {} }) : httpOutput({ status: 422, body: {} });
+        });
+        const writes = {};
+        const { gitHub, ledger } = client(gh, { mode: "acting", writes });
+        expect(await gitHub.write("POST", STATUS, BODY, OPTS)).toMatchObject({ stuck: false });
+        expect(ledger.map((e) => e.kind)).toEqual(["action", "write-retry", "action", "write-mismatch"]);
+        expect(ledger[2]).toMatchObject({ result: 422 });
+    });
+
+    it("replaces an older write read back at the same path", async () => {
+        const { gh } = statusFake();
+        const writes = {};
+        const { gitHub } = client(gh, { mode: "acting", writes });
+        await gitHub.write("POST", STATUS, BODY, OPTS);
+        const ok = { state: "success", context: "githerd/merge" };
+        await gitHub.write("POST", STATUS, ok, {
+            group: "statuses",
+            check: { path: COMBINED, expect: { statuses: [ok] } },
+        });
+        expect(writes.pending).toHaveLength(1);
+        expect(writes.pending[0].request.body).toEqual(ok);
+    });
+
+    it("reads a created resource back at the URL its answer names", async () => {
+        const url = `https://api.github.com/repos/${REPO}/issues/comments/77`;
+        const gh = createFakeGh(({ args }) =>
+            args.includes("-X")
+                ? httpOutput({ status: 201, body: { id: 77, url } })
+                : httpOutput({ status: 200, body: { id: 77, body: "hi" } }),
+        );
+        const writes = {};
+        const { gitHub } = client(gh, { mode: "acting", writes });
+        const out = await gitHub.write(
+            "POST",
+            `repos/${REPO}/issues/5/comments`,
+            { body: "hi" },
+            {
+                group: "owner-items",
+                check: "created",
+            },
+        );
+        expect(out.stuck).toBe(true);
+        expect(gh.calls[1].args).toEqual(["api", "-i", `repos/${REPO}/issues/comments/77`]);
+        expect(writes.pending[0].check).toEqual({ path: `repos/${REPO}/issues/comments/77`, expect: { id: 77 } });
+    });
+
+    it("does not stick a created write whose answer names no resource", async () => {
+        const gh = createFakeGh(() => httpOutput({ status: 201, body: {} }));
+        const { gitHub } = client(gh, { mode: "acting" });
+        const out = await gitHub.write(
+            "POST",
+            `repos/${REPO}/issues`,
+            { title: "t" },
+            { group: "incidents", check: "created" },
+        );
+        expect(out.stuck).toBe(false);
+        expect(gh.writes()).toHaveLength(2);
+    });
+
+    it("reads a 404 as a null body, so a removed thing holds its `lacks`", async () => {
+        const gh = createFakeGh(({ args }) =>
+            args.includes("-X")
+                ? httpOutput({ status: 204 })
+                : httpOutput({ status: 404, body: { message: "Not Found" } }),
+        );
+        const { gitHub } = client(gh, { mode: "acting" });
+        const path = `repos/${REPO}/issues/5/labels/hold`;
+        const out = await gitHub.write("DELETE", path, undefined, {
+            group: "upkeep",
+            check: { path, lacks: { name: "hold" } },
+        });
+        expect(out.stuck).toBe(true);
+    });
+
+    it("refuses a write without a group or a read-back check, before calling gh", async () => {
+        const gh = createFakeGh(() => httpOutput({ status: 201, body: {} }));
+        const { gitHub, ledger } = client(gh, { mode: "acting" });
+        await expect(gitHub.write("POST", STATUS, BODY, /** @type {any} */ (undefined))).rejects.toThrow(
+            /no write group/,
+        );
+        await expect(gitHub.write("POST", STATUS, BODY, /** @type {any} */ ({ group: "statuses" }))).rejects.toThrow(
+            /no read-back check/,
+        );
+        await expect(gitHub.mutate("mutation { x }", {}, /** @type {any} */ ({ group: "" }))).rejects.toMatchObject({
+            kind: "refused",
+        });
+        expect(gh.calls).toHaveLength(0);
+        expect(ledger).toHaveLength(0);
     });
 });

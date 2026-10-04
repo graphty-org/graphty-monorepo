@@ -1,9 +1,13 @@
 /**
  * The only path from githerd to GitHub (design sections 4.2, 3.2 and 4.11). Every call goes
  * through `gh api` with `-i`, so status and rate headers are read from each response. Reads keep an
- * ETag and body per path in a record the caller persists (`etags.json`), so a restart costs 304s;
- * writes go through `write()` and `mutate()`, which in dry-run and paused record a `would-do`
- * ledger line and never call `gh`. Every call is checked against the shared rate budget first.
+ * ETag and body per path in a record the caller persists (`etags.json`), so a restart costs 304s.
+ * Every write goes through one gate (`write()` for REST, `mutate()` for GraphQL, design 10.2): the
+ * write names its write group, and unless that group is `acting` it records a `would-do` ledger
+ * line and never calls `gh`. A write that is sent is read back at once and again by the next poll
+ * (`confirm()`); one that does not stick is sent once more, and if it still does not hold it stays
+ * in the persisted `writes` record marked as a mismatch, for the board (design 3.6). Every call is
+ * checked against the shared rate budget first.
  */
 import { execFile } from "node:child_process";
 
@@ -48,7 +52,45 @@ const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
  *   downSince: string | null}} RateState
  * @typedef {"essential" | "hold" | "poll" | "success" | "read" | "write"} Purpose
  * @typedef {Record<string, {etag: string, body: any}>} EtagRecord
+ * @typedef {{path: string, expect?: unknown, lacks?: unknown}} Check where a write is read back
+ *   (a GET path) and what the answer must hold (`expect`) and must not (`lacks`), in the sense of
+ *   `holds`; a 404 reads as a null body
+ * @typedef {Check | "created"} CheckSpec a check, or `created`: read back the resource the write's
+ *   answer names in its `url`, expecting its `id`
+ * @typedef {{method: string, path: string, body?: unknown} | {query: string, variables: Record<string, unknown>}} Request
+ * @typedef {{op: string, group: string, purpose: Purpose, request: Request, spec: CheckSpec,
+ *   check: Check | null, at: string, retried: boolean, mismatch?: string}} SentWrite a write
+ *   waiting for the next poll's confirmation; `mismatch` is when it was found not to stick after
+ *   its one retry
+ * @typedef {{pending?: SentWrite[]}} WriteRecord the persisted record of sent writes
+ * @typedef {{group: string, check: CheckSpec, fields?: Record<string, unknown>}} WriteOptions the
+ *   write group whose mode gates the write, how to read it back, and extra ledger fields (such as
+ *   `situation`, which `githerd mode` counts)
+ * @typedef {{performed: boolean, op: string, status?: number, body?: any, stuck?: boolean | null}} WriteResult
+ *   whether it was sent, GitHub's answer, and whether the read-back saw it (null: unknown yet)
  */
+
+/**
+ * True when `actual` holds everything `expected` says: equal primitives; for an object, every key
+ * of `expected` holds in `actual`; for an array, every element of `expected` holds in some
+ * element of `actual`.
+ * @param {unknown} actual what GitHub answered
+ * @param {unknown} expected the subset it must contain
+ * @returns {boolean} true when it holds
+ */
+export function holds(actual, expected) {
+    if (Array.isArray(expected)) {
+        return Array.isArray(actual) && expected.every((e) => actual.some((a) => holds(a, e)));
+    }
+    if (expected !== null && typeof expected === "object") {
+        if (actual === null || typeof actual !== "object") return false;
+        const a = /** @type {Record<string, unknown>} */ (actual);
+        return Object.entries(expected).every(([k, v]) => holds(a[k], v));
+    }
+    return actual === expected;
+}
+
+const API_URL = "https://api.github.com/";
 
 /**
  * A failed GitHub call. `kind` is one of: `network`, `timeout`, `server`, `credential`, `rate`
@@ -144,19 +186,21 @@ function isMutation(query) {
  * @param {{
  *   repo: string,
  *   exec?: Exec,
- *   mode: string | (() => string),
+ *   mode: string | ((group: string) => string),
  *   ledger: (entry: {kind: string} & Record<string, unknown>) => unknown,
  *   rate?: Partial<RateState>,
  *   etags?: EtagRecord,
+ *   writes?: WriteRecord,
  *   env?: Record<string, string | undefined>,
  *   now?: () => number,
- * }} options `repo` is `owner/name`; `mode` is the effective mode or a function returning it
- *   (anything but `acting` records instead of writing); `ledger` appends one ledger entry; `rate`
- *   is the persisted rate record, mutated in place so `downSince` survives a restart; `etags` is
- *   the persisted ETag record (`etags.json`), mutated in place; `env` is the environment whose
- *   secret values `checkOutgoing` refuses.
- * @returns the client: `get`, `login`, `graphql`, `write`, `mutate`, `pace`, and the `rate` and
- *   `etags` records
+ * }} options `repo` is `owner/name`; `mode` is one mode for every write group or a function
+ *   answering a group's mode (anything but `acting` records instead of writing); `ledger` appends
+ *   one ledger entry; `rate` is the persisted rate record, mutated in place so `downSince`
+ *   survives a restart; `etags` is the persisted ETag record (`etags.json`), mutated in place;
+ *   `writes` is the persisted record of sent writes awaiting confirmation, mutated in place;
+ *   `env` is the environment whose secret values `checkOutgoing` refuses.
+ * @returns the client: `get`, `login`, `graphql`, `write`, `mutate`, `confirm`, `pace`, and the
+ *   `rate`, `etags` and `writes` records
  */
 export function createGitHub({
     repo,
@@ -165,6 +209,7 @@ export function createGitHub({
     ledger,
     rate = {},
     etags = {},
+    writes = {},
     env = process.env,
     now = Date.now,
 }) {
@@ -174,7 +219,6 @@ export function createGitHub({
     r.backoffUntil ??= 0;
     r.secondaryMs ??= 0;
     r.downSince ??= null;
-    const currentMode = () => (typeof mode === "function" ? mode() : mode);
 
     /**
      * Keeps the counter a response reported, by resource (core, graphql, search).
@@ -342,32 +386,6 @@ export function createGitHub({
     }
 
     /**
-     * Records or performs one write, depending on the mode.
-     * @param {string} op ledger label
-     * @param {unknown} body what would be sent
-     * @param {() => Promise<Response>} perform sends it
-     * @returns {Promise<{performed: boolean, op: string, status?: number, body?: any}>} whether it
-     *   was sent, and GitHub's answer when it was
-     */
-    async function gated(op, body, perform) {
-        guardOutgoing(JSON.stringify(body ?? null), op);
-        if (currentMode() !== "acting") {
-            await ledger({ kind: "would-do", op, body });
-            return { performed: false, op };
-        }
-        let res;
-        try {
-            res = await perform();
-        } catch (err) {
-            const e = /** @type {GitHubError} */ (err);
-            await ledger({ kind: "action", op, result: e.status ?? e.kind, error: e.message });
-            throw err;
-        }
-        await ledger({ kind: "action", op, result: res.status });
-        return { performed: true, op, status: res.status, body: res.body };
-    }
-
-    /**
      * Sends a GraphQL document; errors in a 200 answer are thrown.
      * @param {string} query the document
      * @param {Record<string, unknown>} variables its variables
@@ -386,13 +404,154 @@ export function createGitHub({
     }
 
     const prefix = `repos/${repo}/`;
+    writes.pending ??= [];
+    const sent = writes.pending;
 
-    return {
+    /**
+     * The mode of one write group: the `mode` option's answer for it.
+     * @param {string} group the write group
+     * @returns {string} `acting`, `dry-run` or `paused`
+     */
+    const modeOf = (group) => (typeof mode === "function" ? mode(group) : mode);
+
+    /**
+     * Sends a write's request once, logging the attempt as an `action` ledger line.
+     * @param {SentWrite} entry the write
+     * @returns {Promise<Response>} GitHub's answer
+     */
+    async function send(entry) {
+        const { op, group, request } = entry;
+        let res;
+        try {
+            if ("query" in request) {
+                spend("graphql", entry.purpose);
+                res = await graphqlCall(request.query, request.variables, entry.purpose);
+            } else {
+                spend("core", entry.purpose);
+                const args = ["-X", request.method, request.path];
+                const input = request.body === undefined ? undefined : JSON.stringify(request.body);
+                res = await call(input === undefined ? args : [...args, "--input", "-"], input);
+            }
+        } catch (err) {
+            const e = /** @type {GitHubError} */ (err);
+            await ledger({ kind: "action", op, group, result: e.status ?? e.kind, error: e.message });
+            throw err;
+        }
+        await ledger({ kind: "action", op, group, result: res.status });
+        entry.check = resolveCheck(entry.spec, res.body);
+        return res;
+    }
+
+    /**
+     * The check a write is read back with, once its answer is known.
+     * @param {CheckSpec} spec the write's check
+     * @param {any} answer the write's answer body
+     * @returns {Check | null} the check, or null when `created` has no resource URL to read
+     */
+    function resolveCheck(spec, answer) {
+        if (spec !== "created") return spec;
+        const url = answer?.url;
+        if (typeof url !== "string" || !url.startsWith(API_URL)) return null;
+        return { path: url.slice(API_URL.length), expect: { id: answer.id } };
+    }
+
+    /**
+     * Reads a write back.
+     * @param {SentWrite} entry the write
+     * @param {boolean} fresh true to skip the ETag (right after sending)
+     * @returns {Promise<boolean | null>} whether it holds; null when the read failed
+     */
+    async function readBack(entry, fresh) {
+        const { check } = entry;
+        if (!check) return false;
+        let body;
+        try {
+            body = (await api.get(check.path, { fresh, purpose: entry.purpose })).body;
+        } catch (err) {
+            const e = /** @type {GitHubError} */ (err);
+            if (e.status !== 404) return null;
+            body = null;
+        }
+        const has = check.expect === undefined || holds(body, check.expect);
+        return has && (check.lacks === undefined || !holds(body, check.lacks));
+    }
+
+    /**
+     * Reads a write back and, the first time it does not hold, sends it once more and reads again.
+     * A write that still does not hold is marked a mismatch, once.
+     * @param {SentWrite} entry the write
+     * @param {boolean} fresh true to skip the ETag on the first read
+     * @returns {Promise<boolean | null>} whether it holds; null when the read failed
+     */
+    async function verify(entry, fresh) {
+        let ok = await readBack(entry, fresh);
+        if (ok === false && !entry.retried) {
+            entry.retried = true;
+            await ledger({ kind: "write-retry", op: entry.op, group: entry.group });
+            try {
+                await send(entry);
+                ok = await readBack(entry, true);
+            } catch {
+                ok = false;
+            }
+        }
+        if (ok === false && !entry.mismatch) {
+            entry.mismatch = new Date(now()).toISOString();
+            await ledger({ kind: "write-mismatch", op: entry.op, group: entry.group, check: entry.check });
+        }
+        return ok;
+    }
+
+    /**
+     * The write gate (design 10.2): refuses what must not reach GitHub, records a `would-do` unless
+     * the write's group is `acting`, and otherwise sends the write, reads it back, and keeps it for
+     * the next poll's confirmation. A newer write read back at the same path replaces an older one.
+     * @param {string} op the ledger label
+     * @param {Purpose} purpose how far down the rate budget it may go
+     * @param {Request} request what to send
+     * @param {unknown} body what would be sent, for the ledger and the outgoing-text checks
+     * @param {WriteOptions} options the write group, the check, extra ledger fields
+     * @returns {Promise<WriteResult>} whether it was sent, the answer, and whether it stuck
+     */
+    async function gate(op, purpose, request, body, options) {
+        const { group, check, fields = {} } = options ?? /** @type {Partial<WriteOptions>} */ ({});
+        if (typeof group !== "string" || group === "") throw new GitHubError("refused", `${op}: no write group`);
+        if (check !== "created" && typeof check?.path !== "string") {
+            throw new GitHubError("refused", `${op}: no read-back check`);
+        }
+        guardOutgoing(JSON.stringify(body ?? null), op);
+        if (modeOf(group) !== "acting") {
+            await ledger({ kind: "would-do", op, group, body, ...fields });
+            return { performed: false, op };
+        }
+        /** @type {SentWrite} */
+        const entry = {
+            op,
+            group,
+            purpose,
+            request,
+            spec: check,
+            check: null,
+            at: new Date(now()).toISOString(),
+            retried: false,
+        };
+        const res = await send(entry);
+        const ok = await verify(entry, true);
+        const old = sent.findIndex((w) => w.check?.path === entry.check?.path);
+        if (old !== -1 && entry.check) sent.splice(old, 1);
+        sent.push(entry);
+        return { performed: true, op, status: res.status, body: res.body, stuck: ok };
+    }
+
+    const api = {
         /** The persisted rate record (counters, back-off, `downSince`). */
         rate: r,
 
         /** The persisted ETag record: per path, the last 200's ETag and body. */
         etags,
+
+        /** The persisted record of sent writes awaiting the next poll's confirmation. */
+        writes,
 
         /**
          * GET a REST path. A repeat sends the ETag of the last 200 and returns that body on 304;
@@ -443,44 +602,59 @@ export function createGitHub({
         },
 
         /**
-         * A REST write on the configured repository. Dry-run and paused record `would-do`;
-         * acting performs it and records `action`. Both refuse secrets and attribution lines, and
-         * both are held back by the rate tiers: a commit status is a `success` or a `hold` by its
-         * state, anything else a `write`.
+         * A REST write on the configured repository, through the write gate. A commit status is a
+         * `success` or a `hold` by its state for the rate tiers, anything else a `write`.
          * @param {string} method POST, PUT, PATCH or DELETE
          * @param {string} path a path under `repos/<repo>/`
-         * @param {unknown} [body] the JSON body
-         * @returns {Promise<{performed: boolean, op: string, status?: number, body?: any}>} see `gated`
+         * @param {unknown} body the JSON body, or undefined for none
+         * @param {WriteOptions} options the write group, the read-back check, ledger fields
+         * @returns {Promise<WriteResult>} see `gate`
          */
-        async write(method, path, body) {
+        async write(method, path, body, options) {
             if (!WRITE_METHODS.has(method)) throw new GitHubError("refused", `write() does not send ${method}`);
             if (!path.startsWith(prefix) || path.includes("..")) {
                 throw new GitHubError("refused", `write() only writes under ${prefix}: ${path}`);
             }
-            const op = `${method} ${path.slice(prefix.length)}`;
             /** @type {Purpose} */
             let purpose = "write";
             if (path.startsWith(`${prefix}statuses/`)) {
                 const state = /** @type {{state?: string} | undefined} */ (body)?.state;
                 purpose = state === "success" ? "success" : "hold";
             }
-            spend("core", purpose);
-            const args = ["-X", method, path];
-            const input = body === undefined ? undefined : JSON.stringify(body);
-            return gated(op, body, () => call(input === undefined ? args : [...args, "--input", "-"], input));
+            return gate(`${method} ${path.slice(prefix.length)}`, purpose, { method, path, body }, body, options);
         },
 
         /**
-         * A GraphQL mutation, gated exactly like `write()`.
+         * A GraphQL mutation, through the same gate as `write()`.
          * @param {string} query the mutation document
-         * @param {Record<string, unknown>} [variables] its variables
-         * @returns {Promise<{performed: boolean, op: string, status?: number, body?: any}>} see `gated`
+         * @param {Record<string, unknown>} variables its variables
+         * @param {WriteOptions} options the write group, the read-back check, ledger fields
+         * @returns {Promise<WriteResult>} see `gate`
          */
-        async mutate(query, variables = {}) {
+        async mutate(query, variables, options) {
             const name = /mutation\s+(\w+)/.exec(query)?.[1] ?? "anonymous";
-            const op = `graphql mutation ${name}`;
-            spend("graphql", "write");
-            return gated(op, { query, variables }, () => graphqlCall(query, variables, "write"));
+            return gate(`graphql mutation ${name}`, "write", { query, variables }, { query, variables }, options);
+        },
+
+        /**
+         * The next poll's confirmation: reads back every sent write (with its ETag, so an unchanged
+         * answer is a free 304). One that holds is done; one that no longer holds is sent once
+         * more if it has not been retried, and is a mismatch otherwise. A read that fails leaves
+         * the write for the poll after.
+         * @returns {Promise<void>}
+         */
+        async confirm() {
+            for (const entry of [...sent]) {
+                const ok = await verify(entry, false);
+                if (ok !== true) continue;
+                sent.splice(sent.indexOf(entry), 1);
+                await ledger({
+                    kind: "write-confirmed",
+                    op: entry.op,
+                    group: entry.group,
+                    after: entry.mismatch ? "mismatch" : "sent",
+                });
+            }
         },
 
         /**
@@ -508,4 +682,5 @@ export function createGitHub({
             return { level: "normal", intervalFactor: 1, until: 0 };
         },
     };
+    return api;
 }

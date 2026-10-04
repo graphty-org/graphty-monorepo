@@ -214,7 +214,9 @@ export function DataPlace(): React.JSX.Element {
             },
             () => {
                 store.set({
-                    notice: { message: `Could not add a label line from "${spec.column.name}". Pick another attribute.` },
+                    notice: {
+                        message: `Could not add a label line from "${spec.column.name}". Pick another attribute.`,
+                    },
                 });
             },
         );
@@ -267,7 +269,10 @@ export function DataPlace(): React.JSX.Element {
                         onKeyDown={(event) => {
                             const id = rowIdOf(event);
                             setMenuFor(id);
-                            if (((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") && !hasMenu(id)) {
+                            if (
+                                ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") &&
+                                !hasMenu(id)
+                            ) {
                                 event.preventDefault();
                             }
                         }}
@@ -318,7 +323,9 @@ export function DataPlace(): React.JSX.Element {
                     </div>
                 }
             >
-                {menuFor?.startsWith("source") === true ? <Menu.Item onClick={editSource}>Edit source...</Menu.Item> : null}
+                {menuFor?.startsWith("source") === true ? (
+                    <Menu.Item onClick={editSource}>Edit source...</Menu.Item>
+                ) : null}
                 {labelSpec === null ? null : (
                     <Menu.Item
                         disabled={labelRefusal !== null}

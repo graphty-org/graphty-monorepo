@@ -38,7 +38,7 @@ export function issuesPath(repo, since) {
 }
 
 /**
- * The `rel="next"` target of a `Link` header, as a path `gh api` accepts.
+ * The `rel="next"` target of a `Link` header, as a path the client's `get` accepts.
  * @param {string | undefined} link the header value
  * @returns {string | null} the path, or null on the last page
  */

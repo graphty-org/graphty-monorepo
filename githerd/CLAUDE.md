@@ -5,8 +5,12 @@ Build order and per-task done-criteria: `design/githerd/githerd-plan.md`.
 
 ## Rules
 
-- **No runtime dependencies.** Node's standard library only. devDependencies are for tests, lint
-  and type checking.
+- **Two runtime dependencies, no more without the owner's approval:** `@octokit/core` (the daemon's
+  only path to GitHub, `lib/github.mjs`, with the token of the owner's gh login) and `tar`.
+  Everything else is Node's standard library; devDependencies are for tests, lint and type
+  checking. An archived copy under `~/.githerd/` has no install of its own: its `node_modules`
+  links to the main checkout's `githerd/node_modules`, so run `pnpm install` there after a
+  dependency changes. Workers keep using `gh` themselves.
 - Plain `.mjs` with JSDoc types, checked by `tsc` (`npm run typecheck`). Plain ASCII in every
   file.
 - **Dry-run is the default and the invariant.** In dry-run (and paused) mode no code path may
@@ -22,7 +26,7 @@ Build order and per-task done-criteria: `design/githerd/githerd-plan.md`.
   none is left. Assert timing by what was or was not called, never by wall-clock thresholds.
 - Never run git stash, reset, checkout of a file, clean or rebase, in code or in tests.
 - **Owner-only input.** The only trusted author is the account gh is logged in as, asked every
-  poll with `gh api user` (`state.trust.login`, null at every start). There is no `trustedAuthors`
+  poll through the user endpoint (`state.trust.login`, null at every start). There is no `trustedAuthors`
   setting; the config rejects it. Jobs are made only from that account's issues and pull requests,
   and every path that hands GitHub text to a worker (`githerd_read`, the owner gate's reject
   marker, the owner's override labels) drops text by any other account, bots included, and counts

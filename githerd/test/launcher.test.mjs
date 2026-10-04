@@ -10,6 +10,7 @@ import {
     readlinkSync,
     rmSync,
     statSync,
+    symlinkSync,
     utimesSync,
     writeFileSync,
 } from "node:fs";
@@ -181,6 +182,10 @@ function pushPackage(message, change) {
     for (const part of ["bin", "lib", "package.json"])
         cpSync(join(PACKAGE_DIR, part), join(pkg, part), { recursive: true });
     // The shared daemon reads the default branch's config, never GITHERD_CONFIG.
+    // The main checkout's installed dependencies, which an archived copy links to; never committed.
+    writeFileSync(join(pkg, ".gitignore"), "node_modules\n");
+    if (!existsSync(join(pkg, "node_modules")))
+        symlinkSync(join(PACKAGE_DIR, "node_modules"), join(pkg, "node_modules"));
     cpSync(/** @type {string} */ (env.GITHERD_CONFIG), join(root, "githerd.config.json"));
     change?.(pkg);
     git(root, "add", "-A");
@@ -772,13 +777,13 @@ describe("restarts and upgrades", () => {
         });
         expect(existsSync(join(stateDir(), "restart.lock"))).toBe(false);
         expect((await ensureDaemon(context())).action).toBe("down");
-        // The real gates: the test checkout has no install, so the replay gate fails at once.
+        // The real gates: the test checkout carries no tests, so the replay gate fails at once.
         await backgroundGating();
         expect(existsSync(join(stateDir(), "gate.lock"))).toBe(false);
         expect(readSelfUpdate(stateDir()).gates[hash]).toMatchObject({
             passed: false,
             gate: "replay",
-            detail: expect.stringMatching(/run pnpm install in the main checkout/),
+            detail: expect.stringMatching(/No test files found/),
         });
         expect(starts()).toHaveLength(before);
     });

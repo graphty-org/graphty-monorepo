@@ -85,7 +85,7 @@ function fakeGitHub({ updateStatus = 202 } = {}) {
  */
 function context(fake, mode, over = {}) {
     const record = (/** @type {any} */ e) => ledger.push(e);
-    const gh = createGitHub({ repo: REPO, exec: fake.exec, mode: () => mode, ledger: record });
+    const gh = createGitHub({ repo: REPO, fetch: fake.fetch, token: fake.token, mode: () => mode, ledger: record });
     return { gh, repo: REPO, root: repo.root, mode: () => mode, ledger: record, ...over };
 }
 

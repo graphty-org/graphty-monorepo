@@ -20,7 +20,8 @@ describe("replay scenario", () => {
         const fake = createFakeGh((call) => httpOutput(replay.response(call)));
         const gh = createGitHub({
             repo: "graphty-org/graphty-monorepo",
-            exec: fake.exec,
+            fetch: fake.fetch,
+            token: fake.token,
             mode: "dry-run",
             ledger: () => {},
             now: replay.now,

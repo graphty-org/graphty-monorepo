@@ -119,7 +119,8 @@ function setup(repo, mode = "acting", start = T0, saved = {}) {
     let t = start;
     const github = createGitHub({
         repo: REPO,
-        exec: repo.gh.exec,
+        fetch: repo.gh.fetch,
+        token: repo.gh.token,
         mode,
         ledger: (e) => ledger.push(e),
         env: {},

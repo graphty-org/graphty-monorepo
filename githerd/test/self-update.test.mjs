@@ -217,6 +217,7 @@ describe("the protocol gate", () => {
         const next = join(dir, "next");
         for (const sub of ["lib", "bin"]) cpSync(join(PACKAGE_DIR, sub), join(next, sub), { recursive: true });
         cpSync(join(PACKAGE_DIR, "package.json"), join(next, "package.json"));
+        symlinkSync(join(PACKAGE_DIR, "node_modules"), join(next, "node_modules"));
         const mcp = join(next, "lib", "mcp.mjs");
         const text = readFileSync(mcp, "utf8");
         const current = Number(/export const TOOL_PROTOCOL = (\d+);/.exec(text)?.[1]);

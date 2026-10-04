@@ -153,7 +153,8 @@ describe("an absent week, through the whole daemon", () => {
         const daemon = await startDaemon({
             root: dir,
             port: 0,
-            exec: gh.exec,
+            fetch: gh.fetch,
+            token: gh.token,
             git: async () => ({ code: 0, stdout: "", stderr: "" }),
             now: () => clock,
             env: { GITHERD_CONFIG: config, PATH: process.env.PATH },

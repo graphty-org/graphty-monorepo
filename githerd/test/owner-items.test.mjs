@@ -224,7 +224,8 @@ function client(gh, mode) {
     const ledger = [];
     const api = createGitHub({
         repo: REPO,
-        exec: gh.exec,
+        fetch: gh.fetch,
+        token: gh.token,
         mode: () => mode,
         ledger: (e) => ledger.push(e),
         env: {},

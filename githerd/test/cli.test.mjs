@@ -127,7 +127,8 @@ async function daemon() {
     const d = await startDaemon({
         root: repoRoot(root),
         port: 0,
-        exec: createFakeGh(() => ({ code: 1, stdout: "", stderr: "offline" })).exec,
+        fetch: createFakeGh(() => ({ code: 1, stdout: "", stderr: "offline" })).fetch,
+        token: async () => "fake-token",
         git: async () => ({ code: 0, stdout: "", stderr: "" }),
         env,
         autoPoll: false,
@@ -214,6 +215,9 @@ process.stderr.write("fake gh: offline\\n"); process.exit(1);`,
     const pkg = join(root, "githerd");
     for (const part of ["bin", "lib", "package.json"])
         cpSync(join(PACKAGE_DIR, part), join(pkg, part), { recursive: true });
+    // The main checkout's installed dependencies, which an archived copy links to; never committed.
+    writeFileSync(join(pkg, ".gitignore"), "node_modules\n");
+    symlinkSync(join(PACKAGE_DIR, "node_modules"), join(pkg, "node_modules"));
     git(root, "add", "-A");
     git(root, "commit", "-q", "-m", "first");
     git(root, "push", "-q", "origin", "master");

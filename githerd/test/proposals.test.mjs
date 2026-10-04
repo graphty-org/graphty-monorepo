@@ -74,7 +74,8 @@ function world(mode, persist) {
     const ledger = [];
     const gitHub = createGitHub({
         repo: REPO,
-        exec: gh.exec,
+        fetch: gh.fetch,
+        token: gh.token,
         mode: (group) => {
             if (group !== "proposals") return "dry-run";
             return typeof mode === "function" ? mode() : mode;

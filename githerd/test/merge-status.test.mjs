@@ -74,7 +74,8 @@ function client(gh, mode = "acting") {
     const ledger = [];
     const github = createGitHub({
         repo: REPO,
-        exec: gh.exec,
+        fetch: gh.fetch,
+        token: gh.token,
         mode: (group) => (group === "statuses" ? mode : "dry-run"),
         ledger: (e) => ledger.push(e),
         env: {},
@@ -291,7 +292,8 @@ describe("from dry-run to acting", () => {
         const ledger = [];
         const github = createGitHub({
             repo: REPO,
-            exec: fake.gh.exec,
+            fetch: fake.gh.fetch,
+            token: fake.gh.token,
             mode: (group) => (group === "statuses" ? mode : "dry-run"),
             ledger: (e) => ledger.push(e),
             env: {},

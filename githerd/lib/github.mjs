@@ -1,18 +1,22 @@
 /**
  * The only path from githerd to GitHub (design sections 4.2, 3.2 and 4.11). Every call goes
- * through `gh api` with `-i`, so status and rate headers are read from each response. Reads keep an
+ * through Octokit with the token of the owner's gh login (`gh auth token`, read at the first call
+ * and again after a 401), and its status and rate headers are read from each response. Reads keep an
  * ETag and body per path in a record the caller persists (`etags.json`), so a restart costs 304s.
  * Every write goes through one gate (`write()` for REST, `mutate()` for GraphQL, design 10.2): the
  * write names its write group, and unless that group is `acting` it records a `would-do` ledger
- * line and never calls `gh`. Before a write is sent the caller's state is saved (`persist`), so what
+ * line and never calls GitHub. Before a write is sent the caller's state is saved (`persist`), so what
  * the caller recorded about the write survives a crash between the send and its own save. A write
  * that is sent is read back at once and again by the next poll (`confirm()`); only a write declared
  * `retry` (it sets a state, so a second send does no harm) is sent once more when it does not hold,
  * and a write that still does not hold stays in the persisted `writes` record marked as a mismatch,
  * for the board, for 24 hours (design 3.6). Every call is checked against the shared rate budget
- * first.
+ * first. Every answer is counted by rate resource (`usage`), so status and the ledger show what
+ * githerd itself costs.
  */
 import { execFile } from "node:child_process";
+
+import { Octokit } from "@octokit/core";
 
 import { assertAscii, checkOutgoing } from "./text.mjs";
 
@@ -49,12 +53,17 @@ const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const MISMATCH_KEPT_MS = 24 * 3_600_000;
 
 /**
- * @typedef {{code: number, stdout: string, stderr: string, timedOut?: boolean}} ExecResult
- * @typedef {(args: string[], options: {input?: string, timeoutMs: number}) => Promise<ExecResult>} Exec
  * @typedef {{status: number, headers: Record<string, string>, body: any}} Response
+ * @typedef {{method: string, path: string, headers?: Record<string, string>, body?: unknown}} Call one
+ *   request: a path under the API root, with its query
+ * @typedef {{core: number, notModified: number, graphql: number, search: number}} Counts calls by
+ *   what they cost: `core`, `graphql` and `search` answers spent that budget; a 304 spent nothing
+ * @typedef {Counts & {hour: string | null, total: Counts, lastHour: (Counts & {hour: string}) | null}}
+ *   Usage the calls of the current UTC hour (`hour` such as `2026-10-04T16`), of the hour before it,
+ *   and since the record began (`total`, which only grows, for per-poll differences)
  * @typedef {{limit: number, remaining: number, used: number, reset: number}} Counter
  * @typedef {{counters: Record<string, Counter>, backoffUntil: number, secondaryMs: number,
- *   downSince: string | null}} RateState
+ *   downSince: string | null, usage: Usage}} RateState
  * @typedef {"essential" | "hold" | "poll" | "success" | "read" | "write"} Purpose
  * @typedef {Record<string, {etag: string, body: any}>} EtagRecord
  * @typedef {{path: string, expect?: unknown, lacks?: unknown}} Check where a write is read back
@@ -133,63 +142,42 @@ export function notSent(err) {
 }
 
 /**
- * Runs the real `gh` with a timeout and no prompts.
- * @param {string[]} args arguments after `gh`
- * @param {{input?: string, timeoutMs: number}} options stdin text and the kill timeout
- * @returns {Promise<ExecResult>} exit code, output, and whether the timeout killed it
+ * The token of the owner's gh login, as `gh auth token` prints it.
+ * @returns {Promise<string>} the token
  */
-function ghExec(args, { input, timeoutMs }) {
-    return new Promise((resolve) => {
-        const child = execFile(
-            "gh", // NOSONAR(S4036): the owner's gh from his own PATH, as tools/ runs it
-            args,
+function ghToken() {
+    return new Promise((resolve, reject) => {
+        execFile(
+            "gh",
+            ["auth", "token"],
             {
-                timeout: timeoutMs,
+                timeout: TIMEOUT_MS,
                 killSignal: "SIGKILL",
-                maxBuffer: 64 * 1024 * 1024,
                 env: { ...process.env, GH_PROMPT_DISABLED: "1", GH_NO_UPDATE_NOTIFIER: "1", NO_COLOR: "1" },
             },
             (err, stdout, stderr) => {
-                const e = /** @type {any} */ (err);
-                let code = 0;
-                if (e) code = typeof e.code === "number" ? e.code : 1;
-                resolve({ code, stdout: String(stdout), stderr: String(stderr), timedOut: e?.killed === true });
+                const token = String(stdout).trim();
+                if (err || token === "") reject(new Error(String(stderr).trim() || "gh auth token printed nothing"));
+                else resolve(token);
             },
         );
-        // gh may exit before reading its input; the write's EPIPE must not crash the daemon.
-        child.stdin.on("error", () => {});
-        child.stdin.end(input ?? "");
     });
 }
 
 /**
- * Splits `gh api -i` output into status, lower-cased headers and the parsed body. Returns null
- * when the output has no HTTP status line (gh failed before or without a response).
- * @param {string} out what `gh api -i` printed
- * @returns {Response | null} the response, or null when there was none
+ * True when an error is the request's own timeout or abort.
+ * @param {any} err what the request threw
+ * @returns {boolean} true for a timeout
  */
-function parseResponse(out) {
-    const match = /^HTTP\/[\d.]+ (\d{3})/.exec(out);
-    if (!match) return null;
-    const end = /\r?\n\r?\n/.exec(out);
-    const head = end ? out.slice(0, end.index) : out;
-    const text = end ? out.slice(end.index + end[0].length) : "";
-    /** @type {Record<string, string>} */
-    const headers = {};
-    for (const line of head.split(/\r?\n/).slice(1)) {
-        const colon = line.indexOf(":");
-        if (colon > 0) headers[line.slice(0, colon).trim().toLowerCase()] = line.slice(colon + 1).trim();
-    }
-    let body = null;
-    if (text.trim() !== "") {
-        try {
-            body = JSON.parse(text);
-        } catch {
-            body = text;
-        }
-    }
-    return { status: Number(match[1]), headers, body };
+function timedOut(err) {
+    return [err?.name, err?.cause?.name].some((n) => n === "TimeoutError" || n === "AbortError");
 }
+
+/**
+ * An empty usage count.
+ * @returns {Counts} zero calls
+ */
+const zero = () => ({ core: 0, notModified: 0, graphql: 0, search: 0 });
 
 /**
  * True when a GraphQL document contains a mutation. Fails closed: the word anywhere counts.
@@ -217,7 +205,8 @@ function resolveCheck(spec, answer) {
  * Creates the GitHub client the daemon and the actor share.
  * @param {{
  *   repo: string,
- *   exec?: Exec,
+ *   fetch?: typeof globalThis.fetch,
+ *   token?: () => Promise<string>,
  *   mode: string | ((group: string) => string),
  *   ledger: (entry: {kind: string} & Record<string, unknown>) => unknown,
  *   rate?: Partial<RateState>,
@@ -226,7 +215,8 @@ function resolveCheck(spec, answer) {
  *   env?: Record<string, string | undefined>,
  *   now?: () => number,
  *   persist?: () => unknown,
- * }} options `repo` is `owner/name`; `mode` is one mode for every write group or a function
+ * }} options `repo` is `owner/name`; `fetch` sends the HTTP requests (Node's own by default);
+ *   `token` answers the token to send (the owner's gh login by default); `mode` is one mode for every write group or a function
  *   answering a group's mode (anything but `acting` records instead of writing); `ledger` appends
  *   one ledger entry; `rate` is the persisted rate record, mutated in place so `downSince`
  *   survives a restart; `etags` is the persisted ETag record (`etags.json`), mutated in place;
@@ -234,11 +224,12 @@ function resolveCheck(spec, answer) {
  *   `env` is the environment whose secret values `checkOutgoing` refuses; `persist` saves the
  *   caller's state, awaited before every write that is sent.
  * @returns the client: `get`, `login`, `graphql`, `write`, `mutate`, `confirm`, `acting`, `pace`, and the
- *   `rate`, `etags` and `writes` records
+ *   `rate` (with its `usage`), `etags` and `writes` records
  */
 export function createGitHub({
     repo,
-    exec = ghExec,
+    fetch = globalThis.fetch,
+    token = ghToken,
     mode,
     ledger,
     rate = {},
@@ -254,6 +245,60 @@ export function createGitHub({
     r.backoffUntil ??= 0;
     r.secondaryMs ??= 0;
     r.downSince ??= null;
+    r.usage ??= { hour: null, ...zero(), total: zero(), lastHour: null };
+
+    /** @type {Octokit | null} the client for the token last read */
+    let octokit = null;
+    /** @type {string | null} */
+    let tokenText = null;
+
+    /**
+     * The Octokit client, made with the token at the first call. `renew` reads the token again
+     * (after a 401) and answers null when it did not change, since sending it again cannot help.
+     * @param {boolean} renew read the token again
+     * @returns {Promise<Octokit | null>} the client
+     */
+    async function client(renew) {
+        if (octokit && !renew) return octokit;
+        let text;
+        try {
+            text = await token();
+        } catch (err) {
+            markDown();
+            throw new GitHubError("credential", `gh is not logged in: ${/** @type {Error} */ (err).message}`);
+        }
+        if (renew && text === tokenText) return null;
+        tokenText = text;
+        octokit = new Octokit({ auth: text, request: { fetch } });
+        return octokit;
+    }
+
+    /**
+     * Counts one answer by what it cost: a 304 nothing, anything else its rate resource's budget
+     * (GraphQL by its path when the answer names no resource). Rolls the count over at each UTC
+     * hour, ledgering the hour that ended.
+     * @param {Call} req the request
+     * @param {Response} res the answer
+     */
+    function count(req, res) {
+        const u = r.usage;
+        const hour = new Date(now()).toISOString().slice(0, 13);
+        if (u.hour !== hour) {
+            if (u.hour !== null) {
+                const { core, notModified, graphql, search } = u;
+                u.lastHour = { hour: u.hour, core, notModified, graphql, search };
+                void ledger({ kind: "api-hour", ...u.lastHour });
+            }
+            Object.assign(u, { hour, ...zero() });
+        }
+        const resource = res.headers["x-ratelimit-resource"] ?? (req.path === "graphql" ? "graphql" : "core");
+        /** @type {keyof Counts} */
+        let kind = "core";
+        if (res.status === 304) kind = "notModified";
+        else if (resource === "graphql" || resource === "search") kind = resource;
+        u[kind]++;
+        u.total[kind]++;
+    }
 
     /**
      * Keeps the counter a response reported, by resource (core, graphql, search).
@@ -313,42 +358,62 @@ export function createGitHub({
     }
 
     /**
-     * Sends one `gh api` call and classifies the answer (design section 6.3).
-     * @param {string[]} args arguments after `gh api -i`
-     * @param {string} [input] the request body, sent on stdin
+     * Sends one request and classifies the answer (design section 6.3). A 401 reads the token again
+     * and, when it changed, sends the request once more.
+     * @param {Call} req the request
+     * @param {boolean} [renewed] the token was already read again for this request
      * @returns {Promise<Response>} the response, for 2xx and 304
      */
-    async function call(args, input) {
+    async function call(req, renewed = false) {
         const at = now();
         if (r.backoffUntil > at) {
             throw new GitHubError("rate", `GitHub back-off until ${new Date(r.backoffUntil).toISOString()}`, {
                 retryAt: r.backoffUntil,
             });
         }
-        const result = await exec(["api", "-i", ...args], { input, timeoutMs: TIMEOUT_MS });
-        const res = parseResponse(result.stdout);
-        if (!res) throw noResponse(result);
+        const ok = /** @type {Octokit} */ (await client(false));
+        let answer;
+        try {
+            answer = await ok.request({
+                method: req.method,
+                url: `/${req.path}`,
+                headers: req.headers ?? {},
+                ...(req.body === undefined ? {} : { data: req.body }),
+                request: { signal: AbortSignal.timeout(TIMEOUT_MS) },
+            });
+        } catch (err) {
+            const e = /** @type {any} */ (err);
+            if (!e?.response) throw noResponse(e);
+            answer = e.response;
+        }
+        /** @type {Response} */
+        const res = {
+            status: answer.status,
+            headers: answer.headers,
+            body: answer.data === "" ? null : (answer.data ?? null),
+        };
         recordCounter(res.headers);
+        count(req, res);
         if ((res.status >= 200 && res.status < 300) || res.status === 304) {
             r.downSince = null;
             r.secondaryMs = 0;
             return res;
         }
+        if (res.status === 401 && !renewed && (await client(true))) return call(req, true);
         throw refusal(res, at);
     }
 
     /**
-     * The error for a `gh` run that printed no HTTP response.
-     * @param {ExecResult} result the run
-     * @returns {GitHubError} a timeout, credential or network error
+     * The error for a request that got no HTTP answer.
+     * @param {any} err what the request threw
+     * @returns {GitHubError} a timeout or network error
      */
-    function noResponse(result) {
+    function noResponse(err) {
         markDown();
-        if (result.timedOut) return new GitHubError("timeout", `gh timed out after ${TIMEOUT_MS / 1000} s`);
-        if (/auth login|authentication|not logged/i.test(result.stderr)) {
-            return new GitHubError("credential", `gh is not logged in: ${result.stderr.trim()}`);
-        }
-        return new GitHubError("network", `gh failed without a response: ${result.stderr.trim()}`);
+        if (timedOut(err)) return new GitHubError("timeout", `GitHub did not answer within ${TIMEOUT_MS / 1000} s`);
+        // Octokit's error carries the cause's own words ("connect ECONNREFUSED ...").
+        const why = err?.message ?? String(err);
+        return new GitHubError("network", `no answer from GitHub: ${why}`);
     }
 
     /**
@@ -429,7 +494,7 @@ export function createGitHub({
      */
     async function graphqlCall(query, variables, purpose) {
         spend("graphql", purpose);
-        const res = await call(["graphql", "--input", "-"], JSON.stringify({ query, variables }));
+        const res = await call({ method: "POST", path: "graphql", body: { query, variables } });
         if (res.body?.errors) {
             throw new GitHubError("graphql", `GraphQL errors: ${JSON.stringify(res.body.errors)}`, {
                 status: res.status,
@@ -463,9 +528,7 @@ export function createGitHub({
                 res = await graphqlCall(request.query, request.variables, entry.purpose);
             } else {
                 spend("core", entry.purpose);
-                const args = ["-X", request.method, request.path];
-                const input = request.body === undefined ? undefined : JSON.stringify(request.body);
-                res = await call(input === undefined ? args : [...args, "--input", "-"], input);
+                res = await call(request);
             }
         } catch (err) {
             const e = /** @type {GitHubError} */ (err);
@@ -629,34 +692,35 @@ export function createGitHub({
          * GET a REST path. A repeat sends the ETag of the last 200 and returns that body on 304;
          * `fresh` sends no ETag (use it right before an irreversible action).
          * @param {string} path e.g. `repos/o/r/commits/master`
-         * @param {{fresh?: boolean, purpose?: Purpose}} [options] `fresh` skips the ETag; `purpose`
-         *   (default `read`) decides how far down the rate budget the call may go
+         * @param {{fresh?: boolean, purpose?: Purpose, cache?: boolean}} [options] `fresh` skips the
+         *   ETag; `purpose` (default `read`) decides how far down the rate budget the call may go;
+         *   `cache: false` neither sends nor keeps an ETag (a job log, too large to keep)
          * @returns {Promise<{status: number, headers: Record<string, string>, body: any, changed: boolean}>}
          *   the response; `changed` is false when the body came from the ETag cache
          */
-        async get(path, { fresh = false, purpose = "read" } = {}) {
+        async get(path, { fresh = false, purpose = "read", cache = true } = {}) {
             spend("core", purpose);
-            const cached = etags[path];
-            const args = [];
-            if (cached && !fresh) args.push("-H", `If-None-Match: ${cached.etag}`);
-            const res = await call([...args, path]);
+            const cached = cache ? etags[path] : undefined;
+            const headers = cached && !fresh ? { "if-none-match": cached.etag } : undefined;
+            const res = await call({ method: "GET", path, headers });
             if (res.status === 304) {
                 if (!cached) throw new GitHubError("http", `304 for ${path} without a cached body`, { status: 304 });
                 return { ...res, body: cached.body, changed: false };
             }
-            if (res.headers.etag) remember(path, { etag: res.headers.etag, body: res.body });
+            if (cache && res.headers.etag) remember(path, { etag: res.headers.etag, body: res.body });
             return { ...res, changed: true };
         },
 
         /**
-         * The login of the account gh is logged in as (`gh api user`): the only author githerd
-         * trusts. Asked fresh every time, so a change of `gh auth` shows on the next poll.
+         * The login of the account whose token githerd sends (the owner's gh login): the only
+         * author githerd trusts. Asked every poll with the ETag, so an unchanged answer costs a 304;
+         * a new token (read after a 401) answers 200 with its own account.
          * @returns {Promise<string>} the login
          */
         async login() {
-            const login = (await call(["user"])).body?.login;
+            const login = (await api.get("user", { purpose: "essential" })).body?.login;
             if (typeof login !== "string" || login === "") {
-                throw new GitHubError("credential", "gh api user answered without a login");
+                throw new GitHubError("credential", "GitHub answered the user endpoint without a login");
             }
             return login;
         },

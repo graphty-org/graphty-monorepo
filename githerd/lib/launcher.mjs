@@ -45,6 +45,8 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
 
+import { x as untar } from "tar";
+
 import { DEFAULTS, defaultBranch, repoRoot, resolveConfig } from "./config.mjs";
 import { createMcpServer, forwardingTools, identifySession } from "./mcp.mjs";
 import { createNotifier, lastTyped, lastTypedAt } from "./notify.mjs";
@@ -267,6 +269,24 @@ export async function targetCode(ctx) {
 }
 
 /**
+ * Gives an archived copy its runtime dependencies: `node_modules` links to the main checkout's
+ * installed `<pkgDir>/node_modules` (an archive carries none), the same link the self-update's
+ * replay gate makes. Throws, naming the fix, when one of the copy's dependencies is not installed
+ * there, so a copy that cannot start is never pointed at.
+ * @param {LauncherContext} ctx the context
+ * @param {string} dir the archived copy
+ */
+function linkDependencies(ctx, dir) {
+    const modules = join(ctx.root, ctx.pkgDir, "node_modules");
+    const deps = Object.keys(readJson(join(dir, "package.json"))?.dependencies ?? {});
+    const missing = deps.filter((d) => !existsSync(join(modules, d, "package.json")));
+    if (missing.length) {
+        throw new Error(`${missing.join(", ")} not installed in ${modules}: run pnpm install in the main checkout`);
+    }
+    symlinkSync(modules, join(dir, "node_modules"));
+}
+
+/**
  * Archives the target into `versions/<version>-<hash8>/` (temporary name, then rename) with its
  * version.json, and prunes the older copies.
  * @param {LauncherContext} ctx the context
@@ -282,31 +302,30 @@ async function materialize(ctx, target) {
     try {
         await new Promise((resolve, reject) => {
             const env = { ...ctx.env, GIT_TERMINAL_PROMPT: "0" };
-            const archive = spawn(
-                "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
-                ["archive", `origin/${target.branch}:${ctx.pkgDir}`],
-                { cwd: ctx.root, env, stdio: ["ignore", "pipe", "pipe"] },
-            );
-            const tar = spawn(
-                "tar", // NOSONAR(S4036): the system's tar from the owner's PATH, as tools/ runs it
-                ["-x", "-C", tmp],
-                { stdio: ["pipe", "ignore", "pipe"] },
-            );
-            archive.stdout.pipe(tar.stdin);
+            const archive = spawn("git", ["archive", `origin/${target.branch}:${ctx.pkgDir}`], {
+                cwd: ctx.root,
+                env,
+                stdio: ["ignore", "pipe", "pipe"],
+            });
+            const extract = untar({ cwd: tmp, strict: true });
+            archive.stdout.pipe(extract);
             let stderr = "";
             archive.stderr.on("data", (d) => (stderr += d));
-            tar.stderr.on("data", (d) => (stderr += d));
-            const exit = (/** @type {import("node:child_process").ChildProcess} */ child) =>
-                new Promise((done, fail) => {
-                    child.on("error", fail);
-                    child.on("close", done);
-                });
-            Promise.all([exit(archive), exit(tar)]).then(
-                ([a, t]) =>
-                    a === 0 && t === 0 ? resolve(undefined) : reject(new Error(`git archive failed: ${stderr.trim()}`)),
+            const exited = new Promise((done, fail) => {
+                archive.on("error", fail);
+                archive.on("close", done);
+            });
+            const extracted = new Promise((done, fail) => {
+                extract.on("error", fail);
+                extract.on("finish", done);
+            });
+            Promise.all([exited, extracted]).then(
+                ([code]) =>
+                    code === 0 ? resolve(undefined) : reject(new Error(`git archive failed: ${stderr.trim()}`)),
                 reject,
             );
         });
+        linkDependencies(ctx, tmp);
         writeFileSync(
             join(tmp, "version.json"),
             `${JSON.stringify({ version: target.version, codeHash: target.hash, pkgDir: ctx.pkgDir })}\n`,

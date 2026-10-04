@@ -48,7 +48,8 @@ describe("replay: the daemon's incident actions on 2026-10-02", () => {
         const ledger = [];
         const github = createGitHub({
             repo: REPO,
-            exec: fake.exec,
+            fetch: fake.fetch,
+            token: fake.token,
             mode: (group) => (group === "incidents" ? "dry-run" : "paused"),
             ledger: (e) => ledger.push({ at: new Date(replay.now()).toISOString().slice(5, 16), ...e }),
             env: {},

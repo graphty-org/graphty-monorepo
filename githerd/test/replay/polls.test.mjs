@@ -22,7 +22,8 @@ function client(replay, saved = {}) {
     const fake = createFakeGh((call) => httpOutput(replay.response(call)));
     const gh = createGitHub({
         repo: REPO,
-        exec: fake.exec,
+        fetch: fake.fetch,
+        token: fake.token,
         mode: "dry-run",
         ledger: () => {},
         now: replay.now,

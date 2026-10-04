@@ -221,7 +221,8 @@ async function start(options = {}) {
     const daemon = await startDaemon({
         root: dir,
         port: 0,
-        exec: gh.exec,
+        fetch: gh.fetch,
+        token: gh.token,
         git: async (args) => {
             gitCalls.push(args);
             return { code: 0, stdout: "", stderr: "" };
@@ -1857,7 +1858,7 @@ describe("the daemon process", () => {
         const root = join(dir, "repo");
         mkdirSync(root);
         gitSync(root, "init", "-q");
-        // A gh that is never reached: every call fails as a network error.
+        // A gh with no login: the token is never read, so GitHub is never asked.
         const bin = join(dir, "bin");
         mkdirSync(bin);
         writeFileSync(join(bin, "gh"), "#!/bin/sh\necho 'fake gh: offline' >&2\nexit 1\n");
@@ -1886,7 +1887,7 @@ describe("the daemon process", () => {
         // The daemon saves once it is listening, and again after its first poll.
         await new Promise((resolve, reject) => {
             child.stdout.on("data", () => {
-                if (out.includes("poll: gh failed")) resolve(undefined);
+                if (out.includes("poll: gh is not logged in")) resolve(undefined);
             });
             child.once("exit", () => reject(new Error(`daemon exited early:\n${out}`)));
         });

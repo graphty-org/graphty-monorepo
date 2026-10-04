@@ -22,7 +22,8 @@ function client(gh, over = {}) {
     let t = NOW;
     const gitHub = createGitHub({
         repo: REPO,
-        exec: gh.exec,
+        fetch: gh.fetch,
+        token: gh.token,
         mode: "dry-run",
         ledger: (e) => ledger.push(e),
         env: {},
@@ -41,7 +42,23 @@ const rate = (remaining, extra = {}) => ({
 });
 
 describe("login", () => {
-    it("asks gh api user every time and answers its login", async () => {
+    it("asks the user endpoint every time with its ETag, so an unchanged login costs a 304", async () => {
+        const gh = createFakeGh(({ args }) =>
+            args.includes("-H")
+                ? httpOutput({ status: 304, headers: rate(3999) })
+                : httpOutput({ status: 200, headers: { ...rate(4000), ETag: '"u1"' }, body: { login: "apowers313" } }),
+        );
+        const { gitHub } = client(gh);
+        expect(await gitHub.login()).toBe("apowers313");
+        expect(await gitHub.login()).toBe("apowers313");
+        expect(gh.calls.map((c) => c.args)).toEqual([
+            ["api", "-i", "user"],
+            ["api", "-i", "-H", 'If-None-Match: "u1"', "user"],
+        ]);
+        expect(gitHub.rate.usage).toMatchObject({ core: 1, notModified: 1 });
+    });
+
+    it("answers a changed login", async () => {
         let login = "apowers313";
         const gh = createFakeGh(() => httpOutput({ status: 200, headers: rate(4000), body: { login } }));
         const { gitHub } = client(gh);
@@ -130,6 +147,17 @@ describe("get", () => {
         expect(gh.calls[1].args).not.toContain("-H");
     });
 
+    it("neither sends nor keeps an ETag with cache false", async () => {
+        const gh = createFakeGh(() => fixture("runs-200.http"));
+        const { gitHub } = client(gh);
+        await gitHub.get(RUNS);
+        await gitHub.get(RUNS, { cache: false });
+        expect(gh.calls[1].args).not.toContain("-H");
+        const log = `repos/${REPO}/actions/jobs/1/logs`;
+        await gitHub.get(log, { cache: false });
+        expect(Object.keys(gitHub.etags)).toEqual([RUNS]);
+    });
+
     it("treats a 304 with nothing cached as an error", async () => {
         const gh = createFakeGh(() => httpOutput({ status: 304 }));
         await expect(client(gh).gitHub.get(RUNS)).rejects.toMatchObject({ kind: "http", status: 304 });
@@ -162,17 +190,99 @@ describe("failures and downSince", () => {
         expect(persisted.downSince).toBe(new Date(NOW + 1000).toISOString());
     });
 
-    it("classifies a 5xx, a timeout and a missing login", async () => {
-        const answers = [
-            httpOutput({ status: 502 }),
-            { code: 1, stdout: "", stderr: "", timedOut: true },
-            { code: 4, stdout: "", stderr: "To get started with GitHub CLI, please run:  gh auth login" },
-        ];
+    it("classifies a 5xx and a timeout", async () => {
+        const answers = [httpOutput({ status: 502 }), { code: 1, stdout: "", stderr: "", timedOut: true }];
         const gh = createFakeGh(() => answers.shift());
         const { gitHub } = client(gh);
         await expect(gitHub.get(RUNS)).rejects.toMatchObject({ kind: "server", status: 502 });
         await expect(gitHub.get(RUNS)).rejects.toMatchObject({ kind: "timeout" });
+    });
+
+    it("is a credential error, sending nothing, when gh has no login to give a token", async () => {
+        const gh = createFakeGh(() => fixture("runs-200.http"));
+        const token = async () => {
+            throw new Error("To get started with GitHub CLI, please run:  gh auth login");
+        };
+        const { gitHub } = client(gh, { token });
         await expect(gitHub.get(RUNS)).rejects.toMatchObject({ kind: "credential" });
+        expect(gh.calls).toEqual([]);
+        expect(gitHub.rate.downSince).not.toBeNull();
+    });
+});
+
+describe("the token", () => {
+    it("is read once, sent as the authorization, and read again after a 401", async () => {
+        const tokens = ["old", "new"];
+        let reads = 0;
+        const token = async () => tokens[Math.min(reads++, 1)];
+        /** @type {string[]} */
+        const sent = [];
+        const gh = createFakeGh(() => fixture("runs-200.http"));
+        /**
+         * Refuses the old token with a 401 and answers the new one from the fake.
+         * @param {string | URL | Request} url the request URL
+         * @param {RequestInit} [init] its headers
+         * @returns {Promise<Response>} the answer
+         */
+        const refuseOld = async (url, init = {}) => {
+            const auth = /** @type {Record<string, string>} */ (init.headers).authorization;
+            sent.push(auth);
+            if (auth !== "token old") return gh.fetch(url, init);
+            return new Response(JSON.stringify({ message: "Bad credentials" }), {
+                status: 401,
+                headers: { "content-type": "application/json" },
+            });
+        };
+        const fetch = /** @type {typeof globalThis.fetch} */ (/** @type {unknown} */ (refuseOld));
+        const { gitHub } = client(gh, { fetch, token });
+        expect((await gitHub.get(RUNS)).status).toBe(200);
+        await gitHub.get(RUNS, { fresh: true });
+        expect(sent).toEqual(["token old", "token new", "token new"]);
+        expect(reads).toBe(2);
+    });
+
+    it("is a credential error when the 401 comes back with the same token, sent once", async () => {
+        let reads = 0;
+        const token = async () => (reads++, "same");
+        const gh = createFakeGh(() => httpOutput({ status: 401, body: { message: "Bad credentials" } }));
+        const { gitHub } = client(gh, { token });
+        await expect(gitHub.get(RUNS)).rejects.toMatchObject({ kind: "credential", status: 401 });
+        expect(gh.calls).toHaveLength(1);
+        expect(reads).toBe(2);
+    });
+});
+
+describe("usage", () => {
+    it("counts each answer by what it cost, per hour and in total, and ledgers each hour that ends", async () => {
+        const gh = createFakeGh(({ args }) => {
+            if (args.includes("graphql")) {
+                return httpOutput({
+                    status: 200,
+                    headers: { ...rate(4000), "X-Ratelimit-Resource": "graphql" },
+                    body: { data: {} },
+                });
+            }
+            return args.includes("-H") ? httpOutput({ status: 304, headers: rate(3964) }) : fixture("runs-200.http");
+        });
+        const { gitHub, ledger, advance } = client(gh);
+        await gitHub.get(RUNS);
+        await gitHub.get(RUNS);
+        await gitHub.get(RUNS);
+        await gitHub.graphql("query { viewer { login } }");
+        expect(gitHub.rate.usage).toMatchObject({ core: 1, notModified: 2, graphql: 1, search: 0 });
+        advance(3_600_000);
+        await gitHub.get(RUNS);
+        const hour = new Date(NOW).toISOString().slice(0, 13);
+        expect(gitHub.rate.usage).toMatchObject({
+            core: 0,
+            notModified: 1,
+            graphql: 0,
+            total: { core: 1, notModified: 3, graphql: 1, search: 0 },
+            lastHour: { hour, core: 1, notModified: 2, graphql: 1, search: 0 },
+        });
+        expect(ledger.filter((e) => e.kind === "api-hour")).toEqual([
+            { kind: "api-hour", hour, core: 1, notModified: 2, graphql: 1, search: 0 },
+        ]);
     });
 });
 

@@ -30,7 +30,7 @@
  * progress, not anything githerd is handling.
  *
  * Trust: the only author githerd acts on is the account gh is logged in as. Every poll asks GitHub
- * for that login (`gh api user`) and keeps it in `state.trust.login`; it starts null at every start
+ * for that login (the user endpoint) and keeps it in `state.trust.login`; it starts null at every start
  * and is never read from the config. While it is unresolved no worker starts and a `blocked`
  * escalation stays open.
  *
@@ -412,7 +412,9 @@ function requeueLostStarts(state, at) {
  * @param {object} options what it runs on
  * @param {string} options.root the repository's main checkout
  * @param {number} options.port the port to bind on 127.0.0.1; 0 picks a free one
- * @param {import("./github.mjs").Exec} [options.exec] runs `gh`; the real one by default
+ * @param {typeof globalThis.fetch} [options.fetch] sends GitHub's HTTP requests; Node's own by default
+ * @param {() => Promise<string>} [options.token] the token GitHub is sent; the owner's gh login
+ *   (`gh auth token`) by default
  * @param {GitExec} [options.git] runs git; the real one by default
  * @param {() => Date} [options.now] the clock
  * @param {Record<string, string | undefined>} [options.env] the environment: `GITHERD_CONFIG`,
@@ -435,7 +437,8 @@ function requeueLostStarts(state, at) {
 export async function startDaemon({
     root,
     port,
-    exec,
+    fetch,
+    token,
     git = gitExec,
     now = () => new Date(),
     env = process.env,
@@ -766,7 +769,8 @@ export async function startDaemon({
     const github = () =>
         (client ??= createGitHub({
             repo: config.repo,
-            exec,
+            fetch,
+            token,
             mode: writeMode,
             ledger,
             rate: state.rate,

@@ -9,7 +9,9 @@ the owner only for what only the owner can do. Every GitHub write and every push
 deterministic code in the daemon, and in dry-run mode (the default) each write, push and worker
 start is recorded instead of performed.
 
-The package is private, plain `.mjs` with JSDoc types, and has no runtime dependencies. A
+The package is private, plain `.mjs` with JSDoc types. It talks to GitHub through Octokit with the
+token of the owner's gh login (`gh auth token`, read at start and again after a 401), and needs
+`pnpm install` in the main checkout, whose `githerd/node_modules` every installed copy links to. A
 repository turns it on with a `githerd.config.json` at its root on the default branch.
 
 The design is `design/githerd/githerd-design.md`; the build order is
@@ -18,7 +20,7 @@ The design is `design/githerd/githerd-design.md`; the build order is
 ## Whose input githerd acts on
 
 Only the repository owner's: the account `gh` is logged in as, which the daemon asks GitHub for
-every poll (`gh api user`). It is not configured anywhere, and `githerd.config.json` rejects a
+every poll (the user endpoint). It is not configured anywhere, and `githerd.config.json` rejects a
 `trustedAuthors` key. Jobs are made only from that account's issues and pull requests; issues and
 pull requests by anyone else, Dependabot and other bots included, get no job. Even on the owner's
 own items, comments, reviews and review comments by other accounts never reach a worker:

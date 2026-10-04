@@ -26,5 +26,9 @@
         "eslint": "^9.29.0",
         "typescript": "^5.9.3",
         "vitest": "catalog:"
+    },
+    "dependencies": {
+        "@octokit/core": "^7.0.6",
+        "tar": "^7.5.22"
     }
 }

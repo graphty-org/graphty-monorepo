@@ -160,6 +160,8 @@ export const GRAPHML_ISSUE = Object.freeze({
     DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
     /** A `<data>` whose key was never declared. */
     UNKNOWN_KEY: "E_GRAPHML_UNKNOWN_KEY",
+    /** A `<key>` declared after `<data>` that used it; those values were already reported and dropped. */
+    KEY_DECLARED_LATE: "W_GRAPHML_KEY_DECLARED_LATE",
     /** A `<data>` whose key is declared for another domain. */
     KEY_DOMAIN: "W_GRAPHML_KEY_DOMAIN",
     /** A `<data>` without a key attribute. */

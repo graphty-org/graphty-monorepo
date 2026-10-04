@@ -183,12 +183,12 @@ function namespaceVersion(ns: string | null): string | null {
 
 /**
  * Whether a namespace is a GEXF viz namespace (`http://www.gexf.net/1.2draft/viz`, the 1.1
- * triple-slash `http://gexf.net/1.1draft///viz`, `http://gexf.net/1.3/viz`).
+ * triple-slash `http://gexf.net/1.1draft///viz`, `http://gexf.net/1.3/viz`, GEXF 1.0's `http://www.gephi.org/gexf/viz`).
  * @param ns - the element's namespace
  * @returns true for a viz namespace
  */
 function isVizNamespace(ns: string | null): boolean {
-    return ns !== null && /gexf\.net\/.*viz\/?$/.test(ns);
+    return ns !== null && /(gexf\.net\/.*viz|gephi\.org\/gexf\/viz)\/?$/.test(ns);
 }
 
 /** Distinct unknown attribute names reported one by one per element kind; the rest are counted in one issue. */
@@ -211,7 +211,8 @@ const ELEMENT_ATTRIBUTES: Readonly<Record<string, ReadonlySet<string>>> = {
         "startopen",
         "endopen",
     ]),
-    attributes: new Set(["class", "mode", "start", "end", "startopen", "endopen"]),
+    // `type` is GEXF 1.0's name for `mode` (static | dynamic)
+    attributes: new Set(["class", "mode", "type", "start", "end", "startopen", "endopen"]),
     attribute: new Set(["id", "title", "type"]),
     attvalue: new Set(["for", "value", "start", "end", "timestamp", "startopen", "endopen", "id"]),
     spell: new Set(["start", "end", "timestamp", "startopen", "endopen"]),
@@ -1162,7 +1163,7 @@ class GexfReader implements XmlHandler {
                 where,
             );
         }
-        const mode = attrs.get("mode");
+        const mode = attrs.get("mode") ?? attrs.get("type");
         if (mode !== undefined && mode !== "static" && mode !== "dynamic") {
             this.warnHeader("mode", mode, where);
         }
@@ -1582,20 +1583,19 @@ class GexfReader implements XmlHandler {
         const lists = this.parentsRefs;
         this.parentRefs = [];
         this.parentsRefs = [];
-        // the root of each node's tree so far (union-find): a link whose parent is already in the
-        // child's tree would close a cycle
-        const roots = new Map<number, number>();
-        const rootOf = (index: number): number => {
-            let root = index;
-            for (let next = roots.get(root); next !== undefined; next = roots.get(root)) {
-                root = next;
+        // each node's parent so far, as the parent column holds it: a link closes a cycle when the
+        // child is the parent or one of its ancestors. A repeated link (a duplicate node declaring
+        // the same pid) is not a cycle, which an undirected union-find would wrongly report.
+        // ponytail: O(depth) per link, so O(n * depth); fine for real hierarchies, add path
+        // compression over an ancestry index if a deep chain ever shows up in a profile.
+        const parentOf = new Map<number, number>();
+        const isAncestorOrSelf = (candidate: number, of: number): boolean => {
+            for (let at: number | undefined = of; at !== undefined; at = parentOf.get(at)) {
+                if (at === candidate) {
+                    return true;
+                }
             }
-            for (let at = index; at !== root; ) {
-                const next = roots.get(at) as number;
-                roots.set(at, root);
-                at = next;
-            }
-            return root;
+            return false;
         };
         for (const ref of refs) {
             let parent = ref.parentIndex;
@@ -1611,7 +1611,10 @@ class GexfReader implements XmlHandler {
                     continue;
                 }
             }
-            if (rootOf(parent) === rootOf(ref.child)) {
+            if (parentOf.get(ref.child) === parent) {
+                continue;
+            }
+            if (isAncestorOrSelf(ref.child, parent)) {
                 report.error(
                     "validation-error",
                     PARENT_CYCLE_CODE,
@@ -1620,9 +1623,9 @@ class GexfReader implements XmlHandler {
                 );
                 continue;
             }
-            roots.set(rootOf(ref.child), rootOf(parent));
             try {
                 this.parentColumn.set(sink, report, ref.child, parent, ref.where);
+                parentOf.set(ref.child, parent);
             } catch (err) {
                 report.recordError(err, ref.where);
             }
@@ -2221,7 +2224,7 @@ class GexfReader implements XmlHandler {
                 this.report.warnOnce(
                     "validation-error",
                     TIMESTAMP_CONFLICT_CODE,
-                    "both timestamp and start / end are given; start / end are kept",
+                    "both timestamp and start / end are given; start / end set the interval and the timestamp is kept as written",
                     where,
                 );
             }
@@ -2304,7 +2307,8 @@ class GexfReader implements XmlHandler {
             }
             const timestamp = attrs.get("timestamp");
             if (timestamp !== undefined) {
-                columns.timestamp.set(sink, report, index, bounds.start, where);
+                // parsed again: beside start / startopen, bounds.start is the start, not the timestamp
+                columns.timestamp.set(sink, report, index, parseTimeText(timestamp, this.timeFormat), where);
             }
             if (attrs.has("start") || attrs.has("startopen")) {
                 columns.start.set(sink, report, index, bounds.start, where);

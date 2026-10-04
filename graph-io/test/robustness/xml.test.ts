@@ -287,6 +287,11 @@ describe.each(FORMATS)("%s: XML declaration, DOCTYPE and processing instructions
         // case-insensitive: <?XML ...?> is the reserved target too
         const upper = doc.replace(`<node id="a"/>`, `<?XML x?><node id="a"/>`);
         expect(fatal(await rejection(format, upper), "E_XML_SYNTAX").message).toMatch(/reserved/);
+        // and at the start: the declaration is written <?xml exactly, so <?XML / <?Xml is not one
+        for (const target of ["XML", "Xml"]) {
+            const issue = fatal(await rejection(format, doc.replace("<?xml", `<?${target}`)), "E_XML_SYNTAX");
+            expect(issue.message, target).toMatch(/lower case/);
+        }
     });
 
     it("xml-pi-without-target: a processing instruction without a target name is fatal", async () => {

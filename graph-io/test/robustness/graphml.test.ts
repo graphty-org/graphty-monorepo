@@ -158,8 +158,24 @@ describe("GraphML keys and data", () => {
     it("graphml-key-declared-after-graph: data whose key is declared after the graph is reported per value", async () => {
         const doc = `<graphml xmlns="${GRAPHML_NS}"><graph edgedefault="directed"><node id="a"><data key="d">1</data></node><node id="b"><data key="d">2</data></node></graph>${KEY_D}</graphml>`;
         const { snapshot, report } = await load("graphml", doc);
-        expect(codes(report)).toEqual([GRAPHML_ISSUE.UNKNOWN_KEY, GRAPHML_ISSUE.UNKNOWN_KEY]);
+        expect(codes(report)).toEqual([
+            GRAPHML_ISSUE.UNKNOWN_KEY,
+            GRAPHML_ISSUE.UNKNOWN_KEY,
+            GRAPHML_ISSUE.KEY_DECLARED_LATE,
+        ]);
+        expect(report.issues[2].message).toMatch(/declared after data that uses it/);
         expect(snapshot.nodeCount).toBe(2);
+    });
+
+    it("graphml-duplicate-edge-id-deferred: an edge waiting for its nodes keeps its id over a later edge reusing it", async () => {
+        const doc = graphml(
+            `<edge id="e" source="a" target="b"><data key="d">first</data></edge><node id="a"/><node id="b"/><node id="c"/><edge id="e" source="a" target="c"><data key="d">second</data></edge>`,
+            `<key id="d" for="edge" attr.name="d" attr.type="string"/>`,
+        );
+        const { snapshot, report } = await load("graphml", doc);
+        expect(codes(report)).toEqual(["E_DUPLICATE_EDGE_ID"]);
+        expect(snapshot.edgeCount).toBe(1);
+        expect(snapshot.edges.value("d", 0)).toBe("first");
     });
 
     it("graphml-double-special-values: xs:double INF / -INF / NaN and Infinity read; inf is a type error; 1e400 is reported as overflow", async () => {

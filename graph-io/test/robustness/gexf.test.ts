@@ -4,6 +4,9 @@
  * asserts the issue codes recorded and the data kept (counts and sample values).
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
@@ -142,6 +145,30 @@ describe("GEXF namespaces and structure", () => {
         expect(report.issues.map((i) => i.element)).toEqual(["b", "c"]);
         const parent = snapshot.nodes.require("parent");
         expect([0, 1, 2, 3].map((i) => (parent.isSet(i) ? parent.value(i) : null))).toEqual([1, null, null, 0]);
+    });
+
+    it("gexf-parent-repeated: a duplicate node repeating its pid is not a parent cycle", async () => {
+        const { snapshot, report } = await load("gexf", gexf(`<node id="a"/><node id="b" pid="a"/><node id="b" pid="a"/>`));
+        expect(codes(report)).toEqual(["W_DUPLICATE_NODE"]);
+        expect(snapshot.nodes.require("parent").value(1)).toBe(0);
+    });
+
+    it("gexf-1-0-gephi-viz: GEXF 1.0's gephi.org viz namespace and <attributes type> are read (diseasome.gexf)", async () => {
+        const doc = readFileSync(
+            fileURLToPath(new URL("../conformance/fixtures/gexf/gephi-datasets/diseasome.gexf", import.meta.url)),
+        );
+        // its 1419 pid="0" (naming no node) are errors of their own, so the limit is lifted
+        const { snapshot, report } = await load("gexf", doc, { errorLimit: Infinity });
+        const found = new Set(codes(report));
+        expect(found.has(GEXF_ISSUE.UNKNOWN_ELEMENT)).toBe(false);
+        // edge cardinal is genuinely not kept; <attributes type> is the 1.0 spelling of mode
+        expect(issuesOf(report, GEXF_ISSUE.UNKNOWN_XML_ATTRIBUTE).map((i) => i.element)).toEqual(["cardinal"]);
+        expect(snapshot.nodeCount).toBe(1419);
+        const position = Array.from(snapshot.nodes.byRole("position")?.value(0) as ArrayLike<number>);
+        expect(position[0]).toBeCloseTo(-116.486664, 3);
+        expect(position[1]).toBeCloseTo(-126.38917, 3);
+        expect(snapshot.nodes.byRole("color")).not.toBeNull();
+        expect(snapshot.nodes.byRole("size")).not.toBeNull();
     });
 
     it("gexf-issue-code-reuse: a <parent> without for is a parent issue; an unknown node attribute an attribute issue", async () => {
@@ -332,6 +359,7 @@ describe("GEXF time", () => {
         expect(codes(report)).toEqual([GEXF_ISSUE.TIMESTAMP_CONFLICT, GEXF_ISSUE.TIMED_VALUE_ON_STATIC]);
         expect(snapshot.nodes.value("start", 0)).toBe(1);
         expect(snapshot.nodes.value("end", 0)).toBe(5);
+        expect(snapshot.nodes.value("timestamp", 0)).toBe(3);
     });
 
     it("gexf-bad-pid-skips-lifetime: a pid that does not coerce is reported and the lifetime is still written", async () => {

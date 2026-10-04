@@ -367,6 +367,10 @@ class GraphmlReader implements XmlHandler {
     private readonly declared = new IndexFlags();
 
     private readonly edgeIds = new Set<string>();
+    /** The keys `<data>` referenced before any `<key>` declared them (E_GRAPHML_UNKNOWN_KEY). */
+    private readonly unknownKeyIds = new Set<string>();
+    /** The ids of the edges waiting in {@link deferred}. */
+    private readonly deferredEdgeIds = new Set<string>();
 
     private elementsSinceCheck = 0;
 
@@ -1291,6 +1295,14 @@ class GraphmlReader implements XmlHandler {
         // attr.list (a list extension of some writers) and yEd's yfiles.foldertype are reported here
         this.reportUnreadAttributes("key", attrs, KEY_ATTRIBUTES, line);
         const id = attrs.get("id") ?? null;
+        if (id !== null && this.unknownKeyIds.delete(id)) {
+            this.report.warning(
+                "missing-value",
+                GRAPHML_ISSUE.KEY_DECLARED_LATE,
+                `key "${id}" is declared after data that uses it; those values were dropped (declare <key> before <graph>)`,
+                { line, element: id },
+            );
+        }
         const forText = attrs.get("for") ?? "all";
         let domains: readonly Domain[];
         switch (forText) {
@@ -1580,6 +1592,7 @@ class GraphmlReader implements XmlHandler {
             const entries = this.keys.get(keyId);
             const key = entries?.find((entry) => entry.domains.includes(domain)) ?? entries?.[0];
             if (key === undefined) {
+                this.unknownKeyIds.add(keyId);
                 this.report.error(
                     "validation-error",
                     GRAPHML_ISSUE.UNKNOWN_KEY,
@@ -2126,10 +2139,16 @@ class GraphmlReader implements XmlHandler {
             return;
         }
         if (
-            !this.options.addMissingNodes &&
-            (this.sink.indexOf(edge.source) === INVALID_INDEX || this.sink.indexOf(edge.target) === INVALID_INDEX)
+            (!this.options.addMissingNodes &&
+                (this.sink.indexOf(edge.source) === INVALID_INDEX ||
+                    this.sink.indexOf(edge.target) === INVALID_INDEX)) ||
+            (edge.id !== null && this.deferredEdgeIds.has(edge.id))
         ) {
-            // GraphML allows nodes and edges in any order: wait for the end of the document
+            // GraphML allows nodes and edges in any order: wait for the end of the document. An
+            // edge reusing a waiting edge's id waits behind it, so the first one keeps the id.
+            if (edge.id !== null) {
+                this.deferredEdgeIds.add(edge.id);
+            }
             this.deferred.push(edge);
             return;
         }

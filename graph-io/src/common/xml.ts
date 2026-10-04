@@ -1142,6 +1142,12 @@ export class XmlTokenizer {
         if (target.toLowerCase() !== "xml") {
             return;
         }
+        if (target !== "xml") {
+            throw new XmlSyntaxError(
+                `<?${target} is not an XML declaration (which is written <?xml in lower case); the target is reserved`,
+                this.line,
+            );
+        }
         if (!this.atStart || pos !== 0) {
             throw new XmlSyntaxError(
                 "an XML declaration (<?xml ...?>) may appear only at the very start of the document; the target xml is reserved",

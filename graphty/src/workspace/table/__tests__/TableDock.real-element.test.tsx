@@ -39,7 +39,11 @@ function drawnRows(name: string): string[][] {
     return within(grid)
         .getAllByRole("row")
         .slice(1)
-        .map((row) => within(row).queryAllByRole("gridcell").map((cell) => cell.textContent ?? ""));
+        .map((row) =>
+            within(row)
+                .queryAllByRole("gridcell")
+                .map((cell) => cell.textContent ?? ""),
+        );
 }
 
 /**
@@ -96,7 +100,10 @@ describe("the table dock", () => {
                 sort: { run: pagerank.id, descending: true },
                 limit: 1,
             });
-            assert.include(drawnRows("Nodes")[0], new Intl.NumberFormat("en-US").format(Number(top.columns[0].values[0])));
+            assert.include(
+                drawnRows("Nodes")[0],
+                new Intl.NumberFormat("en-US").format(Number(top.columns[0].values[0])),
+            );
 
             // The Columns chooser lists each attribute and each run; unchecking one hides it.
             const columns = within(dock).getByRole("button", { name: /^Columns:/ });
@@ -117,7 +124,10 @@ describe("the table dock", () => {
             });
 
             // The group run's item tab: one row per group; Show members narrows Nodes with a chip.
-            const groups = live.runs.list().find((run) => run.algorithm === "louvain")?.result?.summary().groups;
+            const groups = live.runs
+                .list()
+                .find((run) => run.algorithm === "louvain")
+                ?.result?.summary().groups;
             assert.isDefined(groups);
             const louvain = live.runs.list().find((run) => run.algorithm === "louvain");
             await userEvent.click(within(dock).getByRole("tab", { name: louvain?.label }));

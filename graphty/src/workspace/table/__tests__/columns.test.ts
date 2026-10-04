@@ -3,7 +3,13 @@ import { assert, describe, it } from "vitest";
 import { countOf, elementSort, groupName, sortCaption, type TableColumnChoice } from "../columns";
 import { registration } from "../commands";
 
-const RANK: TableColumnChoice = { id: "r:pagerank", header: "PageRank", group: "result", numeric: true, run: "pagerank" };
+const RANK: TableColumnChoice = {
+    id: "r:pagerank",
+    header: "PageRank",
+    group: "result",
+    numeric: true,
+    run: "pagerank",
+};
 const NAME: TableColumnChoice = { id: "a:name", header: "name", group: "attribute", numeric: false, attribute: "name" };
 
 describe("the table dock's words and sorts", () => {

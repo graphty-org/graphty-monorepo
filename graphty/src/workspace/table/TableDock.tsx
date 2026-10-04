@@ -288,7 +288,11 @@ export function TableDock(): React.JSX.Element {
             </Text>
             {groupRun === undefined ? (
                 <RecordTable
-                    key={shownMembers === null || kind === "edge" ? kind : `node:${shownMembers.run}:${shownMembers.name}`}
+                    key={
+                        shownMembers === null || kind === "edge"
+                            ? kind
+                            : `node:${shownMembers.run}:${shownMembers.name}`
+                    }
                     session={session}
                     kind={kind}
                     columns={visible}

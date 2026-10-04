@@ -601,6 +601,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             layoutBehavior: assigns({ layout: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } }, [
                 { op: "config.set", values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } } },
             ]),
+            labelDeclutter: VIEW_SETTING,
             selectionStyle: assigns({ color: "#ff0000" }, [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
             ]),
@@ -611,6 +612,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 { op: "config.set", values: { background: { backgroundType: "color", color: "#101010" } } },
             ]),
             startingCameraDistance: CAMERA,
+            autoFrame: CAMERA,
             runAlgorithmsOnLoad: assigns(true, [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
             historyKeys: INPUT,
             enableDetailedProfiling: PROFILING,
@@ -866,6 +868,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             is2D: READ,
             getViewMode: READ,
             setStartingCameraDistance: CAMERA,
+            getAutoFrame: READ,
+            setAutoFrame: CAMERA,
             setViewMode: calls(["2d"], [DIMENSION_2D]),
             needsRayUpdate: READ,
             getConfig: READ,
@@ -1631,6 +1635,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 expect: [{ op: "config.set", values: { name: "Fixture project" } }],
             },
             save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
+            markSaved: exempt("Moves the save point that dirty is measured from; it changes nothing a project saves."),
             open: exempt(
                 "Opens a file as one transaction: every write goes through the session's own doors, " +
                     "which have rows of their own.",

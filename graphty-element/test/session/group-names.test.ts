@@ -102,4 +102,46 @@ describe("the names of a partition's groups", () => {
         }
         harness.session.dispose();
     });
+
+    it("hides and shows the paint of one group, as one undoable step (#907)", async () => {
+        const harness = makeSession({ runs: { execute: partition } });
+        harness.add(MEMBERSHIP.map(([id]) => ({ id })));
+        const result = await harness.session.runs.start("louvain", {}, { style: false });
+        const { styles } = harness.session;
+        const layer = await styles.encode({ run: result.runId, channel: "node.color" });
+        const painter = (node: string): string | undefined =>
+            styles.explain({ node }).channels.find((entry) => entry.channel === "node.color")?.layerId;
+        const swatchOf = (value: unknown) =>
+            styles
+                .legend()
+                .find((entry) => entry.layerId === layer.id)
+                ?.swatches.find((swatch) => swatch.value === value);
+        const colour = swatchOf(2)?.color;
+        assert.strictEqual(painter("a"), layer.id, "group 2 is painted by the run's layer");
+
+        const hidden = await styles.setValueHidden(layer.id, 2, true);
+
+        assert.deepStrictEqual((hidden.encode?.["node.color"] as { hidden?: unknown }).hidden, [2]);
+        assert.notStrictEqual(painter("a"), layer.id, "a node of the hidden group is left to the layers beneath");
+        assert.strictEqual(painter("d"), layer.id, "every other group is still painted");
+        assert.isTrue(swatchOf(2)?.hidden, "the legend keeps the row, marked hidden");
+        assert.strictEqual(swatchOf(2)?.color, colour, "with the colour it comes back in");
+        assert.isUndefined(swatchOf(10)?.hidden);
+        const saved = styles.toDocument().layers.find((entry) => entry.name === layer.name);
+        assert.deepStrictEqual(
+            (saved?.encode?.["node.color"] as { hidden?: unknown }).hidden,
+            [2],
+            "the saved style document keeps it",
+        );
+
+        await harness.session.undo();
+        assert.strictEqual(painter("a"), layer.id, "undo paints the group again");
+        assert.isUndefined(swatchOf(2)?.hidden);
+
+        await styles.setValueHidden(layer.id, "2", true);
+        await styles.setValueHidden(layer.id, 2, false);
+        assert.strictEqual(painter("a"), layer.id, "2 and \"2\" are one value, so showing it clears it");
+        assert.isUndefined((styles.get(layer.id)?.encode?.["node.color"] as { hidden?: unknown }).hidden);
+        harness.session.dispose();
+    });
 });

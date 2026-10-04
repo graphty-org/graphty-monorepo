@@ -72,6 +72,12 @@ export interface LegendSwatch {
      * row.
      */
     readonly rank?: number;
+    /**
+     * The binding does not paint this value (its `hidden` list names it): elements carrying it
+     * are drawn as the layers beneath paint them. `color`, `size` and `paints` still say what the
+     * value is painted when it is shown again. Absent on a row that is painted.
+     */
+    readonly hidden?: true;
     /** The colour the encoding paints it, as `#rrggbb` or `#rrggbbaa`. */
     readonly color?: string;
     /** The size or width the encoding paints it. */
@@ -465,10 +471,11 @@ function categorySwatches(prepared: PreparedBinding, order: readonly string[]): 
         label: groups ? groupName(index + 1) : category,
         value: valueOf(category),
         ...(groups ? { rank: index + 1 } : {}),
-        ...swatchPaint(prepared.paint(category)),
+        ...swatchPaint(prepared.paintIgnoringHidden(category)),
+        ...(prepared.hidden.has(category) ? { hidden: true as const } : {}),
     }));
     const { lumped } = prepared;
-    const folded = lumped.length > 0 ? prepared.paint(lumped[0]) : undefined;
+    const folded = lumped.length > 0 ? prepared.paintIgnoringHidden(lumped[0]) : undefined;
 
     // The bucket gets one row saying what it holds, so a reader is told what the grey means
     // rather than left to guess. A binding that paints nothing for the bucket gets no row.

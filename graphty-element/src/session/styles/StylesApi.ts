@@ -76,6 +76,7 @@ import type {
     Binding,
     Channel,
     EdgeId,
+    Encoding,
     FieldDescriptor,
     LayerId,
     LayerSource,
@@ -448,6 +449,29 @@ export interface StylesApi {
      *     `E_BAD_COMMAND` when that layer works the channel out from nothing.
      */
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
+    /**
+     * Hide or show the paint of one value of a layer's encoding -- one group of a community run's
+     * colours, say -- as one undoable step that is saved with the project.
+     *
+     * A hidden value is left out of every channel the layer encodes from the data: an element
+     * carrying it is drawn as the layers beneath paint it, as an unmeasured element is. The
+     * legend keeps the value's row, marked `hidden`, with the colour it comes back in. Values are
+     * compared as the legend spells them, so `0` and `"0"` are the same group; pass the
+     * `value` of a legend swatch or the `group` of a run summary's group.
+     * @param id - The layer, such as the one `encode()` returned.
+     * @param value - The value to hide or show.
+     * @param hidden - True to hide it, false to paint it again.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layer as it now stands (its bindings' `hidden` lists),
+     *     and rejects with `E_PROTECTED` for an element-owned layer and `E_UNKNOWN_LAYER` for an id
+     *     the stack does not hold.
+     */
+    setValueHidden(
+        id: LayerId,
+        value: string | number | boolean,
+        hidden: boolean,
+        options?: RunOptions,
+    ): Run<Layer>;
     /**
      * Add a saved stack of layers to this one.
      *
@@ -1134,6 +1158,36 @@ function halfOfStyle(set: StaticStyle | undefined, half: SelectorTarget): Static
 // ---------------------------------------------------------------------------------------------
 // The model
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * The patch that hides or shows one value in every binding a layer encodes from the data.
+ * @param layer - The layer, or undefined when the stack holds none with that id.
+ * @param value - The value.
+ * @param hidden - Whether to hide it.
+ * @returns The patch: the layer's whole `encode` with each binding's `hidden` list updated, or
+ *   nothing to change for a layer that is not there (the update then refuses it).
+ */
+function hiddenValuePatch(layer: Layer | undefined, value: string | number | boolean, hidden: boolean): Partial<LayerSpec> {
+    if (layer?.encode === undefined) {
+        return {};
+    }
+
+    const encode: Encoding = {};
+    for (const [channel, binding] of Object.entries(layer.encode) as [Channel, Binding][]) {
+        if (!("by" in binding)) {
+            encode[channel] = binding;
+            continue;
+        }
+
+        // The same spelling the legend compares by: 0 and "0" are one value.
+        const kept = (binding.hidden ?? []).filter((entry) => String(entry) !== String(value));
+        const list = hidden ? [...kept, value] : kept;
+        const { hidden: _previous, ...rest } = binding;
+        encode[channel] = list.length === 0 ? rest : { ...rest, hidden: list };
+    }
+
+    return { encode };
+}
 
 /**
  * Build the style stack one session holds.
@@ -2238,6 +2292,25 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 "resolve",
                 `Fix ${channel} on layer ${id}`,
                 { op: "style.patch", action: "resolveToStatic", id, channel, ...(at === undefined ? {} : { at }) },
+                options,
+            );
+        },
+
+        setValueHidden(
+            id: LayerId,
+            value: string | number | boolean,
+            hidden: boolean,
+            options: RunOptions = {},
+        ): Run<Layer> {
+            return edit<Layer>(
+                "update",
+                `${hidden ? "Hide" : "Show"} ${String(value)} on layer ${id}`,
+                (state) => ({
+                    op: "style.patch",
+                    action: "update",
+                    id,
+                    patch: hiddenValuePatch(state.styles.find((entry) => entry.layer.id === id)?.layer, value, hidden),
+                }),
                 options,
             );
         },

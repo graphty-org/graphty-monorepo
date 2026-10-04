@@ -689,3 +689,45 @@ describe("a stack over a graph a node was removed from", () => {
         }
     });
 });
+
+/**
+ * ONE GROUP OF A RUN'S COLOURS, HIDDEN AND SHOWN AGAIN (#907).
+ *
+ * Components splits the graph into the five connected nodes and f on its own. Hiding f's group
+ * must hand f back to the paint beneath the run's layer on the canvas and leave the other group
+ * exactly as the run painted it.
+ */
+describe("hiding one group of a run's encoding", () => {
+    /**
+     * The colour the element paints one node.
+     * @param id - The node id.
+     * @returns The colour, serialized so two can be compared.
+     */
+    function colorOf(id: string): string {
+        const index = session.data.snapshot().ids.indexOf(id);
+
+        return JSON.stringify(graph.getStylePainter().nodePaint(index)?.color ?? null);
+    }
+
+    it("paints the hidden group as the layers beneath do, and paints it again when shown", async () => {
+        const base = colorOf("f");
+        const run = session.runs.start("components", {}, { as: "parts", style: false });
+        const result = await run;
+        const layer = await session.styles.encode({ run: run.id, channel: "node.color" });
+        await operationQueueOf(graph).waitForCompletion();
+        const painted = { a: colorOf("a"), f: colorOf("f") };
+        assert.notStrictEqual(painted.f, base, "the run painted f's group");
+        const group = result.node("f")?.group as string | number;
+
+        await session.styles.setValueHidden(layer.id, group, true);
+        await operationQueueOf(graph).waitForCompletion();
+
+        assert.strictEqual(colorOf("f"), base, "f is back to the colour beneath the run's layer");
+        assert.strictEqual(colorOf("a"), painted.a, "the other group keeps the run's colour");
+
+        await session.styles.setValueHidden(layer.id, group, false);
+        await operationQueueOf(graph).waitForCompletion();
+
+        assert.strictEqual(colorOf("f"), painted.f, "shown again, f takes the run's colour back");
+    });
+});

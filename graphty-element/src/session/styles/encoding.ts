@@ -158,6 +158,8 @@ export interface PreparedBinding {
      * hands back the value a result or a column published. Empty when there are no categories.
      */
     readonly categoryValues: ReadonlyMap<string, unknown>;
+    /** The values the binding was told not to paint, as category names. Empty when none are. */
+    readonly hidden: ReadonlySet<string>;
     /** How many distinct values the encoding paints, or 0 when it is a continuous ramp. */
     readonly groups: number;
     /** What the column held. */
@@ -175,6 +177,13 @@ export interface PreparedBinding {
      * @returns The value to paint, or undefined when the element is not painted at all.
      */
     paint(value: unknown): EncodedValue | undefined;
+    /**
+     * What the encoding would paint a value if it were not hidden: what a legend shows beside a
+     * hidden row, so the reader sees which colour comes back when it is shown again.
+     * @param value - The value.
+     * @returns The value to paint, or undefined when the encoding paints nothing for it.
+     */
+    paintIgnoringHidden(value: unknown): EncodedValue | undefined;
 }
 
 /** Everything {@link prepareBinding} is given. */
@@ -924,10 +933,12 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
         categories: [],
         lumped: [],
         categoryValues: new Map(),
+        hidden: new Set(),
         groups: 0,
         counts: NO_COUNTS,
         departures: [],
         paint: (): EncodedValue => value,
+        paintIgnoringHidden: (): EncodedValue => value,
     };
 }
 
@@ -1381,6 +1392,7 @@ function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: As
         descriptor.accepts === "color"
             ? colorPainter(descriptor, binding, parts)
             : valuePainter(descriptor, binding, parts);
+    const hidden = new Set((binding.hidden ?? []).map((value) => readCategory(value)).filter((name) => name !== null));
     const counts: BindingCounts = {
         seen: parts.facts.seen,
         unreadable: parts.facts.unreadable,
@@ -1399,10 +1411,18 @@ function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: As
         categories: parts.categories.categories,
         lumped: parts.categories.lumped,
         categoryValues: parts.facts.categoryValues,
+        hidden,
         groups: painter.groups,
         counts,
         departures: Object.freeze([...parts.settled.departures, ...countDepartures(counts)]),
-        paint: painter.paint,
+        paint:
+            hidden.size === 0
+                ? painter.paint
+                : (value): EncodedValue | undefined => {
+                      const name = readCategory(value);
+                      return name !== null && hidden.has(name) ? undefined : painter.paint(value);
+                  },
+        paintIgnoringHidden: painter.paint,
     };
 }
 

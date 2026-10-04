@@ -513,6 +513,10 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],
     ),
+    setValueHidden: calls(
+        ["no-such-layer", 0, true],
+        [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
+    ),
     applyTemplate: calls(
         [{ version: 1, layers: [] }],
         [{ op: "style.template", document: { version: 1, layers: [] } }],

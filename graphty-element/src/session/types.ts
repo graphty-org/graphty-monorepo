@@ -519,12 +519,15 @@ export interface GraphStatistics {
      * are few distinct degrees, whole-number bands otherwise; the bars' counts add up to
      * {@link GraphStatistics.nodeCount}.
      *
+     * `session.data.statistics()` always fills it in. It is optional only so statistics a caller
+     * builds by hand, to pass to `recommendLayout` or a cost estimate, need not build one.
+     *
      * ```ts
-     * const { bins, binning } = session.data.statistics().degreeHistogram;
+     * const histogram = session.data.statistics().degreeHistogram;
      * // binning "per-value": bins[i].from === bins[i].to, one degree each
      * ```
      */
-    readonly degreeHistogram: Histogram;
+    readonly degreeHistogram?: Histogram;
     /** The connected-component shape. */
     readonly components: ComponentStatistics;
 }
@@ -550,13 +553,6 @@ export type ColumnHistogram =
           /** How many elements carry a value not in `values`; 0 when every value made the list. */
           readonly otherCount: number;
       };
-
-/**
- * The graph statistics a function that reads the graph's shape takes: {@link GraphStatistics}
- * without the fields derived for display, so a caller who builds the numbers by hand need not
- * build a histogram too. `session.data.statistics()` can be passed as it is.
- */
-export type GraphShapeStatistics = Omit<GraphStatistics, "degreeHistogram">;
 
 /**
  * The O(1) half of a session: the facts a status chip or a disabled button needs before it can

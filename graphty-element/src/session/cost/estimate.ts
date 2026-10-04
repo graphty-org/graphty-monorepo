@@ -37,7 +37,7 @@ import {
     type Scope,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { GraphShapeStatistics } from "../types";
+import type { GraphStatistics } from "../types";
 
 // ---------------------------------------------------------------------------------------------
 // The answer
@@ -258,7 +258,7 @@ export interface CostInput {
     /** The parameters it would run with, which is where an iteration bound is overridden. */
     readonly params?: Readonly<Record<string, unknown>>;
     /** The graph's shape, as the session maintains it. */
-    readonly statistics: GraphShapeStatistics;
+    readonly statistics: GraphStatistics;
     /** How much of it the run would cover. Defaults to the whole graph. */
     readonly scope?: CostScopeSize;
     /** This machine's measured throughput, when it has been measured. */
@@ -395,7 +395,7 @@ function withDefaults(
  */
 function unavailableReason(
     descriptor: AlgorithmDescriptor,
-    statistics: GraphShapeStatistics,
+    statistics: GraphStatistics,
     acceleratorAvailable: boolean,
 ): string | undefined {
     const { requires } = descriptor;
@@ -1141,7 +1141,7 @@ function structuralOverflow(nodes: number, edges: number): { kind: string; count
  */
 function fittingScopes(
     input: CostInput,
-    statistics: GraphShapeStatistics,
+    statistics: GraphStatistics,
     cap: number,
     keptSets: () => readonly ScopeCandidate[],
 ): readonly FittingScope[] {

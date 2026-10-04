@@ -485,6 +485,7 @@ describe("the cap", () => {
         assert.deepStrictEqual([...selection.nodes], ["a", "b"]);
         assert.isTrue(delta.truncated);
         assert.isTrue(selection.truncated);
+        assert.isNull(selection.origin, "a cut-short replace is not what the target named");
         harness.session.dispose();
     });
 

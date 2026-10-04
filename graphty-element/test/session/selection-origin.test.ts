@@ -46,4 +46,41 @@ describe("session.selection.origin", () => {
         assert.isNull(session.selection.origin);
         session.dispose();
     });
+
+    it("is a frozen copy the caller's later edits do not reach", async () => {
+        const session = await star();
+        const target = { neighborsOf: ["Javert"] };
+        await session.selection.apply(target);
+        target.neighborsOf.push("Stranger");
+
+        const { origin } = session.selection;
+        assert.deepStrictEqual(origin, { neighborsOf: ["Javert"] });
+        assert.isTrue(Object.isFrozen(origin));
+        session.dispose();
+    });
+
+    it("is null once the graph changes, since the target may name something else now", async () => {
+        const session = await star();
+        await session.selection.apply({ neighborsOf: ["Javert"] });
+        await session.data.addEdges([{ source: "Javert", target: "Stranger" }]);
+        assert.isNull(session.selection.origin, "the neighborhood grew; the selection did not");
+
+        await session.selection.apply({ neighborsOf: ["Javert"] });
+        await session.data.removeNodes(["Valjean"]);
+        assert.isNull(session.selection.origin, "a removal pruned the selection");
+        session.dispose();
+    });
+
+    it("is null after a click or an undo, which select a plain list nobody passed", async () => {
+        const session = await star();
+        await session.selection.apply({ neighborsOf: ["Javert"] });
+        session.selection.applyNow({ nodes: ["Valjean"] }, "replace", "user");
+        assert.isNull(session.selection.origin);
+
+        await session.data.addNodes([{ id: "Late" }]);
+        await session.selection.apply({ nodes: ["Late"] });
+        await session.undo();
+        assert.isNull(session.selection.origin);
+        session.dispose();
+    });
 });

@@ -36,6 +36,7 @@ import type { GraphSnapshot, U8, U32 } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, ScopeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { deepFreeze } from "../project/draft";
 import { arrayColumn, computeColumnStatistics } from "../results/statistics";
 import type { ResultsApi } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
@@ -194,9 +195,12 @@ export interface SelectionApi {
      * The target the selection was made from, as it was passed to `apply`, while the selection is
      * still exactly that target: `{ neighborsOf: ["Javert"] }` after a neighborhood was selected,
      * so a panel that did not make the call can tell a neighborhood from any other set of nodes.
-     * Null once anything else changes the selection -- a click, `clear()`, another `apply`, or an
-     * `apply` that adds to, removes from, toggles or intersects the selection -- and null before
-     * anything was selected.
+     * A frozen copy: changing the object you passed does not change it.
+     *
+     * Null before anything was selected, after an `apply` that adds to, removes from, toggles or
+     * intersects the selection, after a replace the cap cut short, and once anything else changes
+     * the selection or the graph -- a click, an undo or redo, `clear()`, or any edit to the
+     * graph's nodes, edges or data (the target might name something different now).
      *
      * ```ts
      * const origin = session.selection.origin;
@@ -665,6 +669,7 @@ class Selection implements SelectionOwner {
     remapNodes(remap: U32, count: number): void {
         this.#nodes.remap(remap, count);
         this.#frameStale = true;
+        this.#origin = null;
     }
 
     /**
@@ -675,6 +680,7 @@ class Selection implements SelectionOwner {
     remapEdges(remap: U32, count: number): void {
         this.#edges.remap(remap, count);
         this.#frameStale = true;
+        this.#origin = null;
     }
 
     /**
@@ -732,8 +738,10 @@ class Selection implements SelectionOwner {
         }
 
         this.#truncated = this.#enforceCap(cap);
-        // Only a replace leaves the selection exactly what the target named.
-        this.#origin = op === "replace" ? target : null;
+        // Only a whole replace a caller asked for leaves the selection exactly what the target
+        // named. A click or an undo reselects a plain id list nobody passed, so it records nothing.
+        this.#origin =
+            op === "replace" && cause === "api" && !this.#truncated ? deepFreeze(structuredClone(target)) : null;
 
         return this.#delta(before, members.unmatched, members.unresolvedPaths, cause, members.skipped);
     }
@@ -843,6 +851,8 @@ class Selection implements SelectionOwner {
 
         if (graph !== this.#frame.graph) {
             this.#frame = frameOf(graph);
+            // The target may name something else in the changed graph: a neighborhood that grew.
+            this.#origin = null;
         }
 
         this.#frameStale = false;

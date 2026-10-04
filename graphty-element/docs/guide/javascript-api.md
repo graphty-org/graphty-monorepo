@@ -221,7 +221,7 @@ change to the graph, so reading it on every render costs nothing:
 const stats = session.data.statistics();
 stats.degreeRange; // [smallest, largest]
 stats.meanDegree;
-for (const bin of stats.degreeHistogram.bins) {
+for (const bin of stats.degreeHistogram?.bins ?? []) {
     // one bar: degrees bin.from to bin.to, bin.count nodes
 }
 ```
@@ -294,8 +294,11 @@ if (selected) {
 ```
 
 `session.selection.origin` says what the selection was made from, so a panel that did not make the
-call can still tell what it is looking at. It holds the target passed to `apply` while the
-selection is exactly that target, and turns `null` at the next change of any kind:
+call can still tell what it is looking at. It holds a frozen copy of the target passed to `apply`
+while the selection is exactly that target. It is `null` after an `apply` that adds, removes,
+toggles or intersects, after a replace the selection cap cut short, and once anything else changes
+the selection or the graph: a click, an undo or redo, `clear()`, or any edit to nodes, edges or
+data, since the same target could name something different in the edited graph.
 
 ```typescript
 await session.selection.apply({ neighborsOf: ["Javert"] }); // say, from a toolbar

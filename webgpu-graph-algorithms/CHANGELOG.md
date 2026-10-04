@@ -1,3 +1,9 @@
+## 0.6.29 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.2.1
+
 ## 0.6.28 (2026-10-03)
 
 ### 🚀 Features

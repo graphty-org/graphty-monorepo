@@ -51,8 +51,8 @@ export function initSentry(config?: SentryConfig): void {
         // whose "What is collected" list promises a replay of each session with every text and
         // input masked. The canvas is not recorded: replay draws no canvas without its canvas
         // integration, which is not added.
-        replaysSessionSampleRate: 1.0,
-        replaysOnErrorSampleRate: 1.0,
+        replaysSessionSampleRate: 1,
+        replaysOnErrorSampleRate: 1,
         integrations: [replay],
     });
     if (restart) {
@@ -67,8 +67,9 @@ export function initSentry(config?: SentryConfig): void {
  */
 export function stopSentry(): void {
     if (initialized) {
-        void replay?.stop();
-        void Sentry.close();
+        // Best effort: events that cannot be flushed as usage data is turned off are dropped.
+        replay?.stop().catch(() => undefined);
+        Sentry.close().catch(() => undefined);
     }
     initialized = false;
 }

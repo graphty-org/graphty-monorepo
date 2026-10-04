@@ -30,7 +30,7 @@ const OUT = resolve(dirname(fileURLToPath(import.meta.url)), "../public/samples"
  * @returns the name.
  */
 function readableName(id: string): string {
-    return id.replace(/([a-z])([A-Z0-9])/g, "$1 $2").replace(/ De /g, " de ");
+    return id.replaceAll(/([a-z])([A-Z0-9])/g, "$1 $2").replaceAll(" De ", " de ");
 }
 
 /**

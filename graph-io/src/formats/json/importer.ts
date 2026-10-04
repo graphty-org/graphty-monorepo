@@ -2267,8 +2267,9 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
     throwIfAborted(ctx.options.signal);
     const kind = ctx.uniformKind();
     const { weightFrom } = ctx.options;
-    // undirected: entries read once whose mirror is still to come, by pair and key
-    const pending = new Map<string, number>();
+    // undirected: entries read once whose mirror is still to come, by pair and key, with their attributes
+    const pending = new Map<string, string[]>();
+    let disagreeing = 0;
     for (let i = 0; i < lists.length; i++) {
         const element = `adjacency[${i}]`;
         const list = lists[i];
@@ -2307,8 +2308,12 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
                     ctx.countSkipped("edge");
                     continue;
                 }
-                if (!directed && isMirroredEntry(pending, source, target, record.key)) {
-                    continue;
+                if (!directed) {
+                    const mirror = mirroredEntry(pending, source, target, record, idKey);
+                    disagreeing += mirror === "disagrees" ? 1 : 0;
+                    if (mirror !== "new") {
+                        continue;
+                    }
                 }
                 const edge = ctx.pushEdge(source, target, kind, ctx.weightOf(record), entry);
                 for (const key of Object.keys(record)) {
@@ -2321,36 +2326,98 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
             }
         }
     }
+    reportAdjacencyShape(ctx, nodes.length, adjacency === null ? null : lists.length, disagreeing, pending);
     ctx.setMeta({}, { declaredMultigraph: multigraph, ...ctx.weightOriginPatch() });
 }
 
 /**
- * Whether an undirected adjacency entry is the mirror of one already read (the same unordered
- * pair and key), consuming it; otherwise the entry is remembered as awaiting its mirror. A
- * self-loop is listed once and never awaits one.
- * @param pending - the entries awaiting their mirror, by owner, other end and key
+ * Report what an adjacency_data document leaves inconsistent: nodes without an adjacency list
+ * (NetworkX writes one per node, so the file was cut), undirected edges whose two listings carry
+ * different attributes (the first is kept), and undirected entries whose mirror never came.
+ * @param ctx - the context
+ * @param nodes - the number of node records
+ * @param lists - the number of adjacency lists, or null when the section is missing (reported already)
+ * @param disagreeing - the mirrors whose attributes differ
+ * @param pending - the entries still awaiting their mirror
+ */
+function reportAdjacencyShape(
+    ctx: ImportContext,
+    nodes: number,
+    lists: number | null,
+    disagreeing: number,
+    pending: ReadonlyMap<string, readonly string[]>,
+): void {
+    const { report } = ctx;
+    if (lists !== null && lists < nodes) {
+        report.error(
+            "missing-value",
+            JSON_ISSUE.MISSING_SECTION,
+            `${nodes - lists} node(s) from nodes[${lists}] on have no adjacency list (NetworkX writes one per node); their edges listed elsewhere are kept`,
+            { element: "adjacency" },
+        );
+    }
+    if (disagreeing > 0) {
+        report.warning(
+            "validation-error",
+            JSON_ISSUE.INCONSISTENT,
+            `the two listings of ${disagreeing} undirected edge(s) disagree on their attributes; the first listing is kept`,
+            { element: "adjacency" },
+        );
+    }
+    let unmatched = 0;
+    for (const waiting of pending.values()) {
+        unmatched += waiting.length;
+    }
+    if (unmatched > 0) {
+        report.warning(
+            "validation-error",
+            JSON_ISSUE.INCONSISTENT,
+            `${unmatched} undirected adjacency entr(ies) have no mirror in the other node's list; each is read as one edge`,
+            { element: "adjacency" },
+        );
+    }
+}
+
+/**
+ * Whether an undirected adjacency entry is the mirror of one already read (the same unordered pair
+ * and key), consuming it; otherwise the entry is remembered as awaiting its mirror. A self-loop is
+ * listed once and never awaits one.
+ * @param pending - the entries awaiting their mirror, by owner, other end and key: their attributes
  * @param source - the owner of the list
  * @param target - the entry's node
- * @param key - the entry's multigraph key, or undefined
- * @returns true when the entry is a mirror and must not be pushed
+ * @param record - the entry
+ * @param idKey - the entry's id key (not an attribute)
+ * @returns "new" for an entry to push, "mirror" for the second listing of one read, "disagrees"
+ * for a second listing with other attributes
  */
-function isMirroredEntry(pending: Map<string, number>, source: NodeId, target: NodeId, key: unknown): boolean {
+function mirroredEntry(
+    pending: Map<string, string[]>,
+    source: NodeId,
+    target: NodeId,
+    record: JsonRecord,
+    idKey: string,
+): "new" | "mirror" | "disagrees" {
     const a = JSON.stringify(source);
     const b = JSON.stringify(target);
     if (a === b) {
-        return false;
+        return "new";
     }
-    const k = JSON.stringify(key ?? null);
+    const k = JSON.stringify(record.key ?? null);
+    const attributes = JSON.stringify(Object.entries(record).filter(([key]) => key !== idKey));
     // an entry is the mirror of one listed by the other end, never of a parallel entry of its own list
-    const mirror = `${b} ${a} ${k}`;
-    const waiting = pending.get(mirror) ?? 0;
-    if (waiting > 0) {
-        pending.set(mirror, waiting - 1);
-        return true;
+    const waiting = pending.get(`${b} ${a} ${k}`);
+    if (waiting !== undefined && waiting.length > 0) {
+        const first = waiting.shift();
+        return first === attributes ? "mirror" : "disagrees";
     }
     const own = `${a} ${b} ${k}`;
-    pending.set(own, (pending.get(own) ?? 0) + 1);
-    return false;
+    const list = pending.get(own);
+    if (list === undefined) {
+        pending.set(own, [attributes]);
+    } else {
+        list.push(attributes);
+    }
+    return "new";
 }
 
 /**

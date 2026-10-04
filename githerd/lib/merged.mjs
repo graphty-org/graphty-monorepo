@@ -12,15 +12,15 @@
 export const MERGED_QUERY = `query($q: String!) {
   search(type: ISSUE, query: $q, first: 50) {
     issueCount
-    nodes { ... on PullRequest { number title mergedAt mergeCommit { oid }
+    nodes { ... on PullRequest { number title headRefName mergedAt mergeCommit { oid }
       closingIssuesReferences(first: 10) { nodes { number } }
       files(first: 100) { totalCount nodes { path } } } }
   }
 }`;
 
 /**
- * @typedef {{number: number, title: string, mergedAt: string, mergeSha: string | null,
- *   closes: number[], paths: string[], truncated: boolean}} MergedPr
+ * @typedef {{number: number, title: string, headRef: string | null, mergedAt: string,
+ *   mergeSha: string | null, closes: number[], paths: string[], truncated: boolean}} MergedPr
  */
 
 /**
@@ -36,6 +36,7 @@ export function parseMerged(data) {
             return {
                 number: n.number,
                 title: n.title,
+                headRef: n.headRefName ?? null,
                 mergedAt: n.mergedAt,
                 mergeSha: n.mergeCommit?.oid ?? null,
                 closes: (n.closingIssuesReferences?.nodes ?? []).map((/** @type {any} */ i) => i.number),

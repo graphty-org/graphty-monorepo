@@ -651,7 +651,10 @@ githerd/merge".
 
 **Updates** githerd still makes, each with the expected head, in order of preference:
 
-- baseline-only conflict: `visual-review update <pr>` [R13];
+- baseline-only conflict with master: `visual-review update <pr>` [R13], run only while master's
+  tip is the CI-green commit, because the tool always merges master's tip; otherwise the update
+  waits for the next reconcile. The tool merges only master, so a stacked child's baseline-only
+  conflict with its base pull request is a `pr` job's, like any other conflict;
 - master's tip is the CI-green commit: `PUT /pulls/{n}/update-branch` with `expected_head_sha`, which works while
   `allow_update_branch` is false and answers 422 on a stale head [PF 9.1];
 - otherwise: the daemon merges the CI-green commit into the pull request in a daemon worktree and

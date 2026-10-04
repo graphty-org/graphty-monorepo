@@ -73,6 +73,7 @@ import { containerStart, identify } from "./proc.mjs";
 import { buildPrompt } from "./prompts.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
 import { updatePrs, whyStuck } from "./prs.mjs";
+import { upkeepStacks } from "./upkeep.mjs";
 import { NEXT, SKIP } from "./queue.mjs";
 import { createRetriage } from "./retriage.mjs";
 import { authenticate, runTools } from "./run-tools.mjs";
@@ -897,6 +898,7 @@ export async function startDaemon({
             digestHourUtc: config.digest.hourUtc,
             ledger,
         });
+        await stacks(prList.repository.pullRequests.nodes, branch);
         if (state.trust.login) {
             await advanceProposals(state, {
                 gitHub: gh,
@@ -980,6 +982,10 @@ export async function startDaemon({
             m.headSha = headSha;
             m.configPending = true;
             const merged = await searchMerged(gh, config.repo, state.merged.lastScanAt ?? iso);
+            // A stacked child of a merged pull request is retargeted to the default branch.
+            const upkeep = (state.upkeep ??= { lastHeads: {}, mergedHeads: [] });
+            for (const pr of merged)
+                if (pr.headRef && !upkeep.mergedHeads.includes(pr.headRef)) upkeep.mergedHeads.push(pr.headRef);
             state.merged = accumulateMerged(state.merged, merged);
             state.merged.lastScanAt ??= iso;
         }
@@ -995,6 +1001,41 @@ export async function startDaemon({
             const shown = await runGit(["show", `origin/${branch}:.mergify.yml`]);
             mergify = shown.code === 0 ? shown.stdout : null;
         }
+    }
+
+    /**
+     * Keeps stacked pull requests moving (design 4.6, "Stacks"): a child whose base merged is
+     * retargeted to the default branch, and a child whose base's head moved is updated from it.
+     * A merged branch is forgotten once a step on it went through (or was recorded as a would-do).
+     * @param {any[]} nodes the open pull requests
+     * @param {string} branch the default branch
+     */
+    async function stacks(nodes, branch) {
+        const upkeep = (state.upkeep ??= { lastHeads: {}, mergedHeads: [] });
+        const prs = nodes.map((n) => ({
+            number: n.number,
+            base: n.baseRefName,
+            headRef: n.headRefName,
+            head: n.headRefOid,
+        }));
+        try {
+            await upkeepStacks(
+                {
+                    gh: github(),
+                    repo: config.repo,
+                    root,
+                    mode: writeMode,
+                    ledger,
+                    env: { ...env, GIT_TERMINAL_PROMPT: "0" },
+                    branch,
+                },
+                { prs, lastHeads: upkeep.lastHeads, mergedHeads: upkeep.mergedHeads },
+            );
+            upkeep.mergedHeads = [];
+        } catch (err) {
+            void ledger({ kind: "error", where: "stacks", error: /** @type {Error} */ (err).message });
+        }
+        upkeep.lastHeads = Object.fromEntries(prs.map((p) => [p.number, p.head]));
     }
 
     /**

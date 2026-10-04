@@ -112,7 +112,7 @@ let notifyLog;
 let clock;
 /**
  * @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null,
- *   events?: Record<string, any[]>}}
+ *   events?: Record<string, any[]>, merged?: any[]}}
  */
 let scene;
 /** @type {ReturnType<typeof createFakeGh>} */
@@ -158,7 +158,9 @@ function respond({ args, input }) {
                 },
             });
         }
-        if (input?.includes("search(")) return ok({ data: { search: { issueCount: 0, nodes: [] } } });
+        if (input?.includes("search(")) {
+            return ok({ data: { search: { issueCount: scene.merged?.length ?? 0, nodes: scene.merged ?? [] } } });
+        }
         if (input?.includes("issues(states: OPEN")) {
             return ok({ data: { repository: { issues: { pageInfo: { hasNextPage: false }, nodes: [] } } } });
         }
@@ -841,6 +843,26 @@ describe("the poll loop", () => {
         expect(daemon.state.proposals["issue:4"]).toMatchObject({ status: "commented", dryRun: true });
         const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
         expect(wouldDo.map((e) => [e.group, e.situation])).toEqual([["proposals", "propose duplicate"]]);
+        expect(gh.writes()).toEqual([]);
+    });
+
+    it("retargets a stacked child whose base merged, once, as a would-do in dry-run", async () => {
+        const child = { ...gatedPr(), number: 8, headRefName: "fix/y", headRefOid: C, baseRefName: "fix/x" };
+        scene.prs = [child];
+        const daemon = await start();
+        await poll(daemon);
+        expect(daemon.state.upkeep.lastHeads).toEqual({ 8: C });
+
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #7 from o/fix-x"), commit(A, null, "first")];
+        scene.merged = [{ number: 7, title: "fix(x): a fix", headRefName: "fix/x", mergedAt: "2026-10-02T12:02:00Z" }];
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        clock = new Date("2026-10-02T12:06:00Z");
+        await poll(daemon);
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.group === "upkeep");
+        expect(wouldDo.map((e) => [e.op, e.situation])).toEqual([["PATCH pulls/8", "stack base merged"]]);
+        expect(daemon.state.upkeep.mergedHeads).toEqual([]);
         expect(gh.writes()).toEqual([]);
     });
 

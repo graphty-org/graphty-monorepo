@@ -31,7 +31,16 @@ describe("parseMerged", () => {
 
     it("skips empty nodes and tolerates missing fields", () => {
         expect(parseMerged({ search: { nodes: [{}, { number: 1, title: "t", mergedAt: "x" }] } })).toEqual([
-            { number: 1, title: "t", mergedAt: "x", mergeSha: null, closes: [], paths: [], truncated: false },
+            {
+                number: 1,
+                title: "t",
+                headRef: null,
+                mergedAt: "x",
+                mergeSha: null,
+                closes: [],
+                paths: [],
+                truncated: false,
+            },
         ]);
         expect(parseMerged(null)).toEqual([]);
     });

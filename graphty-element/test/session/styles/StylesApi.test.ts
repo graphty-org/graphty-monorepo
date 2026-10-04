@@ -1047,6 +1047,31 @@ describe("encode(), the one path an analysis layer takes", () => {
         assert.deepStrictEqual(namesOf(styles), ["Default", "Colour", "Size"]);
     });
 
+    it("sizes by a run over the same default range a column gets, unless a range or scale is named (#915)", async () => {
+        const { styles } = makeStyles();
+
+        assert.deepStrictEqual(styles.proposeEncoding({ run: "betweenness", channel: "node.size" }), {
+            ok: true,
+            binding: { by: "results.betweenness.value", scale: "linear", range: [1, 3] },
+        });
+        const layer = await styles.encode({ run: "betweenness", channel: "node.size" });
+        assert.deepStrictEqual(layer.encode?.["node.size"], {
+            by: "results.betweenness.value",
+            scale: "linear",
+            range: [1, 3],
+        });
+        assert.deepStrictEqual(
+            styles.proposeEncoding({ run: "betweenness", channel: "node.size", range: [2, 9] }),
+            { ok: true, binding: { by: "results.betweenness.value", scale: "linear", range: [2, 9] } },
+            "a range the caller named is kept",
+        );
+        assert.deepStrictEqual(
+            styles.proposeEncoding({ run: "betweenness", channel: "node.color" }),
+            { ok: true, binding: { by: "results.betweenness.value", scale: "linear" } },
+            "a colour has no size range",
+        );
+    });
+
     it("says which runs there are when it does not hold the one it was given", async () => {
         const { styles } = makeStyles();
 

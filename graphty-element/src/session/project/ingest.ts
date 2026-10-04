@@ -379,6 +379,17 @@ export class Ingest<K extends KnownEdge> {
                 this.addNodes(mutation.records, mutation.idPath, writer);
                 return;
             case "add-edges":
+                // A graph that already holds edges keeps its direction and where it came from; a
+                // declaration that disagrees still reaches applyDeclaredDirection, which logs it.
+                if (
+                    mutation.directed !== undefined &&
+                    (writer.store.builder.edgeCount === 0 || writer.store.builder.directed !== mutation.directed)
+                ) {
+                    const { directed } = mutation;
+                    const statedBy = `"directed": ${String(directed)}`;
+                    this.applyDeclaredDirection("data.apply", { directed, statedBy, conflictingEdges: 0 }, writer);
+                }
+
                 this.addEdges(
                     mutation.records,
                     {
@@ -503,8 +514,11 @@ export class Ingest<K extends KnownEdge> {
         // The ids first, so the ceiling is checked against the nodes this batch would ADD (a
         // re-supplied node costs nothing) and checked before any of them is created: a batch
         // the renderer cannot hold is refused whole, not half-applied.
+        // A node an earlier edge created is in the builder, and so in `heldCounts`, without a
+        // render object yet: its row is not fresh, or the ceiling counts it twice.
+        const { builder } = this.host.store();
         const ids = nodes.map((node) => jmespath.search(node, query) as NodeIdType);
-        const fresh = new Set(ids.filter((id) => !this.hasNode(id)));
+        const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && builder.hasNode(id))));
         this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, DEFAULT_LIMITS.renderCeiling);
 
         for (const [i, node] of nodes.entries()) {

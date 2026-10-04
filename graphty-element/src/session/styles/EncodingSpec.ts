@@ -115,8 +115,10 @@ export interface EncodingSpec {
     /** Percentiles to cut the extent at, so a few outliers do not flatten everything else. */
     readonly clamp?: RuleBinding["clamp"];
     /**
-     * The numbers a numeric channel answers in, such as `[1, 5]` for a node size. Defaults to the
-     * unit interval, which is a colour ramp's positions and far too small for most sizes.
+     * The numbers a numeric channel answers in, such as `[1, 5]` for a node size. On `node.size`
+     * and `edge.width` with no `scale` named, an amount defaults to `[1, 3]` -- the default size
+     * to three times it, the same range a column of amounts gets -- and that range is written into
+     * the layer. Anywhere else it defaults to the unit interval.
      */
     readonly range?: RuleBinding["range"];
     /** What an element with no value is painted. Defaults to "skip", which is to leave it alone. */
@@ -512,7 +514,15 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
     const { field } = resolveField(spec, run, descriptor);
     const path = resultPath(run.id, field.name);
     const scale = spec.scale ?? defaultScale(field, run.shape, descriptor.accepts);
-    const binding = buildBinding(spec, path, scale, descriptor);
+    // An amount on a size gets the same default range a column's does, written into the layer
+    // now, rather than the unit interval that draws every node smaller than the default size.
+    const sized =
+        spec.scale === undefined &&
+        spec.range === undefined &&
+        SIZE_CHANNELS.has(descriptor.channel) &&
+        scaleDescriptor(scale)?.domainKind === "numeric";
+    const ranged: EncodingOptions = sized ? { ...spec, range: [DEFAULT_SIZE_RANGE[0], DEFAULT_SIZE_RANGE[1]] } : spec;
+    const binding = buildBinding(ranged, path, scale, descriptor);
 
     return {
         name: spec.name ?? `${run.label} - ${descriptor.plainName}`,

@@ -327,6 +327,21 @@ own `type` or `directed` agrees with the graph carries no such key: it is drawn 
 edge. GEXF keywords are read in any case, so `defaultedgetype="Directed"` is directed. Direction is settled once per graph: a second file loaded into a graph
 that already holds edges cannot reinterpret the edges already in it, and that is logged too.
 
+**Edges you add yourself** can declare the direction the same way a node-link JSON file does,
+with `directed` on an `add-edges` change:
+
+```typescript
+await session.execute({
+    op: "data.apply",
+    mutation: { kind: "add-edges", records: edges, directed: false },
+});
+session.data.statistics().directednessSource; // { by: "file", statedBy: '"directed": false' }
+```
+
+It counts only while the graph holds no edges and `data.directed` is `"auto"`. Undo takes the
+declaration back with the edges. On a graph that already has edges, a matching value changes
+nothing and a different one is logged and ignored, exactly as a second file would be.
+
 ## GEXF and GraphML Records
 
 GEXF and GraphML files are read by `@graphty/graph-io`, and each node and edge record carries the

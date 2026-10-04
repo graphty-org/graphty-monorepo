@@ -117,6 +117,42 @@ Store `text` wherever you keep files. Two options shape the file:
   reverse-domain name, at most 64 KB of JSON each. `open` hands it back as `report.extensions`.
   Keep your interface's state there, and nothing about the graph.
 
+`save()` clears `dirty` as soon as it returns the text. When you write the file yourself and the
+write can fail (the File System Access API, Node's `fs`, an upload), pass `markSaved: false` and
+mark the save once the write succeeded:
+
+```typescript
+const saved = await session.project.save({ markSaved: false });
+await writeTheFile(saved.text); // if this throws, the project stays dirty
+session.project.markSaved(saved);
+```
+
+A change made while the file was being written leaves the project dirty after `markSaved`, and
+undo back to the saved state clears it again. Marking a save older than one already marked, or
+older than the last `open`, does nothing.
+
+## Naming the file yourself
+
+When you save through something other than `downloadProject` -- a save picker, Node's `fs`, an
+upload -- take the file's name and type from the element rather than spelling them out:
+
+```typescript
+import { PROJECT_FILE, projectFileName } from "@graphty/graphty-element/session";
+
+const handle = await window.showSaveFilePicker({
+    suggestedName: projectFileName(session.project.name), // "Pioneers.graphty.json"
+    types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
+});
+```
+
+- **`projectFileName(name)`** is the name `downloadProject` gives the file: `<name>.graphty.json`,
+  or `project.graphty.json` when the project has no name. Opening a file of that name gives a
+  named project its name back (a project with no name reopens named `project`).
+- **`PROJECT_FILE.extension`** is `".graphty.json"` and **`PROJECT_FILE.mediaType`** is
+  `"application/vnd.graphty+json"`.
+
+Both come from `@graphty/graphty-element/session`, which loads in Node, and from the main entry.
+
 ## The name and unsaved changes
 
 ```typescript
@@ -212,6 +248,11 @@ You need this section only to read or write the file yourself. A graphty documen
 | `graphty-style`       | the style layers                                                   |
 | `graphty-notes`       | the notes                                                          |
 | `graphty-view-state`  | the selection; never needed to open the file                       |
+
+The data member's graph carries the node-link `directed` key once something settled the
+graph's direction (the file it was loaded from, or `data.directed`), so an undirected graph
+reopens undirected. Opening a project reports that direction in
+`session.data.statistics().directednessSource` as stated by `"directed": false` (or `true`).
 
 Node values are keyed by node id. Edge values are keyed by the edge's position in the data
 member, with the data's fingerprint beside them, so a hand edit of the data is detected rather

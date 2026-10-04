@@ -74,6 +74,7 @@ export type {
     RecordSort,
     ResultCell,
     ResultColumn,
+    ResultColumnDescriptor,
     ResultSort,
     RowUpdate,
     SessionAttributes,

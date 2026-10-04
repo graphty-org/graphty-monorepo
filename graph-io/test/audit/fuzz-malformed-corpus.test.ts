@@ -106,7 +106,9 @@ describe("fuzz audit: every malformed corpus file", () => {
                     expect(error?.message.length).toBeGreaterThan(0);
                     expectPopulated(report, format);
                     expect(report.errorCount).toBeGreaterThanOrEqual(1);
-                    expect(report.truncated).toBe(true);
+                    // truncated means the error limit stopped the import; a fatal error (fail()) is not
+                    // the limit, so it leaves the flag false (it was set for both before)
+                    expect(report.truncated).toBe(error?.details.limit !== undefined);
                     // the error that aborted is the last issue and is an error
                     const last = report.issues[report.issues.length - 1];
                     expect(last.severity).toBe("error");

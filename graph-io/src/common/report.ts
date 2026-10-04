@@ -13,6 +13,13 @@
 import { GraphFormatError, type GraphFormatErrorCode } from "@graphty/graph-format";
 
 import { ImportError, type ImportIssue, type ImportReport, type IssueCategory, type LossNote } from "../types.js";
+import { ISSUES_SUPPRESSED_CODE } from "./codes.js";
+
+/**
+ * The most warnings of one code a report keeps; later ones are counted in one W_ISSUES_SUPPRESSED
+ * warning, so a per-row warning on a large file cannot grow the report without bound.
+ */
+export const MAX_WARNINGS_PER_CODE = 1000;
 
 /**
  * Where an issue was found: the 1-based line and the element (id or attribute name) when known.
@@ -88,6 +95,9 @@ export class ImportReportBuilder {
     private readonly lossList: LossNote[] = [];
 
     private readonly onceCodes = new Set<string>();
+
+    /** Warnings recorded per code, kept or not. */
+    private readonly warningsByCode = new Map<string, number>();
 
     private errors = 0;
 
@@ -172,7 +182,9 @@ export class ImportReportBuilder {
     }
 
     /**
-     * Record a warning; warnings never count toward the limit.
+     * Record a warning; warnings never count toward the limit. Beyond MAX_WARNINGS_PER_CODE
+     * warnings of one code the warning is counted, not kept: finish() adds one W_ISSUES_SUPPRESSED
+     * warning per such code with the number dropped.
      * @param category - the issue category
      * @param code - a stable code such as "W_WIDENED"
      * @param message - a plain-ASCII message
@@ -181,8 +193,12 @@ export class ImportReportBuilder {
      */
     warning(category: IssueCategory, code: string, message: string, where?: IssueLocation): ImportIssue {
         const issue = makeIssue(category, "warning", code, message, where);
-        this.issueList.push(issue);
-        this.warnings++;
+        const seen = (this.warningsByCode.get(code) ?? 0) + 1;
+        this.warningsByCode.set(code, seen);
+        if (seen <= MAX_WARNINGS_PER_CODE) {
+            this.issueList.push(issue);
+            this.warnings++;
+        }
         return issue;
     }
 
@@ -238,6 +254,10 @@ export class ImportReportBuilder {
     recordError(err: unknown, where?: IssueLocation): ImportIssue {
         if (err instanceof GraphFormatError && !(err instanceof ImportError)) {
             const category = CATEGORY_BY_CODE[err.code] ?? "validation-error";
+            if (err.code === "E_TOO_LARGE") {
+                // the sink is full: every later element would fail the same way, so the import stops
+                return this.failWith(category, err.code, err.message, where);
+            }
             return this.error(category, err.code, err.message, where);
         }
         throw err;
@@ -263,12 +283,28 @@ export class ImportReportBuilder {
      * @param details - optional machine-readable context for the ImportError
      */
     fail(code: string, message: string, where?: IssueLocation, details?: Readonly<Record<string, unknown>>): never {
-        const issue = makeIssue("parse-error", "error", code, message, where);
-        this.issueList.push(issue);
+        this.failWith("parse-error", code, message, where, details);
+    }
+
+    /**
+     * Record a fatal error of any category and abort, as fail() does for a parse error: a size
+     * limit (E_TOO_LARGE, category "unsupported") stops an import without being a defect of the
+     * syntax. A fatal error is not the error limit: `truncated` stays as it was.
+     * @param category - the issue category
+     * @param code - a stable code
+     * @param message - a plain-ASCII message
+     * @param where - the line and element, when known
+     * @param details - optional machine-readable context for the ImportError
+     */
+    failWith(
+        category: IssueCategory,
+        code: string,
+        message: string,
+        where?: IssueLocation,
+        details?: Readonly<Record<string, unknown>>,
+    ): never {
+        this.issueList.push(makeIssue(category, "error", code, message, where));
         this.errors++;
-        if (this.errors > this.errorLimit) {
-            this.truncatedFlag = true;
-        }
         throw this.abort(message, { code, ...details });
     }
 
@@ -279,12 +315,27 @@ export class ImportReportBuilder {
      */
     finish(): ImportReport {
         const { nodes, edges, skippedNodes, skippedEdges, expandedMixed } = this.counts;
+        const suppressed: ImportIssue[] = [];
+        for (const [code, seen] of this.warningsByCode) {
+            if (seen > MAX_WARNINGS_PER_CODE) {
+                const more = seen - MAX_WARNINGS_PER_CODE;
+                suppressed.push(
+                    makeIssue(
+                        "unsupported",
+                        "warning",
+                        ISSUES_SUPPRESSED_CODE,
+                        `${more} more ${code} warning(s) were not kept (the report keeps the first ${MAX_WARNINGS_PER_CODE})`,
+                        { element: code },
+                    ),
+                );
+            }
+        }
         return Object.freeze({
             format: this.format,
             counts: Object.freeze({ nodes, edges, skippedNodes, skippedEdges, expandedMixed }),
-            issues: Object.freeze([...this.issueList]),
+            issues: Object.freeze([...this.issueList, ...suppressed]),
             errorCount: this.errors,
-            warningCount: this.warnings,
+            warningCount: this.warnings + suppressed.length,
             truncated: this.truncatedFlag,
             lossy: Object.freeze([...this.lossList]),
             durationMs: now() - this.startedAt,
@@ -319,13 +370,19 @@ function makeIssue(
 }
 
 /**
- * Whether a thrown value is an abort reason (the DOMException or Error named "AbortError" that
- * AbortSignal.reason holds), which an importer must let through untouched.
+ * Whether a thrown value is a cancellation reason (the DOMException or Error named "AbortError" that
+ * AbortSignal.reason holds, or the "TimeoutError" of AbortSignal.timeout()), which an importer must
+ * let through untouched. A custom reason passed to `abort(reason)` is not recognised: compare it with
+ * `signal.reason`.
  * @param err - the thrown value
- * @returns true for an AbortError
+ * @returns true for an AbortError or a TimeoutError
  */
 export function isAbortError(err: unknown): boolean {
-    return typeof err === "object" && err !== null && (err as { name?: unknown }).name === "AbortError";
+    if (typeof err !== "object" || err === null) {
+        return false;
+    }
+    const { name } = err as { name?: unknown };
+    return name === "AbortError" || name === "TimeoutError";
 }
 
 /**

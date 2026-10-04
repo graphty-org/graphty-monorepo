@@ -161,14 +161,12 @@ describe("ImportReportBuilder", () => {
             b.recordError(new GraphFormatError("E_UNKNOWN_NODE", "no node"), { line: 1 });
             b.recordError(new GraphFormatError("E_INVALID_WEIGHT", "nan"));
             b.recordError(new GraphFormatError("E_DIRECTED", "locked"));
-            b.recordError(new GraphFormatError("E_TOO_LARGE", "big"));
             b.recordError(new GraphFormatError("E_UNSUPPORTED", "nope"));
             b.recordError(new GraphFormatError("E_COLUMN_TYPE", "type"));
             expect(b.issues.map((i) => [i.category, i.code])).toEqual([
                 ["missing-value", "E_UNKNOWN_NODE"],
                 ["validation-error", "E_INVALID_WEIGHT"],
                 ["coercion", "E_DIRECTED"],
-                ["unsupported", "E_TOO_LARGE"],
                 ["unsupported", "E_UNSUPPORTED"],
                 ["validation-error", "E_COLUMN_TYPE"],
             ]);
@@ -193,6 +191,21 @@ describe("ImportReportBuilder", () => {
             const abort = new DOMException("stop", "AbortError");
             expect(() => b.recordError(abort)).toThrow(abort);
             expect(b.errorCount).toBe(0);
+        });
+
+        it("aborts at once on E_TOO_LARGE (a full sink fails every later element too), as unsupported, without the limit", () => {
+            const b = new ImportReportBuilder("csv", Infinity);
+            let caught: unknown;
+            try {
+                b.recordError(new GraphFormatError("E_TOO_LARGE", "big"), { line: 3 });
+            } catch (err) {
+                caught = err;
+            }
+            expect(caught).toBeInstanceOf(ImportError);
+            const err = caught as ImportError;
+            expect(err.details.code).toBe("E_TOO_LARGE");
+            expect(err.report.issues.map((i) => [i.category, i.code, i.line])).toEqual([["unsupported", "E_TOO_LARGE", 3]]);
+            expect(err.report.truncated).toBe(false);
         });
 
         it("aborts through the limit like error()", () => {
@@ -223,7 +236,8 @@ describe("ImportReportBuilder", () => {
                 element: null,
             },
         ]);
-        expect(err.report.truncated).toBe(true);
+        // a fatal error is not the error limit (truncated was set here before)
+        expect(err.report.truncated).toBe(false);
         const relaxed = new ImportReportBuilder("csv", 10);
         expect(() => relaxed.fail("E_X", "x")).toThrow(ImportError);
         expect(relaxed.truncated).toBe(false);

@@ -489,9 +489,26 @@ export function pm2Options(ctx) {
  * The variables the daemon keeps from the environment it was installed from: what git, gh, ssh
  * signing and the notify command need. No `CLAUDE*` variable, ever.
  */
-const DAEMON_ENV =
-    /^(HOME|USER|LOGNAME|LANG|LC_[A-Z]+|TZ|PATH|SHELL|SSH_AUTH_SOCK|XDG_CONFIG_HOME|PUSHOVER_[A-Z_]+|GIT_CONFIG_(COUNT|KEY_\d+|VALUE_\d+))$/;
+const DAEMON_ENV_NAMES = new Set([
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "LANG",
+    "TZ",
+    "PATH",
+    "SHELL",
+    "SSH_AUTH_SOCK",
+    "XDG_CONFIG_HOME",
+]);
+const DAEMON_ENV_PREFIX = /^(LC_|PUSHOVER_|GIT_CONFIG_(COUNT$|KEY_|VALUE_))/;
 const DAEMON_ENV_FILE = "daemon-env.json";
+
+/**
+ * Whether the daemon keeps a variable.
+ * @param {string} name the variable
+ * @returns {boolean} true when it is on the allow-list
+ */
+const keptForDaemon = (name) => DAEMON_ENV_NAMES.has(name) || DAEMON_ENV_PREFIX.test(name);
 
 /**
  * Writes `daemon-env.json` (owner-only) from the allow-listed variables of `env`: when it is
@@ -504,9 +521,7 @@ const DAEMON_ENV_FILE = "daemon-env.json";
 export function writeDaemonEnv(stateDir, env, { replace = false } = {}) {
     const file = join(stateDir, DAEMON_ENV_FILE);
     if (!replace && readJson(file)) return;
-    const kept = Object.fromEntries(
-        Object.entries(env).filter(([k, v]) => typeof v === "string" && DAEMON_ENV.test(k)),
-    );
+    const kept = Object.fromEntries(Object.entries(env).filter(([k, v]) => typeof v === "string" && keptForDaemon(k)));
     mkdirSync(stateDir, { recursive: true });
     const tmp = `${file}.${process.pid}.tmp`;
     writeFileSync(tmp, `${JSON.stringify(kept, null, 2)}\n`, { mode: 0o600 });
@@ -522,7 +537,7 @@ export function writeDaemonEnv(stateDir, env, { replace = false } = {}) {
 export function loadDaemonEnv(stateDir, env) {
     const saved = readJson(join(stateDir, DAEMON_ENV_FILE)) ?? {};
     for (const [k, v] of Object.entries(saved)) {
-        if (typeof v === "string" && DAEMON_ENV.test(k)) env[k] ??= v;
+        if (typeof v === "string" && keptForDaemon(k)) env[k] ??= v;
     }
 }
 
@@ -558,7 +573,11 @@ function startArgs(ctx) {
  * @param {string} word the word
  * @returns {string} the word, quoted when it needs it
  */
-const shellWord = (word) => (/^[\w@%+=:,./-]+$/.test(word) ? word : `'${word.replaceAll("'", String.raw`'\''`)}'`);
+function shellWord(word) {
+    if (/^[\w@%+=:,./-]+$/.test(word)) return word;
+    const escaped = word.replaceAll("'", String.raw`'\''`);
+    return `'${escaped}'`;
+}
 
 /**
  * The command `githerd install` prints: servherd's start of the daemon, from its fixed directory.

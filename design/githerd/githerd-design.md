@@ -1462,7 +1462,9 @@ enforces:
   use `githerd_read`. Also refused, because each is another spelling of a refused command or a
   write the guard cannot attribute: `git -c alias.*`, `core.hooksPath`, `HUSKY=`, the
   `GIT_DIR`-style variables, `git config` writes (the config is shared by every worktree), `curl`
-  and `wget` to GitHub, `npm` or `pnpm publish`, `nx release`, GraphQL mutations (a node id
+  and `wget` to GitHub or to this machine (`localhost`, `127.x`, `::1`: the daemon is reached
+  only through githerd's tools), the githerd CLI's owner commands (`answer`, `order`, `policy`,
+  `ack`, `veto`, `mode`, also as `node .../githerd.mjs`), `npm` or `pnpm publish`, `nx release`, GraphQL mutations (a node id
   cannot be checked against the owner items), a comment command that does not name its issue or
   pull request by number, and a commit message carrying an attribution line. A directory reached
   through `env -C` or `--chdir`, inside `sh -c` too, counts as a `cd`.
@@ -1486,7 +1488,11 @@ enforces:
   worker's, not owner input: it never answers an owner item, vetoes a close or moves the queue.
 
 Server-side, whatever the guard misses: the ruleset (pull requests only, required checks, no force
-push, no deletion) [R2]; Mergify as the only merger, gated by `githerd/merge`.
+push, no deletion) [R2]; Mergify as the only merger, gated by `githerd/merge`. The daemon refuses
+the owner's commands to a worker on its own too: the CLI names a worker's job in every request
+(`x-githerd-job`, from `GITHERD_JOB`), and for such a request `ack`, `veto` and `policy end` are
+refused, and `answer`, `order` and `policy` are held to `githerd_record`'s rule (within 30
+minutes of the owner steering the worker); `githerd mode` refuses to change the mode in a worker.
 
 ### 10.2 What only the daemon writes
 

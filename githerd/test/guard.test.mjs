@@ -289,10 +289,24 @@ const REFUSED = [
     ["pnpm -r publish", /release\.yml/],
     ["nx release", /release\.yml/],
     ["pnpm exec nx release --dry-run", /release\.yml/],
+    // the githerd CLI's owner commands, however it is reached, and the daemon reached directly
+    ["githerd answer ask-pr-7 yes", /githerd answer is the owner's/],
+    ["githerd order 12 13 first", /githerd order is the owner's/],
+    ["githerd policy freeze-merges release week", /githerd policy is the owner's/],
+    ["githerd ack incident-ci", /githerd ack is the owner's/],
+    ["githerd veto issue:12", /githerd veto is the owner's/],
+    ["githerd mode paused", /githerd mode is the owner's/],
+    ["node githerd/bin/githerd.mjs answer ask-pr-7 yes", /githerd answer is the owner's/],
+    ["pnpm exec githerd policy end policy-1", /githerd policy is the owner's/],
+    ["curl -X POST http://127.0.0.1:9123/owner -d x", /talk to githerd only through its tools/],
+    ["curl localhost:9123/owner", /talk to githerd only through its tools/],
+    ["wget -qO- http://localhost/owner", /talk to githerd only through its tools/],
 ];
 
 /** Bash commands allowed: the alternatives the refusals name, and ordinary work. */
 const ALLOWED = [
+    "githerd status",
+    "node githerd/bin/githerd.mjs why pr-7",
     'git commit -S -m "fix: x"',
     "git commit -S -m \"$(cat <<'EOF'\nfix(githerd): x\n\nBody text.\nEOF\n)\"",
     "git commit -S -F msg-clean.txt",

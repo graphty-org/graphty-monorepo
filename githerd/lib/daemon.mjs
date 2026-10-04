@@ -2198,13 +2198,20 @@ export async function startDaemon({
     /**
      * The owner's CLI commands that change state: `ack`, `veto`, and the owner layer's `answer`,
      * `order`, `policy` and `policy-end` (owner.mjs).
+     * A worker (the request names its job) may record an answer, order or policy only as
+     * `githerd_record` allows it, within 30 minutes of the owner steering it; `ack`, `veto` and
+     * `policy-end` are refused to it outright.
      * @param {any} cmd `{op: "ack", key}`, `{op: "veto", id}` with `id` `issue:<n>` or `pr:<n>`, or
      *   an owner-layer command
+     * @param {string | null} worker the calling worker's job, null for the owner
      * @returns {{status: number, text: string, entry?: {kind: string} & Record<string, unknown>,
      *   resumed?: {job: string}[]}} the answer, the ledger entry when something changed, and the
      *   jobs an answer sent back to work
      */
-    function owner(cmd) {
+    function owner(cmd, worker) {
+        if (worker && ["ack", "veto", "policy-end"].includes(cmd?.op)) {
+            return { status: 403, text: `${cmd.op} is the owner's: a worker cannot run it` };
+        }
         if (cmd?.op === "ack") {
             const result = board.resolve(state, { key: String(cmd.key) }, now());
             if (!result.ok) return { status: 404, text: /** @type {any} */ (result).error };
@@ -2227,7 +2234,8 @@ export async function startDaemon({
                 entry: { kind: "veto", target, by: "owner" },
             };
         }
-        if (["answer", "order", "policy", "policy-end"].includes(cmd?.op)) return ownerCommand(state, cmd, now());
+        if (["answer", "order", "policy", "policy-end"].includes(cmd?.op))
+            return ownerCommand(state, cmd, now(), worker);
         return { status: 400, text: "op must be ack, veto, answer, order, policy or policy-end" };
     }
 
@@ -2282,7 +2290,8 @@ export async function startDaemon({
      */
     async function ownerRoute(req) {
         ownerPresent(req);
-        const answer = owner(JSON.parse(await body(req)));
+        const job = req.headers["x-githerd-job"];
+        const answer = owner(JSON.parse(await body(req)), job ? String(job) : null);
         if (answer.entry) {
             await save();
             await ledger(answer.entry);

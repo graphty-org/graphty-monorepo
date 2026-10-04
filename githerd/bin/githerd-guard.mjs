@@ -142,19 +142,25 @@ function checkCommand(cmd, ctx) {
     else if (name === "npm" || name === "pnpm" || name === "yarn") checkPackageManager(cmd, args, ctx);
     else if (name === "nx" && args.find((a) => !a.startsWith("-")) === "release") refuse(RELEASE);
     else if (name === "find") checkFindExec(cmd, args, ctx);
-    else checkReviewTool(name, args);
+    else {
+        checkReviewTool(name, args);
+        checkOwnerCommand(name, args);
+    }
 }
 
 const RELEASE = "releases and publishing happen only in CI from master: merge the change and release.yml publishes it";
 
 /**
  * curl and wget may read the web but not GitHub, whose writes go through `gh`, which the guard
- * reads.
+ * reads, nor the daemon on this machine, whose owner commands a worker must not send.
  * @param {string} name the program
  * @param {string[]} args its arguments
  */
 function checkCurl(name, args) {
     if (args.some((a) => /github\.com/i.test(a))) refuse(`${name} to GitHub: use gh, which the guard can check`);
+    if (args.some((a) => /(^|[/@])(localhost|127\.\d+\.\d+\.\d+|\[?::1\]?)([:/]|$)/i.test(a))) {
+        refuse(`${name} to this machine: talk to githerd only through its tools`);
+    }
 }
 
 /**
@@ -234,6 +240,28 @@ function checkReviewTool(name, args) {
     const verb = rest.find((a) => !a.startsWith("-"));
     if (verb === "accept" || verb === "finish") {
         refuse(`visual-review ${verb}: only the owner accepts visual changes; list them for him in githerd_done`);
+    }
+}
+
+/** The githerd CLI's commands that are the owner's to run. */
+const OWNER_COMMANDS = new Set(["answer", "order", "policy", "ack", "veto", "mode"]);
+
+/**
+ * The githerd CLI's owner commands (`answer`, `order`, `policy`, `ack`, `veto`, `mode`) are the
+ * owner's, however the CLI is reached: `githerd` on the PATH or `node .../githerd.mjs`.
+ * @param {string} name the program
+ * @param {string[]} args its arguments
+ */
+function checkOwnerCommand(name, args) {
+    let rest = args;
+    if (name === "node") {
+        const script = args.findIndex((a) => !a.startsWith("-"));
+        if (script === -1 || baseName(args[script]) !== "githerd.mjs") return;
+        rest = args.slice(script + 1);
+    } else if (name !== "githerd" && name !== "githerd.mjs") return;
+    const verb = rest.find((a) => !a.startsWith("-"));
+    if (verb !== undefined && OWNER_COMMANDS.has(verb)) {
+        refuse(`githerd ${verb} is the owner's: ask him through githerd_ask_owner`);
     }
 }
 

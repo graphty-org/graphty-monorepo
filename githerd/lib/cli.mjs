@@ -147,13 +147,17 @@ function readJson(path) {
 
 /**
  * Who runs this command, for the daemon's presence record (design 11.3): `agent` inside Claude
- * Code (any `CLAUDECODE` or `CLAUDE_*` variable in the environment), else `owner`.
+ * Code (any `CLAUDECODE` or `CLAUDE_*` variable in the environment), else `owner`. A worker also
+ * names its job (`GITHERD_JOB`), so the daemon refuses it the owner's commands.
  * @param {Record<string, string | undefined>} env the environment
- * @returns {{"x-githerd-caller": string}} the header
+ * @returns {Record<string, string>} the headers
  */
 function callerHeader(env) {
     const agent = Object.keys(env).some((k) => k === "CLAUDECODE" || k.startsWith("CLAUDE_"));
-    return { "x-githerd-caller": agent ? "agent" : "owner" };
+    return {
+        "x-githerd-caller": agent ? "agent" : "owner",
+        ...(env.GITHERD_JOB ? { "x-githerd-job": env.GITHERD_JOB } : {}),
+    };
 }
 
 /**
@@ -590,6 +594,10 @@ async function cmdMode(c) {
     const [mode] = c.positional;
     const file = join(c.stateDir, "override.json");
     if (mode === undefined) return showModes(c, file);
+    if (c.env.GITHERD_JOB) {
+        c.err("githerd mode is the owner's: a worker cannot change githerd's mode");
+        return 2;
+    }
     if (mode === "acting") {
         c.err(
             "githerd mode acting is refused: the mode is raised only by a githerd.config.json change merged to the default branch",

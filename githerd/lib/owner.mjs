@@ -302,12 +302,15 @@ export function activePolicies(state, name) {
  * The owner's CLI commands of the owner layer, as the daemon's `POST /owner` takes them:
  * `{op: "answer", item, text}`, `{op: "order", issues, text}`, `{op: "policy", text, switch?,
  * value?}` and `{op: "policy-end", id}`.
+ * A worker's command (`worker` names its job) is held to `githerd_record`'s rule: only within 30
+ * minutes of the owner steering it.
  * @param {any} state the daemon state, mutated
  * @param {any} cmd the command
  * @param {Date} now the current time
+ * @param {string | null} [worker] the calling worker's job, null for the owner
  * @returns {{status: number, text: string, entry?: LedgerEntry, resumed?: Resumed[]}} the answer
  */
-export function ownerCommand(state, cmd, now) {
+export function ownerCommand(state, cmd, now, worker = null) {
     try {
         if (cmd?.op === "policy-end") return { status: 200, ...endPolicy(state, String(cmd.id), now) };
         const kind = cmd?.op === "answer" || cmd?.op === "order" || cmd?.op === "policy" ? cmd.op : null;
@@ -321,7 +324,7 @@ export function ownerCommand(state, cmd, now) {
             item: cmd.item,
         };
         if (!args.text) return { status: 400, text: `${kind} needs words` };
-        return { status: 200, ...recordOwner(state, args, { session: null, now }) };
+        return { status: 200, ...recordOwner(state, args, { session: null, worker, now }) };
     } catch (err) {
         return { status: 409, text: /** @type {Error} */ (err).message };
     }

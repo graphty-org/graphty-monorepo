@@ -473,6 +473,36 @@ describe("answer, order and policy", () => {
         expect(kinds).toEqual(["order", "policy", "policy", "policy", "policy"]);
     });
 
+    it("refuses a worker the owner's commands, unless the owner steered it in the last 30 minutes", async () => {
+        const d = await daemon();
+        d.state.jobs = { "pr-7": { id: "pr-7", steeredAt: null } };
+        escalate(d.state, { key: "decide:x", kind: "decision", summary: "pick" }, { session: "wt-1" }, new Date());
+        d.state.ownerItems = {
+            "ask-pr-7": { id: "ask-pr-7", kind: "decision", question: "Merge as a major?", options: [], target: null },
+        };
+        const worker = { extraEnv: { GITHERD_JOB: "pr-7", CLAUDECODE: "1" } };
+        expect(await cli(["answer", "ask-pr-7", "yes"], worker)).toMatchObject({
+            code: 1,
+            err: expect.stringContaining("within 30 minutes of the owner steering it"),
+        });
+        expect(d.state.ownerItems["ask-pr-7"].endedAt).toBeUndefined();
+        expect((await cli(["policy", "freeze-merges", "mine"], worker)).code).toBe(1);
+        expect(d.state.policies ?? []).toEqual([]);
+        for (const argv of [["ack", "decide:x"], ["veto", "issue:4"]]) {
+            const r = await cli(argv, worker);
+            expect(r).toMatchObject({ code: 1, err: `${argv[0]} is the owner's: a worker cannot run it` });
+        }
+        expect(d.state.escalations["decide:x"].resolvedAt).toBeFalsy();
+        expect(d.state.vetoes?.["issue:4"]).toBeUndefined();
+        expect(await cli(["mode", "paused"], worker)).toMatchObject({
+            code: 2,
+            err: "githerd mode is the owner's: a worker cannot change githerd's mode",
+        });
+
+        d.state.jobs["pr-7"].steeredAt = new Date().toISOString();
+        expect((await cli(["policy", "no", "new", "dependencies"], worker)).code).toBe(0);
+    });
+
     it("prints the usage for an incomplete line", async () => {
         for (const argv of [
             ["answer", "item-1"],

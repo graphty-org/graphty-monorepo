@@ -80,6 +80,29 @@ export interface ImportReport {
     };
 }
 
+/** What `E_TOO_LARGE` carries in `details` when a load would pass the element's limit. */
+export interface TooLargeDetails {
+    /** The most the element holds of {@link of}. */
+    readonly limit: number;
+    /** How many the graph would hold. */
+    readonly count: number;
+    /** What is counted. */
+    readonly of: "nodes" | "edges";
+    /** What the graph held when the load was refused. */
+    readonly graph: { readonly nodes: number; readonly edges: number };
+}
+
+/**
+ * An {@link ImportReport} plus two facts a reader checks before and after a load:
+ * `session.data.lastImport()` and `LoadDraft.report()` both return it.
+ */
+export interface LoadReport extends ImportReport {
+    /** Edge rows naming a node no node row (nor the graph, for a merge) held, and how many distinct such names. */
+    readonly unmatched: { readonly rows: number; readonly values: number };
+    /** The details `E_TOO_LARGE` would carry; null when the load fits. Always null after a real load, which refuses instead. */
+    readonly tooLarge: TooLargeDetails | null;
+}
+
 /**
  * The mutable tally a load keeps while it runs, before it is frozen into an {@link ImportReport}.
  *
@@ -109,6 +132,12 @@ export interface ImportTally {
     edgesById: number;
     /** Edges stored without one. */
     edgesByPosition: number;
+    /** Edge records naming a node no node record held. */
+    unmatchedRows: number;
+    /** The distinct names those records used. */
+    readonly unmatchedValues: Set<unknown>;
+    /** The first limit a measured load passed. */
+    tooLarge: TooLargeDetails | null;
 }
 
 /**
@@ -128,6 +157,9 @@ export function newImportTally(): ImportTally {
         weightsAttribute: null,
         edgesById: 0,
         edgesByPosition: 0,
+        unmatchedRows: 0,
+        unmatchedValues: new Set(),
+        tooLarge: null,
     };
 }
 
@@ -153,7 +185,7 @@ interface ImportReportContext {
  * @param context - who loaded what, and what the graph holds now
  * @returns the frozen report
  */
-export function sealImportReport(tally: ImportTally, context: ImportReportContext): ImportReport {
+export function sealImportReport(tally: ImportTally, context: ImportReportContext): LoadReport {
     return Object.freeze({
         format: context.format,
         endpoints: Object.freeze({ ...context.endpoints }),
@@ -180,5 +212,7 @@ export function sealImportReport(tally: ImportTally, context: ImportReportContex
             byId: tally.edgesById,
             byPosition: tally.edgesByPosition,
         }),
+        unmatched: Object.freeze({ rows: tally.unmatchedRows, values: tally.unmatchedValues.size }),
+        tooLarge: tally.tooLarge,
     });
 }

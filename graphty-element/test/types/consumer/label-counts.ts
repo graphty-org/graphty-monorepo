@@ -24,3 +24,10 @@ export function readCountsWithoutACast(status: HTMLElement): void {
     });
     element.layoutBehavior = { labels: { declutter: true } };
 }
+
+/** The event bubbles, so a listener on the document gets the same typed detail. */
+export function listenOnTheDocument(status: HTMLElement): void {
+    document.addEventListener("graphty-label-change", (e) => {
+        status.textContent = String(e.detail.hiddenByOverlap);
+    });
+}

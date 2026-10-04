@@ -33,7 +33,13 @@ import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf } from "./session/GraphSession";
 import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
-import type { ProjectSaveOptions, ProjectSaveReport, ProjectStatus } from "./session/projectFile";
+import {
+    PROJECT_FILE,
+    projectFileName,
+    type ProjectSaveOptions,
+    type ProjectSaveReport,
+    type ProjectStatus,
+} from "./session/projectFile";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { ProgressChange } from "./session/shared";
@@ -172,13 +178,15 @@ export class Graphty extends LitElement {
      * ```
      */
     async downloadProject(
-        options: ProjectSaveOptions & { readonly fileName?: string } = {},
+        options: Omit<ProjectSaveOptions, "markSaved"> & { readonly fileName?: string } = {},
     ): Promise<ProjectSaveReport> {
-        const { text, report } = await this.session.project.save(options);
-        const url = URL.createObjectURL(new Blob([text], { type: "application/vnd.graphty+json" }));
+        // The download is the write, and the caller never sees a SavedProject to mark, so this
+        // save always clears `dirty`.
+        const { text, report } = await this.session.project.save({ ...options, markSaved: true });
+        const url = URL.createObjectURL(new Blob([text], { type: PROJECT_FILE.mediaType }));
         const link = document.createElement("a");
         link.href = url;
-        link.download = options.fileName ?? `${this.session.project.name ?? "project"}.graphty.json`;
+        link.download = options.fileName ?? projectFileName(this.session.project.name);
         link.click();
         URL.revokeObjectURL(url);
         return report;
@@ -1591,6 +1599,40 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether a node label that would be drawn over another label is hidden until the reader
+     * zooms in.
+     * @remarks
+     * A preference of this view, not part of the project: switching it records no undo step and
+     * is not saved in a project file. Off (the default), every label is drawn. It takes effect on
+     * the next frame. The same switch as `layoutBehavior.labels.declutter`, with a door of its
+     * own so a consumer can flip it without assigning `layoutBehavior`, which also carries the
+     * project's layout pacing.
+     * @since 3.10.0
+     * @example
+     * ```typescript
+     * showAllLabels.onchange = () => {
+     *     element.labelDeclutter = !showAllLabels.checked;
+     * };
+     * ```
+     * ```html
+     * <graphty-element label-declutter></graphty-element>
+     * ```
+     * @returns True when overlapping labels are hidden
+     */
+    @property({ attribute: "label-declutter", type: Boolean })
+    get labelDeclutter(): boolean {
+        return this.#graph.getLayoutBehavior()?.labels?.declutter === true;
+    }
+    /**
+     * Switches label decluttering on or off.
+     */
+    set labelDeclutter(value: boolean) {
+        const oldValue = this.labelDeclutter;
+        this.#graph.setLayoutBehavior({ labels: { declutter: value } });
+        this.requestUpdate("labelDeclutter", oldValue);
+    }
+
+    /**
      * What a selected node looks like: the halo's colour, how far it stands out past the node,
      * and how solid it is.
      * @remarks
@@ -1831,7 +1873,7 @@ export class Graphty extends LitElement {
     /**
      * How far the camera starts from the graph, in scene units.
      * @remarks
-     * Set, it places the 3D camera at this distance from the orbit centre (never closer than the
+     * Set, it places the 3D camera at this distance from the orbit center (never closer than the
      * minimum zoom distance) and gives the 2D camera the same view height, and the element stops
      * framing the graph on its own after a data load or a layout change. `zoomToFit()` still
      * frames it when called. Unset (the default), every load is framed to fit. Setting it on a
@@ -1867,6 +1909,48 @@ export class Graphty extends LitElement {
 
         this.#startingCameraDistance = value;
         this.requestUpdate("startingCameraDistance", oldValue);
+    }
+
+    /**
+     * Whether the camera frames the graph on its own after a data load or a layout change.
+     * @remarks
+     * On (the default), every load and layout change is framed to fit, as long as no
+     * `startingCameraDistance` is set. Off, a load or a layout change leaves the camera where it
+     * is, and a re-frame already following a moving layout stops. `zoomToFit()` frames the graph
+     * either way. A preference of this view, not part of the project: switching it records no
+     * undo step and is not saved in a project file. Independent of `startingCameraDistance`, so
+     * turning framing off needs no invented distance.
+     *
+     * The attribute is on unless it reads `"false"`: `auto-frame="false"` turns framing off, and
+     * removing the attribute turns it back on.
+     * @since 3.10.0
+     * @example
+     * ```typescript
+     * reframe.onchange = () => {
+     *     element.autoFrame = reframe.checked;
+     * };
+     * ```
+     * ```html
+     * <graphty-element auto-frame="false"></graphty-element>
+     * ```
+     * @returns True when the camera frames each load and layout change
+     */
+    @property({
+        attribute: "auto-frame",
+        converter: {
+            fromAttribute: (value: string | null): boolean => value !== "false",
+        },
+    })
+    get autoFrame(): boolean {
+        return this.#graph.getAutoFrame();
+    }
+    /**
+     * Switches the camera's own framing on or off.
+     */
+    set autoFrame(value: boolean) {
+        const oldValue = this.autoFrame;
+        this.#graph.setAutoFrame(value);
+        this.requestUpdate("autoFrame", oldValue);
     }
 
     /**
@@ -2330,7 +2414,8 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Centre the camera on the selected nodes, keeping where it stands. With nothing selected
+     * Center the camera on the selection -- its nodes and the ends of its edges -- keeping where
+     * it stands. With nothing selected
      * the camera does not move. Not an undoable step: the camera is view state.
      * @param options - Animation options
      * @returns Promise that resolves when the camera has moved
@@ -3850,7 +3935,7 @@ export class Graphty extends LitElement {
      * WebGPU the VR and AR buttons report the mode unavailable. See the renderer guide for what
      * else differs and the measured frame times.
      * @returns What the consumer asked for. `"webgl"` unless it was set.
-     * @since 3.1.0
+     * @since 3.3.0
      * @example HTML attribute
      * ```html
      * <graphty-element renderer="auto"></graphty-element>
@@ -3890,7 +3975,7 @@ export class Graphty extends LitElement {
      * Null until the element has initialised its renderer, which it does once connected; the
      * `render-initialized` event fires after.
      * @returns The status, or null before the renderer has been chosen.
-     * @since 3.1.0
+     * @since 3.3.0
      * @example
      * ```typescript
      * await element.updateComplete;
@@ -4051,6 +4136,11 @@ declare global {
         "graphty-node-hover": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
+        "graphty-label-change": CustomEvent<NodeLabelCounts>;
+    }
+
+    // It bubbles and is composed, so a listener on the document is typed the same way.
+    interface DocumentEventMap {
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
     }
 }

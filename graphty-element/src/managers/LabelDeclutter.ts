@@ -9,21 +9,22 @@ import type { GraphContext } from "./GraphContext";
  * A node counts once however many label lines it has. Edge labels are not counted: the element
  * never hides an edge label to avoid overlap.
  *
- * `labeled - nodeHidden - hiddenByOverlap` is the number of labels the element would draw. Some of
- * those may be outside the current view; a label outside the view is never counted as hidden. A
- * minor release may add another `hiddenBy...` count for a new reason; each is a separate subset of
- * `labeled`.
+ * `nodeHidden` and `hiddenByOverlap` are separate parts of `labeled`: a label is counted under one
+ * of them at most. `labeled - nodeHidden - hiddenByOverlap` is the number of labels the element
+ * draws. Some of those may be outside the current view; a label outside the view is never counted
+ * as hidden. A minor release may add another `hiddenBy...` count for a new reason, separate from
+ * these, and the number drawn is then `labeled` less every `hidden` count.
  * @since 3.7.0
  */
 export interface NodeLabelCounts {
     /** Nodes whose label has text to draw. */
     readonly labeled: number;
-    /** Of those, nodes that are not drawn themselves (a filter or the time window hides them). */
+    /** Labels not drawn because their node is not drawn (a filter or the time window hides it). */
     readonly nodeHidden: number;
     /**
-     * Of those, labels inside the current view that `layoutBehavior.labels.declutter` hid because
-     * they would overlap a label it kept. Always 0 while declutter is off. Depends on the camera
-     * and the size of the canvas.
+     * Labels not drawn because, inside the current view, `layoutBehavior.labels.declutter` hid
+     * them: they would overlap a label it kept. Never counts a label whose node is hidden. Always
+     * 0 while declutter is off. Depends on the camera and the size of the canvas.
      */
     readonly hiddenByOverlap: number;
 }
@@ -37,7 +38,7 @@ export const NO_NODE_LABELS: NodeLabelCounts = Object.freeze({ labeled: 0, nodeH
  */
 const QUIET_FRAMES = 10;
 
-/** One labelled node, what the last pass saw of it, and where its words were on screen. */
+/** One labeled node, what the last pass saw of it, and where its words were on screen. */
 interface Entry {
     node: Node;
     /** Compares ids without building a string per comparison. */
@@ -64,7 +65,7 @@ const Y_AXIS = new Vector3(0, 1, 0);
 const MIN_CELL = 16;
 
 /**
- * Hides node labels that would be drawn on top of each other, when the graph's behaviour
+ * Hides node labels that would be drawn on top of each other, when the graph's behavior
  * configuration asks for it (`labels.declutter`, off by default).
  *
  * Every node label is its own billboarded plane, so two labelled nodes that land near each other

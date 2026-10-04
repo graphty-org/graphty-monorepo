@@ -1,0 +1,74 @@
+{
+    "repo": "graphty-org/graphty-monorepo",
+    "mode": "dry-run",
+    "pollSeconds": 180,
+    "servherdCommand": ["node", "/home/apowers/Projects/servherd/dist/index.js"],
+    "lanes": {
+        "ci": { "workflow": "ci.yml", "gating": "required" },
+        "gpu": { "workflow": "gpu.yml", "gating": "required", "maxMinutes": 240 },
+        "hosts": { "workflow": "hosts.yml", "gating": "if-run" },
+        "release": { "workflow": "release.yml", "gating": "watch" }
+    },
+    "release": { "commitPattern": "^chore\\(release\\): publish", "stallHours": 6 },
+    "requiredChecks": ["All Checks Pass", "Lint PR Title"],
+    "ownerGate": {
+        "steps": ["^Check visual changes were accepted$"],
+        "rejectMarker": "visual-review-rejects",
+        "reviewServer": { "name": "visual-review", "command": ["node", "visual-review/trusted/cli.mjs", "serve"] }
+    },
+    "labels": {
+        "types": ["bug", "enhancement", "research", "infrastructure", "documentation"],
+        "priorities": ["priority:critical", "priority:high", "priority:medium", "priority:low"],
+        "efforts": ["effort:high", "effort:medium", "effort:low"]
+    },
+    "protectedPaths": [
+        "visual-baselines/",
+        "visual-review/",
+        ".github/",
+        "githerd/",
+        "githerd.config.json",
+        ".mcp.json",
+        ".claude/",
+        "CLAUDE.md"
+    ],
+    "noAutoMergePaths": ["githerd/", "githerd.config.json", ".mcp.json", ".claude/", ".github/", "visual-review/"],
+    "worktreeSetup": ["pnpm", "install", "--frozen-lockfile"],
+    "runRulesFile": ".claude/githerd-rules.md",
+    "actions": {
+        "statuses": false,
+        "prUpkeep": false,
+        "runWrites": false,
+        "proposals": false,
+        "incidents": false
+    },
+    "grace": { "closeIssueDays": 7, "closeIssueShownDays": 3, "revertMinutes": 30 },
+    "runs": {
+        "maxConcurrent": 2,
+        "dailyBudgetUsd": 15,
+        "dryRunDailyBudgetUsd": 5,
+        "model": { "master-red": "opus", "backlog-high": "opus", "default": "sonnet" },
+        "caps": {
+            "master-red": { "turns": 80, "budgetUsd": 6, "timeoutMinutes": 60 },
+            "pr-fix": { "turns": 60, "budgetUsd": 4, "timeoutMinutes": 45 },
+            "pr-conflict": { "turns": 60, "budgetUsd": 4, "timeoutMinutes": 45 },
+            "backlog": { "turns": 80, "budgetUsd": 5, "timeoutMinutes": 60 },
+            "backlog-high": { "turns": 200, "budgetUsd": 8, "timeoutMinutes": 120 },
+            "default": { "turns": 30, "budgetUsd": 1.5, "timeoutMinutes": 15 }
+        },
+        "writesPerRun": 10
+    },
+    "backlog": { "wipCap": 3, "agingDays": 60 },
+    "refresh": { "everyHours": 24, "maxIssuesPerRun": 15, "minDaysBetween": 14 },
+    "retriage": { "intervalDays": 7, "startHourUtc": 9, "batchSize": 25, "runsPerHour": 2, "budgetUsd": 25 },
+    "staleDays": 14,
+    "notify": {
+        "command": [
+            "/home/apowers/.claude/scripts/claude-notify.sh",
+            "{status}",
+            "[graphty-monorepo] {message}",
+            "githerd"
+        ],
+        "maxPerHour": 6
+    },
+    "digest": { "weekday": "sun", "hourUtc": 16, "issue": null }
+}

@@ -172,6 +172,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
 | `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
 | `@graphty/visual-review` | `visual-review/` | 0.0.1 | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
+| `@graphty/githerd` | `githerd/` | 0.1.0 | Repository pipeline daemon (private): watches master, pull requests and issues, pages the owner on a red master, coordinates Claude sessions through MCP tools, starts bounded fix runs; configured by `githerd.config.json` |
 
 ## Monorepo Structure
 
@@ -188,6 +189,7 @@ graphty-monorepo/
 |-- compact-mantine/      # @graphty/compact-mantine: the shared Mantine theme and components
 |-- remote-logger/        # @graphty/remote-logger: browser console logs to a server and MCP
 |-- visual-review/        # @graphty/visual-review: Storybook capture and baseline review
+|-- githerd/              # @graphty/githerd: pipeline daemon, session coordination MCP tools, CLI
 |-- tools/                # Build scripts
 |   |-- merge-coverage.sh # Coverage report merging
 |   |-- run-tests.sh      # Runs one CI test shard locally, with CI's command
@@ -517,7 +519,7 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 22 parallel test jobs on a push to master or a manual dispatch:
+The CI runs 23 parallel test jobs on a push to master or a manual dispatch:
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
@@ -527,6 +529,7 @@ The CI runs 22 parallel test jobs on a push to master or a manual dispatch:
 - `graphty`
 - `remote-logger`
 - `visual-review`
+- `githerd`
 - `compact-mantine`
 - `graphty-element-default`
 - `graphty-element-browser-1` through `graphty-element-browser-5`
@@ -883,6 +886,25 @@ Several agents often work in this repository at once. They share one disk and on
 - A review or audit reads `git diff <base>...HEAD`, not the whole tree, unless the task is
   explicitly a whole-repository audit.
 - Report regressions and failures first, then everything else.
+
+**githerd.** To pick up work, call `githerd_next`: it gives you the top unclaimed item of the
+work queue with the reason it is next, already claimed for you. To work on something specific
+instead, call `githerd_status` and claim it with `githerd_claim` (a PR, an issue, `master`, a
+branch or a path). If someone else holds it, do something else or message the holder. Before any
+push or merge, call `githerd_status` again: if master is red, do not push or merge anything except
+the fix for master, and claim `master` with the fix PR's number (`fixPr`) if you are the one
+fixing it. Release your claim when you finish.
+Record owner questions with `githerd_escalate` so other sessions see them, and still end your
+reply with ACTION NEEDED as usual.
+
+### githerd
+
+githerd is the repository's pipeline daemon: it watches master, pull requests and issues, pages
+the owner when master is red, and gives every Claude session the `githerd_*` MCP tools
+(`githerd_status`, `githerd_next`, `githerd_claim`, `githerd_release`, `githerd_report`,
+`githerd_escalate`, `githerd_resolve`) through the server in `.mcp.json`. `githerd_next` hands out
+work in the order of githerd's work queue (section 10.2 of `design/githerd/githerd-design.md`).
+Commands, the MCP server and the owner's one-time prerequisites are in `githerd/README.md`.
 
 ## Claude Session History
 

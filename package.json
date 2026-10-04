@@ -68,6 +68,7 @@
         "@commitlint/cli": "^19.8.1",
         "@commitlint/config-conventional": "^19.8.1",
         "@eslint/js": "^9.29.0",
+        "@graphty/githerd": "workspace:*",
         "@graphty/visual-review": "workspace:*",
         "@nx/eslint": "22.7.12",
         "@nx/react": "22.7.12",

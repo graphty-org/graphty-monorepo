@@ -1,0 +1,30 @@
+{
+    "name": "@graphty/githerd",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Keeps a GitHub repository's pipeline moving when Claude Code sessions do most of the work: watches the default branch, pull requests and issues, pages the owner, coordinates sessions and starts bounded fix runs",
+    "author": "Adam Powers <apowers@ato.ms>",
+    "type": "module",
+    "bin": {
+        "githerd": "bin/githerd.mjs"
+    },
+    "engines": {
+        "node": ">=22.0.0"
+    },
+    "scripts": {
+        "test": "vitest",
+        "test:run": "vitest run",
+        "coverage": "vitest run --coverage",
+        "lint": "eslint . && npm run typecheck",
+        "lint:knip": "cd .. && ./tools/run-knip.sh --workspace githerd",
+        "typecheck": "tsc -p tsconfig.json"
+    },
+    "license": "MIT",
+    "devDependencies": {
+        "@types/node": "^20.19.9",
+        "@vitest/coverage-v8": "catalog:",
+        "eslint": "^9.29.0",
+        "typescript": "^5.9.3",
+        "vitest": "catalog:"
+    }
+}

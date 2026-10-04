@@ -25,7 +25,7 @@ export type TypeGlyph = "category" | "number" | "ordinal" | "time" | "unknown" |
 
 /** One Attributes row. */
 export interface AttributeRow {
-    /** `node:<name>` or `edge:<name>`: the inspected id. */
+    /** `node:<name>` or `edge:<name>`: the tree row's id (the inspected id is the path). */
     readonly id: string;
     readonly column: ColumnRef;
     readonly name: string;
@@ -180,7 +180,7 @@ export function labelRefusalWords(refusal: CodedFact): string {
 }
 
 /**
- * The column an inspected attribute id names.
+ * The column an Attributes tree row id names.
  * @param id - `node:<name>` or `edge:<name>`.
  * @returns the column, or null for an id that is not an attribute's.
  */

@@ -150,10 +150,15 @@ describe("the Data place on the real element", () => {
             await importGraphFile(session);
 
             await userEvent.click(await screen.findByRole("treeitem", { name: "group, node attribute" }));
-            assert.deepEqual(store.get().inspected, { kind: "attribute", id: "node:group" });
+            // The id is the attribute's path, as the inspector and the Style tab read it.
+            assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.group" });
+            await waitFor(() => {
+                const row = within(tree("Attributes")).getByRole("treeitem", { name: "group, node attribute" });
+                assert.equal(row.getAttribute("aria-selected"), "true", "the open attribute's row stays selected");
+            });
             // A click on the quiet fill text is a click on the row.
             await userEvent.click(within(tree("Attributes")).getByText("25%"));
-            assert.deepEqual(store.get().inspected, { kind: "attribute", id: "node:born" });
+            assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.born" });
 
             const menu = await menuOf(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
             // Rename waits for the element (#894).

@@ -220,7 +220,13 @@ function AttributesSection(): React.JSX.Element {
     const [filter, setFilter] = useState("");
     const findShown = (session?.data.attributes().length ?? 0) > FIND_PAST;
     const attributeItems = attributeTree(session, findShown ? filter : "");
-    const selectedAttribute = inspected?.kind === "attribute" && inspected.id !== undefined ? [inspected.id] : [];
+    // The attribute kind's id is the attribute's path (`data.<name>`), as the inspector reads it;
+    // the tree's own row ids carry the kind too, since a node and an edge attribute can share one.
+    // ponytail: a path names no kind, so where a node and an edge attribute share one the node's
+    // row is the one shown selected.
+    const attributes = session?.data.attributes() ?? [];
+    const shown = inspected?.kind === "attribute" ? attributes.find((a) => a.path === inspected.id) : undefined;
+    const selectedAttribute = shown === undefined ? [] : [`${shown.kind}:${shown.name}`];
     return (
         <ControlSection label="Attributes" empty={attributeItems.length === 0 && filter === ""}>
             {findShown ? (
@@ -246,8 +252,10 @@ function AttributesSection(): React.JSX.Element {
                     selected={selectedAttribute}
                     onSelect={(ids) => {
                         const id = ids.at(-1);
-                        if (id !== undefined && columnOf(id) !== null) {
-                            store.set({ inspected: { kind: "attribute", id } });
+                        const column = id === undefined ? null : columnOf(id);
+                        const attribute = attributes.find((a) => a.kind === column?.kind && a.name === column.name);
+                        if (attribute !== undefined) {
+                            store.set({ inspected: { kind: "attribute", id: attribute.path } });
                         }
                     }}
                 />

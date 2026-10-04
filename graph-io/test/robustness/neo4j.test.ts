@@ -84,6 +84,14 @@ describe("Neo4j robustness: headers and wrong formats", () => {
         expect(codes(report)).toEqual([]);
     });
 
+    it("neo4j-quoted-header: a fully quoted mid-file header starts a new section", async () => {
+        const quotedAll = '"id:ID","name"\n"1","a"\n"2","b"\n":START_ID",":END_ID",":TYPE"\n"1","2","R"\n';
+        const { s, report } = await load(quotedAll);
+        expect(ids(s)).toEqual([1, 2]);
+        expect(s.edgeCount).toBe(1);
+        expect(codes(report)).toEqual([]);
+    });
+
     // DEFERRED: an unquoted data cell shaped like a header cell ("Note: ID") still starts a section.
     // Without a quote, a blank line or a file boundary nothing tells it from a real mid-file header
     // in graphty's one-file convention; it.fails keeps the defect visible until a rule is chosen.

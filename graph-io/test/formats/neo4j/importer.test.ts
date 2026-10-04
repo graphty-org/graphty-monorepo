@@ -250,7 +250,7 @@ describe("neo4jImporter (design 8.4)", () => {
             const { snapshot, report } = await importText(":ID,name\n1,a\n1,b\n");
             expect(snapshot.nodeCount).toBe(1);
             expect(snapshot.nodes.value("name", 0)).toBe("b");
-            // one node in the sink, counted once (the count was 2 before the robustness fixes)
+            // one node in the sink, counted once
             expect(report.counts.nodes).toBe(1);
             expect(report.issues[0]).toMatchObject({
                 category: "merged",
@@ -678,7 +678,7 @@ describe("neo4jImporter (design 8.4)", () => {
         it('reports merges under ids: "number" and rejects non-numeric text', async () => {
             const { snapshot, report } = await importText(":ID\n1\n01\nabc\n", { ids: "number" });
             expect(snapshot.ids.toArray()).toEqual([1]);
-            // 01 merged into 1: one node, counted once (the count was 2 before the robustness fixes)
+            // 01 merged into 1: one node, counted once
             expect(report.counts).toMatchObject({ nodes: 1, skippedNodes: 1 });
             expect(report.issues.map((i) => [i.code, i.category, i.severity, i.line])).toEqual([
                 [ID_MERGED_CODE, "coercion", "warning", 3],

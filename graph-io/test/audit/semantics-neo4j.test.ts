@@ -358,7 +358,7 @@ describe("Neo4j corpus facts: movies-nodes.csv + movies-rels.csv (id spaces, sto
             "Person:p3",
         ]);
         // the endpoints the relationships create are nodes of the graph and are counted, as the CSV and
-        // DOT importers count theirs (0 before the robustness fixes)
+        // DOT importers count theirs
         expect(alone.report.counts.nodes).toBe(7);
     });
 });

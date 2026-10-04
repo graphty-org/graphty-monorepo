@@ -600,7 +600,7 @@ class Neo4jImportSession {
                 continue;
             }
             records++;
-            // a quoted cell is data: a data cell such as "ref:id" never starts a new section
+            // a quoted marker cell is data ("ref:id") unless the whole record is a quoted header
             if (section === null || isHeaderRecord(cells, count, quoted)) {
                 section = this.declareSection(reader, count);
                 rows = 0;

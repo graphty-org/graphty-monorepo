@@ -502,7 +502,9 @@ describe("watchPass", () => {
             expect((await githerdDone(ctx, j, claim, "sess-old")).text).toBe('{"verified":true}');
             expect([j.state, j.holder]).toEqual(["done", null]);
             const lines = await endRetired(state, { sleep });
-            expect(lines).toEqual([expect.objectContaining({ kind: "session-ended", job: "issue-40", reason: "job done" })]);
+            expect(lines).toEqual([
+                expect.objectContaining({ kind: "session-ended", job: "issue-40", reason: "job done" }),
+            ]);
             await until(() => gone(holder));
             expect(state.retiring).toEqual([]);
             expect(await watchPass(state, T0, options())).toEqual({ workers: 0, ledger: [], dead: [] });

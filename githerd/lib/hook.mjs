@@ -529,7 +529,11 @@ export function answerHook(state, req, facts, now) {
     );
     if (retired) {
         // A session its job has left: nothing it says changes the job, and the daemon ends it now.
-        return { answer: {}, ledger: [{ kind: "hook-retired-session", event: req.event, job: req.job, session }], end: true };
+        return {
+            answer: {},
+            ledger: [{ kind: "hook-retired-session", event: req.event, job: req.job, session }],
+            end: true,
+        };
     }
     const request = { ...req, input };
     switch (req.event) {

@@ -488,7 +488,10 @@ describe("answer, order and policy", () => {
         expect(d.state.ownerItems["ask-pr-7"].endedAt).toBeUndefined();
         expect((await cli(["policy", "freeze-merges", "mine"], worker)).code).toBe(1);
         expect(d.state.policies ?? []).toEqual([]);
-        for (const argv of [["ack", "decide:x"], ["veto", "issue:4"]]) {
+        for (const argv of [
+            ["ack", "decide:x"],
+            ["veto", "issue:4"],
+        ]) {
             const r = await cli(argv, worker);
             expect(r).toMatchObject({ code: 1, err: `${argv[0]} is the owner's: a worker cannot run it` });
         }

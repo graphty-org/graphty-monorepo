@@ -700,7 +700,12 @@ describe("githerdDone and pollVerifying while a job moves", () => {
         await githerdDone(ctx, job, report(), "w1");
         expect(job.holder).toBeNull();
         expect(s.retiring).toEqual([
-            { job: "pr-7", holder: expect.objectContaining({ session: "w1", pane: "%3" }), reason: "job done", at: NOW.toISOString() },
+            {
+                job: "pr-7",
+                holder: expect.objectContaining({ session: "w1", pane: "%3" }),
+                reason: "job done",
+                at: NOW.toISOString(),
+            },
         ]);
         // An owner's session (no pane githerd started) is not githerd's to end.
         const owned = (s.jobs["pr-8"] = working("pr", "8"));

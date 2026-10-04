@@ -738,7 +738,9 @@ export async function startDaemon({
             raise({ key: "config-refused", kind: "blocked", summary: r.banner, detail: r.banner });
             // The revert's failure shows on the board, not only in the log; the next check tries again.
             const open = state.escalations["config-refused"];
-            open.detail = revertError ? `${r.banner}; the revert pull request failed to open: ${revertError}` : r.banner;
+            open.detail = revertError
+                ? `${r.banner}; the revert pull request failed to open: ${revertError}`
+                : r.banner;
             say("error", `config: ${r.banner}`);
         } else if (state.escalations?.["config-refused"] && !state.escalations["config-refused"].resolvedAt) {
             board.resolve(state, { key: "config-refused" }, now());

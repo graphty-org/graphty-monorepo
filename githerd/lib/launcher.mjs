@@ -771,8 +771,7 @@ async function gate(ctx, target, gates, signal) {
     };
     /** @type {import("./self-update.mjs").GateRecord} */
     let record = { passed: true, at: at(), version: target.version };
-    for (const g of gates ??
-        realGates({ root: ctx.root, pkgDir: ctx.pkgDir, stateDir: ctx.stateDir, env: ctx.env })) {
+    for (const g of gates ?? realGates({ root: ctx.root, pkgDir: ctx.pkgDir, stateDir: ctx.stateDir, env: ctx.env })) {
         const r = await g.run({ dir, previous, commit, onSpawn });
         // A stop kills the gate's child: its failure says nothing about the version.
         if (signal?.aborted) return { action: "gating" };

@@ -384,7 +384,8 @@ describe("robustness: OBO Graphs edges", () => {
             ],
         );
         const { s, report } = await load(doc);
-        expect(report.issues).toEqual([]);
+        // p is property metadata, not a node: the class's edge keeps it as a placeholder
+        expect(report.issues.map((i) => [i.code, i.element])).toEqual([[JSON_ISSUE.DANGLING_REFERENCE, "p"]]);
         expect(edges(s)).toEqual(["a is_a p", "a is_a b", "a is_a both"]);
         expect(obographsExtra(s).propertyEdges).toEqual([{ sub: "p", pred: "subPropertyOf", obj: "q" }]);
     });
@@ -397,7 +398,7 @@ describe("robustness: OBO Graphs documents", () => {
         const b = new GraphBuilder({ directed: true });
         const report = await jsonImporter.import(JSON.stringify(doc), b, { graphIndex: 1 });
         const s = b.freeze();
-        expect(report.issues).toEqual([]);
+        expect(codes(report)).toEqual([JSON_ISSUE.MULTIPLE_GRAPHS]);
         expect(cell(s, "name", "a")).toBe("A");
         expect((s.meta.extra.json as Record<string, unknown>).dialect).toBe("obographs");
     });

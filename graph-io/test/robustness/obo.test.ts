@@ -74,7 +74,7 @@ function edges(snapshot: GraphSnapshot): string[] {
 /** The own entries of an object, sorted (so `__proto__` keys can be compared). */
 function entries(value: unknown): [string, unknown][] {
     expect(typeof value).toBe("object");
-    return Object.entries(value as object).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return Object.entries(value as object).sort(([a], [b]) => Number(a > b) - Number(a < b));
 }
 
 function oboExtra(snapshot: GraphSnapshot): Record<string, unknown> {
@@ -113,7 +113,7 @@ describe("robustness: names that are Object.prototype members", () => {
         const text = "toString: x\n__proto__: y\nformat-version: 1.4\n\n[Term]\nid: X:1\n";
         const { snapshot, report } = await load(text);
         expect(report.issues).toEqual([]);
-        const header = oboExtra(snapshot).header;
+        const { header } = oboExtra(snapshot);
         expect(entries(header)).toEqual([
             ["__proto__", ["y"]],
             ["format-version", ["1.4"]],
@@ -147,7 +147,7 @@ describe("robustness: names that are Object.prototype members", () => {
     it("keeps a Typedef id, an xref id and a qualifier named after a prototype member (proto-qualifier-and-id)", async () => {
         const typedef = await load(`${HEAD}[Typedef]\nid: __proto__\nname: p\n`);
         expect(typedef.report.issues).toEqual([]);
-        const typedefs = oboExtra(typedef.snapshot).typedefs;
+        const { typedefs } = oboExtra(typedef.snapshot);
         expect(entries(typedefs).map(([k]) => k)).toEqual(["__proto__"]);
         expect(entries(entries(typedefs)[0][1])).toEqual([
             ["id", ["__proto__"]],

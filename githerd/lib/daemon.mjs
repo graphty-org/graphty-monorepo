@@ -118,7 +118,7 @@ import { sessionToolSet } from "./session-tools.mjs";
 import { alertBanner, statusData } from "./tools.mjs";
 import { ring as ringWorker, running } from "./tmux.mjs";
 import { readVersion } from "./version.mjs";
-import { endRetired, watchPass } from "./watchdog.mjs";
+import { endRetired, watchPass, watchWanted } from "./watchdog.mjs";
 import { codeEnv, readSigningEnv } from "./worker-settings.mjs";
 import { referenceAudit, referenceDryRun, referenceGate, refreshReference, removeJobWorktree } from "./worktrees.mjs";
 
@@ -542,6 +542,8 @@ export async function startDaemon({
     let nextPollAt = null;
     /** @type {NodeJS.Timeout | null} */
     let timer = null;
+    /** @type {NodeJS.Timeout | null} the watchdog's interval, on only while a worker exists */
+    let watchTimer = null;
     let intervalFactor = 1;
     /** @type {ReturnType<typeof createPushQueue> | null} the push queue, once made (ensurePushQueue) */
     let pushQueue = null;
@@ -2038,6 +2040,7 @@ export async function startDaemon({
             void ledger({ kind: "error", where: "workers", error: /** @type {Error} */ (err).message });
         } finally {
             passing = false;
+            syncWatch();
         }
     }
 
@@ -2103,9 +2106,24 @@ export async function startDaemon({
     }
 
     /**
+     * Runs the watchdog's minute interval only while a worker exists (design 7.5): a start in
+     * flight, a session githerd runs, or one still to be ended. The poll, the hooks and the tool
+     * calls drive starts while there is none. Called after every worker and watchdog pass.
+     */
+    function syncWatch() {
+        const wanted = autoPoll && !stopping && watchWanted(state, tasks);
+        if (wanted && !watchTimer) {
+            watchTimer = setInterval(() => void watch(), WATCH_MS);
+            watchTimer.unref();
+        } else if (!wanted && watchTimer) {
+            clearInterval(watchTimer);
+            watchTimer = null;
+        }
+    }
+
+    /**
      * One watchdog pass over the workers githerd started (design 7.5), then the death and recovery
      * of each session it found dead (7.7). Skipped while a pass runs or the daemon cannot write.
-     * ponytail: runs every minute even with no worker; a pass over no worker reads nothing.
      */
     async function watch() {
         if (watching || stopping || fatal || !config || !mayWrite()) return;
@@ -2148,6 +2166,7 @@ export async function startDaemon({
             void ledger({ kind: "watch-error", job: null, error });
         } finally {
             watching = false;
+            syncWatch();
         }
     }
 
@@ -2602,8 +2621,7 @@ export async function startDaemon({
         if (!fenced) beat();
     }, aliveMs);
     aliveTimer.unref();
-    const watchTimer = autoPoll ? setInterval(() => void watch(), WATCH_MS) : null;
-    watchTimer?.unref();
+    syncWatch();
 
     /**
      * Enters fatal mode (design section 9.6): `FATAL`, no more polls (the loop still ticks, so
@@ -2741,6 +2759,7 @@ export async function startDaemon({
         timer = null;
         clearInterval(aliveTimer);
         if (watchTimer) clearInterval(watchTimer);
+        watchTimer = null;
         process.off("uncaughtException", onUncaught);
         process.off("unhandledRejection", onUncaught);
         released = true;

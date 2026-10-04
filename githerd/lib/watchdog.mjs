@@ -297,6 +297,22 @@ function working(w, look, since, now) {
  */
 
 /**
+ * Whether the watchdog has anything to watch (design 7.5): a worker start in flight, a session
+ * githerd started (a holder with a pane), or a session still to be ended. With none, its interval
+ * stops; it starts again with the next worker.
+ * @param {any} state the daemon state
+ * @param {{size: number}} tasks the start tasks in flight
+ * @returns {boolean} whether to watch
+ */
+export function watchWanted(state, tasks) {
+    return (
+        tasks.size > 0 ||
+        (state.retiring?.length ?? 0) > 0 ||
+        Object.values(state.jobs ?? {}).some((j) => Boolean(j.holder?.pane))
+    );
+}
+
+/**
  * One watchdog pass over every worker githerd started (a job whose holder has a pane). Mutates the
  * state; the caller persists it and appends the ledger lines. A dead session is reported, not
  * handled: death and recovery are design 7.7.

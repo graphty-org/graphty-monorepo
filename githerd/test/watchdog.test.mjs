@@ -10,7 +10,15 @@ import { identify } from "../lib/proc.mjs";
 import { running } from "../lib/tmux.mjs";
 import { githerdDone } from "../lib/done.mjs";
 import { answerHook } from "../lib/hook.mjs";
-import { decide, descendantTicks, endRetired, sample, transcriptFiles, watchPass } from "../lib/watchdog.mjs";
+import {
+    decide,
+    descendantTicks,
+    endRetired,
+    sample,
+    transcriptFiles,
+    watchPass,
+    watchWanted,
+} from "../lib/watchdog.mjs";
 import { fakeWorkers, sleep, typed } from "./helpers/fake-worker.mjs";
 
 const T0 = new Date("2026-10-04T12:00:00Z");
@@ -234,6 +242,18 @@ async function until(ok) {
     for (let i = 0; i < 250 && !ok(); i++) await sleep(20);
     if (!ok()) throw new Error("condition never held");
 }
+
+describe("watchWanted", () => {
+    it("watches only while a start runs, a githerd session lives or one waits to be ended", () => {
+        const none = new Map();
+        expect(watchWanted({ jobs: {} }, none)).toBe(false);
+        // An owner session's holder has no pane: nothing for the watchdog.
+        expect(watchWanted({ jobs: { a: { holder: { session: "s" } } } }, none)).toBe(false);
+        expect(watchWanted({ jobs: { a: { holder: { pane: "%1" } } } }, none)).toBe(true);
+        expect(watchWanted({ jobs: {}, retiring: [{ job: "a" }] }, none)).toBe(true);
+        expect(watchWanted({ jobs: {} }, new Map([["a", Promise.resolve()]]))).toBe(true);
+    });
+});
 
 describe("watchPass", () => {
     /** @type {ReturnType<typeof fakeWorkers>} */

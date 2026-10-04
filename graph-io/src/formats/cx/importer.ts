@@ -1195,6 +1195,16 @@ class CxReader {
     }
 
     /**
+     * The key of the node and edge row maps for a CX id as an aspect writes it: the id the `ids`
+     * option makes of it, which is what idOf() stored the element under.
+     * @param raw - the CX id
+     * @returns the row key
+     */
+    private key(raw: NodeId): NodeId {
+        return this.options.ids === "keep" ? raw : this.coercer.value(raw);
+    }
+
+    /**
      * Whether a scoped value applies to this graph: unscoped, or scoped to its subnetwork. A scope
      * naming no subnetwork is counted as dangling.
      * @param scope - the element's s
@@ -1506,10 +1516,7 @@ class CxReader {
                     continue;
                 }
                 const target = refId(value.po);
-                const row =
-                    target === null
-                        ? undefined
-                        : rows.get(this.options.ids === "keep" ? target : this.coercer.value(target));
+                const row = target === null ? undefined : rows.get(this.key(target));
                 if (row === undefined) {
                     if (target === null || !root.has(target)) {
                         this.dangle(`${domain} attribute target`);
@@ -1705,7 +1712,8 @@ class CxReader {
                 report.counts.skippedNodes++;
                 continue;
             }
-            if (!this.inGraph(id)) {
+            // membership lists hold CX ids as written, before the ids option coerces them
+            if (!this.inGraph(refId(value["@id"]) ?? id)) {
                 continue;
             }
             let row = this.nodeRows.get(id);
@@ -1803,18 +1811,18 @@ class CxReader {
                 });
                 continue;
             }
-            let groupRow = this.nodeRows.get(id);
+            let groupRow = this.nodeRows.get(this.key(id));
             if (groupRow === undefined) {
                 if (this.rootNodes.has(id) || !this.hasMemberIn(value.nodes)) {
                     continue;
                 }
                 try {
-                    groupRow = this.sink.addNode(id);
+                    groupRow = this.sink.addNode(this.key(id));
                 } catch (err) {
                     this.report.recordError(err, { line, element: String(id) });
                     continue;
                 }
-                this.nodeRows.set(id, groupRow);
+                this.nodeRows.set(this.key(id), groupRow);
                 this.report.counts.nodes++;
                 this.report.warning(
                     "coercion",
@@ -1831,7 +1839,7 @@ class CxReader {
             }
             for (const raw of Array.isArray(value.nodes) ? (value.nodes as unknown[]) : []) {
                 const member = refId(raw);
-                const row = member === null ? undefined : this.nodeRows.get(member);
+                const row = member === null ? undefined : this.nodeRows.get(this.key(member));
                 if (row === undefined) {
                     if (member === null || !this.rootNodes.has(member)) {
                         this.report.error(
@@ -1888,7 +1896,7 @@ class CxReader {
             Array.isArray(raw) &&
             raw.some((item) => {
                 const id = refId(item);
-                return id !== null && this.nodeRows.has(id);
+                return id !== null && this.nodeRows.has(this.key(id));
             })
         );
     }
@@ -1976,7 +1984,7 @@ class CxReader {
                 continue;
             }
             const node = refId(value.node);
-            const row = node === null ? undefined : this.nodeRows.get(node);
+            const row = node === null ? undefined : this.nodeRows.get(this.key(node));
             if (row === undefined) {
                 if (node === null || !this.rootNodes.has(node)) {
                     this.dangle("layout entry");
@@ -2088,7 +2096,7 @@ class CxReader {
                 report.counts.skippedEdges++;
                 continue;
             }
-            if (members !== null && !members.has(id)) {
+            if (members !== null && !members.has(refId(value["@id"]) ?? id)) {
                 continue;
             }
             if (value.s === undefined || value.s === null || value.t === undefined || value.t === null) {
@@ -2206,7 +2214,7 @@ class CxReader {
                 if (isRecord(value) && this.scopePeek(value.s) !== 0) {
                     const po = refId(value.po);
                     if (po !== null && value.v !== undefined && value.v !== null) {
-                        this.weights.set(po, plainJson(value.v));
+                        this.weights.set(this.key(po), plainJson(value.v));
                     }
                 }
             }
@@ -2312,8 +2320,8 @@ class CxReader {
                 case "edges": {
                     const domain = value.properties_of === "nodes" ? "node" : "edge";
                     const target = refId(value.applies_to);
-                    const row =
-                        target === null ? undefined : (domain === "node" ? this.nodeRows : this.edgeRows).get(target);
+                    const rows = domain === "node" ? this.nodeRows : this.edgeRows;
+                    const row = target === null ? undefined : rows.get(this.key(target));
                     if (row === undefined) {
                         if (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target)) {
                             this.dangle(`${domain} visual property entry`);
@@ -2408,7 +2416,7 @@ class CxReader {
                 continue;
             }
             const po = refId(value.po);
-            const row = po === null ? undefined : this.nodeRows.get(po);
+            const row = po === null ? undefined : this.nodeRows.get(this.key(po));
             if (row === undefined) {
                 if (po === null || !this.rootNodes.has(po)) {
                     this.dangle("functionTerms entry");
@@ -2426,8 +2434,8 @@ class CxReader {
             }
             const node = refId(value.node);
             const edge = refId(value.edge);
-            const row = node === null ? undefined : this.nodeRows.get(node);
-            const edgeRow = edge === null ? undefined : this.edgeRows.get(edge);
+            const row = node === null ? undefined : this.nodeRows.get(this.key(node));
+            const edgeRow = edge === null ? undefined : this.edgeRows.get(this.key(edge));
             if (row === undefined || edgeRow === undefined) {
                 if (node === null || !this.rootNodes.has(node) || edge === null || !this.rootEdges.has(edge)) {
                     this.dangle("reifiedEdges entry");
@@ -2501,7 +2509,7 @@ class CxReader {
                 .map(Number);
             for (const raw of targets) {
                 const target = refId(raw);
-                const row = target === null ? undefined : rows.get(target);
+                const row = target === null ? undefined : rows.get(this.key(target));
                 if (row === undefined) {
                     if (target === null || !root.has(target)) {
                         this.dangle(`${aspectName} entry`);

@@ -15,6 +15,8 @@ const LEAF_KINDS: Record<RuleTree["kind"], true> = {
     component: true,
     neighborhood: true,
     isolated: true,
+    "self-loop": true,
+    "repeated-edge": true,
     edges: true,
     member: true,
     item: true,

@@ -301,6 +301,8 @@ function rulePart(
         case "component":
         case "neighborhood":
         case "isolated":
+        case "self-loop":
+        case "repeated-edge":
             // Topology and ids: the serial and the key say it all.
             return "t";
         case "member": {

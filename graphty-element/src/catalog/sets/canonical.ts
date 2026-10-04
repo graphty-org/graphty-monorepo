@@ -223,6 +223,8 @@ const KNOWN_LEAVES = new Set([
     "component",
     "neighborhood",
     "isolated",
+    "self-loop",
+    "repeated-edge",
     "threshold",
 ]);
 

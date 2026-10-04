@@ -8,7 +8,7 @@
  * |---------------------------------------------------------|-------------------------------------|
  * | a `member` leaf `{ set: id }`                            | that set (follows it)               |
  * | a `member` leaf `"visible"`, `"selection"`, `"search"`   | the visibility filter, the selection, the search |
- * | a `member` leaf `"largest-component"`; `component`, `degree`, `neighborhood`, `isolated` | topology (the snapshot) |
+ * | a `member` leaf `"largest-component"`; `component`, `degree`, `neighborhood`, `isolated`, `self-loop`, `repeated-edge` | topology (the snapshot) |
  * | a path `results.<run>.<field>` a query or `threshold` reads | that run (follows its current execution) |
  * | an `item` leaf without `run`                            | that result (follows its current run) |
  * | an `item` leaf with `run`                               | that run of the result (holds it)   |
@@ -188,6 +188,8 @@ class Collector {
             case "component":
             case "neighborhood":
             case "isolated":
+            case "self-loop":
+            case "repeated-edge":
                 this.add({ kind: "topology" });
                 return;
             case "member":

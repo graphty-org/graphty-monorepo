@@ -265,6 +265,8 @@ const FILTER_KINDS = [
     "component",
     "neighborhood",
     "isolated",
+    "self-loop",
+    "repeated-edge",
     "edges",
     "member",
     "item",
@@ -453,6 +455,8 @@ function assertFilter(filter: RuleTree): void {
 
             return;
         case "isolated":
+        case "self-loop":
+        case "repeated-edge":
             return;
         case "member":
             // The filter computes "visible", and "search" will read the filter: either one here is
@@ -934,6 +938,32 @@ function isolatedTest(context: CompileContext): ElementTest {
 }
 
 /**
+ * A test for the edges beyond the first between one pair of nodes, in edge order: the edges
+ * `statistics().repeatedEdgeCount` counts. A pair is ordered on a directed graph and unordered on
+ * an undirected one.
+ * @param context - The compile context.
+ * @returns The test.
+ */
+function repeatedEdgeTest(context: CompileContext): ElementTest {
+    const { graph } = context;
+    const n = graph.nodeCount;
+    const repeated = new Uint8Array(graph.edgeCount);
+    const seen = new Set<number>();
+    for (let edge = 0; edge < graph.edgeCount; edge++) {
+        const s = graph.edgeSource(edge);
+        const t = graph.edgeTarget(edge);
+        const pair = graph.directed || s <= t ? s * n + t : t * n + s;
+        if (seen.has(pair)) {
+            repeated[edge] = 1;
+        } else {
+            seen.add(pair);
+        }
+    }
+
+    return (index) => repeated[index] === 1;
+}
+
+/**
  * A test over which connected component a node belongs to.
  * @param context - The compile context.
  * @param id - The component number.
@@ -1264,6 +1294,10 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: neighborhoodTest(context, filter.seeds, filter.depth), edge: null };
         case "isolated":
             return { node: isolatedTest(context), edge: null };
+        case "self-loop":
+            return { node: null, edge: (index) => context.graph.edgeSource(index) === context.graph.edgeTarget(index) };
+        case "repeated-edge":
+            return { node: null, edge: repeatedEdgeTest(context) };
         case "edges":
             return { node: null, edge: edgeQueryTest(context, filter.where) };
         case "member": {

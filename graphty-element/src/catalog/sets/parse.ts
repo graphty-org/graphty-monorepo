@@ -440,6 +440,8 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "isolated":
+        case "self-loop":
+        case "repeated-edge":
             known([]);
 
             return;
@@ -528,6 +530,8 @@ export function speaksEdges(
 
     switch (node.kind) {
         case "edges":
+        case "self-loop":
+        case "repeated-edge":
             return true;
         case "member":
             return readingOfScope(node.of, referent) !== "induced";

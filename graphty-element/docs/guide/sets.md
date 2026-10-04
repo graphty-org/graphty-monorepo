@@ -110,7 +110,17 @@ Some leaves select by the shape of the graph rather than by a value, and match t
 // The nodes with no edge to another node: statistics().components.isolatedCount of them.
 const isolated = { define: { kind: "rule", where: { kind: "isolated" }, reading: "induced" } } as const;
 await session.selection.apply({ scope: isolated });
+
+// The self-loops (selfLoopCount) and the repeated edges (repeatedEdgeCount). These two speak
+// edges, so the rule reads "listed": the edges and their endpoints.
+const loops = { define: { kind: "rule", where: { kind: "self-loop" }, reading: "listed" } } as const;
+const repeats = { define: { kind: "rule", where: { kind: "repeated-edge" }, reading: "listed" } } as const;
+(await session.scope.count(repeats)).edges; // equals statistics().repeatedEdgeCount
 ```
+
+A repeated edge is one beyond the first between the same two nodes, in the order the edges were
+added. On an undirected graph `a`-`b` and `b`-`a` are the same pair; on a directed graph they are
+two.
 
 A field path in a rule -- a `threshold`'s `path`, a `range` or `categories` leaf's `attribute` --
 starts with `data.` (an attribute the data carries) or `results.` (a value a run published). Any

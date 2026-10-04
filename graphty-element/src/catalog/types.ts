@@ -949,10 +949,11 @@ export type SelectionDirection = "in" | "out" | "all";
  * A rule tree: what the visibility filter keeps, and what a rule set holds.
  *
  * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
- * the halves that are not silent, and `not` negates only those. `edges` speaks edges; `member`
- * speaks the referenced set's nodes, and its edges only when that set is read `listed` or
- * `clipped` (`"visible"` is); `item` and `threshold` speak the half or halves their field lives
- * on; every other leaf speaks nodes. A group with no members constrains nothing.
+ * the halves that are not silent, and `not` negates only those. `edges`, `self-loop` and
+ * `repeated-edge` speak edges; `member` speaks the referenced set's nodes, and its edges only when
+ * that set is read `listed` or `clipped` (`"visible"` is); `item` and `threshold` speak the half
+ * or halves their field lives on; every other leaf speaks nodes. A group with no members
+ * constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
  */
@@ -974,6 +975,14 @@ export type RuleTree =
      * self-loops is one. Speaks nodes.
      */
     | { readonly kind: "isolated" }
+    /** The edges whose two ends are the same node: `statistics().selfLoopCount` of them. Speaks edges. */
+    | { readonly kind: "self-loop" }
+    /**
+     * The edges beyond the first between one pair of nodes, in the graph's edge order: exactly the
+     * edges `statistics().repeatedEdgeCount` counts. On an undirected graph `a`-`b` and `b`-`a` are
+     * one pair; on a directed graph they are two. Speaks edges.
+     */
+    | { readonly kind: "repeated-edge" }
     | { readonly kind: "edges"; readonly where: Query }
     /**
      * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed

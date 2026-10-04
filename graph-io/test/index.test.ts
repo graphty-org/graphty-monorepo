@@ -85,7 +85,10 @@ const VALUE_EXPORTS = [
     "XGMML_LOSS",
     "xgmmlExporter",
     "xgmmlImporter",
+    "CYS_CAPABILITIES",
     "CYS_ISSUE",
+    "CYS_LOSS",
+    "cysExporter",
     "cysImporter",
     // shared helpers for plugin authors
     "BAD_DEFAULT_CODE",
@@ -234,6 +237,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             ["neo4j", graphIo.neo4jImporter, graphIo.neo4jExporter],
             ["pajek", graphIo.pajekImporter, graphIo.pajekExporter],
             ["xgmml", graphIo.xgmmlImporter, graphIo.xgmmlExporter],
+            ["cys", graphIo.cysImporter, graphIo.cysExporter],
         ];
         for (const [format, importer, exporter] of pairs) {
             expect(importer.format).toBe(format);
@@ -243,19 +247,16 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(importer.extensions.length).toBeGreaterThan(0);
             expect(typeof importer.sniff).toBe("function");
         }
-        // OBO, CX version 1 and Cytoscape sessions are read-only: an importer, no exporter
+        // OBO and CX version 1 are read-only: an importer, no exporter
         for (const [format, importer] of [
             ["obo", graphIo.oboImporter],
             ["cx", graphIo.cxImporter],
-            ["cys", graphIo.cysImporter],
         ] as const) {
             expect(importer.format).toBe(format);
             expect(graphIo.registry.importer(format)).toBe(importer);
             expect(graphIo.registry.hasExporter(format)).toBe(false);
         }
-        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(
-            new Set([...pairs.map(([format]) => format), "obo", "cx", "cys"]),
-        );
+        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(new Set([...pairs.map(([format]) => format), "obo", "cx"]));
     });
 
     it("keeps every issue and loss code table frozen with distinct string values", () => {
@@ -283,6 +284,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             PAJEK_LOSS: graphIo.PAJEK_LOSS,
             XGMML_ISSUE: graphIo.XGMML_ISSUE,
             CYS_ISSUE: graphIo.CYS_ISSUE,
+            CYS_LOSS: graphIo.CYS_LOSS,
             XGMML_LOSS: graphIo.XGMML_LOSS,
         };
         for (const [name, table] of Object.entries(tables)) {

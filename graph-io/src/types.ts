@@ -229,14 +229,16 @@ export interface GraphExporter<Opts = unknown> {
      */
     check(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): readonly LossNote[];
     /**
-     * Write the snapshot as UTF-8 chunks.
+     * Write the snapshot as byte chunks: UTF-8 text for a text format, the archive for a binary
+     * one (a Cytoscape session).
      * @param snapshot - the snapshot to write
      * @param options - format-specific and common options
      * @returns the encoded chunks
      */
     export(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): AsyncIterable<Uint8Array>;
     /**
-     * Write the snapshot as one string.
+     * Write the snapshot as one string. A binary format (a Cytoscape session) rejects with
+     * E_UNSUPPORTED (`details.reason` "binary"): use export().
      * @param snapshot - the snapshot to write
      * @param options - format-specific and common options
      * @returns the whole document

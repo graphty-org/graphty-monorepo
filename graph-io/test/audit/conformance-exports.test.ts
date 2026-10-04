@@ -239,8 +239,10 @@ const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     xgmml,
     cx2,
 };
-/** The formats graph-io reads but does not write: one importer, no exporter. */
+/** The formats added after the first eight (subpaths after them); cx and obo are read-only. */
 const READ_ONLY = ["cx", "obo", "cys"] as const;
+/** The later formats that have an exporter. */
+const WRITTEN: ReadonlySet<string> = new Set(["cys"]);
 const READ_ONLY_SUBPATHS: Record<(typeof READ_ONLY)[number], Record<string, unknown>> = { cx, obo, cys };
 
 describe("design 8.2 / 13.1: registry, sniff, children and the eight format surfaces", () => {
@@ -255,7 +257,7 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         expect(new Set(root.GRAPH_FORMATS)).toEqual(new Set([...FORMATS, ...READ_ONLY]));
         for (const format of READ_ONLY) {
             expect(root.registry.importer(format).format).toBe(format);
-            expect(root.registry.hasExporter(format)).toBe(false);
+            expect(root.registry.hasExporter(format)).toBe(WRITTEN.has(format));
         }
     });
 
@@ -308,7 +310,7 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
                 expect((root as Record<string, unknown>)[name], `${format}: ${name}`).toBe(value);
             }
             expect(sub[`${format}Importer`]).toBe(root.registry.importer(format));
-            expect(root.registry.hasExporter(format)).toBe(false);
+            expect(root.registry.hasExporter(format)).toBe(WRITTEN.has(format));
         }
     });
 });

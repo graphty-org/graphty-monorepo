@@ -22,7 +22,7 @@ import { ImportReportBuilder } from "./common/report.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
 import { cxImporter } from "./formats/cx/index.js";
 import { cx2Exporter, cx2Importer } from "./formats/cx2/index.js";
-import { cysImporter } from "./formats/cys/index.js";
+import { cysExporter, cysImporter } from "./formats/cys/index.js";
 import { dotExporter, dotImporter } from "./formats/dot/index.js";
 import { gexfExporter, gexfImporter } from "./formats/gexf/index.js";
 import { gmlExporter, gmlImporter } from "./formats/gml/index.js";
@@ -399,7 +399,8 @@ export function createRegistry(): FormatRegistry {
         .registerExporter(cx2Exporter)
         .registerImporter(cxImporter)
         .registerImporter(oboImporter)
-        .registerImporter(cysImporter);
+        .registerImporter(cysImporter)
+        .registerExporter(cysExporter);
 }
 
 /** The default registry: every built-in format. */

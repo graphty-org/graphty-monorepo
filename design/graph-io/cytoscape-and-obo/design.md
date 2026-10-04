@@ -40,7 +40,7 @@ contract, importer and exporter shape, the report).
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | New subpaths                                             | `@graphty/graph-io/xgmml`, `/cx`, `/cx2`, `/cys`, `/obo`, one per format. OBO Graphs JSON is read by `/json` (dialect `"obographs"`)                                                                                                                                                                                                                                                                                        |
 | New format names (registry, sniffing, `GraphFormatName`) | `"xgmml"`, `"cx"`, `"cx2"`, `"cys"`, `"obo"`                                                                                                                                                                                                                                                                                                                                                                                |
-| Exporters                                                | XGMML and CX2 only. CX1, `.cys` and OBO are read-only (sections 1.2, 1.4, 1.5 say why)                                                                                                                                                                                                                                                                                                                                      |
+| Exporters                                                | XGMML, CX2 and `.cys`. CX1 and OBO are read-only (sections 1.2, 1.5 say why)                                                                                                                                                                                                                                                                                                                                                      |
 | Visual information                                       | Style import is issue #706. Per-element visual values become plain columns, as the existing importers' GEXF viz values and GML graphics do: XGMML `graphics` as a `json` column, CX and CX2 bypasses as one column per visual property. Style rules (defaults, mappings, dependencies, visual property aspects) are not applied; each importer reports them with the loss code `W_STYLES_NOT_IMPORTED` (section 2)          |
 | Several graphs in one file                               | `importAll()` returns one snapshot per network (`.cys`, CX1 collections, the XGMML session dialect, OBO Graphs `graphs[]`); `import()` reads one, chosen by `graphIndex` / `graphName`; a new optional importer method `listGraphs()` lists them cheaply so a picker can be shown first                                                                                                                                     |
 | Zip                                                      | A dependency-free central-directory reader in `src/common/zip.ts`; deflate is inflated by wrapping each entry in a gzip member and using `DecompressionStream("gzip")`, which every supported runtime has (Node 18+), and which checks the CRC itself                                                                                                                                                                       |
@@ -522,13 +522,28 @@ the shared `W_HIERARCHY_DROPPED`, `W_TEMPORAL_DROPPED` and the role notes.
 
 ### 1.4 Cytoscape sessions (`@graphty/graph-io/cys`)
 
-Exports: `cysImporter`, `CysImportOptions`, `CYS_ISSUE`. Format name `"cys"`, extension `.cys`,
-MIME type `application/zip` (Cytoscape declares none). Read-only; section 3 has the design.
+Exports: `cysImporter`, `CysImportOptions`, `CYS_ISSUE`, `cysExporter`, `CysExportOptions`,
+`CYS_LOSS`, `CYS_CAPABILITIES`. Format name `"cys"`, extension `.cys`, MIME type `application/zip`
+(Cytoscape declares none). Section 3 has the importer's design.
 
-**Exporter: no.** A session is Cytoscape's private save file: writing one means synthesizing
-SUIDs, root networks, table namespaces, view files and a zip writer, to produce a file whose only
-reader is Cytoscape, which opens the CX2 and XGMML graph-io already writes. The cost is large and
-the gain is none.
+**Exporter: yes** (amended 2026-10-03; the owner asked for every format to be written, which
+reverses the earlier "read-only" decision). It writes the smallest session Cytoscape Desktop 3.x's
+reader accepts, checked against `Cy3SessionReaderImpl`, `CSVCyReader` and the XGMML handlers: a
+`CytoscapeSession/3.0.0.version` marker, one network file (a root network holding one registered
+subnetwork, nodes and edges by SUID with `cy:directed`, no atts, which a 3.x session ignores), the
+LOCAL_ATTRS CyCSV tables of the nodes, edges and network (the label as `name`) and of the root
+network (its name), and a view file only when the snapshot has positions. Stored entries with
+their sizes in the local header (Java's `ZipInputStream` refuses a stored entry with a data
+descriptor), written by `writeZip()` in `common/zip.ts`. Node ids that are positive integers keep
+them as SUIDs; others are `E_INVALID_ID`, or under `sanitizeIds: "mangle"` get new SUIDs with the
+original in `graphty:originalId`, which the importer restores (`restoreMangledIds`). For the round
+trip the importer takes a 3.x table's `name` as the label (in a label column named `name`) and the
+`weight` edge column as the weight. `exportToString()` rejects with `E_UNSUPPORTED`
+(`reason: "binary"`). Groups, styles, `cytables.xml`, the network list and deflate are not written.
+**CYS_LOSS**: `W_CYS_UNSET_AS_EMPTY_STRING`, `W_CYS_LIST_ITEMS`, `W_CYS_TEXT_AS_EQUATION`,
+`W_CYS_JSON_AS_STRING`, `W_CYS_POSITION`, plus the shared codes; a column renamed for Cytoscape
+(`SUID`, a built-in column of another class, a case-insensitive clash) is the shared
+`W_COLUMN_NAME_CHANGED`.
 
 ### 1.5 OBO (`@graphty/graph-io/obo`)
 

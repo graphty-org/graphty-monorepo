@@ -29,6 +29,7 @@ import { fileURLToPath } from "node:url";
 import { GraphBuilder, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
 import fc from "fast-check";
 
+import { collectBytes } from "../../src/common/writer.js";
 import { importGraph, registry } from "../../src/registry.js";
 import { type CommonExportOptions, type GraphExporter } from "../../src/types.js";
 
@@ -351,6 +352,7 @@ function canonOfSnapshot(s: GraphSnapshot): Canon {
  * - negativeZero: -0 reads back as 0
  * - textInferred: cells are untyped; text that looks like a number or a boolean reads back as one
  * - boolAsInt: a boolean is written as 1 / 0
+ * - unsetAsEmpty: an unset text cell reads back as ""
  *
  * Every difference the property found in a correct export is announced by a check() note, so the
  * per-format "lossy" table IS this note table; a format-wide loss without a note would be a check()
@@ -365,7 +367,8 @@ export type Relax =
     | "nonFiniteText"
     | "negativeZero"
     | "textInferred"
-    | "boolAsInt";
+    | "boolAsInt"
+    | "unsetAsEmpty";
 
 /**
  * The documented losses, one per check() note code (the codes are one per concept across the
@@ -392,6 +395,7 @@ export const NOTE_RELAX: Readonly<Record<string, readonly Relax[]>> = {
     W_DTYPE_UNSUPPORTED: ["boolAsInt"],
     // an i32 column cannot hold -0
     W_INTEGRAL_F64_AS_I32: ["negativeZero"],
+    W_CYS_UNSET_AS_EMPTY_STRING: ["unsetAsEmpty"],
 };
 
 /** One exporter configuration under test. */
@@ -418,6 +422,7 @@ export const TARGETS: readonly Target[] = [
     { name: "json graphology", format: "json", exportOptions: { dialect: "graphology" } },
     { name: "cx2", format: "cx2", exportOptions: { sanitizeIds: "mangle" } },
     { name: "xgmml", format: "xgmml", exportOptions: {} },
+    { name: "cys", format: "cys", exportOptions: { sanitizeIds: "mangle" } },
 ];
 
 /**
@@ -448,6 +453,9 @@ const NUMBER_TEXT = /^[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][-+]?[0-9]+)?$/;
  */
 function valueKey(raw: GenValue, relax: ReadonlySet<Relax>): string {
     let v = raw;
+    if (v === "" && relax.has("unsetAsEmpty")) {
+        return "unset";
+    }
     if (typeof v === "number" && !Number.isFinite(v)) {
         if (relax.has("nonFiniteUnset")) {
             v = undefined;
@@ -599,9 +607,17 @@ export async function roundTrip(target: Target, g: GenGraph): Promise<TripOutcom
     }
     const refusal = notes.find((code) => code.startsWith("E_"));
     let text: string;
+    let bytes: Uint8Array;
     let importOptions: Record<string, unknown> = { format: target.format };
     try {
-        text = await exporter.exportToString(snapshot, target.exportOptions);
+        if (target.format === "cys") {
+            // a session is a zip: export() gives its bytes, exportToString() refuses
+            bytes = await collectBytes(exporter.export(snapshot, target.exportOptions));
+            text = `(a ${bytes.byteLength}-byte session)`;
+        } else {
+            text = await exporter.exportToString(snapshot, target.exportOptions);
+            bytes = new TextEncoder().encode(text);
+        }
         if (target.format === "csv") {
             // the edge table cannot carry isolated nodes or the node order: the node table goes with it
             const nodes = await exporter.exportToString(snapshot, { ...target.exportOptions, table: "nodes" });
@@ -617,7 +633,7 @@ export async function roundTrip(target: Target, g: GenGraph): Promise<TripOutcom
         return { kind: "different", problems: [`check() announced ${refusal} but export() wrote the file`], text };
     }
     try {
-        const { snapshot: back } = await importGraph(new TextEncoder().encode(text), importOptions);
+        const { snapshot: back } = await importGraph(bytes, importOptions);
         const relax = relaxationsFor(notes);
         const problems = diffCanon(canonOf(g), canonOfSnapshot(back), relax);
         if (problems.length > 0) {

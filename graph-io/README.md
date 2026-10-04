@@ -157,7 +157,7 @@ reports every column or feature outside it):
 | OBO     | `@graphty/graph-io/obo`     | `.obo`                             | read only   | -           | -           | -             | -                                      | -     | -    | -        | -         | -              | -           | -         | -   |
 | CX2     | `@graphty/graph-io/cx2`     | `.cx2`                             | no          | yes         | required    | integer       | f64 i32 bool string                    | yes   | no   | yes      | no        | none           | yes         | yes       | no  |
 | XGMML   | `@graphty/graph-io/xgmml`   | `.xgmml` `.xml`                    | yes         | yes         | optional    | any           | f64 i32 bool string (long as Long)     | yes   | no   | no       | yes       | none           | yes         | yes       | no  |
-| Session | `@graphty/graph-io/cys`     | `.cys`                             | read only   | read only   | read only   | read only     | read only                              | -     | -    | -        | -         | -              | -           | -         | -   |
+| Session | `@graphty/graph-io/cys`     | `.cys`                             | yes         | yes         | required    | integer       | f64 i32 bool string (long as Long)     | yes   | no   | no       | no        | none           | yes         | yes       | no  |
 
 Every importer reads the whole corpus of research note 07 with the manifest counts and every
 exporter round-trips it (import -> export -> import gives the same ids, topology, orientation,
@@ -324,8 +324,7 @@ losses and format rules, in addition to the table:
   endpoints are `E_UNKNOWN_NODE` unless `addMissingNodes: true`. The exporter writes the Cytoscape
   3 dialect (`type` plus `cy:type` on every att): f32, u8, u32 and dict are written as wider
   Cytoscape types, json as text, and graphty's visual roles are not translated into graphics.
-- **Cytoscape sessions (`.cys`)**: read only (Cytoscape opens the XGMML graph-io writes). A
-  session is a zip of every network of a Cytoscape desktop, read with no dependency (the central
+- **Cytoscape sessions (`.cys`)**: a session is a zip of every network of a Cytoscape desktop, read with no dependency (the central
   directory, zip64, data descriptors, stored and deflate entries inflated through
   `DecompressionStream`; encryption and other methods are refused by name). One snapshot per
   registered network: `import()` reads the first (`graphIndex` / `graphName` choose another,
@@ -339,7 +338,26 @@ losses and format rules, in addition to the table:
   name their network in `cytoscape.nestedNetwork`. Styles are not applied (`W_STYLES_NOT_IMPORTED`,
   issue #706); apps, properties and images are skipped with `W_CYS_ENTRY_SKIPPED`. Text input is
   refused (`E_CYS_NOT_ZIP`: pass the bytes). `maxUncompressedBytes` (default 2 GiB) and a 1000:1
-  ratio limit stop zip bombs (`E_TOO_LARGE`).
+  ratio limit stop zip bombs (`E_TOO_LARGE`). A node or edge table's `name` is the label (in a
+  label column named `name`, as Cytoscape shows it); a network's `weight` edge column is the
+  weight (`weightFrom`), and ids written by the exporter's `sanitizeIds: "mangle"` are restored
+  from `graphty:originalId` (`restoreMangledIds`).
+
+  The exporter writes a session Cytoscape Desktop 3.x opens: one network, its columns as tables
+  (the label as `name`, which Cytoscape shows), and a view only when the snapshot has positions
+  (graph-io computes no layout; without one Cytoscape lists the network and you create its view).
+  Opening a session replaces everything open in Cytoscape: to add a network to an open session,
+  export XGMML or CX2 instead. A session is binary, so use `exportGraph()` / `export()`;
+  `exportToString()` rejects with `E_UNSUPPORTED`. Node ids must be positive integers (Cytoscape
+  SUIDs): other ids are `E_INVALID_ID` unless `sanitizeIds: "mangle"`, which numbers them and keeps
+  the originals in `graphty:originalId`. Numeric ids read back as text. CyCSV has no unset text
+  cell, so an unset text cell reads back as `""` (`W_CYS_UNSET_AS_EMPTY_STRING`); list cells are
+  newline-joined (`W_CYS_LIST_ITEMS`); text starting with `=` is a formula to Cytoscape
+  (`W_CYS_TEXT_AS_EQUATION`); json columns are written as JSON text (`W_CYS_JSON_AS_STRING`); a
+  column named like one of Cytoscape's own (`SUID`, a `name` that is not text, a name differing
+  only in case) is renamed `<name>#2` (`W_COLUMN_NAME_CHANGED`). Groups, styles and time are not
+  written. Entries are stored, not compressed, so a session is several times larger than one
+  Cytoscape writes.
 
 - **CX2**: the JSON exchange format of NDEx, Cytoscape 3.10+ and Cytoscape Web, read element by
   element so a document longer than one JavaScript string still loads. Every edge is directed;

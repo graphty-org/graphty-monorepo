@@ -9,7 +9,9 @@
  * groups, nested-network pointers); the subnetwork's CyCSV tables give its columns (LOCAL_ATTRS as
  * they are, the SHARED_ATTRS columns `cytables.xml` joins in, HIDDEN and app tables as hidden
  * columns under their namespace); its first view gives positions (y flipped) and the `graphics`
- * column, further views `position@<n>` columns. 2.x: one full XGMML file per network, with
+ * column, further views `position@<n>` columns. A table's `name` is the label (what Cytoscape
+ * shows), in a label column named `name`, and ids an exporter mangled are restored from the node
+ * table's `graphty:originalId` (restoreMangledIds). 2.x: one full XGMML file per network, with
  * selection and hidden state from `cysession.xml`. Everything is resolved by the XGMML emitter, so
  * both readers share every column rule. Styles are not read (issue #706): W_STYLES_NOT_IMPORTED.
  */
@@ -38,6 +40,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { ORIGINAL_ID_ATTRIBUTE } from "../graphml/constants.js";
 import { XGMML_ISSUE, XGMML_ORIGIN_NAMESPACE } from "../xgmml/constants.js";
 import {
     type AttRec,
@@ -93,11 +96,14 @@ export interface CysImportOptions extends GraphChoiceOptions {
     maxUncompressedBytes?: number | undefined;
 }
 
-/** The per-format defaults: SUIDs as written, edges directed unless they say otherwise, no weight. */
+/**
+ * The per-format defaults: SUIDs as written, edges directed unless they say otherwise, the edge
+ * `weight` column as the weight (as for XGMML, the format of the session's networks).
+ */
 const FORMAT_DEFAULTS: ImportFormatDefaults = {
     ids: "keep",
     defaultDirected: true,
-    weightFrom: null,
+    weightFrom: "weight",
     addMissingNodes: false,
 };
 
@@ -112,6 +118,7 @@ const USED_OPTIONS: ReadonlySet<keyof CommonImportOptions> = new Set<keyof Commo
     "weightFrom",
     "weightDtype",
     "long",
+    "restoreMangledIds",
     "errorLimit",
     "signal",
     "onProgress",
@@ -448,6 +455,7 @@ async function import3(prepared: Prepared, choice: Choice3, sink: GraphSink, par
             `${unmatched} table row(s) of network ${choice.graphId} name no node, edge or network of it (stale rows); they are not read`,
         );
     }
+    const restoredIds = inner.restoreMangledIds ? restoreIds(members.nodes) : new Map<string, string>();
     const views = layout.views.filter((v) => v.network === choice.graphId);
     let visualStyle: string | null = null;
     const extraViews: Map<string, [number, number, number]>[] = [];
@@ -473,6 +481,8 @@ async function import3(prepared: Prepared, choice: Choice3, sink: GraphSink, par
         entry: choice.network.name,
         graphName: localName(graph) ?? choice.name,
         metaExtra: { [META_KEY]: cyMeta },
+        labelFromName: true,
+        restoredIds,
         groupNodes: new Set(
             members.nodes
                 .filter((n) => n.atts.some((a) => a.name === "__isGroup" && isCyTrue(a.value)))
@@ -504,6 +514,7 @@ async function import3(prepared: Prepared, choice: Choice3, sink: GraphSink, par
         views.slice(1).map((v) => v.view),
         report,
         prepared.inner,
+        restoredIds,
     );
 }
 
@@ -634,6 +645,7 @@ function viewPositions(view: XgmmlDocument, zAs: "column" | "position"): Map<str
  * @param viewIds - each view's SUID
  * @param report - the report
  * @param common - the id rule
+ * @param restoredIds - the original ids of mangled nodes, by written id
  */
 function writeViewPositions(
     sink: GraphSink,
@@ -641,6 +653,7 @@ function writeViewPositions(
     viewIds: readonly string[],
     report: ImportReportBuilder,
     common: ResolvedImportOptions,
+    restoredIds: ReadonlyMap<string, string>,
 ): void {
     const coercer = new IdCoercer(common.ids);
     views.forEach((positions, i) => {
@@ -668,7 +681,7 @@ function writeViewPositions(
         for (const [id, xyz] of positions) {
             let index: number;
             try {
-                index = sink.indexOf(coercer.text(id));
+                index = sink.indexOf(coercer.text(restoredIds.get(id) ?? id));
             } catch {
                 continue; // an id the id rule refuses was refused, and recorded, as a node already
             }
@@ -677,6 +690,30 @@ function writeViewPositions(
             }
         }
     });
+}
+
+/**
+ * The original ids an exporter's `sanitizeIds: "mangle"` kept in the node table's
+ * `graphty:originalId` column; each such cell is taken out of the node's columns.
+ * @param nodes - the node records, table cells merged in
+ * @returns the original id by written id
+ */
+function restoreIds(nodes: readonly NodeRec[]): Map<string, string> {
+    const out = new Map<string, string>();
+    for (const node of nodes) {
+        const at = node.atts.findIndex(
+            (a) =>
+                a.name === ORIGINAL_ID_ATTRIBUTE &&
+                (a.namespace ?? null) === null &&
+                a.value !== null &&
+                a.children.length === 0,
+        );
+        if (node.id !== null && at >= 0) {
+            out.set(node.id, node.atts[at].value as string);
+            node.atts.splice(at, 1);
+        }
+    }
+    return out;
 }
 
 /**

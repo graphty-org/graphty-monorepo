@@ -196,7 +196,11 @@ describe("the names of a partition's groups", () => {
             "the mapped groups come first",
         );
         for (const swatch of block?.swatches ?? []) {
-            assert.strictEqual(swatch.rank, summary.get(swatch.value), `group ${String(swatch.value)}`);
+            assert.strictEqual(
+                swatch.rank,
+                summary.get(swatch.value as string | number),
+                `group ${String(swatch.value)}`,
+            );
         }
         harness.session.dispose();
     });

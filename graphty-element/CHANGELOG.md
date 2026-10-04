@@ -1,3 +1,41 @@
+## 3.10.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** export NodeId from the root; neighbors guide states types and limits ([35904f75](https://github.com/graphty-org/graphty-monorepo/commit/35904f75))
+- **graphty-element:** export WeightMeaning from the root; document neighbor counts ([4442c4af](https://github.com/graphty-org/graphty-monorepo/commit/4442c4af))
+- **graphty-element:** neighbors takes the run's weight, direction, scope and sort ([8954ca7d](https://github.com/graphty-org/graphty-monorepo/commit/8954ca7d))
+- **graphty-element:** list a node's neighbors with tie strength ([#784](https://github.com/graphty-org/graphty-monorepo/issues/784))
+
+### 🩹 Fixes
+
+- **graphty-element:** re-pin the louvain cost model over its slowest random graphs ([8057ee9c](https://github.com/graphty-org/graphty-monorepo/commit/8057ee9c))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.9.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** session.find lists hits and values without selecting ([953fac48](https://github.com/graphty-org/graphty-monorepo/commit/953fac48))
+- **graphty-element:** find nodes, edges and values without selecting them ([#783](https://github.com/graphty-org/graphty-monorepo/issues/783))
+
+### 🩹 Fixes
+
+- **graphty-element:** zoomToSelection frames selected edges by their ends ([c581691b](https://github.com/graphty-org/graphty-monorepo/commit/c581691b))
+- **graphty-element:** find never matches an edge by its assigned id ([ff2dfde9](https://github.com/graphty-org/graphty-monorepo/commit/ff2dfde9))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.29
+- Updated layout to 2.2.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.8.0 (2026-10-04)
 
 ### 🚀 Features

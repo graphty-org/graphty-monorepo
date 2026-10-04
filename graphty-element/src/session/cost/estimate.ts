@@ -530,19 +530,33 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
         seconds: (nodes, edges, rates) => (nodes * (nodes + edges)) / (24 * rates.heavyPairsPerSecond),
     },
     /* Multilevel Louvain over the snapshot: local-moving sweeps over the edges, then a fold, until
-       nothing moves. It takes 5 to 150 sweeps summed over its levels, stopping on its tolerance long
-       before `maxIterations`, so the bound is not charged. Refitted on 2026-09-29, when the element
-       moved it off the Map-based object graph and onto the dispatcher's CPU port: measured 7.8 to
-       19.4 ns per element of n + m per unit of log2(n + m) on random (m = 1.2n to 20n), scale-free
-       and planted-partition graphs of 10,000 to 100,000 nodes, the most on random m = 5n at 50,000
-       nodes and the least on planted partitions. Pinned at 22 ns, 1 / (15 * the iterative rate):
-       1.1x to 3.2x over those graphs, and far more over the
-       grid, path, star and clique-ring shapes, where it settles in a handful of sweeps. The model
-       fitted to the object graph charged 148 ns and read 10x to 21x over the snapshot. */
+       nothing moves. It stops on its tolerance long before `maxIterations`, so the bound is not
+       charged. Refitted on 2026-09-29, when the element moved it off the Map-based object graph and
+       onto the dispatcher's CPU port, and re-pinned on 2026-10-03.
+       Where the time goes, counted with an instrumented copy of the port: an arc scan costs a
+       steady 7.5 to 9 ns on random m = 5n at every size, so the cost is the NUMBER of scans. On a
+       graph with no community structure the first two levels only pair nodes up, halving the node
+       count while keeping almost every arc, and the third level -- about n / 5 super-nodes with
+       about 40 neighbours each -- is where the queue runs long: 10 to 22 scans of each original
+       edge there, against 2.6 on each earlier level. That count depends on the particular graph,
+       not on its size (n = 10,000 to 400,000 read 16, 16, 16, 21, 27, 24, 25, 26, 21, 22, 23, 25
+       scans per edge in all), so the cost per element of n + m per unit of log2(n + m) does not
+       trend with n on random m = 5n but scatters between 13.3 and 19.3 ns, the most at 70,000
+       nodes and next at 50,000 (18.7). Graphs with structure settle in far fewer scans: planted
+       partitions 7.1 to 7.8 ns, scale-free 12 to 20 ns (rising with n as its scans miss the
+       cache), random m = 1.2n 10 to 14 ns, random m = 20n 12 to 18 ns.
+       The 22 ns this was pinned at sat only 1.14x over the 50,000-node reading, and that row's
+       measured time spreads by about 10% across CI runners at one probe reading. In the run that
+       read 0.94, under the 0.95 floor, every Louvain row ran 5% to 15% slower while the probe and
+       every other algorithm's rows held within 2%: its scans read memory at random, which the
+       calibration probe does not exercise. Pinned now at 26.7 ns, 1 / (12.5 * the
+       iterative rate): 1.38x over the slowest graph measured, and about 3.4x to 3.75x over planted
+       partitions, the fastest graph held to both bounds. Far more over the grid, path, star and
+       clique-ring shapes, where it settles in a handful of sweeps. */
     louvain: {
         term: () => "(n + m) log2(n + m)",
         seconds: (nodes, edges, rates) =>
-            ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) / (15 * rates.iterativeElementsPerSecond),
+            ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) / (12.5 * rates.iterativeElementsPerSecond),
     },
     /* Power iteration x <- (A + I)x over the snapshot: a setup, then up to k passes of n + m each
        (k = 1,000 by default). How many passes depends on the spectral gap, which nothing the

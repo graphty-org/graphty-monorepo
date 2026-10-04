@@ -36,8 +36,11 @@ jobs:
 
             # The title goes through an environment variable, never into the script text: a title is
             # attacker-controlled on a fork's pull request, and `${{ }}` inside `run:` is pasted into the
-            # shell before it runs.
+            # shell before it runs. A Mergify merge-queue draft (branch mergify/merge-queue/*) carries
+            # Mergify's own title, not a commit message; the pull requests it holds were each checked
+            # here on their own, so the step is skipped and the job passes.
             - name: Lint PR title
+              if: ${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
               env:
                   PR_TITLE: ${{ github.event.pull_request.title }}
               run: printf '%s\n' "$PR_TITLE" | pnpm exec commitlint

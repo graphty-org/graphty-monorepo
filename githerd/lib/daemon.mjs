@@ -1883,7 +1883,9 @@ export async function startDaemon({
             }
             if (pass.ledger.length || pass.dead.length) await save();
         } catch (err) {
-            say("error", `watchdog: ${/** @type {Error} */ (err).message}`);
+            const error = /** @type {Error} */ (err).message;
+            say("error", `watchdog: ${error}`);
+            void ledger({ kind: "watch-error", job: null, error });
         } finally {
             watching = false;
         }

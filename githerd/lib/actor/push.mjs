@@ -23,6 +23,7 @@ import { stripVTControlCharacters } from "node:util";
 
 import { escalate, move, TERMINAL } from "../board.mjs";
 import { classify, SHARED_WINDOW_MS } from "../classify.mjs";
+import { identify } from "../proc.mjs";
 import { checkOutgoing } from "../text.mjs";
 import { git as gitIn, run as exec } from "../worktrees.mjs";
 
@@ -291,7 +292,31 @@ const MIN_GATE_MS = 5 * 60_000;
  * @property {string} queuedAt when it was queued
  * @property {"queued" | "running"} status where it is
  * @property {number | null} pid the running push's process group, null while queued
+ * @property {string | null} [startTime] that process's start time, so a pid a later process reuses
+ *   is never taken for the push
  */
+
+/**
+ * The process groups of a job's pushes that are running now: each recorded pid whose process still
+ * has the recorded start time. A pid from before a githerd restart, since reused, is not one.
+ * @param {any} state the daemon state
+ * @param {string} job the job
+ * @returns {number[]} the groups' leaders
+ */
+export function livePushGroups(state, job) {
+    return (state.pushQueue?.entries ?? [])
+        .filter((/** @type {PushEntry} */ e) => e.job === job && livePush(e))
+        .map((/** @type {PushEntry} */ e) => /** @type {number} */ (e.pid));
+}
+
+/**
+ * Whether an entry's recorded push process still runs.
+ * @param {PushEntry} e the entry
+ * @returns {boolean} true when its pid has its recorded start time
+ */
+function livePush(e) {
+    return Boolean(e.pid && e.startTime && identify(e.pid)?.startTime === e.startTime);
+}
 
 /**
  * A worktree's HEAD, or null when it cannot be read.
@@ -413,6 +438,7 @@ export function createPushQueue({
             queuedAt: now().toISOString(),
             status: "queued",
             pid: null,
+            startTime: null,
         };
         q.entries.push(entry);
         job.branch = args.branch;
@@ -524,6 +550,7 @@ export function createPushQueue({
                 { cwd: e.worktree, env, detached: true, stdio: ["ignore", "pipe", "pipe"] },
             );
             e.pid = child.pid ?? null;
+            e.startTime = e.pid ? (identify(e.pid)?.startTime ?? null) : null;
             const timer = setTimeout(() => {
                 timedOut = true;
                 kill(e.pid);
@@ -533,6 +560,7 @@ export function createPushQueue({
             const done = (/** @type {number} */ code) => {
                 clearTimeout(timer);
                 e.pid = null;
+                e.startTime = null;
                 resolve({ code, out: stripVTControlCharacters(out), timedOut });
             };
             child.on("error", (err) => {
@@ -606,7 +634,7 @@ export function createPushQueue({
         depth: () => q.entries.filter((/** @type {PushEntry} */ e) => e.status === "queued").length,
         drain,
         stop() {
-            for (const e of q.entries) kill(e.pid);
+            for (const e of q.entries) if (livePush(e)) kill(e.pid);
         },
     };
 }

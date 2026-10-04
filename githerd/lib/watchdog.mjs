@@ -18,19 +18,22 @@
  *   rings without progress recycle the session fresh;
  * - busy with no progress for 20 minutes: Escape (the next pass rings, as a status request); 10
  *   minutes later, still nothing, recycle fresh;
- * - no doorbell while a client views the window or the box holds the owner's unsent text; after
- *   30 minutes of that the job continues in a new window and the old one is the owner's;
+ * - no doorbell, Escape or recycle while a client views the window or the box holds the owner's
+ *   unsent text; after 30 minutes of that, or at once when the session is due for recycling, the
+ *   job continues in a new window and the old one is the owner's;
  * - a steered job is left alone; steering ends after 2 hours idle;
  * - an idle session that compacted 3 times or lived 12 hours is recycled fresh.
  */
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 
+import { livePushGroups } from "./actor/push.mjs";
 import { endAttempt, move } from "./board.mjs";
 import { raiseItem } from "./notify.mjs";
 import { readScreen } from "./screen.mjs";
+import { sweepWorktree } from "./session-death.mjs";
 import { capturePane, endSession, interrupt, readRegistry, ring, running, viewed } from "./tmux.mjs";
 
 const MINUTE = 60 * 1000;
@@ -216,8 +219,30 @@ export function decide(job, look, now) {
     const dialog = ["permission", "plan", "picker"].includes(screen.kind) || status === "waiting";
     if (dialog) return job.state === "working" ? { action: "park" } : { action: "none" };
     const reason = status === "idle" ? worn(job, since) : null;
-    if (reason) return { action: "recycle", reason };
+    if (reason) return recycleOrHandOver(look, reason);
     return job.state === "working" ? working(w, look, since, now) : { action: "none" };
+}
+
+/**
+ * Whether the owner is at the window: a client views it, or his unsent text is in the box.
+ * @param {Look} look what this pass saw
+ * @returns {string | null} which, in words, or null when he is not
+ */
+function ownerAt(look) {
+    if (look.viewed) return "the owner is viewing it";
+    return look.screen.kind === "owner-text" ? "the owner's unsent text is in it" : null;
+}
+
+/**
+ * A recycle, unless the owner is at the window: then the job moves to a new window and the old one
+ * is left to him, never ended under his view or his unsent text (design 7.5).
+ * @param {Look} look what this pass saw
+ * @param {string} reason why the session should go
+ * @returns {Decision} recycle or hand-over
+ */
+function recycleOrHandOver(look, reason) {
+    const owner = ownerAt(look);
+    return owner ? { action: "hand-over", reason: `${reason}; ${owner}` } : { action: "recycle", reason };
 }
 
 /**
@@ -245,23 +270,21 @@ function worn(job, since) {
 function working(w, look, since, now) {
     const status = look.registry?.status;
     if (w.escapedAt && since(w.escapedAt) >= AFTER_ESCAPE_MS) {
-        return { action: "recycle", reason: "no progress for 10 minutes after an interrupt" };
+        return recycleOrHandOver(look, "no progress for 10 minutes after an interrupt");
     }
     if (status === "busy") {
-        return !w.escapedAt && since(w.progressAt) >= STALL_MS ? { action: "escape" } : { action: "none" };
+        const stalled = !w.escapedAt && since(w.progressAt) >= STALL_MS;
+        return stalled && !ownerAt(look) ? { action: "escape" } : { action: "none" };
     }
     if (status !== "idle") return { action: "none" };
     const last = w.rings.at(-1);
     if (last && since(last) < RING_MS) return { action: "none" };
-    if (w.rings.length >= RINGS)
-        return { action: "recycle", reason: `${w.rings.length} doorbells brought no progress` };
-    if (!look.viewed && look.screen.kind !== "owner-text") return { action: "ring" };
+    if (w.rings.length >= RINGS) return recycleOrHandOver(look, `${w.rings.length} doorbells brought no progress`);
+    const owner = ownerAt(look);
+    if (!owner) return { action: "ring" };
     w.blockedSince ??= now.toISOString();
     if (since(w.blockedSince) < BLOCKED_MS) return { action: "none" };
-    return {
-        action: "hand-over",
-        reason: look.viewed ? "the owner is viewing it" : "the owner's unsent text is in it",
-    };
+    return { action: "hand-over", reason: owner };
 }
 
 /**
@@ -300,11 +323,17 @@ export async function watchPass(state, now, options = {}) {
         const h = job.holder;
         if (!h?.pane) continue;
         workers += 1;
-        const { window, look, counters } = lookAt(job, now, { sessionsDir, projectsDir, procRoot, pushQueued });
-        const decision = decide(job, look, now);
-        if (job.watch) job.watch.sample = counters;
-        if (decision.action === "dead") dead.push(job.id);
-        else await carryOut(state, job, window, { decision, screen: look.screen, now, sleep }, ledger);
+        // A window can vanish between a capture and a keystroke, and tmux then fails: that worker
+        // is left for the next pass, and the others are still looked at.
+        try {
+            const { window, look, counters } = lookAt(job, now, { sessionsDir, projectsDir, procRoot, pushQueued });
+            const decision = decide(job, look, now);
+            if (job.watch) job.watch.sample = counters;
+            if (decision.action === "dead") dead.push(job.id);
+            else await carryOut(state, job, window, { decision, screen: look.screen, now, sleep }, ledger);
+        } catch (err) {
+            ledger.push({ kind: "watch-error", job: job.id, error: String(/** @type {Error} */ (err)?.message ?? err) });
+        }
     }
     return { workers, ledger, dead };
 }
@@ -385,13 +414,17 @@ async function carryOut(state, job, window, { decision, screen, now, sleep }, le
             }
         },
         recycle: async () => {
-            await recycle(job, window, /** @type {string} */ (decision.reason), now, sleep);
-            line("recycled", { reason: decision.reason });
+            const swept = await recycle(state, job, window, /** @type {string} */ (decision.reason), { now, sleep });
+            line("recycled", { reason: decision.reason, ended: swept.ended.length, killed: swept.killed.length });
         },
         "hand-over": () => {
             job.holder = null;
             job.fresh = true;
-            move(job, "queued", now, { reason: `continues in a new window: ${decision.reason}` });
+            job.watch = null;
+            // A waiting job keeps waiting with no session; `waiting` has no exit to `queued`.
+            if (job.state === "working") {
+                move(job, "queued", now, { reason: `continues in a new window: ${decision.reason}` });
+            }
             line("window-left-to-owner", { window: window.name, reason: decision.reason });
         },
     };
@@ -466,20 +499,24 @@ function park(state, job, screen, now) {
 
 /**
  * Recycles a session fresh (design 5.5): a working job's attempt ends with the reason; a waiting
- * job keeps waiting with no session; the session is ended.
+ * job keeps waiting with no session; the session is ended, and then every process it left in the
+ * worktree (design 7.8), except the daemon's own push for the job, which must survive it.
  * ponytail: a waiting job's recycle ends no attempt, because `waiting` has no exit to `queued`;
  * count it once waiting jobs can be requeued.
+ * @param {any} state the daemon state, for the job's running push
  * @param {any} job the job
  * @param {import("./tmux.mjs").Window} window its window
  * @param {string} reason why
- * @param {Date} now the current time
- * @param {((ms: number) => Promise<unknown>) | undefined} sleep waits
+ * @param {{now: Date, sleep?: (ms: number) => Promise<unknown>}} when the clock and the wait
+ * @returns {Promise<{ended: number[], killed: number[]}>} what the sweep ended
  */
-async function recycle(job, window, reason, now, sleep) {
+async function recycle(state, job, window, reason, { now, sleep }) {
     const holder = job.holder;
     if (job.state === "working") endAttempt(job, { outcome: `session recycled: ${reason}` }, now);
     job.holder = null;
     job.fresh = true;
     job.watch = null;
     await endSession({ ...window, startTime: holder.startTime }, sleep ? { sleep } : {});
+    if (!job.worktree || !existsSync(job.worktree)) return { ended: [], killed: [] };
+    return sweepWorktree(job.worktree, { spareGroups: livePushGroups(state, job.id), ...(sleep ? { sleep } : {}) });
 }

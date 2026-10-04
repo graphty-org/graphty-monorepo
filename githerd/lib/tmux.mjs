@@ -280,15 +280,17 @@ export async function ring(window, { nonce, job, sleep = delay }) {
 }
 
 /**
- * Sends Escape to a busy session that makes no progress (design 7.5), only when its pane shows no
- * dialog: a dialog takes the permission path and gets no key.
+ * Sends Escape to a busy session that makes no progress (design 7.5), only when its pane shows the
+ * empty prompt box and no client views the window: a dialog takes the permission path and gets no
+ * key, and the owner's view or unsent text is never interrupted.
  * @param {Window} window the window
  * @returns {{sent: boolean, why?: string, capture?: string}} whether Escape was sent
  */
 export function interrupt(window) {
+    if (viewed(window)) return { sent: false, why: "viewed" };
     const capture = capturePane(window);
     const screen = readScreen(capture, window.name);
-    if (screen.kind !== "empty-box" && screen.kind !== "owner-text") return { sent: false, why: screen.kind, capture };
+    if (screen.kind !== "empty-box") return { sent: false, why: screen.kind, capture };
     tmux(window.socket, ["send-keys", "-t", window.pane, "Escape"]);
     return { sent: true };
 }

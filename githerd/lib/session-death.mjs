@@ -15,6 +15,7 @@ import { existsSync, readdirSync, readFileSync, readlinkSync, rmSync } from "nod
 import { isAbsolute, join, sep } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
+import { livePushGroups } from "./actor/push.mjs";
 import { death } from "./board.mjs";
 import { run } from "./worktrees.mjs";
 
@@ -240,7 +241,7 @@ export async function recoverDeath({
 }) {
     const session = job.holder?.session ?? job.sessions?.at(-1) ?? null;
     const pushes = (state.pushQueue?.entries ?? []).filter((/** @type {any} */ e) => e.job === job.id);
-    const spareGroups = pushes.map((/** @type {any} */ e) => e.pid).filter(Boolean);
+    const spareGroups = livePushGroups(state, job.id);
     let sweep = { ended: /** @type {number[]} */ ([]), killed: /** @type {number[]} */ ([]), spared: [] };
     let indexLock = false;
     if (job.worktree && existsSync(job.worktree)) {

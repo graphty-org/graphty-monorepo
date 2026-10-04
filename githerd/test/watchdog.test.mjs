@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -5,6 +6,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { move, newJob } from "../lib/board.mjs";
+import { identify } from "../lib/proc.mjs";
+import { running } from "../lib/tmux.mjs";
 import { decide, descendantTicks, sample, transcriptFiles, watchPass } from "../lib/watchdog.mjs";
 import { fakeWorkers, sleep, typed } from "./helpers/fake-worker.mjs";
 
@@ -136,6 +139,31 @@ describe("decide", () => {
         expect(decide(job(), look({ registry: { status: "busy" } }), at(12 * 60)).action).not.toBe("recycle");
     });
 
+    it("hands the job over instead of recycling or interrupting while the owner is at the window", () => {
+        const owners = [look({ viewed: true }), look({ screen: { kind: "owner-text", text: "hi" } })];
+        for (const owner of owners) {
+            const worn = job("waiting");
+            worn.compactions = 3;
+            expect(decide(worn, owner, T0).action).toBe("hand-over");
+            expect(decide(job(), owner, at(12 * 60)).action).toBe("hand-over");
+            const escaped = job();
+            decide(escaped, look({ registry: { status: "busy" } }), T0);
+            escaped.watch.escapedAt = at(20).toISOString();
+            expect(decide(escaped, owner, at(30)).action).toBe("hand-over");
+            const rung = job();
+            decide(rung, look(), T0);
+            rung.watch.rings.push(T0.toISOString(), at(15).toISOString());
+            expect(decide(rung, owner, at(30))).toMatchObject({
+                action: "hand-over",
+                reason: expect.stringMatching(/^2 doorbells brought no progress; the owner/),
+            });
+            const stalled = job();
+            const busyOwner = { ...owner, registry: { status: "busy" } };
+            decide(stalled, busyOwner, T0);
+            expect(decide(stalled, busyOwner, at(20)).action).toBe("none");
+        }
+    });
+
     it("does nothing for a session with no registry entry", () => {
         expect(decide(job(), look({ registry: null }), T0).action).toBe("none");
     });
@@ -196,14 +224,30 @@ describe("progress counters", () => {
     });
 });
 
+/**
+ * Waits until a condition holds, for at most 5 s.
+ * @param {() => boolean} ok the condition
+ */
+async function until(ok) {
+    for (let i = 0; i < 250 && !ok(); i++) await sleep(20);
+    if (!ok()) throw new Error("condition never held");
+}
+
 describe("watchPass", () => {
     /** @type {ReturnType<typeof fakeWorkers>} */
     let fw;
+    /** @type {import("node:child_process").ChildProcess[]} */
+    let children;
     beforeEach(() => {
         fw = fakeWorkers();
+        children = [];
     });
     afterEach(async () => {
+        for (const c of children) c.kill("SIGKILL");
         await fw.cleanup();
+        for (const c of children) {
+            await until(() => c.exitCode !== null || c.signalCode !== null);
+        }
     });
 
     /**
@@ -292,7 +336,7 @@ describe("watchPass", () => {
         expect((await watchPass(state, at(20), options())).ledger).toEqual([{ kind: "escaped", job: "issue-24" }]);
         expect(j.news.at(-1).text).toContain("no progress for 20 minutes");
         const pass = await watchPass(state, at(30), options());
-        expect(pass.ledger).toEqual([
+        expect(pass.ledger).toMatchObject([
             { kind: "recycled", job: "issue-24", reason: "no progress for 10 minutes after an interrupt" },
         ]);
         expect(j.state).toBe("queued");
@@ -305,6 +349,53 @@ describe("watchPass", () => {
                 .filter((k) => k.typed === undefined)
                 .map((k) => k.key ?? k.submit),
         ).toEqual(["Escape", "/exit"]);
+    });
+
+    it("ends what the recycled session left running in the worktree, but not the job's push", async () => {
+        const j = await held("issue-31", { screen: "idle" });
+        j.compactions = 3;
+        const left = spawn("sleep", ["300"], { cwd: fw.dir, stdio: "ignore" });
+        const push = spawn("sleep", ["300"], { cwd: fw.dir, stdio: "ignore", detached: true });
+        children.push(left, push);
+        const pid = /** @type {number} */ (push.pid);
+        /** @type {any} */
+        const state = { jobs: { [j.id]: j }, pushQueue: { entries: [] } };
+        await until(() => identify(pid) !== null && identify(/** @type {number} */ (left.pid)) !== null);
+        state.pushQueue.entries.push({ job: j.id, status: "running", pid, startTime: identify(pid)?.startTime });
+        const pass = await watchPass(state, T0, options());
+        expect(pass.ledger).toMatchObject([{ kind: "recycled", job: "issue-31", reason: "compacted 3 times" }]);
+        expect(pass.ledger[0].ended + pass.ledger[0].killed).toBeGreaterThanOrEqual(1);
+        await until(() => left.exitCode !== null || left.signalCode !== null);
+        expect(push.exitCode === null && push.signalCode === null).toBe(true);
+    });
+
+    it("never ends or types into a window the owner holds, whatever the recycle reason", async () => {
+        for (const [id, scenario] of /** @type {[string, any][]} */ ([
+            ["issue-32", { screen: "half-typed" }],
+            ["issue-33", { screen: "half-typed", registry: { status: "busy" } }],
+        ])) {
+            const j = await held(id, scenario);
+            const { pid, startTime } = j.holder;
+            j.compactions = 3;
+            const state = { jobs: { [j.id]: j } };
+            const kinds = [];
+            for (const m of [0, 20, 40]) kinds.push(...(await watchPass(state, at(m), options())).ledger.map((l) => l.kind));
+            expect(kinds).not.toContain("recycled");
+            expect(kinds).not.toContain("escaped");
+            expect(fw.keys(id)).toEqual([]);
+            expect(running(pid, startTime)).toBe(true);
+        }
+    });
+
+    it("records a tmux failure for one worker and still looks at the others", async () => {
+        const bad = await held("issue-34", { screen: "idle" });
+        bad.holder.socket = `githerd-test-gone-${process.pid}`;
+        const good = await held("issue-35", { screen: "idle" });
+        const pass = await watchPass({ jobs: { [bad.id]: bad, [good.id]: good } }, T0, options());
+        expect(pass.ledger).toEqual([
+            { kind: "watch-error", job: "issue-34", error: expect.stringContaining("tmux") },
+            { kind: "doorbell", job: "issue-35" },
+        ]);
     });
 
     it("counts the session's transcript growth as progress", async () => {

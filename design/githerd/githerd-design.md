@@ -1170,6 +1170,11 @@ only; it stops when the last worker ends).
   by dialog" is recorded with the capture. No doorbell while a client views that window
   (`#{window_active_clients}` from `tmux list-windows` [PF 10.8]) or the input box holds the owner's unsent text; if that lasts 30
   minutes the board says so and the job continues in a new window, leaving the old one to the owner.
+- **The owner's window is never ended or interrupted**: while a client views it or his unsent text
+  is in the box, no Escape is sent, and a session due for recycling (a stall, unanswered doorbells,
+  3 compactions, 12 hours) is handed over at once instead: the job continues in a new window and
+  the old one is his. A recycle ends the session and then every process it left in the worktree
+  (7.8), except the daemon's own push for the job.
 
 ### 7.6 The owner and workers
 

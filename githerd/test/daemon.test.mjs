@@ -533,6 +533,20 @@ describe("HTTP endpoints", () => {
         expect(deaths).toEqual([expect.objectContaining({ job: "issue-12", session: "s1", action: "fresh" })]);
     });
 
+    it("records a failed watchdog pass in the ledger, not only in the log", async () => {
+        const daemon = await start();
+        const job = newJob({ kind: "issue", target: "#13", id: "issue-13" }, clock);
+        job.state = "working";
+        job.holder = { pane: "%1", window: "@1", pid: process.pid, startTime: "0", session: "s1", name: "x" };
+        // A record the death count cannot read: recovery throws past the per-worker handling.
+        job.deaths = /** @type {any} */ (null);
+        daemon.state.jobs = { "issue-13": job };
+        await daemon.watch();
+        await daemon.shutdown();
+        const errors = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "watch-error");
+        expect(errors).toEqual([expect.objectContaining({ job: null, error: expect.any(String) })]);
+    });
+
     it("refuses a hook request without an event", async () => {
         const daemon = await start();
         const res = await fetch(`${daemon.url}/hook`, { method: "POST", body: JSON.stringify({ input: {} }) });

@@ -37,7 +37,14 @@ import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
-import { type ResolvedResult, resolveResult, resultCell, resultCellRanks, resultSortValue } from "./results/pageColumns";
+import {
+    primaryResultColumn,
+    type ResolvedResult,
+    resolveResult,
+    resultCell,
+    resultCellRanks,
+    resultSortValue,
+} from "./results/pageColumns";
 import { RevisionCache } from "./revision";
 import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
@@ -64,6 +71,7 @@ import type {
     RecordPageOptions,
     RecordSort,
     ResultColumn,
+    ResultColumnDescriptor,
     RowUpdate,
     SessionAttributes,
     SessionDataApi,
@@ -640,6 +648,26 @@ export class SessionData implements SessionDataApi {
         return this.page(snapshot, "edge", options, "edgePage", (index) =>
             this.edgeAt(snapshot, index, space.idOf(index)),
         );
+    }
+
+    /**
+     * The runs a page of one kind can show as a column.
+     * @param kind - nodes or edges
+     * @returns one entry per run, in the session's order
+     * @throws A `GraphtyError` with `E_DISPOSED` once disposed.
+     */
+    resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[] {
+        this.current();
+        const columns: ResultColumnDescriptor[] = [];
+        for (const id of this.pages.runIds()) {
+            const run = this.pages.run(id);
+            const column = run === undefined ? undefined : primaryResultColumn(run, kind);
+            if (column !== undefined) {
+                columns.push(column);
+            }
+        }
+
+        return Object.freeze(columns);
     }
 
     /**

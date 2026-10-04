@@ -69,6 +69,24 @@ in `session.catalog.algorithms()`):
 `pairs` and `series` are not one value per record, so a column of them is refused with
 `E_BAD_COMMAND`, as is a `fact` run with no field named; read those from `results.get(run)`.
 
+### Which runs a table can offer
+
+`session.data.resultColumns("node")` lists every run a node page takes as a column with no field
+named, and `resultColumns("edge")` every run an edge page takes, in the session's run order. Each
+entry carries the `run`, the primary `field` it reads, its `path` and `type`, and `grouping`: `true`
+when the field names groups, so a sort by it orders records by group size rather than by id.
+
+```ts
+for (const column of element.session.data.resultColumns("node")) {
+    // offer column.run as a column of the Nodes table
+    console.log(column.run, column.field, column.type, column.grouping);
+}
+```
+
+A run in that list never makes `nodePage({ columns: [column.run] })` throw, and a run left out of it
+always would, so a table need not try each run to find out. A run that is still computing is
+listed; its column comes back `pending` until the result publishes.
+
 ## What comes back
 
 `page.columns` is present only when you asked for `columns`, and holds one entry per column in the
@@ -134,6 +152,7 @@ import type {
     RecordPageOptions, // what they take; EdgePageOptions adds `touching`
     ResultCell, // one value in a column: number | string | boolean | undefined
     ResultColumn, // one entry of `columns`
+    ResultColumnDescriptor, // one entry of data.resultColumns()
     ResultSort, // a `sort` by a run's result
 } from "@graphty/graphty-element/session";
 ```

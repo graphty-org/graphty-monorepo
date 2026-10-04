@@ -332,6 +332,35 @@ describe("result values as page columns", () => {
         session.dispose();
     });
 
+    it("lists the runs each kind of page takes as a column, without probing a page (#922)", async () => {
+        const session = await scored();
+        await session.data.addEdges([{ source: "hub", target: "a" }]);
+        const [edge] = session.data.edges().map((record) => record.id);
+        published.set("bridges", { edges: [[edge ?? "", true]] });
+        await session.runs.start("degree", undefined, { as: "bridges", style: false });
+        published.set("louvain", { shape: "community", nodes: [["hub", 0]] });
+        await session.runs.start("louvain", undefined, { as: "groups", style: false });
+
+        const nodes = session.data.resultColumns("node");
+        const edges = session.data.resultColumns("edge");
+
+        assert.deepStrictEqual(nodes, [
+            { run: "degree", field: "value", path: "results.degree.value", type: "number", grouping: false },
+            { run: "groups", field: "group", path: "results.groups.group", type: "integer", grouping: true },
+        ]);
+        assert.deepStrictEqual(edges, [
+            { run: "bridges", field: "value", path: "results.bridges.value", type: "boolean", grouping: false },
+        ]);
+        for (const column of nodes) {
+            assert.doesNotThrow(() => session.data.nodePage({ columns: [column.run], limit: 0 }));
+        }
+        for (const column of edges) {
+            assert.doesNotThrow(() => session.data.edgePage({ columns: [column.run], limit: 0 }));
+        }
+        assert.strictEqual(refusal(() => session.data.edgePage({ columns: ["groups"] })).code, "E_BAD_COMMAND");
+        session.dispose();
+    });
+
     it("reads an edge result on edge pages", async () => {
         const session = createGraphSession({ runs: { execute } });
         await session.data.addNodes([{ id: "x" }, { id: "y" }, { id: "z" }]);

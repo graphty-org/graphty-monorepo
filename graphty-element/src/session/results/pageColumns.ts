@@ -14,7 +14,7 @@ import { runIdOfRef } from "../../catalog/sets/canonical";
 import type { EdgeId, Path, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { Run } from "../runs/types";
-import type { PageColumn, ResultCell, ResultColumn, ResultSort } from "../types";
+import type { PageColumn, ResultCell, ResultColumn, ResultColumnDescriptor, ResultSort } from "../types";
 import { nearestNames } from "./ResultsApi";
 import { resultPath, resultShapeContract, type RunResult } from "./types";
 
@@ -139,6 +139,30 @@ export function resolveResult(
     }
 
     return { run: run.id, field, path: resultPath(run.id, field), type: perRecord.type, result: run.result };
+}
+
+/**
+ * What a column naming only a run reads, when the run's primary field has one value per record of
+ * the kind: the same rule {@link resolveResult} enforces, as an answer rather than a refusal.
+ * @param run - The run.
+ * @param target - Whether the page holds nodes or edges.
+ * @returns The column, or undefined when a page of this kind refuses the run.
+ */
+export function primaryResultColumn(run: Run, target: "node" | "edge"): ResultColumnDescriptor | undefined {
+    const field = resultShapeContract(run.shape).primaryField;
+    const fields = run.result?.fields ?? run.fields;
+    const perRecord = fields.find((candidate) => candidate.name === field && candidate.kind === target);
+    if (field === null || perRecord === undefined || perRecord.type === "table") {
+        return undefined;
+    }
+
+    return Object.freeze({
+        run: run.id,
+        field,
+        path: resultPath(run.id, field),
+        type: perRecord.type,
+        grouping: GROUPING_FIELDS.has(field),
+    });
 }
 
 /**

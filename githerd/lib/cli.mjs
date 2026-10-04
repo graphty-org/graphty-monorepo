@@ -32,7 +32,7 @@ import {
     writeDaemonEnv,
 } from "./launcher.mjs";
 import { createNotifier } from "./notify.mjs";
-import { sameProcess } from "./proc.mjs";
+import { gateLock, sameProcess } from "./proc.mjs";
 import { defaultStateDir, readLedger, readLiveness, replayLedger, STATE_SCHEMA } from "./store.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 
@@ -230,6 +230,7 @@ function daemonEnv(record, stateDir) {
  * @property {(line: string) => void} out standard output
  * @property {(line: string) => void} err standard error
  * @property {() => Date} now the clock
+ * @property {string} root the main checkout
  * @property {string} stateDir the repository's state directory
  * @property {Parameters<typeof launcherContext>[0]} ctxOptions what the launcher needs
  * @property {number} signTimeoutMs the doctor's signing timeout
@@ -282,6 +283,7 @@ export async function runCli(argv, options = {}) {
         name: command,
         ...parseArgs(rest),
         cwd,
+        root,
         env,
         out,
         err,
@@ -312,6 +314,7 @@ async function daemonPort(c) {
  */
 async function cmdStatus(c) {
     const board = await boardText(c.stateDir, {
+        root: c.root,
         section: c.positional[0],
         json: c.flags.json === true,
         now: c.now(),
@@ -328,7 +331,7 @@ async function cmdStatus(c) {
  */
 async function cmdBoard(c) {
     const draw = async () => {
-        const board = await boardText(c.stateDir, { now: c.now() });
+        const board = await boardText(c.stateDir, { root: c.root, now: c.now() });
         c.out(`\x1b[2J\x1b[H${board.text}`);
     };
     await draw();
@@ -649,12 +652,13 @@ async function offlineState(stateDir) {
  * The board: the daemon's answer when it answers, else rendered from the state directory with a
  * line saying the daemon is down.
  * @param {string} stateDir the state directory
- * @param {{section?: string, json?: boolean, now: Date, headers?: Record<string, string>}} options one
- *   section, JSON, the clock, and the caller header (`status` sends it; the board's redraws do not,
- *   so an open board never counts as the owner's presence)
+ * @param {{root: string, section?: string, json?: boolean, now: Date, headers?: Record<string, string>}} options
+ *   the main checkout (for the pre-push lock), one section, JSON, the clock, and the caller
+ *   header (`status` sends it; the board's redraws do not, so an open board never counts as the
+ *   owner's presence)
  * @returns {Promise<{ok: boolean, text: string}>} the text, and whether it is an answer or an error
  */
-async function boardText(stateDir, { section, json = false, now, headers = {} }) {
+async function boardText(stateDir, { root, section, json = false, now, headers = {} }) {
     const { record, health, error } = await probe(/** @type {any} */ ({ stateDir }));
     if (health) {
         const reply = await post(
@@ -681,7 +685,12 @@ async function boardText(stateDir, { section, json = false, now, headers = {} })
     } catch {
         // no state.json
     }
-    const view = { state, liveness: readLiveness(stateDir), down: `${error}; state.json written ${written}` };
+    const view = {
+        state,
+        liveness: readLiveness(stateDir),
+        pushQueue: gateLock(root),
+        down: `${error}; state.json written ${written}`,
+    };
     if (json) return { ok: true, text: JSON.stringify(view, null, 2) };
     try {
         return { ok: true, text: renderBoard(view, now, section) };

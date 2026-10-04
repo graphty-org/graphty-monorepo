@@ -8,7 +8,8 @@
  * pid and tmux pane it recorded is void.
  */
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, readlinkSync } from "node:fs";
+import { basename, join } from "node:path";
 
 /** @typedef {{pid: number, startTime: string, bootId: string}} ProcessIdentity */
 
@@ -72,4 +73,71 @@ export function containerStart() {
     } catch {
         return null;
     }
+}
+
+/**
+ * Reads a file under `/proc`, or null when the process or file is gone or not ours.
+ * @param {string} path the path
+ * @returns {string | null} the text
+ */
+function readProc(path) {
+    try {
+        return readFileSync(path, "utf8");
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * The open descriptor of `pid` on `target`, or null.
+ * @param {string} pid the process id
+ * @param {string} target the file's absolute path
+ * @returns {string | null} the descriptor number
+ */
+function fdOn(pid, target) {
+    let fds;
+    try {
+        fds = readdirSync(`/proc/${pid}/fd`);
+    } catch {
+        return null;
+    }
+    for (const fd of fds) {
+        try {
+            if (readlinkSync(`/proc/${pid}/fd/${fd}`) === target) return fd;
+        } catch {
+            // closed while we looked
+        }
+    }
+    return null;
+}
+
+/**
+ * Who holds the pre-push gate's lock (`tools/prepush.sh`, design section 4.8) and how many gates
+ * wait for it. The lock is `prepush.lock` in the git common directory. `/proc/locks` cannot be
+ * used: it hides a lock whose `flock` command has exited, which is how a script takes it
+ * (evidence/platform-facts.md section 8.2). So every process with the file open is looked at:
+ * its `fdinfo` has a `lock:` line when it holds the lock, and a gate waiting for it is a `flock`
+ * process with the file open and no such line. The holder's name comes from the `.holder` file
+ * the gate writes, trusted only when its pid is one of the holding processes.
+ * @param {string} root the main checkout
+ * @returns {{holder: string | null, waiters: number}} `pid <n> (<worktree> <branch>)`, or null
+ *   when the lock is free; and the number of waiting gates
+ */
+export function gateLock(root) {
+    const file = join(root, ".git", "prepush.lock");
+    /** @type {string[]} */
+    const holders = [];
+    let waiters = 0;
+    for (const pid of readdirSync("/proc").filter((n) => /^\d+$/.test(n))) {
+        const fd = fdOn(pid, file);
+        if (fd === null) continue;
+        const info = readProc(`/proc/${pid}/fdinfo/${fd}`);
+        if (info === null) continue;
+        if (/^lock:/m.test(info)) holders.push(pid);
+        else if (readProc(`/proc/${pid}/comm`)?.trim() === "flock") waiters++;
+    }
+    if (holders.length === 0) return { holder: null, waiters };
+    const [pid, dir, branch] = (readProc(`${file}.holder`) ?? "").trim().split(" ");
+    const holder = holders.includes(pid) ? `pid ${pid} (${basename(dir)} ${branch})` : `pid ${holders[0]}`;
+    return { holder, waiters };
 }

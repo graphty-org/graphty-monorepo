@@ -29,6 +29,26 @@ if ! cmp -s pnpm-lock.yaml node_modules/.pnpm/lock.yaml; then
     exit 1
 fi
 
+# One gate at a time on this machine. Every worktree of this repository shares the git common
+# directory, so a lock there serializes the gates of all of them: owner sessions and githerd's own
+# pushes wait on the same lock (design/githerd/githerd-design.md section 4.8). It lives on
+# descriptor 9, which every step below inherits, so the kernel frees it only when this script and
+# all its steps are gone -- killing the gate's whole process group releases it. The background
+# SonarQube step runs in a process group of its own, so it gets the descriptor closed and a killed
+# gate's scanner never keeps the lock. The holder's pid, worktree and branch go to the .holder file
+# beside it, for whoever asks who is pushing; githerd reads holder and waiters from /proc/<pid>/fdinfo.
+# Not tmp/prepush.lock: some sessions take that one around `git push` itself, and the gate inside
+# such a push would then wait for its own parent.
+GATE_LOCK="$(git rev-parse --path-format=absolute --git-common-dir)/prepush.lock"
+if command -v flock >/dev/null; then
+    exec 9>>"$GATE_LOCK"
+    if ! flock -n 9; then
+        echo "Waiting for the pre-push gate held by: $(cat "$GATE_LOCK.holder" 2>/dev/null || echo unknown)"
+        flock 9
+    fi
+    echo "$$ $ROOT_DIR $(git branch --show-current 2>/dev/null | grep . || echo detached)" >"$GATE_LOCK.holder"
+fi
+
 echo "========================================"
 echo "Pre-push validation"
 echo "========================================"
@@ -98,13 +118,14 @@ DIR_LIST=$(echo "$PROJECT_LIST" | tr ',' ' ' | sed 's#@graphty/##g')
 #
 # Its own process group (setsid), killed by the EXIT trap, so a push that ends early (a failed step,
 # Ctrl-C, a tool timeout killing this script) takes the scanner and its JRE with it and frees the
-# scan lock. Its own flag, SONAR_FAILED, per the rule at the top of this file.
+# scan lock. It never gets descriptor 9, so a SIGKILLed gate's scanner cannot keep the gate lock.
+# Its own flag, SONAR_FAILED, per the rule at the top of this file.
 SONAR_PGID=""
 SONAR_LOG="$(git rev-parse --path-format=absolute --git-common-dir)/sonar/prepush-$(basename "$ROOT_DIR").log"
 mkdir -p "$(dirname "$SONAR_LOG")"
 start_sonar() {
     echo -e "${YELLOW}> SonarQube (changed lines), in the background${NC}"
-    setsid node tools/sonar-gate.mjs >"$SONAR_LOG" 2>&1 &
+    setsid node tools/sonar-gate.mjs >"$SONAR_LOG" 2>&1 9>&- &
     SONAR_PGID=$!
     trap '[ -n "$SONAR_PGID" ] && kill -- -"$SONAR_PGID" 2>/dev/null' EXIT
     echo ""

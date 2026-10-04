@@ -709,14 +709,18 @@ Workers never run `git push` (the guard refuses it). They call `githerd_push`. T
 5. sets the job's wait to `push` while queued and running, so the worker is idle, not working;
 6. rings the worker with the result.
 
-The pre-push gate takes a machine-wide `flock` itself (a plan task changes `tools/prepush.sh`,
-because today it takes none [R11], [R12]); owner sessions wait on the same lock. The kernel
+The pre-push gate takes a `flock` itself (plan task 4.1 changed `tools/prepush.sh`, which took
+none [R11], [R12]) on `prepush.lock` in the git common directory, which every worktree of the
+repository shares, so owner sessions and the daemon's pushes wait on the same lock. It is not
+`tmp/prepush.lock`: sessions take that one around `git push` by convention [R12], and a gate inside
+such a push would wait for its own parent. The kernel
 releases it only when every process holding its descriptor is gone, and every step a shell starts
 inherits it, so the gate runs its background SonarQube step (its own process group) with the
 descriptor closed, and the daemon starts each push in its own process group and kills the group
 [S24]. Holder and waiters are read from `/proc/<pid>/fdinfo` of the processes that have the lock
-file open (the holder's has a `lock:` line, a waiter's none), with the holder's sidecar file for
-its name; `/proc/locks` is not used, because it hides a lock whose `flock` process has exited,
+file open (the holder's have a `lock:` line; each waiting gate is one blocked `flock` process,
+open without one, beside its shell), with the holder's sidecar file `prepush.lock.holder` for its
+name; `/proc/locks` is not used, because it hides a lock whose `flock` process has exited,
 which is how a script takes it [S24]. Every worktree already shares the main checkout's Nx cache:
 Nx 22.7 resolves the cache directory to the main worktree's `.nx/cache` on its own, so a fresh
 worktree's first gate is not a cold build [S23]. `NX_CACHE_DIRECTORY` is never set: with it, Nx

@@ -83,6 +83,7 @@ so `const [rank] = page.columns` needs no `?? []`.
 | `type`    | `"number"`, `"integer"`, `"boolean"` or `"string"`                             |
 | `pending` | `true` while the run has no result yet; every cell is then `undefined`         |
 | `values`  | one cell per record, aligned with `page.records`                               |
+| `ranks`   | a community's `group` column only: each cell's group rank, aligned likewise    |
 
 `pending` means the run has never published a result, not that it is busy: a column on a
 still-running handle comes back pending, an awaited run never is, and a run that is re-running
@@ -91,6 +92,24 @@ keeps `pending: false` and its previous values. Whether a run is busy is `run.st
 A cell is `undefined` where the run has no value for that record (it was outside the run's scope,
 say). The records themselves are unchanged. graphty-element gives you values, not words: a header,
 a number format, or a name for a community is your table's decision.
+
+### Naming a community in a table
+
+A community column's `values` are the raw group ids the algorithm assigned. Its `ranks` hold each
+cell's group rank -- the group's place by size, 1 for the largest -- which is the same `rank` the
+run's `summary().groups` and the legend's swatches carry for that group. Word the cell from the
+rank, and the table, the legend and a list of groups name every group the same way:
+
+```ts
+const groups = await element.run("louvain");
+const page = element.session.data.nodePage({ columns: [groups] });
+const [community] = page.columns;
+
+page.records.forEach((node, i) => {
+    const rank = community?.ranks?.[i];
+    console.log(node.id, rank === undefined ? "" : `Group ${rank}`);
+});
+```
 
 ## Order
 

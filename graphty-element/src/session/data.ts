@@ -37,7 +37,7 @@ import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
-import { type ResolvedResult, resolveResult, resultCell, resultSortValue } from "./results/pageColumns";
+import { type ResolvedResult, resolveResult, resultCell, resultCellRanks, resultSortValue } from "./results/pageColumns";
 import { RevisionCache } from "./revision";
 import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
@@ -285,6 +285,11 @@ function pageColumn(
     target: "node" | "edge",
     records: readonly { readonly id: NodeId | EdgeId }[],
 ): PageColumn {
+    const ranks = resultCellRanks(
+        column,
+        target,
+        records.map((record) => record.id),
+    );
     return Object.freeze({
         run: column.run,
         field: column.field,
@@ -292,6 +297,7 @@ function pageColumn(
         type: column.type,
         pending: column.result === undefined,
         values: Object.freeze(records.map((record) => resultCell(column, target, record.id))),
+        ...(ranks === undefined ? {} : { ranks: Object.freeze(ranks) }),
     });
 }
 

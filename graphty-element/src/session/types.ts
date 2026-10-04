@@ -156,6 +156,14 @@ export interface PageColumn {
     readonly pending: boolean;
     /** One cell per record, aligned with `records`. */
     readonly values: readonly ResultCell[];
+    /**
+     * For a column of a partition's groups (a community run's `group`): each cell's group rank,
+     * aligned with `records` -- its place by size, 1 for the largest. It is the same `rank` the run
+     * summary's group and the legend's swatch carry, so a table names a group the way they do
+     * ("Group 3") rather than by its raw id. Undefined for a record in no group. Absent on any
+     * other column.
+     */
+    readonly ranks?: readonly (number | undefined)[];
 }
 
 /** Which records a page holds, and from where in their order. */

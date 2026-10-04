@@ -76,8 +76,8 @@ await graph.runAlgorithm("graphty", "louvain");
 A community's group ids are whatever the algorithm assigned (`0`, `7`, `12`), and they mean
 nothing to a reader. Each group also has a `rank`: its place by size, 1 for the largest, ties
 ordered by id. The run's summary, the legend of a color encoding over the groups, and a table
-column of the group field all carry the same rank for the same group, so name a group from its
-rank and every surface agrees:
+column of the group field (`PageColumn.ranks`, see [Result Columns](./result-columns#naming-a-community-in-a-table))
+all carry the same rank for the same group, so name a group from its rank and every surface agrees:
 
 ```typescript
 const result = await element.run("louvain");

@@ -209,6 +209,35 @@ describe("result values as page columns", () => {
         session.dispose();
     });
 
+    it("gives each cell of a group column the rank the summary names that group by (#905)", async () => {
+        const session = createGraphSession({ runs: { execute } });
+        await session.data.addNodes(["p", "q", "r", "s", "t", "u", "v"].map((id) => ({ id })));
+        published.set("louvain", {
+            shape: "community",
+            nodes: [
+                ["p", 0],
+                ["q", 2],
+                ["r", 2],
+                ["s", 2],
+                ["t", 0],
+                ["u", 1],
+            ],
+        });
+        const run = await session.runs.start("louvain", undefined, { style: false });
+
+        const [column] = session.data.nodePage({ columns: [run] }).columns ?? [];
+
+        assert.deepStrictEqual(column?.values, [0, 2, 2, 2, 0, 1, undefined]);
+        assert.deepStrictEqual(column?.ranks, [2, 1, 1, 1, 2, 3, undefined], "group 2 is the largest, so rank 1");
+        const byGroup = new Map(run.summary().groups?.map((group) => [group.group, group.rank]));
+        column?.values.forEach((value, index) => {
+            assert.strictEqual(column.ranks?.[index], byGroup.get(value as number), "the summary agrees");
+        });
+        const scores = session.data.nodePage({ columns: [{ run, field: "groupSize" }] }).columns?.[0];
+        assert.isUndefined(scores?.ranks, "a column that is not the groups carries no ranks");
+        session.dispose();
+    });
+
     it("reports a run with no result yet as pending", async () => {
         const session = await scored();
         let open = (): void => undefined;

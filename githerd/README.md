@@ -185,6 +185,31 @@ The platform self-test needs nothing from the owner: the daemon runs it before t
 start and again after each Claude Code version change, and pages once if it fails.
 `node githerd/bin/githerd.mjs selftest` runs it by hand.
 
+## Trying one worker with nothing on GitHub
+
+Once the shared daemon runs (after the merge; the development daemon never starts a worker), one
+real worker can work a real issue while every GitHub write stays dry-run. Starting workers is the
+`workers` write group; the worker's pushes, re-runs and own `gh` writes are the separate
+`worker-writes` group, which stays off. The worker edits and commits in its own worktree,
+`githerd_push` records the push it would make instead of pushing, and the guard refuses its
+`gh pr create`, comments and issue creation.
+
+1. Give one low-priority issue the `githerd:next` label and run `githerd workers 1`.
+2. Wait until `githerd mode` shows ledger lines for `workers` (each start githerd would have made).
+   The config check refuses an acting group with none.
+3. Merge a pull request that changes `githerd.config.json` to `"mode": "acting"` with only
+   `"workers": true` under `actions`. Every other switch, `workerWrites` included, stays `false`.
+4. Watch with `githerd attach`. The trial passes when the worker claims the issue, commits its fix
+   in `.worktrees/githerd-<job>`, and `githerd_push` answers `would push ... (dry-run)`;
+   `githerd ledger --since 2h --kind would-do` then shows the push under `worker-writes`, and
+   GitHub shows no new branch, pull request or comment. Its `githerd_done` cannot pass, because
+   nothing was pushed.
+5. Stop with `githerd workers --stop`, then a pull request that sets `actions.workers` back to
+   `false` (or `githerd mode dry-run`, which lowers every group on this machine at once).
+
+Every write group is turned on the same way, one pull request per switch under `actions`, and only
+the owner approves each one.
+
 ## Development
 
 ```bash

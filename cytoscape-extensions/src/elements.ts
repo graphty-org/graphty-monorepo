@@ -54,6 +54,23 @@ function kept(c: Column): boolean {
 }
 
 /**
+ * One row's set values as data fields.
+ * @param cols - the columns to copy
+ * @param row - the node or edge index
+ * @param fieldOf - the data field a column's value goes to
+ * @returns the data, one field per column with a value in this row
+ */
+function rowData(cols: readonly Column[], row: number, fieldOf: (c: Column) => string): Record<string, unknown> {
+    const data: Record<string, unknown> = {};
+    for (const c of cols) {
+        if (c.isSet(row)) {
+            data[fieldOf(c)] = plain(c.value(row));
+        }
+    }
+    return data;
+}
+
+/**
  * The node elements of snapshotToElements().
  * @param snapshot - the snapshot
  * @param ids - the node ids as strings, by node index
@@ -66,12 +83,7 @@ function nodeElements(snapshot: GraphSnapshot, ids: readonly string[]): ElementD
     const parent = snapshot.nodes.byRole("parent");
     const out: ElementDefinition[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const data: Record<string, unknown> = {};
-        for (const c of nodeData) {
-            if (c.isSet(i)) {
-                data[c.meta.name] = plain(c.value(i));
-            }
-        }
+        const data = rowData(nodeData, i, (c) => c.meta.name);
         data.id = ids[i];
         const p = parent?.isSet(i) === true ? parent.value(i) : undefined;
         if (typeof p === "number" && p !== i && p < ids.length) {
@@ -97,17 +109,13 @@ function edgeElements(snapshot: GraphSnapshot, ids: readonly string[]): ElementD
     const edgeCols = [...snapshot.edges].filter(kept);
     const named = edgeCols.some((c) => c.meta.name === "weight");
     const weightColumn = edgeCols.find((c) => c.meta.role === "weight");
+    const fieldOf = (c: Column): string => (c === weightColumn && !named ? "weight" : c.meta.name);
     const edgeIds = snapshot.edges.byRole("id");
     const nodeIds = new Set(ids);
     const usedEdgeIds = new Set<string>();
     const out: ElementDefinition[] = [];
     for (let e = 0; e < snapshot.edgeCount; e++) {
-        const data: Record<string, unknown> = {};
-        for (const c of edgeCols) {
-            if (c.isSet(e)) {
-                data[c === weightColumn && !named ? "weight" : c.meta.name] = plain(c.value(e));
-            }
-        }
+        const data = rowData(edgeCols, e, fieldOf);
         if (weightColumn === undefined && !named && snapshot.weights !== null) {
             data.weight = snapshot.weights[snapshot.edgeToArc[e]];
         }

@@ -48,6 +48,8 @@ const SET_BY_EXTENSION = new Set([
     "weights",
     "weighted",
 ]);
+// A pipe escaped for a Markdown table cell.
+const ESCAPED_PIPE = String.raw`\|`;
 // Options of every algorithm, documented once.
 const COMMON_ALGORITHM = new Set(["directed", "weight", "field", "gpu"]);
 // Layout options with a Cytoscape-facing meaning of their own, documented per layout from GraphtyLayoutOptions.
@@ -75,7 +77,7 @@ function cell(s: string): string {
         .replaceAll(/\s+/g, " ")
         .replaceAll(/ ?\((?:see )?design [^)]*\)/gi, "")
         .replaceAll(/\{@link ([^}\s|]+)(?:[\s|][^}]*)?\}/g, "`$1`")
-        .replaceAll("|", String.raw`\|`)
+        .replaceAll("|", ESCAPED_PIPE)
         .trim();
 }
 
@@ -157,7 +159,7 @@ function code(v: unknown): string {
  * @returns the cell text
  */
 function typeCell(t: string): string {
-    return `\`${t.replaceAll("|", String.raw`\|`)}\``;
+    return `\`${t.replaceAll("|", ESCAPED_PIPE)}\``;
 }
 
 /** The type checker over the package source. */
@@ -405,6 +407,19 @@ function layouts(src: Source): string[] {
 }
 
 /**
+ * Text without its trailing spaces and punctuation, trimmed without a regex that could backtrack.
+ * @param text - text whose whitespace is single spaces
+ * @returns the text without trailing spaces, full stops, commas and semicolons
+ */
+function trimTrailing(text: string): string {
+    let end = text.length;
+    while (end > 0 && " .,;".includes(text[end - 1])) {
+        end--;
+    }
+    return text.slice(0, end);
+}
+
+/**
  * What a generator makes, in a few words: its doc's first sentence up to the first colon, citation or quoted title.
  * @param summary - the first sentence
  * @returns the short form
@@ -438,11 +453,7 @@ function shortSummary(text: string): string {
             break;
         }
     }
-    // trailing spaces and punctuation, trimmed without a regex that could backtrack (whitespace is single spaces here)
-    while (end > 0 && " .,;".includes(summary[end - 1])) {
-        end--;
-    }
-    return summary.slice(0, end);
+    return trimTrailing(summary.slice(0, end));
 }
 
 /**

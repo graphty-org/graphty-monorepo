@@ -198,7 +198,7 @@ export const SHARDS = [
  * the groups a full run asked for 22 test runners at once; with them it asks for 13.
  */
 export const GROUPS = {
-    "small-node": ["graph-format", "graph-io", "graph-samples", "layout", "algorithms-default"],
+    "small-node": ["graph-format", "graph-io", "graph-samples", "layout", "algorithms-default", "githerd"],
     "small-browser": [
         "algorithms-browser",
         "remote-logger",

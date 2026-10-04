@@ -556,7 +556,7 @@ changelog.
 The CI runs 22 test shards on a push to master, a manual dispatch or a merge-queue run. The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 13 test jobs: `small-node` (graph-format, graph-io, graph-samples, layout,
-algorithms-default) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
+algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
 graphty, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:

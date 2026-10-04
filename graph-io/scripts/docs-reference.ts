@@ -1366,8 +1366,8 @@ async function regenerate(ctx: Context, page: string, text: string, blocks: read
         throw new Error(
             [
                 `${page}: generated blocks`,
-                missing.length > 0 ? `missing ${  missing.join(", ")}` : "",
-                extra.length > 0 ? `unexpected ${  extra.join(", ")}` : "",
+                missing.length > 0 ? `missing ${missing.join(", ")}` : "",
+                extra.length > 0 ? `unexpected ${extra.join(", ")}` : "",
             ]
                 .filter((s) => s !== "")
                 .join(" "),

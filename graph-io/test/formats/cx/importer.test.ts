@@ -836,9 +836,7 @@ describe("cxImporter: groups, visual properties and provenance (research-cx.md 3
         expect(s.edgeCount).toBe(1);
         expect(value(s, "a", 2)).toBe("x");
         expect(codes(report)).toEqual([CX_ISSUE.BAD_ASPECT_BLOCK, CX_ISSUE.ROOT_ONLY, CX_ISSUE.BAD_VALUE]);
-        expect(report.issues.find((i) => i.code === CX_ISSUE.ROOT_ONLY)?.message).toMatch(
-            /1 node and 1 edge/,
-        );
+        expect(report.issues.find((i) => i.code === CX_ISSUE.ROOT_ONLY)?.message).toMatch(/1 node and 1 edge/);
         expect(report.issues.find((i) => i.code === CX_ISSUE.BAD_VALUE)?.message).toMatch(/has no v/);
         expect(report.issues.filter((i) => i.code === CX_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(2);
     });

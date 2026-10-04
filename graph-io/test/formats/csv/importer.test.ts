@@ -1130,7 +1130,9 @@ describe("csvImporter: labelColumn", () => {
         });
         expect(byLabel.snapshot.ids.toArray()).toEqual(["Alice", "Bob"]);
         expect(byLabel.snapshot.edgeCount).toBe(1);
-        const err = await importGraph(nodes, { format: "csv", table: "nodes", nodeIdFrom: "label" }).catch((e: unknown) => e);
+        const err = await importGraph(nodes, { format: "csv", table: "nodes", nodeIdFrom: "label" }).catch(
+            (e: unknown) => e,
+        );
         expect((err as Error).message).toContain("pass labelColumn");
     });
 });

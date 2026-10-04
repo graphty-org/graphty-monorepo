@@ -123,7 +123,11 @@ export async function readCyTable(
     const names = records[at].cells;
     const classes = records[at + 1].cells;
     if (names.length === 0 || classes.length !== names.length) {
-        return tableError(report, entry, `${names.length} column name${plural(names.length)} but ${classes.length} column class(es)`);
+        return tableError(
+            report,
+            entry,
+            `${names.length} column name${plural(names.length)} but ${classes.length} column class(es)`,
+        );
     }
     const columns: CyColumn[] = [];
     for (let i = 0; i < names.length; i++) {

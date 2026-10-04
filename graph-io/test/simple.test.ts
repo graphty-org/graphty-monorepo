@@ -162,7 +162,9 @@ describe("loadFromUrl", () => {
     });
 
     it("names the cause of a network failure when fetch gives one", async () => {
-        stubFetch(() => Promise.reject(Object.assign(new TypeError("fetch failed"), { cause: new Error("getaddrinfo ENOTFOUND") })));
+        stubFetch(() =>
+            Promise.reject(Object.assign(new TypeError("fetch failed"), { cause: new Error("getaddrinfo ENOTFOUND") })),
+        );
         const err = await rejection(loadFromUrl("https://nowhere.example/g.gml"));
         expect((err as ImportError).message).toContain("(getaddrinfo ENOTFOUND)");
     });

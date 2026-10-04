@@ -66,6 +66,9 @@ const pairsExporter: GraphExporter = {
 };
 registry.registerExporter(pairsExporter);
 
-const { snapshot } = await importGraph("source,target,weight\na,b,2\nb,c,1\n", { format: "csv", defaultDirected: false });
+const { snapshot } = await importGraph("source,target,weight\na,b,2\nb,c,1\n", {
+    format: "csv",
+    defaultDirected: false,
+});
 console.log(checkExport(snapshot, "pairs").map((n) => n.code));
 console.log(await exportGraphToString(snapshot, "pairs"));

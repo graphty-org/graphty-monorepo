@@ -767,7 +767,9 @@ describe("neo4j files for neo4j-admin and the weight property", () => {
         }
         const rels = await exportNeo4jFiles(snapshot, { part: "relationships" });
         expect(rels.map((f) => f.name)).toEqual(["relationships-Person-Movie.csv"]);
-        await expect(exportNeo4jFiles(snapshot, { part: "x" as "all" })).rejects.toMatchObject({ code: "E_UNSUPPORTED" });
+        await expect(exportNeo4jFiles(snapshot, { part: "x" as "all" })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
     });
 
     it("gathers sections with the same header into one file", async () => {

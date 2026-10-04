@@ -1597,14 +1597,10 @@ function checkNeo4jRange(spec: DeclaredTypeSpec, value: unknown, text: string): 
         }
         if (bad) {
             const span = range === undefined ? "" : ` (${range[0]} to ${range[1]})`;
-            throw new GraphFormatError(
-                "E_COLUMN_TYPE",
-                `"${text}" is not ${withArticle(base)}${span}`,
-                {
-                    value: text,
-                    kind: base,
-                },
-            );
+            throw new GraphFormatError("E_COLUMN_TYPE", `"${text}" is not ${withArticle(base)}${span}`, {
+                value: text,
+                kind: base,
+            });
         }
     }
 }

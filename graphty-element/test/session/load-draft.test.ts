@@ -321,7 +321,8 @@ describe("session.data.prepare", () => {
 
     it("refuses a file with nothing readable with the code import refuses it with", async () => {
         const session = createGraphSession();
-        const source = { type: "graphml", config: { data: "<graphml" } };
+        // a well-formed file that holds no node and no edge (a cut-off file is a syntax error instead)
+        const source = { type: "graphml", config: { data: '<graphml><graph edgedefault="directed"/></graphml>' } };
         const draft = await session.data.prepare(source);
 
         assert.deepEqual(

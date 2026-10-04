@@ -66,7 +66,12 @@ async function readSections(
  * @param signal - the caller's cancellation signal
  * @returns the finished report
  */
-function fill(section: Section, sink: GraphSink, report: ImportReportBuilder, signal: AbortSignal | null): ImportReport {
+function fill(
+    section: Section,
+    sink: GraphSink,
+    report: ImportReportBuilder,
+    signal: AbortSignal | null,
+): ImportReport {
     sink.setDirected(false); // the format is always undirected, so edges go to the sink directly
     sink.setMeta({ name: section.name }); // graphName matches this name
     section.edges.forEach(({ ids, line }, i) => {

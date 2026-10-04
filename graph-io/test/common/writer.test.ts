@@ -137,7 +137,11 @@ describe("the indent option of the JSON and DOT exporters", () => {
         const dot = await exportGraphToString(snapshot, "dot", { indent: 2 });
         expect(dot).toContain("\n  ");
         expect(await exportGraphToString(snapshot, "dot", { indent: "  " })).toBe(dot);
-        await expect(exportGraphToString(snapshot, "dot", { indent: "x" })).rejects.toMatchObject({ code: "E_UNSUPPORTED" });
-        await expect(exportGraphToString(snapshot, "json", { indent: 17 })).rejects.toMatchObject({ code: "E_UNSUPPORTED" });
+        await expect(exportGraphToString(snapshot, "dot", { indent: "x" })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+        await expect(exportGraphToString(snapshot, "json", { indent: 17 })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
     });
 });

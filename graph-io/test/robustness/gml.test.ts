@@ -155,7 +155,9 @@ describe("GML robustness: encodings", () => {
         expect(head.byteLength).toBe(55);
         const err = await rejects(gml(concat(head, Uint8Array.from([0xe9]), utf8('" ] ]'))));
         expect(fatalCode(err)).toBe("E_INVALID_UTF8");
-        expect(err.message).toBe("the input could not be read as gml: invalid UTF-8 at byte 55 after valid non-ASCII UTF-8 text; pass the encoding option");
+        expect(err.message).toBe(
+            "the input could not be read as gml: invalid UTF-8 at byte 55 after valid non-ASCII UTF-8 text; pass the encoding option",
+        );
         expect(err.details.byteOffset).toBe(55);
     });
 
@@ -169,7 +171,9 @@ describe("GML robustness: encodings", () => {
         );
         const err = await rejects(gml(bytes));
         expect(fatalCode(err)).toBe("E_INVALID_UTF8");
-        expect(err.message).toBe("the input could not be read as gml: the input is binary data, not text: control byte 0x00 at byte 28");
+        expect(err.message).toBe(
+            "the input could not be read as gml: the input is binary data, not text: control byte 0x00 at byte 28",
+        );
         expect(err.details.byteOffset).toBe(28);
     });
 });

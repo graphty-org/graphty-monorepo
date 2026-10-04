@@ -101,7 +101,10 @@ describe("weight precision", () => {
         ] as const;
         for (const [format, text] of inputs) {
             const { report } = await importGraph(text, { format });
-            expect(report.issues.map((i) => i.code), format).toEqual(["W_PRECISION"]);
+            expect(
+                report.issues.map((i) => i.code),
+                format,
+            ).toEqual(["W_PRECISION"]);
         }
         // a weight a double holds exactly is not reported
         const exact = await importGraph("source,target,weight\na,b,9007199254740992\n", { format: "csv" });

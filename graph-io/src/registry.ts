@@ -17,7 +17,8 @@ import {
 } from "@graphty/graph-format";
 
 import { CellBudgetBuilder, maxEmptyCellsOption } from "./common/cell-budget.js";
-import { throwIfAborted } from "./common/input.js";
+import { abortable, foreignKind, lockReader, normalizeInput, throwIfAborted } from "./common/input.js";
+import { resolveImportOptions } from "./common/options.js";
 import { ImportReportBuilder } from "./common/report.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
 import { cxImporter } from "./formats/cx/index.js";
@@ -245,9 +246,10 @@ export class FormatRegistry {
      */
     async importGraph(input: ImportInput, options: ImportGraphOptions = {}): Promise<ImportGraphResult> {
         const chosen = await this.choose(input, options);
-        const builder = seededBuilder(options, chosen.importer.format);
+        let builder: GraphBuilder;
         let report: ImportReport;
         try {
+            builder = seededBuilder(options, chosen.importer.format);
             report = await chosen.importer.import(chosen.source, builder, importerOptions(options));
         } catch (err) {
             await chosen.peeked?.close();
@@ -314,22 +316,45 @@ export class FormatRegistry {
 
     /**
      * The importer for an input: the named format, or the sniffed one.
-     * @param input - the input
+     * @param rawInput - the input as the caller passed it
      * @param options - the importGraph options
      * @returns the importer, the sniff, and the input to read (replayed for a stream)
      */
-    private async choose(input: ImportInput, options: ImportGraphOptions): Promise<ChosenImporter> {
+    private async choose(rawInput: ImportInput, options: ImportGraphOptions): Promise<ChosenImporter> {
+        const input = normalizeInput(rawInput);
         const requested = options.format ?? "auto";
         if (requested !== "auto") {
             return { importer: this.importer(requested), sniff: null, source: input, peeked: null };
         }
-        const peeked = await peekHead(input, SNIFF_HEAD_BYTES, options.signal ?? null);
-        const sniff = this.sniff({ filename: options.filename, mimeType: options.mimeType, head: peeked.head });
-        if (sniff === null) {
+        // the options are checked before the input is touched, so a bad option never leaves a
+        // peeked stream locked; the importer resolves them again with its own defaults
+        const common = resolveImportOptions(options, { ids: "keep", defaultDirected: true, weightFrom: null });
+        maxEmptyCellsOption(options.maxEmptyCells);
+        const peeked = await peekHead(input, SNIFF_HEAD_BYTES, common.signal);
+        // the head is sniffed as the importer will read it: in the caller's encoding when given
+        const head =
+            common.encoding !== null && peeked.head instanceof Uint8Array
+                ? new TextDecoder(common.encoding).decode(peeked.head, { stream: true })
+                : peeked.head;
+        let sniff: SniffResult | null;
+        try {
+            sniff = this.sniff({ filename: options.filename, mimeType: options.mimeType, head });
+        } catch (err) {
+            await peeked.close();
+            throw err;
+        }
+        // a known non-graph file is refused whatever its name says, unless an importer claims its
+        // content (a Cytoscape session is a zip); an HTML page always (the XML sniffers would
+        // otherwise claim it by its markup)
+        const foreign = foreignKind(peeked.head);
+        const claimed = sniff !== null && sniff.content > 0 && !(foreign?.startsWith("an HTML") ?? false);
+        if (sniff === null || (foreign !== null && !claimed)) {
+            await peeked.close();
+            const what = foreign === null ? "" : `: it is ${foreign}`;
             const report = new ImportReportBuilder("unknown", 0);
             return report.fail(
                 UNKNOWN_FORMAT_CODE,
-                `no registered importer recognises the input${describeHints(options)}; pass the format explicitly`,
+                `no registered importer recognises the input${describeHints(options)}${what}; pass the format explicitly`,
                 undefined,
                 { formats: this.formats() },
             );
@@ -630,7 +655,7 @@ async function peekHead(input: ImportInput, bytes: number, signal: AbortSignal |
     throwIfAborted(signal);
     const source: AsyncIterator<string | Uint8Array> =
         typeof (input as { getReader?: unknown }).getReader === "function"
-            ? readerIterator(input as ReadableStream<Uint8Array>)
+            ? readerIterator(input as ReadableStream<Uint8Array>, signal)
             : (input as AsyncIterable<string | Uint8Array>)[Symbol.asyncIterator]();
     const buffered: (string | Uint8Array)[] = [];
     let size = 0;
@@ -742,19 +767,30 @@ function replay(
 }
 
 /**
- * An async iterator over a ReadableStream's chunks that cancels the stream when closed early.
+ * An async iterator over a ReadableStream's chunks that cancels the stream (with the signal's
+ * reason) when closed early or when the signal fires during a read, and releases the reader when
+ * the stream ends or errors.
  * @param stream - the stream
+ * @param signal - the cancellation signal, or null
  * @returns the iterator
  */
-function readerIterator(stream: ReadableStream<Uint8Array>): AsyncIterator<Uint8Array> {
-    const reader = stream.getReader();
+function readerIterator(stream: ReadableStream<Uint8Array>, signal: AbortSignal | null): AsyncIterator<Uint8Array> {
+    const reader = lockReader(stream);
     let done = false;
     return {
         async next(): Promise<IteratorResult<Uint8Array>> {
             if (done) {
                 return { done: true, value: undefined };
             }
-            const result = await reader.read();
+            let result: ReadableStreamReadResult<Uint8Array>;
+            try {
+                result = await abortable(reader.read(), signal);
+            } catch (err) {
+                done = true;
+                await reader.cancel(signal?.reason).catch(() => undefined);
+                reader.releaseLock();
+                throw err;
+            }
             if (result.done) {
                 done = true;
                 reader.releaseLock();
@@ -765,7 +801,7 @@ function readerIterator(stream: ReadableStream<Uint8Array>): AsyncIterator<Uint8
         async return(): Promise<IteratorResult<Uint8Array>> {
             if (!done) {
                 done = true;
-                await reader.cancel().catch(() => undefined);
+                await reader.cancel(signal?.reason).catch(() => undefined);
                 reader.releaseLock();
             }
             return { done: true, value: undefined };

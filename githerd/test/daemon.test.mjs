@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git as gitSync, isolateGit } from "../../visual-review/test/helpers.mjs";
+import { newJob } from "../lib/board.mjs";
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
 import { containerStart, identify } from "../lib/proc.mjs";
 import { hashToken } from "../lib/run-tools.mjs";
@@ -484,6 +485,33 @@ describe("HTTP endpoints", () => {
         expect(saved().sessions["wt-2"]).toMatchObject({ cwd: "/x", branch: "feat/y" });
         expect((await beat({ cwd: "/x" })).status).toBe(400);
         expect((await fetch(`${daemon.url}/nope`)).status).toBe(404);
+    });
+
+    it("answers a hook event, records what it changed and writes the job's news for its hooks", async () => {
+        const daemon = await start();
+        const job = newJob({ kind: "pr", target: "pr:7", id: "j1" }, clock);
+        job.news.push({ at: clock.toISOString(), text: "CI went green", acked: false });
+        daemon.state.jobs = { j1: job };
+        const hook = (body) => fetch(`${daemon.url}/hook`, { method: "POST", body: JSON.stringify(body) });
+
+        const owner = await hook({ event: "SessionStart", job: null, nonce: null, input: { session_id: "o1" } });
+        expect(owner.status).toBe(200);
+        expect((await owner.json()).message).toMatch(/^githerd: master /);
+
+        const input = { session_id: "w1", notification_type: "permission_prompt", message: "Allow Bash?" };
+        expect((await hook({ event: "Notification", job: "j1", nonce: "n", input })).status).toBe(200);
+        expect(saved().jobs.j1.permissionPrompt.message).toBe("Allow Bash?");
+        await daemon.shutdown();
+        const ledger = await readLedger(join(dir, ".githerd"));
+        expect(ledger.filter((e) => e.kind === "permission-prompt")).toHaveLength(1);
+        const news = JSON.parse(readFileSync(join(dir, ".githerd", "jobs", "j1", "news"), "utf8"));
+        expect(news.map((n) => n.text)).toEqual(["CI went green"]);
+    });
+
+    it("refuses a hook request without an event", async () => {
+        const daemon = await start();
+        const res = await fetch(`${daemon.url}/hook`, { method: "POST", body: JSON.stringify({ input: {} }) });
+        expect(res.status).toBe(400);
     });
 });
 
@@ -1705,6 +1733,16 @@ describe("liveness", () => {
             expect.objectContaining({ spooled: { ts: clock.toISOString(), kind: "stop", session: "s1" } }),
         ]);
         expect(readdirSync(join(stateDir, "spool"))).toEqual([]);
+    });
+
+    it("answers a spooled hook event, so its effect on the state lands late rather than never", async () => {
+        const stateDir = join(dir, ".githerd");
+        const input = { session_id: "s1", error: "rate_limit" };
+        await spoolEvent(stateDir, { event: "StopFailure", job: null, nonce: null, input }, { now: () => clock });
+        const daemon = await start();
+        expect(daemon.state.apiStop).toMatchObject({ kind: "usage", session: "s1" });
+        await daemon.shutdown();
+        expect((await readLedger(stateDir)).filter((e) => e.kind === "api-failure")).toHaveLength(1);
     });
 });
 

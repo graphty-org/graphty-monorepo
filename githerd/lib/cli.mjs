@@ -31,6 +31,7 @@ import {
     waitFor,
     writeDaemonEnv,
 } from "./launcher.mjs";
+import { UNCHECKED_STOPS } from "./hook.mjs";
 import { createNotifier } from "./notify.mjs";
 import { gateLock, sameProcess } from "./proc.mjs";
 import { defaultStateDir, readLedger, readLiveness, replayLedger, STATE_SCHEMA } from "./store.mjs";
@@ -690,6 +691,9 @@ async function boardText(stateDir, { root, section, json = false, now, headers =
         liveness: readLiveness(stateDir),
         pushQueue: gateLock(root),
         down: `${error}; state.json written ${written}`,
+        health: {
+            stopGatesFailedOpen: (readText(join(stateDir, UNCHECKED_STOPS)) ?? "").split("\n").filter(Boolean).length,
+        },
     };
     if (json) return { ok: true, text: JSON.stringify(view, null, 2) };
     try {

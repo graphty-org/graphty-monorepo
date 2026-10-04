@@ -89,7 +89,7 @@ const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
  * (design section 2, evidence/owner-decisions.md section 10). Full model ids, not aliases, so an
  * alias moving to a new model never changes what runs.
  */
-const MODELS = ["claude-opus-5-5", "claude-fable-5"];
+export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
 
 /**
  * @typedef {{ workflow: string, gating: "required" | "if-run" | "watch", maxMinutes: number | null }} Lane

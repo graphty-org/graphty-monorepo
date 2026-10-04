@@ -68,8 +68,9 @@ import { inspect } from "node:util";
 import { pushRunBranch } from "./actor/push.mjs";
 import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
-import { effectiveMode, resolveConfig } from "./config.mjs";
+import { effectiveMode, MODELS, resolveConfig } from "./config.mjs";
 import { createGitHub, GitHubError } from "./github.mjs";
+import { answerHook, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
 import { servherd as servherdData } from "./launcher.mjs";
@@ -110,7 +111,7 @@ import {
     writeProgress,
 } from "./store.mjs";
 import { secretValues } from "./text.mjs";
-import { sessionTools } from "./tools.mjs";
+import { sessionTools, statusData } from "./tools.mjs";
 import { readVersion } from "./version.mjs";
 import { createWorktree, readTree, removeWorktree, sweepWorktrees } from "./worktrees.mjs";
 
@@ -588,10 +589,27 @@ export async function startDaemon({
         if (!mayWrite()) return;
         for (const line of recordLines(state, recorded)) void ledger(line);
         await saveState(stateDir, state);
+        writeChangedNews();
         if (client) {
             const file = join(stateDir, "etags.json");
             writeFileSync(`${file}.tmp`, JSON.stringify(client.etags));
             renameSync(`${file}.tmp`, file);
+        }
+    }
+
+    /** @type {Map<string, string>} each job's news as last written to `jobs/<id>/news` */
+    const newsWritten = new Map();
+
+    /**
+     * Writes the news file of every job whose news changed since it was last written, for the
+     * job's PostToolUse hook (design 4.10).
+     */
+    function writeChangedNews() {
+        for (const job of Object.values(state.jobs ?? {})) {
+            const text = JSON.stringify(job.news ?? []);
+            if (newsWritten.get(job.id) === text) continue;
+            writeNews(join(stateDir, "jobs", job.id), job.news ?? []);
+            newsWritten.set(job.id, text);
         }
     }
 
@@ -2061,8 +2079,62 @@ export async function startDaemon({
         return [answer.status, { ok: answer.status === 200, text: answer.text }];
     }
 
+    /**
+     * What the hooks need to know that is not in the state (design 4.10).
+     * ponytail: no `doneHolds` or `missing` yet, so the Stop gate never ends a session and names
+     * the done-condition generically; they arrive with the job's done-condition check.
+     * @returns {import("./hook.mjs").HookFacts} the facts
+     */
+    function hookFacts() {
+        const ctx = {
+            state,
+            config,
+            caller: {},
+            now: now(),
+            startedAt: startedAtDate,
+            version,
+            mode: mode(),
+            polledAt: loopTickAt,
+            nextPollAt,
+        };
+        return /** @type {any} */ ({
+            status: config ? statusData(state, ctx) : { banner: `githerd has no valid config: ${configError}` },
+            models: MODELS,
+            githubUnknownSince: state.github.downSince ?? null,
+            uid: process.getuid?.() ?? 0,
+        });
+    }
+
+    /**
+     * Answers one hook event, live or spooled, and records what it changed.
+     * @param {import("./hook.mjs").HookRequest} req the event
+     * @returns {Promise<import("./hook.mjs").HookAnswer>} the answer for the hook
+     */
+    async function handleHook(req) {
+        const result = answerHook(state, req, hookFacts(), now());
+        await save();
+        for (const line of result.ledger) await ledger(line);
+        return result.answer;
+    }
+
+    /**
+     * `POST /hook`: one hook event (design 4.10).
+     * @param {import("node:http").IncomingMessage} req the request
+     * @returns {Promise<[number, unknown?]>} the status and the reply
+     */
+    async function hookRoute(req) {
+        const event = JSON.parse(await body(req));
+        if (typeof event?.event !== "string") return [400, { error: "event is required" }];
+        return [200, await handleHook(event)];
+    }
+
     /** @type {Record<string, (req: import("node:http").IncomingMessage) => Promise<[number, unknown?]>>} */
-    const routes = { "POST /rpc": rpcRoute, "POST /heartbeat": heartbeatRoute, "POST /owner": ownerRoute };
+    const routes = {
+        "POST /rpc": rpcRoute,
+        "POST /heartbeat": heartbeatRoute,
+        "POST /owner": ownerRoute,
+        "POST /hook": hookRoute,
+    };
 
     const server = createServer(async (req, res) => {
         const send = (/** @type {number} */ status, /** @type {unknown} */ value) => {
@@ -2239,15 +2311,17 @@ export async function startDaemon({
     }
 
     /**
-     * Records the hook events left while the daemon was down; their handling arrives with the
-     * hooks. Appended directly, so a failed append throws and leaves the event in the spool.
+     * Records the hook events left while the daemon was down and answers each one, so its effect
+     * on the state lands late rather than never. Appended directly, so a failed append throws and
+     * leaves the event in the spool.
      */
     async function drainHooks() {
         if (loaded.readOnly || fenced) return;
         try {
-            const drained = await drainSpool(stateDir, (e) =>
-                appendLedger(stateDir, { kind: "spooled", spooled: e }, { now }),
-            );
+            const drained = await drainSpool(stateDir, async (e) => {
+                await appendLedger(stateDir, { kind: "spooled", spooled: e }, { now });
+                if (typeof e.event === "string") await handleHook(e);
+            });
             for (const name of drained.bad) say("error", `spool: ${name} did not parse and was removed`);
         } catch (err) {
             say("error", `spool: left for the next start: ${/** @type {Error} */ (err).message}`);

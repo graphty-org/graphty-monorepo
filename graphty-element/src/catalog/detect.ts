@@ -36,6 +36,9 @@
 
 import {
     csvImporter,
+    cx2Importer,
+    cxImporter,
+    cysImporter,
     dotImporter,
     gexfImporter,
     gmlImporter,
@@ -43,8 +46,10 @@ import {
     graphmlImporter,
     jsonImporter,
     neo4jImporter,
+    oboImporter,
     pajekImporter,
     rankFormats,
+    xgmmlImporter,
 } from "@graphty/graph-io";
 
 import { GraphtyError } from "../errors";
@@ -79,6 +84,11 @@ const BUILT_IN_IMPORTERS: readonly { id: FormatId; importer: GraphImporter }[] =
     { id: "dot", importer: dotImporter },
     { id: "pajek", importer: pajekImporter },
     { id: "csv", importer: neo4jImporter },
+    { id: "xgmml", importer: xgmmlImporter },
+    { id: "cx2", importer: cx2Importer },
+    { id: "cx", importer: cxImporter },
+    { id: "obo", importer: oboImporter },
+    { id: "cys", importer: cysImporter },
 ];
 
 /**

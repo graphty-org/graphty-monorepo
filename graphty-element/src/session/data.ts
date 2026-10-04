@@ -14,16 +14,17 @@ import "../data/index";
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
-import type { AttributeDescriptor, EdgeId, MeasurementDeclaration, ScopeInput } from "../catalog/types";
+import type { AttributeDescriptor, EdgeId, MeasurementDeclaration, RunId, ScopeInput } from "../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
-import type { ImportReport } from "../data/report";
+import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { eachAdjacentArc } from "./adjacency";
 import { describeAttributes } from "./attributes";
 import { resolveColumn } from "./columns";
+import type { BatchCommand } from "./commands";
 import {
     type DataImportCommand,
     type DataMutation,
@@ -32,12 +33,22 @@ import {
     type ImportSource,
     SOURCE_VALUE,
 } from "./commands/data";
+import { Draft, isPair, readSource } from "./draft";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
+import type { SearchAnswer, SearchRequest } from "./query";
+import {
+    primaryResultColumn,
+    type ResolvedResult,
+    resolveResult,
+    resultCell,
+    resultCellRanks,
+    resultSortValue,
+} from "./results/pageColumns";
 import { RevisionCache } from "./revision";
-import type { ResolvedScope, WeightMeaning } from "./runs/types";
+import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { ColumnRef } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
@@ -47,15 +58,22 @@ import type {
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
+    FindKind,
+    FindOptions,
+    FindResult,
     GraphStatistics,
-    ImportOptions,
+    LoadChoices,
     Neighbor,
     NeighborOptions,
     NeighborPage,
     NodeRecord,
     NodeRecordInput,
+    PageColumn,
     RecordPage,
     RecordPageOptions,
+    RecordSort,
+    ResultColumn,
+    ResultColumnDescriptor,
     RowUpdate,
     SessionAttributes,
     SessionDataApi,
@@ -72,9 +90,11 @@ interface DataWrites {
      * Where a `data.import` made now would go -- the session, or the transaction a routed verb
      * runs in -- held for a verb that dispatches it after an await.
      */
-    importer(): (command: DataImportCommand) => Promise<unknown>;
+    importer(): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
     /** The `graph` slice now. */
     slice(): GraphSlice;
+    /** Runs an import in a scratch session with this data configuration and returns its report. */
+    measure(command: DataImportCommand, config: SessionDataConfig): Promise<LoadReport>;
     /** Dispatch `data.declare`. */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
@@ -91,6 +111,24 @@ interface PageSources {
      * @returns its members
      */
     resolve(spec: ScopeInput): ResolvedScope;
+    /**
+     * The find box's search, over the session's query engine.
+     * @param text - what was typed
+     * @param request - the checked window, kinds and scope
+     * @returns the hits
+     */
+    search(text: string, request: SearchRequest): SearchAnswer;
+    /**
+     * One run, for a page's result columns and result sort.
+     * @param id - the run id
+     * @returns the run, or undefined when the session holds none with that id
+     */
+    run(id: RunId): Run | undefined;
+    /**
+     * Every run id, for the candidates of an unknown one.
+     * @returns the ids
+     */
+    runIds(): readonly RunId[];
 }
 
 /** One neighbor while its list is built: its row, and its name once a name sort read it. */
@@ -113,6 +151,11 @@ const NEIGHBOR_LISTS_KEPT = 8;
 
 /** The mark on a neighbor the session's visibility hides. */
 const FILTERED: Neighbor["excludedBy"] = Object.freeze({ kind: "filter" });
+/** How many hits a find returns when the caller does not say. */
+const DEFAULT_FIND_LIMIT = 20;
+
+/** What a find lists when the caller does not say. */
+const FIND_KINDS: readonly FindKind[] = ["node", "edge"];
 
 /** How many records a page holds when the caller does not say. */
 const DEFAULT_PAGE_LIMIT = 100;
@@ -212,7 +255,7 @@ function pageWindow(
         if (!whole || value < 0) {
             throw new GraphtyError({
                 code: "E_OPTION_RANGE",
-                message: `data.${verb}() takes a ${name} that is a whole number of zero or more, not ${String(value)}`,
+                message: `${verb}() takes a ${name} that is a whole number of zero or more, not ${String(value)}`,
                 source: "data",
                 details: { option: name, value, min: 0 },
             });
@@ -220,6 +263,54 @@ function pageWindow(
     }
 
     return { offset, limit };
+}
+
+/**
+ * A reader by record id, read by row.
+ * @param byId - reads one record by its id
+ * @param snapshot - the current snapshot
+ * @param target - nodes or edges
+ * @returns the reader by row
+ */
+function rowReader(
+    byId: (id: NodeId | EdgeId) => unknown,
+    snapshot: GraphSnapshot,
+    target: "node" | "edge",
+): (index: number) => unknown {
+    if (target === "node") {
+        return (index) => byId(snapshot.ids.idOf(index));
+    }
+
+    const space = edgeSpaceOf(snapshot);
+    return (index) => byId(space.idOf(index));
+}
+
+/**
+ * One result column of a page, its cells aligned with the page's records.
+ * @param column - the resolved column
+ * @param target - nodes or edges
+ * @param records - the page's records
+ * @returns the column
+ */
+function pageColumn(
+    column: ResolvedResult,
+    target: "node" | "edge",
+    records: readonly { readonly id: NodeId | EdgeId }[],
+): PageColumn {
+    const ranks = resultCellRanks(
+        column,
+        target,
+        records.map((record) => record.id),
+    );
+    return Object.freeze({
+        run: column.run,
+        field: column.field,
+        path: column.path,
+        type: column.type,
+        pending: column.result === undefined,
+        values: Object.freeze(records.map((record) => resultCell(column, target, record.id))),
+        ...(ranks === undefined ? {} : { ranks: Object.freeze(ranks) }),
+    });
 }
 
 /** Everything derived from one snapshot, computed on demand and thrown away with it. */
@@ -251,6 +342,8 @@ export class SessionData implements SessionDataApi {
     private readonly writes: DataWrites;
     private readonly pages: PageSources;
     private derived: Derived | null = null;
+    /** The draft `prepare` returned last, until it is loaded or disposed: one is held at a time. */
+    private draft: Draft | null = null;
     /** Row orders computed for pages, by what they were asked with, for the current revision. */
     private readonly orders: RevisionCache<Uint32Array>;
     /** The last few neighbor lists, by node and options, for the current revision. */
@@ -363,11 +456,23 @@ export class SessionData implements SessionDataApi {
      * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
      *     load fails.
      */
-    async import(source: DataSourceInput, options: ImportOptions = {}): Promise<void> {
+    async import(source: DataSourceInput, options: LoadChoices = {}): Promise<void> {
         this.requireLive("import");
         // Taken before the first await: a transaction routes only what a verb dispatches
         // synchronously, and detecting the format may have to read the file or fetch the URL.
         const send = this.writes.importer();
+        this.draft?.dispose();
+        if (options.mapping !== undefined || options.unmatched !== undefined || options.directed !== undefined) {
+            const draft = await this.prepare(source);
+            try {
+                await draft.loadVia(send, options);
+            } finally {
+                draft.dispose();
+            }
+
+            return;
+        }
+
         const command = (resolved: ImportSource): DataImportCommand => ({
             op: "data.import",
             source: resolved,
@@ -378,6 +483,37 @@ export class SessionData implements SessionDataApi {
         // takes its turn in the order it was asked for.
         const resolved = resolveImportSource(source);
         await send(command(resolved instanceof Promise ? await resolved : resolved));
+    }
+
+    /**
+     * Read a source once and hold its rows, loading nothing until `draft.load()`.
+     * @param source - What `import` takes.
+     * @param options - How to read it.
+     * @param options.signal - Abandons the read.
+     * @returns The draft.
+     * @throws What `import` would reject with while reading, with the same code.
+     */
+    async prepare(source: DataSourceInput, options: { readonly signal?: AbortSignal } = {}): Promise<Draft> {
+        this.requireLive("prepare");
+        this.draft?.dispose();
+        const resolved = resolveImportSource(source);
+        const read = await readSource(resolved instanceof Promise ? await resolved : resolved, options.signal);
+        const draft = new Draft(read, {
+            config: () => this.readConfig(),
+            graph: () => {
+                const slice = this.writes.slice();
+                return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size };
+            },
+            importer: () => this.writes.importer(),
+            measure: (command, config) => this.writes.measure(command, config),
+            released: (released) => {
+                if (this.draft === released) {
+                    this.draft = null;
+                }
+            },
+        });
+        this.draft = draft;
+        return draft;
     }
 
     /**
@@ -507,6 +643,22 @@ export class SessionData implements SessionDataApi {
     /**
      * One page of node records.
      * @param options - the window, the scope and the order
+     * @returns the page, with `columns` present
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
+     */
+    nodePage(
+        options: RecordPageOptions & { readonly columns: readonly ResultColumn[] },
+    ): RecordPage<NodeRecord> & { readonly columns: readonly PageColumn[] };
+    /**
+     * One page of node records.
+     * @param options - the window, the scope and the order
+     * @returns the page
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
+     */
+    nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
+    /**
+     * One page of node records.
+     * @param options - the window, the scope and the order
      * @returns the page
      * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
      */
@@ -520,6 +672,22 @@ export class SessionData implements SessionDataApi {
     /**
      * One page of edge records.
      * @param options - the window, the scope, the order and the node
+     * @returns the page, with `columns` present
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
+     */
+    edgePage(
+        options: EdgePageOptions & { readonly columns: readonly ResultColumn[] },
+    ): RecordPage<EdgeRecord> & { readonly columns: readonly PageColumn[] };
+    /**
+     * One page of edge records.
+     * @param options - the window, the scope, the order and the node
+     * @returns the page
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
+     */
+    edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
+    /**
+     * One page of edge records.
+     * @param options - the window, the scope, the order and the node
      * @returns the page
      * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
      */
@@ -529,6 +697,26 @@ export class SessionData implements SessionDataApi {
         return this.page(snapshot, "edge", options, "edgePage", (index) =>
             this.edgeAt(snapshot, index, space.idOf(index)),
         );
+    }
+
+    /**
+     * The runs a page of one kind can show as a column.
+     * @param kind - nodes or edges
+     * @returns one entry per run, in the session's order
+     * @throws A `GraphtyError` with `E_DISPOSED` once disposed.
+     */
+    resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[] {
+        this.current();
+        const columns: ResultColumnDescriptor[] = [];
+        for (const id of this.pages.runIds()) {
+            const run = this.pages.run(id);
+            const column = run === undefined ? undefined : primaryResultColumn(run, kind);
+            if (column !== undefined) {
+                columns.push(column);
+            }
+        }
+
+        return Object.freeze(columns);
     }
 
     /**
@@ -708,6 +896,37 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * What a find box lists, without selecting anything: `session.find`, which documents it.
+     * @param text - what was typed
+     * @param options - the window, the kinds and the scope
+     * @returns a page of hits and the value rows
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window or kind, `E_DISPOSED` once disposed.
+     */
+    find(text: string, options: FindOptions = {}): FindResult {
+        this.requireLive("find");
+        const { offset, limit } = pageWindow(
+            { offset: options.offset, limit: options.limit ?? DEFAULT_FIND_LIMIT },
+            "find",
+        );
+        const kinds = options.kinds ?? FIND_KINDS;
+        for (const kind of kinds as readonly unknown[]) {
+            if (!FIND_KINDS.includes(kind as FindKind)) {
+                throw new GraphtyError({
+                    code: "E_OPTION_RANGE",
+                    message: `find() lists "node" and "edge", not ${JSON.stringify(kind)}`,
+                    source: "data",
+                    details: { option: "kinds", value: kind },
+                });
+            }
+        }
+
+        const scope = options.scope === undefined ? null : this.pages.resolve(options.scope);
+        const revision = this.pages.revision();
+        const found = this.pages.search(text, { offset, limit, kinds: new Set(kinds), scope });
+        return { ...found, offset, revision: String(revision) };
+    }
+
+    /**
      * A page: the ordered rows, then the records for the window only.
      * @param snapshot - the current snapshot, already frozen
      * @param target - nodes or edges
@@ -716,18 +935,19 @@ export class SessionData implements SessionDataApi {
      * @param recordAt - builds the record at one row
      * @returns the page
      */
-    private page<TRecord>(
+    private page<TRecord extends { readonly id: NodeId | EdgeId }>(
         snapshot: GraphSnapshot,
         target: "node" | "edge",
         options: EdgePageOptions,
         verb: string,
         recordAt: (index: number) => TRecord,
     ): RecordPage<TRecord> {
-        const { offset, limit } = pageWindow(options, verb);
+        const { offset, limit } = pageWindow(options, `data.${verb}`);
+        const columns = options.columns?.map((column) => resolveResult(column, target, this.pages, verb));
         // Read after the snapshot: a freeze moves the tick, so reading it first would name a
         // revision the page was not read at.
         const revision = this.pages.revision();
-        const rows = this.orderOf(snapshot, target, options);
+        const rows = this.orderOf(snapshot, target, options, verb);
         const rowCount = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const total = rows === null ? rowCount : rows.length;
         const records: TRecord[] = [];
@@ -735,7 +955,15 @@ export class SessionData implements SessionDataApi {
             records.push(recordAt(rows === null ? position : (rows[position] ?? position)));
         }
 
-        return Object.freeze({ records: Object.freeze(records), offset, total, revision: String(revision) });
+        const page = { records: Object.freeze(records), offset, total, revision: String(revision) };
+        if (columns === undefined) {
+            return Object.freeze(page);
+        }
+
+        return Object.freeze({
+            ...page,
+            columns: Object.freeze(columns.map((column) => pageColumn(column, target, records))),
+        });
     }
 
     /**
@@ -743,18 +971,45 @@ export class SessionData implements SessionDataApi {
      * @param snapshot - the current snapshot
      * @param target - nodes or edges
      * @param options - the scope, the order and the node
+     * @param verb - the verb, for an error
      * @returns the rows, or null for every row in graph order
      */
-    private orderOf(snapshot: GraphSnapshot, target: "node" | "edge", options: EdgePageOptions): Uint32Array | null {
+    private orderOf(
+        snapshot: GraphSnapshot,
+        target: "node" | "edge",
+        options: EdgePageOptions,
+        verb: string,
+    ): Uint32Array | null {
         const scope = options.scope === "graph" ? undefined : options.scope;
         const touching = target === "edge" ? options.touching : undefined;
-        if (scope === undefined && touching === undefined && options.sort === undefined) {
+        const { sort } = options;
+        if (scope === undefined && touching === undefined && sort === undefined) {
             return null;
         }
 
-        // JSON keeps 1 and "1" apart, which the ids need.
-        const key = JSON.stringify([target, scope, options.sort, touching]);
-        return this.orders.get(key, () => this.computeOrder(snapshot, target, scope, touching, options.sort));
+        const result = sort !== undefined && "run" in sort ? resolveResult(sort, target, this.pages, verb) : undefined;
+        // JSON keeps 1 and "1" apart, which the ids need. A result sort is keyed by what it
+        // resolved to, never by the run handle it was given.
+        const sortKey =
+            result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
+        const key = JSON.stringify([target, scope, sortKey, touching]);
+        return this.orders.get(key, () => {
+            const space = edgeSpaceOf(snapshot);
+            const order =
+                sort === undefined
+                    ? undefined
+                    : {
+                          descending: sort.descending === true,
+                          value:
+                              result === undefined
+                                  ? (index: number): unknown =>
+                                        this.sortValue(snapshot, target, index, (sort as RecordSort).key, (edge) =>
+                                            space.idOf(edge),
+                                        )
+                                  : rowReader(resultSortValue(result, target), snapshot, target),
+                      };
+            return this.computeOrder(snapshot, target, scope, touching, order);
+        });
     }
 
     /**
@@ -763,7 +1018,7 @@ export class SessionData implements SessionDataApi {
      * @param target - nodes or edges
      * @param scope - the scope, or undefined for the whole graph
      * @param touching - for edges, the node one end must be
-     * @param sort - the order, or undefined for graph order
+     * @param sort - the direction and what a row sorts by, or undefined for graph order
      * @returns the rows
      */
     private computeOrder(
@@ -771,7 +1026,7 @@ export class SessionData implements SessionDataApi {
         target: "node" | "edge",
         scope: ScopeInput | undefined,
         touching: NodeId | undefined,
-        sort: RecordPageOptions["sort"],
+        sort: { readonly descending: boolean; value(index: number): unknown } | undefined,
     ): Uint32Array {
         const space = edgeSpaceOf(snapshot);
         const members = scope === undefined ? null : this.pages.resolve(scope);
@@ -802,10 +1057,8 @@ export class SessionData implements SessionDataApi {
         }
 
         if (sort !== undefined) {
-            const values = rows.map((index) =>
-                this.sortValue(snapshot, target, index, sort.key, (edge) => space.idOf(edge)),
-            );
-            const direction = sort.descending === true ? -1 : 1;
+            const values = rows.map((index) => sort.value(index));
+            const direction = sort.descending ? -1 : 1;
             const positions = rows.map((_row, position) => position);
             positions.sort((x, y) => {
                 const a = values[x];
@@ -876,9 +1129,9 @@ export class SessionData implements SessionDataApi {
      * @returns the report, or null when nothing has been loaded into this graph
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    lastImport(): ImportReport | null {
+    lastImport(): LoadReport | null {
         this.requireLive("lastImport");
-        const recorded = this.writes.slice().values.get("importReport") as ImportReport | undefined;
+        const recorded = this.writes.slice().values.get("importReport") as LoadReport | undefined;
         return recorded ?? this.graphStore.lastImport ?? null;
     }
 
@@ -1010,7 +1263,7 @@ export class SessionData implements SessionDataApi {
 export function sliceRecords(
     slice: () => GraphSlice,
     snapshot: () => GraphSnapshot,
-    lastImport: () => ImportReport | null,
+    lastImport: () => LoadReport | null,
     fallback: SessionRecordSource | null,
 ): SessionRecordSource {
     return {
@@ -1226,6 +1479,11 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
 
     if (source.type !== undefined) {
         return { type: source.type, config, ...described };
+    }
+
+    // A node file and an edge file handed over as a pair are only ever CSV.
+    if (isPair(config)) {
+        return { type: "csv", config, ...described };
     }
 
     const byName = filename === undefined ? null : detectFormat({ filename });

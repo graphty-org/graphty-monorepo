@@ -50,6 +50,24 @@ With padding:
 graph.zoomToFit({ padding: 1.2 }); // 20% extra space
 ```
 
+### Framing after a load
+
+The element frames the graph on its own after every data load and layout change. To leave the
+camera where the reader put it, switch that off:
+
+```typescript
+element.autoFrame = false; // a load or layout change no longer moves the camera
+element.autoFrame = true; // back to framing each load (the default)
+```
+
+```html
+<graphty-element auto-frame="false"></graphty-element>
+```
+
+`zoomToFit()` still frames the graph while it is off. The switch is a preference of the view: it
+records no undo step and is not saved in a project file. It is independent of
+`startingCameraDistance`, which also stops automatic framing but places the camera at a distance.
+
 ### Zoom In and Out
 
 Move the camera one step nearer or further, the way a zoom button does. The same call works on
@@ -69,8 +87,9 @@ names a node the camera stays where it is:
 await graph.zoomToNodes(["alice", "bob"], { animate: true });
 ```
 
-`zoomToSelection()` turns the camera to look at the middle of the selected nodes, keeping
-where it stands.
+`zoomToSelection()` turns the camera to look at the middle of the selection, keeping where it
+stands. A selected edge counts by its two ends, so selecting only an edge frames that edge. With
+nothing selected the camera does not move.
 
 None of these is an undoable step: the camera is view state, not part of a project.
 

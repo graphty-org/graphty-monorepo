@@ -383,7 +383,7 @@ describe("JSON quirks from JsonDataSource and research note 07", () => {
         });
         expect(snapshot.nodes.byRole("parent")?.value(0)).toBe(1);
         expect(snapshot.nodes.byRole("parent")?.isSet(2)).toBe(false);
-        expect(Array.from(snapshot.nodes.byRole("position")?.value(0) as ArrayLike<number>)).toEqual([1, 2, 0]);
+        expect(Array.from(snapshot.nodes.byRole("position")?.value(0) as ArrayLike<number>)).toEqual([1, -2, 0]); // stored y-up
         expect(snapshot.nodes.byRole("classes")?.value(0)).toEqual(["x", "y"]);
         expect(snapshot.nodes.byRole("classes")?.value(2)).toEqual(["m"]);
         expect(report.issues.map((i) => i.code)).toContain("E_UNKNOWN_PARENT");

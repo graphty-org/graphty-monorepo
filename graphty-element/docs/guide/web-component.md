@@ -35,6 +35,8 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'`                                      | `'3d'`      | Rendering mode                                                                                                                                                         |
 | `background`             | `background`               | `object`                                                            | whitesmoke  | A colour, or a skybox image                                                                                                                                            |
 | `startingCameraDistance` | `starting-camera-distance` | `number`                                                            | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off                                                                          |
+| `autoFrame`              | `auto-frame`               | `boolean`                                                           | `true`      | Frame the graph after each load and layout change; `auto-frame="false"` leaves the camera alone. A view preference, not saved in a project                             |
+| `labelDeclutter`         | `label-declutter`          | `boolean`                                                           | `false`     | Hide a node label that would overlap another until the reader zooms in; a view preference, not saved in a project                                                      |
 | `dataSource`             | `data-source`              | `string`                                                            | `undefined` | Data source type                                                                                                                                                       |
 | `dataSourceConfig`       | `data-source-config`       | `object`                                                            | `{}`        | Data source configuration                                                                                                                                              |
 | `nodeIdPath`             | `node-id-path`             | `string`                                                            | `'id'`      | Path to node ID in data                                                                                                                                                |
@@ -136,13 +138,17 @@ its default of `0` leaves the engine to decide when it has finished.
 
 ### Overlapping labels
 
-`layoutBehavior.labels.declutter` hides a node label whose words would be drawn over another
-label's. It is off by default, so every label a style asks for is drawn; see
-[Labels that would overlap](./styling#labels-that-would-overlap).
+`labelDeclutter` hides a node label whose words would be drawn over another label's. It is off by
+default, so every label a style asks for is drawn; see
+[Labels that would overlap](./styling#labels-that-would-overlap). It is a preference of the view:
+switching it records no undo step and is not saved in a project file.
 
 ```javascript
-element.layoutBehavior = { labels: { declutter: true } };
+element.labelDeclutter = true;
 ```
+
+Assigning `layoutBehavior` is merged over what is already set, section by section, so this line
+leaves `layout`, `node` and the two fetch functions as they were.
 
 ## Basic Usage
 

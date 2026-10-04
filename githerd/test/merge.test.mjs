@@ -186,18 +186,21 @@ describe("githerd/merge decision", () => {
 
     describe("line 7: the release dry-run", () => {
         it("refuses a 0.x package going to 1.0.0 and a major outside an approved group", () => {
-            const zero = pr({ releaseBumps: [{ project: "graph-io", from: "0.3.9", to: "1.0.0" }] });
+            // Only a breaking head can make a major, so only it waits for the dry-run.
+            const breaking = (/** @type {Record<string, unknown>} */ over) =>
+                pr({ title: "feat(layout)!: new rows", commits: ["feat(layout)!: new rows"], ...over });
+            const zero = breaking({ releaseBumps: [{ project: "graph-io", from: "0.3.9", to: "1.0.0" }] });
             expect(mergeDecision(zero, ctx())).toMatchObject({
                 line: 7,
                 description: "held: graph-io would go from 0.3.9 to 1.0.0",
             });
-            const major = pr({ releaseBumps: [{ project: "layout", from: "1.10.5", to: "2.0.0" }] });
+            const major = breaking({ releaseBumps: [{ project: "layout", from: "1.10.5", to: "2.0.0" }] });
             expect(mergeDecision(major, ctx()).description).toBe(
                 "held: layout would publish major 2.0.0 outside an approved group",
             );
             expect(mergeDecision(major, ctx({ approvedMajors: ["layout"] })).state).toBe("success");
             // A 0.x breaking change bumps the minor, which is fine.
-            const minor = pr({ releaseBumps: [{ project: "graph-io", from: "0.3.9", to: "0.4.0" }] });
+            const minor = breaking({ releaseBumps: [{ project: "graph-io", from: "0.3.9", to: "0.4.0" }] });
             expect(mergeDecision(minor, ctx()).state).toBe("success");
         });
 
@@ -216,9 +219,19 @@ describe("githerd/merge decision", () => {
             expect(mergeDecision(sec, ctx())).toMatchObject({ state: "failure", line: 6 });
         });
 
-        it("waits for the dry-run only when release inputs change", () => {
-            expect(mergeDecision(pr({ releaseBumps: null }), ctx()).state).toBe("pending");
+        it("waits for the dry-run only when the head can make a major", () => {
+            const breaking = { title: "fix(layout)!: x", commits: ["fix(layout)!: x"] };
+            expect(mergeDecision(pr({ ...breaking, releaseBumps: null }), ctx()).state).toBe("pending");
+            const footer = { commits: ["fix(layout): x\n\nBREAKING CHANGE: rows"] };
+            expect(mergeDecision(pr({ ...footer, releaseBumps: null }), ctx()).state).toBe("failure");
+            const config = { files: ["layout/src/a.ts", "release-hold.json"] };
+            expect(mergeDecision(pr({ ...config, releaseBumps: null }), ctx()).state).toBe("pending");
+            const long = { commitsTruncated: true, title: "fix(layout)!: x" };
+            expect(mergeDecision(pr({ ...long, releaseBumps: null }), ctx()).state).toBe("pending");
+            // Package files with no breaking commit can make only a minor or a patch.
+            expect(mergeDecision(pr({ releaseBumps: null }), ctx()).state).toBe("success");
             expect(mergeDecision(pr({ releaseBumps: null, files: ["design/x.md"] }), ctx()).state).toBe("success");
+            expect(mergeDecision(pr({ releaseBumps: null, commits: null }), ctx()).state).toBe("pending");
         });
     });
 

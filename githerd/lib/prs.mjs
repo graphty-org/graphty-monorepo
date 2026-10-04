@@ -359,7 +359,7 @@ const SECURITY_PATHS = [".github/workflows/", ".husky/", "tools/prepush.sh", ".n
  * ponytail: a fixed list of the published packages; read the private flags of the workspace's
  * package.json files when a package is added often enough to forget this list.
  */
-export const RELEASE_INPUTS = [
+const RELEASE_INPUTS = [
     "algorithms/",
     "compact-mantine/",
     "graph-format/",
@@ -376,6 +376,27 @@ export const RELEASE_INPUTS = [
     "tools/changelog-renderer.cjs",
     ".github/workflows/release.yml",
 ];
+
+/** The release inputs that are the release's own configuration rather than a package's files. */
+const RELEASE_CONFIG = RELEASE_INPUTS.filter((p) => !p.endsWith("/"));
+
+/**
+ * Whether merging a head needs the release dry-run's answer (decision line 7). Line 7 fails only on
+ * a major bump, and nx release makes a major only from a breaking commit or a changed release
+ * configuration, so a head that changes package files with no breaking commit never needs it.
+ * ponytail: a hand-edited `version` in a package.json is not looked at; read the manifest patches
+ * here if a version is ever edited by hand instead of by the release.
+ * @param {{files: string[] | null, filesTruncated?: boolean, commits: string[] | null,
+ *   commitsTruncated?: boolean}} pr the head's files and commit messages (null while unread)
+ * @returns {boolean | null} true or false, or null while what decides it is unread
+ */
+export function needsReleaseDryRun(pr) {
+    if (!pr.files) return null;
+    if (pr.filesTruncated || touches(pr.files, RELEASE_CONFIG)) return true;
+    if (!touches(pr.files, RELEASE_INPUTS)) return false;
+    if (pr.commits === null) return null;
+    return Boolean(pr.commitsTruncated) || pr.commits.some(isBreakingCommit);
+}
 
 /** GitHub refuses a commit status description longer than this. */
 const DESCRIPTION_MAX = 140;
@@ -400,7 +421,7 @@ const DESCRIPTION_MAX = 140;
  *   job?: JobFacts | null, releaseBumps?: Bump[] | null,
  * }} MergeFacts what githerd knows about one open pull request into master at its current head.
  *   `null` means not read yet for this head: commit messages, changed files, the packages it adds
- *   (with those npm does not know), the release dry-run (needed only when it changes release inputs).
+ *   (with those npm does not know), the release dry-run (needed only when `needsReleaseDryRun`).
  *   `filesTruncated` is set when the file listing stopped early (pagination cut short, or GitHub's
  *   3000-file cap): the files not seen may touch any path, so every path-dependent line fails closed
  * @typedef {{
@@ -529,15 +550,15 @@ function reviewed(pr) {
 
 /**
  * Line 7: the release dry-run shows no major outside an approved group and no 0.x package going to
- * 1.0.0.
+ * 1.0.0. A head that cannot make a major (`needsReleaseDryRun`) passes without it.
  * @param {MergeFacts} pr the pull request
  * @param {MergeContext} ctx the repository facts
  * @returns {LineResult} the result
  */
 function releaseSafe(pr, ctx) {
-    const release = touchesList(pr, RELEASE_INPUTS);
-    if (release === false) return PASS;
-    if (release === null || !pr.releaseBumps) return WAIT;
+    const needed = needsReleaseDryRun(pr);
+    if (needed === false) return PASS;
+    if (needed === null || !pr.releaseBumps) return WAIT;
     const major = (/** @type {string} */ v) => Number(v.split(".")[0]);
     for (const b of pr.releaseBumps) {
         if (major(b.from) === 0 && major(b.to) >= 1) return `held: ${b.project} would go from ${b.from} to ${b.to}`;

@@ -96,7 +96,7 @@ import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, rai
 import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
 import { containerStart, identify } from "./proc.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
-import { patchId, RELEASE_INPUTS, touches, updatePrs, whyStuck } from "./prs.mjs";
+import { needsReleaseDryRun, patchId, touches, updatePrs, whyStuck } from "./prs.mjs";
 import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
 import { NEXT, SKIP } from "./queue.mjs";
 import {
@@ -1735,11 +1735,12 @@ export async function startDaemon({
     /**
      * The reference worktree's work (design 4.9), in the background so the reconcile goes on: when
      * the green commit moves it is moved, installed and built, and the audit runs on it; the
-     * release dry-run runs for each open pull request head that changes release inputs (merge line
-     * 7); and once a push's gate failed, the gate runs once on the green commit, so a failure that
-     * is the green commit's own becomes a shared local incident. A check that cannot run is a
-     * platform fault, ledgered by the check. It runs only while the statuses or workers group acts,
-     * the two that read its answers.
+     * release dry-run runs for each open pull request head whose merge needs it (merge line 7,
+     * `needsReleaseDryRun`); and once a push's gate failed, the gate runs once on the green
+     * commit, so a failure that is the green commit's own becomes a shared local incident. A check
+     * that cannot run is a platform fault, ledgered by the check. It runs only while the statuses
+     * or workers group acts, the two that read its answers, and never in a development daemon: a
+     * pull request whose merge needs the dry-run waits there, and every other one does not.
      */
     function referenceWork() {
         const sha = state.master.greenSha;
@@ -1748,7 +1749,7 @@ export async function startDaemon({
         if (refWork !== null || !sha || !config || env.GITHERD_DEV || !workersOn || !acting) return;
         const heads = state.mergeGate?.heads ?? {};
         const dryRuns = Object.entries(heads).filter(
-            ([, h]) => h.files && h.releaseFor !== h.sha && touches(h.files, RELEASE_INPUTS),
+            ([, h]) => h.releaseFor !== h.sha && needsReleaseDryRun(h) === true,
         );
         const ref = state.reference;
         const fresh = ref?.ready && ref.sha === sha;

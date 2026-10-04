@@ -201,7 +201,7 @@ describe("posting githerd/merge", () => {
         await reconcile(github, [pr(1)], record);
         expect(fake.posts().at(-1)).toMatchObject({ state: "success" });
         // A failing line wins over an unread fact, and the release dry-run is named when nothing else is unread.
-        const release = pr(2, { files: ["layout/src/a.ts"] });
+        const release = pr(2, { files: ["layout/src/a.ts", "nx.json"] });
         await reconcile(github, [release], record);
         await reconcile(github, [release], record);
         expect(fake.posts().at(-1)).toMatchObject({

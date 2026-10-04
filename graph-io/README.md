@@ -8,8 +8,9 @@
 Importers and exporters for the [@graphty/graph-format](https://www.npmjs.com/package/@graphty/graph-format)
 snapshot: GEXF, GraphML, GML, DOT (Graphviz), Pajek NET, CSV / TSV, JSON (NetworkX node-link, d3,
 JSON Graph Format, Cytoscape, graphology, vis.js; NetworkX adjacency_data and tree_data and OBO
-Graphs are read only), Neo4j (`neo4j-admin import` CSV), CX2 (the NDEx / Cytoscape exchange format;
-its version 1, CX, is read only) and OBO, the ontology format of the Gene Ontology (read only).
+Graphs are read only), Neo4j (`neo4j-admin import` CSV), XGMML (Cytoscape's XML format), CX2 (the
+NDEx / Cytoscape exchange format; its version 1, CX, is read only), Cytoscape sessions (`.cys`, read
+only) and OBO, the ontology format of the Gene Ontology (read only).
 
 Every importer streams its input into a `GraphSink` (a `GraphBuilder` or your own sink) one scalar at
 a time and reports what it could not represent instead of dropping it; every exporter says what it
@@ -154,10 +155,10 @@ reports every column or feature outside it):
 | CSV     | `@graphty/graph-io/csv`     | `.csv` `.tsv` `.edges` `.edgelist` | yes         | yes         | optional    | any           | bool i32 f64 string dict               | no    | no   | no       | no        | none           | no          | no        | no  |
 | JSON    | `@graphty/graph-io/json`    | `.json`                            | per dialect | yes         | per dialect | any           | f64 i32 bool string (no declarations)  | no    | yes  | no       | Cytoscape | none           | per dialect | Cytoscape | no  |
 | Neo4j   | `@graphty/graph-io/neo4j`   | `.csv` `.tsv`                      | no          | yes         | none        | any           | f32 f64 i32 bool string                | yes   | no   | no       | no        | none           | no          | no        | no  |
-| OBO     | `@graphty/graph-io/obo`     | `.obo`                             | read only   | -           | -           | -             | -                                      | -     | -    | -        | -         | -              | -           | -         | -   |
-| CX2     | `@graphty/graph-io/cx2`     | `.cx2`                             | no          | yes         | required    | integer       | f64 i32 bool string                    | yes   | no   | yes      | no        | none           | yes         | yes       | no  |
 | XGMML   | `@graphty/graph-io/xgmml`   | `.xgmml` `.xml`                    | yes         | yes         | optional    | any           | f64 i32 bool string (long as Long)     | yes   | no   | no       | yes       | none           | yes         | yes       | no  |
+| CX2     | `@graphty/graph-io/cx2`     | `.cx2`                             | no          | yes         | required    | integer       | f64 i32 bool string                    | yes   | no   | yes      | no        | none           | yes         | yes       | no  |
 | Session | `@graphty/graph-io/cys`     | `.cys`                             | read only   | read only   | read only   | read only     | read only                              | -     | -    | -        | -         | -              | -           | -         | -   |
+| OBO     | `@graphty/graph-io/obo`     | `.obo`                             | read only   | -           | -           | -             | -                                      | -     | -    | -        | -         | -              | -           | -         | -   |
 
 Every importer reads the whole corpus of research note 07 with the manifest counts and every
 exporter round-trips it (import -> export -> import gives the same ids, topology, orientation,
@@ -260,7 +261,8 @@ losses and format rules, in addition to the table:
   lists the inferred dtypes only, and `check()` names every f32 / u32 / u8 / dict / list / vector
   column (they come back f64 / i32 / string / json), integral f64 columns (i32) and every role the
   dialect has no slot for. Edge ids exist in JGF, Cytoscape, graphology and vis only; positions in
-  Cytoscape only. A repeated node id is merged with `W_DUPLICATE_NODE`, a repeated edge id skipped
+  Cytoscape only, stored y-up as for every Cytoscape-family format (Cytoscape's y grows downward,
+  so it is negated at import and negated back on export). A repeated node id is merged with `W_DUPLICATE_NODE`, a repeated edge id skipped
   with `E_DUPLICATE_EDGE_ID`; an out-of-range d3 index link is `E_BAD_INDEX`. Non-finite numbers
   are written as `null` and reported. NetworkX `adjacency_data` (`nodes` plus an `adjacency` list
   per node; an undirected file lists each edge from both ends and it is read once) and `tree_data`

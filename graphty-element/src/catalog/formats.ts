@@ -6,9 +6,11 @@
  * about reading it. That is everything a file picker, a drag-and-drop target and an import dialog
  * need, and none of it requires importing a data source or a renderer.
  *
- * Every built-in format can be written: `exportGraph(format)` hands the graph to the graph-io
- * exporter of that format. A Neo4j admin-import file is written as `csv` with
- * `{ variant: "neo4j" }`, the same name the CSV reader recognises it under.
+ * Every built-in format but CX version 1, Cytoscape sessions and OBO can be written:
+ * `exportGraph(format)` hands the graph to the graph-io exporter of that format. A Neo4j
+ * admin-import file is written as `csv` with `{ variant: "neo4j" }`, the same name the CSV reader
+ * recognises it under. XGMML and CX2 are written with the graph's structure and attribute columns,
+ * never its style layers.
  */
 
 import type { CSVVariant } from "../data/CSVDataSource";
@@ -99,6 +101,109 @@ const jsonOptions: readonly OptionDescriptor[] = [
         technicalName: "nodeIdPath",
         type: "string",
         description: "An expression selecting each node's identity out of the node record.",
+    },
+    {
+        name: "oboIds",
+        plainName: "Ontology Ids",
+        technicalName: "oboIds",
+        type: "enum",
+        values: [
+            { value: "curie", label: "Short (GO:0008150)" },
+            { value: "iri", label: "Full IRI" },
+        ],
+        default: "curie",
+        description:
+            "For an OBO Graphs document: write each term's id as a short prefixed id, or keep the " +
+            "full IRI the file holds.",
+    },
+];
+
+/**
+ * Where Cytoscape's z goes. Cytoscape's z is a drawing order, not a depth, so it is kept as its own
+ * `z` column unless the reader asks for it as a coordinate.
+ */
+const zAsOption: OptionDescriptor = {
+    name: "zAs",
+    plainName: "Cytoscape Z",
+    technicalName: "zAs",
+    type: "enum",
+    values: [
+        { value: "column", label: "Keep as a z attribute" },
+        { value: "position", label: "Use as the z coordinate" },
+    ],
+    default: "column",
+    description:
+        "Cytoscape's z is a drawing order. Kept as a z attribute it leaves the drawing flat; as " +
+        "the z coordinate it lifts nodes out of the plane.",
+};
+
+/** The network of a file that holds several, by name. */
+const networkOption: OptionDescriptor = {
+    name: "graphName",
+    plainName: "Network",
+    technicalName: "graphName",
+    type: "string",
+    description:
+        "The name of the network to load from a file that holds several. Left unset, the first " +
+        "network is loaded. listGraphs from the catalog lists them.",
+};
+
+const xgmmlOptions: readonly OptionDescriptor[] = [
+    {
+        name: "labelAliases",
+        plainName: "Edge Label Endpoints",
+        technicalName: "labelAliases",
+        type: "boolean",
+        description:
+            'Find a missing edge endpoint from Cytoscape\'s "source (interaction) target" edge ' +
+            "label. Left unset, on for Cytoscape files and off otherwise.",
+    },
+    {
+        name: "repairBareAmpersands",
+        plainName: "Repair Bare Ampersands",
+        technicalName: "repairBareAmpersands",
+        type: "boolean",
+        default: false,
+        description: "Read an & that starts no entity as text, as Cytoscape does for files its older versions wrote.",
+    },
+    networkOption,
+    zAsOption,
+];
+
+const oboOptions: readonly OptionDescriptor[] = [
+    {
+        name: "obsolete",
+        plainName: "Obsolete Terms",
+        technicalName: "obsolete",
+        type: "enum",
+        values: [
+            { value: "keep", label: "Keep" },
+            { value: "drop", label: "Drop" },
+        ],
+        default: "keep",
+        description: "Keep obsolete terms as nodes marked is_obsolete, or leave them and their edges out.",
+    },
+    {
+        name: "typedefs",
+        plainName: "Relations",
+        technicalName: "typedefs",
+        type: "enum",
+        values: [
+            { value: "metadata", label: "As metadata" },
+            { value: "nodes", label: "As nodes" },
+        ],
+        default: "metadata",
+        description: "Keep the relation definitions ([Typedef] frames) as metadata, or make them nodes too.",
+    },
+    {
+        name: "addMissingNodes",
+        plainName: "Undeclared Terms",
+        technicalName: "addMissingNodes",
+        type: "boolean",
+        default: true,
+        description:
+            "Add a placeholder node for a term a relation names but the file never declares, or " +
+            "drop the edge to it.",
     },
 ];
 
@@ -212,6 +317,31 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
         { name: "strict", plainName: "Strict Graph", technicalName: "strict", type: "boolean" },
     ],
     pajek: [{ name: "networkHeader", plainName: "Network Header", technicalName: "networkHeader", type: "boolean" }],
+    xgmml: [
+        {
+            name: "cytoscapeEscapes",
+            plainName: "Cytoscape Escapes",
+            technicalName: "cytoscapeEscapes",
+            type: "boolean",
+            description: "Write a line break or a tab in a text value as Cytoscape's \\n or \\t.",
+        },
+    ],
+    cx2: [
+        {
+            name: "sanitizeIds",
+            plainName: "Non-Integer Ids",
+            technicalName: "sanitizeIds",
+            type: "enum",
+            values: [
+                { value: "mangle", label: "Renumber, keeping the original" },
+                { value: "error", label: "Refuse" },
+            ],
+            default: "mangle",
+            description:
+                "CX2 node ids are integers. Renumber other ids and keep each original in a " +
+                "graphty:originalId attribute that reading the file back restores, or refuse the export.",
+        },
+    ],
 };
 
 /**
@@ -328,6 +458,54 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         options: endpointOptions,
         writerOptions: writerOptionsOf("pajek"),
     },
+    {
+        id: "xgmml",
+        plainName: "XGMML",
+        // ".xml" is claimed by GraphML and GEXF too; detection asks each one's content sniffer.
+        extensions: [".xgmml", ".xml"],
+        mimeTypes: ["application/xgmml", "text/xgmml", "text/xgmml+xml", "application/xml", "text/xml"],
+        canImport: true,
+        canExport: true,
+        options: xgmmlOptions,
+        writerOptions: writerOptionsOf("xgmml"),
+    },
+    {
+        id: "cx2",
+        plainName: "CX2",
+        extensions: [".cx2"],
+        mimeTypes: ["application/json"],
+        canImport: true,
+        canExport: true,
+        options: [zAsOption],
+        writerOptions: writerOptionsOf("cx2"),
+    },
+    {
+        id: "cx",
+        plainName: "CX",
+        extensions: [".cx"],
+        mimeTypes: ["application/json"],
+        canImport: true,
+        canExport: false,
+        options: [networkOption, zAsOption],
+    },
+    {
+        id: "cys",
+        plainName: "Cytoscape Session",
+        extensions: [".cys"],
+        mimeTypes: ["application/zip"],
+        canImport: true,
+        canExport: false,
+        options: [networkOption, zAsOption],
+    },
+    {
+        id: "obo",
+        plainName: "OBO",
+        extensions: [".obo"],
+        mimeTypes: ["text/obo", "application/obo"],
+        canImport: true,
+        canExport: false,
+        options: oboOptions,
+    },
 ];
 
 /**
@@ -335,20 +513,14 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
  * consumer learns the gap from the catalogue instead of from a failed load, and a load that names
  * one fails with the reason given here.
  *
- * Both entries are deprecated: "sif" (issue #306) and "cx2" (issue #307) are removed from
- * `FormatId` at the next major release unless graph-io gains a reader for them first.
+ * "sif" is deprecated (issue #306): it is removed from `FormatId` at the next major release unless
+ * graph-io gains a reader for it first.
  */
 export const UNSERVED_FORMAT_IDS: readonly UnservedFormat[] = [
     {
         id: "sif",
         reason:
             "No data source reads the Cytoscape simple interaction format. " +
-            "The name is deprecated and is removed at the next major release unless a reader lands.",
-    },
-    {
-        id: "cx2",
-        reason:
-            "No data source reads the Cytoscape Exchange format. " +
             "The name is deprecated and is removed at the next major release unless a reader lands.",
     },
 ];

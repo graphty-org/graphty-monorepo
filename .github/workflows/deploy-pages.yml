@@ -145,7 +145,7 @@ jobs:
               with:
                   name: build-graph-io
                   path: ./graph-io/dist/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ inputs.run-id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             # Nothing is installed here, so graph-io's import of @graphty/graph-format is pointed at

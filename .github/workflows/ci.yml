@@ -29,6 +29,12 @@ concurrency:
 # Note: We use local Nx caching only (no Nx Cloud)
 # Cache is stored in .nx/cache and persisted via actions/cache
 
+# Every job names ubuntu-24.04 rather than ubuntu-latest. The label is not a constant: it became 24.04 during
+# 2026 with no change here, which is how the webgpu-graph-algorithms node shard came to judge its kernels on a
+# Mesa software rasteriser (25.2.8 / LLVM 20) two major versions newer than the one every gate record measured
+# (23.2.1 / LLVM 15) -- see webgpu-graph-algorithms/docs/decisions/G-ENV.md. GitHub has announced the same move
+# again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
+# that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
 jobs:
     # Which suite this run is, decided first (CLAUDE.md, "Merging"):
     # - review: a push to a pull request. Only what the owner's screenshot review needs: the builds the
@@ -505,6 +511,18 @@ jobs:
             - name: Install Mesa lavapipe
               if: matrix.needs-lavapipe
               run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
+
+            # The software rasteriser this lane judges every kernel on is whatever apt resolves on the day, and it
+            # moved two major Mesa versions (23.2.1 / LLVM 15 -> 25.2.8 / LLVM 20) without anything recording it.
+            # Print the image, the C library and the installed Mesa version so a lane's environment is readable
+            # from its own log instead of inferred from the runner label. Never fails the step.
+            - name: Record the image, glibc and rasteriser versions
+              if: matrix.needs-lavapipe
+              run: |
+                  { grep PRETTY_NAME /etc/os-release
+                    ldd --version | head -1
+                    dpkg-query -W -f '${Package} ${Version}\n' mesa-vulkan-drivers libvulkan1 libegl1
+                  } || true
 
             - name: Locate the lavapipe ICD and export the lane's environment
               if: matrix.needs-lavapipe

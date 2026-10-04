@@ -23,7 +23,7 @@ import {
     uncapturedErrors,
 } from "../setup/gpu.js";
 
-const INSTALL_HINT = "install the optional peer dependency webgpu@0.4.0";
+const INSTALL_HINT = "install the optional peer dependency webgpu@0.6.1";
 
 /** Runs `fn` and returns what it threw (null when it returned). */
 function caught(fn: () => unknown): unknown {

@@ -303,6 +303,8 @@ export class Graph implements GraphContext {
      * framing is skipped while it is set, so it never moves a camera somebody has just placed.
      */
     #cameraPlaced = false;
+    /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
+    #autoFrame = true;
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
     needRays = true;
@@ -3087,7 +3089,7 @@ export class Graph implements GraphContext {
      * ```
      */
     zoomToFit(): void {
-        this.updateManager.enableZoomToFit();
+        this.updateManager.enableZoomToFit(true);
     }
 
     // GraphContext implementation methods
@@ -3493,13 +3495,36 @@ export class Graph implements GraphContext {
 
     /**
      * Frame the graph on the element's own initiative -- after a data load, a new layout, or the
-     * first settlement -- unless the configuration placed the camera itself with
-     * `startingCameraDistance`. An explicit `zoomToFit()` is not affected.
+     * first settlement -- unless framing was switched off with {@link setAutoFrame} or the
+     * configuration placed the camera itself with `startingCameraDistance`. An explicit
+     * `zoomToFit()` is not affected.
      */
     private autoFrame(): void {
         this.#cameraPlaced = false;
-        if (this.styles.config.graph.startingCameraDistance === undefined) {
+        if (this.#autoFrame && this.styles.config.graph.startingCameraDistance === undefined) {
             this.updateManager.enableZoomToFit();
+        }
+    }
+
+    /**
+     * Whether the camera frames the graph on its own after a data load or a layout change.
+     * @returns True (the default) when it does
+     */
+    getAutoFrame(): boolean {
+        return this.#autoFrame;
+    }
+
+    /**
+     * Switch the camera's own framing after a data load or a layout change on or off. Off, the
+     * camera stays where it is, and a re-frame already following a moving layout stops. An
+     * explicit `zoomToFit()` frames the graph either way. A preference of the view, not saved in a
+     * project file.
+     * @param on - True to frame after each load or layout change, false to leave the camera alone.
+     */
+    setAutoFrame(on: boolean): void {
+        this.#autoFrame = on;
+        if (!on) {
+            this.updateManager.stopAutoZoomToFit();
         }
     }
 

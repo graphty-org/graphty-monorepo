@@ -302,8 +302,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             // PLAN DECISION 2 (replaces the inert self-loop row): the row bound off by one reads the next row's first
             // arc into every row; on row_force_dense, since TIER 0 is the fold this suite's karate load runs
             name: "row-bound-inclusive",
-            find: "arc < hi; arc = arc + 1u",
-            replace: "arc <= hi; arc = arc + 1u",
+            find: "left > 0u; left = left - 1u",
+            replace: "left + 1u > 0u; left = left - 1u",
             minFactor: 10,
             test: INSPECT_TEST,
         },

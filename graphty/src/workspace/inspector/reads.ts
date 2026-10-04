@@ -13,7 +13,7 @@ import {
 } from "@graphty/graphty-element/session";
 
 /** A finished run with its result, and the field its result is read by. */
-export interface FinishedRun {
+interface FinishedRun {
     readonly id: string;
     readonly label: string;
     readonly result: RunResult;

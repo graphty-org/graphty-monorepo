@@ -1632,18 +1632,29 @@ class TableReader {
             this.edgeIds.add(idText);
             this.writeRole(this.idHandle, "edge", edge, idText, plan.names[plan.id], line);
         }
-        if (plan.typeHint >= 0 && typeof parseKind(row[plan.typeHint]) === "string") {
-            report.warnOnce(
-                "unsupported",
-                TYPE_COLUMN_IGNORED_CODE,
-                `column ${JSON.stringify(plan.names[plan.typeHint])} holds the direction word ${JSON.stringify(row[plan.typeHint])} but is a plain attribute; the per-row direction is read from an exact "Type" column beside "Source" and "Target", or from the typeColumn option`,
-                { line, element: plan.names[plan.typeHint] },
-            );
-        }
+        this.warnTypeHint(plan, row, line);
         if (plan.label >= 0 && !isUnset(row[plan.label], quoted[plan.label])) {
             this.writeRole(this.labelHandle, "edge", edge, row[plan.label], plan.names[plan.label], line);
         }
         this.writeAttributes(plan, row, quoted, edge, line);
+    }
+
+    /**
+     * Warn, once, when a column that is not the type column holds a direction word.
+     * @param plan - the edge plan
+     * @param row - the cells
+     * @param line - the row's line
+     */
+    private warnTypeHint(plan: EdgePlan, row: readonly string[], line: number): void {
+        if (plan.typeHint < 0 || typeof parseKind(row[plan.typeHint]) !== "string") {
+            return;
+        }
+        this.state.report.warnOnce(
+            "unsupported",
+            TYPE_COLUMN_IGNORED_CODE,
+            `column ${JSON.stringify(plan.names[plan.typeHint])} holds the direction word ${JSON.stringify(row[plan.typeHint])} but is a plain attribute; the per-row direction is read from an exact "Type" column beside "Source" and "Target", or from the typeColumn option`,
+            { line, element: plan.names[plan.typeHint] },
+        );
     }
 
     /**

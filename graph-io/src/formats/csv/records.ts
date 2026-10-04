@@ -234,18 +234,10 @@ class RecordSplitter {
         }
         const isDelimiter = c === this.delimiterCode || (this.whitespace && c === TAB);
         if (this.state === CLOSING) {
-            if (c === this.quoteCode) {
-                // a doubled quote is one quote character
-                this.field += this.quote;
-                this.segment = i + 1;
-                this.state = QUOTED;
-                return i + 1;
+            const next = this.afterQuote(i, c, isDelimiter || c === LF || c === CR);
+            if (next !== null) {
+                return next;
             }
-            if (this.strictQuotes && !isDelimiter && c !== LF && c !== CR) {
-                return -1;
-            }
-            this.state = AFTER_QUOTED;
-            this.segment = i;
         }
         if (isDelimiter || c === LF || c === CR) {
             return this.separator(i, isDelimiter);
@@ -256,6 +248,30 @@ class RecordSplitter {
             this.segment = quoted ? i + 1 : i;
         }
         return i + 1;
+    }
+
+    /**
+     * Read the character after a quote that may close a quoted field: a second quote is a quote
+     * character in the field; anything else closes it.
+     * @param i - its index
+     * @param c - its code
+     * @param separates - whether it is a delimiter or a line break
+     * @returns the index of the next character to read, -1 to give up (strictQuotes), or null to
+     * read this character as the one after the field
+     */
+    private afterQuote(i: number, c: number | undefined, separates: boolean): number | null {
+        if (c === this.quoteCode) {
+            this.field += this.quote;
+            this.segment = i + 1;
+            this.state = QUOTED;
+            return i + 1;
+        }
+        if (this.strictQuotes && !separates) {
+            return -1;
+        }
+        this.state = AFTER_QUOTED;
+        this.segment = i;
+        return null;
     }
 
     /**

@@ -1274,9 +1274,11 @@ async function* member(
     const firstLine = cur.line();
     const keys: MemberKeys = { others: [], firstBlock: null, deep: 0 };
     let next = ",";
-    for (let index = 0; next === ","; index++) {
+    let index = 0;
+    while (next === ",") {
         const key = await readKey(cur);
         yield* keyValue(cur, key, index, block, keys, report);
+        index++;
         next = await cur.peek();
         if (next !== "," && next !== "}") {
             throw new JsonScanError(

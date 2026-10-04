@@ -342,6 +342,13 @@ Mergify's queue; removing the label brings `success`, which re-queues it; a head
 neither merged nor dropped from the queue until githerd posts on it.
 Record the three observations in `evidence/repo-facts.md`.
 
-Why `-check-failure` in the queue rule and not `check-success`: Mergify's own update gives the pull
-request a new head with no status; with `check-success` there it would leave the queue on every
-update. Why `check-success` in the merge conditions: "no status yet" and `pending` must not merge.
+Why (design 4.6): the queue has no `merge_conditions`, because Mergify checks a pull request in
+place on its own branch only while the queue is single-step, and the visual-review gate needs the
+pull request's own number. So `check-success` goes in `queue_conditions`, where Mergify already
+adds the ruleset's two required checks and waits on a status that is pending or not reported yet,
+as it does for them: "no status yet" and `pending` wait instead of merging. `-check-failure` in both
+places makes a hold (`failure`) drop the pull request from the queue, exactly as the `hold` label
+does, and in `auto_merge_conditions` it lets a pull request with no status yet be queued. Never add
+`merge_conditions` for this: master's file says that makes Mergify test a draft pull request, which
+fails `Lint PR Title` and the visual-review gate. The diff is based on master's file with its
+`priority_rules` (a red master's `priority:critical` fix first), which it leaves as they are.

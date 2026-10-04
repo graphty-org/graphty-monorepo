@@ -534,11 +534,7 @@ async function cmdControl(c) {
  * @returns {Promise<number>} tmux's exit code
  */
 async function cmdAttach(c) {
-    const r = spawnSync(
-        "tmux", // NOSONAR(S4036): the owner's tmux from his own PATH, as tools/ runs git
-        ["-L", "githerd", "attach", "-t", "githerd"],
-        { stdio: "inherit", env: c.env },
-    );
+    const r = spawnSync("tmux", ["-L", "githerd", "attach", "-t", "githerd"], { stdio: "inherit", env: c.env });
     if (r.error) {
         c.err(`githerd attach: ${r.error.message}`);
         return 1;
@@ -970,7 +966,7 @@ async function redrawUntil(stateDir, draw, signal) {
  * @returns {string} the top
  */
 function worktreeTop(cwd) {
-    return execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" }).trim(); // NOSONAR(S4036): the owner's git from his PATH, as in tools/
+    return execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" }).trim();
 }
 
 /**

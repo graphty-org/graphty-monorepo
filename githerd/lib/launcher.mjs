@@ -215,11 +215,7 @@ function ownPkgDir() {
  * @returns {string} the prefix
  */
 function repoPrefix(dir) {
-    const prefix = execFileSync(
-        "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
-        ["rev-parse", "--show-prefix"],
-        { cwd: dir, encoding: "utf8" },
-    );
+    const prefix = execFileSync("git", ["rev-parse", "--show-prefix"], { cwd: dir, encoding: "utf8" });
     return prefix.trim().replace(/\/$/, "");
 }
 
@@ -1354,10 +1350,11 @@ function currentBranch(cwd) {
  * @returns {string} trimmed stdout
  */
 function gitSync(cwd, ...args) {
-    const out = execFileSync(
-        "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
-        args,
-        { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10_000 },
-    );
+    const out = execFileSync("git", args, {
+        cwd,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 10_000,
+    });
     return out.trim();
 }

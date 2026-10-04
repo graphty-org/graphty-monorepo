@@ -64,11 +64,7 @@ const TYPE_LOOK_MS = 200;
  * @returns {string} what it printed
  */
 function tmux(socket, args) {
-    return execFileSync(
-        "tmux", // NOSONAR(S4036): the owner's tmux from his own PATH, as tools/ runs git
-        ["-L", socket, ...args],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    );
+    return execFileSync("tmux", ["-L", socket, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
 /**

@@ -373,11 +373,7 @@ export function normalizeConfig(input) {
 }
 
 const run = (cwd, ...args) =>
-    execFileSync(
-        "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
-        args,
-        { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    ).trim();
+    execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
 /**
  * The main checkout's root, the same from every worktree: the real path of the parent of the git
@@ -424,17 +420,13 @@ export function defaultBranch(root) {
     if (local) return local;
     if (remoteHeads.has(root)) return remoteHeads.get(root);
     try {
-        const out = execFileSync(
-            "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
-            ["ls-remote", "--symref", "origin", "HEAD"],
-            {
-                cwd: root,
-                encoding: "utf8",
-                stdio: ["ignore", "pipe", "pipe"],
-                timeout: 15_000,
-                env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-            },
-        );
+        const out = execFileSync("git", ["ls-remote", "--symref", "origin", "HEAD"], {
+            cwd: root,
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            timeout: 15_000,
+            env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        });
         const branch = /^ref: refs\/heads\/(\S+)\s+HEAD$/m.exec(out)?.[1] ?? null;
         if (branch) remoteHeads.set(root, branch);
         return branch;

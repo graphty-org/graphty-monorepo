@@ -229,17 +229,12 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
 function gitExec(args, { cwd, env, timeoutMs }) {
     return new Promise((resolve) => {
         const options = { cwd, env, timeout: timeoutMs, killSignal: /** @type {const} */ ("SIGKILL") };
-        execFile(
-            "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
-            args,
-            options,
-            (err, stdout, stderr) => {
-                const e = /** @type {any} */ (err);
-                let code = 0;
-                if (e) code = typeof e.code === "number" ? e.code : 1;
-                resolve({ code, stdout: String(stdout), stderr: String(stderr) });
-            },
-        );
+        execFile("git", args, options, (err, stdout, stderr) => {
+            const e = /** @type {any} */ (err);
+            let code = 0;
+            if (e) code = typeof e.code === "number" ? e.code : 1;
+            resolve({ code, stdout: String(stdout), stderr: String(stderr) });
+        });
     });
 }
 

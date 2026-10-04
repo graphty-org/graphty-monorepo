@@ -712,7 +712,7 @@ export function stackSteps(prs, lastHeads, mergedHeads, branch) {
  */
 export function patchId(cwd, base, head) {
     const git = (/** @type {string[]} */ args, input = "") =>
-        execFileSync("git", args, { cwd, input, encoding: "utf8", maxBuffer: 1 << 30 }); // NOSONAR(S4036): the owner's git from his PATH, as in tools/
+        execFileSync("git", args, { cwd, input, encoding: "utf8", maxBuffer: 1 << 30 });
     const mergeBase = git(["merge-base", base, head]).trim();
     const diff = git(["diff", "--no-color", "--no-ext-diff", mergeBase, head, "--", ".", ":(exclude)visual-baselines"]);
     return git(["patch-id", "--stable"], diff).split(" ")[0] || "empty";

@@ -508,16 +508,12 @@ export function createPushQueue({
             ];
             const queued = existsSync(queueScript);
             const critical = state.jobs?.[e.job]?.kind === "incident";
-            const child = spawn(
-                queued ? "bash" : "git", // NOSONAR(S4036): the owner's bash and git from his own PATH, as tools/ runs them
-                queued ? [queueScript, ...push] : push.slice(1),
-                {
-                    cwd: e.worktree,
-                    env: { ...env, ...(critical ? { PUSH_QUEUE_PRIORITY: "critical" } : {}) },
-                    detached: true,
-                    stdio: ["ignore", "pipe", "pipe"],
-                },
-            );
+            const child = spawn(queued ? "bash" : "git", queued ? [queueScript, ...push] : push.slice(1), {
+                cwd: e.worktree,
+                env: { ...env, ...(critical ? { PUSH_QUEUE_PRIORITY: "critical" } : {}) },
+                detached: true,
+                stdio: ["ignore", "pipe", "pipe"],
+            });
             e.pid = child.pid ?? null;
             e.startTime = e.pid ? (identify(e.pid)?.startTime ?? null) : null;
             const expire = () => {

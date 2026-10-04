@@ -328,11 +328,11 @@ export function createConfigGate({
  */
 function configCommit(root, branch) {
     try {
-        const out = execFileSync(
-            "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
-            ["log", "-1", "--format=%H", `origin/${branch}`, "--", CONFIG_FILE],
-            { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-        ).trim();
+        const out = execFileSync("git", ["log", "-1", "--format=%H", `origin/${branch}`, "--", CONFIG_FILE], {
+            cwd: root,
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+        }).trim();
         return out || null;
     } catch {
         return null;

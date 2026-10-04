@@ -135,9 +135,12 @@ describe("DataTable header features", () => {
         await userEvent.click(caret);
         await userEvent.click(await screen.findByRole("menuitem", { name: "Hide column" }));
         expect(onHide).toHaveBeenCalledTimes(1);
-
+        // Closing from an item hands focus back to the header.
         const button = within(screen.getAllByTestId("data-table-header")[1]).getByTestId("data-table-sort-button");
-        button.focus();
+        await waitFor(() => {
+            expect(button).toHaveFocus();
+        });
+
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
         const item = await screen.findByRole("menuitem", { name: "Hide column" });
         await waitFor(() => {
@@ -148,6 +151,9 @@ describe("DataTable header features", () => {
         expect(screen.getByRole("menu")).toBeInTheDocument();
         await userEvent.keyboard("{Enter}");
         expect(onHide).toHaveBeenCalledTimes(2);
+        await waitFor(() => {
+            expect(button).toHaveFocus();
+        });
     });
 
     it("leaves the caret out of the tab order", () => {

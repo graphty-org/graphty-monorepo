@@ -573,6 +573,9 @@ function DataTableInner<TRow extends object>(
                 event.key === "ContextMenu")
         ) {
             event.preventDefault();
+            // Mantine's Menu closes on a keydown outside it, and this key is outside it: kept
+            // from reaching the document, it opens the menu without closing it again.
+            event.stopPropagation();
             setMenuFor(menuColumn.id);
             return;
         }
@@ -940,7 +943,20 @@ function DataTableInner<TRow extends object>(
                                                 opened={menuFor === column.id}
                                                 onChange={(opened) => {
                                                     setMenuFor(opened ? column.id : null);
+                                                    // Closed from inside the menu (an item, Escape):
+                                                    // focus goes back to the header. Closed by a
+                                                    // click elsewhere: focus stays where it went.
+                                                    const active = document.activeElement;
+                                                    if (
+                                                        !opened &&
+                                                        (active === null ||
+                                                            active === document.body ||
+                                                            active.closest('[role="menu"]') !== null)
+                                                    ) {
+                                                        moveFocusTo({ row: HEADER_ROW, column: index });
+                                                    }
                                                 }}
+                                                returnFocus={false}
                                                 position="bottom-end"
                                             >
                                                 <Menu.Target>

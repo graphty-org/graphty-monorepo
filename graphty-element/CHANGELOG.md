@@ -1,3 +1,13 @@
+## 3.14.4 (2026-10-05)
+
+### 🩹 Fixes
+
+- **graphty-element:** price degree for the heap the element runs it in ([4c6a4c196](https://github.com/graphty-org/graphty-monorepo/commit/4c6a4c196))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.14.3 (2026-10-05)
 
 ### 🧱 Updated Dependencies

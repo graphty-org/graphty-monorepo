@@ -44,9 +44,34 @@ function pidAlive(pid) {
 }
 
 /**
- * The live sessions working in a repository: their registry entry names a running process, a
- * messaging socket, and a cwd that is the main checkout or under it. githerd's own workers (in
- * `.worktrees/githerd-*`) are left out: their job is theirs already.
+ * One registry entry as a session that can take a message from githerd, or null: a running
+ * process that speaks the peer protocol, with a messaging socket and a cwd that is the main
+ * checkout or under it, and not one of githerd's own workers (`.worktrees/githerd-*`).
+ * @param {any} e the parsed entry
+ * @param {string} root the main checkout
+ * @param {(pid: number) => boolean} alive the liveness test
+ * @returns {PeerSession | null} the session
+ */
+function peerOf(e, root, alive) {
+    const cwd = typeof e?.cwd === "string" ? e.cwd : "";
+    const inRepo = cwd === root || cwd.startsWith(root + sep);
+    if (!inRepo || cwd.startsWith(join(root, ".worktrees", "githerd-"))) return null;
+    if (typeof e.messagingSocketPath !== "string" || typeof e.peerProtocol !== "number" || e.peerProtocol < 1) {
+        return null;
+    }
+    if (!Number.isInteger(e.pid) || !alive(e.pid)) return null;
+    return {
+        pid: e.pid,
+        sessionId: String(e.sessionId ?? ""),
+        name: typeof e.name === "string" ? e.name : `pid ${e.pid}`,
+        cwd,
+        socket: e.messagingSocketPath,
+        status: typeof e.status === "string" ? e.status : null,
+    };
+}
+
+/**
+ * The live sessions working in a repository (`peerOf`), from Claude Code's session registry.
  * @param {{sessionsDir: string, root: string, alive?: (pid: number) => boolean}} opts the registry
  *   directory, the main checkout, and the liveness test
  * @returns {PeerSession[]} the sessions, by pid
@@ -58,29 +83,15 @@ export function liveSessions({ sessionsDir, root, alive = pidAlive }) {
     } catch {
         return [];
     }
-    const workers = join(root, ".worktrees", "githerd-");
     /** @type {PeerSession[]} */
     const out = [];
     for (const file of files) {
-        let e;
         try {
-            e = JSON.parse(readFileSync(join(sessionsDir, file), "utf8"));
+            const peer = peerOf(JSON.parse(readFileSync(join(sessionsDir, file), "utf8")), root, alive);
+            if (peer) out.push(peer);
         } catch {
-            continue;
+            // A torn or unreadable entry is no session.
         }
-        const cwd = typeof e?.cwd === "string" ? e.cwd : "";
-        const inRepo = cwd === root || cwd.startsWith(root + sep);
-        if (!inRepo || cwd.startsWith(workers) || typeof e.messagingSocketPath !== "string") continue;
-        if (!Number.isInteger(e.pid) || typeof e.peerProtocol !== "number" || e.peerProtocol < 1) continue;
-        if (!alive(e.pid)) continue;
-        out.push({
-            pid: e.pid,
-            sessionId: String(e.sessionId ?? ""),
-            name: typeof e.name === "string" ? e.name : `pid ${e.pid}`,
-            cwd,
-            socket: e.messagingSocketPath,
-            status: typeof e.status === "string" ? e.status : null,
-        });
     }
     return out.sort((a, b) => a.pid - b.pid);
 }

@@ -465,8 +465,8 @@ skip drafts too. `Lint PR Title` still checks a draft's title (seconds). A ready
 every pull request that affects graphty-element and gates it; the short test shards run as two
 grouped jobs. ci.yml also knows a Mergify merge-queue run (a draft on a `mergify/merge-queue/*`
 branch, opened by Mergify in this repository): it runs the full suite there and reports
-`Queue Checks Pass`, and `Lint PR Title` passes it. Mergify itself still checks one pull request at a time in place (`.mergify.yml`), the visual
-gate does not yet accept a batch, and the release still runs on every merge. The plan's section 15
+`Queue Checks Pass`, and `Lint PR Title` passes it. Mergify checks batches of up to 4 (`.mergify.yml`), and the visual gate
+accepts a batch (`--queue-event`). The release still runs on every merge. The plan's section 15
 is the order of the migration. Update this paragraph as each step lands.
 
 **Open pull requests as drafts while you iterate** (`gh pr create --draft`); the local pre-push gate
@@ -767,6 +767,9 @@ through servherd; its log prints the URL with the session token at every start:
 servherd_start({ name: "visual-review", cwd: "<repo>", protocol: "https",
   command: "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} node visual-review/trusted/cli.mjs serve",
   env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
+// Beside it, from the same checkout: one batched push notification when pull requests become ready.
+servherd_start({ name: "visual-review-notify", cwd: "<repo>", command: "node visual-review/trusted/cli.mjs notify",
+  env: { VISUAL_REVIEW_NOTIFY: "[\"/home/apowers/.claude/scripts/claude-notify.sh\",\"waiting\",\"{message}\",\"{title}\"]" } })
 ```
 
 Add `--master-run <run id>` to the command to review a master run for seeding, or `--results <dir>`
@@ -801,6 +804,9 @@ that starts the same server from the owner's own shell, which is how the owner s
   `stale` (the branch moved; run it again) or `failed` with the step and the end of the log. It
   refuses a pull request from a fork. The gate is unchanged: it checks CI's own capture against
   what the owner approved, and any image CI draws differently comes back to the owner.
+- Do not end a response with `ACTION NEEDED:` to ask for a visual review. The review page opens on
+  the pull requests waiting for the owner, and `visual-review notify` (under servherd, beside the
+  review server) sends one batched push notification when they become ready.
 - To iterate on a story's look before pushing, build its Storybook and capture only that story:
   `node visual-review/trusted/cli.mjs capture --project <p> --out tmp/<task>/<p> --stories <id
   prefix>`, then look at the PNG, or serve it with `--results tmp/<task>`. Such an ad hoc capture
@@ -862,14 +868,14 @@ that starts the same server from the owner's own shell, which is how the owner s
 
 ### Merging
 
-The adopted plan (`design/ci/ci-cd-plan.md`, sections 4 to 6; being implemented) moves Mergify to
-batches of up to 4 pull requests, 2 batches checked at once, each with the full suite on the
-combined tree, and a gate that accepts a batch. Until that lands, the queue below is what runs.
-
 Mergify merges pull requests (`.mergify.yml`): it queues every pull request into master that is not
-a draft, has no conflict, has no `hold` label and has no breaking `!` in its title, brings it up to
-date with master and merges it once `All Checks Pass` (which includes the visual-review gate) and
-`Lint PR Title` succeed. Nobody turns on auto-merge by hand.
+a draft, has no conflict, has no `hold` label and has no breaking `!` in its title, once
+`All Checks Pass` (which includes the visual-review gate) and `Lint PR Title` succeed on it. It
+then tests batches of up to 4 queued pull requests, 2 batches at once, each on a temporary draft
+pull request that runs the full suite on the combined tree; a batch merges when `Queue Checks Pass`
+succeeds there, and a failing batch is split in halves to find the culprit. The visual gate passes a
+batch only when every capture equals an image the owner approved on one of its pull requests, so
+the queue never asks for a new approval. Nobody turns on auto-merge by hand.
 
 - To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
   Adding `hold` also takes an already-queued pull request out of the queue.

@@ -1,10 +1,12 @@
 # Local screenshot previews, Finish on local captures, and the pending-approvals inbox
 
 Date: 2026-10-04. Status: adopted design. Built: pinned fonts (section 3), the preview script
-(section 5, started by the agent after each push rather than by the server), and review and
+(section 5, started by the agent after each push rather than by the server), review and
 Finish on local captures (section 6, without the "CI differs from your local approval" mark: such
-an image simply comes back undecided). Not yet built: the inbox (section 7) and the notifier
-(section 8). Measurements are against master at
+an image simply comes back undecided), the inbox (section 7) and the notifier (section 8, as its
+own `visual-review notify` process). Not built from section 7: the collapsed "waiting and done"
+line (the pull request cards stay listed in full under the inbox), the local-preview failure
+reasons from `status.json`, and the per-project byte-mismatch count. Measurements are against master at
 0b9d4393b.
 
 This document extends the visual review system described in `design.md` (same folder). That
@@ -401,15 +403,22 @@ request becomes ready.
 - **The message.** Title "Visual review: 3 ready". Body: one line per pull request, fewest images
   first ("#812 Fix label padding: 2 images"), then the inbox's address without the session token
   (the token never goes through Pushover). Plain text.
+- **Process.** The notifier is its own small process, `visual-review notify`, run beside the
+  server from the same checkout. The server writes its inbox to `<workDir>/state/inbox.json` after
+  every check of GitHub (every two minutes); the notifier reads that file every 30 seconds and
+  never calls GitHub. An inbox older than ten minutes (the server stopped) changes nothing.
+  "Once per entry" is kept per pull request and captured head, so every push announces again once
+  its new capture is ready.
 - **State.** The notified set and the time of the last message are kept in
-  `<workDir>/state/notify.json`, so a server restart neither repeats nor loses one.
-- **Delivery.** The package stays generic: `serve --notify-command '<json argv>'` (or the
+  `<workDir>/state/notify.json`, so a restart neither repeats nor loses one. A message whose
+  command fails is not recorded as sent and is tried again 30 seconds later.
+- **Delivery.** The package stays generic: `notify --command '<json argv>'` (or the
   `VISUAL_REVIEW_NOTIFY` environment variable) names a program and its arguments, with `{title}`,
-  `{message}` and `{url}` replaced, run without a shell. Without it the notifier is off. On the
-  development machine the server is started through servherd with
+  `{message}` and `{url}` replaced, run without a shell. On the development machine it is started
+  through servherd as `visual-review-notify`, with
   `VISUAL_REVIEW_NOTIFY='["/home/apowers/.claude/scripts/claude-notify.sh","waiting","{message}","{title}"]'`,
-  which reads the credentials the same way the existing hooks do. The server never reads or
-  stores a credential, and nothing under `~/.claude` changes.
+  which reads the credentials the same way the existing hooks do. Neither process reads or stores
+  a credential, and nothing under `~/.claude` changes.
 - **A quieter channel (optional, owner).** Pushover gives each application its own sound and
   priority. If the owner creates a second Pushover application named "Visual review", passing its
   token as `PUSHOVER_APP_TOKEN` in the review server's environment only (one line in the servherd

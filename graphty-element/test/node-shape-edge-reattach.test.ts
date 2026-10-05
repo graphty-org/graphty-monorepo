@@ -255,9 +255,9 @@ describe("Node shape changes and connected edges", () => {
         // somewhere impossible makes "Edge.update returned early" observable. The guard matters
         // for cost, not for pixels -- the invalidation loop is O(E) per node.
         const sentinel = new Vector3(99, 99, 99);
-        if (edge.arrowMesh) {
-            edge.arrowMesh.position = sentinel.clone();
-        }
+        // A cap has no position to assign any more -- it is a slot in a shared batch -- so the
+        // sentinel is written the way the renderer writes one, through the cap's own placement.
+        edge.arrowMesh?.place(sentinel, Vector3.Right());
 
         dstNode.applySessionPaint(nodePaintOf(nodeStyle({ texture: { color: "#FF0000" } })));
         edge.update();

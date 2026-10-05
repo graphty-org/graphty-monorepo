@@ -151,8 +151,20 @@ export interface Drawn {
     readonly curvedEdges: number;
     /** The largest distance any curved edge's path leaves its own straight line, in world units. */
     readonly maxSagitta: number;
-    /** The distinct arrow-cap meshes in the scene, by the name the renderer gave each one. */
+    /** The distinct arrow-cap shapes in the picture, by the name the renderer gave each one. */
     readonly arrowMeshNames: readonly string[];
+    /**
+     * Every arrow cap in the picture: the shape it is drawn as, how wide it is drawn and how
+     * see-through it is.
+     *
+     * READ OFF THE EDGES, because a cap has no mesh of its own. Every cap of one appearance is a
+     * thin instance of a single batch mesh whose name deliberately does not say "arrow", so the
+     * scene walk that counted caps by name finds none of them and would count the batch as a cap
+     * nothing is drawing. `Edge.drawnCaps` is where the answer moved to: the shape is the name
+     * the cap's mesh used to carry, and the span is the reading a story used to take off its
+     * bounding box -- the same number, so a measurement written before this change still holds.
+     */
+    readonly arrowCaps: readonly { readonly name: string; readonly span: number; readonly visibility: number }[];
     /** The distinct line-pattern meshes in the scene, by name. */
     readonly linePatternNames: readonly string[];
     /** Label planes in the scene that belong to an edge rather than to a node. */
@@ -169,9 +181,11 @@ export interface Drawn {
     /**
      * The distinct appearances the edge lines in the picture are drawn with.
      *
-     * TWO RENDERERS DRAW AN EDGE AND THIS HAS TO SEE BOTH. In 3D a solid edge is an instance of a
-     * source mesh the element interns per appearance, and Babylon names the instance after the
-     * cache key -- `edge-style-s1|#d55e00|` -- so the name IS the appearance. In 2D there is no
+     * THREE RENDERERS DRAW AN EDGE AND THIS HAS TO SEE ALL OF THEM. In 3D a straight solid edge
+     * is one thin instance of a batch the element interns per appearance, and the batch carries
+     * the cache key as its name -- `edge-style-s1|#d55e00|` -- so the name IS the appearance; a
+     * batched line has no mesh of its own, so it is read off the edge rather than off the scene.
+     * A bezier or a patterned line in 3D still owns its mesh and is read off it. In 2D there is no
      * interning at all: `EdgeMesh.createLineMesh` routes a solid line to
      * `Simple2DLineRenderer.create`, which builds one mesh per edge, names every one of them
      * `line-2d`, and puts the colour in that mesh's own material. Counting names alone therefore
@@ -370,7 +384,7 @@ function labelInk(mesh: AbstractMesh | null | undefined): { ink: number; colours
     return { ink, colours };
 }
 
-/** The names the element gives a mesh that draws one edge line on its own, rather than as an instance. */
+/** The names the element gives a mesh that draws one edge line on its own, rather than as an instance of a batch. */
 const OWN_LINE_MESHES = ["line-2d", "custom-line", "edge-plain"] as const;
 
 /**
@@ -422,6 +436,14 @@ function materialPaint(mesh: AbstractMesh): { hex: string; alpha: number } | nul
 function edgeLineAppearance(mesh: AbstractMesh): string | null {
     // A cached source mesh is hidden and parked below the graph; only its instances are drawn.
     if (!mesh.isVisible) {
+        return null;
+    }
+
+    // A BATCH IS NOT AN EDGE. A 3D solid line is now one thin instance of a mesh shared by every
+    // edge of the same appearance, so this one visible mesh stands for however many edges are in
+    // it -- counting it here would report one line for a thousand. Those edges are read off the
+    // edges themselves, in `drawn()` below.
+    if (mesh.hasThinInstances) {
         return null;
     }
 
@@ -619,9 +641,21 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             }),
     );
     const nodePlanes = nodes.filter((node) => node.hasLabelMesh).length;
-    const drawnEdgeLines = graph.scene.meshes
-        .map((mesh) => edgeLineAppearance(mesh))
-        .filter((appearance): appearance is string => appearance !== null);
+    const edges = [...graph.getDataManager().edges.values()];
+
+    // Every cap in the picture, in the order the edges hold them. A cap is a slot in a shared
+    // batch and has no mesh in `scene.meshes` to be found by name.
+    const drawnCaps = edges.flatMap((edge) => edge.drawnCaps);
+
+    // The lines drawn from a shared batch, which have no mesh of their own to be read off the
+    // scene, and the lines that do, together and in one list -- what an edge is drawn BY is a
+    // renderer decision and no assertion should have to know which half an edge fell into.
+    const drawnEdgeLines = [
+        ...edges.flatMap((edge) => (edge.drawnLine === null ? [] : [edge.drawnLine.name])),
+        ...graph.scene.meshes
+            .map((mesh) => edgeLineAppearance(mesh))
+            .filter((appearance): appearance is string => appearance !== null),
+    ];
 
     return {
         story,
@@ -634,9 +668,8 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         edgeCount: session.status.counts.edges,
         curvedEdges: curves.length,
         maxSagitta: curves.reduce((most, mesh) => Math.max(most, sagittaOf(mesh)), 0),
-        arrowMeshNames: [
-            ...new Set(graph.scene.meshes.filter((mesh) => mesh.name.includes("arrow")).map((mesh) => mesh.name)),
-        ].sort(),
+        arrowMeshNames: [...new Set(drawnCaps.map((cap) => cap.name))].sort(),
+        arrowCaps: drawnCaps,
         linePatternNames: [
             ...new Set(graph.scene.meshes.filter((mesh) => mesh.name.startsWith("pattern-")).map((mesh) => mesh.name)),
         ].sort(),
@@ -644,22 +677,37 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         arrowCaptions: captions,
         edgeStyleNames: [...new Set(drawnEdgeLines)].sort(),
         edgeMeshNames: [...drawnEdgeLines].sort(),
-        edgeDigest: graph.scene.meshes
-            .filter(
-                (mesh) =>
-                    mesh.name.startsWith("edge-style-") ||
-                    mesh.name.startsWith("pattern-") ||
-                    mesh.name.startsWith("custom-line") ||
-                    mesh.name.includes("arrow"),
-            )
-            .map((mesh) => {
-                const box = mesh.getBoundingInfo().boundingBox.extendSizeWorld;
+        edgeDigest: [
+            // A cap's drawn extent is its own, not its batch's, for the same reason a batched
+            // line's is: the batch mesh is one shape and each slot scales it.
+            ...drawnCaps.map((cap) => `${cap.name}@${cap.span.toFixed(3)}:${String(cap.visibility)}`),
+            // A batched line's drawn extent is its own, not its batch's: the batch mesh is a unit
+            // segment and the matrix in the slot carries the length. Spelled the way the scene
+            // walk below spells a mesh's extent, so the two halves of the list are comparable.
+            ...edges.flatMap((edge) =>
+                edge.drawnLine === null
+                    ? []
+                    : [
+                          `${edge.drawnLine.name}@0.000,0.000,${(edge.drawnLine.length / 2).toFixed(3)}:${String(
+                              edge.drawnLine.visibility,
+                          )}`,
+                      ],
+            ),
+            ...graph.scene.meshes
+                .filter(
+                    (mesh) =>
+                        (mesh.name.startsWith("edge-style-") && !mesh.hasThinInstances) ||
+                        mesh.name.startsWith("pattern-") ||
+                        mesh.name.startsWith("custom-line"),
+                )
+                .map((mesh) => {
+                    const box = mesh.getBoundingInfo().boundingBox.extendSizeWorld;
 
-                return `${mesh.name}@${box.x.toFixed(3)},${box.y.toFixed(3)},${box.z.toFixed(3)}:${String(
-                    mesh.visibility,
-                )}`;
-            })
-            .sort(),
+                    return `${mesh.name}@${box.x.toFixed(3)},${box.y.toFixed(3)},${box.z.toFixed(3)}:${String(
+                        mesh.visibility,
+                    )}`;
+                }),
+        ].sort(),
         backgroundHex: `#${[graph.scene.clearColor.r, graph.scene.clearColor.g, graph.scene.clearColor.b]
             .map((value) =>
                 Math.round(Math.min(1, Math.max(0, value)) * 255)

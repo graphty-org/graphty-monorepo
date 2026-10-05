@@ -6,7 +6,7 @@
  * coverage; the time budgets are in `./scale.bench.test.ts`.
  *
  * - The retained size of each kind of step, at the largest graph a session holds: the node and
- *   edge ceilings the element enforces (`DEFAULT_LIMITS`, 50,000 nodes and 100,000 edges today),
+ *   edge ceilings the element enforces (`DEFAULT_LIMITS`, 100,000 nodes and 1,000,000 edges today),
  *   less room for the steps to add to it.
  *   Each is asserted per element, so the figures of the design's table at a million nodes follow
  *   by multiplication.

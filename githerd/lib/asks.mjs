@@ -10,7 +10,7 @@
  * session ends.
  */
 
-import { failingRequired, headIsGitherds, jobOnPr, prOf } from "./queue.mjs";
+import { askProblems, failingRequired, headIsGitherds, jobOnPr, prOf } from "./queue.mjs";
 import { tellSessions } from "./peers.mjs";
 
 /**
@@ -22,8 +22,11 @@ import { tellSessions } from "./peers.mjs";
  * @returns {string} the message
  */
 function askText(n, rec, failing, job) {
+    const at = `#${n} (${rec.headRef}) at ${String(rec.headSha).slice(0, 7)}`;
+    const checks = failingRequired(rec);
+    const what = checks.length ? `CI failed on ${at}: ${checks.join(", ")}.` : `${at} ${failing.join(", ")}.`;
     return (
-        `githerd: CI failed on #${n} (${rec.headRef}) at ${String(rec.headSha).slice(0, 7)}: ${failing.join(", ")}. ` +
+        `githerd: ${what} ` +
         `If you are working on it, call the githerd_mine tool with pr ${n} (or claim job ${job} with githerd_claim). ` +
         "Otherwise ignore this."
     );
@@ -49,18 +52,21 @@ function settleAsks(state, sessionGone) {
 }
 
 /**
- * What to ask about a queued job, or null: its pull request's CI failed on a head someone other
- * than githerd pushed, nothing claims it, and it was not asked about at this head.
+ * What to ask about a queued job, or null: its pull request's CI failed, or it conflicts with its
+ * base, on a head someone other than githerd pushed, nothing claims it, and it was not asked about
+ * at this head (an ask nobody heard, made while asks were dry-run, is asked again once they act).
  * @param {any} state the daemon state
  * @param {any} job the job
- * @returns {{n: string, rec: any, failing: string[]} | null} the pull request and its failing checks
+ * @param {boolean} acting whether asks are sent
+ * @returns {{n: string, rec: any, failing: string[]} | null} the pull request and what is wrong with it
  */
-function questionFor(state, job) {
+function questionFor(state, job, acting) {
     if (job.kind !== "pr" || job.state !== "queued") return null;
     const n = String(prOf(job));
     const rec = state.prs?.[n];
-    if (!rec || state.asks[n]?.head === rec.headSha || headIsGitherds(state, rec) || jobOnPr(state, n)) return null;
-    const failing = failingRequired(rec);
+    const asked = state.asks[n]?.head === rec?.headSha && !(acting && state.asks[n]?.dryRun);
+    if (!rec || asked || headIsGitherds(state, rec) || jobOnPr(state, n)) return null;
+    const failing = askProblems(rec);
     return failing.length ? { n, rec, failing } : null;
 }
 
@@ -80,7 +86,7 @@ export async function askStep(state, { now, acting, sessions, transport, session
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
     let live = null;
     for (const job of Object.values(state.jobs ?? {})) {
-        const q = questionFor(state, job);
+        const q = questionFor(state, job, acting);
         if (!q) continue;
         live ??= sessions();
         const names = live.map((s) => s.name);
@@ -96,6 +102,8 @@ export async function askStep(state, { now, acting, sessions, transport, session
             sent: out.sent,
             failed: out.failed,
             owner: null,
+            // Nobody heard it: the pull request stays in use rather than read silence as "nobody's".
+            ...(acting ? {} : { dryRun: true }),
         };
         if (!acting && names.length) {
             const op = `ask ${names.length} session(s) whose #${q.n} is`;

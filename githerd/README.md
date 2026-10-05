@@ -80,7 +80,7 @@ failed on such a head while githerd waits for an answer. For that last case gith
 Claude session working in this repository once per failed head, through Claude Code's session
 messaging ("githerd: CI failed on #710 ... call the githerd_mine tool with pr 710 ..."). A session
 that is working on it calls `githerd_mine` (or claims the job), which keeps the pull request for it
-until the session ends or a new push arrives; with no answer within `workers.askMinutes` (default 10) githerd offers it as a job. In dry-run the question is a `would-do` line. `githerd_next` lists
+until the session ends or a new push arrives; with no answer within `workers.askMinutes` (default 10) githerd offers it as a job. In dry-run the question is a `would-do` line, and since nobody heard it the pull request stays in use rather than being offered. A head that conflicts with master is asked about the same way. `githerd_next` lists
 in-use jobs with the reason, and `githerd status` shows it on the pull request's line. A held (`hold`)
 pull request that is broken is still offered; the label only keeps it from merging. Pushes go through
 `githerd_push`, which runs the push and its pre-push gate through the machine's push queue

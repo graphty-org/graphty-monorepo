@@ -104,6 +104,18 @@ export const failingRequired = (rec) =>
         .map(([k]) => k);
 
 /**
+ * What githerd asks the sessions about before it offers a pull request as a job (design 8.2): its
+ * failing required checks, and a conflict seen twice (a conflicting head runs no CI, so nothing
+ * else would show that a session is still on it).
+ * @param {any} rec the pull request's record
+ * @returns {string[]} the problems, empty when there is nothing to ask about
+ */
+export const askProblems = (rec) => [
+    ...failingRequired(rec),
+    ...((rec.conflictSightings ?? 0) >= 2 ? [`conflicts with ${rec.baseRef ?? "its base"}`] : []),
+];
+
+/**
  * Why a PR waits on the owner, or null.
  * @param {string} number the PR number
  * @param {any} rec the PR record
@@ -283,9 +295,11 @@ export function askFor(state, n) {
  *
  * 1. another job on it is in flight: claimed by a live session, or being started;
  * 2. CI runs on a head someone other than githerd pushed (a required check is pending);
- * 3. CI failed on such a head and githerd asked the live sessions whose it is: until a session
- *    answers it is its own (then until that session ends or a new push arrives), or until
- *    `workers.askMinutes` pass with no answer, or at once when there was no session to ask.
+ * 3. CI failed on such a head, or it conflicts with its base, and githerd asked the live sessions
+ *    whose it is: until a session answers it is its own (then until that session ends or a new
+ *    push arrives), or until `workers.askMinutes` pass with no answer, or at once when there was
+ *    no session to ask. While asks are dry-run nobody heard the question, so silence says nothing
+ *    and the pull request stays in use.
  *
  * A head githerd or GitHub made is never in use for 2 and 3. A review is a second look at a
  * worker's patch while that worker waits, so only an owner session's claim hides it.
@@ -302,15 +316,19 @@ export function prInUse(state, n, { config, now, except = null, review = false }
     if (!rec?.headSha || headIsGitherds(state, rec)) return null;
     const head = String(rec.headSha ?? "").slice(0, 7);
     if (Object.values(rec.required ?? {}).includes("PENDING")) return `CI running on ${head}, pushed by someone else`;
-    if (failingRequired(rec).length === 0) return null;
+    if (askProblems(rec).length === 0) return null;
+    const what = failingRequired(rec).length
+        ? `CI failed on ${head}`
+        : `${head} conflicts with ${rec.baseRef ?? "its base"}`;
     const ask = askFor(state, n);
-    if (!ask) return `CI failed on ${head}; githerd is asking the sessions in this repository whose it is`;
+    if (!ask) return `${what}; githerd is asking the sessions in this repository whose it is`;
     if (ask.owner) return `session ${ask.owner.name} said it is working on it`;
+    if (ask.dryRun) return `${what}; would ask the sessions in this repository whose it is; asks are dry-run`;
     const asked = ask.sessions?.length ?? 0;
     if (asked === 0) return null;
     const minutes = config?.workers?.askMinutes ?? DEFAULT_ASK_MINUTES;
     if (now.getTime() - Date.parse(ask.askedAt) >= minutes * MINUTE) return null;
-    return `CI failed on ${head}; asked ${asked} session${asked === 1 ? "" : "s"} at ${ask.askedAt.slice(11, 16)} UTC; no owner yet`;
+    return `${what}; asked ${asked} session${asked === 1 ? "" : "s"} at ${ask.askedAt.slice(11, 16)} UTC; no owner yet`;
 }
 
 /**

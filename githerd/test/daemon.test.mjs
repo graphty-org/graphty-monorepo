@@ -1332,7 +1332,7 @@ describe("jobs from the facts", () => {
 });
 
 describe("asking whose a failed pull request is", () => {
-    it("asks the live sessions once per failed head, a would-do in dry-run, and holds the job meanwhile", async () => {
+    it("asks the live sessions once per failed head, a would-do in dry-run that keeps the job in use", async () => {
         writeConfig({ requiredChecks: ["All Checks Pass"] });
         scene.prs = [gatedPr()];
         /** @type {string[]} */
@@ -1353,7 +1353,14 @@ describe("asking whose a failed pull request is", () => {
         });
         expect(sent).toEqual([]);
         const text = statusText(statusData(daemon.state, { config: daemon.config, now: clock }, {}), clock);
-        expect(text).toContain("asked 1 session at 12:00 UTC; no owner yet");
+        // Nobody heard a dry-run question, so silence never frees the pull request.
+        expect(daemon.state.asks["7"].dryRun).toBe(true);
+        expect(text).toContain("would ask the sessions in this repository whose it is; asks are dry-run");
+        clock = new Date("2026-10-02T13:00:00Z");
+        expect(statusText(statusData(daemon.state, { config: daemon.config, now: clock }, {}), clock)).toContain(
+            "asks are dry-run",
+        );
+        clock = new Date("2026-10-02T12:00:00Z");
         // The next poll asks nothing new.
         clock = new Date("2026-10-02T12:03:00Z");
         await poll(daemon);

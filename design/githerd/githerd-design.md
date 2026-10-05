@@ -1325,7 +1325,11 @@ shows each limit with the measurement that applied at the last start.
      request is never asked about); or
   2. runs CI on a head someone other than githerd pushed: a required check is pending on the
      newest head; or
-  3. failed CI on such a head and nobody pushed since, while githerd's question about it is open.
+  3. failed CI on such a head, or conflicts with its base (seen twice; a conflicting head runs no
+     CI), and nobody pushed since, while githerd's question about it is open. While the `workers`
+     group is dry-run the question is only a `would-do` line that nobody heard, so the pull request
+     stays in use ("would ask; asks are dry-run") instead of being offered after the wait; the
+     question goes out once the group acts.
      Once per failed head githerd asks the live Claude sessions working in this repository (an
      entry in `~/.claude/sessions/<pid>.json` whose process runs and whose cwd is the main checkout
      or a worktree under it, githerd's own workers left out) through Claude Code's session

@@ -295,6 +295,25 @@ describe("checks", () => {
         expect(polls([n])["704"].ownerGate).toBe(true);
     });
 
+    it("never makes a fix job of images that only wait for review, as on #948", () => {
+        const n = failingGate();
+        n.detail.failedSteps = ["Check visual changes were accepted"];
+        n.detail.gateAnnotations = [
+            "visual changes not accepted -- graphty: 18 changed (not accepted; review them on the review page)",
+            "Process completed with exit code 1.",
+        ];
+        const rec = polls([n])["704"];
+        const state = { trust: { login: "apowers313" }, prs: { 704: rec } };
+        expect(rec).toMatchObject({ ownerGate: true, captureFailed: [] });
+        expect(prWork("704", rec, state)).toBeNull();
+        // Another failing step of the same check is broken, whatever the images say.
+        n.detail.failedSteps = ["Check all jobs passed", "Check visual changes were accepted"];
+        const broken = polls([n])["704"];
+        expect(prWork("704", broken, { ...state, prs: { 704: broken } })).toBe(
+            "required check failing: All Checks Pass",
+        );
+    });
+
     it("reads every kind of failed capture from the gate's annotations", () => {
         const lines = [
             "visual changes not accepted -- layout: no capture results (the visual job failed or uploaded nothing); re-run it",

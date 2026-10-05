@@ -110,6 +110,29 @@ describe("asking the live sessions whose a failed pull request is", () => {
             pr: 710,
         });
         expect(state.asks[710].sessions).toEqual(["graphty-13", "graphty-14"]);
+        // Nobody heard it: silence never frees the pull request, however long it lasts.
+        const later = new Date(NOW.getTime() + 24 * 3_600_000);
+        expect(prInUse(state, 710, { now: later })).toBe(
+            "CI failed on aaaaaaa; would ask the sessions in this repository whose it is; asks are dry-run",
+        );
+        // Once asks act, the question goes out for real.
+        await askStep(state, f.opts());
+        expect(f.sent).toHaveLength(2);
+        expect(state.asks[710].dryRun).toBeUndefined();
+    });
+
+    it("asks about a conflicting head someone else pushed, as about a failed one", async () => {
+        const state = failed();
+        Object.assign(state.prs[710], { required: {}, conflictSightings: 2, baseRef: "master" });
+        const f = fake();
+        await askStep(state, f.opts());
+        expect(f.sent[0][1]).toBe(
+            "githerd: #710 (feat/cytoscape-adapter) at aaaaaaa conflicts with master. If you are working on it, call " +
+                "the githerd_mine tool with pr 710 (or claim job pr-710 with githerd_claim). Otherwise ignore this.",
+        );
+        expect(prInUse(state, 710, { now: NOW })).toBe(
+            "aaaaaaa conflicts with master; asked 2 sessions at 12:04 UTC; no owner yet",
+        );
     });
 
     it("counts only the sessions it reached, and offers at once when it reached none", async () => {

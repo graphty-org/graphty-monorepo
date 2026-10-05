@@ -391,8 +391,14 @@ describe("syncJobs: pull requests in use (owner decision 2026-10-04)", () => {
         const state = base();
         failingPr(state, 943, { labels: ["hold"], required: {}, mergeable: "CONFLICTING", conflictSightings: 2 });
         expect(sync(state).created).toEqual(["pr-943"]);
-        const order = jobOrder(state.jobs, { inUse: (j) => jobInUse(state, j, { config: CONFIG, now: NOW }) });
-        expect(order.items.map((i) => i.job)).toEqual(["pr-943"]);
+        const inUse = (/** @type {any} */ j) => jobInUse(state, j, { config: CONFIG, now: NOW });
+        // Like a failed head, a conflicting head someone else pushed is asked about first.
+        expect(jobOrder(state.jobs, { inUse }).inUse[0].reason).toMatch(
+            /conflicts with its base; githerd is asking the sessions/,
+        );
+        const head = state.prs[943].headSha;
+        state.asks = { 943: { head, askedAt: NOW.toISOString(), sessions: [], sent: [], failed: [], owner: null } };
+        expect(jobOrder(state.jobs, { inUse }).items.map((i) => i.job)).toEqual(["pr-943"]);
     });
 
     it("gives a job back to the queue when the owner session that claimed it ends", () => {

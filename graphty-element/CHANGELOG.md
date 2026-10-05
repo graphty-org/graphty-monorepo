@@ -1,3 +1,50 @@
+## 3.15.0 (2026-10-05)
+
+### 🚀 Features
+
+- **graphty-element:** attributes() says which layers and runs read a column ([#923](https://github.com/graphty-org/graphty-monorepo/pull/923))
+- **graphty-element:** narrow nodePage and edgePage to records matching typed text ([#904](https://github.com/graphty-org/graphty-monorepo/pull/904))
+- **graphty-element:** open a data file with project.open, the one intake verb ([#913](https://github.com/graphty-org/graphty-monorepo/pull/913))
+- **graphty-element:** attributes() says which column is the key, the label, the weight ([#893](https://github.com/graphty-org/graphty-monorepo/pull/893))
+- **graphty-element:** pair any file, URL or text as two tables, refusing a non-table ([#930](https://github.com/graphty-org/graphty-monorepo/pull/930))
+- **graphty-element:** session.data.renameSource(name), and save the source in projects ([#894](https://github.com/graphty-org/graphty-monorepo/pull/894))
+- **graphty-element:** recognize a CSV pair's edge file, and say what a draft resolved ([#911](https://github.com/graphty-org/graphty-monorepo/pull/911))
+- **graphty-element:** selection.origin, the target a selection was made from ([#898](https://github.com/graphty-org/graphty-monorepo/pull/898))
+- **graphty-element:** say which roles a draft's tables take, need and lack ([#926](https://github.com/graphty-org/graphty-monorepo/pull/926))
+- **graphty-element:** session.data.histogram(column), a data column's distribution ([#897](https://github.com/graphty-org/graphty-monorepo/pull/897))
+- **graphty-element:** the degree distribution in data.statistics() ([#896](https://github.com/graphty-org/graphty-monorepo/pull/896))
+- **graphty-element:** report progress while prepare() reads a source ([#910](https://github.com/graphty-org/graphty-monorepo/pull/910))
+- **graphty-element:** say when a load starts, what it reads and how it ended ([#902](https://github.com/graphty-org/graphty-monorepo/pull/902))
+- **graphty-element:** session.data.name(id), a node's name by id ([#895](https://github.com/graphty-org/graphty-monorepo/pull/895))
+- **graphty-element:** self-loop and repeated-edge rule leaves ([#899](https://github.com/graphty-org/graphty-monorepo/pull/899))
+- **graphty-element:** an isolated rule leaf that selects what isolatedCount counts ([#931](https://github.com/graphty-org/graphty-monorepo/pull/931))
+
+### 🩹 Fixes
+
+- **graphty-element:** publish degree as columns so its cost no longer depends on GC state ([1bba70027](https://github.com/graphty-org/graphty-monorepo/commit/1bba70027))
+- **graphty-element:** finish removing GraphShapeStatistics and test the selection origin causes ([564d6cb18](https://github.com/graphty-org/graphty-monorepo/commit/564d6cb18))
+- **graphty-element:** close the load-preview review gaps in progress, refusals and id counts ([#902](https://github.com/graphty-org/graphty-monorepo/issues/902), [#910](https://github.com/graphty-org/graphty-monorepo/issues/910), [#928](https://github.com/graphty-org/graphty-monorepo/issues/928), [#930](https://github.com/graphty-org/graphty-monorepo/issues/930), [#926](https://github.com/graphty-org/graphty-monorepo/issues/926), [#929](https://github.com/graphty-org/graphty-monorepo/issues/929))
+- **graphty-element:** keep selection.origin truthful and degreeHistogram optional ([5cde756af](https://github.com/graphty-org/graphty-monorepo/commit/5cde756af))
+- **graphty-element:** count node rows with no id, and report duplicate ids ([#929](https://github.com/graphty-org/graphty-monorepo/pull/929))
+- **graphty-element:** read a draft's rows under explicit choices, and list loaded rows ([#927](https://github.com/graphty-org/graphty-monorepo/pull/927))
+- **graphty-element:** let a DataSource reader yield plain records ([#914](https://github.com/graphty-org/graphty-monorepo/pull/914))
+- **graphty-element:** report a merge of an edge table alone as the load does it ([#935](https://github.com/graphty-org/graphty-monorepo/pull/935))
+- **graphty-element:** refuse an unreadable file with E_PARSE_FAILED, not E_EMPTY_LOAD ([#928](https://github.com/graphty-org/graphty-monorepo/pull/928))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.35
+- Updated @graphty/remote-logger to 2.0.7
+- Updated graph-samples to 0.1.21
+- Updated graph-format to 1.3.6
+- Updated algorithms to 3.3.6
+- Updated graph-io to 0.3.26
+- Updated layout to 2.2.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.14.5 (2026-10-05)
 
 ### 🧱 Updated Dependencies

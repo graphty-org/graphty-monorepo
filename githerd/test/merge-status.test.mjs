@@ -11,6 +11,7 @@ import {
     mergifyRequires,
     npmLookup,
     openPr,
+    isMergeQueuePr,
     postMergeStatuses,
     readDependencies,
 } from "../lib/merge-status.mjs";
@@ -241,6 +242,12 @@ describe("posting githerd/merge", () => {
         expect(fake.posts().map((p) => p.sha)).toEqual(["h1a"]);
         await reconcile(github, [], record);
         expect(record.posted).toEqual({});
+    });
+
+    it("knows Mergify's merge-queue pull requests, which the daemon leaves out of the gate", () => {
+        expect(isMergeQueuePr({ headRefName: "mergify/merge-queue/dee9062164" })).toBe(true);
+        expect(isMergeQueuePr({ headRefName: "fix/merge-queue" })).toBe(false);
+        expect(isMergeQueuePr({})).toBe(false);
     });
 
     it("makes zero writes in dry-run, records one would-do per change, and keeps the record", async () => {

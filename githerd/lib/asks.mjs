@@ -11,7 +11,11 @@
  */
 
 import { askProblems, failingRequired, headIsGitherds, jobOnPr, prOf } from "./queue.mjs";
+import { TERMINAL } from "./board.mjs";
 import { tellSessions } from "./peers.mjs";
+
+/** How long past its githerd_expect window an owner session's job goes before it is nudged. */
+const NUDGE_GRACE_MS = 15 * 60 * 1000;
 
 /**
  * The question for one pull request.
@@ -159,6 +163,56 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
         const out = acting ? await tellSessions(idle, inviteText(id, reason), transport) : { sent: [], failed: [] };
         state.invited = { at: job.invitedAt, count: acting ? out.sent.length : names.length, acting };
         lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });
+    }
+    return lines;
+}
+
+/**
+ * The nudge for a job whose expect window ended.
+ * @param {any} job the job
+ * @returns {string} the message
+ */
+function nudgeText(job) {
+    return (
+        `githerd: your githerd_expect window for ${job.id} (${job.expect.reason}) ended at ${job.expect.until} ` +
+        "and nothing has reported since. If a command is hung, stop it and carry on; if the step needs " +
+        "longer, call githerd_expect again; if the job is finished, call githerd_done."
+    );
+}
+
+/**
+ * Nudges an owner session whose claimed job outlived its `githerd_expect` window by 15 minutes:
+ * one message, through Claude Code's session messaging, to that session only, once per window.
+ * githerd's own workers have the watchdog instead; an owner session is never typed into. A new
+ * `githerd_expect` opens a new window.
+ * @param {any} state the daemon state, changed in place
+ * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
+ *   transport: import("./peers.mjs").Transport}} opts the clock, whether the `workers` write group
+ *   acts (else each send is a would-do line), the live sessions in this repository, the transport
+ * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
+ */
+export async function nudgeStep(state, { now, acting, sessions, transport }) {
+    const lines = [];
+    /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a nudge is due */
+    let live = null;
+    for (const job of Object.values(state.jobs ?? {})) {
+        const session = job.holder?.session;
+        const until = job.expect?.until;
+        if (job.holder?.startedBy !== "owner" || !session || !until || TERMINAL.includes(job.state)) continue;
+        if (job.nudgedFor === until || now.getTime() - Date.parse(until) < NUDGE_GRACE_MS) continue;
+        live ??= sessions();
+        const target = live.filter((s) => s.sessionId === session);
+        if (!target.length) continue;
+        job.nudgedFor = until;
+        if (!acting)
+            lines.push({
+                kind: "would-do",
+                group: "workers",
+                op: `nudge ${target[0].name} about ${job.id}`,
+                job: job.id,
+            });
+        const out = acting ? await tellSessions(target, nudgeText(job), transport) : { sent: [], failed: [] };
+        lines.push({ kind: "session-nudged", job: job.id, session: target[0].name, until, ...out });
     }
     return lines;
 }

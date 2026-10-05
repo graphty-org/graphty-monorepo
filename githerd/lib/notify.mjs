@@ -187,7 +187,7 @@ export function createNotifier({ notify, state, ledger, now = () => new Date(), 
         const { command, held } = config();
         const at = now().toISOString();
         let hold = held && !keys.every((k) => n.pending[k]?.always) ? held : null;
-        if (command === null) hold = "notify.command is null";
+        if (command === null) hold = held ?? "notify.command is null";
         if (hold) {
             for (const key of keys) {
                 state.notified[key] = at;

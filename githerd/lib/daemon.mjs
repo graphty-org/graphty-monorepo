@@ -64,7 +64,7 @@ import { homedir } from "node:os";
 import { inspect } from "node:util";
 
 import { createPushQueue } from "./actor/push.mjs";
-import { askStep, inviteStep } from "./asks.mjs";
+import { askStep, inviteStep, nudgeStep } from "./asks.mjs";
 import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
@@ -100,7 +100,15 @@ import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { sessionWriteCheck } from "./session-writes.mjs";
-import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
+import {
+    foldHead,
+    isMergeQueuePr,
+    mergeGateChecks,
+    npmLookup,
+    openPr,
+    postMergeStatuses,
+    readDependencies,
+} from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
 import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
 import { containerStart, identify } from "./proc.mjs";
@@ -802,7 +810,8 @@ export async function startDaemon({
     const notifier = createNotifier({
         notify: () => {
             const notify = config?.notify ?? { command: null, maxPerHour: 6 };
-            if (quiet) return { ...notify, command: null };
+            if (quiet)
+                return { ...notify, command: null, held: "held: a dev daemon pages only with GITHERD_DEV_NOTIFY=1" };
             if (env.GITHERD_DEV && env.GITHERD_DEV_NOTIFY === "1") return notify;
             const owner = config ? groupModes(config, readOverride(stateDir))["owner-items"] : "dry-run";
             return owner === "acting" ? notify : { ...notify, held: `held: owner items are ${owner}` };
@@ -1522,7 +1531,10 @@ export async function startDaemon({
         }
         referenceWork();
         await workerPass();
-        if (state.trust.login) await inviteIdle(t);
+        if (state.trust.login) {
+            await inviteIdle(t);
+            await nudgeOwners(t);
+        }
         escalationItems();
         await ownerItemsPoll({
             api: gh,
@@ -1680,15 +1692,41 @@ export async function startDaemon({
     }
 
     /**
+     * Nudges each owner session whose claimed job outlived its githerd_expect window (asks.mjs); in
+     * dry-run each nudge is a would-do line.
+     * @param {Date} t the poll's time
+     */
+    async function nudgeOwners(t) {
+        const lines = await nudgeStep(state, {
+            now: t,
+            acting: writeMode("workers") === "acting",
+            sessions: () =>
+                (peers.sessions ?? liveSessions)({
+                    sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions"),
+                    root,
+                }),
+            transport: peers.transport ?? socketTransport(),
+        });
+        for (const line of lines) void ledger(line);
+    }
+
+    /**
      * Whether an owner session ended: its Claude Code registry entry is gone or names another
-     * session; without a recorded pid, its heartbeat stopped (15 minutes).
+     * session; without a recorded pid, no live registry entry names it and its heartbeat stopped
+     * (15 minutes). A session idle on a long command sends no heartbeat but is still registered.
      * @param {string} session the session
      * @param {Date} t the clock
      * @returns {boolean} it ended
      */
     function ownerSessionGone(session, t) {
         const pid = state.sessions?.[session]?.pid;
-        if (!pid) return !board.holderAlive(state, session, t, startedAtDate);
+        if (!pid) {
+            const sessionsDir = join(env.HOME ?? homedir(), ".claude", "sessions");
+            if ((peers.sessions ?? liveSessions)({ sessionsDir, root }).some((s) => s.sessionId === session)) {
+                return false;
+            }
+            return !board.holderAlive(state, session, t, startedAtDate);
+        }
         return readRegistry(join(env.HOME ?? homedir(), ".claude", "sessions"), pid)?.sessionId !== session;
     }
 
@@ -1842,6 +1880,7 @@ export async function startDaemon({
         const items = Object.values(state.ownerItems ?? {}).filter((i) => !i.endedAt);
         const prs = [];
         for (const node of nodes) {
+            if (isMergeQueuePr(node)) continue;
             gate.heads[node.number] = foldHead(gate.heads[node.number], node);
             await readDependencies(gate.heads[node.number], npm);
             const head = gate.heads[node.number];

@@ -159,6 +159,24 @@ export function cannotAffect(f) {
     return false;
 }
 
+/** How many log lines before a failure marker the patterns read. */
+const FAILURE_WINDOW = 40;
+
+/**
+ * The log lines that can say why a job failed: the `FAILURE_WINDOW` lines up to each `##[error]`
+ * marker, or the last `FAILURE_WINDOW` lines when there is none. A passing test that prints
+ * "HTTP 401: Bad credentials" thousands of lines earlier is not the failure.
+ * @param {string} log the job's log
+ * @returns {string[]} the lines
+ */
+export function failureLines(log) {
+    const lines = log.split("\n");
+    const marks = lines.flatMap((l, i) => (l.includes("##[error]") ? [i] : []));
+    if (!marks.length) return lines.slice(-FAILURE_WINDOW);
+    const keep = new Set(marks.flatMap((m) => Array.from({ length: FAILURE_WINDOW + 1 }, (_, k) => m - k)));
+    return lines.filter((_, i) => keep.has(i));
+}
+
 /**
  * Classifies one failure.
  * @param {Failure} f the failure
@@ -167,7 +185,7 @@ export function cannotAffect(f) {
  */
 export function classify(f, ctx = {}) {
     const key = failureKey(f.workflow, f.job, f.steps[0]);
-    const text = [...f.steps, ...(f.annotations ?? []), ...(f.log ?? "").split("\n")];
+    const text = [...f.steps, ...(f.annotations ?? []), ...failureLines(f.log ?? "")];
     const hit = PATTERNS.find((p) => p.test(f, text));
     if (hit) return { class: hit.class, key, reason: hit.name };
     // Classes 4 to 7 need a pull request; on master the rest is Claude's to judge (design 4.5).

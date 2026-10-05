@@ -25,6 +25,8 @@ import { mergeDecision } from "./prs.mjs";
 
 /** The commit status context. */
 export const CONTEXT = "githerd/merge";
+/** The branch prefix of the draft pull requests Mergify's merge queue opens to test a batch. */
+const MERGE_QUEUE_PREFIX = "mergify/merge-queue/";
 /** The write group every write here belongs to. */
 const GROUP = "statuses";
 /** How long one npm registry answer may take. */
@@ -171,6 +173,17 @@ export async function readDependencies(head, lookup) {
     if (answers.includes(null)) return head;
     head.dependencies = { added, unknownToNpm: added.filter((_, i) => answers[i] === false) };
     return head;
+}
+
+/**
+ * Whether a pull request is one Mergify's merge queue opened to test a batch. It is not a change
+ * to judge: githerd/merge on it would fail (Mergify is not the owner) and pull the batch's real
+ * pull requests out of the queue.
+ * @param {{headRefName?: string}} node the GraphQL pull request node
+ * @returns {boolean} true for a merge-queue pull request
+ */
+export function isMergeQueuePr(node) {
+    return node.headRefName?.startsWith(MERGE_QUEUE_PREFIX) ?? false;
 }
 
 /**

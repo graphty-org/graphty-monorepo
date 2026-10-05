@@ -5,6 +5,7 @@ import {
     SHARED_WINDOW_MS,
     cannotAffect,
     classify,
+    failureLines,
     isNoLog,
     othersWithKey,
     setupDrift,
@@ -130,6 +131,27 @@ const FIXTURES = {
 };
 
 describe("the pattern table", () => {
+    it("reads only the lines before the failure, not a passing test that prints a 401", () => {
+        // CI run 37277723231, 2026-10-05: a slow runner timed the small-browser shard out; 2,000
+        // lines earlier a visual-review test logged "refresh failed: HTTP 401: Bad credentials".
+        const passing = "visual-review: refresh failed: HTTP 401: Bad credentials";
+        const filler = Array.from({ length: 2000 }, (_, i) => `test ${i} ok`);
+        const log = [
+            passing,
+            ...filler,
+            "##[error]failed: graphty visual-review",
+            "##[error]Process completed with exit code 1.",
+        ];
+        const slow = job({ job: "Test (small-browser)", log: log.join("\n") });
+        expect(classify(slow, { where: "master" })).toMatchObject({ class: "unclassified" });
+        // The same line right before the marker is the failure.
+        const real = job({ log: [...filler, passing, "##[error]Process completed with exit code 1."].join("\n") });
+        expect(classify(real, { where: "master" })).toMatchObject({ class: "credential" });
+        // With no marker, the end of the log.
+        expect(failureLines([passing, ...filler].join("\n"))).not.toContain(passing);
+        expect(failureLines([...filler, passing].join("\n"))).toContain(passing);
+    });
+
     it("leaves the environment failures that are not unambiguous to Claude on master", () => {
         // GPU job 111465235370, 2026-10-04: the job container had no glib. Environment or code is
         // Claude's verdict now, not a pattern's.

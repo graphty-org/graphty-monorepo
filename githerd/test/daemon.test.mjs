@@ -457,6 +457,43 @@ describe("HTTP endpoints", () => {
         expect((await call({ jsonrpc: "2.0", method: "notifications/initialized" })).status).toBe(202);
     });
 
+    it("keeps an idle owner session's claim while Claude Code still lists the session", async () => {
+        /** @type {any[]} */
+        let listed = [{ pid: 1, sessionId: "wt-1", name: "graphty-2d", cwd: dir, socket: "/s1.sock", status: "idle" }];
+        const daemon = await start({ peers: { sessions: () => listed, transport: { send: async () => {} } } });
+        daemon.state.jobs = { "issue-7": newJob({ kind: "issue", target: "#7", id: "issue-7" }, clock) };
+        const tool = async (/** @type {string} */ name, /** @type {any} */ args) =>
+            (
+                await (
+                    await fetch(`${daemon.url}/rpc`, {
+                        method: "POST",
+                        headers: { "x-githerd-session": "wt-1" },
+                        body: JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: 2,
+                            method: "tools/call",
+                            params: { _meta: META, name, arguments: args },
+                        }),
+                    })
+                ).json()
+            ).result;
+        const next = JSON.parse((await tool("githerd_next", {})).content[0].text);
+        await tool("githerd_claim", {
+            job: "issue-7",
+            snapshotVersion: next.snapshot.version,
+            overlap: { decision: "independent", reason: "nothing else touches it" },
+            plan: "fix the bug",
+        });
+        // Half an hour without a heartbeat: the session waits on a long command.
+        clock = new Date(clock.getTime() + 30 * 60_000);
+        await poll(daemon);
+        expect(daemon.state.jobs["issue-7"].state).toBe("working");
+        listed = [];
+        clock = new Date(clock.getTime() + 3 * 60_000);
+        await poll(daemon);
+        expect(daemon.state.jobs["issue-7"].state).toBe("queued");
+    });
+
     it("registers a heartbeat and refuses one without a session", async () => {
         const daemon = await start();
         const beat = (body) => fetch(`${daemon.url}/heartbeat`, { method: "POST", body: JSON.stringify(body) });

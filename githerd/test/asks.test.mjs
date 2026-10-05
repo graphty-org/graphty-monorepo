@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { askStep, inviteStep } from "../lib/asks.mjs";
+import { askStep, inviteStep, nudgeStep } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { prInUse } from "../lib/queue.mjs";
 
@@ -238,5 +238,55 @@ describe("inviting idle sessions to pull work", () => {
             op: "invite 1 idle session(s) to take issue-5",
         });
         expect(state.invited).toMatchObject({ count: 1, acting: false });
+    });
+});
+
+describe("nudging an owner session past its expect window", () => {
+    /**
+     * A state with job issue-186 claimed by owner session s1, expecting to finish at `until`.
+     * @param {string} until the end of the expect window
+     * @returns {any} the state
+     */
+    const claimed = (until) => {
+        const job = newJob({ kind: "issue", target: "#186", id: "issue-186" }, NOW);
+        job.state = "working";
+        job.holder = { session: "s1", window: null, startedBy: "owner" };
+        job.expect = { until, reason: "the shell tests" };
+        return { jobs: { "issue-186": job } };
+    };
+
+    it("tells that session only, once per window, 15 minutes after the window ends", async () => {
+        const { sent, opts } = fake();
+        const state = claimed("2026-10-05T11:50:00Z");
+        expect(await nudgeStep(state, opts())).toEqual([]);
+        const later = new Date("2026-10-05T12:06:00Z");
+        const lines = await nudgeStep(state, opts({ now: later }));
+        expect(sent.map(([socket]) => socket)).toEqual(["/s1.sock"]);
+        expect(sent[0][1]).toContain("issue-186 (the shell tests) ended at 2026-10-05T11:50:00Z");
+        expect(lines).toEqual([
+            expect.objectContaining({ kind: "session-nudged", job: "issue-186", session: "graphty-13" }),
+        ]);
+        await nudgeStep(state, opts({ now: later }));
+        expect(sent).toHaveLength(1);
+        // A new expect is a new window.
+        state.jobs["issue-186"].expect = { until: "2026-10-05T12:00:00Z", reason: "the full shard" };
+        await nudgeStep(state, opts({ now: new Date("2026-10-05T12:16:00Z") }));
+        expect(sent).toHaveLength(2);
+    });
+
+    it("leaves a finished job, a worker's job and a session no longer listed alone; dry-run sends nothing", async () => {
+        const { sent, opts } = fake();
+        const later = new Date("2026-10-05T13:00:00Z");
+        const gone = claimed("2026-10-05T11:50:00Z");
+        gone.jobs["issue-186"].holder.session = "s9";
+        const worker = claimed("2026-10-05T11:50:00Z");
+        worker.jobs["issue-186"].holder.startedBy = "githerd";
+        for (const state of [gone, worker]) expect(await nudgeStep(state, opts({ now: later }))).toEqual([]);
+        const dry = claimed("2026-10-05T11:50:00Z");
+        expect(await nudgeStep(dry, opts({ now: later, acting: false }))).toEqual([
+            expect.objectContaining({ kind: "would-do", group: "workers", op: "nudge graphty-13 about issue-186" }),
+            expect.objectContaining({ kind: "session-nudged", sent: [] }),
+        ]);
+        expect(sent).toEqual([]);
     });
 });

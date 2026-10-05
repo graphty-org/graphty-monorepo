@@ -285,7 +285,7 @@ adversarial review added (section 3.10). Columns:
 | Issue that touches Cytoscape.js | Standing guard | The guard refuses writes outside graphty-org; the job text repeats the rule | D | n/a |
 | Issue that needs an owner-only system change | `githerd_ask_owner` kind `system` | Owner item with the exact command | W; O | The next call that needed it succeeds |
 | Agent closed an issue the owner reopens | A `reopened` event by the owner that matches no worker write (section 10.1) | Recorded as a veto: never proposed or closed again | D | n/a |
-| Defects found but never filed | `githerd_done` requires every defect found, each with an issue or a commit | A missing one refuses the report | D | Each listed defect has an issue or commit |
+| Defects found but never filed | `githerd_done` requires every defect found; one that names an issue or a commit must name one GitHub has, and one with neither (a defect in githerd itself, with no issue yet) is ledgered and raised as a "worker reported defects" owner item | A missing issue or commit refuses the report | D | Each listed defect has an issue, a commit, or an owner item |
 | Issues from automated stages | A burst of new issues | Triage groups them | W `triage` | Labelled and grouped |
 
 ### 3.5 Agents

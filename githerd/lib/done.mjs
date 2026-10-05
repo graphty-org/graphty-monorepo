@@ -5,8 +5,9 @@
  * only gap is CI still running moves the job to `waiting` on those checks, and the daemon's poll
  * checks it again (`pollVerifying`).
  *
- * Every outcome must list each defect the worker saw with an issue or a commit that exists on
- * GitHub. `failed` ends the attempt with the findings. `split` needs the filed children, `not-needed`
+ * Every outcome must list each defect the worker saw. One that names an issue or a commit must name
+ * one that exists on GitHub; one with neither (a defect in githerd itself, with no issue yet) is
+ * recorded in the ledger and raised to the owner as a "worker reported defects" item. `failed` ends the attempt with the findings. `split` needs the filed children, `not-needed`
  * goes through the propose, confirm and grace path of proposals.mjs, and `done` is checked per kind:
  *
  * - `pr` and `issue`: the pull request is based on master, not a draft, and its head on GitHub (the
@@ -89,7 +90,8 @@ function short(text) {
 }
 
 /**
- * What is missing about the report's defects: each needs an issue or a commit that GitHub has.
+ * What is missing about the report's defects: an issue or a commit a defect names must be one
+ * GitHub has. A defect that names neither is not a gap (`reportLoose`).
  * @param {any[]} defects the reported defects
  * @param {DoneIo} io the reader
  * @returns {Promise<string[]>} the gaps
@@ -98,11 +100,8 @@ async function defectGaps(defects, io) {
     const gaps = [];
     for (const d of defects ?? []) {
         const what = `defect "${short(d.summary)}"`;
-        if (d.issue === undefined && !d.commit) {
-            gaps.push(
-                `${what} has neither an issue nor a commit: file an issue for it or name the commit that fixes it`,
-            );
-        } else if (d.issue !== undefined) {
+        if (d.issue === undefined && !d.commit) continue;
+        if (d.issue !== undefined) {
             if (!(await io.issue(d.issue))) gaps.push(`${what}: issue #${d.issue} does not exist`);
         } else if (!SHA.test(d.commit) || !(await io.commitExists(d.commit))) {
             gaps.push(`${what}: commit ${d.commit} is not on GitHub`);
@@ -593,6 +592,7 @@ async function settleClaim(ctx, job, report, session) {
     const { answer, error } = await check(job, report, view);
     if (moved()) return movedReply();
     job.report = { ...report, at: now.toISOString(), session };
+    await reportLoose(ctx, job, report.defects);
     if (report.outcome === "failed") {
         if (!answer || !("holds" in answer)) return reply(toolAnswer(answer, { action: "working" }, error));
         const ended = board.endAttempt(
@@ -618,6 +618,28 @@ async function settleClaim(ctx, job, report, session) {
         error,
     });
     return reply(toolAnswer(answer, after, error));
+}
+
+/**
+ * Records the defects a report lists with neither an issue nor a commit: a ledger line, and one
+ * owner item per job, "worker reported defects", which a later report of the job updates.
+ * @param {{state: any, now: Date, commit: (entry: any) => Promise<void>}} ctx the request context
+ * @param {any} job the job
+ * @param {{summary: string, issue?: number, commit?: string}[] | undefined} defects the report's defects
+ */
+async function reportLoose(ctx, job, defects) {
+    const loose = (defects ?? []).filter((d) => d.issue === undefined && !d.commit).map((d) => d.summary);
+    if (!loose.length) return;
+    raiseItem(
+        ctx.state,
+        {
+            id: `defects:${job.id}`,
+            kind: "defects",
+            question: `worker reported defects (${job.id}), with no issue yet: ${loose.join("; ")}`,
+        },
+        ctx.now,
+    );
+    await ctx.commit({ kind: "defects-reported", job: job.id, defects: loose });
 }
 
 /**

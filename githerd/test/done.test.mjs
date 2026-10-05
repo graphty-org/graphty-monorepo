@@ -116,16 +116,6 @@ const report = (/** @type {object} */ over = {}) => ({
  */
 const FALSE_CLAIMS = [
     [
-        "defect with nothing filed",
-        "pr",
-        "7",
-        {},
-        { defects: [{ summary: "flaky" }] },
-        {},
-        {},
-        "neither an issue nor a commit",
-    ],
-    [
         "defect naming no issue",
         "pr",
         "7",
@@ -634,17 +624,44 @@ describe("githerdDone", () => {
         expect(await pollVerifying(s, ctx)).toEqual([{ job: job.id, action: "done" }]);
     });
 
-    it("ends the attempt on failed, but only once every defect is filed", async () => {
+    it("ends the attempt on failed, but only once every defect it names is on GitHub", async () => {
         const s = state();
         const job = (s.jobs["pr-7"] = working("pr", "7"));
         const { ctx, commits } = setup(s);
-        const refused = await githerdDone(ctx, job, report({ outcome: "failed", defects: [{ summary: "x" }] }), "w1");
+        const refused = await githerdDone(
+            ctx,
+            job,
+            report({ outcome: "failed", defects: [{ summary: "x", issue: 404 }] }),
+            "w1",
+        );
         expect(refused.isError).toBe(true);
         expect(job.state).toBe("working");
         const ok = await githerdDone(ctx, job, report({ outcome: "failed", theory: "t" }), "w1");
         expect(ok.text).toBe('{"verified":true}');
         expect(job.attempts[0]).toMatchObject({ outcome: "failed", findings: "f", theory: "t" });
         expect(commits.at(-1)).toMatchObject({ outcome: "failed", next: "requeue" });
+    });
+
+    it("takes a defect with no issue or commit to the owner instead of refusing the report", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx, commits } = setup(s);
+        const defects = [
+            { summary: "githerd_done compares priority medium with priority:medium" },
+            { summary: "filed", issue: 9 },
+        ];
+        const ok = await githerdDone(ctx, job, report({ outcome: "failed", defects }), "w1");
+        expect(ok.text).toBe('{"verified":true}');
+        expect(s.ownerItems["defects:pr-7"]).toMatchObject({
+            kind: "defects",
+            question:
+                "worker reported defects (pr-7), with no issue yet: githerd_done compares priority medium with priority:medium",
+        });
+        expect(commits).toContainEqual({
+            kind: "defects-reported",
+            job: "pr-7",
+            defects: ["githerd_done compares priority medium with priority:medium"],
+        });
     });
 
     it("records not-needed as an issue proposal, refusing one without evidence", async () => {

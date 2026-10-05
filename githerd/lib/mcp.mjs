@@ -464,7 +464,8 @@ export const TOOLS = [
     {
         name: "githerd_done",
         description:
-            "Report the end of an attempt: done, split, not-needed or failed, with findings and every defect you saw. " +
+            "Report the end of an attempt: done, split, not-needed or failed, with findings and every defect you saw " +
+            "(with its issue or commit when there is one; one with neither goes to the owner). " +
             "githerd verifies the claim against GitHub before accepting it and says what is missing.",
         inputSchema: object(
             {

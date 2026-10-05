@@ -6,6 +6,8 @@
  * spelling the target syntax accepts.
  */
 
+import type { NodeId } from "@graphty/graph-format";
+
 /**
  * The shortest decimal text that reads back to the same f32 value through Math.fround.
  * @param value - an f32 value (a JS number holding one)
@@ -35,6 +37,16 @@ export function formatF32(value: number): string {
  */
 export function formatF64(value: number): string {
     return Object.is(value, -0) ? "-0" : String(value);
+}
+
+/**
+ * The text of a node id for the text formats that write ids bare (DOT, Pajek, XGMML): the string
+ * itself, or the shortest decimal of a number (formatF64).
+ * @param id - the id
+ * @returns the text
+ */
+export function idText(id: NodeId): string {
+    return typeof id === "number" ? formatF64(id) : id;
 }
 
 /**

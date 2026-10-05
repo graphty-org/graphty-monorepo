@@ -6,8 +6,10 @@
 
 import { z } from 'zod/v4';
 
-// @public (undocumented)
-export type AdHocData<KeyType extends string | number = string> = Brand<Record<KeyType, any>, "AdHocData">;
+// @public
+export type AdHocData<KeyType extends string | number = string> = Record<KeyType, any> & {
+    readonly __brand?: "AdHocData";
+};
 
 // @public
 export function areDistinguishableInGrayscale(hex1: string, hex2: string, threshold?: number): boolean;
@@ -1434,6 +1436,26 @@ export type RuleTree = {
     readonly kind: "neighborhood";
     readonly seeds: readonly NodeId[];
     readonly depth: number;
+}
+/**
+* The nodes with no edge to another node: each is a component of its own, so these are exactly
+* the nodes `data.statistics().components.isolatedCount` counts. A node whose only edges are
+* self-loops is one. Speaks nodes.
+*/
+| {
+    readonly kind: "isolated";
+}
+/** The edges whose two ends are the same node: `statistics().selfLoopCount` of them. Speaks edges. */
+| {
+    readonly kind: "self-loop";
+}
+/**
+* The edges beyond the first between one pair of nodes, in the graph's edge order: exactly the
+* edges `statistics().repeatedEdgeCount` counts. On an undirected graph `a`-`b` and `b`-`a` are
+* one pair; on a directed graph they are two. Speaks edges.
+*/
+| {
+    readonly kind: "repeated-edge";
 } | {
     readonly kind: "edges";
     readonly where: Query;

@@ -264,6 +264,9 @@ const FILTER_KINDS = [
     "degree",
     "component",
     "neighborhood",
+    "isolated",
+    "self-loop",
+    "repeated-edge",
     "edges",
     "member",
     "item",
@@ -450,6 +453,10 @@ function assertFilter(filter: RuleTree): void {
                 });
             }
 
+            return;
+        case "isolated":
+        case "self-loop":
+        case "repeated-edge":
             return;
         case "member":
             // The filter computes "visible", and "search" will read the filter: either one here is
@@ -909,6 +916,54 @@ function degreeTest(
 }
 
 /**
+ * A test for the nodes with no edge to another node, in either direction: the one-node components
+ * `statistics().components.isolatedCount` counts, so a node with only self-loops passes.
+ * @param context - The compile context.
+ * @returns The test.
+ */
+function isolatedTest(context: CompileContext): ElementTest {
+    const { graph } = context;
+    const reverse = graph.reverse();
+    const alone = (rowPtr: U32, colIdx: U32, index: number): boolean => {
+        for (let arc = rowPtr[index]; arc < rowPtr[index + 1]; arc++) {
+            if (colIdx[arc] !== index) {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    return (index) => alone(graph.rowPtr, graph.colIdx, index) && alone(reverse.rowPtr, reverse.colIdx, index);
+}
+
+/**
+ * A test for the edges beyond the first between one pair of nodes, in edge order: the edges
+ * `statistics().repeatedEdgeCount` counts. A pair is ordered on a directed graph and unordered on
+ * an undirected one.
+ * @param context - The compile context.
+ * @returns The test.
+ */
+function repeatedEdgeTest(context: CompileContext): ElementTest {
+    const { graph } = context;
+    const n = graph.nodeCount;
+    const repeated = new Uint8Array(graph.edgeCount);
+    const seen = new Set<number>();
+    for (let edge = 0; edge < graph.edgeCount; edge++) {
+        const s = graph.edgeSource(edge);
+        const t = graph.edgeTarget(edge);
+        const pair = graph.directed || s <= t ? s * n + t : t * n + s;
+        if (seen.has(pair)) {
+            repeated[edge] = 1;
+        } else {
+            seen.add(pair);
+        }
+    }
+
+    return (index) => repeated[index] === 1;
+}
+
+/**
  * A test over which connected component a node belongs to.
  * @param context - The compile context.
  * @param id - The component number.
@@ -1237,6 +1292,12 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: componentTest(context, filter.id), edge: null };
         case "neighborhood":
             return { node: neighborhoodTest(context, filter.seeds, filter.depth), edge: null };
+        case "isolated":
+            return { node: isolatedTest(context), edge: null };
+        case "self-loop":
+            return { node: null, edge: (index) => context.graph.edgeSource(index) === context.graph.edgeTarget(index) };
+        case "repeated-edge":
+            return { node: null, edge: repeatedEdgeTest(context) };
         case "edges":
             return { node: null, edge: edgeQueryTest(context, filter.where) };
         case "member": {

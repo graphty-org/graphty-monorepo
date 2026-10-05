@@ -19,17 +19,26 @@
 merge_queue:
     max_parallel_checks: 2
 
-# A fix for a red master goes first: label it "priority:critical". It jumps the queue and interrupts
-# the batches being checked, which re-queue behind it.
+# Two kinds of pull request go to the front of the queue: the daily release train (its branch and author,
+# not a label) and a fix for a red master (label it "priority:critical"). Neither interrupts the batches
+# already being checked: it takes the next free slot instead, so a running batch is never thrown away and
+# re-run. A fix for a red master therefore waits for at most one in-flight batch (about 40 minutes).
 priority_rules:
+    - name: release train
+      conditions:
+          - head~=^release/train-
+          - author=github-actions[bot]
+      priority: high
+      allow_checks_interruption: false
+
     - name: fix for a red master
       conditions:
           - label=priority:critical
       priority: high
-      allow_checks_interruption: true
+      allow_checks_interruption: false
 
 queue_rules:
-    # The release pull request that release.yml opens (its priority:critical label puts it first).
+    # The release pull request that release.yml opens (the "release train" priority rule puts it first).
     # Listed before "default", so it takes this rule: checked alone, never batched with other pull
     # requests, and merged with a merge commit, whose message names the release branch and so
     # starts release.yml's publish job. Like a batch, it merges only after the full suite passed

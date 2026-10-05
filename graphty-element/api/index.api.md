@@ -3613,10 +3613,19 @@ export interface Problem {
 // @public
 export interface ProgressChange {
     readonly completed: number;
+    readonly error?: {
+        readonly code: string;
+        readonly details: Readonly<Record<string, unknown>>;
+    };
     readonly fraction: number | null;
+    readonly outcome?: "succeeded" | "failed" | "cancelled";
     readonly phase: "progress" | "end";
     readonly run?: RunId;
-    readonly task: "load" | "run";
+    readonly source?: {
+        readonly name?: string;
+        readonly url?: string;
+    };
+    readonly task: "load" | "prepare" | "run";
     readonly total: number | null;
 }
 
@@ -3651,9 +3660,10 @@ export interface ProjectOpenOptions {
 
 // @public
 export interface ProjectOpenReport {
+    readonly draft?: LoadDraft;
     readonly extensions: Readonly<Record<string, unknown>>;
     readonly name: string | null;
-    readonly opened: "project" | "document";
+    readonly opened: "project" | "document" | "graph";
     readonly problems: readonly ProjectProblem[];
     readonly restored: readonly ProjectSlice[];
 }

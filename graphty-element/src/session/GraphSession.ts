@@ -1902,6 +1902,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
             declarations: () => dispatcher.state.attributes,
+            progress: (change) => {
+                publish(watchers, "progress:changed", change);
+            },
         },
         {
             revision: () => inputs.tick.value,

@@ -458,6 +458,10 @@ describe("the commit and push hooks", () => {
         );
     });
 
+    it("commit-changes.sh runs the same pre-commit hook as a plain commit", () => {
+        assert.match(repoFile("tools/commit-changes.sh"), /cp \.husky\/pre-commit \.husky\/commit-msg "\$HOOKS_DIR\/"/);
+    });
+
     it("formats fully staged files and leaves partial, baseline and binary files alone", () => {
         inRepo((dir, git) => {
             mkdirSync(join(dir, "visual-baselines"));
@@ -474,8 +478,28 @@ describe("the commit and push hooks", () => {
             assert.equal(staged(git, "b.ts"), "const  y = {b:2}\n");
             assert.match(r.stdout, /not formatting b\.ts/);
             assert.equal(staged(git, "visual-baselines/c.json"), '{"c":3}\n');
+            // Byte-identical on disk, and (the diff check below) in the index.
+            assert.deepEqual(readFileSync(join(dir, "d.png")), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]));
             assert.equal(git("diff", "--quiet").status, 1, "only b.ts differs from the index");
             assert.equal(git("diff", "--name-only").stdout, "b.ts\n");
+        });
+    });
+
+    it("a pathspec commit (git commit <file>) leaves the real index formatted too", () => {
+        inRepo((dir, git) => {
+            git("config", "user.email", "t@t");
+            git("config", "user.name", "t");
+            git("config", "commit.gpgsign", "false");
+            writeFileSync(join(dir, ".git/hooks/pre-commit"), `#!/bin/sh\nexec ${formatStaged}\n`, { mode: 0o755 });
+            writeFileSync(join(dir, "a.ts"), "const a = 1;\n");
+            git("add", "a.ts");
+            assert.equal(git("commit", "-qm", "init").status, 0);
+            writeFileSync(join(dir, "a.ts"), "const  b = {b:2}\n");
+            const r = git("commit", "-qm", "only", "a.ts");
+            assert.equal(r.status, 0, r.stderr);
+            assert.equal(git("show", "HEAD:a.ts").stdout, "const b = { b: 2 };\n");
+            assert.equal(staged(git, "a.ts"), "const b = { b: 2 };\n");
+            assert.equal(git("status", "--short").stdout, "");
         });
     });
 

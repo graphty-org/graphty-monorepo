@@ -10,8 +10,10 @@
 
 # A run_step check that fails ends the run at once (run_step exits), so a formatting or lint slip is
 # reported in seconds instead of after the build and the tests. The source-only checks run first,
-# before the build; then the build, lint, type-check (inside each package's lint) and knip. The
-# test blocks further down still record each failure and report them all at the end.
+# before the build; then the build, knip, and lint with type-check (inside each package's lint). Two
+# kinds of check are still reported only at the end: the test blocks further down, which record each
+# failure and go on, and the SonarQube scan, which runs in the background (45-60 s) and is joined
+# just before the summary.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -222,15 +224,8 @@ if affected webgpu-graph-algorithms; then
     run_step "Bundle webgpu-graph-algorithms" "(cd webgpu-graph-algorithms && npm run build:bundle)"
 fi
 
-# Lint the affected packages
-run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache"
-
-# Start the SonarQube step only after Lint: Lint (--skip-nx-cache) rebuilds the packages it depends
-# on, and each build deletes its dist/ first. The scanner walks the whole tree and dies with
-# NoSuchFileException when a folder vanishes mid-walk (seen 2026-10-02). No later step rewrites a
-# dist/. It is joined just before the summary.
-start_sonar
-
+# Knip before Lint: it needs only the dist/ the build above wrote, and it fails a push about three
+# times as often as Lint does, so a knip finding stops the gate before the slowest static step.
 # Run knip for dead code detection (blocks push if issues found)
 run_step "Knip (dead code detection)" "pnpm run lint:knip"
 
@@ -239,6 +234,15 @@ run_step "Knip (dead code detection)" "pnpm run lint:knip"
 # pass above counts devDependencies and test files as legitimate users of a package, so it cannot
 # see a runtime dependency that nothing at run time imports. About 9 seconds (2026-09-24).
 run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
+
+# Lint the affected packages
+run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache"
+
+# Start the SonarQube step only after Lint: Lint (--skip-nx-cache) rebuilds the packages it depends
+# on, and each build deletes its dist/ first. The scanner walks the whole tree and dies with
+# NoSuchFileException when a folder vanishes mid-walk (seen 2026-10-02). No later step rewrites a
+# dist/. It is joined just before the summary.
+start_sonar
 
 # Pack every published package and compare the files it would ship with its package.json: an
 # import nobody declared, a dependency nothing imports, an @graphty range the workspace version

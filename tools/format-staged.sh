@@ -38,6 +38,22 @@ for f in "${STAGED[@]}"; do
 done
 [ ${#FILES[@]} -eq 0 ] && exit 0
 
+if [ ! -x "$PRETTIER" ]; then
+    echo "format-staged: no $PRETTIER (run pnpm install); committing unformatted"
+    exit 0
+fi
 "$PRETTIER" --write --log-level warn --ignore-unknown "${FILES[@]}" ||
     echo "format-staged: prettier could not format every file (above); committing anyway"
 git add -- "${FILES[@]}"
+
+# `git commit <paths>` commits from a temporary index (GIT_INDEX_FILE, next-index-*.lock) and
+# afterwards installs the real index from index.lock, which it wrote before this hook ran. Staging the
+# formatted files only in the temporary index would leave the real index holding the unformatted
+# blobs, and the next commit would quietly revert the formatting. So stage them in index.lock too.
+case "${GIT_INDEX_FILE:-}" in
+    */next-index-*.lock)
+        REAL_INDEX="$(env -u GIT_INDEX_FILE git rev-parse --path-format=absolute --git-path index).lock"
+        [ -f "$REAL_INDEX" ] && GIT_INDEX_FILE="$REAL_INDEX" git add -- "${FILES[@]}"
+        ;;
+esac
+exit 0

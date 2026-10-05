@@ -360,10 +360,7 @@ describe("Node and Edge disposal", () => {
         edge.dispose();
 
         assert.isTrue(edge.isDisposed());
-        assert.isTrue(
-            arrowCap?.isDisposed(),
-            "the arrowhead is created bare against the scene; only dispose frees it",
-        );
+        assert.isTrue(arrowCap?.isDisposed(), "the arrowhead is created bare against the scene; only dispose frees it");
         assert.isNull(edge.arrowCap);
     });
 

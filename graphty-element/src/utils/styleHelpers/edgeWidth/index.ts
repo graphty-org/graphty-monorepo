@@ -2,6 +2,8 @@
  * Edge width helpers for flow visualization and weighted graphs
  */
 
+import { clamp } from "../../clamp";
+
 /**
  * Linear mapping from [0,1] to [minWidth, maxWidth]
  * Default range: [0.5, 5]
@@ -17,7 +19,7 @@
  */
 export function linear(value: number, minWidth = 0.5, maxWidth = 5): number {
     // Clamp value to [0, 1]
-    const clampedValue = Math.max(0, Math.min(1, value));
+    const clampedValue = clamp(value, 0, 1);
     return minWidth + clampedValue * (maxWidth - minWidth);
 }
 
@@ -31,7 +33,7 @@ export function linear(value: number, minWidth = 0.5, maxWidth = 5): number {
  * log(0.5, 0.5, 5) // Logarithmic scaling
  */
 export function log(value: number, minWidth = 0.5, maxWidth = 5): number {
-    const clampedValue = Math.max(0, Math.min(1, value));
+    const clampedValue = clamp(value, 0, 1);
 
     // Handle edge cases
     if (clampedValue === 0) {
@@ -77,7 +79,7 @@ export function binary(isHighlighted: boolean, highlightWidth = 3, normalWidth =
  * stepped(0.3, [0.5, 1, 2, 3, 5]) // 1
  */
 export function stepped(value: number, widths: number[]): number {
-    const clampedValue = Math.max(0, Math.min(1, value));
+    const clampedValue = clamp(value, 0, 1);
 
     if (widths.length === 0) {
         return 1;

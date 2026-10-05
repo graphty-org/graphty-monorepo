@@ -233,6 +233,24 @@ export const WithInfo: Story = {
 };
 
 /**
+ * A closed section says what it holds in one line after its name, in the secondary ink, so a
+ * reader scanning a column of closed sections does not have to open each one. The summary is
+ * also the expand button's accessible description, and it is hidden while the section is open.
+ */
+export const WithSummary: Story = {
+    args: {
+        label: "Sources",
+        defaultOpened: false,
+        summary: "les miserables . 77 nodes",
+        children: (
+            <FieldRow>
+                <PanelField label="Nodes" glyph="N" value="77" />
+            </FieldRow>
+        ),
+    },
+};
+
+/**
  * The section's own buttons live in the header, so no row inside spends width
  * on one. An advanced settings button is an addition to the rows, never a
  * replacement for them.

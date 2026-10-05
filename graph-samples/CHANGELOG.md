@@ -1,3 +1,21 @@
+## 0.1.20 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.5
+
+## 0.1.19 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.4
+
+## 0.1.18 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.3
+
 ## 0.1.17 (2026-10-04)
 
 ### 🧱 Updated Dependencies

@@ -11,14 +11,14 @@
  * form. It writes the graph's structure and columns, never styles.
  */
 
-import { type Column, GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
+import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
 import { type ChildrenCsr, childrenCsr } from "../../children.js";
 import { DictHeuristic } from "../../common/attributes.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { escapeXmlAttribute, escapeXmlText } from "../../common/escape.js";
 import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
-import { formatF32, formatF64 } from "../../common/format.js";
+import { formatF32, formatF64, idText } from "../../common/format.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
@@ -785,15 +785,6 @@ function scalarText(value: unknown): string {
         return value ? "true" : "false";
     }
     return JSON.stringify(value) ?? "";
-}
-
-/**
- * The text of an id.
- * @param id - the id
- * @returns the text
- */
-function idText(id: NodeId): string {
-    return typeof id === "number" ? formatF64(id) : id;
 }
 
 /**

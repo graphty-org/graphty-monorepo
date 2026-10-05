@@ -1027,6 +1027,12 @@ githerd_record: { kind: "order"|"policy"|"answer", text: string, issues?: intege
 // minutes of a prompt he typed there (its MCP server reads the session's own transcript and the
 // prompt is kept with the record as `said`); from a worker, within 30 minutes of his steering it
 // (the steering prompt is kept). Refused otherwise, so a workflow or background agent records nothing.
+
+// 12. Say this session works on a pull request whose CI failed, when githerd asks (section 8.2).
+githerd_mine: { pr: integer }
+// -> { ok: true, pr, head, until } | { ok: false, reason }  (another session already said so)
+// Refused from a worker: its pull request is its job's. Keeps the pull request from being offered
+// until this session ends or a new push arrives.
 ```
 
 There is no tool to merge, close, revert, retarget, post a status, or touch githerd's labels.
@@ -1273,18 +1279,47 @@ shows each limit with the measurement that applied at the last start.
   session ends; the holder gets news) or `wait`. It names related jobs.
 - `githerd_claim` succeeds only on the current snapshot version and refuses a wait that would close
   a cycle.
-- **A pull request one session works on is never offered to another** (owner decision 2026-10-04).
-  A queued job is in use, so `githerd_next` does not offer it, `githerd_claim` refuses it and no
-  worker starts on it, while its pull request (a `pr` or `title` job's, a review's, or the one a
-  job made) has (a) another job in flight on it, claimed by a live session or being started, or
-  (b) a head that someone other than githerd pushed within `workers.othersPushHours` (default 3,
-  0 to 48; 0 turns it off), timed by the head commit's committer date. githerd's own heads are
-  those `githerd_push` and the upkeep recorded (`state.pushedByGitherd`) and GitHub's own commits
-  (committer `noreply@github.com`: update-branch, Mergify). A review runs beside the worker whose
-  patch it reviews; only an owner session's claim hides it. `githerd_next` lists each in-use job
-  with why ("claimed by session X", "pushed by someone else 40 min ago"), and the board shows the
-  same on the queue and on the pull request's line. `hold` only stops a merge: a held pull request
-  that is broken is offered like any other, and the hold still blocks its merge.
+- **A pull request one session works on is never offered to another** (owner decisions 2026-10-04
+  and 2026-10-05). A queued job is in use, so `githerd_next` does not offer it, `githerd_claim`
+  refuses it and no worker starts on it, while its pull request (a `pr` or `title` job's, a
+  review's, or the one a job made):
+  1. has another job in flight on it, claimed by a live session or being started (a claimed pull
+     request is never asked about); or
+  2. runs CI on a head someone other than githerd pushed: a required check is pending on the
+     newest head; or
+  3. failed CI on such a head and nobody pushed since, while githerd's question about it is open.
+     Once per failed head githerd asks the live Claude sessions working in this repository (an
+     entry in `~/.claude/sessions/<pid>.json` whose process runs and whose cwd is the main checkout
+     or a worktree under it, githerd's own workers left out) through Claude Code's session
+     messaging: "githerd: CI failed on #710 (feat/x) at abc1234: All Checks Pass. If you are working
+     on it, call the githerd_mine tool with pr 710 (or claim job pr-710 with githerd_claim).
+     Otherwise ignore this." A session answers with `githerd_mine` (tool 12) or by claiming the
+     job; the answer keeps the pull request in use for that session until the session ends (its
+     registry entry goes) or a new push arrives, which starts again at 2. With no answer within
+     `workers.askMinutes` (default 10, 1 to 60), or when no session could be asked, the pull
+     request is offered as a `pr` job.
+
+  githerd's own heads are those `githerd_push` and the upkeep recorded (`state.pushedByGitherd`)
+  and GitHub's own commits (committer `noreply@github.com`: update-branch, Mergify); they are never
+  in use for 2 or 3. A review runs beside the worker whose patch it reviews; only an owner
+  session's claim hides it. `githerd_next` lists each in-use job with why ("claimed by session X",
+  "CI running on abc1234, pushed by someone else", "CI failed on abc1234; asked 3 sessions at 12:04
+  UTC; no owner yet", "session graphty-13 said it is working on it"), and the board shows the same
+  on the queue and on the line of a pull request with a queued job. The question is
+  `state.asks[<pr>]` and the ledger's `pr-asked`, `pr-mine` and `pr-owner-lapsed` lines; while
+  the `workers` group does not act, the question is a `would-do` line and nobody hears it, but
+  the wait is the same. `hold` only stops a merge: a held pull request that is broken is offered
+  like any other, and the hold still blocks its merge.
+- **Session messaging** (`lib/peers.mjs`): a Claude Code session that speaks the peer protocol
+  (`peerProtocol` 1 in its registry entry) listens on `messagingSocketPath`, a Unix socket that
+  takes newline-delimited JSON; the line `{"type":"user","message":{"role":"user","content":"..."}}`
+  is queued into the session as a message from a peer (the session's own debug log prints this
+  form at startup, "Inject messages (auth line optional here)"). An `{"type":"auth","token":...}`
+  line may come first; on Linux the inbox does not require it, and githerd never reads a session's
+  key file to send one. githerd has no inbox of its own, so an answer comes back through its MCP
+  tools, not the socket. `liveSessions` finds the sessions and `tellSessions` sends one message to
+  each through a transport (the socket one, or a fake in tests); any other use of messaging, such as
+  inviting idle sessions (registry `status` `idle`) to take queued work, calls the same two.
 - At every push the daemon intersects the pushed diff's files with every other in-flight
   worktree's and every owner session's changed files. A non-empty intersection records the two as
   related and tells both holders. This is a fact about the diffs, not a
@@ -1647,7 +1682,7 @@ models)", "N% used", "Resets ..."; else display-only). Failure stops starts, is 
 everywhere, and pages once.
 
 It checks Claude Code, not the daemon: the worker's hook and MCP commands are probes that report
-to the self-test (the MCP probe serves the eleven tools' real schemas, the hook probe prints the
+to the self-test (the MCP probe serves the twelve tools' real schemas, the hook probe prints the
 real hook's output), and the guard is the installed one, reached through a symlink as `current/`
 is. That symlink is how the first run found a guard that never ran: it compared `argv[1]`, the
 link, with its own file, so every call was allowed. Two more facts from the first run: Claude Code
@@ -1713,7 +1748,7 @@ It predates this design and is reworked by the plan. Most of its fact-finding an
 | `proc.mjs` | process identity by pid and start time | container restart by PID 1 start time instead of boot id [R21] |
 | `config.mjs` | strict validation from the default branch, widening keys rejected | bounds; the last-good file and the replay gate live in `config-adopt.mjs` |
 | `version.mjs` | running master's code, never a worktree's | `versions/<version>-<hash8>/`, protocol versions |
-| `mcp.mjs`, `schema.mjs` | JSON-RPC core and schema validator | the eleven tools of section 6 |
+| `mcp.mjs`, `schema.mjs` | JSON-RPC core and schema validator | the twelve tools of section 6 |
 | `launcher.mjs` | find or start the one daemon, forward calls | fixed cwd; `alive` check; restart lock; supervision is servherd's `--autorestart` (1.2.0) |
 | `notify.mjs` | once per key; "phone alerts broken" | owner items only; batching; presence and digest |
 | `text.mjs` | ASCII and credential checks on outgoing text | none |
@@ -1726,7 +1761,7 @@ It predates this design and is reworked by the plan. Most of its fact-finding an
 | `retriage.mjs` | nothing | removed: refresh and full passes are triage jobs that merges call for (`jobs.mjs`), built from the issue records the poll already keeps |
 | `cli.mjs` | the command frame and state-file fallback | the commands of 11.2 |
 | `daemon.mjs` | the poll loop, HTTP endpoint and tool dispatch | the reconcile of 9.3, fatal mode, `alive` and `progress` |
-| `tools.mjs` | the board's status data and text | the seven old tools removed; the eleven tools are `session-tools.mjs` |
+| `tools.mjs` | the board's status data and text | the seven old tools removed; the twelve tools are `session-tools.mjs` |
 | `runner.mjs`, `run-tools.mjs`, `dispatch.mjs`, `paging.mjs`, `prompts.mjs`, the playbooks | nothing | removed (2026-10-04): they existed for headless runs, run tokens and dollar budgets |
 
 New code: the classifier; the incident procedure; the `githerd/merge` status and stacks; the push queue;

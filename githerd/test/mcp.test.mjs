@@ -295,7 +295,7 @@ describe("protocol versions and banners", () => {
 const JOB = "issue-737";
 const HEAD = "a".repeat(40);
 
-/** One valid call of each of the eleven tools. */
+/** One valid call of each of the twelve tools. */
 const VALID = {
     githerd_status: { section: "prs", pr: 412 },
     githerd_next: {},
@@ -333,6 +333,7 @@ const VALID = {
         switch: "hold-package",
         value: "graphty-element",
     },
+    githerd_mine: { pr: 710 },
 };
 
 /**
@@ -347,7 +348,7 @@ function violations(name, args) {
     return "errors" in out ? out.errors : [];
 }
 
-describe("the eleven tools", () => {
+describe("the twelve tools", () => {
     it("are exactly design section 6's, each with a supported schema that refuses unknown properties", () => {
         expect(TOOLS.map((t) => t.name)).toEqual(Object.keys(VALID));
         for (const t of TOOLS) {
@@ -430,7 +431,7 @@ describe("tools forwarded to a fake daemon", () => {
     });
 
     /**
-     * Starts a fake daemon on localhost: the eleven tools, each answering with its name, its
+     * Starts a fake daemon on localhost: the twelve tools, each answering with its name, its
      * arguments and the client metadata it received.
      * @param {object} [options] the fake's behavior
      * @param {number[]} [options.protocols] the protocols it serves
@@ -503,9 +504,9 @@ describe("tools forwarded to a fake daemon", () => {
             expect(res.result.isError).toBeUndefined();
             expect(JSON.parse(body)).toMatchObject({ tool: name, client: meta });
         }
-        expect(received).toHaveLength(11);
-        expect(received.map((r) => r.params._meta.githerd.protocol)).toEqual(Array(11).fill(TOOL_PROTOCOL));
-        expect(new Set(received.map((r) => r.id)).size).toBe(11);
+        expect(received).toHaveLength(12);
+        expect(received.map((r) => r.params._meta.githerd.protocol)).toEqual(Array(12).fill(TOOL_PROTOCOL));
+        expect(new Set(received.map((r) => r.id)).size).toBe(12);
     });
 
     it("never sends a call whose arguments are refused, so it has no effect", async () => {

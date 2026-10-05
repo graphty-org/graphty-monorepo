@@ -1,5 +1,5 @@
 /**
- * The handlers of the eleven tools of design section 6, as the daemon serves them to every session:
+ * The handlers of the twelve tools of design section 6, as the daemon serves them to every session:
  * owner sessions and workers. Names, descriptions and schemas are
  * `TOOLS` in mcp.mjs; the session's MCP server forwards calls here with `params._meta.githerd`
  * (the client's protocol, session, job and nonce), and the MCP core refuses a call in a protocol
@@ -20,7 +20,7 @@ import { taskOutputPath } from "./hook.mjs";
 import { askOwner, recordOwner } from "./owner.mjs";
 import { jobText } from "./job-text.mjs";
 import { TOOLS } from "./mcp.mjs";
-import { jobInUse } from "./queue.mjs";
+import { askFor, jobInUse } from "./queue.mjs";
 import { statusData, statusText } from "./tools.mjs";
 
 /** The status sections of the old board that the new section names show. */
@@ -100,6 +100,24 @@ function sessionCwd(client, session, known, home) {
 }
 
 /**
+ * A session's name as Claude Code's registry shows it (`/rename`, or the derived name), when its
+ * entry names the session.
+ * @param {string | undefined} home the home directory
+ * @param {unknown} pid the session's claude process
+ * @param {string} session the session
+ * @returns {string | null} the name
+ */
+function registryName(home, pid, session) {
+    if (!home || !Number.isInteger(pid)) return null;
+    try {
+        const entry = JSON.parse(readFileSync(join(home, ".claude", "sessions", `${pid}.json`), "utf8"));
+        return entry.sessionId === session && typeof entry.name === "string" ? entry.name : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * The refusal of a worker whose start is no longer its job's.
  * @param {string} id the job
  * @returns {string} the message
@@ -148,7 +166,7 @@ function snapshot(ctx) {
 }
 
 /**
- * The eleven tools with their handlers, bound to one request.
+ * The twelve tools with their handlers, bound to one request.
  * @param {SessionToolContext} ctx the request context
  * @returns {import("./mcp.mjs").Tool[]} the tools
  */
@@ -291,6 +309,33 @@ export function sessionToolSet(ctx) {
             await ctx.commit(r.entry);
             for (const back of r.resumed) await ctx.ring(state.jobs[back.job]);
             return r.text;
+        },
+        githerd_mine: async (args, caller, client) => {
+            const session = sessionOf(caller, client);
+            if (!session) throw new Error("this session is not identified yet; try again in a moment");
+            if (client.job) throw new Error(`this worker works on ${client.job}; its pull request is its job's`);
+            const rec = state.prs?.[String(args.pr)];
+            if (!rec) throw new Error(`githerd knows no open pull request #${args.pr}`);
+            state.asks ??= {};
+            const ask = askFor(state, args.pr) ?? (state.asks[String(args.pr)] = { head: rec.headSha, sessions: [] });
+            if (ask.owner && ask.owner.session !== session) {
+                return {
+                    text: JSON.stringify({
+                        ok: false,
+                        reason: `session ${ask.owner.name} already said #${args.pr} is its`,
+                    }),
+                    isError: true,
+                };
+            }
+            const name = registryName(ctx.home, client.pid ?? state.sessions?.[session]?.pid, session) ?? session;
+            ask.owner = { session, name, at: now.toISOString() };
+            await ctx.commit({ kind: "pr-mine", pr: args.pr, head: rec.headSha, session });
+            return JSON.stringify({
+                ok: true,
+                pr: args.pr,
+                head: rec.headSha,
+                until: "this session ends or a new push",
+            });
         },
     };
 

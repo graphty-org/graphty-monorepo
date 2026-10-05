@@ -9,7 +9,7 @@
 
 import * as board from "./board.mjs";
 import { GRACE_DAYS } from "./proposals.mjs";
-import { jobInUse, jobOrder, ownerWaitingPrs, prInUse } from "./queue.mjs";
+import { jobInUse, jobOrder, ownerWaitingPrs, prInUse, prOf } from "./queue.mjs";
 
 /** Escalation kinds the owner must act on; others are listed as notes. */
 const OWNER_KINDS = new Set(["decision", "credential", "visual-review", "approval", "master-red"]);
@@ -166,7 +166,14 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
     const { now, startedAt } = ctx;
     const owned = (/** @type {string | null | undefined} */ who) => board.byOwner(state, who);
     const want = (/** @type {string} */ name) => pr === undefined && (section === "all" || section === name);
-    const inUse = (/** @type {string} */ n) => prInUse(state, n, { config: ctx.config, now });
+    // Only a pull request githerd would otherwise offer is "in use"; CI runs on every other one too.
+    const queued = new Set(
+        Object.values(state.jobs ?? {})
+            .filter((/** @type {any} */ j) => j.state === "queued")
+            .map((/** @type {any} */ j) => String(prOf(j))),
+    );
+    const inUse = (/** @type {string} */ n) =>
+        queued.has(String(n)) ? prInUse(state, n, { config: ctx.config, now }) : null;
     /** @type {Record<string, any>} */
     const out = {
         banner: alertBanner(state),

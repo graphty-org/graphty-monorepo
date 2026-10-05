@@ -13,7 +13,6 @@
  */
 
 import { byOwner, TERMINAL } from "./board.mjs";
-import { span } from "./board-text.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
 /** Labels that keep an issue out of the queue, besides every `needs-*` label. */
@@ -24,9 +23,9 @@ const BREAKING = new Set(["breaking", "breaking-change", "breaking-hold"]);
 export const NEXT = "githerd:next";
 export const SKIP = "githerd:skip";
 const DEFAULT_AGING_DAYS = 60;
-const HOUR = 60 * 60 * 1000;
-/** How long a push by someone else keeps a pull request in use, unless the config says otherwise. */
-const DEFAULT_OTHERS_PUSH_HOURS = 3;
+const MINUTE = 60 * 1000;
+/** How long githerd waits for a session to answer that a failed pull request is its own. */
+const DEFAULT_ASK_MINUTES = 10;
 /** The committer of GitHub's own commits (update-branch, Mergify's updates): no session's push. */
 const GITHUB_COMMITTER = "noreply@github.com";
 
@@ -93,7 +92,7 @@ const oldest = (a, b) => String(a.createdAt ?? "~").localeCompare(String(b.creat
  * @param {any} rec the PR record
  * @returns {string[]} their names
  */
-const failingRequired = (rec) =>
+export const failingRequired = (rec) =>
     Object.entries(rec.required ?? {})
         .filter(([, v]) => v === "FAILURE")
         .map(([k]) => k);
@@ -228,22 +227,18 @@ function issueReady(state, issue, labels) {
  * @param {any} job the job
  * @returns {number | null} the number
  */
-const prOf = (job) => job.pr ?? job.facts?.pr ?? null;
+export const prOf = (job) => job.pr ?? job.facts?.pr ?? null;
 
 /**
- * Why pull request `n` is in use, or null. In use: another job on it is in flight (claimed by a
- * live session, or being started), or someone other than githerd pushed its head within
- * `workers.othersPushHours`. githerd's own pushes are the heads `githerd_push` and the upkeep
- * recorded in `state.pushedByGitherd`, and GitHub's own commits (update-branch, Mergify). A review
- * is a second look at a worker's patch while that worker waits, so only an owner session hides it.
- * An owner session's claim lapses when the session ends (`syncJobs`), and with it the reason.
+ * Why another job on pull request `n` keeps it in use, or null: a job in flight on it, claimed by
+ * a live session or being started.
  * @param {any} state the daemon state
  * @param {number | string} n the pull request
- * @param {{config?: any, now: Date, except?: string | null, review?: boolean}} opts the config, the
- *   clock, the job asking (never in use by itself) and whether it is a review
+ * @param {{except?: string | null, review?: boolean}} [opts] the job asking (never in use by
+ *   itself) and whether it is a review (only an owner session's claim hides a review)
  * @returns {string | null} the reason
  */
-export function prInUse(state, n, { config, now, except = null, review = false }) {
+export function jobOnPr(state, n, { except = null, review = false } = {}) {
     for (const j of Object.values(state.jobs ?? {})) {
         if (j.id === except || j.state === "queued" || TERMINAL.includes(j.state)) continue;
         if (String(prOf(j)) !== String(n) || (review && j.holder?.startedBy !== "owner")) continue;
@@ -251,12 +246,64 @@ export function prInUse(state, n, { config, now, except = null, review = false }
         if (!session) return `in flight as ${j.id}`;
         return `claimed by session ${j.holder.name ?? state.sessions?.[session]?.name ?? session}`;
     }
+    return null;
+}
+
+/**
+ * Whether githerd itself, or GitHub, made a pull request's head: a head `githerd_push` or the
+ * upkeep recorded in `state.pushedByGitherd`, or a commit by GitHub (update-branch, Mergify).
+ * @param {any} state the daemon state
+ * @param {any} rec the pull request's record
+ * @returns {boolean} true when nobody else pushed it
+ */
+export const headIsGitherds = (state, rec) =>
+    Boolean(state.pushedByGitherd?.[rec.headSha]) || rec.headCommitter === GITHUB_COMMITTER;
+
+/**
+ * The live question about a pull request's failed head (`state.asks`), or null when there is none
+ * for its newest head: a new push starts over.
+ * @param {any} state the daemon state
+ * @param {number | string} n the pull request
+ * @returns {any} the question
+ */
+export function askFor(state, n) {
+    const ask = state.asks?.[String(n)];
+    return ask && ask.head === state.prs?.[String(n)]?.headSha ? ask : null;
+}
+
+/**
+ * Why pull request `n` is in use, or null (design 8.2). In use while:
+ *
+ * 1. another job on it is in flight: claimed by a live session, or being started;
+ * 2. CI runs on a head someone other than githerd pushed (a required check is pending);
+ * 3. CI failed on such a head and githerd asked the live sessions whose it is: until a session
+ *    answers it is its own (then until that session ends or a new push arrives), or until
+ *    `workers.askMinutes` pass with no answer, or at once when there was no session to ask.
+ *
+ * A head githerd or GitHub made is never in use for 2 and 3. A review is a second look at a
+ * worker's patch while that worker waits, so only an owner session's claim hides it.
+ * @param {any} state the daemon state
+ * @param {number | string} n the pull request
+ * @param {{config?: any, now: Date, except?: string | null, review?: boolean}} opts the config, the
+ *   clock, the job asking (never in use by itself) and whether it is a review
+ * @returns {string | null} the reason
+ */
+export function prInUse(state, n, { config, now, except = null, review = false }) {
+    const job = jobOnPr(state, n, { except, review });
+    if (job) return job;
     const rec = state.prs?.[String(n)];
-    const at = Date.parse(rec?.headCommittedAt ?? "");
-    if (!rec || !at || state.pushedByGitherd?.[rec.headSha] || rec.headCommitter === GITHUB_COMMITTER) return null;
-    const age = now.getTime() - at;
-    const hours = config?.workers?.othersPushHours ?? DEFAULT_OTHERS_PUSH_HOURS;
-    return age < hours * HOUR ? `pushed by someone else ${span(age)} ago` : null;
+    if (!rec?.headSha || headIsGitherds(state, rec)) return null;
+    const head = String(rec.headSha ?? "").slice(0, 7);
+    if (Object.values(rec.required ?? {}).includes("PENDING")) return `CI running on ${head}, pushed by someone else`;
+    if (failingRequired(rec).length === 0) return null;
+    const ask = askFor(state, n);
+    if (!ask) return `CI failed on ${head}; githerd is asking the sessions in this repository whose it is`;
+    if (ask.owner) return `session ${ask.owner.name} said it is working on it`;
+    const asked = ask.sessions?.length ?? 0;
+    if (asked === 0) return null;
+    const minutes = config?.workers?.askMinutes ?? DEFAULT_ASK_MINUTES;
+    if (now.getTime() - Date.parse(ask.askedAt) >= minutes * MINUTE) return null;
+    return `CI failed on ${head}; asked ${asked} session${asked === 1 ? "" : "s"} at ${ask.askedAt.slice(11, 16)} UTC; no owner yet`;
 }
 
 /**

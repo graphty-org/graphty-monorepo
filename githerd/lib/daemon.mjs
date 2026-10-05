@@ -64,6 +64,7 @@ import { homedir } from "node:os";
 import { inspect } from "node:util";
 
 import { createPushQueue } from "./actor/push.mjs";
+import { askStep } from "./asks.mjs";
 import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
@@ -103,6 +104,7 @@ import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDe
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
 import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
 import { containerStart, identify } from "./proc.mjs";
+import { liveSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
 import { needsReleaseDryRun, patchId, releaseSectionChanged, touches, updatePrs, whyStuck } from "./prs.mjs";
 import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
@@ -440,6 +442,9 @@ function requeueLostStarts(state, at) {
  *   start touches (tests pass fakes)
  * @param {import("./merge-status.mjs").NpmLookup} [options.npm] whether npm knows a package; the
  *   registry by default
+ * @param {{sessions?: typeof import("./peers.mjs").liveSessions,
+ *   transport?: import("./peers.mjs").Transport}} [options.peers] the live Claude sessions of this
+ *   repository and the messaging transport (asks.mjs); the registry and the sockets by default
  * @returns {Promise<Daemon>} the running daemon
  */
 export async function startDaemon({
@@ -459,6 +464,7 @@ export async function startDaemon({
     workers: workersOn = true,
     platform: platformOptions = {},
     npm = npmLookup(),
+    peers = {},
 }) {
     const startedAtDate = now();
     // The values every outgoing text is checked against: under env -i the daemon's own environment
@@ -1459,7 +1465,10 @@ export async function startDaemon({
         await linkJobPrs(branch, t);
         await mergeGate(gh, prList.repository.pullRequests.nodes, branch);
         // No owner, no jobs: every job acts only on the owner's issues and pull requests.
-        if (state.trust.login) jobsFromFacts(t);
+        if (state.trust.login) {
+            jobsFromFacts(t);
+            await askOwners(t);
+        }
         referenceWork();
         await workerPass();
         escalationItems();
@@ -1573,6 +1582,26 @@ export async function startDaemon({
         }
         for (const c of synced.cancelled) void ledger({ kind: "job-cancelled", ...c });
         for (const l of synced.lapsed) void ledger({ kind: "claim-lapsed", ...l });
+    }
+
+    /**
+     * Asks the live sessions in this repository whose a pull request with failed CI is (asks.mjs,
+     * design 8.2); in dry-run the question is a would-do line.
+     * @param {Date} t the poll's time
+     */
+    async function askOwners(t) {
+        const lines = await askStep(state, {
+            now: t,
+            acting: writeMode("workers") === "acting",
+            sessions: () =>
+                (peers.sessions ?? liveSessions)({
+                    sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions"),
+                    root,
+                }),
+            transport: peers.transport ?? socketTransport(),
+            sessionGone: (session) => ownerSessionGone(session, t),
+        });
+        for (const line of lines) void ledger(line);
     }
 
     /**
@@ -2410,7 +2439,7 @@ export async function startDaemon({
     ];
 
     /**
-     * The eleven tools of design section 6, for every session. It serves
+     * The twelve tools of design section 6, for every session. It serves
      * the current tool protocol, and the previous one while a live session may still speak it; a
      * call in any other protocol is refused before anything runs (design 9.8).
      */

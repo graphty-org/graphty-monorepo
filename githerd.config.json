@@ -44,8 +44,7 @@
         "slots": 3,
         "urgent": 1,
         "waiting": 6,
-        "hoursPerDay": 10,
-        "othersPushHours": 3
+        "hoursPerDay": 10
     },
     "backlog": { "agingDays": 60 },
     "notify": {

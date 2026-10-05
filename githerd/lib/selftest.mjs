@@ -7,7 +7,7 @@
  * reached through a symlink as `current/` is.
  *
  * The probes reuse the real pieces where the wire format matters: the MCP probe is `createMcpServer`
- * with the eleven tools' schemas, and the hook probe prints `hookOutput`'s JSON.
+ * with the twelve tools' schemas, and the hook probe prints `hookOutput`'s JSON.
  *
  * The result is written to `selftest.json` in the state directory. Resume is soft: when it fails,
  * the result says resume is unverified and a dead worker's next session starts fresh (design 7.7).
@@ -245,7 +245,7 @@ export async function probeHook(url, event, { input, env, fetch: fetcher = fetch
 }
 
 /**
- * The MCP probe: the eleven tools with their real schemas over stdio, each call answered by the
+ * The MCP probe: the twelve tools with their real schemas over stdio, each call answered by the
  * responder.
  * @param {string} url the responder
  * @param {{input: NodeJS.ReadableStream, write: (line: string) => void, fetch?: typeof fetch}} options

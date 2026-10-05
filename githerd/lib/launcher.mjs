@@ -1,6 +1,6 @@
 /**
  * The launcher (design section 3.1): the stdio MCP server Claude Code starts from `.mcp.json`. It
- * answers `initialize` and `tools/list` at once with the eleven tools of design section 6, finds or
+ * answers `initialize` and `tools/list` at once with the twelve tools of design section 6, finds or
  * starts the one daemon of the repository in the background (`ensureDaemon`), and forwards every
  * `tools/call` to that daemon over HTTP, after checking its arguments, with the session it serves
  * (`identifySession`) and the tool protocol in `params._meta.githerd`. stdout carries JSON-RPC lines only; anything else goes to stderr.
@@ -1271,7 +1271,7 @@ export async function runLauncher({
     };
     const ensured = ensure().catch(() => {});
 
-    // The eleven tools of design section 6, answered at once for `tools/list`. A call is checked
+    // The twelve tools of design section 6, answered at once for `tools/list`. A call is checked
     // against its schema here, then forwarded with this session's identity and the tool protocol.
     const home = env.HOME ?? homedir();
     const identity = () => ({ ...identifySession({ ppid, env, home, stateDir: ctx.stateDir }), cwd });

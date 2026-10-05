@@ -45,7 +45,7 @@ describe("normalizeConfig", () => {
             urgent: 1,
             waiting: 6,
             hoursPerDay: 10,
-            othersPushHours: 3,
+            askMinutes: 10,
         });
         expect(c.lanes.ci).toEqual({ workflow: "ci.yml", gating: "required", maxMinutes: null });
     });
@@ -67,6 +67,8 @@ describe("normalizeConfig", () => {
             expect(() => with_({ [key]: {} })).toThrow(new RegExp(`${key} is not a setting`));
         }
         expect(() => with_({ actions: { runWrites: true } })).toThrow(/actions\.runWrites is not a setting/);
+        // The push window gave way to asking the sessions (2026-10-05).
+        expect(() => with_({ workers: { othersPushHours: 3 } })).toThrow(/workers\.othersPushHours is not a setting/);
         expect(() => with_({ lanes: { ci: { workflow: "ci.yml", gating: "required", extra: 1 } } })).toThrow(
             /lanes\.ci\.extra/,
         );
@@ -120,6 +122,7 @@ describe("normalizeConfig", () => {
         [{ digest: { weekday: "funday" } }, /digest\.weekday/],
         [{ digest: { hourUtc: 24 } }, /from 0 to 23/],
         [{ workers: { slots: 9 } }, /workers\.slots must be an integer from 0 to 8/],
+        [{ workers: { askMinutes: 0 } }, /workers\.askMinutes must be an integer from 1 to 60/],
         [{ servherdCommand: [] }, /non-empty array/],
         [{ ownerGate: { steps: [] } }, /ownerGate\.steps/],
         [[], /must be a JSON object/],

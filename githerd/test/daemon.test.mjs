@@ -400,7 +400,7 @@ describe("HTTP endpoints", () => {
         expect(daemon.url).toBe(`http://127.0.0.1:${daemon.port}`);
     });
 
-    it("lists the eleven session tools on /rpc", async () => {
+    it("lists the twelve session tools on /rpc", async () => {
         const daemon = await start();
         const res = await fetch(`${daemon.url}/rpc`, {
             method: "POST",
@@ -409,7 +409,7 @@ describe("HTTP endpoints", () => {
         });
         const names = (await res.json()).result.tools.map((t) => t.name);
         expect(names).toEqual(TOOLS.map((t) => t.name));
-        expect(names).toHaveLength(11);
+        expect(names).toHaveLength(12);
     });
 
     it("persists a job claim before replying, and a notification gets 202", async () => {
@@ -1324,6 +1324,36 @@ describe("jobs from the facts", () => {
         expect(daemon.state.jobs["pr-7"]).toMatchObject({ state: "queued", pr: 7, branch: "fix/x" });
         const created = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "job-created");
         expect(created.map((e) => e.job)).toEqual(["pr-7"]);
+    });
+});
+
+describe("asking whose a failed pull request is", () => {
+    it("asks the live sessions once per failed head, a would-do in dry-run, and holds the job meanwhile", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass"] });
+        scene.prs = [gatedPr()];
+        /** @type {string[]} */
+        const sent = [];
+        const peers = {
+            sessions: () => [
+                { pid: 1, sessionId: "s1", name: "graphty-13", cwd: dir, socket: "/s1.sock", status: "idle" },
+            ],
+            transport: { send: async (/** @type {string} */ socket) => void sent.push(socket) },
+        };
+        const daemon = await start({ peers });
+        await poll(daemon);
+        expect(daemon.state.asks["7"]).toMatchObject({ head: B, sessions: ["graphty-13"], sent: [], owner: null });
+        const ledger = await readLedger(join(dir, ".githerd"));
+        expect(ledger.filter((e) => e.kind === "pr-asked")).toHaveLength(1);
+        expect(ledger.find((e) => e.kind === "would-do" && e.group === "workers" && e.pr === 7)).toMatchObject({
+            op: "ask 1 session(s) whose #7 is",
+        });
+        expect(sent).toEqual([]);
+        const text = statusText(statusData(daemon.state, { config: daemon.config, now: clock }, {}), clock);
+        expect(text).toContain("asked 1 session at 12:00 UTC; no owner yet");
+        // The next poll asks nothing new.
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect((await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "pr-asked")).toHaveLength(1);
     });
 });
 

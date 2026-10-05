@@ -104,9 +104,49 @@ async function call(ctx, name, args, meta = { session: "w1", job: "pr-7", nonce:
 }
 
 describe("sessionToolSet", () => {
-    it("serves every one of the eleven tools", () => {
+    it("serves every one of the twelve tools", () => {
         const { ctx } = setup({ jobs: {} });
         expect(sessionToolSet(ctx).map((t) => t.name)).toEqual(TOOLS.map((t) => t.name));
+    });
+
+    it("githerd_mine keeps a failed pull request for the answering session, named as its registry names it", async () => {
+        const home = mkdtempSync(join(tmpdir(), "githerd-mine-"));
+        try {
+            mkdirSync(join(home, ".claude", "sessions"), { recursive: true });
+            writeFileSync(
+                join(home, ".claude", "sessions", "4242.json"),
+                JSON.stringify({ pid: 4242, sessionId: "o1", name: "graphty-monorepo-13" }),
+            );
+            const state = {
+                jobs: {},
+                prs: { 710: { headSha: HEAD, required: { CI: "FAILURE" } } },
+                asks: { 710: { head: HEAD, askedAt: NOW.toISOString(), sessions: ["a"], owner: null } },
+            };
+            const { ctx, commits } = setup(state, { home });
+            const owner = { session: "o1", pid: 4242 };
+            const ok = await call(ctx, "githerd_mine", { pr: 710 }, owner);
+            expect(JSON.parse(ok.text)).toMatchObject({ ok: true, pr: 710, head: HEAD });
+            expect(state.asks[710].owner).toEqual({
+                session: "o1",
+                name: "graphty-monorepo-13",
+                at: NOW.toISOString(),
+            });
+            expect(commits).toEqual([{ kind: "pr-mine", pr: 710, head: HEAD, session: "o1" }]);
+            // Another session cannot take it over, a worker cannot use it, and an unknown pull request is refused.
+            const taken = await call(ctx, "githerd_mine", { pr: 710 }, { session: "o2" });
+            expect(taken).toMatchObject({ isError: true });
+            expect(JSON.parse(taken.text).reason).toBe("session graphty-monorepo-13 already said #710 is its");
+            expect((await call(ctx, "githerd_mine", { pr: 710 })).text).toMatch(/^this worker works on pr-7/);
+            expect((await call(ctx, "githerd_mine", { pr: 9 }, owner)).text).toBe(
+                "githerd knows no open pull request #9",
+            );
+            // A session may say so before githerd asks; a new head drops the answer.
+            delete state.asks[710];
+            await call(ctx, "githerd_mine", { pr: 710 }, { session: "o2" });
+            expect(state.asks[710]).toMatchObject({ head: HEAD, owner: { session: "o2", name: "o2" } });
+        } finally {
+            rmSync(home, { recursive: true, force: true });
+        }
     });
 
     it("shows the board as text or JSON", async () => {

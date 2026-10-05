@@ -63,14 +63,19 @@ the worker's `gh pr create`, comments, issue creation and every other `gh` write
 run for real and write nothing to GitHub. Its worktree (`.worktrees/githerd-<job>`) is installed
 and built in the background first; sessions open one at a time, urgent ones first.
 
-Every session gets the eleven tools of design section 6 from the MCP server in `.mcp.json`:
+Every session gets the twelve tools of design section 6 from the MCP server in `.mcp.json`:
 `githerd_status`, `githerd_next`, `githerd_claim`, `githerd_wait`, `githerd_expect`, `githerd_push`,
-`githerd_rerun`, `githerd_read`, `githerd_done`, `githerd_ask_owner` and `githerd_record`. A
-session calls `githerd_next` for its job (a worker) or the queued jobs it could take (an owner
-session), and `githerd_claim` with its overlap judgment before any edit. A pull request another
-session works on is never offered: one whose job a live session claimed, or whose head someone other
-than githerd pushed within `workers.othersPushHours` (default 3). `githerd_next` lists such jobs as
-in use with the reason, and `githerd status` shows it on the pull request's line. A held (`hold`)
+`githerd_rerun`, `githerd_read`, `githerd_done`, `githerd_ask_owner`, `githerd_record` and
+`githerd_mine`. A session calls `githerd_next` for its job (a worker) or the queued jobs it could
+take (an owner session), and `githerd_claim` with its overlap judgment before any edit. A pull
+request another session works on is never offered (design section 8.2): one whose job a live session
+claimed; one whose CI is running on a head someone other than githerd pushed; and one whose CI
+failed on such a head while githerd waits for an answer. For that last case githerd asks every live
+Claude session working in this repository once per failed head, through Claude Code's session
+messaging ("githerd: CI failed on #710 ... call the githerd_mine tool with pr 710 ..."). A session
+that is working on it calls `githerd_mine` (or claims the job), which keeps the pull request for it
+until the session ends or a new push arrives; with no answer within `workers.askMinutes` (default 10) githerd offers it as a job. In dry-run the question is a `would-do` line. `githerd_next` lists
+in-use jobs with the reason, and `githerd status` shows it on the pull request's line. A held (`hold`)
 pull request that is broken is still offered; the label only keeps it from merging. Pushes go through
 `githerd_push`, which runs the push and its pre-push gate through the machine's push queue
 (`tools/push-queue.sh`). `githerd_wait` declares a wait the daemon watches and ends with a

@@ -93,47 +93,72 @@ describe("jobOrder: the order of design 5.4", () => {
     });
 });
 
-describe("pull requests in use (owner decision 2026-10-04)", () => {
-    const HOUR = 60 * 60 * 1000;
+describe("pull requests in use (owner decisions 2026-10-04 and 2026-10-05)", () => {
+    const MINUTE = 60 * 1000;
+    const HEAD = "c".repeat(40);
     /**
-     * A state with one queued pr job on #9, its head committed `hoursAgo` by `committer`.
-     * @param {number} hoursAgo when the head was committed
+     * A state with one queued pr job on #9, whose required check is `check`, its head committed by
+     * `committer`.
+     * @param {string} check the state of the required check
      * @param {string} [committer] the committer's email
      * @returns {any} the state
      */
-    function pushed(hoursAgo, committer = "owner@example.com") {
+    function pushed(check, committer = "owner@example.com") {
         const job = Object.assign(newJob({ kind: "pr", target: "#9", id: "pr-9" }, NOW), { pr: 9 });
         return {
             jobs: { "pr-9": job },
-            prs: {
-                9: {
-                    headSha: "c".repeat(40),
-                    headCommittedAt: new Date(NOW.getTime() - hoursAgo * HOUR).toISOString(),
-                    headCommitter: committer,
-                },
-            },
+            prs: { 9: { headSha: HEAD, headRef: "feat/x", headCommitter: committer, required: { CI: check } } },
         };
+    }
+    /**
+     * Records githerd's question about #9's head, asked `minutesAgo`.
+     * @param {any} state the state
+     * @param {number} minutesAgo when it was asked
+     * @param {string[]} sessions the sessions asked
+     * @returns {any} the state
+     */
+    function asked(state, minutesAgo, sessions = ["a", "b", "c"]) {
+        const askedAt = new Date(NOW.getTime() - minutesAgo * MINUTE).toISOString();
+        state.asks = { 9: { head: HEAD, askedAt, sessions, owner: null } };
+        return state;
     }
     const order = (/** @type {any} */ state, config = {}) =>
         jobOrder(state.jobs, { inUse: (j) => jobInUse(state, j, { config, now: NOW }) });
 
-    it("does not offer a pull request someone else pushed an hour ago, and offers it after three hours", () => {
-        expect(order(pushed(1))).toEqual({
+    it("does not offer a pull request while CI runs on a head someone else pushed", () => {
+        expect(order(pushed("PENDING"))).toEqual({
             items: [],
             skipped: [],
-            inUse: [{ job: "pr-9", reason: "pushed by someone else 1 h 0 min ago" }],
+            inUse: [{ job: "pr-9", reason: "CI running on ccccccc, pushed by someone else" }],
         });
-        expect(order(pushed(4)).items.map((i) => i.job)).toEqual(["pr-9"]);
-        // The window is the config's.
-        expect(order(pushed(4), { workers: { othersPushHours: 6 } }).inUse).toHaveLength(1);
-        expect(order(pushed(1), { workers: { othersPushHours: 0 } }).items).toHaveLength(1);
     });
 
-    it("never counts githerd's own pushes or GitHub's own commits as someone else's", () => {
-        const own = pushed(1);
-        own.pushedByGitherd = { ["c".repeat(40)]: "#9" };
+    it("holds a failed head until githerd has asked, then until an answer or the wait runs out", () => {
+        expect(order(pushed("FAILURE")).inUse[0].reason).toMatch(/githerd is asking the sessions/);
+        expect(order(asked(pushed("FAILURE"), 3)).inUse).toEqual([
+            { job: "pr-9", reason: "CI failed on ccccccc; asked 3 sessions at 11:57 UTC; no owner yet" },
+        ]);
+        // Nobody answered within the wait (10 minutes by default, the config's otherwise).
+        expect(order(asked(pushed("FAILURE"), 10)).items.map((i) => i.job)).toEqual(["pr-9"]);
+        expect(order(asked(pushed("FAILURE"), 10), { workers: { askMinutes: 20 } }).inUse).toHaveLength(1);
+        // Nobody to ask: offered at once.
+        expect(order(asked(pushed("FAILURE"), 0, [])).items).toHaveLength(1);
+    });
+
+    it("keeps a pull request a session answered for, and a new push starts over", () => {
+        const state = asked(pushed("FAILURE"), 30);
+        state.asks[9].owner = { session: "s1", name: "graphty-13", at: NOW.toISOString() };
+        expect(order(state).inUse).toEqual([{ job: "pr-9", reason: "session graphty-13 said it is working on it" }]);
+        state.prs[9].headSha = "d".repeat(40);
+        expect(order(state).inUse[0].reason).toMatch(/^CI failed on ddddddd; githerd is asking/);
+    });
+
+    it("offers a green or conflicting pull request, and never holds githerd's or GitHub's own heads", () => {
+        expect(order(pushed("SUCCESS")).items).toHaveLength(1);
+        const own = pushed("PENDING");
+        own.pushedByGitherd = { [HEAD]: "#9" };
         expect(order(own).items.map((i) => i.job)).toEqual(["pr-9"]);
-        expect(order(pushed(1, "noreply@github.com")).items.map((i) => i.job)).toEqual(["pr-9"]);
+        expect(order(pushed("FAILURE", "noreply@github.com")).items.map((i) => i.job)).toEqual(["pr-9"]);
     });
 
     it("lets a review run beside the worker whose patch it reviews, but not beside an owner session", () => {

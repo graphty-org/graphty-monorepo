@@ -84,6 +84,21 @@ describe("ci.yml", () => {
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
 
+    it("never lets a draft run cancel a ready run, and never cancels a push to master (#1108)", () => {
+        // `opened` (draft: true) and `ready_for_review` (draft: false) fire a second apart. Sharing one
+        // group, whichever was queued second cancelled the other, which could leave only the draft's
+        // "draft: CI not run". A plain draft -- exactly the drafts the build job skips -- gets its own
+        // group; the merge queue's drafts are real runs and stay with the ready runs.
+        const block = ci.match(/^concurrency:\n((?: {4}.*\n)+)/m);
+        assert.ok(block, "ci.yml has a workflow-level concurrency block");
+        assert.equal(
+            block[1],
+            "    group: ci-${{ github.event.pull_request.number || github.sha }}-" +
+                `\${{ github.event.pull_request.draft && !(${QUEUE}) && 'draft' || 'run' }}\n` +
+                "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+        );
+    });
+
     it("fails, never skips, the summary checks on a draft", () => {
         // A skipped required check counts as passing, and the draft run's check stays on the head SHA
         // after "gh pr ready" until the new run reports.

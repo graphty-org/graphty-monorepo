@@ -1,11 +1,13 @@
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { ImportError } from "@graphty/graph-io";
+import { DATASETS } from "@graphty/graph-samples";
+import { wikipathwaysSenescenceAutophagy } from "@graphty/graph-samples/datasets/wikipathways-senescence-autophagy";
 import cytoscape from "cytoscape";
 import { describe, expect, it } from "vitest";
 
 import { snapshotToElements } from "../src/elements";
 import graphtyCytoscape, { IdTakenError } from "../src/index";
-import { GENERATORS, NAMED_GRAPH_NAMES } from "../src/samples";
+import { BUNDLED_DATASET_NAMES, GENERATORS, NAMED_GRAPH_NAMES } from "../src/samples";
 
 cytoscape.use(graphtyCytoscape);
 
@@ -98,6 +100,24 @@ describe("graphtyDataset", () => {
         const r = await cy.graphtyDataset("contiguous-usa");
         expect(r.directed).toBe(false);
         expect(cy.nodes().map((n) => n.data("label") as string)).toContain("Texas");
+    });
+
+    it("loads every dataset graph-samples bundles from its own module", () => {
+        expect([...BUNDLED_DATASET_NAMES].sort()).toEqual(
+            DATASETS.filter((d) => d.hosting !== "remote")
+                .map((d) => d.name)
+                .sort(),
+        );
+    });
+
+    it("places a drawn dataset's nodes where Cytoscape drew them (saved y grows upward)", async () => {
+        const saved = wikipathwaysSenescenceAutophagy();
+        const xs = saved.nodeColumns?.x as unknown as ArrayLike<number>;
+        const ys = saved.nodeColumns?.y as unknown as ArrayLike<number>;
+        const cy = core();
+        await cy.graphtyDataset("wikipathways-senescence-autophagy");
+        expect(cy.nodes()[0].position()).toEqual({ x: xs[0], y: -ys[0] });
+        expect(cy.nodes()[0].data("y")).toBeUndefined();
     });
 });
 

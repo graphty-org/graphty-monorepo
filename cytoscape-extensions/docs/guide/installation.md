@@ -122,7 +122,7 @@ Importing the package adds every `graphty...` method to Cytoscape's `Core` and `
 The package has four entry points:
 
 - `@graphty/cytoscape-extensions`: the extension (default export), `configureWebGpu`, `toSnapshot`, `writeData`, `LAYOUT_NAMES`, `ALGORITHM_NAMES`, `ASYNC_ALGORITHM_NAMES`, `GPU_SIZE_FLOOR` and the types of the methods and options, such as `GraphtyLayoutOptions`, `AlgorithmOptions` and `Backend`.
-- `@graphty/cytoscape-extensions/samples`: `generateElements`, which returns `{ elements, directed }`, and `datasetElements`, which resolves to the same shape; `GENERATORS`, an object keyed by the 59 generator names; `NAMED_GRAPH_NAMES`, the 21 graphs the `"named"` generator builds; and `BUNDLED_DATASET_NAMES`, the 12 datasets inside the package. The three hosted datasets, `road-ny`, `ogbn-arxiv` and `com-dblp`, are not in that list.
+- `@graphty/cytoscape-extensions/samples`: `generateElements`, which returns `{ elements, directed }`, and `datasetElements`, which resolves to the same shape; `GENERATORS`, an object keyed by the 59 generator names; `NAMED_GRAPH_NAMES`, the 21 graphs the `"named"` generator builds; and `BUNDLED_DATASET_NAMES`, the 16 datasets inside the package. The six hosted datasets, `road-ny`, `ogbn-arxiv`, `go-basic`, `disease-ontology`, `bioplex3-hct116` and `com-dblp`, are not in that list.
 - `@graphty/cytoscape-extensions/io`: `importElements`, which resolves to `{ elements, directed, format, report }`, and `exportElements`.
 - `@graphty/cytoscape-extensions/bundle`: the script-tag build.
 

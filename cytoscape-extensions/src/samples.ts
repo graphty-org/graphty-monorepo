@@ -10,7 +10,7 @@ import * as g from "@graphty/graph-samples/generators";
 import type { ElementDefinition } from "cytoscape";
 
 import { GENERATOR_OPTION_NAMES } from "./algorithm-options.js";
-import { snapshotToElements } from "./elements.js";
+import { flipY, snapshotToElements } from "./elements.js";
 
 /**
  * Every generator by its name: the graph-samples function name in kebab case without "Graph". Each takes that
@@ -110,6 +110,15 @@ const BUNDLED: Record<string, () => Promise<SampleGraph>> = {
     "celegans-neural": () => import("@graphty/graph-samples/datasets/celegans-neural").then((m) => m.celegansNeural()),
     "political-blogs": () => import("@graphty/graph-samples/datasets/political-blogs").then((m) => m.politicalBlogs()),
     openflights: () => import("@graphty/graph-samples/datasets/openflights").then((m) => m.openflights()),
+    "yeast-perturbation": () =>
+        import("@graphty/graph-samples/datasets/yeast-perturbation").then((m) => m.yeastPerturbation()),
+    "stelzl-interactome": () =>
+        import("@graphty/graph-samples/datasets/stelzl-interactome").then((m) => m.stelzlInteractome()),
+    "wikipathways-senescence-autophagy": () =>
+        import("@graphty/graph-samples/datasets/wikipathways-senescence-autophagy").then((m) =>
+            m.wikipathwaysSenescenceAutophagy(),
+        ),
+    "go-slim-generic": () => import("@graphty/graph-samples/datasets/go-slim-generic").then((m) => m.goSlimGeneric()),
 };
 
 /** The datasets that ship inside @graphty/graph-samples; the hosted ones (graph-samples' DATASETS) are fetched. */
@@ -232,7 +241,8 @@ export function generateElements<N extends GeneratorName>(name: N, options: Gene
 
 /**
  * Loads a sample dataset: a bundled one from its own module, any other from graphty.app (see graph-samples'
- * `DATASETS` for the list, with each one's source, citation and license).
+ * `DATASETS` for the list, with each one's source, citation and license). A drawn dataset's saved `x` and `y` become
+ * node positions, placed where Cytoscape drew them.
  * @param name - the dataset name, e.g. "karate"
  * @param options - for a hosted dataset: the base URL and fetch implementation; for any dataset, an abort signal
  * @returns the elements and the direction
@@ -249,5 +259,15 @@ export async function datasetElements(name: string, options: FetchDatasetOptions
     }
     const graph = load === undefined ? await fetchDataset(name, options) : await load();
     options.signal?.throwIfAborted();
-    return fromSample(graph);
+    const r = fromSample(graph);
+    // a drawn dataset's saved x and y (y growing upward) become the position Cytoscape drew (y growing downward)
+    for (const el of r.elements) {
+        const { x, y } = el.data;
+        if (typeof x === "number" && typeof y === "number") {
+            el.position = { x, y: flipY(y) };
+            delete el.data.x;
+            delete el.data.y;
+        }
+    }
+    return r;
 }

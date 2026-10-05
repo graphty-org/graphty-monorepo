@@ -1285,8 +1285,13 @@ function datasets(): string[] {
     ];
     for (const d of Object.values(DATASETS)) {
         const where = BUNDLED_DATASET_NAMES.includes(d.name) ? "bundled" : "hosted";
-        const nodeFields = Object.keys(d.attributes).map((f) => `\`${f}\``);
+        // datasetElements makes a drawn dataset's x and y the node positions
+        const drawn = "x" in d.attributes && "y" in d.attributes;
+        const nodeFields = Object.keys(d.attributes)
+            .filter((f) => !drawn || (f !== "x" && f !== "y"))
+            .map((f) => `\`${f}\``);
         const fields = [
+            ...(drawn ? ["node positions"] : []),
             ...(nodeFields.length === 0 ? [] : [`nodes: ${nodeFields.join(", ")}`]),
             ...(d.weighted ? ["edges: `weight`"] : []),
         ];

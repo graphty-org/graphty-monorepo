@@ -6,6 +6,8 @@
 #   (tools/master-guard.mjs opens it), or a new one.
 # The CI trigger checks often in busy hours even when GitHub runs the cron hours late. Dispatch with
 # label=githerd-heartbeat-test to hand-test the alarm on a scratch issue.
+# It sparse-checks-out tools/ to run the script (unlike the "checks out nothing" executor sketched in the
+# githerd design): the script and its tests live in the repo, where node --test covers them.
 name: githerd watchdog
 
 on:

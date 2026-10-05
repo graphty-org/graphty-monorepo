@@ -103,8 +103,10 @@ describe("githerd heartbeat comments", () => {
 
 describe("master-break clock", () => {
     const sha = (c) => c.repeat(40);
-    const run = (conclusion, minutes, c = "a") => ({
+    const run = (conclusion, minutes, c = "a", event = "push") => ({
         conclusion,
+        event,
+        created_at: ago(minutes),
         updated_at: ago(minutes),
         head_sha: sha(c),
         html_url: `https://example/${c}`,
@@ -120,6 +122,19 @@ describe("master-break clock", () => {
         assert.equal(redSince(runs).head_sha, sha("a"));
         assert.equal(redSince([run("success", 5), run("failure", 300)]), null);
         assert.equal(redSince([run("cancelled", 5), run("success", 300)]), null);
+    });
+
+    it("lets a green dispatched run end the streak and skips pull request runs", () => {
+        assert.equal(redSince([run("success", 5, "b", "workflow_dispatch"), run("failure", 300)]), null);
+        assert.equal(redSince([run("success", 5, "b", "pull_request"), run("failure", 300)]).head_sha, sha("a"));
+        assert.equal(redSince([run("failure", 5, "b", "pull_request")]), null);
+    });
+
+    it("times the streak from the first attempt, so re-running a failed run does not restart the clock", () => {
+        // created 3 hours ago, its failed jobs re-run and failed again 10 minutes ago
+        const rerun = { ...run("failure", 180), updated_at: ago(10), run_attempt: 2 };
+        const action = clockAction([rerun], [], NOW);
+        assert.ok(action.open.body.includes("red for 3 h 0 min"));
     });
 
     it("waits 2 hours, then comments once on the open red-master issue", () => {
@@ -158,18 +173,18 @@ describe("a watchdog run", () => {
         };
         return { calls, request };
     };
-    const green = [{ conclusion: "success", updated_at: ago(5), head_sha: "f".repeat(40) }];
+    const green = [{ conclusion: "success", event: "push", created_at: ago(5), head_sha: "f".repeat(40) }];
 
     it("reads twice and writes nothing when all is well, passing the dispatch label", async () => {
         const { calls, request } = fake([issue(`alive: ${ago(5)}`)], green);
         await watchdog({ request, repo: "o/r", label: "githerd-heartbeat-test", now: NOW });
         assert.equal(calls.length, 2);
         assert.equal(calls[0].body.variables.label, "githerd-heartbeat-test");
-        assert.match(calls[1].path, /workflows\/ci\.yml\/runs\?branch=master&event=push&status=completed/);
+        assert.match(calls[1].path, /workflows\/ci\.yml\/runs\?branch=master&status=completed/);
     });
 
     it("makes at most 4 calls with both alarms firing", async () => {
-        const red = [{ conclusion: "failure", updated_at: ago(300), head_sha: "a".repeat(40), html_url: "u" }];
+        const red = [{ conclusion: "failure", event: "push", created_at: ago(300), head_sha: "a".repeat(40), html_url: "u" }];
         const { calls, request } = fake([issue(`alive: ${ago(90)}`)], red);
         await watchdog({ request, repo: "o/r", label: "githerd-heartbeat", now: NOW });
         assert.deepEqual(calls.map((c) => `${c.method} ${c.path}`).slice(2), [

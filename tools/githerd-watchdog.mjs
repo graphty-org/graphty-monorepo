@@ -9,9 +9,13 @@
 //   the issue mentioning the owner, again only after 24 hours, and once without a mention when it
 //   recovers. Nothing alarms before githerd's first write creates the issue.
 // - Master-break clock. When master's CI has been red for over 2 hours (its consecutive failed push
-//   runs since the last green one; cancelled runs are ignored), it comments once on the open
+//   and dispatch runs since the last green one, timed from the first failed run's creation so that
+//   re-running it does not restart the clock; cancelled runs are ignored), it comments once on the open
 //   "Red master: CI failed on ..." issue that tools/master-guard.mjs opened, mentioning the owner, or
 //   opens that issue when none is open.
+//
+// De-duplication reads the last 100 comments of each issue (GraphQL's page limit): an incident busier
+// than that gets the owner mention again, at most every 30 minutes.
 //
 // One GraphQL query and one REST read, plus at most one comment for each alarm: at most 4 API calls.
 import { FREEZE_PREFIX } from "./master-guard.mjs";
@@ -21,15 +25,17 @@ const MIN = 60_000;
 const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
 const RED = new Set(["failure", "timed_out", "startup_failure"]);
+// A dispatched run is master's CI too: ci.yml offers it as the recovery when GitHub creates no push run
+const MASTER_EVENTS = new Set(["push", "workflow_dispatch"]);
 
 const QUERY = `query($owner: String!, $name: String!, $label: String!, $search: String!) {
   repository(owner: $owner, name: $name) {
     issues(labels: [$label], first: 5, orderBy: { field: CREATED_AT, direction: DESC }) {
-      nodes { number state body createdAt comments(last: 20) { nodes { body createdAt } } }
+      nodes { number state body createdAt comments(last: 100) { nodes { body createdAt } } }
     }
   }
   search(query: $search, type: ISSUE, first: 5) {
-    nodes { ... on Issue { number title body createdAt comments(last: 20) { nodes { body createdAt } } } }
+    nodes { ... on Issue { number title body createdAt comments(last: 100) { nodes { body createdAt } } } }
   }
 }`;
 
@@ -131,12 +137,16 @@ export function heartbeatComment(judged, now) {
 
 /**
  * When master turned red.
- * @param runs - Completed CI push runs on master, newest first (REST workflow_runs).
+ * @param runs - Completed CI runs on master, newest first (REST workflow_runs); runs of other events
+ *   (a pull request whose head branch is also called master) are skipped.
  * @returns The oldest failed run since the last green one, or null when master is green.
  */
 export function redSince(runs) {
     let oldest = null;
     for (const r of runs) {
+        if (!MASTER_EVENTS.has(r.event)) {
+            continue;
+        }
         if (r.conclusion === "success") {
             break;
         }
@@ -157,7 +167,8 @@ export function redSince(runs) {
  */
 export function clockAction(runs, redIssues, now) {
     const first = redSince(runs);
-    if (!first || now - time(first.updated_at) <= 2 * HOUR) {
+    // created_at, not updated_at: re-running the failed jobs moves updated_at to the re-run's end
+    if (!first || now - time(first.created_at) <= 2 * HOUR) {
         return null;
     }
     const mark = `<!-- master-clock:${first.head_sha} -->`;
@@ -165,7 +176,7 @@ export function clockAction(runs, redIssues, now) {
     if (issues.some((i) => i.body?.includes(mark) || i.comments?.some((c) => c.body.includes(mark)))) {
         return null;
     }
-    const minutes = Math.floor((now - time(first.updated_at)) / MIN);
+    const minutes = Math.floor((now - time(first.created_at)) / MIN);
     const text = `@${OWNER} ACTION NEEDED: master CI has been red for ${Math.floor(minutes / 60)} h ${minutes % 60} min, past the 2-hour fix target. First failed run: ${first.html_url} (${first.head_sha.slice(0, 7)}).\n\n${mark}`;
     const newest = issues.sort((a, b) => b.number - a.number)[0];
     return newest
@@ -200,7 +211,7 @@ export async function watchdog({ request, repo, label, now }) {
     const redIssues = q.data.search.nodes.filter((i) => i.number).map(flat);
     const { workflow_runs: runs } = await request(
         "GET",
-        `/repos/${repo}/actions/workflows/ci.yml/runs?branch=master&event=push&status=completed&per_page=30`,
+        `/repos/${repo}/actions/workflows/ci.yml/runs?branch=master&status=completed&per_page=30`,
     );
 
     const judged = heartbeatState(issues, now);

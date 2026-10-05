@@ -1,6 +1,6 @@
 {
     "name": "@graphty/compact-mantine",
-    "version": "0.9.2",
+    "version": "0.9.5",
     "description": "Compact size variants for Mantine UI components - optimized for dense UIs",
     "type": "module",
     "main": "dist/index.cjs",

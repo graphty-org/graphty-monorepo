@@ -63,8 +63,21 @@ export const displayComponentExtensions = {
         }),
     }),
 
+    // Mantine draws the remove button with tabIndex -1 and aria-hidden, so a removable pill's only
+    // control is out of reach of the keyboard and of a screen reader (WCAG 2.1.1, 4.1.2). Default
+    // props merge shallowly, so the fix sits in both `removeButtonProps` and `attributes.remove`:
+    // a caller who replaces one of them (TagsInput hands its own `attributes` to every pill) keeps
+    // the other, and only a caller who passes both must set tabIndex and aria-hidden itself.
+    // The default name is the generic English "Remove": a theme default cannot read the labels
+    // context or the pill's value, and MultiSelect and TagsInput never pass removeButtonProps, so
+    // their pills all share it. Name a Pill of your own after its value:
+    // `removeButtonProps={{ "aria-label": `Remove ${tag}` }}`.
     Pill: Pill.extend({
-        defaultProps: { size: "sm" },
+        defaultProps: {
+            size: "sm",
+            removeButtonProps: { "aria-label": "Remove", tabIndex: 0, "aria-hidden": false },
+            attributes: { remove: { tabIndex: 0, "aria-hidden": false } },
+        },
         classNames: { root: "cm-pill" },
         vars: (_theme, props) => ({
             root: {

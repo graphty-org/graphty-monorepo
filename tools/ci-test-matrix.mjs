@@ -13,7 +13,7 @@
  *   both are the JSON arrays `nx show projects --json` prints (with or without --affected).
  * Prints three GITHUB_OUTPUT lines:
  *   affected=<JSON array of package directory names>   (Chromatic jobs test membership in it)
- *   test-matrix=<JSON {"include": [...shards]}>
+ *   test-matrix=<JSON {"include": [...shards and shard groups]}>
  *   test-count=<number of shards>   (0 means skip the test job: an empty matrix is an error)
  *
  * It fails when a shard names a package nx does not know: a renamed project would otherwise match
@@ -154,7 +154,7 @@ export const SHARDS = [
         shard: "graphty-element-default",
         package: "graphty-element",
         "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default --coverage && pnpm exec vitest run --project=bench --reporter=default",
+            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} --coverage && pnpm exec vitest run --project=bench --reporter=default ${CI:+--reporter=junit}",
         "needs-browser": false,
     },
     // graphty-element browser tests (5 shards)
@@ -164,8 +164,10 @@ export const SHARDS = [
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
         "test-command":
-            `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default --coverage` +
-            (n === 1 ? " && pnpm exec vitest run --project=browser-bench --reporter=default" : ""),
+            `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage` +
+            (n === 1
+                ? " && pnpm exec vitest run --project=browser-bench --reporter=default ${CI:+--reporter=junit}"
+                : ""),
         "needs-browser": true,
     })),
     // graphty-element storybook tests (4 shards)
@@ -179,10 +181,71 @@ export const SHARDS = [
     ...[1, 2, 3, 4].map((n) => ({
         shard: `graphty-element-storybook-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/4 --reporter=blob --reporter=default --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/4 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage`,
         "needs-browser": true,
     })),
 ];
+
+/**
+ * Shards too short to be worth a runner of their own (one to four minutes each, most of it
+ * setup) run one after another in a single job. A group job runs only its affected members, and
+ * every member runs even when an earlier one failed, so one job reports every failure. Without
+ * the groups a full run asked for 22 test runners at once; with them it asks for 13.
+ */
+export const GROUPS = {
+    "small-node": ["graph-format", "graph-io", "graph-samples", "layout", "algorithms-default"],
+    "small-browser": [
+        "algorithms-browser",
+        "remote-logger",
+        "compact-mantine",
+        "graphty",
+        "visual-review",
+        "webgpu-graph-algorithms-browser",
+    ],
+};
+
+// Group members whose lcov.info coverage.yml merges. visual-review and the webgpu browser smoke
+// never uploaded coverage, and adding them would change the published numbers.
+const NO_COVERAGE = new Set(["visual-review", "webgpu-graph-algorithms-browser"]);
+
+/**
+ * The matrix entry of one group, holding only the members a run must test.
+ * @param name the group's name
+ * @param members the SHARDS entries to run, in order
+ * @returns a matrix entry; "coverage" lists "<shard>=<lcov path>" pairs, space separated
+ */
+export function groupEntry(name, members) {
+    const steps = members.map((m) => `echo "==> ${m.shard}"; (${m["test-command"]}) || failed="$failed ${m.shard}"`);
+    return {
+        shard: name,
+        package: members.map((m) => m.package).join(" "),
+        "test-command": `failed=""; ${steps.join("; ")}; if [ -n "$failed" ]; then echo "::error::failed:$failed"; exit 1; fi`,
+        "needs-browser": members.some((m) => m["needs-browser"]),
+        coverage: members
+            .filter((m) => !NO_COVERAGE.has(m.shard))
+            .map((m) => `${m.shard}=${m.package}/coverage/lcov.info`)
+            .join(" "),
+    };
+}
+
+/**
+ * The test job's matrix: every shard of an affected package, short ones folded into their group.
+ * @param affected package directory names
+ * @returns the matrix's include list
+ */
+export function plan(affected) {
+    const grouped = new Set(Object.values(GROUPS).flat());
+    const include = SHARDS.filter((s) => !grouped.has(s.shard) && affected.includes(s.package));
+    for (const [name, shards] of Object.entries(GROUPS)) {
+        const members = shards
+            .map((n) => SHARDS.find((s) => s.shard === n))
+            .filter((s) => affected.includes(s.package));
+        if (members.length > 0) {
+            include.push(groupEntry(name, members));
+        }
+    }
+    return include;
+}
 
 function main() {
     const [allArg, affectedArg] = process.argv.slice(2);
@@ -194,12 +257,20 @@ function main() {
     const affected = JSON.parse(affectedArg).map(dirName);
 
     const unknown = [...new Set(SHARDS.map((s) => s.package))].filter((p) => !all.has(p));
+    const ungroupable = Object.values(GROUPS)
+        .flat()
+        .filter((n) => !SHARDS.some((s) => s.shard === n));
     if (unknown.length > 0) {
         console.error(`test shards name packages nx does not know: ${unknown.join(", ")}`);
+    }
+    if (ungroupable.length > 0) {
+        console.error(`groups name shards that do not exist: ${ungroupable.join(", ")}`);
+    }
+    if (unknown.length > 0 || ungroupable.length > 0) {
         process.exit(1);
     }
 
-    const include = SHARDS.filter((s) => affected.includes(s.package));
+    const include = plan(affected);
     console.log(`affected=${JSON.stringify(affected)}`);
     console.log(`test-matrix=${JSON.stringify({ include })}`);
     console.log(`test-count=${include.length}`);

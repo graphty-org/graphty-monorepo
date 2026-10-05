@@ -1,3 +1,45 @@
+## 0.2.10 (2026-10-05)
+
+### 🩹 Fixes
+
+- **visual-review:** show a local preview while another project of the CI run downloads ([fc534d028](https://github.com/graphty-org/graphty-monorepo/commit/fc534d028))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.9 (2026-10-05)
+
+### 🚀 Features
+
+- **visual-review:** review and finish on a local preview of a pull request ([f5636fb54](https://github.com/graphty-org/graphty-monorepo/commit/f5636fb54))
+- **visual-review:** capture with the fonts the config's fontconfig pins ([5eb56d652](https://github.com/graphty-org/graphty-monorepo/commit/5eb56d652))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.8 (2026-10-04)
+
+### 🚀 Features
+
+- **visual-review:** finish without merging master first ([f4cc31c41](https://github.com/graphty-org/graphty-monorepo/commit/f4cc31c41))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.7 (2026-10-04)
+
+### 🩹 Fixes
+
+- **visual-review:** with Focus on, show an image only once its focus point is known ([96302a86b](https://github.com/graphty-org/graphty-monorepo/commit/96302a86b))
+- **visual-review:** label a loading Flash, Highlight or Spotlight as that view ([74af30a73](https://github.com/graphty-org/graphty-monorepo/commit/74af30a73))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.6 (2026-10-04)
 
 ### 🚀 Features

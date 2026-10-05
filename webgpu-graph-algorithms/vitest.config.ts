@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+
 /**
  * The Chromium flag sets: the two of spec 12.2 (GRAPHTY_BROWSER_GPU "nvidia" | "swiftshader", default swiftshader)
  * and the host lane's "metal" and "warp". Kept in one exported constant so the Vitest 4 provider change is a
@@ -254,7 +256,12 @@ export default defineConfig({
         // Root, not per project, likewise: one file at a time for the device-error and limits runs (see serialRun).
         fileParallelism: serialRun ? false : undefined,
         // verbose prints a line per test: useful locally, needless noise in CI
-        reporters: process.env.CI ? ["default"] : ["verbose"],
+        reporters: [
+            ...(process.env.CI ? ["default"] : ["verbose"]),
+            ...ciJunitReporter(
+                process.env.GRAPHTY_GPU_NO_SUBGROUPS ? { classnameTemplate: "no-subgroups/{filepath}" } : {},
+            ),
+        ],
         coverage: {
             provider: "v8",
             // On a runner only lcov.info is uploaded and json-summary carries the thresholds, so the html and

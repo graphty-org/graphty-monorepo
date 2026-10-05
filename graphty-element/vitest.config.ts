@@ -32,6 +32,8 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+
 /**
  * Babylon modules the element imports only for their side effects (see
  * test/packaging/babylon-side-effects.test.ts). Pre-bundled in every browser project: a
@@ -233,6 +235,7 @@ function appendBenchRow(log: string): undefined {
 
 export default defineConfig({
     test: {
+        reporters: ["default", ...ciJunitReporter()],
         onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
         // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.

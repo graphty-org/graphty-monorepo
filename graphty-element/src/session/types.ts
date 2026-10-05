@@ -52,6 +52,7 @@ import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
 import type { ResultsApi, RunRef } from "./results";
+import type { Histogram, HistogramOptions } from "./results/types";
 import type {
     Caveats,
     EngineVersions,
@@ -65,7 +66,7 @@ import type {
     WeightMeaning,
 } from "./runs";
 import type { ScopeApi } from "./scope/index";
-import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget } from "./selection";
+import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, SelectionTextMode } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
 import type { ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
@@ -205,6 +206,18 @@ export interface RecordPageOptions {
      * same order. The records themselves are unchanged.
      */
     readonly columns?: readonly ResultColumn[];
+    /**
+     * Only the records that match a text, as `selection.apply({ text, mode })` matches it: a
+     * node by its id and its attribute values, an edge by its id, its two endpoints' ids and its
+     * attribute values. With no `mode` the text may carry one as a prefix (`exact:`, `regex:`,
+     * `<attribute>:`); otherwise it is found anywhere, ignoring case. Combines with `scope`,
+     * `sort` and `columns`; `total` counts the matches. Selects nothing.
+     *
+     * ```ts
+     * session.data.nodePage({ matching: { text: "jav" }, limit: 30 }); // Javert, ...
+     * ```
+     */
+    readonly matching?: { readonly text: string; readonly mode?: SelectionTextMode };
 }
 
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */
@@ -523,6 +536,21 @@ export interface GraphStatistics {
      */
     readonly meanDegree: number;
     /**
+     * How the total degree is distributed: the same measure {@link GraphStatistics.degreeRange}
+     * summarises, binned the way `RunResult.histogram` bins a count. One bar per degree when there
+     * are few distinct degrees, whole-number bands otherwise; the bars' counts add up to
+     * {@link GraphStatistics.nodeCount}.
+     *
+     * `session.data.statistics()` always fills it in. It is optional only so statistics a caller
+     * builds by hand, to pass to `recommendLayout` or a cost estimate, need not build one.
+     *
+     * ```ts
+     * const histogram = session.data.statistics().degreeHistogram;
+     * // binning "per-value": bins[i].from === bins[i].to, one degree each
+     * ```
+     */
+    readonly degreeHistogram?: Histogram;
+    /**
      * The share of wedges -- two edges meeting at a node -- whose open ends are also joined, so
      * that the three nodes form a triangle: the global clustering coefficient, read with arc
      * direction ignored. 0 on a graph with no triangles (a tree, a grid, a sparse random graph),
@@ -539,6 +567,28 @@ export interface GraphStatistics {
     /** The connected-component shape. */
     readonly components: ComponentStatistics;
 }
+
+/**
+ * How one data column's values are distributed: what `session.data.histogram(column)` returns.
+ *
+ * A column that measures amounts (`measurement: "quantitative"`) is binned like a run's field,
+ * with `kind: "numeric"` beside the {@link Histogram} fields. Any other column is counted by
+ * value, with `kind: "categorical"`.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type ColumnHistogram =
+    | (Histogram & { readonly kind: "numeric" })
+    | {
+          readonly kind: "categorical";
+          /**
+           * The commonest values, most elements first; a tie keeps the order the values were first
+           * seen in. At most `bins` of them (20 unless asked).
+           */
+          readonly values: readonly { readonly value: string | number | boolean; readonly count: number }[];
+          /** How many elements carry a value not in `values`; 0 when every value made the list. */
+          readonly otherCount: number;
+      };
 
 /**
  * The O(1) half of a session: the facts a status chip or a disabled button needs before it can
@@ -687,6 +737,19 @@ export interface SessionDataApi {
      */
     node(id: NodeId): NodeRecord | undefined;
     /**
+     * What a node is called: the value of its label column (`data.knownFields.nodeLabelPath`) as
+     * text, else its id as text. The same name {@link neighbors} gives each neighbor and a result
+     * summary gives each element, so a header and a list never disagree. Untrusted text from the
+     * data: render it as text, never as markup.
+     *
+     * ```ts
+     * const title = session.data.name(nodeId) ?? String(nodeId); // "Javert"
+     * ```
+     * @param id - the node id, compared without coercion
+     * @returns the name, or undefined when the graph has no such node
+     */
+    name(id: NodeId): string | undefined;
+    /**
      * One edge, by the element-assigned edge id.
      * @param id - the edge id
      * @returns the record, or undefined when the graph has no such edge
@@ -775,6 +838,21 @@ export interface SessionDataApi {
      */
     source(): DataSourceDescriptor | null;
     /**
+     * Give the source the graph was loaded from a new name, as one undoable step: what
+     * {@link source} reports as `name` from then on. The name is saved with the project, and undo
+     * restores the old one.
+     *
+     * ```ts
+     * await session.data.renameSource("Les Miserables characters");
+     * session.data.source()?.name; // "Les Miserables characters"
+     * ```
+     * @param name - the new name; not empty
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"no-source"`) when no
+     *     source is loaded, and (`"empty-name"`) for an empty name.
+     */
+    renameSource(name: string): Promise<void>;
+    /**
      * Every attribute the graph's records carry, with its type, what it measures, how complete
      * it is and a few sample values. Walked once per revision and cached.
      * @returns the descriptors, node attributes first, each kind in first-seen order
@@ -800,6 +878,25 @@ export interface SessionDataApi {
      *     no record carries, and `E_BAD_COMMAND` for a declaration that is not one.
      */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
+    /**
+     * How a data column's values are distributed, for a chart of one attribute. A quantitative
+     * column comes back binned (`kind: "numeric"`, the {@link Histogram} shape a run's field has),
+     * any other column counted by value, commonest first (`kind: "categorical"`). Elements with no
+     * value in the column are not counted. Walks the column on every call.
+     *
+     * ```ts
+     * const age = session.data.histogram({ kind: "node", name: "age" });
+     * if (age.kind === "numeric") drawBars(age.bins);
+     * else drawBars(age.values, age.otherCount);
+     * ```
+     * @param column - the column; an attribute descriptor can be passed as it is
+     * @param options - `bins`: how many bars, or how many values a categorical column lists (20
+     *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it
+     * @returns the distribution
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
+     *     no record carries, and `E_OPTION_RANGE` for a bin count outside 1 to 100.
+     */
+    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     /**
      * The graph's shape. Walked once per snapshot and cached.
      * @returns the statistics
@@ -1431,6 +1528,8 @@ export interface CommandOutcomeMap {
     "data.expand": Promise<void>;
     /** Settles once the declaration is recorded. */
     "data.declare": Promise<void>;
+    /** Settles once the source is recorded. */
+    "data.setSource": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */

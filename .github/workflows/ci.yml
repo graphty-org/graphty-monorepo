@@ -71,16 +71,30 @@ jobs:
                   fetch-depth: 0
 
             # New required checks start as warnings. tools/ci-advisory-checks.json lists each new job or step
-            # with the date it becomes required ("enforce"); until then "All Checks Pass" reports a listed
-            # job's failure as a warning, and a listed step carries
+            # with the date it becomes required ("enforce"). The output is the JSON list of "<job>" and
+            # "<job>/<step>" still in their warning period. A listed job carries the job-level
+            #   continue-on-error: ${{ contains(fromJSON(needs.build.outputs.advisory-checks), '<job>') }}
+            # and ends with a step `if: ${{ failure() }}`, `continue-on-error: true` that echoes
+            # "::warning::advisory check <job> failed". A listed step carries an id and
             #   continue-on-error: ${{ contains(fromJSON(needs.build.outputs.advisory-checks), '<job>/<step>') }}
-            # (steps.advisory.outputs.checks inside this job). The output is the JSON list of "<job>" and
-            # "<job>/<step>" still in their warning period. tools/ci-workflows.test.mjs refuses a new required
-            # job or step that is in neither the file's "required" baseline nor its "advisory" list.
+            # (steps.advisory.outputs.checks inside this job, after this step), and is followed by a step
+            # `if: ${{ steps.<id>.outcome == 'failure' }}`, `continue-on-error: true` echoing the same warning
+            # for "<job>/<step>". Either job needs build directly. "All Checks Pass" also reports a listed
+            # job's failure as a warning. On a pull request the list comes from the base tip (HEAD^1 of the
+            # merge ref), never the pull request's copy, so a pull request cannot loosen the list that judges
+            # it: a new check must pass on the pull request that adds it, and warns on the ones after it.
+            # Without the file on the base, nothing is advisory. tools/ci-workflows.test.mjs holds the
+            # registry to ci.yml and to the base branch.
             - name: List advisory checks
               id: advisory
+              env:
+                  EVENT: ${{ github.event_name }}
               run: |
-                  echo "checks=$(jq -c --arg today "$(date -u +%F)" '[.advisory[] | select(.enforce > $today) | .job + (if .step then "/" + .step else "" end)]' tools/ci-advisory-checks.json)" | tee -a "$GITHUB_OUTPUT"
+                  base=HEAD
+                  [[ "$EVENT" == "pull_request" ]] && base=HEAD^1
+                  registry=$(git show "$base:tools/ci-advisory-checks.json" 2>/dev/null) || registry='{"advisory":[]}'
+                  checks=$(jq -c --arg today "$(date -u +%F)" '[.advisory[] | select(.enforce > $today) | .job + (if .step then "/" + .step else "" end)]' <<<"$registry")
+                  echo "checks=$checks" | tee -a "$GITHUB_OUTPUT"
 
             - uses: pnpm/action-setup@v4
 

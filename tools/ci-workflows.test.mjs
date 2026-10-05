@@ -125,10 +125,9 @@ describe("ci.yml", () => {
     });
 });
 
-// The (job, step) pairs that can fail "All Checks Pass" or "Queue Checks Pass": every step of every job
-// in their `needs` closure, less a job or step marked `continue-on-error: true`. A step is named by its
-// `name`, or by its `uses` when it has none; `coe` is its continue-on-error value, if any.
-const requiredChecks = (text) => {
+// Every job of a workflow: its direct needs, its job-level continue-on-error (`coe`) and its steps, each
+// named by its `name`, or by its `uses` when it has none, with its id, if, coe and a one-line run.
+const parseJobs = (text) => {
     const jobs = {};
     let job;
     let step;
@@ -136,98 +135,292 @@ const requiredChecks = (text) => {
     for (const line of text.slice(text.indexOf("\njobs:\n")).split("\n")) {
         let m = /^ {4}([\w-]+):\s*$/.exec(line);
         if (m) {
-            job = jobs[m[1]] = { needs: "", steps: [], advisory: false };
+            job = jobs[m[1]] = { needs: [], steps: [] };
             step = undefined;
+            inNeeds = false;
             continue;
         }
         if (!job) continue;
         if (/^ {8}\S/.test(line)) {
             step = undefined;
             inNeeds = line.startsWith("        needs:");
-            if (/^ {8}continue-on-error: true\s*$/.test(line)) job.advisory = true;
+            if ((m = /^ {8}continue-on-error:\s*(.*)$/.exec(line))) job.coe = m[1];
         }
-        if (inNeeds) job.needs += line.replace(/^ {8}needs:/, "");
+        if (inNeeds) job.needs.push(...(line.replace(/^ {8}needs:/, "").match(/[\w-]+/g) ?? []));
         if ((m = /^ {12}- (?:([\w-]+):\s*(.*))?/.exec(line))) {
             step = {};
             job.steps.push(step);
             if (m[1]) step[m[1]] = m[2];
         } else if (step && (m = /^ {14}([\w-]+):\s*(.*)$/.exec(line))) step[m[1]] = m[2];
     }
+    for (const j of Object.values(jobs))
+        j.steps = j.steps.map((s) => ({ ...s, name: s.name ?? s.uses, coe: s["continue-on-error"] }));
+    return jobs;
+};
+
+// The (job, step) pairs that can fail "All Checks Pass" or "Queue Checks Pass": every step of every job
+// in their `needs` closure, less a job or step marked `continue-on-error: true`, as { job: [step names] }.
+const requiredChecks = (jobs) => {
     const closure = new Set();
     const visit = (name) => {
-        if (closure.has(name)) return;
+        if (closure.has(name) || !jobs[name]) return;
         closure.add(name);
-        for (const need of jobs[name].needs.match(/[\w-]+/g) ?? []) visit(need);
+        for (const need of jobs[name].needs) visit(need);
     };
     visit("all-checks");
     visit("queue-checks");
     return Object.fromEntries(
         [...closure]
-            .filter((name) => !jobs[name].advisory)
-            .map((name) => [
-                name,
-                jobs[name].steps
-                    .filter((s) => s["continue-on-error"] !== "true")
-                    .map((s) => ({ name: s.name ?? s.uses, coe: s["continue-on-error"] })),
-            ]),
+            .filter((name) => jobs[name].coe !== "true")
+            .map((name) => [name, jobs[name].steps.filter((s) => s.coe !== "true").map((s) => s.name)]),
     );
+};
+
+const DAY = 86_400_000;
+const idOf = (a) => (a.step === undefined ? a.job : `${a.job}/${a.step}`);
+
+// What is wrong with tools/ci-advisory-checks.json against ci.yml and against the base branch's copies of
+// both, and which entries are due for promotion. A warning period is granted only to a check the base
+// branch does not require yet, and "required" grows only by checks the base branch already runs, so a
+// pull request can neither put an existing check back into a warning period nor skip a new one's.
+// The dates warn and never fail: an entry past its enforce date is simply required (the build job drops
+// it from the list), so no run turns red because a calendar day passed.
+const advisoryProblems = ({ ci, registry, baseCi, baseRegistry, today }) => {
+    const jobs = parseJobs(ci);
+    const checks = requiredChecks(jobs);
+    const baseChecks = requiredChecks(parseJobs(baseCi));
+    const baseAdvisory = new Set((baseRegistry?.advisory ?? []).map(idOf));
+    const problems = [];
+    const warnings = [];
+    const check = (ok, message) => {
+        if (!ok) problems.push(message);
+        return ok;
+    };
+    const isAdvisory = (job, step) =>
+        registry.advisory.some((a) => a.job === job && (a.step === undefined || a.step === step));
+
+    for (const [job, steps] of Object.entries(checks))
+        for (const name of steps)
+            check(
+                registry.required[job]?.includes(name) || isAdvisory(job, name),
+                `${job} / ${name}: unregistered: a new check goes into "advisory" first`,
+            );
+    for (const [job, names] of Object.entries(registry.required))
+        for (const name of names) {
+            check(checks[job]?.includes(name), `${job} / ${name}: in "required" but not a required check of ci.yml`);
+            if (baseRegistry && !baseRegistry.required[job]?.includes(name))
+                check(
+                    baseChecks[job]?.includes(name),
+                    `${job} / ${name}: "required" only grows by checks the base branch already runs; a new one goes into "advisory" first`,
+                );
+        }
+
+    for (const a of registry.advisory) {
+        const id = idOf(a);
+        if (!check(/^\d{4}-\d\d-\d\d$/.test(a.added) && /^\d{4}-\d\d-\d\d$/.test(a.enforce), `${id}: dates`)) continue;
+        check(Number.isInteger(a.issue), `${id}: names its tracking issue`);
+        const added = Date.parse(a.added);
+        const enforce = Date.parse(a.enforce);
+        check(enforce > added && enforce <= added + 21 * DAY, `${id}: enforce within 21 days of added`);
+        if (Date.parse(today) >= enforce - 3 * DAY)
+            warnings.push(`${id}: required from ${a.enforce}: move it into "required" and drop its warning wiring`);
+        if (!baseAdvisory.has(id)) {
+            check(
+                a.step === undefined ? !(a.job in baseChecks) : !baseChecks[a.job]?.includes(a.step),
+                `${id}: the base branch already requires it, so it cannot go back to a warning period`,
+            );
+            check(a.added <= today, `${id}: added in the future`);
+        }
+        const j = jobs[a.job];
+        if (!check(a.job in checks, `${id}: a job "All Checks Pass" needs`)) continue;
+        const list = a.job === "build" ? "steps.advisory.outputs.checks" : "needs.build.outputs.advisory-checks";
+        const coe = `\${{ contains(fromJSON(${list}), '${id}') }}`;
+        if (a.job !== "build")
+            check(j.needs.includes("build"), `${id}: the job needs build directly (it lists the advisory checks)`);
+        let warn;
+        if (a.step === undefined) {
+            check(!(a.job in registry.required), `${id}: a job in "required" is not new`);
+            check(j.coe === coe, `${id}: job-level continue-on-error: ${coe}`);
+            warn = { if: "${{ failure() }}", step: j.steps.at(-1) };
+        } else {
+            check(!registry.required[a.job]?.includes(a.step), `${id}: a step in "required" is not new`);
+            const i = j.steps.findIndex((s) => s.name === a.step);
+            if (!check(i >= 0, `${id}: the step exists`)) continue;
+            const s = j.steps[i];
+            check(s.coe === coe, `${id}: continue-on-error: ${coe}`);
+            check(s.id !== undefined, `${id}: has an id`);
+            if (a.job === "build")
+                check(i > j.steps.findIndex((x) => x.id === "advisory"), `${id}: comes after "List advisory checks"`);
+            warn = { if: `\${{ steps.${s.id}.outcome == 'failure' }}`, step: j.steps[i + 1] };
+        }
+        check(
+            warn.step?.if === warn.if &&
+                warn.step.coe === "true" &&
+                warn.step.run?.includes(`::warning::advisory check ${id} failed`),
+            `${id}: followed by a step with if: ${warn.if}, continue-on-error: true, run: echo "::warning::advisory check ${id} failed"`,
+        );
+    }
+    return { problems, warnings };
+};
+
+const gitShow = (path) => {
+    const r = spawnSync("git", ["show", `origin/master:${path}`], { encoding: "utf8" });
+    return r.status === 0 ? r.stdout : undefined;
 };
 
 describe("new required checks start as warnings", () => {
     const ci = workflow("ci.yml");
     const registry = JSON.parse(readFileSync(new URL("ci-advisory-checks.json", import.meta.url), "utf8"));
-    const checks = requiredChecks(ci);
-    const DAY = 86_400_000;
-    const today = new Date().toISOString().slice(0, 10);
-    const isAdvisory = (job, step) =>
-        registry.advisory.some((a) => a.job === job && (a.step === undefined || a.step === step));
 
     it("finds the required jobs and steps", () => {
-        assert.ok(checks.build.some((s) => s.name === "Install dependencies"));
-        assert.ok(checks["all-checks"].some((s) => s.name === "Check visual changes were accepted"));
+        const checks = requiredChecks(parseJobs(ci));
+        assert.ok(checks.build.includes("Install dependencies"));
+        assert.ok(checks["all-checks"].includes("Check visual changes were accepted"));
         assert.ok(!("visual" in checks) && !("performance" in checks), "continue-on-error jobs never block");
-        assert.ok(!checks["all-checks"].some((s) => s.name === "Download visual captures"));
+        assert.ok(!checks["all-checks"].includes("Download visual captures"));
     });
 
-    it("refuses a required job or step that is neither in the baseline nor in its warning period", () => {
-        const unregistered = Object.entries(checks).flatMap(([job, steps]) =>
-            steps
-                .filter((s) => !registry.required[job]?.includes(s.name) && !isAdvisory(job, s.name))
-                .map((s) => `${job} / ${s.name}`),
-        );
-        assert.deepEqual(
-            unregistered,
-            [],
-            'a new check goes into tools/ci-advisory-checks.json "advisory" first (a renamed or moved one into "required")',
-        );
+    it("registers every required check, against ci.yml and the base branch", () => {
+        const baseCi = gitShow(".github/workflows/ci.yml");
+        assert.ok(baseCi, "origin/master's ci.yml (git fetch origin master)");
+        const base = gitShow("tools/ci-advisory-checks.json");
+        const { problems, warnings } = advisoryProblems({
+            ci,
+            registry,
+            baseCi,
+            baseRegistry: base && JSON.parse(base),
+            today: new Date().toISOString().slice(0, 10),
+        });
+        for (const w of warnings) console.log(`::warning file=tools/ci-advisory-checks.json::${w}`);
+        assert.deepEqual(problems, []);
     });
 
-    it("keeps every advisory entry new, real, wired and at most 21 days old", () => {
-        for (const a of registry.advisory) {
-            const id = a.step === undefined ? a.job : `${a.job}/${a.step}`;
-            assert.match(a.added, /^\d{4}-\d\d-\d\d$/, `${id}: added`);
-            assert.match(a.enforce, /^\d{4}-\d\d-\d\d$/, `${id}: enforce`);
-            assert.ok(Number.isInteger(a.issue), `${id}: names its tracking issue`);
-            const added = Date.parse(a.added);
-            const enforce = Date.parse(a.enforce);
-            assert.ok(enforce > added && enforce <= added + 21 * DAY, `${id}: enforce within 21 days of added`);
+    describe("the registry rules, on a small workflow", () => {
+        const BASE_CI = `on: push
+jobs:
+    build:
+        steps:
+            - name: List advisory checks
+              id: advisory
+              run: x
+            - name: Lint
+              run: x
+    test:
+        needs: build
+        steps:
+            - name: Unit
+              run: x
+    all-checks:
+        needs: [build, test]
+        steps:
+            - name: Check
+              run: x
+`;
+        const HEAD_CI = BASE_CI.replace(
+            "            - name: Unit\n              run: x\n",
+            `            - name: Unit
+              run: x
+            - name: Types
+              id: types
+              continue-on-error: \${{ contains(fromJSON(needs.build.outputs.advisory-checks), 'test/Types') }}
+              run: x
+            - name: Warn that Types failed
+              if: \${{ steps.types.outcome == 'failure' }}
+              continue-on-error: true
+              run: echo "::warning::advisory check test/Types failed"
+    links:
+        needs: build
+        continue-on-error: \${{ contains(fromJSON(needs.build.outputs.advisory-checks), 'links') }}
+        steps:
+            - name: Check links
+              run: x
+            - name: Warn that links failed
+              if: \${{ failure() }}
+              continue-on-error: true
+              run: echo "::warning::advisory check links failed"
+`,
+        ).replace("needs: [build, test]", "needs: [build, test, links]");
+        const REQUIRED = { build: ["List advisory checks", "Lint"], test: ["Unit"], "all-checks": ["Check"] };
+        const entry = (job, step) => ({ job, step, added: "2026-10-01", enforce: "2026-10-15", issue: 1 });
+        const ADVISORY = [entry("test", "Types"), entry("links")];
+        const run = ({ ci = HEAD_CI, required = REQUIRED, advisory = ADVISORY, today = "2026-10-05" } = {}) =>
+            advisoryProblems({
+                ci,
+                registry: { required, advisory },
+                baseCi: BASE_CI,
+                baseRegistry: { required: REQUIRED, advisory: [] },
+                today,
+            });
+
+        it("accepts a new job and a new step, each wired to warn", () => {
+            assert.deepEqual(run(), { problems: [], warnings: [] });
+        });
+
+        it("warns, and never fails, from three days before an entry's enforce date", () => {
+            const late = run({ today: "2026-11-30" });
+            assert.deepEqual(late.problems, []);
+            assert.equal(late.warnings.length, 2);
+            assert.match(late.warnings[1], /^links: required from 2026-10-15/);
+            assert.equal(run({ today: "2026-10-11" }).warnings.length, 0);
+            assert.equal(run({ today: "2026-10-12" }).warnings.length, 2);
+        });
+
+        it("refuses to put a check the base branch requires back into a warning period", () => {
+            const { problems } = run({
+                required: { ...REQUIRED, build: ["List advisory checks"] },
+                advisory: [...ADVISORY, entry("build", "Lint")],
+            });
+            assert.ok(problems.some((p) => p.startsWith("build/Lint: the base branch already requires it")));
+            const job = run({ advisory: [...ADVISORY, entry("test")], required: { ...REQUIRED, test: [] } });
+            assert.ok(job.problems.some((p) => p.startsWith("test: the base branch already requires it")));
+        });
+
+        it("refuses a new check that skips its warning period", () => {
+            const { problems } = run({
+                required: { ...REQUIRED, test: ["Unit", "Types"] },
+                advisory: [entry("links")],
+            });
+            assert.ok(problems.some((p) => p.startsWith('test / Types: "required" only grows')));
+        });
+
+        it("refuses an unregistered check and a stale entry", () => {
             assert.ok(
-                Date.parse(today) <= added + 21 * DAY,
-                `${id}: older than 21 days: promote it to "required" or remove it`,
+                run({ advisory: [entry("links")] }).problems.includes(
+                    'test / Types: unregistered: a new check goes into "advisory" first',
+                ),
             );
-            assert.ok(a.job in checks, `${id}: a job "All Checks Pass" needs`);
-            assert.ok(!(a.job in registry.required) || a.step !== undefined, `${id}: an existing job is not new`);
-            if (a.step === undefined) continue;
-            assert.ok(!registry.required[a.job]?.includes(a.step), `${id}: an existing step is not new`);
-            const step = checks[a.job].find((s) => s.name === a.step);
-            assert.ok(step, `${id}: the step exists`);
-            const list = a.job === "build" ? "steps.advisory.outputs.checks" : "needs.build.outputs.advisory-checks";
-            assert.equal(step.coe, `\${{ contains(fromJSON(${list}), '${id}') }}`, `${id}: continue-on-error`);
-        }
+            const stale = run({ required: { ...REQUIRED, build: [...REQUIRED.build, "Cache Nx"] } });
+            assert.ok(stale.problems.includes('build / Cache Nx: in "required" but not a required check of ci.yml'));
+        });
+
+        it("refuses an entry that is not wired", () => {
+            const unwired = (from, to) => run({ ci: HEAD_CI.replace(from, to) }).problems;
+            assert.ok(
+                unwired(/\n {8}continue-on-error: .*'links'.*/, "").some((p) =>
+                    p.startsWith("links: job-level continue-on-error"),
+                ),
+            );
+            assert.ok(
+                unwired("    links:\n        needs: build", "    links:\n        needs: test").some((p) =>
+                    p.includes("needs build directly"),
+                ),
+            );
+            assert.ok(
+                unwired("if: ${{ failure() }}", "if: always()").some((p) => p.startsWith("links: followed by a step")),
+            );
+            assert.ok(unwired("              id: types\n", "").some((p) => p === "test/Types: has an id"));
+            assert.ok(
+                unwired("'test/Types') }}", "'test/Type') }}").some((p) =>
+                    p.startsWith("test/Types: continue-on-error"),
+                ),
+            );
+        });
     });
 
-    it("lists the entries before their enforce date, and only warns about those jobs", () => {
-        const program = /jq -c --arg today "\$\(date -u \+%F\)" '([^']+)'/.exec(job(ci, "build"));
+    it("lists the entries before their enforce date, from the base branch on a pull request", () => {
+        const step = /- name: List advisory checks\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(job(ci, "build"))[1];
+        assert.match(step, /base=HEAD\^1/, "a pull request cannot loosen the list that judges it");
+        const program = /jq -c --arg today "\$\(date -u \+%F\)" '([^']+)'/.exec(step);
         assert.ok(program, "the build job lists the advisory checks");
         const fixture = JSON.stringify({
             advisory: [
@@ -241,7 +434,9 @@ describe("new required checks start as warnings", () => {
             encoding: "utf8",
         });
         assert.equal(r.stdout.trim(), '["links","build/Lint"]');
+    });
 
+    it("only warns about a failed job in its warning period", () => {
         const body = job(ci, "all-checks");
         const run = /- name: Check all jobs passed\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(body)[1];
         const verdict = (advisory) =>

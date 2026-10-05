@@ -10,6 +10,7 @@ packages:
     - "remote-logger"
     - "compact-mantine"
     - "visual-review"
+    - "githerd"
 
 # Hold back any version published less than a day ago (in minutes). A compromised release is
 # usually found and pulled within hours; this keeps an install from picking it up in that window.

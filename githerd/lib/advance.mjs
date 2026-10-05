@@ -5,6 +5,8 @@
  * the state; the daemon persists it, writes the ledger lines and rings the workers named.
  */
 
+import { readFileSync } from "node:fs";
+
 import * as board from "./board.mjs";
 import { endItem, raiseItem } from "./notify.mjs";
 
@@ -128,7 +130,26 @@ export function waitNews(state, job) {
         return !other || board.TERMINAL.includes(other.state) ? `job ${w.job} is ${other?.state ?? "gone"}` : null;
     }
     if (w.github) return state.github?.downSince ? null : "GitHub answers again";
+    if (w.local && w.output) return localNews(w.local, w.output);
     return null;
+}
+
+/**
+ * The news of a wait on a session's background task: Claude Code ends a finished task's output
+ * file with `[exited with code N]`. Null while it runs, or while its file cannot be read.
+ * @param {string} task the task
+ * @param {string} output its output file
+ * @returns {string | null} the news line, or null
+ */
+function localNews(task, output) {
+    let tail;
+    try {
+        tail = readFileSync(output, "utf8").slice(-200);
+    } catch {
+        return null;
+    }
+    const exited = /\[exited with code (-?\d+)\]\s*$/.exec(tail);
+    return exited ? `task ${task} finished with exit code ${exited[1]}` : null;
 }
 
 /**
@@ -167,7 +188,7 @@ function laneNews(state, job, name) {
 /**
  * Settles every declared wait whose condition changed (design 7.4): the job goes back to work with
  * a news line, and its worker is rung. A push wait is the push queue's, a done check's wait on CI
- * is the verification poll's, and a local task's wait ends by its bound. A blocked job whose
+ * is the verification poll's, and a local task's wait ends when its output file records the exit (or by its bound). A blocked job whose
  * blocker ended goes back to the queue.
  * @param {any} state the daemon state
  * @param {Date} now the clock

@@ -262,7 +262,10 @@ export function sessionToolSet(ctx) {
                 }
             }
             if (args.for === "local") {
-                waitingFor.output = taskOutputPath(ctx.uid, job.worktree ?? "", session ?? "", args.target);
+                // A task's directory is named after the session's own directory: an owner session's
+                // is the checkout it started in, never the job's worktree.
+                const cwd = state.sessions?.[session ?? ""]?.cwd ?? job.worktree ?? "";
+                waitingFor.output = taskOutputPath(ctx.uid, cwd, session ?? "", args.target);
             }
             // ponytail: only a job wait is checked for being settled; checks, lanes and releases are
             // settled by the next poll, which ends the wait with the doorbell.

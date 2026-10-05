@@ -1,3 +1,7 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { checkFaults, noteGitHubChanges, settleWaits, tickJobs } from "../lib/advance.mjs";
@@ -99,7 +103,7 @@ describe("settleWaits", () => {
         expect([checks, lane, onJob, gh].every((j) => j.state === "working")).toBe(true);
     });
 
-    it("leaves push, verification and local waits to their own owners, and requeues a job whose blocker ended", () => {
+    it("leaves push and verification waits to their own owners, and requeues a job whose blocker ended", () => {
         const push = working("push");
         move(push, "waiting", T0, { waitingFor: { push: "q1" } });
         const verify = working("verify");
@@ -112,6 +116,22 @@ describe("settleWaits", () => {
         move(push, "done", at(2));
         expect(settleWaits(state, at(3)).map((s) => s.job)).toEqual(["blocked"]);
         expect(blocked).toMatchObject({ state: "queued", reason: "blocker push ended" });
+    });
+});
+
+describe("a wait on a local task", () => {
+    it("settles once the task's output file records its exit, and not before", () => {
+        const output = join(mkdtempSync(join(tmpdir(), "githerd-task-")), "b1.output");
+        const job = working("local");
+        move(job, "waiting", T0, { waitingFor: { local: "b1", output } });
+        const state = stateOf(job);
+        expect(settleWaits(state, at(1))).toEqual([]);
+        writeFileSync(output, "Successfully ran target test\n");
+        expect(settleWaits(state, at(2))).toEqual([]);
+        writeFileSync(output, "Successfully ran target test\n\n\n[exited with code 0]\n");
+        expect(settleWaits(state, at(3)).map((s) => [s.job, s.ring])).toEqual([["local", true]]);
+        expect(job).toMatchObject({ state: "working" });
+        expect(job.news.at(-1).text).toBe("task b1 finished with exit code 0");
     });
 });
 

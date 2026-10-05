@@ -296,6 +296,14 @@ describe("sessionToolSet", () => {
         );
     });
 
+    it("names an owner session's task output after the checkout the session works in", async () => {
+        const job = heldJob("pr-7");
+        job.worktree = null;
+        const { ctx } = setup({ jobs: { "pr-7": job }, sessions: { w1: { cwd: "/home/o/repo" } } });
+        await call(ctx, "githerd_wait", { job: "pr-7", for: "local", target: "t1", reason: "tests" });
+        expect(job.waitingFor.output).toBe("/tmp/claude-1000/-home-o-repo/w1/tasks/t1.output");
+    });
+
     it("refuses a wait on a settled job or one that closes a cycle", async () => {
         const job = heldJob("pr-7");
         const done = heldJob("pr-8");

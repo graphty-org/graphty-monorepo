@@ -76,7 +76,7 @@ function standIn(facts: StandInFacts = {}): {
  * @returns the command.
  */
 function openCommand(disabled: string | null): Command {
-    return { id: "file.open", label: "Add data...", group: "Data", disabled: () => disabled, run: vi.fn() };
+    return { id: "data.add", label: "Add data...", group: "Data", disabled: () => disabled, run: vi.fn() };
 }
 
 /**
@@ -146,10 +146,13 @@ describe("the canvas's state cards", () => {
         assert.isNull(screen.queryByRole("status"));
     });
 
-    it("shows No nodes to draw over an empty graph, with no door until Open is built", () => {
+    it("shows No nodes to draw over an empty graph, with Add data... its one door", () => {
         renderOver(standIn({ nodeCount: 0 }).session);
         assert.isNotNull(screen.getByRole("region", { name: "No nodes to draw" }));
-        assert.isNull(screen.queryByRole("button"));
+        assert.deepEqual(
+            screen.getAllByRole("button").map((button) => button.textContent),
+            ["Add data..."],
+        );
     });
 
     it("offers Add data on the empty card, and runs it", async () => {

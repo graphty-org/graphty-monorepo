@@ -134,7 +134,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const { session } = useWorkspace();
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const legendShown = useWorkspaceState((state) => state.legendShown);
-    const addData = useCommand("file.open");
+    const addData = useCommand("data.add");
     const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session);
 
     if (session === null) {

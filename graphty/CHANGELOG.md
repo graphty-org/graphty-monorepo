@@ -1,3 +1,41 @@
+## 0.8.53 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.34
+- Updated compact-mantine to 0.9.6
+- Updated graphty-element to 3.14.5
+
+## 0.8.52 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.14.4
+
+## 0.8.51 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.33
+- Updated compact-mantine to 0.9.5
+- Updated graphty-element to 3.14.3
+
+## 0.8.50 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty:** the Data page reads a file into a load draft and loads it with the reader's roles ([dff15ae09](https://github.com/graphty-org/graphty-monorepo/commit/dff15ae09))
+- **graphty:** the Data page's column roles and load choices over the element's load draft ([23bc7a177](https://github.com/graphty-org/graphty-monorepo/commit/23bc7a177))
+
+### 🩹 Fixes
+
+- **graphty:** clear the SonarQube findings on the tier 1 Data page ([a8c998b2c](https://github.com/graphty-org/graphty-monorepo/commit/a8c998b2c))
+- **graphty:** the Data page keeps the reader's project and takes readiness from the element ([#926](https://github.com/graphty-org/graphty-monorepo/issues/926))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.49 (2026-10-04)
 
 ### 🧱 Updated Dependencies

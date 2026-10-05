@@ -107,6 +107,7 @@
             "{workspaceRoot}/eslint.config.js",
             "{workspaceRoot}/vite.shared.config.ts",
             "{workspaceRoot}/vitest.shared.config.ts",
+            "{workspaceRoot}/vitest.ci-junit.mjs",
             "{workspaceRoot}/pnpm-workspace.yaml",
             "{workspaceRoot}/.npmrc",
             "{workspaceRoot}/.github/workflows/**/*"

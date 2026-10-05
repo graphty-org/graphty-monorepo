@@ -33,6 +33,29 @@ export interface TreeNodeData {
      * or `data-pinned` stays visible.
      */
     actions?: React.ReactNode;
+    /**
+     * A small swatch drawn between the glyph and the name: a color, a ramp. It is decoration;
+     * say what it means in `description` if the reader needs to hear it.
+     */
+    swatch?: React.ReactNode;
+    /**
+     * A count drawn before the toggles in the secondary ink, always visible (the toggles hide
+     * until hover). It joins the row's accessible description, so it is heard as well as seen.
+     */
+    count?: React.ReactNode;
+    /**
+     * A progress line along the bottom of the row, for an item whose work is running: a
+     * fraction from 0 to 1, or `"indeterminate"` when the end is not known. Omit it once the
+     * work is done. The line is a `progressbar` named by the row's name.
+     */
+    progress?: number | "indeterminate";
+    /**
+     * The row's state in words -- "Running", "Failed: the graph has no edges" -- read by a
+     * screen reader after the name (the row's `aria-describedby`) and never drawn. A row's
+     * accessible name is only its `name`, so anything a glyph or a tooltip says belongs here
+     * too.
+     */
+    description?: string;
 }
 
 /** One visible row. */

@@ -65,7 +65,7 @@ describe("the workspace frame", () => {
     it("lets the Data page take the panels while the element stays mounted", () => {
         renderWorkspace({ ...OPEN, page: "data-page" });
 
-        assert.isNotNull(screen.getByText("Data page"));
+        assert.isNotNull(screen.getByRole("region", { name: "Data page" }));
         assert.isFalse(screen.getByText("Inspector").checkVisibility());
         assert.isNotNull(document.querySelector("graphty-element"));
         // The Data place is lit while the Data page shows (tier1-design.md 2.10).
@@ -90,9 +90,8 @@ describe("the workspace frame", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: "New project" }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /Keyboard shortcuts/ }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: "Help" }));
-        // Save and Export... are stubs until the Project and Export packages land.
+        // Save is a stub until the Project package lands.
         assert.isNull(within(menu).queryByRole("menuitem", { name: /Save/ }));
-        assert.isNull(within(menu).queryByRole("menuitem", { name: /Export/ }));
     });
 
     it("draws a File list command in both menus once its package builds it", async () => {

@@ -1,3 +1,26 @@
+## 3.14.2 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty-element:** hand a frame the time of the ticks skipped for the GPU ([2d363c971](https://github.com/graphty-org/graphty-monorepo/commit/2d363c971))
+- **graphty-element:** draw no frame while the GPU is still drawing the last one ([c19587620](https://github.com/graphty-org/graphty-monorepo/commit/c19587620))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.14.1 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.32
+- Updated @graphty/remote-logger to 2.0.4
+- Updated graph-samples to 0.1.18
+- Updated graph-format to 1.3.3
+- Updated algorithms to 3.3.3
+- Updated graph-io to 0.3.23
+- Updated layout to 2.2.4
+
 ## 3.14.0 (2026-10-04)
 
 ### 🚀 Features

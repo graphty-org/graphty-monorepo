@@ -45,7 +45,7 @@ describe("the workspace frame", () => {
     it("draws every region with its package's stub", () => {
         renderWorkspace(OPEN);
 
-        for (const stub of ["Graph place", "Inspector", "Toolbar", "Legend card and state cards"]) {
+        for (const stub of ["Graph place", "Toolbar", "Legend card and state cards"]) {
             assert.isNotNull(screen.getByText(stub), stub);
         }
         assert.isNotNull(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
@@ -67,7 +67,7 @@ describe("the workspace frame", () => {
         renderWorkspace({ ...OPEN, page: "data-page" });
 
         assert.isNotNull(screen.getByRole("region", { name: "Data page" }));
-        assert.isFalse(screen.getByText("Inspector").checkVisibility());
+        assert.isFalse(document.querySelector('aside[aria-label="Inspector"]')?.checkVisibility());
         assert.isNotNull(document.querySelector("graphty-element"));
         // The Data place is lit while the Data page shows (tier1-design.md 2.10).
         assert.equal(screen.getByRole("button", { name: "Data" }).getAttribute("aria-current"), "page");

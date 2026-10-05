@@ -96,7 +96,8 @@ async function until(check, what, ms = 15_000) {
 }
 
 /**
- * The fake servherd's recorded invocations.
+ * The fake servherd's recorded invocations, every call but `pm2 jlist`: the launcher reads pm2's
+ * list while it waits for a daemon it started, to notice one that exited (`startWatch`).
  * @returns {{pid: number, argv: string[], cwd: string}[]} the calls
  */
 function calls() {
@@ -105,7 +106,8 @@ function calls() {
     return readFileSync(file, "utf8")
         .trim()
         .split("\n")
-        .map((l) => JSON.parse(l));
+        .map((l) => JSON.parse(l))
+        .filter((c) => !(c.argv[0] === "pm2" && c.argv[1] === "jlist"));
 }
 
 const starts = () => calls().filter((c) => c.argv[1] === "start");
@@ -1077,7 +1079,7 @@ describe("the session proxy", () => {
         await running;
     });
 
-    it("reports an unreachable daemon as a tool error after the wait", async () => {
+    it("reports a daemon that does not start as a tool error, with why", async () => {
         pushPackage("broken daemon", (pkg) =>
             writeFileSync(join(pkg, "bin", "githerd-daemon.mjs"), "process.exit(1);\n"),
         );
@@ -1101,7 +1103,9 @@ describe("the session proxy", () => {
         await ensured;
         const reply = JSON.parse(written[0]);
         expect(reply.result.isError).toBe(true);
-        expect(reply.result.content[0].text).toMatch(/^githerd daemon not reachable: no daemon after 0.3 s/);
+        expect(reply.result.content[0].text).toMatch(
+            /^githerd daemon not reachable: (?:no daemon after 0\.3 s|githerd daemon failed to start: the daemon process \d+ exited)/,
+        );
     });
 
     it("writes only JSON-RPC lines to stdout", async () => {

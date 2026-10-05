@@ -524,20 +524,81 @@ export async function reapStaleGate(ctx) {
 }
 
 /**
- * Polls /health every 250 ms until `ready` accepts the answer.
+ * Polls /health every 250 ms until `ready` accepts the answer, the wait runs out, or `exited` says
+ * the process being waited for is gone, which ends the wait at once.
  * @param {LauncherContext} ctx the context
  * @param {(health: any) => boolean} ready accepts a health answer
+ * @param {() => Promise<string | null>} [exited] why the awaited process can no longer answer, or
+ *   null while it may
  * @returns {Promise<{health: any, error: string | null}>} the accepted answer, or the last reason
- *   there was none when the wait ran out
+ *   there was none when the wait ran out or the process exited
  */
-export async function waitFor(ctx, ready) {
+export async function waitFor(ctx, ready, exited = async () => null) {
     const until = Date.now() + ctx.healthWaitMs;
     for (;;) {
         const { health, error } = await probe(ctx);
         if (health && ready(health)) return { health, error: null };
         const last = error ?? `daemon reports code ${health?.codeHash}`;
+        const gone = await exited();
+        if (gone) return { health: null, error: `${gone} (${last})` };
         if (Date.now() >= until) return { health: null, error: last };
         await new Promise((r) => setTimeout(r, HEALTH_POLL_MS));
+    }
+}
+
+/**
+ * The daemon's pm2 process: its pid (0 when it has none) and status, or null when pm2 cannot say.
+ * @param {LauncherContext} ctx the context
+ * @returns {Promise<{pid: number, status: string} | null>} the process
+ */
+async function pm2Process(ctx) {
+    try {
+        const out = await run([...ctx.pm2, "jlist"], pm2Options(ctx));
+        const apps = JSON.parse(out.slice(out.indexOf("[")));
+        const app = apps.find((/** @type {any} */ a) => a.name === `servherd-${ctx.name}`);
+        return app ? { pid: Number(app.pid) || 0, status: String(app.pm2_env?.status ?? "") } : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Watches the daemon process servherd just started, so a start that dies is noticed at once
+ * instead of after the whole health wait. pm2 is read once, then again only when its process is
+ * gone: the start has failed when pm2 holds no live process for it (stopped or errored), or when a
+ * second process exited too (pm2's autorestart bringing back a daemon that dies at start). One exit
+ * that pm2 replaced is waited out, as before. While pm2 cannot be read, nothing is decided here.
+ * @param {LauncherContext} ctx the context
+ * @returns {() => Promise<string | null>} the `exited` test for `waitFor`
+ */
+function startWatch(ctx) {
+    /** @type {{pid: number, status: string} | null | undefined} */
+    let proc;
+    let exits = 0;
+    const live = (/** @type {number} */ pid) => pid > 0 && identify(pid) !== null && !zombie(pid);
+    return async () => {
+        proc ??= await pm2Process(ctx);
+        if (!proc || live(proc.pid)) return null;
+        const was = proc.pid;
+        exits++;
+        proc = await pm2Process(ctx);
+        if (!proc) return null;
+        if (exits < 2 && live(proc.pid) && proc.pid !== was) return null;
+        return `the daemon process ${was || "(none)"} exited${proc.status ? `; pm2 says ${proc.status}` : ""}`;
+    };
+}
+
+/**
+ * Whether a process is a zombie: it exited and its parent has not reaped it.
+ * @param {number} pid the process
+ * @returns {boolean} true for a zombie
+ */
+function zombie(pid) {
+    try {
+        const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+        return stat.slice(stat.lastIndexOf(")") + 2)[0] === "Z";
+    } catch {
+        return false;
     }
 }
 
@@ -914,7 +975,11 @@ async function rollBack(ctx, adopting, reason, before) {
     await page(ctx, line);
     const hash = currentHash(ctx.stateDir);
     await servherd(ctx, ["restart", ctx.name]);
-    const { health, error } = await waitFor(ctx, (h) => ours(ctx, h) && h.codeHash === hash && h.pid !== before?.pid);
+    const { health, error } = await waitFor(
+        ctx,
+        (h) => ours(ctx, h) && h.codeHash === hash && h.pid !== before?.pid,
+        startWatch(ctx),
+    );
     if (!health) throw new Error(`${line}; and ${adopting.previous} did not answer either: ${error}`);
     return { url: daemonUrl(health), action: "rolled-back" };
 }
@@ -1085,6 +1150,7 @@ async function startOrUpgrade(ctx, target) {
     const { health: up, error } = await waitFor(
         ctx,
         (h) => ours(ctx, h) && h.codeHash === hash && h.pid !== before?.pid,
+        startWatch(ctx),
     );
     if (!up) {
         const adopting = readSelfUpdate(ctx.stateDir).adopting;

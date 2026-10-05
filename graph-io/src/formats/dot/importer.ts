@@ -192,8 +192,16 @@ const MAX_ANCESTOR_WALK = 4096;
  */
 const DOT_HEADER = /^\s*(strict\s+)?(di)?graph(?=[\s{"/]|$)(?!\s*\[)/i;
 const TRUE_TEXTS: ReadonlySet<string> = new Set(["true", "yes", "1"]);
-const POINT_TEXT =
-    /^\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)(?:\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?))?\s*(!?)\s*$/;
+/**
+ * A DOT number: digits with an optional fraction, or a bare fraction (`.5`), then an exponent.
+ * Written so each digit has exactly one way to match; `[0-9]*\.?[0-9]+` took quadratic time on a
+ * long run of digits.
+ */
+const POINT_NUMBER = String.raw`[-+]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?`;
+/** A point "x,y[,z][!]". The `!` and its trailing space are one optional group, so spaces cannot split two ways. */
+const POINT_TEXT = new RegExp(
+    String.raw`^\s*(${POINT_NUMBER})\s*,\s*(${POINT_NUMBER})(?:\s*,\s*(${POINT_NUMBER}))?\s*(?:(!)\s*)?$`,
+);
 
 /** An attribute as written: name, value text and the line of the assignment. */
 interface DotAttribute {

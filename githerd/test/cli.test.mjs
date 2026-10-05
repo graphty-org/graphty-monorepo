@@ -121,10 +121,12 @@ async function cli(argv, { extraEnv = {}, now, signTimeoutMs, tty = true } = {})
 
 /**
  * Starts a daemon in this process on port 0, with a fake gh and no poll.
+ * @param {Record<string, unknown>} [extra] more options for startDaemon, such as `peers`
  * @returns {Promise<any>} the daemon
  */
-async function daemon() {
+async function daemon(extra = {}) {
     const d = await startDaemon({
+        ...extra,
         root: repoRoot(root),
         port: 0,
         fetch: createFakeGh(() => ({ code: 1, stdout: "", stderr: "offline" })).fetch,
@@ -445,6 +447,32 @@ describe("ack and veto", () => {
     it("both exit 1 when no daemon answers", async () => {
         expect((await cli(["ack", "decide:x"])).code).toBe(1);
         expect((await cli(["veto", "prop-1"])).code).toBe(1);
+    });
+});
+
+describe("mine", () => {
+    it("records a live session as a pull request's owner, lists and drops it, and refuses an unknown name", async () => {
+        const live = [{ pid: 1, sessionId: "s7c", name: "graphty-7c", cwd: root, socket: "/s.sock", status: "idle" }];
+        const d = await daemon({ peers: { sessions: () => live, transport: { send: async () => {} } } });
+        d.state.prs = { 942: { headSha: "a".repeat(40), required: { CI: "FAILURE" } } };
+        expect(await cli(["mine", "942", "graphty-7c"])).toMatchObject({
+            code: 0,
+            out: "#942 is graphty-7c's until that session ends or the pull request closes",
+        });
+        expect(d.state.prOwners["942"]).toMatchObject({ session: "s7c", name: "graphty-7c", by: "cli" });
+        expect((await readLedger(d.stateDir)).at(-1)).toMatchObject({ kind: "pr-owner", pr: 942, session: "s7c" });
+        expect((await cli(["mine", "--list"])).out).toMatch(/^#942 graphty-7c \(by cli, since /);
+        expect(await cli(["mine", "942", "graphty-99"])).toMatchObject({
+            code: 1,
+            err: "no live session is named graphty-99 in this repository's Claude Code session registry",
+        });
+        expect((await cli(["mine", "943", "graphty-7c"])).err).toBe("githerd knows no open pull request #943");
+        expect((await cli(["mine", "--drop", "942"])).out).toBe("#942 is no longer graphty-7c's");
+        expect(d.state.prOwners).toEqual({});
+        expect((await cli(["mine", "942"])).code).toBe(2);
+        // The owner's words count only from his own terminal.
+        expect((await cli(["mine", "942", "graphty-7c"], { tty: false })).code).toBe(1);
+        expect(d.state.prOwners).toEqual({});
     });
 });
 

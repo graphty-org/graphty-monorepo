@@ -80,7 +80,8 @@ failed on such a head while githerd waits for an answer. For that last case gith
 Claude session working in this repository once per failed head, through Claude Code's session
 messaging ("githerd: CI failed on #710 ... call the githerd_mine tool with pr 710 ..."). A session
 that is working on it calls `githerd_mine` (or claims the job), which keeps the pull request for it
-until the session ends or a new push arrives; with no answer within `workers.askMinutes` (default 10) githerd offers it as a job. In dry-run the question is a `would-do` line, and since nobody heard it the pull request stays in use rather than being offered. A head that conflicts with master is asked about the same way. `githerd_next` lists
+until the session ends or the pull request closes, across new pushes; a session without githerd's
+tools is named from the owner's terminal with `githerd mine <pr> <session-name>` instead; with no answer within `workers.askMinutes` (default 10) githerd offers it as a job. In dry-run the question is a `would-do` line, and since nobody heard it the pull request stays in use rather than being offered. A head that conflicts with master is asked about the same way. `githerd_next` lists
 in-use jobs with the reason, and `githerd status` shows it on the pull request's line. A held (`hold`)
 pull request that is broken is still offered; the label only keeps it from merging. Pushes go through
 `githerd_push`, which runs the push and its pre-push gate through the machine's push queue
@@ -102,6 +103,8 @@ githerd release <job>            # give back a job you stopped or kept
 githerd attach                   # githerd's tmux server, one window per worker
 githerd ack <key>                # clear an escalation
 githerd veto <proposal id>       # stop a pending close or revert
+githerd mine <pr> <session-name> # that live session owns the pull request: never offered or asked about
+githerd mine --list | --drop <pr> # the owner records, or remove one
 githerd install                  # prepare the daemon and print the servherd command that starts it
 githerd ensure                   # find or start the daemon, e.g. after a container restart
 githerd restart                  # servherd restart githerd

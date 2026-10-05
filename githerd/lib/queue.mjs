@@ -301,6 +301,8 @@ export function askFor(state, n) {
  *    no session to ask. While asks are dry-run nobody heard the question, so silence says nothing
  *    and the pull request stays in use.
  *
+ * 4. a live session holds an owner record for it (`state.prOwners`, asks.mjs): whatever its head.
+ *
  * A head githerd or GitHub made is never in use for 2 and 3. A review is a second look at a
  * worker's patch while that worker waits, so only an owner session's claim hides it.
  * @param {any} state the daemon state
@@ -312,6 +314,8 @@ export function askFor(state, n) {
 export function prInUse(state, n, { config, now, except = null, review = false }) {
     const job = jobOnPr(state, n, { except, review });
     if (job) return job;
+    const owned = state.prOwners?.[String(n)];
+    if (owned) return `session ${owned.name} owns it (${owned.by === "cli" ? "the owner said so" : "it said so"})`;
     const rec = state.prs?.[String(n)];
     if (!rec?.headSha || headIsGitherds(state, rec)) return null;
     const head = String(rec.headSha ?? "").slice(0, 7);

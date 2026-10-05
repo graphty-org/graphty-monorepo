@@ -548,7 +548,8 @@ export const TOOLS = [
         name: "githerd_mine",
         description:
             "Say that this session is working on a pull request whose CI failed, when githerd asks. githerd then " +
-            "offers it to nobody else until this session ends or a new push arrives.",
+            "offers it to nobody else, and asks nobody about it again, until this session ends or the pull request closes; " +
+            "a new push keeps it this session's.",
         inputSchema: object({ pr: NUMBER }, ["pr"]),
     },
     {

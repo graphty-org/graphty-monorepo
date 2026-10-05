@@ -130,6 +130,12 @@ describe("renderBoard", () => {
         expect(text).not.toContain("pr-3");
         expect(text).toContain("OWNER: nothing is waiting on you");
         expect(text).toContain("  #8 -- githerd is evaluating");
+        state.prOwners = { 8: { session: "s-2", name: "graphty-7c", at: NOW.toISOString(), by: "cli" } };
+        const owned = renderBoard(
+            view(state, { prs: [{ number: 8, decision: { state: "pending", description: "", line: null } }] }),
+            NOW,
+        );
+        expect(owned).toContain("  #8 -- githerd is evaluating -- owned by session graphty-7c (cli)");
         expect(text).toContain("SESSIONS (1):\n  s-2\n");
         expect(text).toContain("  order o1: #4 #5\n  policy p1: freeze-merges\n");
         expect(text).not.toContain("policy p2");

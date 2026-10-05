@@ -57,6 +57,42 @@ function fake(refuse = []) {
     };
 }
 
+describe("a durable owner record", () => {
+    it("keeps a pull request in use and unasked across a new push, until its session ends", async () => {
+        const state = failed();
+        state.prOwners = { 710: { session: "s1", name: "graphty-13", at: NOW.toISOString(), by: "cli" } };
+        const f = fake();
+        expect(await askStep(state, f.opts())).toEqual([]);
+        state.prs[710].headSha = "b".repeat(40);
+        expect(await askStep(state, f.opts())).toEqual([]);
+        expect(f.sent).toEqual([]);
+        const later = new Date(NOW.getTime() + 24 * 3_600_000);
+        expect(prInUse(state, 710, { now: later })).toBe("session graphty-13 owns it (the owner said so)");
+        const gone = await askStep(state, f.opts({ sessionGone: (/** @type {string} */ s) => s === "s1" }));
+        expect(gone[0]).toEqual({
+            kind: "pr-owner-dropped",
+            pr: 710,
+            session: "s1",
+            name: "graphty-13",
+            reason: "session ended",
+        });
+        expect(state.prOwners).toEqual({});
+        // Unowned again, the failed head is asked about.
+        expect(gone.map((l) => l.kind)).toContain("pr-asked");
+    });
+
+    it("drops when the pull request closes", async () => {
+        const state = failed();
+        state.prOwners = { 710: { session: "s1", name: "graphty-13", at: NOW.toISOString(), by: "tool" } };
+        delete state.prs[710];
+        const lines = await askStep(state, fake().opts());
+        expect(lines).toEqual([
+            { kind: "pr-owner-dropped", pr: 710, session: "s1", name: "graphty-13", reason: "closed" },
+        ]);
+        expect(state.prOwners).toEqual({});
+    });
+});
+
 describe("asking the live sessions whose a failed pull request is", () => {
     it("asks every live session once per failed head, and records the question", async () => {
         const state = failed();

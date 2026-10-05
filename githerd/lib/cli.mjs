@@ -50,6 +50,9 @@ const USAGE = `usage: githerd <command>
   mode dry-run|paused|clear                lower the mode locally, or remove the override
   ack <key>                                clear an escalation
   veto <issue:N|pr:N>                      never let githerd close this issue or pull request
+  mine <pr> <session-name>                 that live Claude session owns the pull request until it
+                                           ends or the pull request closes: never offered or asked about
+  mine --list | mine --drop <pr>           the owner records, or remove one
   answer <item> <words>                    answer an owner item ("not yet" keeps it open)
   order <N...> <words>                     record an order: these issues, in this order
   policy [freeze-merges | park-gate <lane> | hold-package <name>] <words>
@@ -190,8 +193,8 @@ async function post(port, path, body, headers = {}) {
 }
 
 /**
- * Splits arguments into positionals and `--flag value` pairs (`--json`, `--send-test`, `--stop` and
- * `--with-job` take no value).
+ * Splits arguments into positionals and `--flag value` pairs (`--json`, `--send-test`, `--stop`,
+ * `--with-job` and `--list` take no value).
  * @param {string[]} args the arguments after the command
  * @returns {{positional: string[], flags: Record<string, string | true>}} the parts
  */
@@ -203,7 +206,7 @@ function parseArgs(args) {
     const rest = [...args];
     for (let a = rest.shift(); a !== undefined; a = rest.shift()) {
         if (!a.startsWith("--")) positional.push(a);
-        else if (["--json", "--send-test", "--stop", "--with-job"].includes(a)) flags[a.slice(2)] = true;
+        else if (["--json", "--send-test", "--stop", "--with-job", "--list"].includes(a)) flags[a.slice(2)] = true;
         else flags[a.slice(2)] = rest.shift() ?? "";
     }
     return { positional, flags };
@@ -413,6 +416,31 @@ async function cmdOwner(c) {
         ack ? { op: "ack", key: target } : { op: "veto", id: target },
         callerHeader(c.env, c.tty),
     );
+    (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
+    return answer.ok ? 0 : 1;
+}
+
+/**
+ * `mine <pr> <session-name>`, `mine --list` and `mine --drop <pr>`: who owns a pull request,
+ * recorded through the daemon, which resolves the name in Claude Code's session registry.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdMine(c) {
+    const pr = (/** @type {string | undefined} */ s) => s?.replace(/^#/, "");
+    const drop = typeof c.flags.drop === "string" ? c.flags.drop : null;
+    const [n, name] = c.positional;
+    let cmd = null;
+    if (c.flags.list) cmd = { op: "mine-list" };
+    else if (drop) cmd = { op: "mine-drop", pr: pr(drop) };
+    else if (n && name) cmd = { op: "mine", pr: pr(n), name };
+    if (!cmd) {
+        c.err("usage: githerd mine <pr> <session-name> | mine --list | mine --drop <pr>");
+        return 2;
+    }
+    const port = await daemonPort(c);
+    if (port === null) return 1;
+    const answer = await post(port, "/owner", cmd, callerHeader(c.env, c.tty));
     (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
     return answer.ok ? 0 : 1;
 }
@@ -806,6 +834,7 @@ const HANDLERS = {
     why: cmdWhy,
     ack: cmdOwner,
     veto: cmdOwner,
+    mine: cmdMine,
     answer: cmdRecord,
     order: cmdRecord,
     policy: cmdRecord,

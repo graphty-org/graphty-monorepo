@@ -132,6 +132,13 @@ describe("sessionToolSet", () => {
                 at: NOW.toISOString(),
             });
             expect(commits).toEqual([{ kind: "pr-mine", pr: 710, head: HEAD, session: "o1" }]);
+            // The durable owner record, which a new push keeps.
+            expect(state.prOwners[710]).toEqual({
+                session: "o1",
+                name: "graphty-monorepo-13",
+                at: NOW.toISOString(),
+                by: "tool",
+            });
             // Another session cannot take it over, a worker cannot use it, and an unknown pull request is refused.
             const taken = await call(ctx, "githerd_mine", { pr: 710 }, { session: "o2" });
             expect(taken).toMatchObject({ isError: true });
@@ -142,6 +149,9 @@ describe("sessionToolSet", () => {
             );
             // A session may say so before githerd asks; a new head drops the answer.
             delete state.asks[710];
+            const owned = await call(ctx, "githerd_mine", { pr: 710 }, { session: "o2" });
+            expect(JSON.parse(owned.text).reason).toBe("session graphty-monorepo-13 owns #710");
+            delete state.prOwners[710];
             await call(ctx, "githerd_mine", { pr: 710 }, { session: "o2" });
             expect(state.asks[710]).toMatchObject({ head: HEAD, owner: { session: "o2", name: "o2" } });
         } finally {

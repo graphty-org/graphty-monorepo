@@ -346,14 +346,22 @@ export function sessionToolSet(ctx) {
                     isError: true,
                 };
             }
+            const held = state.prOwners?.[String(args.pr)];
+            if (held && held.session !== session) {
+                const reason = `session ${held.name} owns #${args.pr}`;
+                return { text: JSON.stringify({ ok: false, reason }), isError: true };
+            }
             const name = registryName(ctx.home, client.pid ?? state.sessions?.[session]?.pid, session) ?? session;
-            ask.owner = { session, name, at: now.toISOString() };
+            const at = now.toISOString();
+            ask.owner = { session, name, at };
+            // The durable record (asks.mjs): a new push keeps it, the session's end or the close drops it.
+            (state.prOwners ??= {})[String(args.pr)] = { session, name, at, by: "tool" };
             await ctx.commit({ kind: "pr-mine", pr: args.pr, head: rec.headSha, session });
             return JSON.stringify({
                 ok: true,
                 pr: args.pr,
                 head: rec.headSha,
-                until: "this session ends or a new push",
+                until: "this session ends or the pull request closes",
             });
         },
         githerd_verdict: async (args, caller, client) => {

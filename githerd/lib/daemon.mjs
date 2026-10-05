@@ -175,7 +175,7 @@ const GITHUB_DOWN_MS = 30 * 60_000;
 /** How many handled hook event ids are remembered, to skip a spooled copy of one. */
 const HOOK_IDS = 500;
 /** `POST /owner` ops that put the owner's words or decisions on record: only from his terminal. */
-const OWNER_WORDS = new Set(["answer", "order", "policy", "policy-end", "veto", "ack"]);
+const OWNER_WORDS = new Set(["answer", "order", "policy", "policy-end", "veto", "ack", "mine", "mine-drop"]);
 /** How the news of a refused `githerd_done` starts (board.verifyResult). */
 const NOT_DONE = "not done yet: ";
 const MAX_BODY = 1024 * 1024;
@@ -2687,7 +2687,7 @@ export async function startDaemon({
      *   jobs an answer sent back to work
      */
     function owner(cmd, worker) {
-        if (worker && ["ack", "veto", "policy-end"].includes(cmd?.op)) {
+        if (worker && ["ack", "veto", "policy-end", "mine", "mine-drop"].includes(cmd?.op)) {
             return { status: 403, text: `${cmd.op} is the owner's: a worker cannot run it` };
         }
         if (cmd?.op === "ack") {
@@ -2700,6 +2700,7 @@ export async function startDaemon({
             };
         }
         if (cmd?.op === "veto") return ownerVeto(String(cmd.id));
+        if (["mine", "mine-list", "mine-drop"].includes(cmd?.op)) return ownerMine(cmd);
         if (["answer", "order", "policy", "policy-end"].includes(cmd?.op))
             return ownerCommand(state, cmd, now(), worker);
         if (CONTROL_OPS.has(cmd?.op)) {
@@ -2708,7 +2709,55 @@ export async function startDaemon({
         }
         return {
             status: 400,
-            text: "op must be ack, veto, answer, order, policy, policy-end, pause, resume, workers, keep or release",
+            text:
+                "op must be ack, veto, mine, mine-list, mine-drop, answer, order, policy, policy-end, pause, resume, " +
+                "workers, keep or release",
+        };
+    }
+
+    /**
+     * The owner's `mine <pr> <session-name>`, `mine --list` and `mine --drop <pr>`: the durable
+     * owner records of asks.mjs, for a session that has no githerd tools to say so itself. The
+     * name must be one live session in this repository's registry (peers.mjs liveSessions).
+     * @param {any} cmd `{op: "mine", pr, name}`, `{op: "mine-list"}` or `{op: "mine-drop", pr}`
+     * @returns {any} the answer
+     */
+    function ownerMine(cmd) {
+        const owners = (state.prOwners ??= {});
+        if (cmd.op === "mine-list") {
+            const rows = Object.entries(owners).map(([n, o]) => `#${n} ${o.name} (by ${o.by}, since ${o.at})`);
+            return { status: 200, text: rows.length ? rows.join("\n") : "no pull request has an owner record" };
+        }
+        const pr = String(cmd.pr ?? "");
+        if (!/^\d+$/.test(pr)) return { status: 400, text: `mine takes a pull request number, not ${pr}` };
+        if (cmd.op === "mine-drop") {
+            const had = owners[pr];
+            if (!had) return { status: 404, text: `#${pr} has no owner record` };
+            delete owners[pr];
+            return {
+                status: 200,
+                text: `#${pr} is no longer ${had.name}'s`,
+                entry: {
+                    kind: "pr-owner-dropped",
+                    pr: Number(pr),
+                    session: had.session,
+                    name: had.name,
+                    reason: "owner",
+                },
+            };
+        }
+        if (!state.prs?.[pr]) return { status: 404, text: `githerd knows no open pull request #${pr}` };
+        const named = liveInRepo().filter((s) => s.name === String(cmd.name));
+        if (named.length !== 1) {
+            const why = named.length ? `${named.length} live sessions are named` : "no live session is named";
+            return { status: 404, text: `${why} ${cmd.name} in this repository's Claude Code session registry` };
+        }
+        const [s] = named;
+        owners[pr] = { session: s.sessionId, name: s.name, at: now().toISOString(), by: "cli" };
+        return {
+            status: 200,
+            text: `#${pr} is ${s.name}'s until that session ends or the pull request closes`,
+            entry: { kind: "pr-owner", pr: Number(pr), session: s.sessionId, name: s.name, by: "cli" },
         };
     }
 

@@ -190,7 +190,12 @@ const RENDER = {
         if (!v.prs.length) return ["PULL REQUESTS: none open"];
         return [
             "PULL REQUESTS:",
-            ...v.prs.map((p) => `  #${[p.number, p.title].filter(Boolean).join(" ")} -- ${mergeWords(p.decision)}`),
+            ...v.prs.map((p) => {
+                // A session's durable owner record (asks.mjs): githerd neither offers nor asks about it.
+                const o = v.state?.prOwners?.[p.number];
+                const owned = o ? ` -- owned by session ${o.name} (${o.by})` : "";
+                return `  #${[p.number, p.title].filter(Boolean).join(" ")} -- ${mergeWords(p.decision)}${owned}`;
+            }),
         ];
     },
 

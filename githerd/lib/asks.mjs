@@ -9,6 +9,12 @@
  * owner}`. A new head drops it, so a new push starts over. An answer lapses when the answering
  * session ends.
  *
+ * A session's answer, or the owner's `githerd mine <pr> <session>`, also writes a durable owner
+ * record, `state.prOwners[<pr>]`: `{session, name, at, by: "tool" | "cli"}`. A new push keeps it;
+ * it drops when that session leaves Claude Code's session registry or the pull request closes
+ * (`settleOwners`). While it holds, `prInUse` reports the pull request in use by that session, so
+ * it is neither offered nor asked about.
+ *
  * The same messaging asks each owner session holding a job for its status (`statusStep`), and
  * invites idle sessions to pull work (`inviteStep`).
  */
@@ -59,6 +65,24 @@ function settleAsks(state, sessionGone) {
 }
 
 /**
+ * Drops each owner record whose session ended or whose pull request closed (it is no longer among
+ * the open pull requests githerd polled; nothing drops while none were polled yet).
+ * @param {any} state the daemon state, changed in place
+ * @param {(session: string) => boolean} sessionGone whether a session ended
+ * @returns {({kind: string} & Record<string, unknown>)[]} the ledger lines
+ */
+export function settleOwners(state, sessionGone) {
+    const lines = [];
+    for (const [n, rec] of Object.entries(state.prOwners ?? {})) {
+        const reason = state.prs && !state.prs[n] ? "closed" : sessionGone(rec.session) ? "session ended" : null;
+        if (!reason) continue;
+        delete state.prOwners[n];
+        lines.push({ kind: "pr-owner-dropped", pr: Number(n), session: rec.session, name: rec.name, reason });
+    }
+    return lines;
+}
+
+/**
  * What to ask about a queued job, or null: its pull request's CI failed, or it conflicts with its
  * base, on a head someone other than githerd pushed, nothing claims it, and it was not asked about
  * at this head (an ask nobody heard, made while asks were dry-run, is asked again once they act).
@@ -72,7 +96,7 @@ function questionFor(state, job, acting) {
     const n = String(prOf(job));
     const rec = state.prs?.[n];
     const asked = state.asks[n]?.head === rec?.headSha && !(acting && state.asks[n]?.dryRun);
-    if (!rec || asked || headIsGitherds(state, rec) || jobOnPr(state, n)) return null;
+    if (!rec || asked || state.prOwners?.[n] || headIsGitherds(state, rec) || jobOnPr(state, n)) return null;
     const failing = askProblems(rec);
     return failing.length ? { n, rec, failing } : null;
 }
@@ -89,7 +113,7 @@ function questionFor(state, job, acting) {
  */
 export async function askStep(state, { now, acting, sessions, transport, sessionGone }) {
     state.asks ??= {};
-    const lines = settleAsks(state, sessionGone);
+    const lines = [...settleOwners(state, sessionGone), ...settleAsks(state, sessionGone)];
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
     let live = null;
     for (const job of Object.values(state.jobs ?? {})) {

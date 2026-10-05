@@ -359,7 +359,7 @@ export async function readLedger(dir, { since } = {}) {
 export const WHOLE = "*";
 
 /** The collections every save records in the ledger, so state can be rebuilt from it (9.1). */
-export const RECORDED = ["jobs", "claims", "sessions", "orders", "policies", "vetoes", "settings"];
+export const RECORDED = ["jobs", "claims", "sessions", "orders", "policies", "vetoes", "settings", "prOwners"];
 
 /**
  * The record lines for what changed in the recorded collections since `last`, which it updates:

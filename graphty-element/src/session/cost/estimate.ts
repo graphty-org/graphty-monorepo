@@ -496,14 +496,22 @@ interface OwnCostModel {
 const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
     /* One pass over the snapshot's edge list counting each end, then one result object per node.
        Measured on 2026-09-29 on random m = 5n graphs of 25,000 to 400,000 nodes: 3.6 to 4.1 ns per
-       element of n + m up to 100,000 nodes, then about 10 ns from 200,000 up, once the result
-       objects outgrow V8's young generation and every scavenge copies them. Pinned at 11 ns,
-       1 / (90 * the linear rate): about 3x over the small graphs and 1.1x over the large ones. The
-       linear rate was fitted to the object-graph route this used to take, and read about 280x over
-       the snapshot. */
+       element of n + m up to 100,000 nodes, then more from 200,000 up, once the result objects
+       outgrow V8's young generation. How much more depends on the heap the run starts in, not on
+       the graph. With a light heap V8 pretenures the result objects and a large run costs 5.5 to
+       7 ns. With the directed snapshot's reverse view cached -- which the session's statistics
+       build on every graph the element loads (`degree()`, the components walk, the transitivity)
+       -- V8 keeps scavenging them instead, four or more scavenges of 3 to 8 ms per 400,000-node
+       run, and the same run costs 12.4 to 15.4 ns (2026-10-04, at 400,000 and 800,000 nodes, on
+       the reference machine and on CI). The 11 ns this was pinned at had been fitted with no
+       reverse view cached, and read 0.91 on CI once the accuracy test built one. Pinned at 18.2 ns,
+       1 / (55 * the linear rate): 1.18x over the slowest run measured, about 3.3x over the
+       pretenured runs and about 5x over graphs under 100,000 nodes, where the whole run is a few
+       milliseconds. The linear rate was fitted to the object-graph route this used to take, and
+       read about 280x over the snapshot. */
     degree: {
         term: () => "n + m",
-        seconds: (nodes, edges, rates) => (nodes + edges) / (90 * rates.linearElementsPerSecond),
+        seconds: (nodes, edges, rates) => (nodes + edges) / (55 * rates.linearElementsPerSecond),
     },
     /* Power iteration over the snapshot, charged the whole bound: how many passes it takes nothing
        the estimate sees predicts (1 or 2 on a star, 11 on random m = 50n, 41 to 46 on random

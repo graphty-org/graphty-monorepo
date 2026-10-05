@@ -13,6 +13,8 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import type { WorkspaceRegistration } from "../../commands/registry";
+import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML, WIDE_JSON } from "../fixtures";
@@ -21,12 +23,25 @@ import { GRAPH_FILE_GML, WIDE_JSON } from "../fixtures";
 const TIMEOUT_MS = 60_000;
 
 /**
+ * Every registration with the Table dock's commands built, so the attribute menus offer Show in
+ * table whether or not the Table dock package has replaced its stubs yet.
+ */
+const TABLE_BUILT: readonly WorkspaceRegistration[] = REGISTRATIONS.map((registration) =>
+    registration.owner === "table"
+        ? { ...registration, commands: registration.commands.map((command) => ({ ...command, stub: false })) }
+        : registration,
+);
+
+/**
  * Renders the workspace on the Data place with a project open and waits for the session.
+ * @param registrations - the registrations; every package's by default.
  * @returns the session and the chrome store.
  */
-async function openDataPlace(): Promise<{ session: GraphSession; store: WorkspaceStore }> {
+async function openDataPlace(
+    registrations: readonly WorkspaceRegistration[] = REGISTRATIONS,
+): Promise<{ session: GraphSession; store: WorkspaceStore }> {
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, place: "data" });
-    render(<Workspace store={store} />);
+    render(<Workspace store={store} registrations={registrations} />);
     let session: GraphSession | undefined;
     await waitFor(
         () => {
@@ -204,17 +219,21 @@ describe("the Data place on the real element", () => {
     );
 
     it(
-        "an edge attribute has no menu until the table dock is built (Show in table)",
+        "Show in table on an edge attribute opens the table dock",
         async () => {
-            const { session } = await openDataPlace();
+            const { session, store } = await openDataPlace(TABLE_BUILT);
             await importGraphFile(session);
 
             const value = within(await screen.findByRole("tree", { name: "Attributes" })).getByRole("treeitem", {
                 name: "value, edge attribute",
             });
-            value.focus();
-            await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-            assert.isNull(screen.queryByRole("menu"));
+            const menu = await menuOf(value);
+            await userEvent.click(within(menu).getByRole("menuitem", { name: "Show in table" }));
+
+            await waitFor(() => {
+                assert.isTrue(store.get().dockOpen);
+            });
+            assert.isNotNull(await screen.findByRole("region", { name: "Table" }));
         },
         TIMEOUT_MS,
     );

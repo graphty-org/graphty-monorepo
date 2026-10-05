@@ -118,6 +118,16 @@ export interface QueryEngine {
      */
     find(text: string, mode: SelectionTextMode): SelectionSearchHit[];
     /**
+     * Whether one element matches a text search, by dense index: what `find` asks of every node,
+     * for nodes or edges. An edge is read by its id, its two endpoints' ids and its attribute values.
+     * @param text - What was typed, its mode prefix already read.
+     * @param mode - How to match it.
+     * @param target - Nodes or edges.
+     * @returns The test.
+     * @throws A `GraphtyError` coded `E_BAD_COMMAND` for a regular expression that does not parse.
+     */
+    textTest(text: string, mode: SelectionTextMode, target: SelectorTarget): (index: number) => boolean;
+    /**
      * What a find box lists: nodes and edges whose id or values contain the text, ranked, and the
      * matched values with their counts. Reads only; selects nothing.
      * @param text - What was typed.
@@ -168,9 +178,9 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         return Object.freeze([...new Set(paths)].filter((path) => !answers(path, "node") && !answers(path, "edge")));
     };
 
-    const find = (text: string, mode: SelectionTextMode): SelectionSearchHit[] => {
+    const textTest = (text: string, mode: SelectionTextMode, target: SelectorTarget): ((index: number) => boolean) => {
         const graph = parts.snapshot();
-        const searched = parts.searchPaths();
+        const searched = target === "node" ? parts.searchPaths() : (parts.edgeSearchPaths?.() ?? []);
         let accepts: (value: string) => boolean;
         let paths: readonly Path[] = searched;
         let readsId = true;
@@ -194,19 +204,35 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
             accepts = (candidate) => candidate.toLowerCase().includes(wanted);
         }
 
-        const hits: SelectionSearchHit[] = [];
+        const ids =
+            target === "node"
+                ? (index: number): readonly unknown[] => [elements.nodeIdOf(index)]
+                : (index: number): readonly unknown[] => [
+                      elements.edgeIdOf(index),
+                      graph.ids.idOf(graph.edgeSource(index)),
+                      graph.ids.idOf(graph.edgeTarget(index)),
+                  ];
+        const valueAt = target === "node" ? elements.nodeValue : elements.edgeValue;
 
-        for (let index = 0; index < graph.nodeCount; index++) {
-            const id = elements.nodeIdOf(index);
-            let found = readsId && accepts(String(id));
+        return (index) => {
+            let found = readsId && ids(index).some((id) => accepts(String(id)));
 
             for (let at = 0; !found && at < paths.length; at++) {
-                const value = elements.nodeValue(index, paths[at]);
+                const value = valueAt(index, paths[at]);
                 found = (typeof value === "string" || typeof value === "number") && accepts(String(value));
             }
 
-            if (found) {
-                hits.push({ id, kind: "node" });
+            return found;
+        };
+    };
+
+    const find = (text: string, mode: SelectionTextMode): SelectionSearchHit[] => {
+        const test = textTest(text, mode, "node");
+        const hits: SelectionSearchHit[] = [];
+
+        for (let index = 0; index < parts.snapshot().nodeCount; index++) {
+            if (test(index)) {
+                hits.push({ id: elements.nodeIdOf(index), kind: "node" });
             }
         }
 
@@ -229,6 +255,7 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         unresolvedPathsOf: (where) => unresolvedOf(compile(where, "node").paths),
         pathsOf: (where) => compile(where, "node").paths,
         find,
+        textTest,
         search: (text, request) =>
             search(
                 parts,

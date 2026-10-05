@@ -169,6 +169,10 @@ session.data.nodePage({ scope: "selection" });
 // The edges at one node:
 session.data.edgePage({ touching: "alice", limit: Infinity });
 
+// Only the records matching typed text, as a table's search box narrows it (selects nothing):
+session.data.nodePage({ matching: { text: "jav" }, sort: { key: "name" } });
+session.data.edgePage({ matching: { text: "kind:robs" } }); // the same modes as selection.apply({ text })
+
 // The nodes joined to one node, one row each, strongest first (see the Neighbors guide):
 session.data.neighbors("alice");
 
@@ -187,7 +191,10 @@ session.on("run:changed", reread);
 ```
 
 Every option is optional: `offset` defaults to 0, `limit` to 100 (`Infinity` reads to the end),
-`scope` to `"graph"`. Without `sort`, records come in the order they were added, and an edit
+`scope` to `"graph"`. `matching` keeps the records whose id or a value contains the text, ignoring
+case -- an edge also matches by its endpoints' ids -- or, with a `mode` or an `exact:`, `regex:` or
+`<attribute>:` prefix, matches it the way `selection.apply({ text, mode })` does; `total` then
+counts the matches. Without `sort`, records come in the order they were added, and an edit
 never reorders them: an updated record stays where it was, a removed one leaves a gap that
 closes, an added one goes last. With `sort`, numbers come before text, text sorts naturally
 ("2" before "10"), a record without the key comes last either way, and records that sort equal
@@ -203,6 +210,67 @@ const between = graph.getDataManager().getEdgesBetween("node1", "node2"); // rea
 In 1.x this was `getEdgeBetween`, singular, and an edge's id was its two endpoints joined with a
 colon. Neither could represent a graph that holds two edges between one pair -- see
 [Data Sources](./data-sources#two-edges-between-the-same-pair).
+
+### Describing the data
+
+`session.data.statistics()` answers the graph's shape -- counts, density, direction, components --
+and the distribution of the node degrees, ready to draw as a histogram. It is computed once per
+change to the graph, so reading it on every render costs nothing:
+
+```typescript
+const stats = session.data.statistics();
+stats.degreeRange; // [smallest, largest]
+stats.meanDegree;
+for (const bin of stats.degreeHistogram?.bins ?? []) {
+    // one bar: degrees bin.from to bin.to, bin.count nodes
+}
+```
+
+`degreeHistogram` has the shape `RunResult.histogram()` returns: one bar per degree when there are
+few distinct degrees (`binning: "per-value"`), whole-number bands otherwise (`"banded"`). The bars
+add up to `stats.nodeCount`.
+
+One attribute's distribution comes from `session.data.histogram(column)`. A column of amounts is
+binned the same way; any other column is counted by value, commonest first:
+
+```typescript
+const age = session.data.histogram({ kind: "node", name: "age" });
+if (age.kind === "numeric") {
+    age.bins; // [{ from, to, count }, ...]
+} else {
+    age.values; // [{ value: "red", count: 40 }, ...], at most 20 unless you pass { bins }
+    age.otherCount; // elements whose value did not make the list
+}
+```
+
+`session.data.attributes()` lists every column with its type, what it measures, how complete it is
+and a few sample values. A column that does a job for the graph says so in `roles`:
+
+```typescript
+const columns = session.data.attributes();
+columns.find((a) => a.roles?.includes("key")); // the node ids were read from it
+columns.find((a) => a.roles?.includes("label")); // nodes are named by it
+columns.find((a) => a.roles?.includes("weight")); // edge weights were read from it
+```
+
+The roles are `"key"`, `"label"`, `"weight"`, `"source"`, `"target"`, `"time"` and `"edgeId"`, read
+from `data.knownFields` and the last load, and `roles` is absent on a column that plays none.
+`usedBy` says what reads a column now: each style layer whose selector or bindings read it
+(`{ kind: "layer", id }`), then each finished run that weighed its edges by it
+(`{ kind: "run", id }`). It is absent when nothing does. A table that opens on "the attributes in
+use" shows the columns with a role or a use:
+
+```typescript
+const inUse = session.data.attributes().filter((a) => a.roles !== undefined || a.usedBy !== undefined);
+```
+
+`attributes()` hands back the same array until a column, a declaration, a role or a use changes, so
+it is safe to compare by identity.
+
+Which way a column is read follows what it measures (`attributes()`'s `measurement`): declare a
+column of number codes categorical with `session.data.declare` and it is counted by value.
+Elements with no value in the column are not counted. An unknown column throws
+`E_UNKNOWN_ATTRIBUTE`.
 
 ### Result values as table columns
 
@@ -222,6 +290,22 @@ graph.deselectNode();
 const selected = graph.getSelectedNode();
 if (selected) {
     console.log("Selected:", selected.id);
+}
+```
+
+`session.selection.origin` says what the selection was made from, so a panel that did not make the
+call can still tell what it is looking at. It holds a frozen copy of the target passed to `apply`
+while the selection is exactly that target. It is `null` after an `apply` that adds, removes,
+toggles or intersects, after a replace the selection cap cut short, and once anything else changes
+the selection or the graph: a click, an undo or redo, `clear()`, or any edit to nodes, edges or
+data, since the same target could name something different in the edited graph.
+
+```typescript
+await session.selection.apply({ neighborsOf: ["Javert"] }); // say, from a toolbar
+// ... elsewhere, on selection:changed:
+const origin = session.selection.origin; // { neighborsOf: ["Javert"] }
+if (origin !== null && "neighborsOf" in origin && origin.neighborsOf?.length === 1) {
+    session.data.neighbors(origin.neighborsOf[0]); // list the center's connections
 }
 ```
 

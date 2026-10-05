@@ -95,9 +95,9 @@ class RosterDataSource extends DataSource {
             const [verb, first, second, third] = line.split(/\s+/);
 
             if (verb === "person") {
-                nodes.push(DataSource.toRecord({ id: first, team: second, score: Number(third) * this.#scoreScale }));
+                nodes.push({ id: first, team: second, score: Number(third) * this.#scoreScale });
             } else if (verb === "knows") {
-                edges.push(DataSource.toRecord({ source: first, target: second }));
+                edges.push({ source: first, target: second });
             } else {
                 throw new GraphtyError({
                     code: "E_PARSE_FAILED",
@@ -121,6 +121,8 @@ class RosterDataSource extends DataSource {
 
 DataSource.register(RosterDataSource);
 ```
+
+A record is any plain object: yield `{ id: "a" }` as it is, with no cast and no wrapper.
 
 That is a whole format. Fetching the bytes from a string, a `File` or a URL, three attempts with
 exponential backoff, chunking, per-record validation, error aggregation, progress reporting and

@@ -9,6 +9,8 @@
  *   records are in the command, so redo never fetches again.
  * - `data.declare`: what a column measures, kept in the `attributes` slice under
  *   `<kind>:<name>` so it is saved and undone like any other project change.
+ * - `data.setSource`: the source the graph was loaded from, the `source` graph value
+ *   `data.source()` reads: a new name for it, or the source a project file recorded.
  *
  * Each reads its records through ingest (id and endpoint extraction, the repeated-edge policy,
  * weights) and writes through the graph primitives in its draft, which record the resolved values,
@@ -181,8 +183,22 @@ interface DataDeclareCommand {
     readonly declaration: MeasurementDeclaration;
 }
 
+/**
+ * `data.setSource`: describe the source the graph was loaded from -- a new name for it, or the
+ * source a project file recorded.
+ */
+interface DataSetSourceCommand {
+    readonly op: "data.setSource";
+    readonly source: ImportSource;
+}
+
 /** Every data op. */
-export type DataCommand = DataApplyCommand | DataImportCommand | DataExpandCommand | DataDeclareCommand;
+export type DataCommand =
+    | DataApplyCommand
+    | DataImportCommand
+    | DataExpandCommand
+    | DataDeclareCommand
+    | DataSetSourceCommand;
 
 /** The measurements every declaration may name. */
 const DECLARABLE: ReadonlySet<string> = new Set(["categorical", "ordinal", "quantitative", "time"]);
@@ -223,8 +239,8 @@ export interface DataService {
         after?: UndoableContext["after"],
     ): Promise<void>;
     /**
-     * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`.
-     * A renderer's only; a headless session runs no plugin.
+     * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`, or
+     * the data source's new name.
      * @param values - The values by name.
      * @param draft - The command's draft.
      */
@@ -569,5 +585,35 @@ const dataDeclare: UndoableDefinition<DataDeclareCommand> = {
     },
 };
 
+const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
+    op: "data.setSource",
+    undo: { kind: "undoable", label: (command) => `Name the source ${command.source.name ?? ""}` },
+    moves: false,
+    keys: () => [`graph/v:${SOURCE_VALUE}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        const { source } = command;
+        if (typeof source !== "object" || source === null || Array.isArray(source)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "A data source is described by an object: its type, name, size and options.",
+                source: "data",
+                details: { reason: "not-a-source", source },
+            });
+        }
+
+        const service = serviceOf(ctx.services.data);
+        if (service.values === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "This session cannot write graph values, so it cannot describe the data source.",
+                source: "data",
+            });
+        }
+
+        service.values({ [SOURCE_VALUE]: describeSource(source) }, ctx.draft);
+    },
+};
+
 /** The data ops' definitions. */
-export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand, dataDeclare] as const;
+export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand, dataDeclare, dataSetSource] as const;

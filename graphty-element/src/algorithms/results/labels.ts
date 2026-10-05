@@ -43,6 +43,7 @@ export function nodeLabelReader(graph: Graph): ((id: NodeId) => string | undefin
     return (id: NodeId): string | undefined => {
         const value = data.getNode(id)?.data[labelPath];
 
-        return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+        // An empty label names nothing: the caller falls back to the id, as `session.data.name` does.
+        return (typeof value === "string" && value !== "") || typeof value === "number" ? String(value) : undefined;
     };
 }

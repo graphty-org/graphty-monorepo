@@ -126,7 +126,26 @@ const FALSE_CLAIMS = [
         "#404 does not exist",
     ],
     ["defect naming no commit", "pr", "7", {}, { defects: [{ summary: "x", commit: OTHER }] }, {}, {}, "not on GitHub"],
-    ["pr not polled", "pr", "8", {}, {}, {}, {}, "not an open pull request"],
+    [
+        "pr not polled",
+        "pr",
+        "8",
+        {},
+        {},
+        {},
+        { pull: async () => ({ state: "open", merged: false }) },
+        "not an open pull request",
+    ],
+    [
+        "merged pr not naming the issue",
+        "issue",
+        "6",
+        {},
+        { pr: 8 },
+        {},
+        { pull: async () => ({ merged: true, base: { ref: "master" }, body: "Refs #60" }) },
+        "does not name #6",
+    ],
     ["pr based on a branch", "pr", "7", {}, {}, { prs: { 7: pr({ baseRef: "feat/base" }) } }, {}, "based on feat/base"],
     ["pr draft", "pr", "7", {}, {}, { prs: { 7: pr({ draft: true }) } }, {}, "draft"],
     ["no pushed head", "pr", "7", {}, { pushedHead: undefined }, {}, {}, "pushedHead"],
@@ -446,6 +465,13 @@ describe("verifyClaim", () => {
         });
         expect(await verifyClaim(job, report({ pr: 7 }), view(state(), io("Refs #60")))).toMatchObject({
             missing: [expect.stringContaining("does not reference #6")],
+        });
+    });
+
+    it("accepts an issue job's pull request that merged before githerd polled it open", async () => {
+        const io = fakeIo({ pull: async () => ({ merged: true, base: { ref: "master" }, body: "Refs #186" }) });
+        expect(await verifyClaim(working("issue", "186"), report({ pr: 1060 }), view(state(), io))).toEqual({
+            holds: true,
         });
     });
 

@@ -128,6 +128,27 @@ async function headIsPushed(rec, pushed, io) {
 }
 
 /**
+ * The done-condition of a pull request githerd no longer polls as open: it merged into the default
+ * branch, and an issue job's names the issue. A pull request that merged before githerd saw it
+ * open is the job done, not a missing one.
+ * @param {number} number the pull request
+ * @param {View} view what the check reads
+ * @param {number | null} issue the issue it must reference
+ * @returns {Promise<Answer>} the answer
+ */
+async function mergedAnswer(number, view, issue) {
+    const pull = await view.io.pull(number);
+    const branch = view.state.master?.branch ?? "master";
+    if (!pull?.merged || pull.base?.ref !== branch) {
+        return { missing: [`#${number} is not an open pull request githerd has polled, nor merged into ${branch}`] };
+    }
+    if (issue !== null && !new RegExp(String.raw`#${issue}(?!\d)`).test(pull.body ?? "")) {
+        return { missing: [`#${number} merged but does not name #${issue} in its description`] };
+    }
+    return { holds: true };
+}
+
+/**
  * Whether a pull request names an issue: a closing reference, or the issue's number in its
  * description ("Refs #186"), so a pull request that does part of an issue, leaving it open, counts.
  * @param {any} rec the polled record
@@ -153,7 +174,7 @@ async function mentions(rec, number, issue, view) {
  */
 async function prAnswer(number, pushed, view, issue = null) {
     const rec = view.state.prs?.[String(number)];
-    if (!rec) return { missing: [`#${number} is not an open pull request githerd has polled`] };
+    if (!rec) return mergedAnswer(number, view, issue);
     const branch = view.state.master?.branch ?? "master";
     const gaps = [];
     if (rec.baseRef !== branch) gaps.push(`#${number} is based on ${rec.baseRef}, not ${branch}`);

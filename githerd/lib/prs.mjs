@@ -126,11 +126,23 @@ function readChecks(node, requiredChecks) {
     const required = Object.fromEntries(requiredChecks.map((n) => [n, "MISSING"]));
     const failing = [];
     let startedAt = null;
-    // A name reported twice (a re-run, or the run made when a draft was marked ready) counts by its
-    // newest run, as GitHub's own required-check rule does.
+    // A workflow run on this head that a newer run of the same workflow replaced (the run made while
+    // a draft, once it is marked ready) says nothing any more, even before the newer run reports
+    // the same check. Of what is left, a name reported twice (a re-run) counts by its newest run, as
+    // GitHub's own required-check rule does.
+    /** @type {Map<string, number>} */
+    const latestRun = new Map();
+    for (const ctx of contexts) {
+        const run = ctx.checkSuite?.workflowRun;
+        if (!run) continue;
+        const name = run.workflow?.name ?? "";
+        latestRun.set(name, Math.max(latestRun.get(name) ?? 0, run.databaseId ?? 0));
+    }
     /** @type {Map<string, any>} */
     const newest = new Map();
     for (const ctx of contexts) {
+        const run = ctx.checkSuite?.workflowRun;
+        if (run && (run.databaseId ?? 0) < (latestRun.get(run.workflow?.name ?? "") ?? 0)) continue;
         const name = ctx.__typename === "StatusContext" ? ctx.context : ctx.name;
         const prev = newest.get(name);
         if (!prev || (ctx.databaseId ?? 0) > (prev.databaseId ?? 0)) newest.set(name, ctx);

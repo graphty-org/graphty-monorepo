@@ -1048,7 +1048,9 @@ async function page(ctx, message) {
 export async function ensureDaemon(ctx) {
     // A development daemon (`githerd dev`) runs from a worktree before githerd is on the default
     // branch; GITHERD_URL points the MCP server at it, so nothing is installed or started here.
-    const devUrl = ctx.env.GITHERD_URL;
+    // GITHERD_DEV_STATE names its state directory instead, and the URL is read from its daemon.json
+    // at every lookup, so a restart on a new port costs one failed call, not a reconnect.
+    const devUrl = ctx.env.GITHERD_DEV_STATE ? devStateUrl(ctx.env.GITHERD_DEV_STATE) : ctx.env.GITHERD_URL;
     if (devUrl) return devDaemon(devUrl);
     const target = await targetCode(ctx);
     const up = await upAnswer(ctx, target);
@@ -1063,6 +1065,21 @@ export async function ensureDaemon(ctx) {
     } finally {
         releaseLock(ctx);
     }
+}
+
+/**
+ * The URL of the development daemon whose state directory is `dir`, from its daemon.json.
+ * @param {string} dir the state directory
+ * @returns {string} the URL
+ */
+function devStateUrl(dir) {
+    let port;
+    try {
+        port = JSON.parse(readFileSync(join(dir, "daemon.json"), "utf8")).port;
+    } catch {
+        throw new Error(`GITHERD_DEV_STATE ${dir} has no readable daemon.json`);
+    }
+    return `http://127.0.0.1:${port}`;
 }
 
 /**

@@ -22,6 +22,15 @@ const MINIMAL = { repo: "o/r", lanes: { ci: { workflow: "ci.yml", gating: "requi
 const with_ = (extra) => normalizeConfig({ ...MINIMAL, ...extra });
 
 describe("normalizeConfig", () => {
+    it("takes workers.sessions as null or a list of session names", () => {
+        expect(
+            normalizeConfig({ ...MINIMAL, workers: { sessions: ["graphty-monorepo-2d"] } }).workers.sessions,
+        ).toEqual(["graphty-monorepo-2d"]);
+        expect(() => normalizeConfig({ ...MINIMAL, workers: { sessions: "graphty-monorepo-2d" } })).toThrow(
+            /workers.sessions must be null or a list/,
+        );
+    });
+
     it("fills the defaults", () => {
         const c = normalizeConfig(MINIMAL);
         expect(c.mode).toBe("dry-run");
@@ -46,6 +55,7 @@ describe("normalizeConfig", () => {
             waiting: 6,
             hoursPerDay: 10,
             askMinutes: 10,
+            sessions: null,
         });
         expect(c.lanes.ci).toEqual({ workflow: "ci.yml", gating: "required", maxMinutes: null });
     });

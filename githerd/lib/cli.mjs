@@ -722,6 +722,7 @@ async function startDev(ctx, c, devState) {
             `GITHERD_CONFIG=${resolve(c.cwd, /** @type {string} */ (c.env.GITHERD_CONFIG))}`,
             "GITHERD_DEV=1",
             ...(c.env.GITHERD_DEV_NOTIFY === "1" ? ["GITHERD_DEV_NOTIFY=1"] : []),
+            ...(c.env.GITHERD_DEV_ACT === "1" ? ["GITHERD_DEV_ACT=1"] : []),
         ],
     });
     const data = await servherd(ctx, args, devState);

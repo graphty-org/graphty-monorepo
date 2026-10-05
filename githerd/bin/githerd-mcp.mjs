@@ -6,7 +6,9 @@
  *
  * Environment: `GITHERD_CONFIG` (a config file instead of the default branch's), `GITHERD_PM2` (the pm2 command as a JSON array, when servherd's own cannot be found),
  * `GITHERD_NAME` (a servherd name other than `githerd`, for a separate daemon), `GITHERD_URL` (a running
- * development daemon to use instead, e.g. http://127.0.0.1:9678 from `githerd dev`; nothing is installed or started).
+ * development daemon to use instead, e.g. http://127.0.0.1:9678 from `githerd dev`; nothing is installed or started),
+ * `GITHERD_DEV_STATE` (that daemon's state directory instead of its URL: the port is read from its
+ * daemon.json at every lookup, so the daemon can restart on a new port).
  */
 
 import { runLauncher } from "../lib/launcher.mjs";

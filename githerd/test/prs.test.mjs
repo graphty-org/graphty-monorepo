@@ -264,6 +264,18 @@ describe("checks", () => {
         const rec = polls([readied])["704"];
         expect(rec.required["All Checks Pass"]).toBe("PENDING");
         expect(rec.failingChecks).toEqual([]);
+        // #1066: the ready run has not reported All Checks Pass yet, so the draft run's cancelled one
+        // is the newest of that name; the draft run is replaced all the same.
+        const suite = (/** @type {number} */ id) => ({
+            checkSuite: { workflowRun: { databaseId: id, workflow: { name: "CI" } } },
+        });
+        const early = withChecks(node(), [
+            run("All Checks Pass", "CANCELLED", { databaseId: 9, ...suite(100) }),
+            run("Build", null, { databaseId: 12, ...suite(101) }),
+        ]);
+        const pending = polls([early])["704"];
+        expect(pending.required["All Checks Pass"]).toBe("MISSING");
+        expect(pending.failingChecks).toEqual([]);
     });
 
     it("the owner gate: the only failing required check failed at the visual step", () => {

@@ -36,7 +36,15 @@ export const DEFAULTS = Object.freeze({
     // waiting sessions kept open, and the routine worker hours a day until the usage reading is
     // verified (urgent work is exempt); and how long githerd waits for a live session to answer that
     // a pull request whose CI failed is its own before offering it as a job (design 8.2).
-    workers: { model: "claude-opus-5-5", slots: 3, urgent: 1, waiting: 6, hoursPerDay: 10, askMinutes: 10 },
+    workers: {
+        model: "claude-opus-5-5",
+        slots: 3,
+        urgent: 1,
+        waiting: 6,
+        hoursPerDay: 10,
+        askMinutes: 10,
+        sessions: null,
+    },
     backlog: { agingDays: 60 },
     notify: { command: null, maxPerHour: 6 },
     digest: { weekday: "sun", hourUtc: 16, issue: null },
@@ -91,7 +99,7 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  *   protectedPaths: string[], actions: Record<string, boolean>,
  *   grace: { closeIssueDays: number, closeIssueShownDays: number, revertMinutes: number },
  *   workers: { model: string, slots: number, urgent: number, waiting: number, hoursPerDay: number,
- *     askMinutes: number },
+ *     askMinutes: number, sessions: string[] | null },
  *   backlog: { agingDays: number },
  *   notify: { command: string[] | null, maxPerHour: number },
  *   digest: { weekday: string, hourUtc: number, issue: number | null },
@@ -253,14 +261,21 @@ function ownerGate(raw) {
 
 /**
  * The `workers` section (design 8.1): the model, limited to `MODELS`, and the session limits.
+ * `sessions` names the only Claude sessions githerd messages (asks, invitations, nudges); null
+ * messages every session in the repository.
  * @param {unknown} raw the section as written
  * @returns {Config["workers"]} the section
  */
 function workers(raw) {
     const d = DEFAULTS.workers;
     if (raw === undefined) return { ...d };
-    const { model, ...rest } = /** @type {any} */ (object(raw, "workers"));
+    const { model, sessions, ...rest } = /** @type {any} */ (object(raw, "workers"));
     onlyKeys(raw, Object.keys(d), "workers.");
+    if (sessions !== undefined && sessions !== null) {
+        if (!Array.isArray(sessions) || sessions.some((n) => typeof n !== "string" || !n)) {
+            fail("workers.sessions must be null or a list of session names");
+        }
+    }
     if (model !== undefined && !MODELS.includes(string(model, "workers.model"))) {
         fail(`workers.model must be one of ${MODELS.join(", ")}, not "${model}"`);
     }
@@ -273,6 +288,7 @@ function workers(raw) {
     };
     return {
         model: model ?? d.model,
+        sessions: sessions ?? null,
         ...numbers(rest, limits, "workers", {
             slots: { min: 0, max: 8 },
             urgent: { min: 0, max: 2 },

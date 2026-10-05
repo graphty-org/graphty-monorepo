@@ -539,6 +539,29 @@ describe("one daemon", () => {
     });
 });
 
+describe("a development daemon", () => {
+    it("is found through its state directory's daemon.json at every lookup, so a new port needs no reconnect", async () => {
+        const servers = [0, 1].map(() =>
+            createServer((_req, res) => res.end(JSON.stringify({ name: "githerd" }))).listen(0, "127.0.0.1"),
+        );
+        await Promise.all(servers.map((s) => new Promise((r) => s.once("listening", r))));
+        const ports = servers.map((s) => /** @type {import("node:net").AddressInfo} */ (s.address()).port);
+        const sd = join(dir, "dev");
+        mkdirSync(sd, { recursive: true });
+        const ctx = /** @type {any} */ ({ env: { GITHERD_DEV_STATE: sd } });
+        try {
+            for (const port of ports) {
+                writeFileSync(join(sd, "daemon.json"), JSON.stringify({ port }));
+                expect(await ensureDaemon(ctx)).toEqual({ url: `http://127.0.0.1:${port}`, action: "warm" });
+            }
+            rmSync(join(sd, "daemon.json"));
+            await expect(ensureDaemon(ctx)).rejects.toThrow(/has no readable daemon.json/);
+        } finally {
+            for (const s of servers) s.close();
+        }
+    });
+});
+
 describe("install and the daemon's environment", () => {
     it("prints the servherd command a launcher would run, from the fixed directory", () => {
         const ctx = context();

@@ -20,6 +20,8 @@
  * dry-run, whatever the config says, and pages go to the ledger only (as `delivered: false`), so
  * a second daemon never duplicates the shared daemon's pages; `GITHERD_DEV_NOTIFY=1` delivers
  * them, for testing the notifier. The `quiet` option (the one-poll check) does the same.
+ * `GITHERD_DEV_ACT=1` lets the development daemon act as its config says, so the working tree's
+ * githerd can run as the live one while it is iterated on; only one daemon may act at a time.
  *
  * Pages reach the owner's phone only while the `owner-items` write group is acting; until then
  * each one is recorded in the ledger as `delivered: false`, held. The one exception is the fatal
@@ -229,7 +231,8 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
           committer { email }
           statusCheckRollup { contexts(first: 100) { nodes {
             __typename
-            ... on CheckRun { name status conclusion startedAt databaseId }
+            ... on CheckRun { name status conclusion startedAt databaseId
+              checkSuite { workflowRun { databaseId workflow { name } } } }
             ... on StatusContext { context state }
           } } }
         } } }
@@ -634,7 +637,7 @@ export async function startDaemon({
     const mode = () => {
         if (!config) return "dry-run";
         const local = effectiveMode(config, readOverride(stateDir));
-        return env.GITHERD_DEV ? effectiveMode({ mode: local }, "dry-run") : local;
+        return env.GITHERD_DEV && env.GITHERD_DEV_ACT !== "1" ? effectiveMode({ mode: local }, "dry-run") : local;
     };
     /**
      * One write group's mode: the daemon's mode, lowered to `dry-run` for a group the config does
@@ -1649,6 +1652,20 @@ export async function startDaemon({
     }
 
     /**
+     * The live sessions in this repository githerd may message: the config's `workers.sessions`
+     * names, or every one when it names none.
+     * @returns {import("./peers.mjs").PeerSession[]} the sessions
+     */
+    function messageable() {
+        const live = (peers.sessions ?? liveSessions)({
+            sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions"),
+            root,
+        });
+        const allow = config?.workers.sessions;
+        return allow ? live.filter((s) => allow.includes(s.name)) : live;
+    }
+
+    /**
      * Asks the live sessions in this repository whose a pull request with failed CI is (asks.mjs,
      * design 8.2); in dry-run the question is a would-do line.
      * @param {Date} t the poll's time
@@ -1657,11 +1674,7 @@ export async function startDaemon({
         const lines = await askStep(state, {
             now: t,
             acting: writeMode("workers") === "acting",
-            sessions: () =>
-                (peers.sessions ?? liveSessions)({
-                    sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions"),
-                    root,
-                }),
+            sessions: messageable,
             transport: peers.transport ?? socketTransport(),
             sessionGone: (session) => ownerSessionGone(session, t),
         });
@@ -1680,11 +1693,7 @@ export async function startDaemon({
         const lines = await inviteStep(state, {
             now: t,
             acting: writeMode("workers") === "acting",
-            sessions: () =>
-                (peers.sessions ?? liveSessions)({
-                    sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions"),
-                    root,
-                }),
+            sessions: messageable,
             transport: peers.transport ?? socketTransport(),
             offered,
         });
@@ -1700,11 +1709,7 @@ export async function startDaemon({
         const lines = await nudgeStep(state, {
             now: t,
             acting: writeMode("workers") === "acting",
-            sessions: () =>
-                (peers.sessions ?? liveSessions)({
-                    sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions"),
-                    root,
-                }),
+            sessions: messageable,
             transport: peers.transport ?? socketTransport(),
         });
         for (const line of lines) void ledger(line);

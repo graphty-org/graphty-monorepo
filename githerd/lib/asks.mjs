@@ -235,3 +235,39 @@ export async function statusStep(state, { now, acting, sessions, transport, minu
     }
     return lines;
 }
+
+/**
+ * Tells each owner session that held a job the reconcile cancelled (its cause ended: the incident
+ * ended, the pull request closed or needs no work, the issue closed) that the job is gone, through
+ * the same messaging as the status question: one message to that session only, none to a session
+ * githerd may not message (`workers.sessions`), and a would-do line in dry-run. A githerd worker
+ * reads the job's news instead.
+ * @param {{job: string, reason: string, session?: string | null, startedBy?: string | null}[]} cancelled
+ *   the jobs syncJobs cancelled
+ * @param {{acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
+ *   transport: import("./peers.mjs").Transport}} opts whether the `workers` write group acts, the
+ *   sessions githerd may message, and the transport
+ * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
+ */
+export async function tellCancelled(cancelled, { acting, sessions, transport }) {
+    const lines = [];
+    /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a holder is told */
+    let live = null;
+    for (const c of cancelled) {
+        if (c.startedBy !== "owner" || !c.session) continue;
+        live ??= sessions();
+        const target = live.filter((s) => s.sessionId === c.session);
+        if (!target.length) continue;
+        if (!acting) {
+            const op = `tell ${target[0].name} that ${c.job} was cancelled`;
+            lines.push({ kind: "would-do", group: "workers", op, job: c.job });
+            continue;
+        }
+        const text =
+            `githerd: job ${c.job}, which this session holds, was cancelled: ${c.reason}. ` +
+            "Nothing is left to do on it; stop its work and do not call githerd_done or githerd_expect for it.";
+        const out = await tellSessions(target, text, transport);
+        lines.push({ kind: "cancel-told", job: c.job, session: target[0].name, ...out });
+    }
+    return lines;
+}

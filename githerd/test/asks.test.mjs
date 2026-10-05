@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { askStep, inviteStep, statusStep } from "../lib/asks.mjs";
+import { askStep, inviteStep, statusStep, tellCancelled } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { prInUse } from "../lib/queue.mjs";
 
@@ -353,6 +353,42 @@ describe("asking an owner session for the status of the job it holds", () => {
         ]);
         await statusStep(state, opts(f, { now: at("12:30"), acting: false }));
         expect(state.jobs["issue-186"].state).toBe("working");
+        expect(f.sent).toEqual([]);
+    });
+});
+
+describe("telling an owner session that the job it held was cancelled", () => {
+    const cancelled = [
+        { job: "incident-x", reason: "the release recovered", session: "s1", startedBy: "owner" },
+        { job: "pr-5", reason: "#5 closed or merged", session: "w1", startedBy: "githerd" },
+        { job: "pr-6", reason: "#6 closed or merged" },
+    ];
+
+    it("messages only the owner session that held it, with the reason", async () => {
+        const f = fake();
+        const lines = await tellCancelled(cancelled, f.opts());
+        expect(f.sent).toEqual([
+            [
+                "/s1.sock",
+                expect.stringContaining("incident-x, which this session holds, was cancelled: the release recovered"),
+            ],
+        ]);
+        expect(lines).toEqual([
+            expect.objectContaining({ kind: "cancel-told", job: "incident-x", sent: ["graphty-13"] }),
+        ]);
+    });
+
+    it("dry-run sends nothing and writes a would-do line; a session githerd may not message is not told", async () => {
+        const f = fake();
+        expect(await tellCancelled(cancelled, f.opts({ acting: false }))).toEqual([
+            {
+                kind: "would-do",
+                group: "workers",
+                op: "tell graphty-13 that incident-x was cancelled",
+                job: "incident-x",
+            },
+        ]);
+        expect(await tellCancelled(cancelled, f.opts({ sessions: () => [] }))).toEqual([]);
         expect(f.sent).toEqual([]);
     });
 });

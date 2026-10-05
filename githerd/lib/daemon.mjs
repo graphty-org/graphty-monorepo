@@ -66,7 +66,7 @@ import { homedir } from "node:os";
 import { inspect } from "node:util";
 
 import { createPushQueue } from "./actor/push.mjs";
-import { askStep, inviteStep, statusStep } from "./asks.mjs";
+import { askStep, inviteStep, statusStep, tellCancelled } from "./asks.mjs";
 import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
@@ -1539,7 +1539,7 @@ export async function startDaemon({
         await mergeGate(gh, prList.repository.pullRequests.nodes, branch);
         // No owner, no jobs: every job acts only on the owner's issues and pull requests.
         if (state.trust.login) {
-            jobsFromFacts(t);
+            await jobsFromFacts(t);
             await askOwners(t);
         }
         referenceWork();
@@ -1649,16 +1649,23 @@ export async function startDaemon({
     }
 
     /**
-     * Turns this poll's facts into job records (jobs.mjs).
+     * Turns this poll's facts into job records (jobs.mjs), and tells each owner session whose job
+     * was cancelled (asks.mjs tellCancelled); in dry-run that message is a would-do line.
      * @param {Date} t the poll's time
      */
-    function jobsFromFacts(t) {
+    async function jobsFromFacts(t) {
         const synced = syncJobs(state, { config, now: t, sessionGone: ownerSessionGone });
         for (const id of synced.created) {
             void ledger({ kind: "job-created", job: id, reason: state.jobs[id].reason, target: state.jobs[id].target });
         }
         for (const c of synced.cancelled) void ledger({ kind: "job-cancelled", ...c });
         for (const l of synced.lapsed) void ledger({ kind: "claim-lapsed", ...l });
+        const told = await tellCancelled(synced.cancelled, {
+            acting: writeMode("workers") === "acting",
+            sessions: messageable,
+            transport: peers.transport ?? socketTransport(),
+        });
+        for (const line of told) void ledger(line);
     }
 
     /**

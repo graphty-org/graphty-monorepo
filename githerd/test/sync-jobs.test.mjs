@@ -168,6 +168,23 @@ describe("syncJobs: incidents", () => {
         state.escalations["release-failed:77"].resolvedAt = NOW.toISOString();
         expect(sync(state).cancelled.map((c) => c.job)).toEqual(["incident-release-failed-77"]);
     });
+
+    it("cancels a release incident an owner session holds once the release recovers, and tells it why", () => {
+        const state = base();
+        const key = "release-stalled:114ae7f8";
+        state.escalations[key] = { key, kind: "release-stalled", summary: "stalled", raisedAt: "2026-10-04T10:00:00Z" };
+        sync(state);
+        const job = state.jobs["incident-release-stalled-114ae7f8"];
+        move(job, "starting", NOW, { holder: { session: "s1", window: null, startedBy: "owner" } });
+        move(job, "working", NOW);
+        move(job, "waiting", NOW, { waitingFor: { lane: "release" } });
+        state.escalations[key].resolvedAt = NOW.toISOString();
+        expect(sync(state).cancelled).toEqual([
+            { job: job.id, reason: "the release recovered", session: "s1", startedBy: "owner" },
+        ]);
+        expect(job).toMatchObject({ state: "cancelled", holder: null, reason: "the release recovered" });
+        expect(job.news.at(-1).text).toBe("job cancelled: the release recovered; stop work on it");
+    });
 });
 
 describe("syncJobs: pull requests", () => {
@@ -228,14 +245,51 @@ describe("syncJobs: pull requests", () => {
         expect(sync(state).cancelled).toEqual([{ job: "pr-942", reason: "#942 no longer needs a worker" }]);
     });
 
-    it("leaves a pr job in flight alone", () => {
+    it("cancels a held pr job whose pull request stopped needing work, with news for its holder", () => {
         const state = base();
         failingPr(state, 4);
+        failingPr(state, 5);
         sync(state);
-        move(state.jobs["pr-4"], "starting", NOW);
-        delete state.prs[4];
+        const owner = { session: "s1", window: null, startedBy: "owner" };
+        move(state.jobs["pr-4"], "starting", NOW, { holder: owner });
+        move(state.jobs["pr-4"], "working", NOW);
+        const worker = { session: "w1", pane: "%3", startedBy: "githerd" };
+        move(state.jobs["pr-5"], "starting", NOW, { holder: worker });
+        state.prs[4].required = { "All Checks Pass": "SUCCESS" };
+        delete state.prs[5];
+        expect(sync(state).cancelled).toEqual([
+            { job: "pr-4", reason: "#4 no longer needs a worker", session: "s1", startedBy: "owner" },
+            { job: "pr-5", reason: "#5 closed or merged", session: "w1", startedBy: "githerd" },
+        ]);
+        expect(state.jobs["pr-4"]).toMatchObject({ state: "cancelled", holder: null });
+        expect(state.jobs["pr-4"].news).toEqual([
+            {
+                at: NOW.toISOString(),
+                text: "job cancelled: #4 no longer needs a worker; stop work on it",
+                acked: false,
+            },
+        ]);
+        // A githerd worker's session is ended, as any job that lets its worker go.
+        expect(state.retiring).toEqual([expect.objectContaining({ job: "pr-5", holder: worker })]);
+    });
+
+    it("leaves a held pr job whose holder pushed, and a verifying job, to the done check", () => {
+        const state = base();
+        failingPr(state, 4);
+        failingPr(state, 5);
+        sync(state);
+        const holder = { session: "s1", window: null, startedBy: "owner" };
+        move(state.jobs["pr-4"], "starting", NOW, { holder });
+        move(state.jobs["pr-4"], "working", NOW);
+        state.jobs["pr-4"].pushedHead = "b".repeat(40);
+        move(state.jobs["pr-5"], "starting", NOW, { holder });
+        move(state.jobs["pr-5"], "working", NOW);
+        move(state.jobs["pr-5"], "verifying", NOW);
+        state.prs[4].required = { "All Checks Pass": "PENDING" };
+        delete state.prs[5];
         expect(sync(state).cancelled).toEqual([]);
-        expect(state.jobs["pr-4"].state).toBe("starting");
+        expect(state.jobs["pr-4"].state).toBe("working");
+        expect(state.jobs["pr-5"].state).toBe("verifying");
     });
 });
 

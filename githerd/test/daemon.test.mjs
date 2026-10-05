@@ -571,6 +571,52 @@ describe("HTTP endpoints", () => {
         ]);
     });
 
+    it("cancels an owner session's incident job once its release recovered, and tells that session; dry-run tells nobody", async () => {
+        /** @type {[string, string][]} */
+        const sent = [];
+        const listed = [
+            { pid: 1, sessionId: "wt-1", name: "graphty-2d", cwd: dir, socket: "/s1.sock", status: "busy" },
+        ];
+        const transport = { send: async (/** @type {string} */ s, /** @type {string} */ t) => void sent.push([s, t]) };
+        /**
+         * A daemon whose owner session wt-1 holds the incident job of a release stall that resolved.
+         * @returns {Promise<any>} the daemon
+         */
+        const held = async () => {
+            const daemon = await start({ peers: { sessions: () => listed, transport } });
+            const key = "release-stalled:114ae7f8";
+            const job = newJob(
+                { kind: "incident", target: key, id: "incident-release-stalled-114ae7f8", facts: { scope: "release" } },
+                clock,
+            );
+            move(job, "starting", clock, { holder: { session: "wt-1", window: null, startedBy: "owner" } });
+            move(job, "working", clock);
+            daemon.state.jobs = { [job.id]: job };
+            daemon.state.escalations = {
+                [key]: { key, kind: "release-stalled", raisedAt: clock.toISOString(), resolvedAt: clock.toISOString() },
+            };
+            return daemon;
+        };
+
+        // Dry-run: the job is cancelled with its news, and the message is a would-do line.
+        const dry = await held();
+        await poll(dry);
+        const job = dry.state.jobs["incident-release-stalled-114ae7f8"];
+        expect(job).toMatchObject({ state: "cancelled", holder: null, reason: "the release recovered" });
+        expect(job.news.at(-1).text).toContain("job cancelled: the release recovered");
+        expect(sent).toEqual([]);
+        expect((await readLedger(join(dir, ".githerd"))).filter((e) => e.op?.includes("was cancelled"))).toEqual([
+            expect.objectContaining({ kind: "would-do", group: "workers", op: expect.stringContaining("graphty-2d") }),
+        ]);
+        await dry.shutdown();
+
+        writeConfig({ mode: "acting", actions: { workers: true }, workers: { slots: 0, urgent: 0 } });
+        const acting = await held();
+        await poll(acting);
+        expect(acting.state.jobs["incident-release-stalled-114ae7f8"].state).toBe("cancelled");
+        expect(sent).toEqual([["/s1.sock", expect.stringContaining("was cancelled: the release recovered")]]);
+    });
+
     it("releases an owner session's claim at the first poll its session is gone, however recent its heartbeat", async () => {
         /** @type {any[]} */
         let listed = [{ pid: 1, sessionId: "wt-1", name: "graphty-2d", cwd: dir, socket: "/s1.sock", status: "busy" }];

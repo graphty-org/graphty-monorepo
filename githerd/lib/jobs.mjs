@@ -2,8 +2,9 @@
  * Turns the daemon's facts into job records (design 5.1): one pure function, `syncJobs`, called
  * once per reconcile after the polls, the incident procedure and the merge gate. It creates jobs
  * with deterministic ids, so a fact seen again names the same job, and cancels a queued job whose
- * target closed, merged or no longer needs work. Jobs in flight are left to their holders and to
- * the done check.
+ * target closed, merged or no longer needs work, whoever holds it: its holder gets a news line,
+ * and the daemon messages an owner session (asks.mjs tellCancelled). A verifying job is left to
+ * the done check, and so is a held pull request job whose holder pushed a fix.
  *
  * - `verdict-<key>`: every key of the open master incident that matched no unambiguous pattern and
  *   has no verdict yet: its session records code or environment with `githerd_verdict` (design 4.4).
@@ -55,7 +56,8 @@ const RELEASE_KINDS = new Set(["release-failed", "release-stalled"]);
 const OWNER_ONLY = ["githerd/", "githerd.config.json", ".claude/", ".mcp.json", "CLAUDE.md"];
 
 /**
- * @typedef {{created: string[], cancelled: {job: string, reason: string}[],
+ * @typedef {{created: string[],
+ *   cancelled: {job: string, reason: string, session?: string | null, startedBy?: string | null}[],
  *   lapsed: {job: string, session: string}[]}} SyncResult what changed, for the ledger
  */
 
@@ -82,9 +84,28 @@ export function syncJobs(state, { config, now, sessionGone = () => false }) {
         return state.jobs[id];
     };
     const cancel = (/** @type {any} */ job, /** @type {string} */ reason) => {
-        if (job.state !== "queued") return;
+        // A verifying job is the done check's to settle; a finished one has nothing to cancel.
+        if (TERMINAL.includes(job.state) || job.state === "verifying") return;
+        const holder = job.holder;
         move(job, "cancelled", now, { reason });
-        out.cancelled.push({ job: job.id, reason });
+        if (!holder) {
+            out.cancelled.push({ job: job.id, reason });
+            return;
+        }
+        // Whoever holds it is told, and a githerd worker's session is ended (as afterMove does).
+        job.news.push({ at: now.toISOString(), text: `job cancelled: ${reason}; stop work on it`, acked: false });
+        if (holder.pane) {
+            state.retiring = [
+                ...(state.retiring ?? []),
+                { job: job.id, holder, reason: "job cancelled", at: now.toISOString() },
+            ];
+        }
+        out.cancelled.push({
+            job: job.id,
+            reason,
+            session: holder.session ?? null,
+            startedBy: holder.startedBy ?? null,
+        });
     };
 
     lapseOwnerClaims(state, sessionGone, now, out);
@@ -132,7 +153,7 @@ export function releaseOwnerJob(job, reason, now) {
  * escalation.
  * @param {any} state the daemon state
  * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
- * @param {(job: any, reason: string) => void} cancel cancels a queued job
+ * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
  */
 function incidentJobs(state, add, cancel) {
     const open = Object.values(state.incidents ?? {}).find((i) => i.status === "open");
@@ -220,10 +241,10 @@ function masterKeyJob(state, open, key, r) {
 
 /**
  * The `pr` jobs: the owner's pull requests that need a worker, and none that changes githerd
- * itself. A queued one whose pull request closed or no longer needs work is cancelled.
+ * itself. One whose pull request closed or no longer needs work is cancelled.
  * @param {any} state the daemon state
  * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
- * @param {(job: any, reason: string) => void} cancel cancels a queued job
+ * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
  */
 function prJobs(state, add, cancel) {
     const heads = state.mergeGate?.heads ?? {};
@@ -269,7 +290,10 @@ function prJobs(state, add, cancel) {
         if (job.kind !== "pr" && job.kind !== "title") continue;
         const rec = state.prs?.[String(job.pr)];
         if (!rec) cancel(job, `#${job.pr} closed or merged`);
-        else if (!prWork(String(job.pr), rec, state)) cancel(job, `#${job.pr} no longer needs a worker`);
+        // A holder that pushed made it green, or is waiting on its CI: the done check settles that.
+        else if (!prWork(String(job.pr), rec, state) && !(job.holder && job.pushedHead)) {
+            cancel(job, `#${job.pr} no longer needs a worker`);
+        }
     }
 }
 
@@ -278,7 +302,7 @@ function prJobs(state, add, cancel) {
  * review of an older patch takes the new one; a review whose pull request closed is cancelled.
  * @param {any} state the daemon state
  * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
- * @param {(job: any, reason: string) => void} cancel cancels a queued job
+ * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
  */
 function reviewJobs(state, add, cancel) {
     const makers = new Map();
@@ -429,13 +453,13 @@ function refreshJob(state, passes, open, now, add) {
 
 /**
  * The issue jobs: one queued at a time, for the issue at the front (an open order first, then the
- * ranked list); the re-land of every pull request a revert took out; and a queued issue job whose
- * issue closed is cancelled.
+ * ranked list); the re-land of every pull request a revert took out; and an issue job whose issue
+ * closed is cancelled.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @param {Date} now the clock
  * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
- * @param {(job: any, reason: string) => void} cancel cancels a queued job
+ * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
  */
 function issueJobs(state, config, now, add, cancel) {
     for (const [reverted, revertPr] of Object.entries(state.incidentActions?.reverts ?? {})) {

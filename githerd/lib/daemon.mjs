@@ -1669,21 +1669,32 @@ export async function startDaemon({
     }
 
     /**
-     * The live sessions in this repository githerd may message: the config's `workers.sessions`
-     * names, or every one when it names none.
+     * Every live session in this repository. The ownership question goes to all of them: asking
+     * whose a pull request is hands no one work, and a session outside `workers.sessions` may hold it.
      * @returns {import("./peers.mjs").PeerSession[]} the sessions
      */
-    function messageable() {
-        const live = (peers.sessions ?? liveSessions)({
+    function liveInRepo() {
+        return (peers.sessions ?? liveSessions)({
             sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions"),
             root,
         });
+    }
+
+    /**
+     * The live sessions in this repository githerd may hand or manage work through (invitations,
+     * status questions, cancellation notices): the config's `workers.sessions` names, or every one
+     * when it names none.
+     * @returns {import("./peers.mjs").PeerSession[]} the sessions
+     */
+    function messageable() {
         const allow = config?.workers.sessions;
+        const live = liveInRepo();
         return allow ? live.filter((s) => allow.includes(s.name)) : live;
     }
 
     /**
-     * Asks the live sessions in this repository whose a pull request with failed CI is (asks.mjs,
+     * Asks every live session in this repository, `workers.sessions` or not, whose a pull request
+     * with failed CI is (asks.mjs,
      * design 8.2); in dry-run the question is a would-do line.
      * @param {Date} t the poll's time
      */
@@ -1691,7 +1702,7 @@ export async function startDaemon({
         const lines = await askStep(state, {
             now: t,
             acting: writeMode("workers") === "acting",
-            sessions: messageable,
+            sessions: liveInRepo,
             transport: peers.transport ?? socketTransport(),
             sessionGone: ownerSessionGone,
         });

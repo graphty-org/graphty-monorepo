@@ -1545,6 +1545,45 @@ describe("asking whose a failed pull request is", () => {
     });
 });
 
+describe("who workers.sessions limits", () => {
+    it("asks every live session whose a pull request is, but invites and asks status of the named one only", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass"], workers: { sessions: ["graphty-13"] } });
+        scene.prs = [gatedPr()];
+        const peers = {
+            sessions: () => [
+                { pid: 1, sessionId: "s1", name: "graphty-13", cwd: dir, socket: "/s1.sock", status: "idle" },
+                { pid: 2, sessionId: "s2", name: "graphty-14", cwd: dir, socket: "/s2.sock", status: "idle" },
+            ],
+            transport: { send: async () => {} },
+        };
+        const daemon = await start({ peers });
+        await poll(daemon);
+        expect(daemon.state.asks["7"]).toMatchObject({ sessions: ["graphty-13", "graphty-14"] });
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/feat"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        // Two owner-held jobs whose status is due: one per session.
+        const held = (/** @type {string} */ id, /** @type {string} */ session) => ({
+            ...newJob({ kind: "issue", target: `#${id}`, id: `issue-${id}` }, clock),
+            state: "working",
+            holder: { session, startedBy: "owner" },
+        });
+        daemon.state.jobs["issue-8"] = held("8", "s1");
+        daemon.state.jobs["issue-9"] = held("9", "s2");
+        for (const at of ["13:03", "13:06"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        const ops = (await readLedger(join(dir, ".githerd")))
+            .filter((e) => e.kind === "would-do" && e.group === "workers")
+            .map((e) => e.op);
+        expect(ops).toContain("ask 2 session(s) whose #7 is");
+        expect(ops).toContain("invite 1 idle session(s) to take verdict-ci-Build-");
+        expect(ops).toContain("ask graphty-13 for the status of issue-8");
+        expect(ops.some((op) => op.includes("graphty-14"))).toBe(false);
+    });
+});
+
 describe("inviting idle sessions to pull work", () => {
     it("announces a queued job no worker took once, to idle sessions only, a would-do in dry-run", async () => {
         /** @type {string[]} */

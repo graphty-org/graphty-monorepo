@@ -261,8 +261,10 @@ function ownerGate(raw) {
 
 /**
  * The `workers` section (design 8.1): the model, limited to `MODELS`, and the session limits.
- * `sessions` names the only Claude sessions githerd messages (asks, invitations, status questions); null
- * messages every session in the repository.
+ * `sessions` names the only Claude sessions githerd hands or manages work through (invitations,
+ * status questions, cancellation notices); null means every session in the repository. The
+ * question whose a pull request is goes to every live session in the repository regardless: it hands
+ * no one work, only finds out who already has it.
  * @param {unknown} raw the section as written
  * @returns {Config["workers"]} the section
  */

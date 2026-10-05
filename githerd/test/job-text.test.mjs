@@ -32,6 +32,12 @@ const JOBS = {
     },
     pr: { kind: "pr", target: "#412", reason: "own failure on the current head" },
     issue: { kind: "issue", target: "#737", reason: "high bug" },
+    "issue-verify": {
+        kind: "issue",
+        target: "#906",
+        reason: "referenced by 958d8e9c6 on master",
+        facts: { references: ["958d8e9c6", "#550"] },
+    },
     triage: { kind: "triage", target: "20 new issues since 2026-10-03" },
     "triage-refresh": {
         kind: "triage",

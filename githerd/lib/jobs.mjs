@@ -499,13 +499,18 @@ function issueJobs(state, config, now, add, cancel) {
     if (!top) return;
     const issue = state.issues.byNumber[top.number];
     const label = priorities[top.priority];
+    // A commit or merged pull request on master already names the issue: the worker verifies first.
+    const references = [
+        ...new Set([...(state.merged?.commitRefs?.[top.number] ?? []), ...(state.merged?.refs?.[top.number] ?? [])]),
+    ];
     add({
         id: `issue-${top.number}`,
         kind: "issue",
         target: `#${top.number}`,
         priority: label ? label.replace(/^[^:]*:/, "") : null,
-        reason: "front of the issue queue",
+        reason: references.length ? `referenced by ${references.join(", ")} on master` : "front of the issue queue",
         facts: {
+            ...(references.length ? { references } : {}),
             since: issue.createdAt ?? null,
             bug: top.bug,
             labels: issue.labels ?? [],

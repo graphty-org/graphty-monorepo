@@ -117,6 +117,19 @@ function refreshLines(facts) {
     return lines;
 }
 
+/**
+ * The purpose of an issue job whose issue a commit or merged pull request on master already names.
+ * @param {any} job the issue job
+ * @returns {string} the purpose
+ */
+function verifyPurpose(job) {
+    return (
+        `Already referenced on master by ${job.facts.references.join(", ")}: first check whether it is fixed; ` +
+        `if it is, add a test that pins the behavior if none exists and close the issue with a pull request that says Fixes ${job.target}; ` +
+        "if not, fix what remains."
+    );
+}
+
 /** How to report the end, by kind. */
 const FINISH = /** @type {Record<string, string>} */ ({
     verdict: "Call githerd_verdict, then githerd_done with outcome done and your reason as the findings.",
@@ -221,6 +234,7 @@ export function jobText(job, ctx = {}) {
     const verdict = job.kind === "incident" && job.facts?.scope === "verdict";
     let purpose = refresh ? REFRESH_PURPOSE : PURPOSE[job.kind];
     if (verdict) purpose = VERDICT_PURPOSE;
+    if (job.kind === "issue" && job.facts?.references?.length) purpose = verifyPurpose(job);
     const lines = [`JOB ${job.id}`, `TARGET: ${TARGET_NOUN[job.kind]} ${job.target}`, `WHAT FOR: ${purpose}`];
     if (job.reason) lines.push(`WHY NOW: ${job.reason}`);
     const finish = FINISH[verdict ? "verdict" : job.kind] ?? FINISH_DEFAULT;

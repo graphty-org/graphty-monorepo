@@ -7,6 +7,11 @@
  * refresh triage job hands them, with the open issues, to a Claude session, which judges which
  * issues the merges affect (jobs.mjs); code never guesses that from the issue text. Issues a merged
  * pull request closes are left out: GitHub closes them.
+ *
+ * The same merges, and the commit subjects on the default branch, are also kept as references:
+ * which commits and pull requests name an open issue. An issue job for such an issue asks its
+ * worker to verify it first (jobs.mjs), since a fix that names its issue without a closing keyword
+ * leaves it open.
  */
 
 /** The search document; `files(first:100)` truncates large pull requests. */
@@ -84,15 +89,21 @@ export async function searchMerged(gitHub, repo, since) {
 
 /**
  * Adds merged pull requests to `state.merged`. A pull request already pending is not added twice,
- * so a rescan of the same window changes nothing. `lastScanAt` only moves forward.
+ * so a rescan of the same window changes nothing. `lastScanAt` only moves forward. Other fields of
+ * the record are kept.
  * @param {{lastScanAt?: string | null, pending?: PendingMerge[], closed?: number[],
- *   count?: number}} saved `state.merged`
+ *   count?: number, refs?: Record<string, string[]>}} saved `state.merged`
  * @param {MergedPr[]} prs from `parseMerged`
- * @returns {{lastScanAt: string | null, pending: PendingMerge[], closed: number[], count: number}}
+ * @returns {{lastScanAt: string | null, pending: PendingMerge[], closed: number[], count: number,
+ *   refs: Record<string, string[]>}}
  *   the new record; `pending` holds the merges since the last refresh job, `closed` the issues the
- *   merged pull requests close, and `count` every merge seen, which the triage passes count (jobs.mjs)
+ *   merged pull requests close, `count` every merge seen, which the triage passes count (jobs.mjs),
+ *   and `refs` every issue a merged pull request closes or mentions, with its `#pr`, kept for good
+ *   so an issue job knows its issue may already be fixed
  */
 export function accumulateMerged(saved, prs) {
+    const refs = Object.fromEntries(Object.entries(saved.refs ?? {}).map(([n, list]) => [n, [...list]]));
+    for (const pr of prs) addRefs(refs, pr);
     const pending = [...(saved.pending ?? [])];
     const closed = new Set(saved.closed ?? []);
     let lastScanAt = saved.lastScanAt ?? null;
@@ -107,5 +118,71 @@ export function accumulateMerged(saved, prs) {
             pending.push({ number, title, mergeSha, paths, truncated, mentions: pr.mentions ?? [] });
         }
     }
-    return { lastScanAt, pending, closed: [...closed].sort((a, b) => a - b), count };
+    return { ...saved, lastScanAt, pending, closed: [...closed].sort((a, b) => a - b), count, refs };
+}
+
+/**
+ * Records a merged pull request as a reference of every issue it closes or mentions.
+ * @param {Record<string, string[]>} refs issue number to `#pr` references, changed in place
+ * @param {{number: number, closes?: number[], mentions?: number[]}} pr the merged pull request
+ */
+function addRefs(refs, pr) {
+    for (const n of new Set([...(pr.closes ?? []), ...(pr.mentions ?? [])])) {
+        const list = (refs[n] ??= []);
+        if (!list.includes(`#${pr.number}`)) list.push(`#${pr.number}`);
+    }
+}
+
+/** The search document of the one-time backfill: only what references need, 100 a page. */
+export const REFS_QUERY = `query($q: String!, $after: String) {
+  search(type: ISSUE, query: $q, first: 100, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    nodes { ... on PullRequest { number title body mergedAt
+      closingIssuesReferences(first: 10) { nodes { number } } } }
+  }
+}`;
+
+/**
+ * The references of pull requests merged before githerd's first scan, read once: every pull
+ * request merged since the oldest open issue was opened (an older one cannot name it). Search
+ * stops at 1000 results, 10 pages.
+ * @param {{graphql: (query: string, vars?: Record<string, unknown>) => Promise<any>}} gitHub the client
+ * @param {string} repo `owner/name`
+ * @param {string} since ISO time the oldest open issue was opened
+ * @returns {Promise<Record<string, string[]>>} issue number to `#pr` references
+ */
+export async function backfillRefs(gitHub, repo, since) {
+    const q = `repo:${repo} is:pr is:merged merged:>=${since}`;
+    /** @type {Record<string, string[]>} */
+    const refs = {};
+    let after = null;
+    for (let page = 0; page < 10; page++) {
+        const data = await gitHub.graphql(REFS_QUERY, { q, after });
+        for (const pr of parseMerged(data)) addRefs(refs, pr);
+        const info = data?.search?.pageInfo;
+        if (!info?.hasNextPage) break;
+        after = info.endCursor;
+    }
+    return refs;
+}
+
+/**
+ * The commits on the default branch whose subject names an open issue as `#n` (word-bounded, so
+ * `#9060` is not `#906`): a fix that says which issue it fixes without closing it.
+ * @param {string} log `git log --format=%h%x09%s` output, one commit a line
+ * @param {number[]} open the open issue numbers
+ * @returns {Record<string, string[]>} issue number to short shas, newest first
+ */
+export function commitRefs(log, open) {
+    const wanted = new Set(open);
+    /** @type {Record<string, string[]>} */
+    const refs = {};
+    for (const line of log.split("\n")) {
+        const [sha, subject = ""] = line.split("\t");
+        for (const m of subject.matchAll(/(?<![\w&/])#(\d+)\b/g)) {
+            const n = Number(m[1]);
+            if (wanted.has(n) && !refs[n]?.includes(sha)) (refs[n] ??= []).push(sha);
+        }
+    }
+    return refs;
 }

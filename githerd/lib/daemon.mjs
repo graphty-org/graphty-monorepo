@@ -100,7 +100,7 @@ import { classify, isNoLog } from "./classify.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
-import { accumulateMerged, searchMerged } from "./merged.mjs";
+import { accumulateMerged, backfillRefs, commitRefs, searchMerged } from "./merged.mjs";
 import { sessionWriteCheck } from "./session-writes.mjs";
 import {
     foldHead,
@@ -1818,16 +1818,55 @@ export async function startDaemon({
             state.merged = accumulateMerged(state.merged, merged);
             state.merged.lastScanAt ??= iso;
         }
+        let fetchedNow = false;
         if (m.configPending) {
             const fetched = await runGit(["fetch", "origin", branch]);
             if (fetched.code === 0) {
                 m.configPending = false;
                 mergify = undefined;
+                fetchedNow = true;
             } else say("error", `git fetch origin ${branch}: ${fetched.stderr.trim() || "exit " + fetched.code}`);
             const configFatal = await readConfig();
             if (configFatal) enterFatal(configFatal);
         }
         if (mergify === undefined) mergify = await readMergify(branch);
+        await followRefs(gh, branch, fetchedNow);
+    }
+
+    /**
+     * Keeps the references of open issues on the default branch (merged.mjs): the commit subjects
+     * naming one, read from the local clone after each fetch, and once, the pull requests merged
+     * before githerd's first scan.
+     * @param {ReturnType<typeof createGitHub>} gh the client
+     * @param {string} branch the default branch
+     * @param {boolean} fetched whether this poll fetched a new head
+     */
+    async function followRefs(gh, branch, fetched) {
+        const open = Object.entries(state.issues?.byNumber ?? {}).filter(([, i]) => i.state === "open");
+        if (!open.length) return;
+        if (fetched || !state.merged.commitRefs) {
+            // ponytail: the whole history's subjects, every master move; a few ms locally
+            const log = await runGit(["log", `origin/${branch}`, "--format=%h%x09%s"]);
+            if (log.code === 0)
+                state.merged.commitRefs = commitRefs(
+                    log.stdout,
+                    open.map(([n]) => Number(n)),
+                );
+        }
+        if (!state.merged.refsBackfilled) {
+            const since =
+                open
+                    .map(([, i]) => i.createdAt)
+                    .filter(Boolean)
+                    .sort()[0] ?? "1970-01-01T00:00:00Z";
+            const refs = await backfillRefs(gh, config.repo, since);
+            state.merged.refs ??= {};
+            for (const [n, list] of Object.entries(refs)) {
+                const have = (state.merged.refs[n] ??= []);
+                for (const r of list) if (!have.includes(r)) have.push(r);
+            }
+            state.merged.refsBackfilled = true;
+        }
     }
 
     /**

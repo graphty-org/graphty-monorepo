@@ -5,7 +5,7 @@ import { normalizeConfig } from "../lib/config.mjs";
 import { jobText } from "../lib/job-text.mjs";
 import { syncJobs } from "../lib/jobs.mjs";
 import { jobInUse, jobOrder } from "../lib/queue.mjs";
-import { accumulateMerged } from "../lib/merged.mjs";
+import { accumulateMerged, commitRefs } from "../lib/merged.mjs";
 
 const NOW = new Date("2026-10-04T12:00:00Z");
 const CONFIG = normalizeConfig({
@@ -441,6 +441,34 @@ describe("syncJobs: issues", () => {
         expect(sync(state).created).toEqual(["issue-1"]);
         expect(state.deferred).toEqual({});
         expect(state.jobs["issue-1"].state).toBe("queued");
+    });
+
+    it("offers an issue a master commit or a merged pull request already names as a verify job", () => {
+        const state = base();
+        issue(state, 906, LABELED);
+        state.merged.commitRefs = commitRefs(
+            "958d8e9c6\tfix: a legend swatch (#906)\nabc123456\tfix: other (#9060)",
+            [906],
+        );
+        state.merged = accumulateMerged(state.merged, [
+            /** @type {any} */ ({ number: 550, mergedAt: "2026-09-30T00:00:00Z", closes: [906], mentions: [] }),
+        ]);
+        expect(sync(state).created).toEqual(["issue-906"]);
+        const job = state.jobs["issue-906"];
+        expect(job.reason).toBe("referenced by 958d8e9c6, #550 on master");
+        expect(job.facts.references).toEqual(["958d8e9c6", "#550"]);
+        expect(jobText(job)).toContain(
+            "WHAT FOR: Already referenced on master by 958d8e9c6, #550: first check whether it is fixed;",
+        );
+    });
+
+    it("leaves an issue nothing on master names unchanged", () => {
+        const state = base();
+        issue(state, 906, LABELED);
+        state.merged.commitRefs = commitRefs("abc123456\tfix: other (#9060)", [906]);
+        expect(sync(state).created).toEqual(["issue-906"]);
+        expect(state.jobs["issue-906"].reason).toBe("front of the issue queue");
+        expect(state.jobs["issue-906"].facts.references).toBeUndefined();
     });
 
     it("re-lands a pull request a revert took out, once the revert is no longer open", () => {

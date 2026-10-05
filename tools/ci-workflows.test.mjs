@@ -119,6 +119,15 @@ describe("ci.yml", () => {
         assert.match(job(ci, "all-checks"), /\n\s+cost-accuracy,\n/);
     });
 
+    it("runs no security audit on pull requests or merge-queue runs", () => {
+        // advisories land against code a pull request did not change; the release train audits instead
+        assert.doesNotMatch(ci, /pnpm audit/);
+        const review = workflow("dependency-review.yml");
+        assert.match(review, /paths:\n\s+- "pnpm-lock.yaml"/);
+        assert.match(review, /if: \$\{\{ !startsWith\(github.head_ref, 'mergify\/merge-queue\/'\) \}\}/);
+        assert.match(review, /fail-on-severity: high/);
+    });
+
     it("keeps the benchmarks advisory", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
     });
@@ -323,6 +332,14 @@ describe("release.yml", () => {
         assert.match(train, /node tools\/release-hold.mjs apply --only "\$PACKAGES"/);
         assert.match(train, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
         assert.match(train, /--label priority:critical/);
+    });
+
+    it("audits the released commit's dependencies before it opens the release pull request", () => {
+        const audit = train.indexOf("run: pnpm audit --audit-level=high");
+        assert.ok(audit > train.indexOf("pnpm install --frozen-lockfile"), "after install");
+        assert.ok(audit < train.indexOf("gh pr create"), "before the release pull request");
+        const step = train.slice(train.lastIndexOf("- name:", audit), audit);
+        assert.doesNotMatch(step, /continue-on-error/, "a high advisory blocks the release");
     });
 
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {

@@ -155,6 +155,12 @@ jobs:
               env:
                   HUSKY: "0"
 
+            # The security audit lives here, not in CI: a high or critical advisory against the released commit's
+            # dependencies stops the release (daily and ad hoc alike), never an unrelated pull request.
+            - name: Security audit
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+              run: pnpm audit --audit-level=high
+
             # A package listed in release-hold.json is left out of nx.json's release.projects in this checkout, so
             # it is neither versioned nor published -- not even as a dependent of a package that is released. An ad
             # hoc release with `packages` holds every other project too. nx commits only the manifests and

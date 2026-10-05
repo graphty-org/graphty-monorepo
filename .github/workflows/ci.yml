@@ -117,10 +117,10 @@ jobs:
             - name: CI workflow tests
               run: pnpm run test:ci-workflows
 
-            # Security audit - run early to catch vulnerabilities before building
-            # Only fail on critical and high severity vulnerabilities
-            - name: Security audit
-              run: pnpm audit --audit-level=high
+            # No security audit here: a new advisory is published against code a pull request did not
+            # change, so it failed every PR at once (52 PR runs in 4 waves in 5 days). The release
+            # train in release.yml audits before it opens the release pull request, and
+            # dependency-review.yml reviews the pull requests that change dependencies.
 
             - name: Cache Nx
               uses: actions/cache@v4

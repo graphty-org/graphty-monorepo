@@ -1,0 +1,25 @@
+name: Dependency Review
+
+# Checks only the dependencies a pull request adds or changes, so an advisory against a package the
+# pull request did not touch never fails it. The full `pnpm audit` runs on the release train
+# (release.yml). Not a required check.
+on:
+    pull_request:
+        paths:
+            - "pnpm-lock.yaml"
+            - "pnpm-workspace.yaml"
+            - "**/package.json"
+
+permissions:
+    contents: read
+
+jobs:
+    dependency-review:
+        name: Dependency Review
+        # merge-queue drafts re-test changes their pull requests already reviewed
+        if: ${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/dependency-review-action@v4
+              with:
+                  fail-on-severity: high

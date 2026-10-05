@@ -4,7 +4,7 @@
  * prepare's, which reads the same way under `task: "prepare"` (#910).
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession, type ProgressChange } from "../../src/session";
 
@@ -126,6 +126,39 @@ describe("a prepare's progress", () => {
         assert.deepInclude(read.at(-1), { phase: "end", outcome: "succeeded", completed: 3 });
         assert.deepInclude(seen.at(-1), { task: "prepare", phase: "end", outcome: "failed" });
         assert.strictEqual(seen.at(-1)?.error?.code, "E_PARSE_FAILED");
+        session.dispose();
+    });
+});
+
+describe("a cancelled load's progress", () => {
+    it("ends saying it was cancelled, with no error (#902)", async () => {
+        const session = createGraphSession();
+        const seen = watch(session);
+        // A fetch that never answers keeps the load running until undo cancels it.
+        vi.stubGlobal("fetch", () => new Promise(() => undefined));
+        try {
+            const load = session.data.import({ type: "json", config: { url: "https://example.invalid/slow.json" } });
+            while (seen.length === 0) {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            }
+
+            assert.strictEqual((await session.undo()).kind, "cancelled");
+            assert.isTrue(
+                await load.then(
+                    () => false,
+                    () => true,
+                ),
+                "the import settles as cancelled",
+            );
+        } finally {
+            vi.unstubAllGlobals();
+        }
+
+        assert.deepInclude(seen[0], { task: "load", phase: "progress", completed: 0 });
+        const ends = seen.filter((change) => change.phase === "end");
+        assert.lengthOf(ends, 1, "one end");
+        assert.deepInclude(ends[0], { task: "load", outcome: "cancelled" });
+        assert.isUndefined(ends[0]?.error, "a cancel is not a failure, so it carries no error");
         session.dispose();
     });
 });

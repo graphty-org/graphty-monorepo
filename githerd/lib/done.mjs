@@ -139,7 +139,7 @@ async function headIsPushed(rec, pushed, io) {
 async function mentions(rec, number, issue, view) {
     if ((rec.references ?? []).includes(issue)) return true;
     const body = (await view.io.pull(number))?.body ?? "";
-    return new RegExp(`#${issue}(?!\\d)`).test(body);
+    return new RegExp(String.raw`#${issue}(?!\d)`).test(body);
 }
 
 /**

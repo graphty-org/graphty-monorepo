@@ -2092,8 +2092,11 @@ export interface ElementSession extends GraphSession {
 export interface CreateGraphSessionOptions {
     /** The configuration. Every part not given takes the element's own default. */
     readonly config?: {
-        /** The data configuration the session starts from; change it later with `config.set`. */
-        readonly data?: SessionDataConfig;
+        /**
+         * The data configuration the session starts from; any part left out takes its default.
+         * Change it later with `config.set`.
+         */
+        readonly data?: NonNullable<ProjectConfigPatch["data"]>;
         /** The acceleration policy and threshold. */
         readonly acceleration?: {
             /** Use an accelerator when available, never look, or refuse to run without one. */

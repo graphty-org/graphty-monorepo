@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Checkbox, Code, DirectionProvider, Group, Stack, Text } from "@mantine/core";
+import { Badge, Box, Button, Checkbox, Code, DirectionProvider, Group, Menu, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import React, { useMemo, useRef, useState } from "react";
 
@@ -10,6 +10,7 @@ import {
     LabelsProvider,
     PANEL_GRID,
     PANEL_INK,
+    UiGlyph,
 } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
@@ -64,6 +65,21 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * - **Selecting.** A click selects one row, Shift extends from the last row clicked, Command or
  *   Control toggles one. `selectionMode="single"` ignores the modifiers.
  * - **Drawn cells.** A column's `cell` draws anything; sorting and search still use its `value`.
+ * - **Rich headers.** A column can be `pinned: "start"` (a key column that stays put while the
+ *   others scroll sideways), carry an `icon` before its name, a `headerTooltip` (shown on hover
+ *   and keyboard focus, and read as the header's description), and a `menu`: the `Menu.Item`s
+ *   the table opens from a caret at the end of the header.
+ *
+ * ```tsx
+ * {
+ *     id: "degree",
+ *     header: "Degree",
+ *     value: (node) => node.degree,
+ *     icon: <NumberGlyph />,
+ *     headerTooltip: "77 values, 1 to 36",
+ *     menu: <Menu.Item onClick={() => hide("degree")}>Hide column</Menu.Item>,
+ * }
+ * ```
  *
  * ## Keyboard and accessibility
  *
@@ -75,6 +91,8 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * - The table reports its row and column counts and numbers every drawn row, so a reader hears
  *   "row 40 of 4,000" with forty rows in the document. Sorted columns carry `aria-sort`, selected
  *   rows `aria-selected`, and a change in the number of rows shown is announced.
+ * - On a header, Alt+ArrowDown, Shift+F10 or the context-menu key opens the column's `menu`; its
+ *   caret stays out of the tab order.
  * - Right to left, the columns and the arrow keys run the other way.
  * - Every string comes from `LabelsProvider`; numbers and dates follow its locale.
  *
@@ -504,6 +522,48 @@ export const RearrangedFromOutside: Story = {
                     a table that keeps its own arrangement, with your own columns menu beside it.
                 </Note>
             </Frame>
+        );
+    },
+};
+
+/**
+ * A key column pinned at the start while the rest scroll sideways, a type glyph and a tooltip on
+ * each header, and a header menu behind the caret (hover a header, or press Alt+ArrowDown on it).
+ */
+export const RichHeaders: Story = {
+    render: () => {
+        const columns: DataTableColumn<GraphNode>[] = [
+            {
+                id: "degree",
+                header: "Degree",
+                value: (node) => node.degree,
+                align: "end",
+                width: 120,
+                icon: <UiGlyph name="rectangle" size={12} />,
+                headerTooltip: "600 values, 1 to 36",
+                menu: (
+                    <>
+                        <Menu.Item>Sort high to low</Menu.Item>
+                        <Menu.Item>Hide column</Menu.Item>
+                    </>
+                ),
+            },
+            {
+                id: "community",
+                header: "Community",
+                value: (node) => node.community,
+                width: 140,
+                icon: <UiGlyph name="text" size={12} />,
+                headerTooltip: "6 groups",
+                menu: <Menu.Item>Hide column</Menu.Item>,
+            },
+            { id: "kind", header: "Kind", value: (node) => node.kind, width: 120 },
+            { id: "id", header: "Node", value: (node) => node.label, width: 120, pinned: "start" },
+        ];
+        return (
+            <Box style={{ width: 320 }}>
+                <DataTable columns={columns} data={NODES} getRowId={(node) => node.id} label="Nodes" height={240} />
+            </Box>
         );
     },
 };

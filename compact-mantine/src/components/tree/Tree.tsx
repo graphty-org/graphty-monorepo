@@ -1,6 +1,6 @@
 import { useUncontrolled } from "@mantine/hooks";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import React, { forwardRef, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { forwardRef, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
 import { UiGlyph } from "../../icons";
@@ -55,6 +55,14 @@ export interface TreeItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>
     posInSet?: number;
     /** How many siblings it has, for assistive technology. */
     setSize?: number;
+    /** A swatch drawn between the glyph and the name. See TreeNodeData.swatch. */
+    swatch?: React.ReactNode;
+    /** An always-visible count before the toggles. See TreeNodeData.count. */
+    count?: React.ReactNode;
+    /** A progress line along the bottom of the row. See TreeNodeData.progress. */
+    progress?: number | "indeterminate";
+    /** The row's state in words, read after its name. See TreeNodeData.description. */
+    description?: string;
     /** Drawn in place of the name, e.g. an InlineRename. */
     nameSlot?: React.ReactNode;
     /** Called when the caret is clicked. */
@@ -86,6 +94,10 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
         posInSet,
         setSize,
         nameSlot,
+        swatch,
+        count,
+        progress,
+        description,
         onExpandToggle,
         className,
         onClick,
@@ -99,6 +111,16 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
     useCompactStyles();
     const isStrong = strong ?? (level === 1 && hasChildren);
     const hasActions = actions !== undefined && actions !== null && actions !== false;
+    const hasSwatch = swatch !== undefined && swatch !== null && swatch !== false;
+    const hasCount = count !== undefined && count !== null && count !== false && count !== "";
+    const hasDescription = description !== undefined && description !== "";
+    const id = useId();
+    const countId = `${id}-count`;
+    const descriptionId = `${id}-description`;
+    const describedBy = [hasCount ? countId : null, hasDescription ? descriptionId : null]
+        .filter((x) => x !== null)
+        .join(" ");
+    const fraction = typeof progress === "number" ? Math.min(1, Math.max(0, progress)) : undefined;
     // The caret and the toggles are parts of the row, not rows of their own: a click on the caret
     // opens or closes the row, and nothing that lands on the toggles selects or renames it.
     const partOf = (event: React.SyntheticEvent): "caret" | "actions" | "row" => {
@@ -119,6 +141,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
             aria-setsize={setSize}
             aria-expanded={hasChildren ? expanded : undefined}
             aria-selected={selected}
+            aria-describedby={describedBy === "" ? undefined : describedBy}
             data-tint={tint ?? (selected ? "selected" : "none")}
             data-tone={tone === "component" ? "component" : undefined}
             data-dimmed={dimmed ? "" : undefined}
@@ -148,12 +171,44 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
             <span className="cm-tree-icon" aria-hidden="true">
                 {icon}
             </span>
+            {hasSwatch && (
+                <span className="cm-tree-swatch" aria-hidden="true" data-testid="tree-swatch">
+                    {swatch}
+                </span>
+            )}
             {nameSlot ?? (
                 <span className="cm-tree-name" title={name}>
                     {name}
                 </span>
             )}
+            {hasCount && (
+                <span className="cm-tree-count" id={countId} data-testid="tree-count">
+                    {count}
+                </span>
+            )}
             {hasActions && <span className="cm-tree-actions">{actions}</span>}
+            {hasDescription && (
+                <span id={descriptionId} hidden>
+                    {description}
+                </span>
+            )}
+            {progress !== undefined && (
+                <span // NOSONAR(S6819): a 2px bar inside the row, drawn the same when indeterminate
+                    className="cm-tree-progress"
+                    role="progressbar"
+                    aria-label={name}
+                    aria-valuemin={fraction === undefined ? undefined : 0}
+                    aria-valuemax={fraction === undefined ? undefined : 100}
+                    aria-valuenow={fraction === undefined ? undefined : Math.round(fraction * 100)}
+                    data-indeterminate={fraction === undefined ? "" : undefined}
+                    data-testid="tree-progress"
+                >
+                    <span
+                        className="cm-tree-progress-fill"
+                        style={fraction === undefined ? undefined : { width: `${String(fraction * 100)}%` }}
+                    />
+                </span>
+            )}
             <span className="cm-tree-ring" aria-hidden="true" />
         </div>
     );
@@ -199,6 +254,13 @@ export interface TreeProps {
     height?: number | string;
     /** The accessible name of the rename field. Defaults to "Layer name". */
     renameLabel?: string;
+    /**
+     * Called with the row's id for every key pressed on a focused row (not on a control inside
+     * it), before the tree's own keys. Call `event.preventDefault()` to claim the key: the tree
+     * then does nothing with it. Use it for the row's own shortcuts -- Space to toggle the row's
+     * eye, Delete to delete the row.
+     */
+    onRowKeyDown?: (id: string, event: React.KeyboardEvent<HTMLDivElement>) => void;
 }
 
 /**
@@ -212,7 +274,8 @@ export interface TreeProps {
  * parent or moves to its first child; ArrowLeft closes an open parent or moves to the parent;
  * Home / End; type-ahead; Enter or Space selects (Shift extends, Control / Command toggles); `*`
  * opens every sibling; F2 renames; Alt+L closes everything; with `onMove`, Alt+ArrowUp /
- * Alt+ArrowDown move the focused item one place among its siblings.
+ * Alt+ArrowDown move the focused item one place among its siblings. `onRowKeyDown` sees every
+ * key first and can claim one with `preventDefault()`.
  * Pointer: click selects (Shift range, Control / Command toggle); the caret opens one row;
  * double-click renames; drag a row to move it.
  * @param props - Component props
@@ -230,7 +293,21 @@ export interface TreeProps {
  * @param props.stickyRoots - Pin expanded top-level rows while scrolling
  * @param props.height - The scrolling height when virtualized
  * @param props.renameLabel - The rename field's accessible name
+ * @param props.onRowKeyDown - Called first for a key pressed on a focused row; preventDefault claims it
  * @returns The tree
+ * @example
+ * A row with a swatch, a count, a running line and its state in words, and a row shortcut.
+ * ```tsx
+ * <Tree
+ *     items={[{ id: "pr", name: "PageRank", swatch: <Ramp />, count: 77, progress: 0.4, description: "Running" }]}
+ *     onRowKeyDown={(id, event) => {
+ *         if (event.key === "Delete") {
+ *             event.preventDefault();
+ *             remove(id);
+ *         }
+ *     }}
+ * />
+ * ```
  */
 export function Tree({
     items,
@@ -247,6 +324,7 @@ export function Tree({
     stickyRoots = false,
     height = 480,
     renameLabel = "Layer name",
+    onRowKeyDown,
 }: TreeProps): React.JSX.Element {
     useCompactStyles();
     const [selection, setSelection] = useUncontrolled<readonly string[]>({
@@ -359,6 +437,10 @@ export function Tree({
         }
         const i = indexOf.get(tabId) ?? 0;
         const row = rows[i];
+        onRowKeyDown?.(row.node.id, event);
+        if (event.defaultPrevented) {
+            return;
+        }
         // Alt+ArrowUp / Alt+ArrowDown: move the focused item one place among its siblings. Reported
         // through onMove like a drop; focus stays on the item wherever the caller puts it.
         if (onMove && event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
@@ -467,6 +549,10 @@ export function Tree({
                 // top-level container and leaves top-level leaves at 400.
                 strong={row.node.strong ?? (row.level === 1 && row.node.children !== undefined)}
                 actions={row.node.actions}
+                swatch={row.node.swatch}
+                count={row.node.count}
+                progress={row.node.progress}
+                description={row.node.description}
                 posInSet={row.posInSet}
                 setSize={row.setSize}
                 tabIndex={id === tabId ? 0 : -1}

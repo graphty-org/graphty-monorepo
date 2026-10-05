@@ -222,7 +222,7 @@ for this milestone", gives the reason for each.
 - **No emoji font, a warning.** Capture asks fontconfig for a font holding U+1F680 and, without
   one, logs that every emoji will be captured as an empty box, and records
   `environment.emojiFont: false`. The development server has none; the pinned fonts (section 6,
-  item 9, with Noto Color Emoji) are the fix for local and CI capture alike.
+  item 9, with Noto Color Emoji) fixed it for local and CI capture alike.
 - **The two `layout-gpu--*-fake` stories time out, unfixed.** Their screenshot waits past 30 s on
   a loaded machine in every run. Measured: after the story settles, SwiftShader's GPU process
   stays near 340% CPU and any capture of that page, even a 40 px strip or with the page clock
@@ -256,6 +256,8 @@ for this milestone", gives the reason for each.
 - **A local preview (`serve --results`) is look only.** It is the target "local", titled "Local
   preview", never master or a seed: no Accept, Reject or Exclude, no Finish, and the API refuses
   every decision and Finish on it, because Finish accepts only CI captures. `--branch` is gone.
+  Superseded for pull requests by `local-previews.md` (local captures of a pull request's merge
+  tree become reviewable and finishable; the gate is unchanged).
 - **The signing key and how to replace it.** The targets screen and Finish's confirmation name the
   key, where git found it (`git config --show-origin`), and the committer, and print the exact
   command that starts the same server from the owner's own shell.
@@ -484,16 +486,13 @@ that environment, so every measurement is rerun under them before a seed.
    version in `visual-review/package.json`, bumped only by a deliberate upkeep pull request
    (quarterly), independent of other lockfile changes. The browser directory is restored from a
    cache keyed by that version (restore only; the capture job never saves a cache).
-9. **Pinned fonts.** The capture sets `FONTCONFIG_FILE=visual-review/fonts/fonts.conf`, which lists
-   only the committed font directory (Inter, DejaVu Sans and DejaVu Sans Mono, and the COLRv1 build
-   of Noto Color Emoji; all OFL) and a temporary `<cachedir>`, so no host font is consulted.
-   Explicit alias rules decide which committed font answers each family: `sans-serif`, `serif`,
-   `monospace`, `emoji`, `system-ui`, `ui-sans-serif`, `ui-monospace`, `SFMono-Regular`, `Menlo`,
-   `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `Roboto`, `Helvetica`, `Arial` and `Verdana`
-   (graphty-element's label default). A check story renders each family, a non-Latin line, an
-   emoji and the current time, so a font or clock regression is one obvious diff. Within days, a
-   test greps story and component sources for `font-family` values and fails on a family with no
-   rule.
+9. **Pinned fonts.** `visual-review.config.json` sets `"fontconfig": "visual-fonts/fonts.conf"`,
+   and capture starts every browser with `FONTCONFIG_FILE` pointing at it and a temporary font
+   cache, so no host font is consulted, locally or in CI. `visual-fonts/` (Git LFS) is a snapshot
+   of the ubuntu-24.04 runner's fonts and fontconfig rules as of 2026-10-04 (88 files, 117 MB), so
+   CI's bytes did not change and no baseline was re-approved. Built by the repository, not shipped
+   in the npm package. `local-previews.md` section 3 lists the fonts and how each family resolves,
+   and section 4 the measurement: all 1,432 items byte-identical between a local capture and CI's.
 10. **Recorded environment.** Each capture records the CPU model and flags from `/proc/cpuinfo`,
     the Chromium version, the WebGL renderer string, whether `navigator.gpu` exists, the SHA-256 of
     the font directory and the tool version. The record that accepts an image copies that
@@ -756,7 +755,11 @@ records' items, replayed oldest `reviewedAt` first, each moving a path only `fro
 hash `to` another, must take the file from its base branch hash to its hash in the pull request.
 Tying each item to the contents it was approved over is what stops a replay: an old seed record
 copied into a later pull request, or a decision the owner replaced later in the same pull
-request, moves nothing. If master changes the same baselines between Finish and merge, the
+request, moves nothing. So Finish never requires the branch to hold master's newest baselines:
+it records the owner's decisions against the capture the owner reviewed, and the merge queue,
+which brings the pull request up to date with master and captures and gates the merged tree
+before merging, sends back any image master's changes altered. If master changes the same
+baselines between capture and merge, the
 record no longer starts from master's contents and the owner reviews again; git would conflict
 on those files anyway. Update from master (`visual-review update <pr>`, or the page's button)
 resolves that conflict by taking master's side, which needs no record and no approval: the file
@@ -992,6 +995,12 @@ it as "Local preview", never as master or a seed, and it is look only: no decisi
 Finish, and the API refuses every decision and Finish on it. A local capture records `local`
 (describe and diff hash); its fonts and graphics stack are not CI's, so a preview can never
 become a baseline.
+
+**Local previews of a pull request.** `local-previews.md` replaces the rule above for one case
+(built 2026-10-04): a local capture of a pull request's merge tree with the pinned fonts
+(`tools/visual-preview.sh`) can be reviewed and finished, and the unchanged gate passes it only
+when CI's capture matches. It also adds the pending-approvals
+inbox and the quiet notifier.
 
 **How captures and baselines move.** CI uploads each capture as an artifact. The review server
 lists open pull requests and their newest CI runs with `gh` and downloads the artifacts with `gh

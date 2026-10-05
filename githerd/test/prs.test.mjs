@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { normalizeConfig } from "../lib/config.mjs";
 import { captureFailures, countsAsBreaking, decideBreaking, touches, updatePrs, whyStuck } from "../lib/prs.mjs";
-import { ownerWaitingPrs, prWork } from "../lib/queue.mjs";
+import { askProblems, ownerWaitingPrs, prWork } from "../lib/queue.mjs";
 import { fixture } from "./helpers/fake-gh.mjs";
 
 const config = normalizeConfig(JSON.parse(readFileSync(new URL("../../githerd.config.json", import.meta.url), "utf8")));
@@ -276,6 +276,38 @@ describe("checks", () => {
         const pending = polls([early])["704"];
         expect(pending.required["All Checks Pass"]).toBe("MISSING");
         expect(pending.failingChecks).toEqual([]);
+    });
+
+    it("a cancelled required check is no failure: no ask, no pr job, its run listed for a re-run", () => {
+        const suite = (/** @type {number} */ id) => ({
+            checkSuite: { workflowRun: { databaseId: id, workflow: { name: "CI" } } },
+        });
+        const outage = withChecks(node(), [
+            run("All Checks Pass", "CANCELLED", { databaseId: 1, ...suite(100) }),
+            run("Lint PR Title", "CANCELLED", { databaseId: 2, ...suite(100) }),
+        ]);
+        const rec = polls([outage])["704"];
+        expect(rec.required).toEqual({ "All Checks Pass": "CANCELLED", "Lint PR Title": "CANCELLED" });
+        expect(rec.failingChecks).toEqual([]);
+        expect(rec.cancelledRuns).toEqual([{ id: 100, workflow: "CI" }]);
+        expect(askProblems(rec)).toEqual([]);
+        expect(prWork("704", rec, { trust: { login: "apowers313" }, prs: { 704: rec } })).toBeNull();
+        expect(stuck(rec)).toEqual(["required check cancelled, not failed: All Checks Pass, Lint PR Title"]);
+        // A real failure beside the cancelled check still counts, and that run is no re-run candidate.
+        const mixed = withChecks(node(), [
+            run("All Checks Pass", "CANCELLED", { databaseId: 1, ...suite(100) }),
+            run("Lint PR Title", "FAILURE", { databaseId: 2, ...suite(100) }),
+        ]);
+        const failed = polls([mixed])["704"];
+        expect(failed.failingChecks).toEqual(["Lint PR Title"]);
+        expect(failed.cancelledRuns).toEqual([]);
+        expect(askProblems(failed)).toEqual(["Lint PR Title"]);
+        expect(prWork("704", failed, { trust: { login: "apowers313" }, prs: { 704: failed } })).toMatch(
+            /required check failing: Lint PR Title/,
+        );
+        // STARTUP_FAILURE (a workflow that could not start, such as an invalid file) still fails.
+        const startup = polls([withChecks(node(), [run("All Checks Pass", "STARTUP_FAILURE")])])["704"];
+        expect(startup.required["All Checks Pass"]).toBe("FAILURE");
     });
 
     it("a check run started before the PR was last marked ready is ignored", () => {

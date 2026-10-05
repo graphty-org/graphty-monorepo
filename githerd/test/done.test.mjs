@@ -508,6 +508,21 @@ describe("verifyClaim", () => {
         });
     });
 
+    it("answers CI pending while a required check is cancelled, and missing beside a real failure", async () => {
+        const s = state({
+            prs: { 7: pr({ required: { "All Checks Pass": "CANCELLED", "Lint PR Title": "SUCCESS" } }) },
+        });
+        expect(await verifyClaim(working("pr", "7"), report(), view(s))).toEqual({ ciPending: HEAD });
+        const title = view(state(), fakeIo({ checkRun: async () => "CANCELLED" }));
+        expect(await verifyClaim(working("title", "7"), report(), title)).toEqual({ ciPending: HEAD });
+        const mixed = state({
+            prs: { 7: pr({ required: { "All Checks Pass": "CANCELLED", "Lint PR Title": "FAILURE" } }) },
+        });
+        expect(await verifyClaim(working("pr", "7"), report(), view(mixed))).toEqual({
+            missing: ["required checks failing: Lint PR Title"],
+        });
+    });
+
     it("waits for an incident's fix to merge, then for a master run containing it", async () => {
         const job = working("incident", "CI / Build / x", { scope: "master", lane: "CI" });
         expect(await verifyClaim(job, report({ pushedHead: HEAD, pr: 7 }), view(state()))).toEqual({ ciPending: HEAD });

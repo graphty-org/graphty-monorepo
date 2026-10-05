@@ -60,7 +60,7 @@ const NOT_NEEDED_KINDS = new Set(["issue", "pr"]);
  *   it does not exist
  * @property {(sha: string) => Promise<boolean>} commitExists whether GitHub has the commit
  * @property {(sha: string, name: string) => Promise<string>} checkRun the state of a named check
- *   run on a commit: SUCCESS, FAILURE, PENDING or MISSING
+ *   run on a commit: SUCCESS, FAILURE, PENDING, CANCELLED (no result, so pending) or MISSING
  * @property {(n: number) => Promise<any>} pull a pull request from GitHub
  * @property {(name: string) => Promise<string | null>} npmLatest npm's latest version of a package
  * @property {() => string[] | null} releaseOpen the open release-incident keys of the daemon's
@@ -205,7 +205,9 @@ async function prAnswer(number, pushed, view, issue = null) {
     const gate = rec.mergeStatus;
     if (gate?.state === "failure" && WORKER_LINES.has(gate.line)) gaps.push(`githerd/merge: ${gate.description}`);
     if (gaps.length) return { missing: gaps };
-    if (required.some(([, s]) => s === "PENDING" || s === "MISSING")) return { ciPending: rec.headSha };
+    // A cancelled check is no result yet: githerd re-runs it, or someone pushes again.
+    if (required.some(([, s]) => s === "PENDING" || s === "MISSING" || s === "CANCELLED"))
+        return { ciPending: rec.headSha };
     return { holds: true };
 }
 
@@ -932,6 +934,7 @@ export function doneIo({
             const runs = [...(body?.check_runs ?? [])].sort((a, b) => b.id - a.id);
             if (!runs.length) return "MISSING";
             if (runs[0].status !== "completed") return "PENDING";
+            if (runs[0].conclusion === "cancelled") return "CANCELLED";
             return ["success", "neutral", "skipped"].includes(runs[0].conclusion) ? "SUCCESS" : "FAILURE";
         },
         pull: (n) => get(`repos/${repo}/pulls/${n}`),

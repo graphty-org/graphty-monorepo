@@ -23,7 +23,12 @@ import { execFileSync } from "node:child_process";
  * @typedef {{ messages: string[], truncated?: boolean }} CommitList
  * @typedef {{ commits?: CommitList, files?: string[], failedSteps?: string[], gateAnnotations?: string[],
  *   comments?: { body: string, createdAt: string }[] }} Detail
- * @typedef {"SUCCESS" | "FAILURE" | "PENDING" | "MISSING"} CheckState
+ * @typedef {"SUCCESS" | "FAILURE" | "PENDING" | "MISSING" | "CANCELLED"} CheckState `CANCELLED` is no
+ *   result: the run was cancelled (by hand, by a newer push, or because no runner picked its jobs
+ *   up), so it counts as neither failing nor passing, the way PENDING does
+ * @typedef {{id: number, workflow: string, rerun?: "started" | "spent"}} CancelledRun the newest run
+ *   of a workflow on the head whose required checks were cancelled and nothing in it failed; `rerun`
+ *   is set by the daemon: githerd re-ran it this poll, or it was re-run before and is not re-run again
  * @typedef {{
  *   verdict: "green" | "red" | "unknown", branch: string,
  *   fixedAt?: string | null,
@@ -36,12 +41,16 @@ import { execFileSync } from "node:child_process";
  *   touchesProtected: boolean,
  *   autoMerge: boolean, mergeable: string | null, mergeState?: string | null, conflictSightings: number,
  *   required: Record<string, CheckState>, failingChecks: string[], failingStartedAt: string | null,
+ *   cancelledRuns: CancelledRun[],
  *   ownerGate: boolean, captureFailed: string[], ownerRejected: boolean, stackedOn: number | null,
  *   lastActivityAt: string, mergeStatus?: MergeStatus | null, [key: string]: unknown,
  * }} PrRecord `mergeStatus` is the `githerd/merge` status last decided for the head
  */
 
-const FAILED = new Set(["FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "ERROR"]);
+// CANCELLED is not here: a run cancelled because no runner took it (a GitHub outage) is no verdict
+// on the head. STARTUP_FAILURE is: GitHub reports it for a workflow that could not start, most often
+// an invalid workflow file, which a push must fix.
+const FAILED = new Set(["FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE", "ERROR"]);
 const PASSED = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
 const BREAKING_SUBJECT = /^[a-z]+(\([^)]*\))?!:/;
 /**
@@ -107,6 +116,7 @@ function contextState(ctx) {
     }
     if (ctx.status !== "COMPLETED") return "PENDING";
     if (PASSED.has(ctx.conclusion)) return "SUCCESS";
+    if (ctx.conclusion === "CANCELLED") return "CANCELLED";
     return FAILED.has(ctx.conclusion) ? "FAILURE" : "PENDING";
 }
 
@@ -115,9 +125,9 @@ function contextState(ctx) {
  * @param {any} node a GraphQL pullRequest node
  * @param {string[]} requiredChecks the required context names
  * @returns {{ required: Record<string, CheckState>, failing: string[], startedAt: string | null,
- *   committedAt: string | null, committer: string | null }} required verdicts, every failing
- *   context, the latest start of a failing required check run, and the head commit's date and
- *   committer email
+ *   committedAt: string | null, committer: string | null, cancelledRuns: CancelledRun[] }} required
+ *   verdicts, every failing context, the latest start of a failing required check run, the head
+ *   commit's date and committer email, and the runs whose required checks were only cancelled
  */
 function readChecks(node, requiredChecks) {
     const commit = node.commits?.nodes?.[0]?.commit;
@@ -154,9 +164,18 @@ function readChecks(node, requiredChecks) {
         const prev = newest.get(name);
         if (!prev || (ctx.databaseId ?? 0) > (prev.databaseId ?? 0)) newest.set(name, ctx);
     }
+    /** @type {Map<number, {workflow: string, cancelled: boolean, open: boolean}>} */
+    const runs = new Map();
     for (const [name, ctx] of newest) {
         const state = contextState(ctx);
         if (state === "FAILURE") failing.push(name);
+        const wr = ctx.checkSuite?.workflowRun;
+        if (wr?.databaseId) {
+            const r = runs.get(wr.databaseId) ?? { workflow: wr.workflow?.name ?? "", cancelled: false, open: false };
+            if (state === "CANCELLED" && Object.hasOwn(required, name)) r.cancelled = true;
+            if (state === "FAILURE" || state === "PENDING") r.open = true;
+            runs.set(wr.databaseId, r);
+        }
         if (!Object.hasOwn(required, name)) continue;
         required[name] = state;
         if (state === "FAILURE" && ctx.startedAt && (!startedAt || ctx.startedAt > startedAt)) {
@@ -169,6 +188,9 @@ function readChecks(node, requiredChecks) {
         startedAt,
         committedAt: commit?.committedDate ?? null,
         committer: commit?.committer?.email ?? null,
+        cancelledRuns: [...runs]
+            .filter(([, r]) => r.cancelled && !r.open)
+            .map(([id, r]) => ({ id, workflow: r.workflow })),
     };
 }
 
@@ -246,6 +268,7 @@ function foldPr(node, prev, config, now) {
         required: checks.required,
         failingChecks: checks.failing,
         failingStartedAt: checks.startedAt,
+        cancelledRuns: checks.cancelledRuns,
         captureFailed,
         // A failed capture is broken, not owner-ready: the owner is never sent such a pull request.
         ownerGate:
@@ -388,6 +411,13 @@ function pullRequestReasons(rec, master) {
     }
     reasons.push(...failingReasons(rec, master));
     if (rec.autoMerge) reasons.push("native auto-merge armed: bypasses githerd/merge");
+    const cancelled = Object.keys(rec.required).filter((n) => rec.required[n] === "CANCELLED");
+    if (cancelled.length) reasons.push(`required check cancelled, not failed: ${cancelled.join(", ")}`);
+    for (const run of rec.cancelledRuns ?? []) {
+        if (run.rerun === "started") reasons.push(`githerd re-ran the cancelled ${run.workflow} run ${run.id}`);
+        if (run.rerun === "spent")
+            reasons.push(`${run.workflow} run ${run.id} cancelled again after a re-run: not re-run again`);
+    }
     if (Object.values(rec.required).some((v) => v === "PENDING" || v === "MISSING")) reasons.push("checks pending");
     return reasons;
 }

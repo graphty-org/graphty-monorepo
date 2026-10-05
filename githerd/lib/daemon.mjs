@@ -71,7 +71,7 @@ import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
 import { effectiveMode, MODELS } from "./config.mjs";
-import { createGitHub, GitHubError } from "./github.mjs";
+import { createGitHub, GitHubError, notSent } from "./github.mjs";
 import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
 import { syncJobs } from "./jobs.mjs";
@@ -2140,6 +2140,7 @@ export async function startDaemon({
         };
         const prs = updatePrs(state.prs, nodes, view, config, iso);
         for (const node of nodes) if (node.detail.gateJob) prs[node.number].gateJob = node.detail.gateJob;
+        await rerunCancelled(gh, prs, iso);
         for (const ended of board.expire(state, t, startedAtDate)) {
             void ledger({
                 kind: "release",
@@ -2163,6 +2164,58 @@ export async function startDaemon({
         const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };
         await checkOverrides();
+    }
+
+    /**
+     * Re-runs the failed and cancelled jobs of a pull request head's newest run of a workflow whose
+     * required checks were only cancelled (no runner took its jobs, as in a GitHub Actions outage):
+     * once, at the run's first attempt, through the `worker-writes` group (a `would-do` line, once
+     * per run, while it does not act). A run at attempt 2 or more was re-run already, by githerd or
+     * anyone, and is not re-run again: the pull request's reasons show it. Each run is marked on its
+     * record (`rerun`) for those reasons.
+     * @param {ReturnType<typeof createGitHub>} gh the client
+     * @param {Record<string, import("./prs.mjs").PrRecord>} prs this poll's records
+     * @param {string} iso the poll's time
+     */
+    async function rerunCancelled(gh, prs, iso) {
+        const spent = (state.cancelReruns ??= {});
+        const live = new Set();
+        const acting = gh.acting("worker-writes");
+        const r = `repos/${config.repo}/actions/runs/`;
+        for (const [n, rec] of Object.entries(prs)) {
+            for (const cancelled of rec.cancelledRuns ?? []) {
+                const id = String(cancelled.id);
+                live.add(id);
+                try {
+                    const run = (await gh.get(`${r}${id}`)).body ?? {};
+                    if (run.status !== "completed") continue;
+                    if ((run.run_attempt ?? 1) > 1) {
+                        cancelled.rerun = "spent";
+                        continue;
+                    }
+                    const before = spent[id];
+                    if (before && (before.acting || !acting)) {
+                        if (before.acting) cancelled.rerun = "started";
+                        continue;
+                    }
+                    spent[id] = { at: iso, pr: Number(n), acting };
+                    try {
+                        const res = await gh.write("POST", `${r}${id}/rerun-failed-jobs`, undefined, {
+                            group: "worker-writes",
+                            check: { path: `${r}${id}/attempts/2`, expect: { run_attempt: 2 } },
+                            fields: { situation: "cancelled-run", pr: Number(n), workflow: cancelled.workflow },
+                        });
+                        if (res.performed) cancelled.rerun = "started";
+                    } catch (err) {
+                        if (notSent(err)) delete spent[id];
+                        throw err;
+                    }
+                } catch (err) {
+                    void ledger({ kind: "error", where: "cancelled-rerun", error: /** @type {Error} */ (err).message });
+                }
+            }
+        }
+        for (const id of Object.keys(spent)) if (!live.has(id)) delete spent[id];
     }
 
     /**

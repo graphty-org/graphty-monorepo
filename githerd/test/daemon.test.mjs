@@ -117,7 +117,8 @@ let clock;
 /**
  * @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null,
  *   events?: Record<string, any[]>, merged?: any[], release?: any[], annotations?: any[], gpu?: any[],
- *   jobs?: Record<string, any[]>, logs?: Record<string, string>, compare?: {filename: string, patch?: string}[]}}
+ *   jobs?: Record<string, any[]>, logs?: Record<string, string>, compare?: {filename: string, patch?: string}[],
+ *   runAttempt?: number}}
  */
 let scene;
 /** @type {ReturnType<typeof createFakeGh>} */
@@ -183,8 +184,9 @@ function respond({ args, input }) {
     if (runJobs && scene.jobs?.[runJobs[1]]) return ok({ jobs: scene.jobs[runJobs[1]] });
     if (/\/check-runs\/\d+\/annotations\?/.test(path)) return ok(scene.annotations ?? []);
     if (/\/actions\/runs\/\d+$/.test(path) && !args.includes("-X")) {
-        return ok({ id: Number(path.split("/").at(-1)), run_attempt: 1, status: "completed" });
+        return ok({ id: Number(path.split("/").at(-1)), run_attempt: scene.runAttempt ?? 1, status: "completed" });
     }
+    if (/\/actions\/runs\/\d+\/attempts\/\d+$/.test(path)) return ok({ run_attempt: Number(path.split("/").at(-1)) });
     if (/\/actions\/runs\/\d+\/jobs\?/.test(path)) {
         return ok({
             jobs: [
@@ -1486,6 +1488,88 @@ describe("the poll loop", () => {
         scene.events[7].push(labeled("githerd:next", "owner"));
         await poll(daemon);
         expect(owned()).toEqual([["githerd:skip"], [], ["githerd:next"]]);
+    });
+});
+
+describe("required checks cancelled, not failed", () => {
+    /**
+     * PR #7 whose CI run 77 had both required checks cancelled (no runner took them).
+     * @returns {any} the GraphQL node
+     */
+    const cancelledPr = () => {
+        const pr = gatedPr();
+        const suite = { checkSuite: { workflowRun: { databaseId: 77, workflow: { name: "CI" } } } };
+        pr.commits.nodes[0].commit.statusCheckRollup.contexts.nodes = [
+            {
+                __typename: "CheckRun",
+                name: "All Checks Pass",
+                status: "COMPLETED",
+                conclusion: "CANCELLED",
+                databaseId: 1,
+                ...suite,
+            },
+            {
+                __typename: "CheckRun",
+                name: "Lint PR Title",
+                status: "COMPLETED",
+                conclusion: "CANCELLED",
+                databaseId: 2,
+                ...suite,
+            },
+        ];
+        return pr;
+    };
+    const rerunOp = "POST actions/runs/77/rerun-failed-jobs";
+
+    it("makes no ask and no pr job, and re-runs the run once as a would-do in dry-run", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass", "Lint PR Title"] });
+        scene.prs = [cancelledPr()];
+        const daemon = await start();
+        await poll(daemon);
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        const rec = daemon.state.prs["7"];
+        expect(rec.required).toEqual({ "All Checks Pass": "CANCELLED", "Lint PR Title": "CANCELLED" });
+        expect(rec.failingChecks).toEqual([]);
+        expect(rec.stuck.join("; ")).not.toContain("failing");
+        expect(daemon.state.jobs ?? {}).toEqual({});
+        const ledger = await readLedger(join(dir, ".githerd"));
+        expect(ledger.filter((e) => e.kind === "would-do" && /whose|CI failed/.test(String(e.op)))).toEqual([]);
+        expect(ledger.filter((e) => e.op === rerunOp).map((e) => [e.group, e.situation])).toEqual([
+            ["worker-writes", "cancelled-run"],
+        ]);
+        expect(gh.writes()).toEqual([]);
+    });
+
+    it("re-runs the cancelled run once when acting, and never a run already re-run", async () => {
+        writeConfig({
+            mode: "acting",
+            actions: { workerWrites: true },
+            requiredChecks: ["All Checks Pass", "Lint PR Title"],
+        });
+        mkdirSync(join(dir, ".githerd"), { recursive: true });
+        writeFileSync(
+            join(dir, ".githerd", "ledger.jsonl"),
+            `${JSON.stringify({ ts: clock.toISOString(), kind: "would-do", group: "worker-writes", op: "earlier" })}\n`,
+        );
+        scene.prs = [cancelledPr()];
+        const daemon = await start();
+        await poll(daemon);
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        const reruns = () =>
+            gh.writes().filter((c) => c.args.some((a) => a.endsWith("actions/runs/77/rerun-failed-jobs")));
+        expect(reruns()).toHaveLength(1);
+        expect(daemon.state.prs["7"].stuck).toContain("githerd re-ran the cancelled CI run 77");
+
+        // Attempt 2 was cancelled too: shown, not re-run again.
+        scene.runAttempt = 2;
+        clock = new Date("2026-10-02T12:06:00Z");
+        await poll(daemon);
+        clock = new Date("2026-10-02T12:09:00Z");
+        await poll(daemon);
+        expect(reruns()).toHaveLength(1);
+        expect(daemon.state.prs["7"].stuck).toContain("CI run 77 cancelled again after a re-run: not re-run again");
     });
 });
 

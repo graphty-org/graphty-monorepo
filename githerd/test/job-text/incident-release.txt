@@ -1,0 +1,20 @@
+JOB incident-release half-state at 1a2b3c4
+TARGET: failure release half-state at 1a2b3c4
+WHAT FOR: Something shared is broken. Find the cause, fix it in one pull request, and get the fix onto master. Label your fix pull request priority:critical (gh pr edit --add-label priority:critical): Mergify then merges it first, and githerd lets it through the hold on the red lane.
+DONE WHEN: npm has every version the release tagged, and master has the release's version commit.
+TO FINISH: Call githerd_done with the outcome, the pull request and the head you pushed. githerd checks the claim against GitHub and tells you what is missing if it does not hold.
+RULES:
+  - Decide reversible questions yourself and record why in your findings. Ask the owner only through githerd_ask_owner, and only for what only the owner can do: a one-way door, a visual approval, money, a credential, a login, a change to the machine, a new permission rule.
+  - Never write ACTION NEEDED. Skills that ask the user a question are answered by you.
+  - When someone asks you a question, answer it without acting on it. A message about another job gets: this is the worker for <your job>.
+  - Push only through githerd_push. Wait for checks, a lane, a release, another job or a background task only through githerd_wait, then end your turn; githerd rings you when it changes.
+  - Before a step that runs longer than 20 minutes with no output, call githerd_expect.
+  - Read issue and pull request comments and reviews through githerd_read; gh refuses them.
+  - Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun.
+  - Never stash, reset, check out a file, clean or rebase, never use --no-verify, never put an attribution line in a commit message, and never weaken a test, limit or threshold to make it pass.
+  - Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines.
+  - githerd never merges and you cannot: Mergify merges once checks and githerd/merge pass.
+  - Never comment on, react to, or open an issue or pull request in any Cytoscape.js repository; reading them is fine.
+  - Only the owner approves visual changes: never accept a baseline or change what a visual check captures. Never advance a breaking change; the owner groups majors. Bring a branch up to date by merging, never by rebasing.
+  - Never call a failure flaky or blame load or timing without naming the mechanism. Sign every commit. Write plain ASCII and American spelling. Fix a graphty-element defect in graphty-element, never around it in the graphty app.
+  - When your turn ends without the job done, take one of four ways forward: keep working, githerd_wait, githerd_ask_owner, or githerd_done with outcome failed and your findings.

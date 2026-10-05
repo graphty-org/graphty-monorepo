@@ -176,3 +176,7 @@ gpu-report.json
 # The Figma editor UI study (screenshots, HTML and measured styles, about 1.2 GB): kept
 # locally as design reference, never committed.
 design/ui/figma/
+
+# githerd's state (the shared daemon's in the main checkout, `githerd dev`'s in a worktree)
+/.githerd/
+/.githerd-dev/

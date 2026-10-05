@@ -1,15 +1,18 @@
 // Tests of the CI shape: the test matrix's shard groups (tools/ci-test-matrix.mjs), the parts of
-// ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, and the
-// record tools/pr-status-broker.mjs writes for agents.
+// ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, the
+// release train (release.yml, tools/release-diff.mjs, deploy-pages.yml, .mergify.yml's release
+// rule), and the record tools/pr-status-broker.mjs writes for agents.
 //
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { decide, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
+import { strayChanges } from "./release-diff.mjs";
 
 const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const job = (text, name) => {
@@ -125,6 +128,10 @@ describe("pr-title.yml", () => {
     it("passes only Mergify's own merge-queue draft without linting its title", () => {
         assert.ok(workflow("pr-title.yml").includes(`- name: Lint PR title\n              if: \${{ !(${QUEUE}) }}\n`));
     });
+    it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
+        // A concurrency group cancels superseded runs even without cancel-in-progress.
+        assert.doesNotMatch(workflow("pr-title.yml"), /^concurrency:/m);
+    });
 });
 
 describe("the lanes outside CI", () => {
@@ -136,8 +143,40 @@ describe("the lanes outside CI", () => {
             /if: github.event_name != 'pull_request' \|\| !github.event.pull_request.draft\n/,
         );
         const gpu = workflow("gpu.yml");
-        assert.match(gpu, /pull_request: \{ types: \[labeled, synchronize, ready_for_review\] \}/);
-        assert.match(job(gpu, "test-gpu"), /!github.event.pull_request.draft &&/);
+        assert.match(gpu, /pull_request: \{ types: \[opened, synchronize, reopened, ready_for_review\] \}/);
+        assert.match(
+            job(gpu, "decide"),
+            /if: github.event_name != 'pull_request' \|\| !github.event.pull_request.draft\n/,
+        );
+    });
+});
+
+describe("apt in the workflows", () => {
+    it("drops the Microsoft apt sources before every job's first apt use", () => {
+        // packages.microsoft.com, a source the hosted Ubuntu images ship and nothing here installs from,
+        // sometimes answers 403 and apt-get update exits 100 (run 37244710257). A job in a `container:`
+        // runs a bare image without that source.
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        const files = readdirSync(dir)
+            .filter((f) => f.endsWith(".yml"))
+            .map((f) => [f, readFileSync(new URL(f, dir), "utf8")]);
+        files.push([
+            "visual-review template",
+            readFileSync(new URL("../visual-review/templates/visual-review.yml", import.meta.url), "utf8"),
+        ]);
+        const APT = /--with-deps|install-deps|install-browser|apt-get/;
+        let checked = 0;
+        for (const [file, text] of files) {
+            const code = text.replace(/^\s*#.*$/gm, "");
+            for (const body of code.split(/\n(?= {4}[a-z][\w-]*:\n)/)) {
+                const use = body.search(APT);
+                if (use === -1 || /\n {8}container:/.test(body)) continue;
+                const drop = body.search(/drop-microsoft-apt-source|grep -rl packages\.microsoft\.com/);
+                assert.ok(drop !== -1 && drop < use, `${file}: ${body.trim().split("\n")[0]} drops the source first`);
+                checked++;
+            }
+        }
+        assert.ok(checked >= 4, `found the apt jobs (${checked})`);
     });
 });
 
@@ -152,6 +191,189 @@ describe(".mergify.yml", () => {
         if (/^\s*merge_conditions:/m.test(mergify) || /^\s*batch_size: *([2-9]|\d{2,})/m.test(mergify)) {
             assert.match(usage.slice(0, usage.indexOf("`;")), /batch/i, "the gate accepts a batch first");
         }
+    });
+});
+
+describe("gpu.yml", () => {
+    const gpu = workflow("gpu.yml");
+
+    it("runs on ready pull requests and master, never on a label or a schedule, and never cancels a paid run", () => {
+        assert.match(gpu, /pull_request: \{ types: \[opened, synchronize, reopened, ready_for_review\] \}/);
+        // the nightly is off until the owner turns it on (spot on hold, issue #1003): no live schedule, no spot
+        assert.doesNotMatch(gpu, /^ {4}schedule:/m);
+        assert.doesNotMatch(gpu, /labeled/);
+        assert.match(gpu, /cancel-in-progress: false/);
+        assert.doesNotMatch(job(gpu, "test-gpu"), /tenancy=spot/);
+    });
+
+    it("runs the T4 only when the decision says so, and only for this repository's pull requests", () => {
+        const t4 = job(gpu, "test-gpu");
+        assert.match(t4, /needs: decide/);
+        assert.match(t4, /needs.decide.outputs.run == 'true'/);
+        assert.match(t4, /head.repo.full_name == github.repository/);
+    });
+
+    it("always reports the gate, failing it on a draft, a missing decision or a failed T4", () => {
+        const gate = job(gpu, "gate");
+        assert.match(gate, /name: T4 GPU gate/);
+        assert.match(gate, /if: always\(\)/);
+        assert.match(gate, /"\$DRAFT" == "true" .* exit 1/);
+        assert.match(gate, /"\$DECIDE" != "success" .* exit 1/);
+        assert.match(gate, /"\$T4" != "success" .* exit 1/);
+    });
+});
+
+describe(".mergify.yml and the GPU gate", () => {
+    const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+
+    it("lets a pull request skip the gate only when none of its files can affect the GPU package", () => {
+        const exempt = /-files~=\^\(\?!\(([^)]+)\)\/\)/.exec(mergify)[1].split("|");
+        assert.match(mergify, /- check-success=T4 GPU gate/);
+        // Every workspace package the GPU package depends on, through package.json (what nx follows).
+        const pkg = (dir) => JSON.parse(readFileSync(new URL(`../${dir}/package.json`, import.meta.url), "utf8"));
+        const dirs = [
+            "algorithms",
+            "graph-format",
+            "graph-io",
+            "graph-samples",
+            "layout",
+            "graphty-element",
+            "graphty",
+        ];
+        dirs.push("remote-logger", "compact-mantine", "visual-review", "webgpu-graph-algorithms");
+        const byName = new Map(dirs.map((d) => [pkg(d).name, d]));
+        const deps = new Set(["webgpu-graph-algorithms"]);
+        for (const d of deps) {
+            const p = pkg(d);
+            for (const name of Object.keys({ ...p.dependencies, ...p.devDependencies, ...p.peerDependencies })) {
+                if (byName.has(name)) {
+                    deps.add(byName.get(name));
+                }
+            }
+        }
+        assert.ok(deps.has("graph-format") && deps.has("layout"), "the walk found the GPU package's dependencies");
+        for (const dir of exempt) {
+            assert.ok(!deps.has(dir), `${dir} is a dependency of webgpu-graph-algorithms, so it cannot skip the gate`);
+        }
+        const skip = new RegExp(`^(?!(${exempt.join("|")})/)`);
+        assert.ok(!skip.test("graphty-element/src/Graph.ts"));
+        assert.ok(skip.test("graph-format/src/index.ts"));
+        assert.ok(skip.test("pnpm-lock.yaml"));
+    });
+});
+
+describe("hosts.yml", () => {
+    it("runs nightly, and a pull request's Windows leg on the short scope", () => {
+        const hosts = workflow("hosts.yml");
+        assert.match(hosts, /schedule: \[\{ cron: /);
+        assert.match(hosts, /NARROW: .*github.event_name == 'pull_request'/);
+    });
+});
+
+describe("master-guard", () => {
+    const run = (name, conclusion, event = "push") => ({ name, conclusion, event });
+
+    it("freezes on a red master CI, lifts on a green one, and only reports a red hardware lane", () => {
+        assert.equal(decide(run("CI", "failure")), "red");
+        assert.equal(decide(run("CI", "timed_out")), "red");
+        assert.equal(decide(run("CI", "success")), "green");
+        assert.equal(decide(run("CI", "cancelled")), "none");
+        assert.equal(decide(run("CI", "failure", "workflow_dispatch")), "none");
+        assert.equal(decide(run("GPU", "failure")), "hardware-red");
+        assert.equal(decide(run("Hosts", "failure", "schedule")), "hardware-red");
+        assert.equal(decide(run("GPU", "success")), "none");
+        assert.equal(decide(run("GPU", "failure", "pull_request")), "none");
+    });
+
+    it("finds the commit in its own freezes and the pull request in a merge commit", () => {
+        const sha = "a".repeat(40);
+        assert.equal(frozenSha(`${FREEZE_PREFIX}${sha} (url)`), sha);
+        assert.equal(frozenSha("release freeze"), null);
+        assert.equal(mergedPr("Merge pull request #1011 from graphty-org/x\n\nbody"), 1011);
+        assert.equal(mergedPr("chore(release): publish"), null);
+    });
+
+    it("titles a revert so Lint PR Title passes it", () => {
+        const lint = (title) =>
+            spawnSync("pnpm", ["exec", "commitlint"], { input: `${title}\n`, encoding: "utf8" }).status;
+        assert.equal(lint(revertTitle("0123456789abcdef0123456789abcdef01234567", 1011)), 0);
+        assert.equal(lint(revertTitle("0123456789abcdef0123456789abcdef01234567", null)), 0);
+    });
+});
+
+describe("release.yml", () => {
+    const release = workflow("release.yml");
+    const train = job(release, "train");
+    const publish = job(release, "publish");
+
+    it("never pushes to master and holds no deploy key", () => {
+        assert.doesNotMatch(release, /RELEASE_DEPLOY_KEY|ssh-key/);
+        const pushes = release.match(/git push[^\n]*/g);
+        assert.deepEqual(pushes, ['git push origin "${COMMIT}:refs/heads/${branch}"']);
+    });
+
+    it("cuts the release only from master, once a day or on dispatch, from a commit green on every lane", () => {
+        assert.match(release, /schedule:\n\s+- cron: /);
+        assert.match(release, /workflow_dispatch:\n\s+inputs:\n\s+packages:/);
+        assert.match(train, /if: \$\{\{ github.event_name != 'push' && github.ref == 'refs\/heads\/master' \}\}/);
+        assert.match(train, /case "\$ci" in \*" completed success"\) ;; \*\) continue ;; esac/);
+        assert.match(train, /case "\$gpu" in \*" completed success"\) ;; \*\) continue ;; esac/);
+        assert.match(train, /case "\$hosts" in "" \| \*" completed success"\) ;; \*\) continue ;; esac/);
+        assert.match(train, /is still open; it must merge or close first/);
+        assert.match(train, /node tools\/release-hold.mjs apply --only "\$PACKAGES"/);
+        assert.match(train, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
+        assert.match(train, /--label priority:critical/);
+    });
+
+    it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {
+        assert.match(
+            publish,
+            /if: \$\{\{ github.event_name == 'push' && contains\(github.event.head_commit.message, '\/release\/train-'\) \}\}/,
+        );
+        assert.match(publish, /id-token: write/);
+        assert.match(publish, /node tools\/release-diff.mjs "\$sha" "\$commit"/);
+        assert.match(publish, /\.workflow_run.head_branch == "master"/);
+        assert.doesNotMatch(train, /id-token|nx release publish/);
+    });
+
+    it("lets Mergify take the release pull request alone, ahead of the default rule", () => {
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        const rule = mergify.indexOf("- name: release");
+        assert.ok(rule > 0 && rule < mergify.indexOf("- name: default"));
+        assert.match(mergify.slice(rule), /^\s+- head~=\^release\/train-$/m);
+    });
+
+    it("deploys graphty.app from every green CI run of a push to master", () => {
+        const deploy = workflow("deploy-pages.yml");
+        assert.match(deploy, /workflow_run:\n\s+workflows: \["CI"\]/);
+        assert.match(
+            job(deploy, "check"),
+            /github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'/,
+        );
+    });
+});
+
+describe("release-diff", () => {
+    const manifest = (version, extra = {}) => JSON.stringify({ name: "a", version, ...extra }, null, 4);
+    const tree = (files) => (path) => files[path] ?? null;
+
+    it("accepts version bumps, changelogs and consumed version plans", () => {
+        const before = tree({ "a/package.json": manifest("1.0.0"), ".nx/version-plans/x.md": "minor" });
+        const after = tree({ "a/package.json": manifest("1.1.0"), "a/CHANGELOG.md": "## 1.1.0" });
+        const files = ["a/package.json", "a/CHANGELOG.md", ".nx/version-plans/x.md"];
+        assert.deepEqual(strayChanges(files, before, after), []);
+    });
+
+    it("rejects any other change", () => {
+        const before = tree({ "a/package.json": manifest("1.0.0"), "a/src/x.ts": "1" });
+        const after = tree({
+            "a/package.json": manifest("1.1.0", { main: "x" }),
+            "a/src/x.ts": "2",
+            "b/package.json": "{}",
+        });
+        const found = strayChanges(["a/package.json", "a/src/x.ts", "b/package.json"], before, after);
+        assert.equal(found.length, 3);
+        assert.match(found.join("\n"), /a\/package.json: changes more than "version"/);
     });
 });
 

@@ -75,6 +75,7 @@ import {
     visualJobs,
 } from "./github.mjs";
 import { CONFIG_FILE } from "./config.mjs";
+import { inboxOf, readyKey, writeJson } from "./inbox.mjs";
 import { validateResults } from "./results.mjs";
 import { scaled } from "./thumbs.mjs";
 
@@ -85,6 +86,9 @@ const STATIC = {
     "/review.css": ["../page/review.css", "text/css; charset=utf-8"],
     "/pixelmatch.mjs": ["../vendor/pixelmatch.mjs", "text/javascript; charset=utf-8"],
     "/passkey.js": ["../page/passkey.js", "text/javascript; charset=utf-8"],
+    "/manifest.webmanifest": ["../page/manifest.webmanifest", "application/manifest+json"],
+    "/icon.svg": ["../page/icon.svg", "image/svg+xml"],
+    "/icon.png": ["../page/icon.png", "image/png"],
 };
 const HEADERS = {
     "content-security-policy":
@@ -204,19 +208,6 @@ export function sessionToken(stateDir) {
         writeFileSync(file, randomBytes(32).toString("base64url"), { mode: 0o600 });
     }
     return readFileSync(file, "utf8").trim();
-}
-
-/**
- * Writes a JSON file through a sibling renamed into place, so a kill or a full disk mid-write
- * never leaves half a file.
- * @param {string} file the file
- * @param {unknown} value what to write
- */
-function writeJson(file, value) {
-    mkdirSync(dirname(file), { recursive: true });
-    const part = `${file}.tmp`;
-    writeFileSync(part, JSON.stringify(value, null, 2));
-    renameSync(part, file);
 }
 
 /**
@@ -543,6 +534,7 @@ export function createApp({
             p.logUrl = jobs[name]?.url ?? run.url;
             p.bytes = sizes[name] ?? null;
             partial.projects[names.indexOf(name)] = p;
+            await withPreviews(partial);
             await decorate(partial);
         };
         const downloads = downloadCaptures(
@@ -611,18 +603,24 @@ export function createApp({
             (p) =>
                 `the run captured ${p}, which this server's ${CONFIG_FILE} does not list: serve from a checkout that has it`,
         );
-        return { ...info, runId: run.id, runAttempt: run.attempt, runUrl: run.url, projects: list, warnings };
+        return withPreviews({
+            ...info,
+            runId: run.id,
+            runAttempt: run.attempt,
+            runUrl: run.url,
+            projects: list,
+            warnings,
+        });
     }
 
     /**
      * Puts a pull request's local preview in place of every project CI has not captured (nor is
      * downloading): only a complete preview of the head GitHub lists now, so one of an older push,
      * or one still capturing, is never offered.
-     * @param {object} t the target, changed in place
-     * @param {string} head the pull request's head
+     * @param {object} t the target, changed in place; `head` is the pull request's head
      * @returns {Promise<object>} the target
      */
-    async function withPreviews(t, head) {
+    async function withPreviews(t) {
         if (!previews || t.pr === null) {
             return t;
         }
@@ -633,7 +631,7 @@ export function createApp({
             }
             const local = await project(p.project, dir, null);
             const r = local.results;
-            if (r?.complete && isPreviewOf(r, t.pr) && r.headSha === head) {
+            if (r?.complete && isPreviewOf(r, t.pr) && r.headSha === t.head) {
                 t.projects[i] = { ...local, preview: true, ciProblem: p.problem, logUrl: p.logUrl ?? null };
             }
         }
@@ -791,13 +789,13 @@ export function createApp({
                         title: pr.title,
                         url: pr.url,
                         branch: pr.branch,
+                        head: pr.headSha,
                     };
                     try {
                         const run = await newestCiRun(gh, pr.headSha, config);
-                        return await withPreviews(
-                            run ? await build(info, run) : blank(info, `waiting for CI on ${pr.headSha.slice(0, 10)}`),
-                            pr.headSha,
-                        );
+                        return run
+                            ? await build(info, run)
+                            : await withPreviews(blank(info, `waiting for CI on ${pr.headSha.slice(0, 10)}`));
                     } catch (err) {
                         return keptOr(info, err);
                     } finally {
@@ -841,6 +839,26 @@ export function createApp({
     }
 
     const listFile = join(stateDir, "list.json");
+    const inboxFile = join(stateDir, "inbox.json");
+    /** When each pull request entered the inbox's ready list, by readyKey; kept across restarts. */
+    let readySince = new Map();
+    try {
+        const kept = JSON.parse(readFileSync(inboxFile, "utf8"));
+        readySince = new Map(kept.ready.map((r) => [readyKey(r), r.since]));
+    } catch {
+        // No inbox kept yet.
+    }
+    /**
+     * The pending-approvals inbox of the listed pull requests (inbox.mjs).
+     * @param {object[]} [summaries] their summaries, when the caller has them already
+     * @returns {ReturnType<typeof inboxOf>} the inbox
+     */
+    const inbox = (summaries = [...targets.values()].map(summary)) => {
+        const now = Date.now();
+        const box = inboxOf(summaries, { now, since: readySince });
+        readySince = new Map(box.ready.map((r) => [readyKey(r), r.since]));
+        return box;
+    };
     /**
      * Keeps the list of targets on disk, without the captures' results (results.json is read again
      * from each capture's directory), so a restarted server shows it before GitHub answers.
@@ -848,6 +866,16 @@ export function createApp({
     function save() {
         if (results) {
             return;
+        }
+        try {
+            // For the notifier (`visual-review notify`), which reads only this file.
+            writeJson(inboxFile, { at: Date.now(), origin, ...inbox() });
+        } catch (err) {
+            const warning = `could not keep the inbox (the notifier reads it): ${err.message}`;
+            console.error(`visual-review: ${warning}`);
+            if (!listWarnings.includes(warning)) {
+                listWarnings.push(warning);
+            }
         }
         try {
             writeJson(listFile, {
@@ -1330,10 +1358,12 @@ export function createApp({
             } else {
                 await refresh();
             }
+            const summaries = loadedOnce || !cachedOnly ? [...targets.values()].map(summary) : null;
             return [
                 200,
                 {
-                    targets: loadedOnce || !cachedOnly ? [...targets.values()].map(summary) : null,
+                    targets: summaries,
+                    inbox: summaries && !results ? inbox(summaries) : null,
                     warning: listWarnings.join("\n") || null,
                     defaultBranch,
                     updatedAt: refreshedAt || null,
@@ -1344,6 +1374,11 @@ export function createApp({
                     network: networkTrouble(),
                 },
             ];
+        },
+        // The pending-approvals inbox, from the cached list.
+        "GET /api/inbox": async () => {
+            await restored;
+            return [200, { ...inbox(), updatedAt: refreshedAt || null, now: Date.now() }];
         },
         // One target's counts without refetching from GitHub; with ?finish=1, what Finish would do.
         "GET /api/target": async ([id], _, query) => {

@@ -113,8 +113,10 @@ export interface AcceleratorFactoryOptions {
 // @public
 export type ActiveRenderer = "webgl" | "webgpu";
 
-// @public (undocumented)
-export type AdHocData<KeyType extends string | number = string> = Brand<Record<KeyType, any>, "AdHocData">;
+// @public
+export type AdHocData<KeyType extends string | number = string> = Record<KeyType, any> & {
+    readonly __brand?: "AdHocData";
+};
 
 // @public
 abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<string, unknown>> {

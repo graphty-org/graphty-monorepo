@@ -119,6 +119,36 @@ describe("serve: pull requests", () => {
         });
     });
 
+    it("answers the inbox, and keeps it on disk for the notifier", async () => {
+        const s = await start({
+            gh: (r) =>
+                fakeGh({
+                    prs: [
+                        { number: 123, head: r.head, branch: "feature" },
+                        { number: 124, head: "4".repeat(40), branch: "no-run" },
+                    ],
+                    runs: { [r.head]: { id: 1000, head: r.head } },
+                    jobs: { 1000: [job("compact-mantine"), job("graphty-element")] },
+                    artifacts: { 1000: ["visual-compact-mantine-1", "visual-graphty-element-1"] },
+                    results: {
+                        "visual-compact-mantine-1": { headSha: r.head },
+                        "visual-graphty-element-1": { headSha: r.head },
+                    },
+                }),
+        });
+        const { body: list } = await s.api("GET", "/api/prs");
+        const undecided = list.targets[0].projects.reduce((n, p) => n + p.undecided, 0);
+        expect(list.inbox).toMatchObject({ capturing: 1, done: 0, notReady: [] });
+        expect(list.inbox.ready).toEqual([
+            expect.objectContaining({ pr: 123, undecided, complete: true, source: "CI", headSha: s.head }),
+        ]);
+        const { body } = await s.api("GET", "/api/inbox");
+        expect(body.ready[0].since).toBe(list.inbox.ready[0].since);
+        const kept = JSON.parse(readFileSync(join(s.tmp, "state/inbox.json"), "utf8"));
+        expect(kept).toMatchObject({ origin: s.origin, capturing: 1 });
+        expect(kept.ready.map((r) => r.pr)).toEqual([123]);
+    });
+
     it("shows capture failed with the job's log when the visual job failed or uploaded nothing", async () => {
         const s = await start({
             gh: onePr({
@@ -677,6 +707,30 @@ describe("serve: local previews of a pull request", () => {
         });
         const other = await start({ ...r, gh: noRun, previews: adhoc });
         expect((await other.api("GET", "/api/prs")).body.targets[0].projects[0].preview).toBe(false);
+    });
+
+    it("shows a preview for a project CI has not captured while another project of the run still downloads", async () => {
+        const r = makeRepo();
+        const previews = join(r.dir, "previews");
+        preview(previews, "compact-mantine", r.head);
+        // CI's run holds only graphty-element, and its download takes longer than the page waits.
+        const s = await start({
+            ...r,
+            previews,
+            gh: (repo) => {
+                const ci = onePr({ artifacts: { 1000: ["visual-graphty-element-1"] } })(repo);
+                return async (args, input) => {
+                    if (args[0] === "run" && args[1] === "download") {
+                        await new Promise((resolve) => setTimeout(resolve, 1500));
+                    }
+                    return ci(args, input);
+                };
+            },
+        });
+        const [t] = (await s.api("GET", "/api/prs")).body.targets;
+        expect(t.downloading).toBe(true);
+        expect(t.projects[0]).toMatchObject({ project: "compact-mantine", preview: true, reviewable: 6 });
+        expect(t.projects[1]).toMatchObject({ project: "graphty-element", downloading: true });
     });
 
     it("decides and finishes on a preview, and the record and commit say it was captured locally", async () => {

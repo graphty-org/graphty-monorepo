@@ -435,6 +435,7 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     size: READ,
     cap: READ,
     truncated: READ,
+    origin: READ,
     has: READ,
     nodeMask: READ,
     edgeMask: READ,
@@ -1372,6 +1373,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             undirected: READ,
             // Deep-frozen.
             node: READ,
+            name: READ,
             edge: READ,
             nodes: READ,
             edges: READ,
@@ -1382,9 +1384,25 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             neighbors: READ,
             lastImport: READ,
             source: READ,
+            renameSource: {
+                kind: "dispatches",
+                op: "data.setSource",
+                call: {
+                    kind: "call",
+                    args: ["Door source"],
+                    // A source is renamed only once one is loaded.
+                    around: async (target) => {
+                        const data = target as { import(source: unknown): Promise<void> };
+                        await data.import({ type: "json", config: { data: TINY_JSON } });
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [{ op: "data.setSource", source: { type: "json", name: "Door source", config: {} } }],
+            },
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
             attributes: READ,
+            histogram: READ,
             declare: {
                 kind: "dispatches",
                 op: "data.declare",

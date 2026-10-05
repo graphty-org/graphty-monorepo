@@ -84,6 +84,7 @@ export interface AttributeDescriptor {
     path: Path;
     // (undocumented)
     plainName: string;
+    roles?: readonly AttributeRole[];
     runId?: RunId;
     // (undocumented)
     sampleValues: readonly unknown[];
@@ -94,7 +95,20 @@ export interface AttributeDescriptor {
     type: AttributeType;
     // (undocumented)
     uniqueCount?: number;
+    usedBy?: readonly AttributeUse[];
 }
+
+// @public
+export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
+
+// @public
+export type AttributeUse = {
+    readonly kind: "layer";
+    readonly id: LayerId;
+} | {
+    readonly kind: "run";
+    readonly id: RunId;
+};
 
 // @public
 export interface BatchResult {
@@ -208,6 +222,18 @@ export interface ColumnEncodingSpec extends EncodingOptions {
 }
 
 // @public
+export type ColumnHistogram = (Histogram & {
+    readonly kind: "numeric";
+}) | {
+    readonly kind: "categorical";
+    readonly values: readonly {
+        readonly value: string | number | boolean;
+        readonly count: number;
+    }[];
+    readonly otherCount: number;
+};
+
+// @public
 export interface ColumnRef {
     readonly kind: "node" | "edge";
     readonly name: string;
@@ -229,6 +255,7 @@ export interface CommandOutcomeMap {
     "data.declare": Promise<void>;
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
+    "data.setSource": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
     "layout.transport": Promise<void>;
@@ -714,6 +741,7 @@ export interface GraphSession {
 // @public
 export interface GraphStatistics {
     readonly components: ComponentStatistics;
+    readonly degreeHistogram?: Histogram;
     readonly degreeRange: readonly [number, number];
     readonly density: number;
     readonly directedness: "directed" | "undirected" | "mixed" | "unknown";
@@ -2071,6 +2099,10 @@ export interface RecordPage<TRecord> {
 export interface RecordPageOptions {
     readonly columns?: readonly ResultColumn[];
     readonly limit?: number;
+    readonly matching?: {
+        readonly text: string;
+        readonly mode?: SelectionTextMode;
+    };
     readonly offset?: number;
     readonly scope?: ScopeInput;
     readonly sort?: RecordSort | ResultSort;
@@ -2331,6 +2363,26 @@ export type RuleTree = {
     readonly kind: "neighborhood";
     readonly seeds: readonly NodeId[];
     readonly depth: number;
+}
+/**
+* The nodes with no edge to another node: each is a component of its own, so these are exactly
+* the nodes `data.statistics().components.isolatedCount` counts. A node whose only edges are
+* self-loops is one. Speaks nodes.
+*/
+| {
+    readonly kind: "isolated";
+}
+/** The edges whose two ends are the same node: `statistics().selfLoopCount` of them. Speaks edges. */
+| {
+    readonly kind: "self-loop";
+}
+/**
+* The edges beyond the first between one pair of nodes, in the graph's edge order: exactly the
+* edges `statistics().repeatedEdgeCount` counts. On an undirected graph `a`-`b` and `b`-`a` are
+* one pair; on a directed graph they are two. Speaks edges.
+*/
+| {
+    readonly kind: "repeated-edge";
 } | {
     readonly kind: "edges";
     readonly where: Query;
@@ -2657,6 +2709,7 @@ export interface SelectionApi {
     has(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: readonly NodeId[];
+    readonly origin: SelectionTarget | null;
     // @deprecated
     promote(name: string): ScopeId;
     readonly size: number;
@@ -2850,8 +2903,10 @@ export interface SessionDataApi {
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(): readonly EdgeRecord[];
     fingerprint(): string;
+    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     import(source: DataSourceInput, options?: LoadChoices): Promise<void>;
     lastImport(): LoadReport | null;
+    name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;
     nodePage(options: RecordPageOptions & {
@@ -2867,6 +2922,7 @@ export interface SessionDataApi {
     }): Promise<LoadDraft>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
+    renameSource(name: string): Promise<void>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;

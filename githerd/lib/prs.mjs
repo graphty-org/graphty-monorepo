@@ -193,10 +193,7 @@ function foldPr(node, prev, config, now) {
               ownerRejected: false,
           };
 
-    const gateRed = Object.values(checks.required).includes("FAILURE");
-    let captureFailed = [];
-    if (detail.gateAnnotations) captureFailed = captureFailures(detail.gateAnnotations);
-    else if (sameHead && gateRed) captureFailed = prev?.captureFailed ?? [];
+    const captureFailed = captureFailedOf(detail, sameHead ? prev : undefined, checks.required);
 
     /** @type {PrRecord} */
     const rec = {
@@ -275,6 +272,19 @@ const CAPTURE_FAILED = [
  */
 export function captureFailures(annotations) {
     return annotations.filter((a) => CAPTURE_FAILED.some((re) => re.test(a)));
+}
+
+/**
+ * The failed captures of a head: from this poll's gate annotations, else what the same head's
+ * record said while a required check still fails.
+ * @param {Detail} detail what was read for this head
+ * @param {PrRecord | undefined} prev the same head's record, if any
+ * @param {Record<string, CheckState>} required the required checks' states
+ * @returns {string[]} the annotations that report a failed capture
+ */
+function captureFailedOf(detail, prev, required) {
+    if (detail.gateAnnotations) return captureFailures(detail.gateAnnotations);
+    return Object.values(required).includes("FAILURE") ? (prev?.captureFailed ?? []) : [];
 }
 
 /**

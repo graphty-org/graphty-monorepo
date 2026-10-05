@@ -30,9 +30,43 @@ function askText(n, rec, failing, job) {
 }
 
 /**
- * One pass: forgets questions about a head that is gone, lapses answers whose session ended, and
- * asks about each queued `pr` job's pull request whose CI failed on a head someone other than
- * githerd pushed, when nothing claims it and it was not asked about at this head.
+ * Forgets questions about a head that is gone and lapses answers whose session ended.
+ * @param {any} state the daemon state, changed in place
+ * @param {(session: string) => boolean} sessionGone whether a session ended
+ * @returns {({kind: string} & Record<string, unknown>)[]} the ledger lines
+ */
+function settleAsks(state, sessionGone) {
+    const lines = [];
+    for (const [n, ask] of Object.entries(state.asks)) {
+        if (state.prs?.[n]?.headSha !== ask.head) {
+            delete state.asks[n];
+        } else if (ask.owner && sessionGone(ask.owner.session)) {
+            lines.push({ kind: "pr-owner-lapsed", pr: Number(n), head: ask.head, session: ask.owner.session });
+            ask.owner = null;
+        }
+    }
+    return lines;
+}
+
+/**
+ * What to ask about a queued job, or null: its pull request's CI failed on a head someone other
+ * than githerd pushed, nothing claims it, and it was not asked about at this head.
+ * @param {any} state the daemon state
+ * @param {any} job the job
+ * @returns {{n: string, rec: any, failing: string[]} | null} the pull request and its failing checks
+ */
+function questionFor(state, job) {
+    if (job.kind !== "pr" || job.state !== "queued") return null;
+    const n = String(prOf(job));
+    const rec = state.prs?.[n];
+    if (!rec || state.asks[n]?.head === rec.headSha || headIsGitherds(state, rec) || jobOnPr(state, n)) return null;
+    const failing = failingRequired(rec);
+    return failing.length ? { n, rec, failing } : null;
+}
+
+/**
+ * One pass: settles the open questions, then asks about each queued `pr` job's pull request that
+ * `questionFor` names.
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
  *   transport: import("./peers.mjs").Transport, sessionGone: (session: string) => boolean}} opts
@@ -41,32 +75,21 @@ function askText(n, rec, failing, job) {
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
 export async function askStep(state, { now, acting, sessions, transport, sessionGone }) {
-    const asks = (state.asks ??= {});
-    const lines = [];
-    for (const [n, ask] of Object.entries(asks)) {
-        if (state.prs?.[n]?.headSha !== ask.head) {
-            delete asks[n];
-        } else if (ask.owner && sessionGone(ask.owner.session)) {
-            lines.push({ kind: "pr-owner-lapsed", pr: Number(n), head: ask.head, session: ask.owner.session });
-            ask.owner = null;
-        }
-    }
+    state.asks ??= {};
+    const lines = settleAsks(state, sessionGone);
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
     let live = null;
     for (const job of Object.values(state.jobs ?? {})) {
-        if (job.kind !== "pr" || job.state !== "queued") continue;
-        const n = String(prOf(job));
-        const rec = state.prs?.[n];
-        if (!rec || asks[n]?.head === rec.headSha || headIsGitherds(state, rec) || jobOnPr(state, n)) continue;
-        const failing = failingRequired(rec);
-        if (failing.length === 0) continue;
+        const q = questionFor(state, job);
+        if (!q) continue;
         live ??= sessions();
-        const text = askText(n, rec, failing, job.id);
         const names = live.map((s) => s.name);
-        const out = acting ? await tellSessions(live, text, transport) : { sent: [], failed: [] };
-        asks[n] = {
-            head: rec.headSha,
-            failing,
+        const out = acting
+            ? await tellSessions(live, askText(q.n, q.rec, q.failing, job.id), transport)
+            : { sent: [], failed: [] };
+        state.asks[q.n] = {
+            head: q.rec.headSha,
+            failing: q.failing,
             askedAt: now.toISOString(),
             // In dry-run nobody hears the question, but the wait is the one acting mode would have.
             sessions: acting ? out.sent : names,
@@ -75,14 +98,10 @@ export async function askStep(state, { now, acting, sessions, transport, session
             owner: null,
         };
         if (!acting && names.length) {
-            lines.push({
-                kind: "would-do",
-                group: "workers",
-                op: `ask ${names.length} session(s) whose #${n} is`,
-                pr: Number(n),
-            });
+            const op = `ask ${names.length} session(s) whose #${q.n} is`;
+            lines.push({ kind: "would-do", group: "workers", op, pr: Number(q.n) });
         }
-        lines.push({ kind: "pr-asked", pr: Number(n), head: rec.headSha, sessions: names, ...out });
+        lines.push({ kind: "pr-asked", pr: Number(q.n), head: q.rec.headSha, sessions: names, ...out });
     }
     return lines;
 }

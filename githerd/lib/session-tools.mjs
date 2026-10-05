@@ -108,9 +108,10 @@ function sessionCwd(client, session, known, home) {
  * @returns {string | null} the name
  */
 function registryName(home, pid, session) {
-    if (!home || !Number.isInteger(pid)) return null;
+    const n = Number(pid);
+    if (!home || !Number.isInteger(n)) return null;
     try {
-        const entry = JSON.parse(readFileSync(join(home, ".claude", "sessions", `${pid}.json`), "utf8"));
+        const entry = JSON.parse(readFileSync(join(home, ".claude", "sessions", `${n}.json`), "utf8"));
         return entry.sessionId === session && typeof entry.name === "string" ? entry.name : null;
     } catch {
         return null;

@@ -71,7 +71,8 @@ export function liveSessions({ sessionsDir, root, alive = pidAlive }) {
         const cwd = typeof e?.cwd === "string" ? e.cwd : "";
         const inRepo = cwd === root || cwd.startsWith(root + sep);
         if (!inRepo || cwd.startsWith(workers) || typeof e.messagingSocketPath !== "string") continue;
-        if (!Number.isInteger(e.pid) || !(e.peerProtocol >= 1) || !alive(e.pid)) continue;
+        if (!Number.isInteger(e.pid) || typeof e.peerProtocol !== "number" || e.peerProtocol < 1) continue;
+        if (!alive(e.pid)) continue;
         out.push({
             pid: e.pid,
             sessionId: String(e.sessionId ?? ""),

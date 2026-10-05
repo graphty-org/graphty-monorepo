@@ -102,10 +102,6 @@ export function adoptNodeRecord(node: Node, record: AdHocData<string | number>):
 }
 
 /**
- * Represents a node in the graph visualization with its mesh, label, and associated data.
- * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
- */
-/**
  * Node shapes whose outline is a circle from every direction.
  *
  * Deliberately short. A cone, a box or a torus looks different from different sides, so there is
@@ -114,7 +110,8 @@ export function adoptNodeRecord(node: Node, record: AdHocData<string | number>):
 const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
 
 /**
- *
+ * Represents a node in the graph visualization with its mesh, label, and associated data.
+ * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
  */
 export class Node {
     parentGraph: Graph | GraphContext;

@@ -6,7 +6,9 @@
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
@@ -164,7 +166,7 @@ describe("apt in the workflows", () => {
             "visual-review template",
             readFileSync(new URL("../visual-review/templates/visual-review.yml", import.meta.url), "utf8"),
         ]);
-        const APT = /--with-deps|install-deps|install-browser|apt-get/;
+        const APT = /--with-deps|install-deps|install-browser|apt-get|playwright-system-deps/;
         let checked = 0;
         for (const [file, text] of files) {
             const code = text.replace(/^\s*#.*$/gm, "");
@@ -177,6 +179,64 @@ describe("apt in the workflows", () => {
             }
         }
         assert.ok(checked >= 4, `found the apt jobs (${checked})`);
+    });
+});
+
+describe("Playwright's system packages", () => {
+    // apt ran on every browser job (15 s median, 30 s mean, about 69 job-hours a week); now the .deb
+    // files apt chose are cached per runner image and Playwright version and a hit runs only dpkg.
+    const action = readFileSync(
+        new URL("../.github/actions/playwright-system-deps/action.yml", import.meta.url),
+        "utf8",
+    );
+    const script = action
+        .slice(action.lastIndexOf("run: |\n") + 7)
+        .split("\n")
+        .map((l) => l.slice(14))
+        .join("\n");
+
+    it("keys the cache on the runner image and the Playwright version", () => {
+        assert.match(
+            action,
+            /key=playwright-debs-\$\{ImageOS:\?\}-\$\{ImageVersion:\?\}-\$\(pnpm exec playwright --version/,
+        );
+        assert.match(action, /path: ~\/\.cache\/playwright-debs/);
+    });
+
+    it("installs through the action in ci.yml's test job, never with apt directly", () => {
+        // The visual job still runs `visual-review install-browser`: agents do not edit that job.
+        const test = job(workflow("ci.yml").replace(/^\s*#.*$/gm, ""), "test");
+        assert.doesNotMatch(test, /--with-deps|install-deps/);
+        assert.match(test, /if: matrix\.needs-browser\n\s+uses: \.\/\.github\/actions\/playwright-system-deps\n/);
+        assert.match(test, /run: pnpm exec playwright install chromium\n/);
+    });
+
+    const run = (hit, debs) => {
+        const home = mkdtempSync(join(tmpdir(), "pw-debs-"));
+        const bin = join(home, "bin");
+        mkdirSync(bin);
+        mkdirSync(join(home, ".cache/playwright-debs"), { recursive: true });
+        for (const d of debs) writeFileSync(join(home, ".cache/playwright-debs", d), "");
+        writeFileSync(join(bin, "sudo"), `#!/bin/sh\necho "$*" >> "${home}/calls"\n`, { mode: 0o755 });
+        writeFileSync(join(bin, "pnpm"), `#!/bin/sh\necho "pnpm $*" >> "${home}/calls"\n`, { mode: 0o755 });
+        const r = spawnSync("bash", ["-eo", "pipefail", "-c", script], {
+            encoding: "utf8",
+            env: { ...process.env, HOME: home, HIT: hit, PATH: `${bin}:${process.env.PATH}` },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        let calls = "";
+        try {
+            calls = readFileSync(join(home, "calls"), "utf8");
+        } catch {
+            // nothing was called
+        }
+        return calls;
+    };
+
+    it("on a hit installs exactly the cached files with dpkg and never runs apt", () => {
+        const calls = run("true", ["a.deb", "b.deb"]);
+        assert.match(calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n$/);
+        assert.equal(run("true", []), "");
     });
 });
 

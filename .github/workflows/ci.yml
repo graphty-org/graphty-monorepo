@@ -483,13 +483,13 @@ jobs:
 
             - uses: ./.github/actions/drop-microsoft-apt-source
 
+            - name: Install Playwright system packages
+              if: matrix.needs-browser
+              uses: ./.github/actions/playwright-system-deps
+
             - name: Install Playwright browsers
               if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
-              run: pnpm exec playwright install chromium --with-deps
-
-            - name: Install Playwright deps (if cached)
-              if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit == 'true'
-              run: pnpm exec playwright install-deps chromium
+              run: pnpm exec playwright install chromium
 
             # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled
             - name: Install Mesa lavapipe

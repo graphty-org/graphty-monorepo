@@ -183,17 +183,12 @@ describe("apt in the workflows", () => {
 });
 
 describe("Playwright's system packages", () => {
-    // apt ran on every browser job (15 s median, 30 s mean, about 69 job-hours a week); now the .deb
-    // files apt chose are cached per runner image and Playwright version and a hit runs only dpkg.
-    const action = readFileSync(
-        new URL("../.github/actions/playwright-system-deps/action.yml", import.meta.url),
-        "utf8",
-    );
-    const script = action
-        .slice(action.lastIndexOf("run: |\n") + 7)
-        .split("\n")
-        .map((l) => l.slice(14))
-        .join("\n");
+    // apt ran on every browser job (15 s median, 30 s mean); now the .deb files apt chose are cached per
+    // runner image and Playwright version, and a hit runs only dpkg. Covers the test job and the visual
+    // job; visual-seed.yml (dispatched by hand) still runs `visual-review install-browser`.
+    const actionDir = new URL("../.github/actions/playwright-system-deps/", import.meta.url);
+    const action = readFileSync(new URL("action.yml", actionDir), "utf8");
+    const script = new URL("install.sh", actionDir).pathname;
 
     it("keys the cache on the runner image and the Playwright version", () => {
         assert.match(
@@ -201,42 +196,106 @@ describe("Playwright's system packages", () => {
             /key=playwright-debs-\$\{ImageOS:\?\}-\$\{ImageVersion:\?\}-\$\(pnpm exec playwright --version/,
         );
         assert.match(action, /path: ~\/\.cache\/playwright-debs/);
+        assert.match(action, /run: '"\$GITHUB_ACTION_PATH\/install\.sh"'\n/);
     });
 
-    it("installs through the action in ci.yml's test job, never with apt directly", () => {
-        // The visual job still runs `visual-review install-browser`: agents do not edit that job.
-        const test = job(workflow("ci.yml").replace(/^\s*#.*$/gm, ""), "test");
+    it("installs through the action in ci.yml's test and visual jobs, never with apt directly", () => {
+        const ci = workflow("ci.yml").replace(/^\s*#.*$/gm, "");
+        const test = job(ci, "test");
         assert.doesNotMatch(test, /--with-deps|install-deps/);
         assert.match(test, /if: matrix\.needs-browser\n\s+uses: \.\/\.github\/actions\/playwright-system-deps\n/);
         assert.match(test, /run: pnpm exec playwright install chromium\n/);
+        const visual = job(ci, "visual");
+        assert.doesNotMatch(visual, /--with-deps|install-deps|install-browser/);
+        assert.match(
+            visual,
+            /uses: \.\/\.github\/actions\/playwright-system-deps\n\s+with:\n\s+working-directory: visual-review\n/,
+        );
+        assert.match(visual, /working-directory: visual-review\n\s+run: pnpm exec playwright install chromium\n/);
     });
 
-    const run = (hit, debs) => {
+    // Runs install.sh against a fake apt: sudo logs its arguments (and really runs rm), pnpm answers
+    // the dry run with PKGS and the install by writing DOWNLOADS into the archive directory, and
+    // dpkg-query reports the packages named in INSTALLED as installed.
+    const run = ({ hit, cached = [], stale = [], downloads = [], aptSays = "", installed = "a b" }) => {
         const home = mkdtempSync(join(tmpdir(), "pw-debs-"));
         const bin = join(home, "bin");
-        mkdirSync(bin);
-        mkdirSync(join(home, ".cache/playwright-debs"), { recursive: true });
-        for (const d of debs) writeFileSync(join(home, ".cache/playwright-debs", d), "");
-        writeFileSync(join(bin, "sudo"), `#!/bin/sh\necho "$*" >> "${home}/calls"\n`, { mode: 0o755 });
-        writeFileSync(join(bin, "pnpm"), `#!/bin/sh\necho "pnpm $*" >> "${home}/calls"\n`, { mode: 0o755 });
-        const r = spawnSync("bash", ["-eo", "pipefail", "-c", script], {
+        const debs = join(home, "debs");
+        const archives = join(home, "archives");
+        for (const d of [bin, debs, archives]) mkdirSync(d);
+        for (const d of cached) writeFileSync(join(debs, d), "");
+        for (const d of stale) writeFileSync(join(archives, d), "");
+        const stub = (name, body) => writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
+        stub("sudo", `echo "$*" >> "${home}/calls"; case "$1" in rm) exec "$@";; tee) cat >/dev/null;; esac`);
+        stub(
+            "pnpm",
+            `echo "pnpm $*" >> "${home}/calls"
+if [ "$4" = --dry-run ]; then echo 'sudo -- sh -c "apt-get update&& apt-get install -y --no-install-recommends a b"'; exit; fi
+for d in ${downloads.join(" ")}; do touch "${archives}/$d"; done
+echo "${aptSays}"`,
+        );
+        stub(
+            "dpkg-query",
+            `rc=0; for p in "\${@:3}"; do case " ${installed} " in *" $p "*) echo "ii  $p";; *) echo "dpkg-query: no packages found matching $p" >&2; rc=1;; esac; done; exit $rc`,
+        );
+        const r = spawnSync("bash", [script], {
             encoding: "utf8",
-            env: { ...process.env, HOME: home, HIT: hit, PATH: `${bin}:${process.env.PATH}` },
+            env: {
+                ...process.env,
+                HIT: hit,
+                PLAYWRIGHT_DEBS: debs,
+                APT_ARCHIVES: archives,
+                PATH: `${bin}:${process.env.PATH}`,
+            },
         });
-        assert.equal(r.status, 0, r.stderr);
         let calls = "";
         try {
             calls = readFileSync(join(home, "calls"), "utf8");
         } catch {
             // nothing was called
         }
-        return calls;
+        return { ...r, calls, cache: readdirSync(debs).sort() };
     };
 
     it("on a hit installs exactly the cached files with dpkg and never runs apt", () => {
-        const calls = run("true", ["a.deb", "b.deb"]);
-        assert.match(calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n$/);
-        assert.equal(run("true", []), "");
+        const r = run({ hit: "true", cached: ["a.deb", "b.deb"] });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n/m);
+        assert.doesNotMatch(r.calls, /install-deps chromium/);
+        assert.match(r.stdout, /All 2 packages Chromium needs are installed/);
+    });
+
+    it("on a hit fails when the cache left a package Chromium needs uninstalled", () => {
+        const r = run({ hit: "true", cached: ["a.deb"], installed: "a" });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /::error::Chromium's system packages are not all installed/);
+        assert.match(r.stdout, /no packages found matching b/);
+    });
+
+    it("on a miss clears apt's old downloads, installs with apt and caches only what apt downloaded", () => {
+        const r = run({
+            hit: "",
+            stale: ["old.deb"],
+            downloads: ["a.deb", "b.deb"],
+            aptSays: "0 upgraded, 2 newly installed",
+        });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.match(r.calls, /^tee \/etc\/apt\/apt\.conf\.d\/99keep-downloaded-packages\n/m);
+        assert.match(r.calls, /^rm -f \S+\/archives\/old\.deb\n/m);
+        assert.match(r.calls, /^pnpm exec playwright install-deps chromium\n/m);
+        assert.deepEqual(r.cache, ["a.deb", "b.deb"]);
+    });
+
+    it("on a miss fails when apt installed packages but kept none of the files", () => {
+        const r = run({ hit: "", aptSays: "0 upgraded, 2 newly installed" });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /::error::apt installed packages but kept no \.deb files/);
+    });
+
+    it("on a miss with everything already installed caches nothing and passes", () => {
+        const r = run({ hit: "", aptSays: "0 upgraded, 0 newly installed, 0 to remove and 1 not upgraded." });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.deepEqual(r.cache, []);
     });
 });
 

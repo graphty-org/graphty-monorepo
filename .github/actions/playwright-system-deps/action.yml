@@ -2,11 +2,11 @@ name: Install Playwright's system packages
 description: >
     Installs the system packages Chromium needs (`playwright install-deps chromium`) from .deb files
     cached per runner image and Playwright version, instead of running apt on every job. apt took 15 s
-    at the median and 30 s on average per job (about 69 job-hours a week), 7 s of it `apt-get update`
-    and a long download tail; a hit restores the files and runs only dpkg (about 5 s). The cached set
-    is exactly what apt chose on the same runner image (ImageVersion) for the same Playwright
-    version, so a hit installs the same packages a miss would have on that image. Run
-    drop-microsoft-apt-source first: a miss uses apt.
+    at the median and 30 s on average per job, 7 s of it `apt-get update` and a long download tail; a
+    hit restores the files and runs only dpkg. The cached set is exactly what apt chose on the same
+    runner image (ImageVersion) for the same Playwright version, so a hit installs the same packages
+    a miss would have on that image; either way the step fails unless every package Playwright lists
+    is installed afterwards. Run drop-microsoft-apt-source first: a miss uses apt.
 inputs:
     working-directory:
         description: The directory whose `pnpm exec playwright` is used, so its version keys the cache.
@@ -30,24 +30,4 @@ runs:
           working-directory: ${{ inputs.working-directory }}
           env:
               HIT: ${{ steps.cache.outputs.cache-hit }}
-          run: |
-              dir=~/.cache/playwright-debs
-              shopt -s nullglob
-              if [ "$HIT" = "true" ]; then
-                  debs=("$dir"/*.deb)
-                  echo "Installing ${#debs[@]} cached packages"
-                  if [ ${#debs[@]} -gt 0 ]; then sudo dpkg -i "${debs[@]}"; fi
-                  exit 0
-              fi
-              sudo rm -f /var/cache/apt/archives/*.deb
-              log=$(mktemp)
-              pnpm exec playwright install-deps chromium | tee "$log"
-              mkdir -p "$dir"
-              debs=(/var/cache/apt/archives/*.deb)
-              # An empty cache is right only when apt installed nothing; otherwise apt deleted its
-              # downloads and every hit would install too little (missing fonts change screenshots).
-              if [ ${#debs[@]} -eq 0 ] && ! grep -q '^0 upgraded, 0 newly installed' "$log"; then
-                  echo "::error::apt installed packages but kept no .deb files in /var/cache/apt/archives"
-                  exit 1
-              fi
-              if [ ${#debs[@]} -gt 0 ]; then cp "${debs[@]}" "$dir"/; fi
+          run: '"$GITHUB_ACTION_PATH/install.sh"'

@@ -1099,9 +1099,16 @@ jobs:
 
             - uses: ./.github/actions/drop-microsoft-apt-source
 
-            # With the browser cached this installs only the system libraries Chromium needs.
+            # `visual-review install-browser` (the template's step) is `playwright install --with-deps
+            # chromium`, apt on each of the five jobs; this installs the same system packages from a cache.
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  working-directory: visual-review
+
             - name: Install Chromium
-              run: pnpm exec visual-review install-browser
+              working-directory: visual-review
+              run: pnpm exec playwright install chromium
 
             - name: Download Storybook build
               uses: actions/download-artifact@v4

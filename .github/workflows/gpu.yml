@@ -162,6 +162,12 @@ jobs:
                       ca-certificates curl git gnupg sudo xz-utils \
                       libvulkan1 libegl1 libgl1
             - uses: actions/checkout@v4
+            # The workspace is owned by the runner's user, not the container's root, so git refuses it ("dubious
+            # ownership", run 37247157286) once checkout's own temporary exception is gone. The pull request steps
+            # that diff against the base commit and build it for the paired benchmark need git.
+            - name: Let git use the checkout inside the container
+              working-directory: .
+              run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
             # No modprobe: a container cannot load host kernel modules, and it does not need to -- the host has
             # them up before the job starts (run 35922927676: "modprobe exit=0 nvidia modules before=4 after=4"),
             # and --gpus all fails at container creation if the driver is not there. This step records the

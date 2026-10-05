@@ -13,13 +13,13 @@
  * (DOT has none); lists, json, defaults, options, temporal and visual roles cannot be written.
  */
 
-import { type Column, GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
+import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
 import { type ChildrenCsr, childrenCsr } from "../../children.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { isWritableDotText, quoteDotId } from "../../common/escape.js";
 import { capabilities, checkCapabilities, countMixedEdges, LOSS, sanitizeIds } from "../../common/export.js";
-import { formatDecimal, formatF32, formatF64, formatInteger } from "../../common/format.js";
+import { formatDecimal, formatF32, formatF64, formatInteger, idText } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { inferTextDtype } from "../../common/text.js";
@@ -874,17 +874,8 @@ class ExportPlan {
      * @returns String(id)
      */
     private idText(i: number): string {
-        return idToText(this.snapshot.ids.idOf(i));
+        return idText(this.snapshot.ids.idOf(i));
     }
-}
-
-/**
- * The text of a node id: the string itself, or the shortest decimal of a number.
- * @param id - the id
- * @returns the text
- */
-function idToText(id: NodeId): string {
-    return typeof id === "string" ? id : formatF64(id);
 }
 
 /**
@@ -1025,7 +1016,7 @@ function countTextIds(snapshot: GraphSnapshot): number {
     let count = 0;
     for (let i = 0; i < ids.size; i++) {
         const id = ids.idOf(i);
-        if (canonicalId(idToText(id)) !== id) {
+        if (canonicalId(idText(id)) !== id) {
             count++;
         }
     }

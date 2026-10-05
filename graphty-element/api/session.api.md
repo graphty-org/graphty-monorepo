@@ -352,7 +352,7 @@ export function createGraphSession(options?: CreateGraphSessionOptions): GraphSe
 export interface CreateGraphSessionOptions {
     readonly acceleration?: AccelerationControllerLike;
     readonly config?: {
-        readonly data?: SessionDataConfig;
+        readonly data?: NonNullable<ProjectConfigPatch["data"]>;
         readonly acceleration?: {
             readonly policy?: AccelerationPolicy;
             readonly minNodes?: number;
@@ -409,19 +409,28 @@ export interface DraftRow {
 }
 
 // @public
+export type DraftRowFilter = "unmatched" | "rejected" | "loaded";
+
+// @public
 export interface DraftRowOptions {
+    readonly choices?: LoadChoices;
     readonly limit?: number;
     readonly offset?: number;
-    readonly only?: "unmatched" | "rejected";
+    readonly only?: DraftRowFilter;
 }
 
 // @public
 export interface DraftTable {
     readonly columns: readonly DraftColumn[];
+    readonly delimiter?: {
+        readonly value: string;
+        readonly detected: boolean;
+    };
     readonly fixed: boolean;
     readonly id: string;
     readonly name: string;
     readonly rowCount: number;
+    readonly weightCandidate?: string;
 }
 
 // @public
@@ -1463,8 +1472,15 @@ export interface Limits {
 }
 
 // @public
+export const LOAD_ROLES: Readonly<Record<"nodes" | "edges", {
+    readonly takes: readonly ColumnRole[];
+    readonly requires: readonly ColumnRole[];
+}>>;
+
+// @public
 export interface LoadChoices extends ImportOptions {
     readonly directed?: boolean | "auto";
+    readonly duplicateIds?: "first" | "merge" | "refuse";
     readonly mapping?: LoadMapping;
     readonly unmatched?: "add" | "leave-out";
 }
@@ -1474,7 +1490,9 @@ export interface LoadDraft {
     dispose(): void;
     load(choices?: LoadChoices): Promise<void>;
     readonly mapping: LoadMappingRead;
+    missing(choices?: LoadChoices): Readonly<Record<string, readonly ColumnRole[]>>;
     report(choices?: LoadChoices): Promise<LoadReport>;
+    resolve(choices?: LoadChoices): LoadMappingRead;
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
     readonly tables: readonly DraftTable[];
     readonly type: string;
@@ -1493,6 +1511,10 @@ export interface LoadMappingRead {
 
 // @public
 export interface LoadReport extends ImportReport {
+    readonly duplicates: {
+        readonly rows: number;
+        readonly ids: readonly (string | number)[];
+    };
     readonly tooLarge: TooLargeDetails | null;
     readonly unmatched: {
         readonly rows: number;
@@ -1872,10 +1894,19 @@ export interface Progress {
 // @public
 export interface ProgressChange {
     readonly completed: number;
+    readonly error?: {
+        readonly code: string;
+        readonly details: Readonly<Record<string, unknown>>;
+    };
     readonly fraction: number | null;
+    readonly outcome?: "succeeded" | "failed" | "cancelled";
     readonly phase: "progress" | "end";
     readonly run?: RunId;
-    readonly task: "load" | "run";
+    readonly source?: {
+        readonly name?: string;
+        readonly url?: string;
+    };
+    readonly task: "load" | "prepare" | "run";
     readonly total: number | null;
 }
 
@@ -1946,9 +1977,10 @@ export interface ProjectOpenOptions {
 
 // @public
 export interface ProjectOpenReport {
+    readonly draft?: LoadDraft;
     readonly extensions: Readonly<Record<string, unknown>>;
     readonly name: string | null;
-    readonly opened: "project" | "document";
+    readonly opened: "project" | "document" | "graph";
     readonly problems: readonly ProjectProblem[];
     readonly restored: readonly ProjectSlice[];
 }

@@ -201,21 +201,12 @@ export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "
     readonly records?: SessionRecordSource;
     /** The configuration; `data` may be a function, read on every use. */
     readonly config?: Omit<NonNullable<CreateGraphSessionOptions["config"]>, "data"> & {
-        readonly data?: SessionDataConfig | (() => SessionDataConfig);
+        readonly data?: SessionDataConfigInput | (() => SessionDataConfig);
     };
 }
 
-/**
- * What a session with no configuration of its own runs on.
- *
- * Parsed per session rather than held as a module constant: `knownFields` is a nested object the
- * element mutates in place at run time, so one shared default would let a change made through one
- * session reach every other session that took the default.
- * @returns a fresh copy of the element's data defaults
- */
-function defaultDataConfig(): SessionDataConfig {
-    return DataConfig.parse({});
-}
+/** A data configuration as a caller hands it in: any part left out takes its default. */
+type SessionDataConfigInput = NonNullable<ProjectConfigPatch["data"]>;
 
 /**
  * The acceleration states that mean an accelerator is attached and could do the work.
@@ -1196,19 +1187,34 @@ function historyOf(dispatcher: Dispatcher, version: () => number): SessionHistor
 /**
  * Settle how the data configuration is read.
  *
- * A caller that hands in an object is read from that object; a caller that hands in a function is
- * asked every time, which is what a host that REPLACES its configuration needs. A caller that
- * hands in nothing gets one parsed copy of the element's defaults, parsed once rather than on
- * every read.
+ * A caller that hands in an object is read from that object, every part it leaves out at its
+ * default; a caller that hands in a function is asked every time, which is what a host that
+ * REPLACES its configuration needs. A caller that hands in nothing gets the element's defaults.
+ * Either object is parsed once, into a fresh copy rather than a shared module constant:
+ * `knownFields` is a nested object the element mutates in place at run time.
  * @param given - the configuration, a reader for it, or nothing
  * @returns the reader
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when the object is not a valid data configuration.
  */
-function resolveDataConfig(given: SessionDataConfig | (() => SessionDataConfig) | undefined): () => SessionDataConfig {
+function resolveDataConfig(
+    given: SessionDataConfigInput | (() => SessionDataConfig) | undefined,
+): () => SessionDataConfig {
     if (typeof given === "function") {
         return given;
     }
 
-    const fixed = given ?? defaultDataConfig();
+    const parsed = DataConfig.safeParse(given ?? {});
+    if (!parsed.success) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            source: "config",
+            message: `The data configuration is not valid: ${parsed.error.issues[0]?.message ?? "refused"}.`,
+            details: { path: parsed.error.issues[0]?.path ?? [] },
+            cause: parsed.error,
+        });
+    }
+
+    const fixed: SessionDataConfig = parsed.data;
     return () => fixed;
 }
 
@@ -1253,7 +1259,8 @@ function resolveStore(
     }
 
     const owned: GraphStore = new GraphStore({
-        directed: readData().directed,
+        // A thunk, so a graph holding no edges follows a later `config.set` of the direction.
+        directed: () => readData().directed,
         // A thunk, not a value: the element mutates `data.knownFields` in place at run time, and a
         // scale captured here would be the one known field that ignored the change.
         positionScale: () => readData().knownFields.positionScale,
@@ -1903,6 +1910,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
             setSource: (source) => dispatcher.dispatch({ op: "data.setSource", source }),
             declarations: () => dispatcher.state.attributes,
+            progress: (change) => {
+                publish(watchers, "progress:changed", change);
+            },
             readers: () => ({ styles: dispatcher.state.styles, runs: dispatcher.state.runs }),
         },
         {

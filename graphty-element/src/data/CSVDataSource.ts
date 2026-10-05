@@ -1,6 +1,7 @@
 import { GraphFormatError } from "@graphty/graph-format";
 import {
     type CommonImportOptions,
+    CSV_ISSUE,
     csvImporter,
     type CsvImportOptions,
     headBytes,
@@ -8,7 +9,9 @@ import {
     parseTextCell,
 } from "@graphty/graph-io";
 
+import { detectFormats } from "../catalog/detect";
 import type { AdHocData } from "../config";
+import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import type { DataLoadingError } from "./ErrorAggregator.js";
 import {
@@ -19,6 +22,7 @@ import {
     type ImportedRecords,
     importRecords,
 } from "./graph-io-import.js";
+import { urlTail } from "./source-bytes.js";
 
 /** The CSV shapes the reader can be told to read, or recognises when it is not told. */
 export type CSVVariant = "neo4j" | "gephi" | "cytoscape" | "adjacency-list" | "edge-list" | "node-list" | "generic";
@@ -127,6 +131,9 @@ function typeCells(imported: ImportedRecords): ImportedRecords {
     return imported;
 }
 
+/** How much of a CSV file's text the parser is handed at a time while its rows are read. */
+const ROWS_SLICE = 1 << 20;
+
 /** A CSV file's rows as written: every column kept, under the header's own names. */
 interface CsvRows {
     /** The header's names, in the file's order. */
@@ -135,6 +142,8 @@ interface CsvRows {
     readonly rows: Record<string, unknown>[];
     /** The line each row starts on, the header being line 1. */
     readonly lines: readonly number[];
+    /** The column separator the file was read with, and whether it was detected rather than given. */
+    readonly delimiter: { readonly value: string; readonly detected: boolean };
 }
 
 /**
@@ -144,7 +153,7 @@ interface CsvRows {
  * @param given - the delimiter the caller named, if any
  * @returns the header's fields and the start line of every record after it
  */
-function csvRecordLines(text: string, given?: string): { header: string[]; lines: number[] } {
+function csvRecordLines(text: string, given?: string): { header: string[]; lines: number[]; delimiter: string } {
     const delimiter = given ?? guessDelimiter(text.split(/\r\n|\n|\r/, 1)[0] ?? "");
     const header: string[] = [];
     const lines: number[] = [];
@@ -182,7 +191,7 @@ function csvRecordLines(text: string, given?: string): { header: string[]; lines
         header.push(field);
     }
 
-    return { header: header.map((name) => name.trim()), lines };
+    return { header: header.map((name) => name.trim()), lines, delimiter };
 }
 
 /** A quoted cell (its closing quote optional at the end of the text), a line break, or other text. */
@@ -239,6 +248,27 @@ function missingColumnHeader(error: unknown): string[] | null {
     return Array.isArray(columns) ? columns.map(String) : null;
 }
 
+/**
+ * The refusal of a pair's edge table whose header names no endpoint pair: a schema problem, not a
+ * file that could not be read, refused as `draft.report()` refuses the same table.
+ * @param columns - the edge table's header
+ * @returns `E_EDGE_ENDPOINTS_UNRESOLVED` with `details.table`, `details.missing` and `details.columns`
+ */
+function noEndpointColumns(columns: readonly string[]): GraphtyError {
+    const lower = new Set(columns.map((name) => name.toLowerCase()));
+    const unmatched = (["source", "target"] as const).filter(
+        (_, half) => !ENDPOINT_PAIRS.some((pair) => lower.has(pair[half] ?? "")),
+    );
+    // Each half spelled by a different pair (`source`, `dst`) pairs neither.
+    const missing = unmatched.length === 0 ? ["source", "target"] : unmatched;
+    return new GraphtyError({
+        code: "E_EDGE_ENDPOINTS_UNRESOLVED",
+        source: "data",
+        message: `The edge table has no ${missing.join(" or ")} column; it carries ${columns.join(", ")}.`,
+        details: { table: "edges", missing, columns: [...columns] },
+    });
+}
+
 interface CSVDataSourceConfig extends BaseDataSourceConfig {
     /** The column separator. Worked out from the first rows (comma, tab, semicolon or pipe) when unset. */
     delimiter?: string;
@@ -255,11 +285,29 @@ interface CSVDataSourceConfig extends BaseDataSourceConfig {
     /** The column holding the node an edge ends at. See {@link CSVDataSourceConfig.edgeSource}. */
     edgeTarget?: string;
     idColumn?: string;
-    // For paired files
+    /**
+     * A node table and an edge table read as one load. Each half is a file, a URL or inline text
+     * (`nodeData`, `edgeData`), and the two halves need not be the same kind. A half the element
+     * recognizes as another format (a GML or GraphML file) is refused with `E_BAD_COMMAND`.
+     */
     nodeFile?: File;
     edgeFile?: File;
     nodeURL?: string;
     edgeURL?: string;
+    nodeData?: string | Uint8Array;
+    edgeData?: string | Uint8Array;
+}
+
+/** The options that make a CSV source a pair of tables. */
+const PAIR_KEYS = ["nodeFile", "edgeFile", "nodeURL", "edgeURL", "nodeData", "edgeData"] as const;
+
+/**
+ * Whether a source's options hand over a node table and an edge table as a pair.
+ * @param config - The source's options.
+ * @returns True for a pair.
+ */
+export function isPairConfig(config: Readonly<Record<string, unknown>>): boolean {
+    return PAIR_KEYS.some((key) => config[key] !== undefined);
 }
 
 /**
@@ -296,7 +344,7 @@ export class CSVDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        if (this.config.nodeFile || this.config.edgeFile || this.config.nodeURL || this.config.edgeURL) {
+        if (isPairConfig(this.config as Readonly<Record<string, unknown>>)) {
             yield* this.parsePairedFiles();
             return;
         }
@@ -494,73 +542,171 @@ export class CSVDataSource extends DataSource {
      * The file's rows as written, for a load whose columns the reader maps: a single file as one
      * table, a pair as a node table and an edge table. Null for a Neo4j or adjacency-list file,
      * whose shape the format sets.
+     * @param progress - Told the rows read so far, across every table, and the share of the
+     *     text read, while the rows are read
      * @returns the tables, keyed `"rows"`, or `"nodes"` and `"edges"`
      */
-    async readRows(): Promise<Readonly<Record<string, CsvRows>> | null> {
-        const { nodeFile, edgeFile, nodeURL, edgeURL } = this.config;
-        if (nodeFile !== undefined || edgeFile !== undefined || nodeURL !== undefined || edgeURL !== undefined) {
-            const text = async (file: File | undefined, url: string | undefined): Promise<string> =>
-                file === undefined ? (await this.fetchWithRetry(url ?? "")).text() : file.text();
-            return {
-                nodes: await this.rowsOf(await text(nodeFile, nodeURL)),
-                edges: await this.rowsOf(await text(edgeFile, edgeURL)),
-            };
+    async readRows(
+        progress: (rows: number, fraction: number) => void = () => undefined,
+    ): Promise<Readonly<Record<string, CsvRows>> | null> {
+        if (isPairConfig(this.config as Readonly<Record<string, unknown>>)) {
+            const nodeText = await this.pairText("nodes");
+            const edgeText = await this.pairText("edges");
+            const length = nodeText.length + edgeText.length;
+            const nodes = await this.rowsOf(nodeText, (rows, done) => {
+                progress(rows, done / length);
+            });
+            const edges = await this.rowsOf(edgeText, (rows, done) => {
+                progress(nodes.rows.length + rows, (nodeText.length + done) / length);
+            });
+            return { nodes, edges };
         }
 
         const content = await this.getContent();
         const variant =
             this.config.variant ?? ((neo4jImporter.sniff?.(headBytes(content)) ?? 0) >= 0.5 ? "neo4j" : "generic");
-        return variant === "neo4j" || variant === "adjacency-list" ? null : { rows: await this.rowsOf(content) };
+        return variant === "neo4j" || variant === "adjacency-list"
+            ? null
+            : {
+                  rows: await this.rowsOf(content, (rows, done) => {
+                      progress(rows, done / content.length);
+                  }),
+              };
     }
 
     /**
      * One file's rows as written.
+     *
+     * The text is handed to the parser in slices, yielding to the event loop between them, so a
+     * page can draw the running count while a large file is read.
      * @param content - the file's text
+     * @param progress - Told the rows read so far and how much of the text has been read
      * @returns the rows
      */
-    private async rowsOf(content: string): Promise<CsvRows> {
+    private async rowsOf(content: string, progress: (rows: number, done: number) => void): Promise<CsvRows> {
+        const { delimiter: given } = this.config;
         if (content.trim() === "") {
-            return { columns: [], rows: [], lines: [] };
+            return {
+                columns: [],
+                rows: [],
+                lines: [],
+                delimiter: { value: given ?? ",", detected: given === undefined },
+            };
+        }
+
+        let done = 0;
+        async function* slices(): AsyncGenerator<string> {
+            for (let at = 0; at < content.length; at += ROWS_SLICE) {
+                if (at > 0) {
+                    await new Promise((resolve) => setTimeout(resolve, 0));
+                }
+
+                done = Math.min(at + ROWS_SLICE, content.length);
+                yield content.slice(at, done);
+            }
         }
 
         // Read as a node table numbered by row, so no column is taken as an id and every one is kept.
         const read = typeCells(
-            await importRecords(csvImporter, content, {
-                table: "nodes",
-                header: true,
-                nodeIdFrom: "index",
-                weightFrom: null,
-                errorLimit: this.config.errorLimit,
-                ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
-            }),
+            await importRecords(
+                csvImporter,
+                slices(),
+                {
+                    table: "nodes",
+                    header: true,
+                    nodeIdFrom: "index",
+                    weightFrom: null,
+                    errorLimit: this.config.errorLimit,
+                    ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
+                },
+                (rows) => {
+                    progress(rows, done);
+                },
+            ),
         );
         aggregateErrors(read.report, this.errorAggregator, true);
-        const { header, lines } = csvRecordLines(content, this.config.delimiter);
-        return { columns: header, rows: read.nodes.map(({ data }) => data), lines };
+        const { header, lines, delimiter } = csvRecordLines(content, given);
+        return {
+            columns: header,
+            rows: read.nodes.map(({ data }) => data),
+            lines,
+            delimiter: { value: delimiter, detected: given === undefined },
+        };
+    }
+
+    /**
+     * The text of one half of a pair: its file's, its URL's or its inline text, refused when the
+     * element recognizes it as a format that is not a table.
+     * @param half - Which half.
+     * @returns The text.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`: `details.reason` `"not-a-table"` when it is
+     *     another format, and `"missing-half"` (with `details.table`) when one half was not given.
+     */
+    private async pairText(half: "nodes" | "edges"): Promise<string> {
+        const { config } = this;
+        const given = (prefix: string): boolean =>
+            ["File", "URL", "Data"].some(
+                (kind) => (config as Record<string, unknown>)[`${prefix}${kind}`] !== undefined,
+            );
+        if (!given("node") || !given("edge")) {
+            const table = given("node") ? "edges" : "nodes";
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                source: "data",
+                message:
+                    `A pair of CSV tables needs both halves, and the ${table} table is missing. Provide a file, a URL ` +
+                    "or text for each: nodeFile, nodeURL or nodeData, and edgeFile, edgeURL or edgeData.",
+                details: { reason: "missing-half", table },
+            });
+        }
+
+        const prefix = half === "nodes" ? "node" : "edge";
+        const file = this.config[`${prefix}File`];
+        const url = this.config[`${prefix}URL`];
+        const data = this.config[`${prefix}Data`];
+        let text: string;
+        if (data !== undefined) {
+            text = typeof data === "string" ? data : new TextDecoder().decode(data);
+        } else if (file !== undefined) {
+            text = await file.text();
+        } else {
+            text = await (await this.fetchWithRetry(url ?? "")).text();
+        }
+
+        const name = file?.name ?? (url === undefined ? undefined : urlTail(url));
+        const formats = detectFormats({
+            ...(name === undefined ? {} : { filename: name }),
+            sample: text.slice(0, 4096),
+        });
+        if (formats.length > 0 && !formats.includes("csv")) {
+            const subject = name ?? `The ${half} table`;
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                source: "data",
+                message: `${subject} reads as ${formats[0]}, not as a table, so it cannot be one half of a pair of CSV tables.`,
+                details: {
+                    reason: "not-a-table",
+                    table: half,
+                    format: formats[0],
+                    ...(name === undefined ? {} : { name }),
+                },
+            });
+        }
+
+        return text;
     }
 
     private async *parsePairedFiles(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        // Validate that both URLs or both files are provided
-        const hasNodeSource = !!(this.config.nodeURL ?? this.config.nodeFile);
-        const hasEdgeSource = !!(this.config.edgeURL ?? this.config.edgeFile);
-
-        if (!hasNodeSource || !hasEdgeSource) {
-            throw new Error(
-                "parsePairedFiles requires both node and edge sources. " +
-                    "Provide either (nodeURL + edgeURL) or (nodeFile + edgeFile).",
-            );
-        }
-
-        const nodeContent = this.config.nodeFile
-            ? await this.config.nodeFile.text()
-            : await (await this.fetchWithRetry(this.config.nodeURL ?? "")).text();
-        const edgeContent = this.config.edgeFile
-            ? await this.config.edgeFile.text()
-            : await (await this.fetchWithRetry(this.config.edgeURL ?? "")).text();
+        const nodeContent = await this.pairText("nodes");
+        const edgeContent = await this.pairText("edges");
 
         // The node file is read first, so its ids come first and its columns become the nodes'
         // attributes; each file's delimiter is worked out on its own.
         const imported = await this.importTable(edgeContent, { table: "edges" }, nodeContent);
+        if (imported.report.issues.some((issue) => issue.code === CSV_ISSUE.NO_ENDPOINT_COLUMNS)) {
+            throw noEndpointColumns(csvRecordLines(edgeContent, this.config.delimiter).header);
+        }
+
         aggregateErrors(imported.report, this.errorAggregator, true);
         yield* this.emit(imported.nodes, imported.edges);
     }

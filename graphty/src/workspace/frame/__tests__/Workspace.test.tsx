@@ -45,7 +45,7 @@ describe("the workspace frame", () => {
     it("draws every region with its package's stub", () => {
         renderWorkspace(OPEN);
 
-        for (const stub of ["Graph place", "Inspector", "Toolbar", "Legend card and state cards", "Privacy chip"]) {
+        for (const stub of ["Graph place", "Inspector", "Toolbar", "Privacy chip"]) {
             assert.isNotNull(screen.getByText(stub), stub);
         }
         assert.isNotNull(document.querySelector("graphty-element"));

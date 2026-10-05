@@ -1,10 +1,9 @@
 #!/bin/bash
 # Pre-push validation script
-# Runs build, lint (including knip), the fast 'default'-project tests and graphty's full
-# browser suite -- for the packages this push AFFECTS only. "Affected" is nx's answer for
+# Runs build, lint (including knip), every CI test shard and the screenshots -- for the packages
+# this push AFFECTS only. "Affected" is nx's answer for
 # the commits since this branch left origin/master: a package whose files changed, and
-# every package that depends on one. CI still runs everything, so a package this push
-# cannot have changed is left to CI instead of costing every push its test time.
+# every package that depends on one -- the same set a pull request's CI tests.
 # PREPUSH_ALL=1 runs every package.
 # This script avoids nx to work around git hook issues with nx daemon
 
@@ -44,12 +43,10 @@ NC='\033[0m' # No Color
 #
 # FAILED is the overall verdict and decides the exit code, so every step ORs into it.
 # It must NOT be used to grade an individual step: a step-specific verdict needs its
-# own flag, or an earlier step's failure is reported against a step that passed. That
-# is exactly the bug the TESTS_FAILED flag below fixes -- knip failing used to make the
-# summary print "Some tests failed" on a run where every test passed.
+# own flag (SONAR_FAILED below), or an earlier step's failure is reported against a step
+# that passed -- knip failing once made the summary print "Some tests failed" on a run
+# where every test passed.
 FAILED=0
-TESTS_FAILED=0
-GRAPHTY_FAILED=0
 SONAR_FAILED=0
 
 run_step() {
@@ -106,7 +103,7 @@ start_sonar() {
     echo -e "${YELLOW}> SonarQube (changed lines), in the background${NC}"
     setsid node tools/sonar-gate.mjs >"$SONAR_LOG" 2>&1 &
     SONAR_PGID=$!
-    trap '[ -n "$SONAR_PGID" ] && kill -- -"$SONAR_PGID" 2>/dev/null' EXIT
+    trap '[ -n "$SONAR_PGID" ] && kill -- -"$SONAR_PGID" 2>/dev/null; [ -n "$SCREENSHOTS_PGID" ] && kill -- -"$SCREENSHOTS_PGID" 2>/dev/null' EXIT
     echo ""
 }
 join_sonar() {
@@ -246,146 +243,39 @@ run_step "Legacy graph API use" "pnpm run check:legacy-use"
 # downloads the pinned lychee binary. See tools/check-links.sh.
 run_step "Links" "./tools/check-links.sh --offline"
 
-# Run fast tests for each package
-# These run only the 'default' project (happy-dom/jsdom/node tests, no playwright)
-echo -e "${YELLOW}> Fast tests${NC}"
-
-# Each test package ORs into both flags: FAILED for the exit code, TESTS_FAILED so the
-# per-block verdict below reports only what the tests themselves did.
-
-# graph-format - single project, all tests are fast (node, no browser)
-echo "  Testing graph-format..."
-affected graph-format && { (cd graph-format && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
-
-# graph-io - single project, all tests are fast (node, no browser); needs graph-format/dist (built above)
-echo "  Testing graph-io..."
-affected graph-io && { (cd graph-io && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
-
-# graph-samples - single project, all tests are fast (node, no browser); needs graph-format/dist (built above)
-echo "  Testing graph-samples..."
-affected graph-samples && { (cd graph-samples && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
-
-# webgpu-graph-algorithms - the node project only (design 12.5): Dawn on the local adapter -- NVIDIA when
-# LD_LIBRARY_PATH carries the libEGL tree (package CLAUDE.md), else Mesa lavapipe (about 5 minutes); the
-# browser project and the no-subgroups pass run in CI. GRAPHTY_GPU_REQUIRE=any: a machine with no adapter
-# fails up front instead of skipping every GPU test and reporting a vacuous pass. The libEGL tree comes from
-# GRAPHTY_EGL_LIB_DIR (the variable the browser project already reads), else the main checkout's gitignored
-# tmp/egl/ (found through the git common dir, so a push from a worktree finds it too); it is prepended to
-# LD_LIBRARY_PATH for this one command. The test setup prints the adapter that ran.
-echo "  Testing webgpu-graph-algorithms..."
-EGL_LIB_DIR="${GRAPHTY_EGL_LIB_DIR:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/tmp/egl/root/usr/lib/x86_64-linux-gnu}"
-WEBGPU_LD_PATH="$LD_LIBRARY_PATH"
-[ -d "$EGL_LIB_DIR" ] && WEBGPU_LD_PATH="$EGL_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-affected webgpu-graph-algorithms && { (cd webgpu-graph-algorithms && LD_LIBRARY_PATH="$WEBGPU_LD_PATH" GRAPHTY_GPU_REQUIRE=any npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
-
-# algorithms - has test:run that runs --project=default
-echo "  Testing algorithms..."
-affected algorithms && { (cd algorithms && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
-
-# layout - single project, all tests are fast
-echo "  Testing layout..."
-affected layout && { (cd layout && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
-
-# graphty-element - four projects: default, mesh, contract and xr. The browser, interactions,
-# storybook and llm-regression projects stay in CI.
-#
-# What each of the three buys, with the wall clock measured on 2026-09-21 on a loaded box:
-#
-#   default  (~19s, 4837 tests) the node lane, unchanged.
-#
-#   mesh     (~3s, 601 tests)   Babylon's NullEngine against the real NodeMesh, EdgeMesh, MeshCache
-#                               and RichTextLabel. Until now this ran nowhere -- not in this gate,
-#                               not in CI -- because it lived in test/mesh-testing/vitest-mesh.config.ts,
-#                               which no workflow, tool or nx target referenced. It is a project now
-#                               (vitest.config.ts) and three seconds is not a trade worth thinking about.
-#
-#   contract (~25s, 31 tests)   the browser tests that read what was actually PAINTED: pixels in the
-#                               frame buffer, the order style layers landed in, whether a story's
-#                               setup was applied at all. These are the tests that catch the class of
-#                               defect a person found by opening Storybook -- blank labels, every
-#                               layered-style story rendering the same picture -- and the only reason
-#                               they are worth 25 seconds is that nothing else in this gate can see it.
-#
-#   xr       (3 files)          WebXR: real immersive VR and AR sessions on an emulated headset (IWER),
-#                               plus the XR buttons and UI. Nothing else anywhere starts an XR session,
-#                               so without this lane a broken headset path ships unnoticed. CI runs the
-#                               same project inside its five browser shards.
-#
-# What is deliberately NOT here, and why. The full browser project is 463s and the storybook project
-# is 290s, measured. Either one roughly doubles a gate that already costs about six minutes, and a
-# storybook failure is the slow kind: a failing story spends its whole 12-second settle budget before
-# giving up. A gate people bypass with --no-verify catches nothing at all, so both stay in CI, where
-# five and four shards absorb them. The contract lane is the cheap substitute: same class of defect,
-# a twentieth of the time.
-echo "  Testing graphty-element (default + mesh + contract + xr)..."
-affected graphty-element && { (cd graphty-element && npm run test:prepush) || { FAILED=1; TESTS_FAILED=1; }; }
-
-# The cost-estimate stopwatch test is NOT part of this gate. It runs in CI's "Cost Estimate Accuracy"
-# job on every push to master (and by hand with `pnpm --filter @graphty/graphty-element run test:cost`),
-# where a drift turns that job red without blocking anyone. It stays out of here because a gate cannot
-# promise an idle machine: even timed on running time and pinned to the P-cores it cannot be made immune
-# to a busy hyperthread sibling -- memory-bound rows such as degree run 2-2.7x slower while the
-# calibration probe slows 1.5x (see test/session/cost/estimate-against-measured-runs.test.ts).
-
-# graphty is NOT run here -- it has no 'default' project to run. Its whole suite is
-# playwright-backed, so it gets its own step (and its own flag) after this block.
-
-# remote-logger - has multiple projects, run default and ui-unit
-echo "  Testing remote-logger..."
-affected @graphty/remote-logger && { (cd remote-logger && npm run test:run -- --project=default --project=ui-unit) || { FAILED=1; TESTS_FAILED=1; }; }
-
-# visual-review - Node.js unit tests of the results format and the comparison
-echo "  Testing visual-review..."
-affected visual-review && { (cd visual-review && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
-
-# compact-mantine - run only default project
-echo "  Testing compact-mantine..."
-affected compact-mantine && { (cd compact-mantine && npm run test:run -- --project=default) || { FAILED=1; TESTS_FAILED=1; }; }
-
-if [ $TESTS_FAILED -eq 0 ]; then
-    echo -e "${GREEN}[PASS] Fast tests passed${NC}"
-else
-    echo -e "${RED}[FAIL] Some tests failed${NC}"
-fi
+# Screenshots, in the background while the tests run: tools/visual-preview.sh --head captures the
+# Storybooks this push affects, on the commit being pushed merged into origin/master, with the pinned
+# fonts and master's capture code, exactly as CI's visual job will -- in its own worktree
+# (.worktrees/visual-preview), so nothing here touches this checkout. When the branch has an open pull
+# request the capture lands as its local preview, which the owner's review page offers for review and
+# Finish before CI's capture exists. Changed or new images never block the push (the owner reviews
+# them); a capture that crashes or a story that fails to render does. Its own process group, killed
+# by the EXIT trap like SonarQube's.
+SCREENSHOTS_PGID=""
+SCREENSHOTS_LOG="$(git rev-parse --path-format=absolute --git-common-dir)/visual-preview/prepush-$(basename "$ROOT_DIR").log"
+mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
+echo -e "${YELLOW}> Screenshots, in the background${NC}"
+setsid ./tools/visual-preview.sh --head HEAD >"$SCREENSHOTS_LOG" 2>&1 &
+SCREENSHOTS_PGID=$!
+trap '[ -n "$SONAR_PGID" ] && kill -- -"$SONAR_PGID" 2>/dev/null; [ -n "$SCREENSHOTS_PGID" ] && kill -- -"$SCREENSHOTS_PGID" 2>/dev/null' EXIT
 echo ""
 
-# graphty -- the FULL app shell suite, browser (playwright/chromium) and all.
-#
-# This is a separate step rather than a line in the "Fast tests" block above because it
-# is not a 'default'-project run: graphty/vitest.config.ts runs the app's tests in a browser
-# project, plus a small node project for its lint rules, and `npm run test:run` runs both.
-#
-# Running all of it is a measured choice, not an assumption. Wall clock for the whole
-# suite -- 1762 tests across 109 files -- is ~14s, and ~14s again with node_modules/.vite
-# deleted first, because vitest parallelises the files across workers and the per-file
-# cost is milliseconds. That is cheap enough to sit in a pre-push hook, so the whole
-# suite runs. The rejected alternative was carving out a happy-dom "fast" project and
-# running only that, which would have skipped every test that renders React against a
-# real browser -- i.e. most of the shell -- while still printing a graphty PASS.
-#
-# Its own flag, per the rule at the top of this file: graphty must not be graded by the
-# fast-test block's failures, nor its failures reported against them.
-#
-# Bounded by GRAPHTY_TEST_TIMEOUT (default 15 minutes; a loaded box takes about 70 s). On
-# 2026-10-03 this step hung for 50 minutes on a Vite dependency reload (issue #885) while every
-# other push queued behind tmp/prepush.lock; a hang now fails the push instead. timeout signals
-# the whole process group, so vitest's Chromium goes with it.
-echo -e "${YELLOW}> graphty tests (full browser suite)${NC}"
-if affected graphty; then
-    GRAPHTY_TEST_TIMEOUT="${GRAPHTY_TEST_TIMEOUT:-15m}"
-    (cd graphty && timeout --kill-after=30s "$GRAPHTY_TEST_TIMEOUT" npm run test:run)
-    rc=$?
-    if [ $rc -eq 124 ] || [ $rc -eq 137 ]; then
-        echo -e "${RED}graphty tests did not finish within $GRAPHTY_TEST_TIMEOUT and were stopped${NC}"
-    fi
-    [ $rc -eq 0 ] || { FAILED=1; GRAPHTY_FAILED=1; }
-fi
+# Tests: every test shard CI's test job runs for this push, with CI's commands and environment, read
+# from tools/ci-test-matrix.mjs (the list ci.yml plans from) by tools/prepush-tests.mjs, so this gate
+# and CI cannot drift. Browser shards share the machine's four-browser cap; the first failing shard
+# stops the rest. Each shard's log is in tmp/prepush-tests/.
+run_step "Tests (the CI shards of the affected packages)" "node tools/prepush-tests.mjs '$PROJECTS'"
 
-if [ $GRAPHTY_FAILED -eq 0 ]; then
-    echo -e "${GREEN}[PASS] graphty tests passed${NC}"
+echo -e "${YELLOW}> Screenshots${NC}"
+if wait "$SCREENSHOTS_PGID"; then
+    cat "$SCREENSHOTS_LOG"
+    echo -e "${GREEN}[PASS] Screenshots captured${NC}"
 else
-    echo -e "${RED}[FAIL] graphty tests failed${NC}"
+    cat "$SCREENSHOTS_LOG"
+    echo -e "${RED}[FAIL] Screenshots: the capture failed (above; the full log is in tmp/visual-review/local/ of the main checkout)${NC}"
+    FAILED=1
 fi
+SCREENSHOTS_PGID=""
 echo ""
 
 join_sonar

@@ -10,6 +10,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { localShards, shardEnv } from "./prepush-tests.mjs";
 import { decide, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { strayChanges } from "./release-diff.mjs";
@@ -68,6 +69,74 @@ describe("the test matrix", () => {
         assert.match(r.stdout, /::error::failed: b$/m);
         const ok = groupEntry("g", [fake("a", "true"), fake("c", "true")]);
         assert.equal(spawnSync("bash", ["-e", "-c", ok["test-command"]]).status, 0);
+    });
+});
+
+describe("the pre-push gate matches CI", () => {
+    const tool = (name) => readFileSync(new URL(name, import.meta.url), "utf8");
+    // A script without its comment lines, so prose about a command is not mistaken for running it.
+    const code = (text) => text.replace(/^\s*#.*$/gm, "");
+    // The shards one CI matrix runs: a group job runs its members, named by its `echo "==> <shard>"` lines.
+    const ciShards = (affected) =>
+        plan(affected).flatMap((e) =>
+            e.shard in GROUPS ? [...e["test-command"].matchAll(/echo "==> ([^"]+)"/g)].map((m) => m[1]) : [e.shard],
+        );
+
+    it("runs exactly the shards CI runs, for every affected set", () => {
+        const sets = [[], PACKAGES, ...PACKAGES.map((p) => [p]), ["@graphty/remote-logger", "graph-io"]];
+        for (const affected of sets) {
+            const local = localShards(affected).map((s) => s.shard);
+            assert.deepEqual([...local].sort(), ciShards(affected.map((p) => p.replace(/^@graphty\//, ""))).sort());
+            for (const s of localShards(affected)) {
+                assert.equal(
+                    s,
+                    SHARDS.find((x) => x.shard === s.shard),
+                    "with CI's own entry, so CI's command",
+                );
+            }
+        }
+    });
+
+    it("tests through tools/prepush-tests.mjs only, on CI's affected set", () => {
+        const prepush = code(tool("prepush.sh"));
+        assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
+        assert.match(prepush, /run_step "[^"]+" "node tools\/prepush-tests.mjs '\$PROJECTS'"/);
+        // No test command of its own, which could drift from CI's.
+        assert.doesNotMatch(prepush, /vitest|test:run|test:prepush|nx run-many -t test|:coverage/);
+        const ci = workflow("ci.yml");
+        assert.match(job(ci, "build"), /node tools\/ci-test-matrix.mjs "\$all" "\$affected"/);
+        assert.match(job(ci, "test"), /run: \$\{\{ matrix.test-command \}\}/);
+    });
+
+    it("runs each shard in CI's environment, moving only where a shared package writes its coverage", () => {
+        assert.match(code(tool("run-tests.sh")), /\n\s+export CI=true\n/);
+        assert.match(code(tool("prepush-tests.mjs")), /"bash", "tools\/run-tests.sh", shard.shard/);
+        for (const s of SHARDS) {
+            const env = shardEnv(s);
+            if (["graphty-element", "algorithms"].includes(s.package)) {
+                assert.deepEqual(env, { COVERAGE_DIR: `.coverage-parts/${s.shard}` });
+            } else {
+                assert.deepEqual(env, {}, s.shard);
+            }
+        }
+    });
+
+    it("captures the screenshots and fails only on a failed capture", () => {
+        const prepush = code(tool("prepush.sh"));
+        assert.match(prepush, /setsid \.\/tools\/visual-preview.sh --head HEAD /);
+        assert.match(prepush, /if wait "\$SCREENSHOTS_PGID"; then[\s\S]*?else[\s\S]*?FAILED=1\n/);
+        const preview = code(tool("visual-preview.sh"));
+        assert.match(preview, /merge-tree --write-tree origin\/master "\$HEAD"/);
+        assert.match(preview, /select\(.status == "failed"\)/);
+    });
+
+    it("uploads Git LFS objects before anything else, and stops the push when that fails", () => {
+        const hook = readFileSync(new URL("../.husky/pre-push", import.meta.url), "utf8");
+        const commands = code(hook)
+            .split("\n")
+            .map((l) => l.trim())
+            .filter((l) => l && !l.startsWith("#!"));
+        assert.equal(commands[0], './tools/lfs-pre-push.sh "$@" || exit 1');
     });
 });
 

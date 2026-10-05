@@ -14,7 +14,8 @@
 #
 # Build first, as CI does: pnpm exec nx run-many -t build
 #
-# The environment CI sets up per shard is reproduced here: FC_FONTATIONS=1 for browser shards
+# The environment CI sets up per shard is reproduced here: CI=true for every shard (several
+# tests and configs are stricter under it, and it adds the junit reporter), FC_FONTATIONS=1 for browser shards
 # (headless Chromium can crash at startup without it), and for the lavapipe shard the Mesa
 # lavapipe Vulkan ICD with GRAPHTY_GPU_ADAPTER=llvmpipe and GRAPHTY_GPU_REQUIRE=any. Install
 # mesa-vulkan-drivers for that one, or set VK_DRIVER_FILES yourself.
@@ -42,6 +43,7 @@ run_shard() {
     fi
     IFS=$'\t' read -r _ browser lavapipe cmd <<<"$line"
     (
+        export CI=true
         [ "$browser" = 1 ] && export FC_FONTATIONS=1
         if [ "$lavapipe" = 1 ]; then
             if [ -z "${VK_DRIVER_FILES:-}" ]; then

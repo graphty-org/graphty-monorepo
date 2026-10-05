@@ -1,11 +1,10 @@
 #!/bin/sh
 # Pre-push hook.
 #
-# Runs tools/prepush.sh for the packages this push affects: build, lint, knip, then the fast tests --
-# each package's node-only project, graphty-element's default, mesh and contract
-# projects, and graphty's full browser suite. graphty-element's browser,
-# interactions and storybook projects are CI-only; tools/prepush.sh says why, with
-# the wall clock each one costs.
+# Runs tools/prepush.sh for the packages this push affects: build, lint, knip, every test shard the
+# pull request's CI runs (with CI's commands, from tools/ci-test-matrix.mjs), and the screenshots of
+# the affected Storybooks on this commit merged into origin/master (tools/visual-preview.sh --head),
+# which become the pull request's local preview on the owner's review page.
 #
 # It also runs "SonarQube (changed lines)" (tools/sonar-gate.mjs, in the background): a new SonarQube
 # issue or security hotspot on a line this push adds or changes fails the push. Off the owner's network

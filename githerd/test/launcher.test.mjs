@@ -406,7 +406,8 @@ describe("startup", () => {
     });
 
     it("does not restart for a stale lastPollOkAt alone", async () => {
-        await ensureDaemon(context());
+        // The daemon answers /health before its first loop tick: wait for that tick.
+        await startDaemon();
         const h = await health();
         // Every gh call fails: GitHub is "down", but the loop ticks.
         expect(h.lastPollOkAt).toBeNull();

@@ -595,7 +595,7 @@ export async function startDaemon({
     let fenced = false;
     /** set once halt releases the lock: work that ends later must not write the state */
     let released = false;
-    /** @type {Set<Promise<void>>} ledger appends not yet on disk */
+    /** @type {Set<Promise<void>>} ledger appends not yet on disk, and the fatal page's delivery */
     const writes = new Set();
     let stopping = false;
     /** @type {any} */
@@ -2924,10 +2924,14 @@ export async function startDaemon({
             bypass: true,
             always: true,
         });
-        notifier
+        // Tracked with the ledger appends, so a shutdown waits for the page and its ledger lines
+        // instead of leaving them to land in a state directory that may already be gone.
+        const paged = notifier
             .flush()
             .then(save)
             .catch((err) => say("error", `fatal page: ${err.message}`));
+        writes.add(paged);
+        void paged.finally(() => writes.delete(paged));
     }
 
     /**

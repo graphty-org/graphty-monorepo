@@ -31,6 +31,10 @@ const rows = (name) =>
         .filter(Boolean)
         .map((l) => JSON.parse(l));
 
+/** The record's attempts, and master's GPU runs: read once, not on every fake GitHub answer. */
+const ATTEMPTS = rows("attempts.jsonl");
+const GPU_RUNS = rows("runs-master.jsonl").filter((r) => r.name === "GPU");
+
 /**
  * Master's GPU runs as GitHub answered for them at `t`, newest first: each run's latest attempt
  * started by then, in progress until its recorded end.
@@ -38,9 +42,8 @@ const rows = (name) =>
  * @returns {any[]} the runs
  */
 function gpuRuns(t) {
-    const attempts = rows("attempts.jsonl");
-    return rows("runs-master.jsonl")
-        .filter((r) => r.name === "GPU" && Date.parse(r.created_at) <= t)
+    const attempts = ATTEMPTS;
+    return GPU_RUNS.filter((r) => Date.parse(r.created_at) <= t)
         .map((r) => {
             const mine = attempts.filter((a) => a.id === r.id && Date.parse(a.run_started_at) <= t);
             const a = mine.at(-1) ?? { run_attempt: r.run_attempt, updated_at: r.updated_at, conclusion: r.conclusion };

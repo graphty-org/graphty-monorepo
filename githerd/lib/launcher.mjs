@@ -1072,7 +1072,7 @@ const daemonUrl = (health) => `http://127.0.0.1:${health.port}`;
 /**
  * What ensureDaemon answers about a daemon that is up: `down` in fatal mode, `warm` on the current
  * code, and on older code what `olderCode` says. A daemon that is up but does not answer /health
- * within the wait is an error, never a restart.
+ * within the wait, or whose process is gone, is an error, never a restart.
  * @param {LauncherContext} ctx the context
  * @param {{branch: string, hash: string, version: string}} target the code the daemon should run
  * @returns {Promise<{url: string, action: "warm" | "down" | "gating" | "refused", fatal?: string} | null>}
@@ -1080,7 +1080,13 @@ const daemonUrl = (health) => `http://127.0.0.1:${health.port}`;
  */
 async function upAnswer(ctx, target) {
     if (daemonDown(ctx)) return null;
-    const { health, error } = await waitFor(ctx, (h) => ours(ctx, h));
+    // A daemon whose process is gone will not answer: say so at once rather than hold every caller
+    // of this restarter for the whole wait (the restart itself waits for `alive` to age).
+    const gone = async () => {
+        const { lock } = readLiveness(ctx.stateDir);
+        return lock?.pid && !sameProcess(lock) ? `its process ${lock.pid} is gone` : null;
+    };
+    const { health, error } = await waitFor(ctx, (h) => ours(ctx, h), gone);
     if (!health) throw new Error(`the daemon is running but does not answer: ${error}`);
     if (health.codeHash !== target.hash) return olderCode(ctx, target, health);
     settleAdoption(ctx, health.codeHash);

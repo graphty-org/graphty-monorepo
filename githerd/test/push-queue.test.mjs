@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { createPushQueue } from "../lib/actor/push.mjs";
@@ -481,13 +481,29 @@ describe("the machine's push queue", () => {
     });
 
     it("charges no time waiting behind other sessions' gates to the push's bound", async () => {
-        queue = makeQueue({ queueScript: fakeQueue(), defaultGateMs: 50 });
-        state.pushQueue.gateRuns = [10];
-        const a = workingJob("a");
-        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
-        await queue.drain();
-        // 300 ms in the queue against a 100 ms bound for the gate: it still pushed.
-        expect(remoteHead("githerd/a")).toBe(a.head);
+        // The queue holds the push until the test lets it go, and the daemon's timers run on a
+        // clock only the test moves: 1 s spent waiting against a 100 ms bound for the gate, with
+        // no real clock in the outcome.
+        const script = join(repo.tmp, "push-queue.sh");
+        const release = join(repo.tmp, "release");
+        put(
+            script,
+            `echo "$*" >> "${repo.tmp}/queue-log"\nwhile [ ! -e "${release}" ]; do sleep 0.02; done\necho "Pre-push validation"\nexec "$@"\n`,
+        );
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            queue = makeQueue({ queueScript: script, defaultGateMs: 50 });
+            state.pushQueue.gateRuns = [10];
+            const a = workingJob("a");
+            await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+            while (!existsSync(join(repo.tmp, "queue-log"))) await new Promise((r) => setImmediate(r));
+            vi.advanceTimersByTime(1000);
+            writeFileSync(release, "");
+            await queue.drain();
+            expect(remoteHead("githerd/a")).toBe(a.head);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 

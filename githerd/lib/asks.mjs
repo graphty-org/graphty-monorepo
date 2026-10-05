@@ -19,7 +19,7 @@
  * invites idle sessions to pull work (`inviteStep`).
  */
 
-import { askProblems, failingRequired, headIsGitherds, jobOnPr, prOf } from "./queue.mjs";
+import { askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf } from "./queue.mjs";
 import { ownerHeld } from "./board.mjs";
 import { releaseOwnerJob } from "./jobs.mjs";
 import { tellSessions } from "./peers.mjs";
@@ -163,16 +163,19 @@ function inviteText(job, reason) {
  * 2026-10-05): each queued job no worker slot took is announced once, to every session whose
  * registry status is `idle`. githerd's own workers are never among them (`liveSessions` leaves
  * them out). A job is marked (`invitedAt`) only once a session was there to hear it, so a job
- * queued while every session is busy is announced when one goes idle. The last invitation is kept
+ * queued while every session is busy is announced when one goes idle. A session is invited only to
+ * a job it could claim (`jobInUse` with that session, the rule githerd_next and githerd_claim
+ * apply), so a review is never announced to the pull request's author. The last invitation is kept
  * in `state.invited` for the board.
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
- *   transport: import("./peers.mjs").Transport, offered: {job: string, reason: string}[]}} opts the
- *   clock, whether the `workers` write group acts (else each send is a would-do line), the live
- *   sessions in this repository, the transport, and the queued jobs githerd would offer, in order
+ *   transport: import("./peers.mjs").Transport, offered: {job: string, reason: string}[],
+ *   config?: any}} opts the clock, whether the `workers` write group acts (else each send is a
+ *   would-do line), the live sessions in this repository, the transport, the queued jobs githerd
+ *   would offer, in order, and the config
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
-export async function inviteStep(state, { now, acting, sessions, transport, offered }) {
+export async function inviteStep(state, { now, acting, sessions, transport, offered, config }) {
     const lines = [];
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when an invitation is due */
     let idle = null;
@@ -181,13 +184,15 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
         if (job?.state !== "queued" || job.invitedAt) continue;
         idle ??= sessions().filter((s) => s.status === "idle");
         if (!idle.length) break;
-        const names = idle.map((s) => s.name);
+        const able = idle.filter((s) => !jobInUse(state, job, { config, now, session: s.sessionId }));
+        if (!able.length) continue;
+        const names = able.map((s) => s.name);
         job.invitedAt = now.toISOString();
         if (!acting) {
             const op = `invite ${names.length} idle session(s) to take ${id}`;
             lines.push({ kind: "would-do", group: "workers", op, job: id });
         }
-        const out = acting ? await tellSessions(idle, inviteText(id, reason), transport) : { sent: [], failed: [] };
+        const out = acting ? await tellSessions(able, inviteText(id, reason), transport) : { sent: [], failed: [] };
         state.invited = { at: job.invitedAt, count: acting ? out.sent.length : names.length, acting };
         lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });
     }

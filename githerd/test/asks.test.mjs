@@ -275,6 +275,40 @@ describe("inviting idle sessions to pull work", () => {
         });
         expect(state.invited).toMatchObject({ count: 1, acting: false });
     });
+
+    /**
+     * A queued review of #1082, a pull request session s1 wrote (it held the pr job that made it).
+     * @returns {any} the state
+     */
+    function ownReview() {
+        const review = Object.assign(newJob({ kind: "review", target: "#1082", id: "review-1082" }, NOW), { pr: 1082 });
+        const made = Object.assign(newJob({ kind: "pr", target: "#1082", id: "pr-1082" }, NOW), {
+            pr: 1082,
+            state: "done",
+            sessions: ["s1"],
+        });
+        return { jobs: { "review-1082": review, "pr-1082": made } };
+    }
+    const review = [{ job: "review-1082", reason: "review" }];
+    const allIdle = () => SESSIONS.map((s) => ({ ...s, status: "idle" }));
+
+    it("never invites a review's author, only the other idle sessions", async () => {
+        const state = ownReview();
+        const f = fake();
+        const lines = await inviteStep(state, { ...f.opts({ sessions: allIdle }), offered: review });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
+        expect(lines).toMatchObject([{ kind: "sessions-invited", job: "review-1082", sessions: ["graphty-14"] }]);
+    });
+
+    it("does not mark a job invited while only a session that cannot claim it is idle", async () => {
+        const state = ownReview();
+        const f = fake();
+        expect(await inviteStep(state, { ...f.opts(), offered: review })).toEqual([]);
+        expect(f.sent).toEqual([]);
+        expect(state.jobs["review-1082"].invitedAt).toBeUndefined();
+        await inviteStep(state, { ...f.opts({ sessions: allIdle }), offered: review });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
+    });
 });
 
 describe("asking an owner session for the status of the job it holds", () => {

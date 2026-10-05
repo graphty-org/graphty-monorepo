@@ -1724,6 +1724,7 @@ export async function startDaemon({
             sessions: messageable,
             transport: peers.transport ?? socketTransport(),
             offered,
+            config,
         });
         for (const line of lines) void ledger(line);
     }

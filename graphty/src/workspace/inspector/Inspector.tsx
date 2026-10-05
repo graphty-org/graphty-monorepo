@@ -11,6 +11,7 @@ import {
     type LucideIcon,
     MoreHorizontal,
     MousePointer2,
+    Paintbrush,
     Shapes,
     Share2,
     Spline,
@@ -56,6 +57,7 @@ const KIND_ICONS: Readonly<Record<InspectedKindId, LucideIcon>> = {
     "group-row": Component,
     "everything-row": Layers,
     "selection-row": MousePointer2,
+    "layer-row": Paintbrush,
     attribute: Columns3,
 };
 
@@ -327,6 +329,8 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             return { name: "Everything" };
         case "selection-row":
             return { name: "Selection" };
+        case "layer-row":
+            return { name: session.styles.get(resolved.layer)?.name ?? "Gone" };
         default: {
             const column = session.data.attributes().find((candidate) => candidate.path === resolved.path);
             const made = column?.runId === undefined ? undefined : session.runs.get(column.runId);
@@ -384,10 +388,12 @@ function bodyOf(
         case "group-row":
             return run === undefined
                 ? { only: <Gone /> }
-                : { style: <StyleTab />, values: <GroupValues run={run} group={resolved.group} version={version} /> };
+                : // A group is not a style layer, so it has nothing for the Style tab to edit.
+                  { only: <GroupValues run={run} group={resolved.group} version={version} /> };
         case "everything-row":
             return { style: <StyleTab />, values: <EverythingValues /> };
         case "selection-row":
+        case "layer-row":
             return { only: <StyleTab /> };
         default:
             return { only: <AttributeValues path={resolved.path} /> };

@@ -23,6 +23,7 @@ import type { WorkspaceState } from "../state/store";
  *   view: the run's result shape decides between the measure and the groups.
  * - `group-row`: one group of a grouping run; the id is `groupKey(runId, group)`.
  * - `everything-row` and `selection-row`: the Graph place's two built-in rows; no id.
+ * - `layer-row`: one of the reader's own style layers in the Graph place; the id is the layer id.
  * - `attribute`: an attribute from the Data place; the id is its path, such as `data.age`.
  */
 export const INSPECTED_KINDS = [
@@ -36,6 +37,7 @@ export const INSPECTED_KINDS = [
     "group-row",
     "everything-row",
     "selection-row",
+    "layer-row",
     "attribute",
 ] as const;
 
@@ -52,6 +54,7 @@ export type Resolved =
     | { readonly kind: "measure-row" | "run-row"; readonly run: RunId }
     | { readonly kind: "group-row"; readonly run: RunId; readonly group: string | number }
     | { readonly kind: "everything-row" | "selection-row" }
+    | { readonly kind: "layer-row"; readonly layer: string }
     | { readonly kind: "attribute"; readonly path: string };
 
 /**
@@ -137,6 +140,11 @@ function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
         case "everything-row":
         case "selection-row":
             return { kind: inspected.kind };
+        case "layer-row":
+            if (inspected.id !== undefined) {
+                return { kind: "layer-row", layer: inspected.id };
+            }
+            break;
         case "attribute":
             if (inspected.id !== undefined) {
                 return { kind: "attribute", path: inspected.id };

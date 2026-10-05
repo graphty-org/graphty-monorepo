@@ -25,5 +25,5 @@ export const registration = defineRegistration({
             },
         },
     ],
-    inspectedKinds: [{ kind: "layer-row", tabs: ["style", "values"] }],
+    inspectedKinds: [{ kind: "layer-row", tabs: [] }],
 });

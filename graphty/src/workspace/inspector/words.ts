@@ -25,6 +25,7 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     "group-row": "Group",
     "everything-row": "Everything",
     "selection-row": "Selection",
+    "layer-row": "Layer",
     attribute: "Attribute",
 };
 

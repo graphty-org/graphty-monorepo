@@ -19,7 +19,7 @@ export const registration = defineRegistration({
         { kind: "neighborhood", tabs: [] },
         { kind: "measure-row", tabs: ["style", "values"], defaultTab: "values" },
         { kind: "run-row", tabs: ["style", "values"], defaultTab: "values" },
-        { kind: "group-row", tabs: ["style", "values"], defaultTab: "values" },
+        { kind: "group-row", tabs: [] },
         { kind: "everything-row", tabs: ["style", "values"], defaultTab: "style" },
         { kind: "selection-row", tabs: [] },
         { kind: "attribute", tabs: [] },

@@ -35,6 +35,11 @@ describe("what the inspector shows", () => {
             kind: "attribute",
             path: "data.age",
         });
+        // The Graph place's row for one of the reader's own layers.
+        assert.deepEqual(resolveInspected({ kind: "layer-row", id: "my-gray" }, selection), {
+            kind: "layer-row",
+            layer: "my-gray",
+        });
     });
 
     it('keeps node 1 and node "1" apart', () => {

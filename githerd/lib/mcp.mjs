@@ -447,8 +447,10 @@ export const TOOLS = [
     {
         name: "githerd_rerun",
         description:
-            "Ask for one re-run of a failed CI job. Granted once per head and failure; never twice for a paid lane.",
-        inputSchema: object({ job: JOB, run: NUMBER, jobId: NUMBER, reason: REASON }, [
+            "Ask for one re-run of a failed CI job. Granted once per head and failure; never twice for a paid lane. " +
+            "pr names the pull request when it is not the job's own: one this session took with githerd_mine, " +
+            "or an open one whose description names the job's issue.",
+        inputSchema: object({ job: JOB, run: NUMBER, jobId: NUMBER, reason: REASON, pr: NUMBER }, [
             "job",
             "run",
             "jobId",

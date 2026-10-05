@@ -431,6 +431,56 @@ describe("sessionToolSet", () => {
         expect((await call(ctx, "githerd_rerun", args)).text).toMatch(/no pull request githerd knows/);
     });
 
+    it("re-runs on a named pull request: the job's, one the session took, or one naming the issue", async () => {
+        const job = newJob({ kind: "issue", target: "#736", id: "issue-736" }, NOW);
+        move(job, "starting", NOW, { holder: { session: "w1", nonce: "n1" } });
+        move(job, "working", NOW);
+        job.pr = 1080;
+        const sha = (/** @type {string} */ c) => c.repeat(40);
+        const state = {
+            jobs: { "issue-736": job },
+            prs: {
+                1080: { headSha: sha("1") },
+                1082: { headSha: sha("2") },
+                1083: { headSha: sha("3") },
+                1090: { headSha: sha("4") },
+            },
+            asks: { 1082: { head: sha("2"), sessions: [], owner: { session: "w1", name: "w1" } } },
+        };
+        const { ctx, writes } = setup(state);
+        const { answers } = ctx.github;
+        for (const [n, c, run, id] of [
+            [1080, "1", 31, 41],
+            [1082, "2", 32, 42],
+            [1083, "3", 33, 43],
+            [1090, "4", 34, 44],
+        ]) {
+            answers[`repos/${REPO}/actions/runs/${run}`] = { head_sha: sha(String(c)), run_attempt: 1 };
+            answers[`repos/${REPO}/actions/jobs/${id}`] = { run_id: run, conclusion: "failure", name: `Build ${n}` };
+        }
+        answers[`repos/${REPO}/pulls/1083`] = { body: "Does part of the issue.\n\nRefs #736" };
+        answers[`repos/${REPO}/pulls/1090`] = { body: "Refs #7360" };
+        answers[`repos/${REPO}/pulls/1082`] = { body: "Unrelated work." };
+        const meta = { session: "w1", job: "issue-736", nonce: "n1" };
+        const ask = (/** @type {number} */ pr, /** @type {number} */ run, /** @type {number} */ jobId) =>
+            call(ctx, "githerd_rerun", { job: "issue-736", run, jobId, reason: "runner lost", pr }, meta);
+        expect((await ask(1080, 31, 41)).text).toBe("would re-run Build 1080 (dry-run)");
+        expect((await ask(1082, 32, 42)).text).toBe("would re-run Build 1082 (dry-run)");
+        expect((await ask(1083, 33, 43)).text).toBe("would re-run Build 1083 (dry-run)");
+        const refused = await ask(1090, 34, 44);
+        expect(refused).toMatchObject({ isError: true });
+        expect(refused.text).toMatch(/not issue-736's pull request/);
+        // The run must still be on the named pull request's head.
+        expect((await ask(1082, 31, 41)).text).toMatch(/not on the head/);
+        // Dry-run: every grant went to the write gate, which performed none.
+        expect(writes).toHaveLength(3);
+        expect(state).not.toHaveProperty(["reruns", `${sha("4")}:Build 1090`]);
+        // Another session's githerd_mine does not count for this one.
+        state.asks[1082].owner.session = "w2";
+        state.reruns = {};
+        expect((await ask(1082, 32, 42)).text).toMatch(/not issue-736's pull request/);
+    });
+
     it("reads an issue or pull request with only the owner's text", async () => {
         const state = { jobs: {}, trust: { login: "owner" } };
         const { ctx } = setup(state);

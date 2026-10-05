@@ -15,7 +15,7 @@ import { availableParallelism, loadavg } from "node:os";
 import { join } from "node:path";
 
 import * as board from "./board.mjs";
-import { githerdDone } from "./done.mjs";
+import { githerdDone, namesIssue, numberOf } from "./done.mjs";
 import { taskOutputPath } from "./hook.mjs";
 import { askOwner, recordOwner } from "./owner.mjs";
 import { jobText } from "./job-text.mjs";
@@ -303,7 +303,7 @@ export function sessionToolSet(ctx) {
             return answer.ok === false ? { text: JSON.stringify(answer), isError: true } : JSON.stringify(answer);
         },
         githerd_rerun: async (args, caller, client) =>
-            rerun(ctx, heldJob(state, args.job, sessionOf(caller, client), client), args),
+            rerun(ctx, heldJob(state, args.job, sessionOf(caller, client), client), args, sessionOf(caller, client)),
         githerd_read: async (args) => read(ctx, args),
         githerd_done: async (args, caller, client) => {
             const session = sessionOf(caller, client);
@@ -420,17 +420,37 @@ function unjudged(state, key) {
 }
 
 /**
- * `githerd_rerun`: one re-run of a failed CI job on the job's pull request head, granted once per
- * head and job name, through the write gate of group `worker-writes` (a `would-do` line until it acts).
+ * `githerd_rerun`: one re-run of a failed CI job on a pull request head, granted once per head and
+ * job name, through the write gate of group `worker-writes` (a `would-do` line until it acts). The
+ * pull request is the job's, or `args.pr` when that is the job's, one the calling session took with
+ * `githerd_mine`, or an open one that names the job's issue (an issue job's partial pull requests).
  * @param {SessionToolContext} ctx the context
  * @param {any} job the caller's job
- * @param {{run: number, jobId: number, reason: string}} args the request
+ * @param {{run: number, jobId: number, reason: string, pr?: number}} args the request
+ * @param {string | null} session the calling session
  * @returns {Promise<string>} what happened
  */
-async function rerun(ctx, job, args) {
+async function rerun(ctx, job, args, session) {
     const repo = ctx.config.repo;
-    const head = job.pr ? ctx.state.prs?.[String(job.pr)]?.headSha : null;
-    if (!head) throw new Error(`${job.id} has no pull request githerd knows the head of`);
+    const pr = args.pr ?? job.pr;
+    const rec = pr ? ctx.state.prs?.[String(pr)] : null;
+    const head = rec?.headSha;
+    if (!head) {
+        throw new Error(
+            args.pr === undefined
+                ? `${job.id} has no pull request githerd knows the head of; name one with pr`
+                : `githerd knows no open pull request #${args.pr}`,
+        );
+    }
+    if (args.pr !== undefined && args.pr !== job.pr && askFor(ctx.state, args.pr)?.owner?.session !== session) {
+        const issue = job.kind === "issue" ? numberOf(job.target) : null;
+        const body = issue ? (await ctx.github.get(`repos/${repo}/pulls/${args.pr}`)).body?.body : null;
+        if (!issue || !namesIssue(rec, body, issue)) {
+            throw new Error(
+                `#${args.pr} is not ${job.id}'s pull request, one this session took, nor one naming its issue`,
+            );
+        }
+    }
     const run = (await ctx.github.get(`repos/${repo}/actions/runs/${args.run}`)).body ?? {};
     if (run.head_sha !== head) throw new Error(`run ${args.run} is not on the head ${head.slice(0, 9)}`);
     const failed = (await ctx.github.get(`repos/${repo}/actions/jobs/${args.jobId}`)).body ?? {};

@@ -26,6 +26,11 @@ const GPU_CLOCK_REFUSED = [
     "core_pattern is read-only inside the job container; issue #273's guard does not hold on this lane",
 ];
 
+/** GitHub's annotations of 2026-10-05 for a hosted job no runner acquired, and one whose runner went away. */
+const NOT_ACQUIRED = "The job was not acquired by Runner of type hosted even after multiple attempts";
+const HOSTED_LOST =
+    "The hosted runner lost communication with the server. Anything in your workflow that terminates the runner process, starves it for CPU/Memory, or blocks its network access can cause this error.";
+
 /**
  * One failure per pattern, each text as it was recorded. Where the month recorded no instance,
  * the text is the tool's own message, cited.
@@ -102,12 +107,15 @@ const FIXTURES = {
             "The self-hosted runner lost communication with the server. Verify the machine is running and has a healthy network connection.",
         ],
     }),
-    // GitHub's answer when a hosted runner went away mid-job.
+    // CI, 2026-10-05: no hosted runner ever picked the job up; no runner name, no steps.
+    "hosted runner not acquired or lost": job({
+        steps: [],
+        annotations: [NOT_ACQUIRED],
+    }),
+    // A self-hosted runner shut down mid-job: the text is in the log only.
     "runner lost mid-job": job({
-        steps: ["Run tests"],
-        annotations: [
-            "The hosted runner: GitHub Actions 12 lost communication with the server. Anything in your workflow that terminates the runner process, starves it for CPU/Memory, or blocks its network access can cause this error.",
-        ],
+        labels: ["gpu-linux-t4"],
+        log: "##[error]The runner has received a shutdown signal. This can happen when the runner service is stopped, or a manually started runner is canceled.",
     }),
     // curl's answer when the resolver does not answer.
     "DNS lookup failed": job({ steps: ["Install"], log: "curl: (6) Could not resolve host: registry.npmjs.org" }),
@@ -220,6 +228,23 @@ describe("the pattern table", () => {
         });
         // A hosted job with no steps is not runner loss on a paid label.
         expect(classify(job({ steps: [], labels: ["gpu-linux-t4"] })).class).toBe("own");
+    });
+
+    it("reads a hosted runner never acquired or lost from the annotations, on master and on pull requests", () => {
+        for (const where of /** @type {const} */ (["master", "pr"]))
+            for (const text of [NOT_ACQUIRED, HOSTED_LOST])
+                expect(classify(job({ steps: [], annotations: [text] }), { where })).toMatchObject({
+                    class: "outside",
+                    reason: "hosted runner not acquired or lost",
+                });
+        // A real test failure whose output prints the same words is not runner loss: the
+        // annotation is what counts, not the log.
+        const printed = job({
+            annotations: ["Process completed with exit code 1."],
+            log: `${NOT_ACQUIRED}\n##[error]AssertionError: expected 2 to be 3`,
+        });
+        expect(classify(printed).class).toBe("own");
+        expect(classify(printed, { where: "master" }).class).toBe("unclassified");
     });
 
     it("does not take a local connection reset or a non-auth 403 for an outside or credential failure", () => {

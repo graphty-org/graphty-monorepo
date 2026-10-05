@@ -94,6 +94,9 @@ const rented = (f) => (f.labels ?? []).some((l) => l.startsWith(RENTED_PREFIX));
 /** A runner that went away mid-job, as the runner and GitHub report it. */
 const RUNNER_LOST = /received a shutdown signal|lost communication with the server/;
 
+/** GitHub's annotations for a job no hosted runner acquired, or whose hosted runner went away. */
+const HOSTED_LOST = /was not acquired by Runner of type hosted|hosted runner.*lost communication with the server/;
+
 /**
  * The text patterns, in class order. Only unambiguous failures with an obvious action are here
  * (the owner's decision of 2026-10-05): a credential, paid capacity, a runner lost mid-job, and the
@@ -123,6 +126,13 @@ export const PATTERNS = /** @type {Pattern[]} */ ([
         class: "paid-capacity",
         name: "runner lost on a rented label",
         test: (f, text) => rented(f) && (f.steps.length === 0 || text.some((l) => RUNNER_LOST.test(l))),
+    },
+    // A GitHub-hosted runner that never picked the job up, or went away under it. GitHub says so only
+    // in the check run's annotations, so this reads them alone: a test printing the same words is not it.
+    {
+        class: "outside",
+        name: "hosted runner not acquired or lost",
+        test: (f) => (f.annotations ?? []).some((a) => HOSTED_LOST.test(a)),
     },
     // The same loss on any other runner: re-run once it is back.
     { class: "outside", name: "runner lost mid-job", test: line(RUNNER_LOST) },

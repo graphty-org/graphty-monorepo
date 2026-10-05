@@ -75,7 +75,7 @@ const NOT_NEEDED_KINDS = new Set(["issue", "pr"]);
  * @param {string | number | null | undefined} target the target
  * @returns {number | null} the number
  */
-function numberOf(target) {
+export function numberOf(target) {
     const n = Number(String(target ?? "").replace(/^\D+/, ""));
     return Number.isInteger(n) && n > 0 ? n : null;
 }
@@ -159,8 +159,19 @@ async function mergedAnswer(number, view, issue) {
  */
 async function mentions(rec, number, issue, view) {
     if ((rec.references ?? []).includes(issue)) return true;
-    const body = (await view.io.pull(number))?.body ?? "";
-    return new RegExp(String.raw`#${issue}(?!\d)`).test(body);
+    return namesIssue(rec, (await view.io.pull(number))?.body, issue);
+}
+
+/**
+ * Whether a pull request names an issue, from what is at hand: a closing reference in its polled
+ * record, or the issue's number in its description.
+ * @param {any} rec the polled record
+ * @param {string | null | undefined} body its description
+ * @param {number} issue the issue
+ * @returns {boolean} true when it does
+ */
+export function namesIssue(rec, body, issue) {
+    return (rec?.references ?? []).includes(issue) || new RegExp(String.raw`#${issue}(?!\d)`).test(body ?? "");
 }
 
 /**

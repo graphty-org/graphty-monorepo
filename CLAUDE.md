@@ -172,6 +172,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
 | `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
 | `@graphty/visual-review` | `visual-review/` | 0.0.1 | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
+| `@graphty/githerd` | `githerd/` | 0.1.0 | Repository pipeline daemon (private): watches master, pull requests and issues, turns them into jobs for interactive Claude worker sessions it starts in tmux, coordinates every session through MCP tools, posts `githerd/merge` for Mergify, pages the owner only for what only he can do; configured by `githerd.config.json` |
 
 ## Monorepo Structure
 
@@ -188,6 +189,7 @@ graphty-monorepo/
 |-- compact-mantine/      # @graphty/compact-mantine: the shared Mantine theme and components
 |-- remote-logger/        # @graphty/remote-logger: browser console logs to a server and MCP
 |-- visual-review/        # @graphty/visual-review: Storybook capture and baseline review
+|-- githerd/              # @graphty/githerd: pipeline daemon, session coordination MCP tools, CLI
 |-- tools/                # Build scripts
 |   |-- merge-coverage.sh # Coverage report merging
 |   |-- run-tests.sh      # Runs one CI test shard locally, with CI's command
@@ -292,6 +294,7 @@ The `tools/` directory contains build scripts:
 | `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
+| `push-queue.sh` | Runs a command (normally `git push`) in the machine's push queue: three at once, first come first served, `PUSH_QUEUE_PRIORITY=critical` first; tickets in the main checkout's `tmp/push-queue/`. githerd's pushes use it too |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
@@ -563,7 +566,7 @@ changelog.
 The CI runs 22 test shards on a push to master, a manual dispatch or a merge-queue run. The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 13 test jobs: `small-node` (graph-format, graph-io, graph-samples, layout,
-algorithms-default) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
+algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
 graphty, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
@@ -576,6 +579,7 @@ shard. The shards:
 - `graphty`
 - `remote-logger`
 - `visual-review`
+- `githerd`
 - `compact-mantine`
 - `graphty-element-default`
 - `graphty-element-browser-1` through `graphty-element-browser-5`
@@ -1008,6 +1012,30 @@ two sessions. Until the limit resets, every `gh` call fails with HTTP 403 and me
   which `rate_limit` does not show: when calls fail while it reports requests left, retry every
   10 minutes.
 - A prompt that starts an agent which talks to GitHub carries these rules.
+
+**githerd.** Before any merge, call `githerd_status`: if master is red, do not merge anything
+except the fix for master (pushing to a pull request's branch is fine). To pick up githerd's work, call `githerd_next`: it lists the
+queued jobs you could take, with a snapshot of all work in flight. If you take one, claim it with
+`githerd_claim`, giving your overlap judgment against that snapshot, before any edit for it. Still
+end your reply with ACTION NEEDED as usual when the owner must act.
+
+### githerd
+
+githerd is the repository's pipeline daemon: it watches master, pull requests and issues, turns
+them into jobs it hands to interactive worker sessions in its own tmux server, pages the owner only
+for what only he can do, and gives every Claude session the thirteen `githerd_*` MCP tools of
+section 6 of `design/githerd/githerd-design.md` (`githerd_status`, `githerd_next`, `githerd_claim`,
+`githerd_wait`, `githerd_expect`, `githerd_push`, `githerd_rerun`, `githerd_read`, `githerd_done`,
+`githerd_ask_owner`, `githerd_record`, `githerd_mine`, `githerd_verdict`) through the server in
+`.mcp.json`. A master failure githerd cannot classify waits for a Claude session to judge it code
+or environment with `githerd_verdict` before anything is reverted. When a job waits with no free
+worker, githerd messages idle sessions once per job ("githerd has work queued ..."): if you are
+free, call `githerd_next` and claim a job; otherwise ignore it.
+When a pull request's CI fails on a head another session pushed, githerd sends each live session in
+this repository a message asking whose it is. If it is yours, call `githerd_mine` with its number
+(or claim its job); otherwise ignore the message. With no answer in 10 minutes githerd offers it as
+a job.
+Commands, the MCP server and the owner's one-time prerequisites are in `githerd/README.md`.
 
 ## Claude Session History
 

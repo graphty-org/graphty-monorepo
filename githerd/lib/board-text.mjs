@@ -213,7 +213,11 @@ const RENDER = {
         if (!jobs.length) return ["JOBS: none", ...invited];
         return [
             `JOBS (${jobs.length}):`,
-            ...jobs.map((j) => `  ${j.id} ${jobState(j, now)} -- ${j.reason || "no reason recorded"}`),
+            ...jobs.flatMap((j) => [
+                `  ${j.id} ${jobState(j, now)} -- ${j.reason || "no reason recorded"}`,
+                // The holder's last answer to githerd's status question (asks.mjs statusStep).
+                ...(j.status ? [`    status ${when(j.status.at)}: ${j.status.text}`] : []),
+            ]),
             ...invited,
         ];
     },

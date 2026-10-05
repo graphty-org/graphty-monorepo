@@ -1016,8 +1016,10 @@ two sessions. Until the limit resets, every `gh` call fails with HTTP 403 and me
 **githerd.** Before any merge, call `githerd_status`: if master is red, do not merge anything
 except the fix for master (pushing to a pull request's branch is fine). To pick up githerd's work, call `githerd_next`: it lists the
 queued jobs you could take, with a snapshot of all work in flight. If you take one, claim it with
-`githerd_claim`, giving your overlap judgment against that snapshot, before any edit for it. Still
-end your reply with ACTION NEEDED as usual when the owner must act.
+`githerd_claim`, giving your overlap judgment against that snapshot, before any edit for it. Do a
+claimed job's work in a background subagent or workflow, and keep the main conversation free to
+answer githerd's status questions. Still end your reply with ACTION NEEDED as usual when the owner
+must act.
 
 ### githerd
 
@@ -1035,6 +1037,11 @@ When a pull request's CI fails on a head another session pushed, githerd sends e
 this repository a message asking whose it is. If it is yours, call `githerd_mine` with its number
 (or claim its job); otherwise ignore the message. With no answer in 10 minutes githerd offers it as
 a job.
+While your session holds a job, githerd asks it where the job stands every 15 minutes
+("githerd: status check on <job> ..."). Answer with `githerd_expect`: the job, one line of status as
+`reason`, and the minutes until your current step ends. A question still unanswered when the next
+one is due puts the job back in the queue, and so does your session ending. So do the job's work in
+a background subagent or workflow, and keep the main conversation free to answer.
 Commands, the MCP server and the owner's one-time prerequisites are in `githerd/README.md`.
 
 ## Claude Session History

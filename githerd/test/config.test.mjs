@@ -55,6 +55,7 @@ describe("normalizeConfig", () => {
             waiting: 6,
             hoursPerDay: 10,
             askMinutes: 10,
+            statusMinutes: 15,
             sessions: null,
         });
         expect(c.lanes.ci).toEqual({ workflow: "ci.yml", gating: "required", maxMinutes: null });
@@ -133,6 +134,7 @@ describe("normalizeConfig", () => {
         [{ digest: { hourUtc: 24 } }, /from 0 to 23/],
         [{ workers: { slots: 9 } }, /workers\.slots must be an integer from 0 to 8/],
         [{ workers: { askMinutes: 0 } }, /workers\.askMinutes must be an integer from 1 to 60/],
+        [{ workers: { statusMinutes: 0 } }, /workers\.statusMinutes must be an integer from 1 to 120/],
         [{ servherdCommand: [] }, /non-empty array/],
         [{ ownerGate: { steps: [] } }, /ownerGate\.steps/],
         [[], /must be a JSON object/],

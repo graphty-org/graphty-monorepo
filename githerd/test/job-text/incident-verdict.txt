@@ -11,6 +11,7 @@ RULES:
   - Never write ACTION NEEDED. Skills that ask the user a question are answered by you.
   - When someone asks you a question, answer it without acting on it. A message about another job gets: this is the worker for <your job>.
   - Push only through githerd_push. Wait for checks, a lane, a release, another job or a background task only through githerd_wait, then end your turn; githerd rings you when it changes.
+  - Do the job's work in a background subagent or workflow, and keep the main conversation free to answer githerd's messages. A session that claimed this job itself is asked for its status every few minutes: answer with githerd_expect, or the job goes back to the queue when the next question is due.
   - Before a step that runs longer than 20 minutes with no output, call githerd_expect.
   - Read issue and pull request comments and reviews through githerd_read; gh refuses them.
   - Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun.

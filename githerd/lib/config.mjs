@@ -34,8 +34,9 @@ export const DEFAULTS = Object.freeze({
     grace: { closeIssueDays: 7, closeIssueShownDays: 3, revertMinutes: 30 },
     // The worker sessions (design 8.1): the model, the routine slots, the urgent overflow, the
     // waiting sessions kept open, and the routine worker hours a day until the usage reading is
-    // verified (urgent work is exempt); and how long githerd waits for a live session to answer that
-    // a pull request whose CI failed is its own before offering it as a job (design 8.2).
+    // verified (urgent work is exempt); how long githerd waits for a live session to answer that
+    // a pull request whose CI failed is its own before offering it as a job (design 8.2); and how
+    // often githerd asks an owner session holding a job for its status (design 8.2).
     workers: {
         model: "claude-opus-5-5",
         slots: 3,
@@ -43,6 +44,7 @@ export const DEFAULTS = Object.freeze({
         waiting: 6,
         hoursPerDay: 10,
         askMinutes: 10,
+        statusMinutes: 15,
         sessions: null,
     },
     backlog: { agingDays: 60 },
@@ -99,7 +101,7 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  *   protectedPaths: string[], actions: Record<string, boolean>,
  *   grace: { closeIssueDays: number, closeIssueShownDays: number, revertMinutes: number },
  *   workers: { model: string, slots: number, urgent: number, waiting: number, hoursPerDay: number,
- *     askMinutes: number, sessions: string[] | null },
+ *     askMinutes: number, statusMinutes: number, sessions: string[] | null },
  *   backlog: { agingDays: number },
  *   notify: { command: string[] | null, maxPerHour: number },
  *   digest: { weekday: string, hourUtc: number, issue: number | null },
@@ -261,7 +263,7 @@ function ownerGate(raw) {
 
 /**
  * The `workers` section (design 8.1): the model, limited to `MODELS`, and the session limits.
- * `sessions` names the only Claude sessions githerd messages (asks, invitations, nudges); null
+ * `sessions` names the only Claude sessions githerd messages (asks, invitations, status questions); null
  * messages every session in the repository.
  * @param {unknown} raw the section as written
  * @returns {Config["workers"]} the section
@@ -285,6 +287,7 @@ function workers(raw) {
         waiting: d.waiting,
         hoursPerDay: d.hoursPerDay,
         askMinutes: d.askMinutes,
+        statusMinutes: d.statusMinutes,
     };
     return {
         model: model ?? d.model,
@@ -295,6 +298,7 @@ function workers(raw) {
             waiting: { min: 0, max: 20 },
             hoursPerDay: { min: 1, max: 24 },
             askMinutes: { min: 1, max: 60 },
+            statusMinutes: { min: 1, max: 120 },
         }),
     };
 }

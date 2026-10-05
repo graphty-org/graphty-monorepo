@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { move, newJob } from "../lib/board.mjs";
 import { createMcpServer, TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
-import { sessionToolSet } from "../lib/session-tools.mjs";
+import { CLAIMED, sessionToolSet } from "../lib/session-tools.mjs";
 
 const NOW = new Date("2026-10-04T12:00:00Z");
 const HEAD = "a".repeat(40);
@@ -221,7 +221,11 @@ describe("sessionToolSet", () => {
         expect(stale.isError).toBe(true);
         expect(JSON.parse(stale.text)).toMatchObject({ ok: false, reason: expect.stringMatching(/stale/) });
         const ok = await call(ctx, "githerd_claim", { ...claim, snapshotVersion: next.snapshot.version }, owner);
-        expect(JSON.parse(ok.text)).toEqual({ ok: true, job: { id: "issue-9", state: "working" } });
+        expect(JSON.parse(ok.text)).toEqual({
+            ok: true,
+            job: { id: "issue-9", state: "working" },
+            instructions: CLAIMED,
+        });
         expect(commits.at(-1)).toMatchObject({ kind: "job-claim", job: "issue-9", session: "o1" });
         const claimTool = sessionToolSet(ctx).find((t) => t.name === "githerd_claim");
         await expect(claimTool?.handler(claim, {}, {})).rejects.toThrow(/not identified yet/);
@@ -263,7 +267,12 @@ describe("sessionToolSet", () => {
         expect(queued.state).toBe("queued");
 
         const ok = JSON.parse((await call(ctx, "githerd_claim", claim("#736"), owner)).text);
-        expect(ok).toEqual({ ok: true, job: { id: "issue-713", state: "blocked" }, created: "issue-736" });
+        expect(ok).toEqual({
+            ok: true,
+            job: { id: "issue-713", state: "blocked" },
+            created: "issue-736",
+            instructions: CLAIMED,
+        });
         expect(queued.waitingFor).toMatchObject({ job: "issue-736" });
         expect(ctx.state.jobs["issue-736"]).toMatchObject({
             kind: "issue",
@@ -290,7 +299,7 @@ describe("sessionToolSet", () => {
                 plan: "after it",
             };
             const ok = JSON.parse((await call(ctx, "githerd_claim", claim, { session: "o1" })).text);
-            expect(ok).toEqual({ ok: true, job: { id: "issue-713", state: "blocked" } });
+            expect(ok).toEqual({ ok: true, job: { id: "issue-713", state: "blocked" }, instructions: CLAIMED });
             expect(fresh.waitingFor).toMatchObject({ job: "issue-736" });
         }
     });
@@ -335,6 +344,9 @@ describe("sessionToolSet", () => {
             JSON.stringify({ ok: true, until: "2026-10-04T12:30:00.000Z" }),
         );
         expect(job.expect.reason).toBe("build");
+        // The reason is the job's status line: the answer to githerd's status question.
+        expect(job.status).toEqual({ at: "2026-10-04T12:00:00.000Z", text: "build" });
+        expect((await call(ctx, "githerd_status", {})).text).toContain("pr-7 working status 12:00 UTC: build");
         expect(
             (
                 await call(

@@ -8,7 +8,11 @@
  * for the daemon itself.
  */
 
-/** A session whose heartbeat is older than this is gone, and its claims lapse. */
+/**
+ * A session whose heartbeat is older than this leaves the session list. A job an owner session
+ * holds never lapses on it: that claim ends when the session leaves Claude Code's registry or does
+ * not answer githerd's status question (design 8.2).
+ */
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
 const MINUTE = 60 * 1000;
@@ -219,7 +223,10 @@ export const TERMINAL = ["done", "failed", "cancelled"];
 
 /** Attempts per job, counted per job and never reset by a head change (5.3). */
 const ATTEMPTS = 3;
-/** Working time with no GitHub change before an attempt ends: 4 hours, 2 for incidents. */
+/**
+ * Working time with no GitHub change before a githerd worker's attempt ends: 4 hours, 2 for
+ * incidents. A job an owner session holds has no such clock: its status question settles it.
+ */
 const WORKING_MS = { incident: 2 * HOUR, other: 4 * HOUR };
 /** The start deadlines: the worktree, the registry entry, the first githerd call. */
 // The registry deadline outlasts tmux.mjs's own 30 s poll (REGISTRY_MS), so it fires only for a
@@ -269,8 +276,19 @@ const VERIFY_POLLS = 2;
  * @property {string | null} [cancelledBy] the job or event that superseded it
  * @property {"worktree" | "registry" | "first-call"} [phase] the start phase while `starting`
  * @property {{until: string, reason: string} | null} [expect] the open githerd_expect window
- * @property {string | null} [nudgedFor] the window end its owner session was last nudged about
+ * @property {{at: string, heard: boolean} | null} [statusAsk] githerd's last status question to the
+ *   owner session holding the job (asks.mjs statusStep)
+ * @property {{at: string, text: string} | null} [status] the holder's last one-line status
  */
+
+/**
+ * Whether an owner session (not a githerd worker) holds a job.
+ * @param {Job} job the job
+ * @returns {boolean} owner-held
+ */
+export function ownerHeld(job) {
+    return job.holder?.startedBy === "owner";
+}
 
 /**
  * A new job record, `queued`.
@@ -362,17 +380,20 @@ export function move(job, to, now, opts = {}) {
     job.waitingFor = opts.waitingFor ?? (to === "parked" ? job.waitingFor : null);
     // A blocked job has no clock: it waits until its blocker ends (settleWaits in advance.mjs).
     if (to === "starting") startClock(job, START_MS[opts.phase ?? "worktree"], startAction(opts.phase), now);
-    else if (to === "working") startClock(job, job.budget.workingMinutes * MINUTE, "end-attempt", now);
-    else if (to === "waiting") startClock(job, opts.boundMs ?? waitBound(job.waitingFor), "doorbell", now);
+    else if (to === "working" && !ownerHeld(job)) {
+        startClock(job, job.budget.workingMinutes * MINUTE, "end-attempt", now);
+    } else if (to === "waiting") startClock(job, opts.boundMs ?? waitBound(job.waitingFor), "doorbell", now);
     else if (to === "verifying") job.verifyPolls = 0;
     if (to === "cancelled") job.cancelledBy = opts.cancelledBy ?? null;
-    if (["queued", "faulted", ...TERMINAL].includes(to)) job.holder = null;
-    // A githerd_expect window belongs to one stretch of work: any move out of working and
-    // waiting (a lapse, a requeue, a done, a new claim's start) ends it, so it is never nudged.
-    if (to !== "working" && to !== "waiting") {
-        job.expect = null;
-        job.nudgedFor = null;
+    if (["queued", "faulted", ...TERMINAL].includes(to)) {
+        job.holder = null;
+        // The status question and its answer belong to the holder that let go.
+        job.statusAsk = null;
+        job.status = null;
     }
+    // A githerd_expect window belongs to one stretch of work: any move out of working and
+    // waiting (a lapse, a requeue, a done, a new claim's start) ends it.
+    if (to !== "working" && to !== "waiting") job.expect = null;
     return job;
 }
 
@@ -404,7 +425,9 @@ export function startPhase(job, phase, now) {
  * @param {Date} now the current time
  */
 export function githubChanged(job, now) {
-    if (job.state === "working") startClock(job, job.budget.workingMinutes * MINUTE, "end-attempt", now);
+    if (job.state === "working" && !ownerHeld(job)) {
+        startClock(job, job.budget.workingMinutes * MINUTE, "end-attempt", now);
+    }
 }
 
 /**
@@ -454,14 +477,16 @@ export function tick(job, now, pauses = {}) {
  * Restarts every deadline clock at `now`, so the time the daemon was down is not counted: githerd's
  * view was unknown then, and every deadline pauses while it is (design 5.3). Called once at start,
  * after the state is loaded. A blocked job saved with the old 4-hour clock loses it: a blocked
- * job waits until its blocker ends, however long that takes.
+ * job waits until its blocker ends, however long that takes. So does a job an owner session holds
+ * in `working`: its status question settles it, not elapsed time.
  * @param {any} state the daemon state
  * @param {Date} now the current time
  */
 export function resumeClocks(state, now) {
     for (const job of Object.values(state.jobs ?? {})) {
-        if (job.state === "blocked") Object.assign(job, { clock: null, deadline: null, deadlineAction: null });
-        else if (job.clock) job.clock.at = now.toISOString();
+        if (job.state === "blocked" || (job.state === "working" && ownerHeld(job))) {
+            Object.assign(job, { clock: null, deadline: null, deadlineAction: null });
+        } else if (job.clock) job.clock.at = now.toISOString();
     }
 }
 
@@ -884,6 +909,8 @@ const HOLDER_CHECKS = {
  */
 function jobProblem(job, facts) {
     if (!STATES.includes(job.state)) return `unknown state ${job.state}`;
-    if (CLOCKED.has(job.state) && !job.clock) return `${job.state} with no deadline`;
+    // An owner session's working job has no clock: its status question settles it (design 8.2).
+    const clocked = CLOCKED.has(job.state) && !(job.state === "working" && ownerHeld(job));
+    if (clocked && !job.clock) return `${job.state} with no deadline`;
     return HOLDER_CHECKS[job.state]?.(job, facts) ?? null;
 }

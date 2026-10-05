@@ -188,6 +188,28 @@ describe("deadlines and what follows them", () => {
         expect(job.clock).toBeNull();
     });
 
+    it("working for an owner session: no clock, so nothing ends it on elapsed time", () => {
+        const job = newJob({ kind: "issue", target: "737" }, T0);
+        move(job, "starting", T0, { holder: { session: "o1", window: null, startedBy: "owner" } });
+        move(job, "working", T0);
+        expect(job).toMatchObject({ clock: null, deadline: null });
+        githubChanged(job, at(10));
+        expect(job.clock).toBeNull();
+        expect(tick(job, at(24 * 60))).toBeNull();
+        expect(job.state).toBe("working");
+        // A clock saved before this rule is dropped at the next start.
+        job.clock = { budgetMs: 240 * MIN, usedMs: 0, at: T0.toISOString() };
+        resumeClocks({ jobs: { [job.id]: job } }, at(1));
+        expect(job.clock).toBeNull();
+        const facts = {
+            sessionAlive: () => true,
+            recovering: () => false,
+            waitPending: () => true,
+            itemOpen: () => true,
+        };
+        expect(checkInvariants({ jobs: { [job.id]: job } }, facts)).toEqual([]);
+    });
+
     it("working: an incident's budget is 2 hours", () => {
         const job = jobIn(["starting", "working"], { kind: "incident", target: "ci/build" });
         expect(tick(job, at(120))).toMatchObject({ action: "requeue" });

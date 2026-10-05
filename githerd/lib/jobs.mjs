@@ -27,8 +27,10 @@
  * - `issue-reland-<n>`: a pull request a revert took out, once the revert left the queue of open
  *   pull requests.
  *
- * A job an owner session claimed goes back to the queue once that session ended (`sessionGone`):
- * its claim, and the pull request it kept in use, lapse with the session.
+ * A job an owner session claimed goes back to the queue once that session ended (`sessionGone`:
+ * it is no live entry in Claude Code's registry): its claim, and the pull request it kept in use,
+ * lapse with the session. A session that does not answer githerd's status question loses it too
+ * (`statusStep` in asks.mjs).
  */
 
 import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
@@ -107,11 +109,21 @@ function lapseOwnerClaims(state, gone, now, out) {
         const session = job.holder?.session;
         if (job.holder?.startedBy !== "owner" || job.kept || !session || TERMINAL.includes(job.state)) continue;
         if (!gone(session)) continue;
-        // Waiting and parked have no way back to the queue but through working.
-        if (job.state === "waiting" || job.state === "parked") move(job, "working", now);
-        move(job, "queued", now, { reason: `claim lapsed: session ${session} ended` });
+        releaseOwnerJob(job, `claim lapsed: session ${session} ended`, now);
         out.lapsed.push({ job: job.id, session });
     }
+}
+
+/**
+ * Puts a job an owner session held back in the queue.
+ * @param {any} job the job
+ * @param {string} reason why, the job's new reason
+ * @param {Date} now the clock
+ */
+export function releaseOwnerJob(job, reason, now) {
+    // Waiting and parked have no way back to the queue but through working.
+    if (job.state === "waiting" || job.state === "parked") move(job, "working", now);
+    move(job, "queued", now, { reason });
 }
 
 /**

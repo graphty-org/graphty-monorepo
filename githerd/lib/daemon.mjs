@@ -66,7 +66,7 @@ import { homedir } from "node:os";
 import { inspect } from "node:util";
 
 import { createPushQueue } from "./actor/push.mjs";
-import { askStep, inviteStep, nudgeStep } from "./asks.mjs";
+import { askStep, inviteStep, statusStep } from "./asks.mjs";
 import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
@@ -144,7 +144,7 @@ import { stopGating, updateGate } from "./self-update.mjs";
 import { secretValues } from "./text.mjs";
 import { sessionToolSet } from "./session-tools.mjs";
 import { alertBanner, statusData } from "./tools.mjs";
-import { readRegistry, ring as ringWorker, running } from "./tmux.mjs";
+import { ring as ringWorker, running } from "./tmux.mjs";
 import { readVersion } from "./version.mjs";
 import { endRetired, watchPass, watchWanted } from "./watchdog.mjs";
 import { codeEnv, readSigningEnv } from "./worker-settings.mjs";
@@ -1536,7 +1536,7 @@ export async function startDaemon({
         await workerPass();
         if (state.trust.login) {
             await inviteIdle(t);
-            await nudgeOwners(t);
+            await askStatus(t);
         }
         escalationItems();
         await ownerItemsPoll({
@@ -1643,7 +1643,7 @@ export async function startDaemon({
      * @param {Date} t the poll's time
      */
     function jobsFromFacts(t) {
-        const synced = syncJobs(state, { config, now: t, sessionGone: (session) => ownerSessionGone(session, t) });
+        const synced = syncJobs(state, { config, now: t, sessionGone: ownerSessionGone });
         for (const id of synced.created) {
             void ledger({ kind: "job-created", job: id, reason: state.jobs[id].reason, target: state.jobs[id].target });
         }
@@ -1676,7 +1676,7 @@ export async function startDaemon({
             acting: writeMode("workers") === "acting",
             sessions: messageable,
             transport: peers.transport ?? socketTransport(),
-            sessionGone: (session) => ownerSessionGone(session, t),
+            sessionGone: ownerSessionGone,
         });
         for (const line of lines) void ledger(line);
     }
@@ -1701,38 +1701,31 @@ export async function startDaemon({
     }
 
     /**
-     * Nudges each owner session whose claimed job outlived its githerd_expect window (asks.mjs); in
-     * dry-run each nudge is a would-do line.
+     * Asks each owner session holding a job where it stands, and releases a job whose last question
+     * went unanswered (asks.mjs statusStep); in dry-run each question is a would-do line.
      * @param {Date} t the poll's time
      */
-    async function nudgeOwners(t) {
-        const lines = await nudgeStep(state, {
+    async function askStatus(t) {
+        const lines = await statusStep(state, {
             now: t,
             acting: writeMode("workers") === "acting",
             sessions: messageable,
             transport: peers.transport ?? socketTransport(),
+            minutes: config.workers.statusMinutes,
         });
         for (const line of lines) void ledger(line);
     }
 
     /**
-     * Whether an owner session ended: its Claude Code registry entry is gone or names another
-     * session; without a recorded pid, no live registry entry names it and its heartbeat stopped
-     * (15 minutes). A session idle on a long command sends no heartbeat but is still registered.
+     * Whether an owner session ended: no live entry in Claude Code's session registry names it
+     * (peers.mjs liveSessions). Read every poll; no heartbeat window decides it, so a session idle
+     * on a long command keeps its claim and one that quit loses it at once.
      * @param {string} session the session
-     * @param {Date} t the clock
      * @returns {boolean} it ended
      */
-    function ownerSessionGone(session, t) {
-        const pid = state.sessions?.[session]?.pid;
-        if (!pid) {
-            const sessionsDir = join(env.HOME ?? homedir(), ".claude", "sessions");
-            if ((peers.sessions ?? liveSessions)({ sessionsDir, root }).some((s) => s.sessionId === session)) {
-                return false;
-            }
-            return !board.holderAlive(state, session, t, startedAtDate);
-        }
-        return readRegistry(join(env.HOME ?? homedir(), ".claude", "sessions"), pid)?.sessionId !== session;
+    function ownerSessionGone(session) {
+        const sessionsDir = join(env.HOME ?? homedir(), ".claude", "sessions");
+        return !(peers.sessions ?? liveSessions)({ sessionsDir, root }).some((s) => s.sessionId === session);
     }
 
     /**
@@ -2390,7 +2383,9 @@ export async function startDaemon({
             sessionAlive: (session) => {
                 const job = Object.values(state.jobs ?? {}).find((j) => j.holder?.session === session);
                 if (job?.holder?.pid) return running(job.holder.pid, job.holder.startTime);
-                return board.holderAlive(state, session, t, startedAtDate);
+                return job && board.ownerHeld(job)
+                    ? !ownerSessionGone(session)
+                    : board.holderAlive(state, session, t, startedAtDate);
             },
             recovering: (id) => tasks.has(id) || !state.jobs?.[id]?.holder,
             waitPending: (job) =>

@@ -37,6 +37,12 @@ const SECTION = /** @type {Record<string, string>} */ ({
     health: "all",
 });
 
+/** What a session that claimed a job is told: how to keep the claim (asks.mjs statusStep). */
+export const CLAIMED =
+    "Do the job's work in a background subagent or workflow, and keep this conversation free to answer githerd's " +
+    "status questions: githerd asks where the job stands every few minutes, you answer with githerd_expect, and a " +
+    "question still unanswered when the next one is due puts the job back in the queue.";
+
 /** Kinds a wait may name, as `waitingFor` keys. */
 const WAIT_KEYS = /** @type {Record<string, string>} */ ({
     checks: "checks",
@@ -244,7 +250,13 @@ export function sessionToolSet(ctx) {
             if (!result.ok) return { text: JSON.stringify(result), isError: true };
             await ctx.commit({ kind: "job-claim", job: args.job, session, decision: args.overlap.decision });
             const created = result.created ? { created: result.created } : {};
-            return JSON.stringify({ ok: true, job: { id: result.job.id, state: result.job.state }, ...created });
+            return JSON.stringify({
+                ok: true,
+                job: { id: result.job.id, state: result.job.state },
+                ...created,
+                // githerd's own workers have the watchdog, not the status question.
+                ...(board.ownerHeld(result.job) ? { instructions: CLAIMED } : {}),
+            });
         },
         githerd_wait: async (args, caller, client) => {
             const session = sessionOf(caller, client);
@@ -278,6 +290,8 @@ export function sessionToolSet(ctx) {
             const job = heldJob(state, args.job, sessionOf(caller, client), client);
             const until = new Date(now.getTime() + args.minutes * 60_000).toISOString();
             job.expect = { until, reason: args.reason };
+            // The reason is the holder's status too: it answers githerd's status question (asks.mjs).
+            job.status = { at: now.toISOString(), text: args.reason };
             await ctx.commit({ kind: "expect", job: job.id, until, reason: args.reason });
             return JSON.stringify({ ok: true, until });
         },
@@ -380,7 +394,7 @@ export function sessionToolSet(ctx) {
                 const cwd = sessionCwd(client, session, state.sessions?.[session]?.cwd, ctx.home);
                 const record = board.heartbeat(state, { session, cwd }, now);
                 record.protocol = client?.protocol;
-                // An owner session's claude process: its claims lapse when its registry entry goes.
+                // An owner session's claude process, whose registry entry names the session.
                 if (!client?.job && client?.pid) record.pid = client.pid;
             }
             return handlers[tool.name](args, caller, client ?? {});

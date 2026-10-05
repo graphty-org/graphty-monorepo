@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { askStep, inviteStep, nudgeStep } from "../lib/asks.mjs";
+import { askStep, inviteStep, statusStep } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { prInUse } from "../lib/queue.mjs";
 
@@ -241,68 +241,118 @@ describe("inviting idle sessions to pull work", () => {
     });
 });
 
-describe("nudging an owner session past its expect window", () => {
+describe("asking an owner session for the status of the job it holds", () => {
+    const CLAIMED_AT = "2026-10-05T12:00:00.000Z";
     /**
-     * A state with job issue-186 claimed by owner session s1, expecting to finish at `until`.
-     * @param {string} until the end of the expect window
+     * A state with job issue-186 claimed by owner session s1 at noon.
      * @returns {any} the state
      */
-    const claimed = (until) => {
-        const job = newJob({ kind: "issue", target: "#186", id: "issue-186" }, NOW);
-        job.state = "working";
-        job.holder = { session: "s1", window: null, startedBy: "owner" };
-        job.expect = { until, reason: "the shell tests" };
+    const claimed = () => {
+        const job = newJob({ kind: "issue", target: "#186", id: "issue-186" }, new Date(CLAIMED_AT));
+        move(job, "starting", new Date(CLAIMED_AT), { holder: { session: "s1", window: null, startedBy: "owner" } });
+        move(job, "working", new Date(CLAIMED_AT));
+        job.claim = { session: "s1", at: CLAIMED_AT };
         return { jobs: { "issue-186": job } };
     };
+    const at = (/** @type {string} */ hm) => new Date(`2026-10-05T${hm}:00Z`);
+    const opts = (/** @type {any} */ f, /** @type {any} */ over = {}) => f.opts({ minutes: 15, ...over });
 
-    it("tells that session only, once per window, 15 minutes after the window ends", async () => {
-        const { sent, opts } = fake();
-        const state = claimed("2026-10-05T11:50:00Z");
-        expect(await nudgeStep(state, opts())).toEqual([]);
-        const later = new Date("2026-10-05T12:06:00Z");
-        const lines = await nudgeStep(state, opts({ now: later }));
-        expect(sent.map(([socket]) => socket)).toEqual(["/s1.sock"]);
-        expect(sent[0][1]).toContain("issue-186 (the shell tests) ended at 2026-10-05T11:50:00Z");
+    it("asks only the holding session, once per interval, naming the tool and the subagent rule", async () => {
+        const f = fake();
+        const state = claimed();
+        expect(await statusStep(state, opts(f, { now: at("12:14") }))).toEqual([]);
+        const lines = await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s1.sock"]);
+        expect(f.sent[0][1]).toContain("status check on issue-186 (#186)");
+        expect(f.sent[0][1]).toContain("calling githerd_expect with job issue-186");
+        expect(f.sent[0][1]).toContain("background subagent or workflow");
         expect(lines).toEqual([
-            expect.objectContaining({ kind: "session-nudged", job: "issue-186", session: "graphty-13" }),
+            expect.objectContaining({
+                kind: "status-asked",
+                job: "issue-186",
+                session: "graphty-13",
+                sent: ["graphty-13"],
+            }),
         ]);
-        await nudgeStep(state, opts({ now: later }));
-        expect(sent).toHaveLength(1);
-        // A new expect is a new window.
-        state.jobs["issue-186"].expect = { until: "2026-10-05T12:00:00Z", reason: "the full shard" };
-        await nudgeStep(state, opts({ now: new Date("2026-10-05T12:16:00Z") }));
-        expect(sent).toHaveLength(2);
+        expect(state.jobs["issue-186"].statusAsk).toEqual({ at: "2026-10-05T12:15:00.000Z", heard: true });
+        await statusStep(state, opts(f, { now: at("12:29") }));
+        expect(f.sent).toHaveLength(1);
     });
 
-    it("leaves a finished job, a worker's job and a session no longer listed alone; dry-run sends nothing", async () => {
-        const { sent, opts } = fake();
-        const later = new Date("2026-10-05T13:00:00Z");
-        const gone = claimed("2026-10-05T11:50:00Z");
-        gone.jobs["issue-186"].holder.session = "s9";
-        const worker = claimed("2026-10-05T11:50:00Z");
+    it("keeps an answered claim and asks again; releases one whose question is unanswered when the next is due", async () => {
+        const f = fake();
+        const answered = claimed();
+        await statusStep(answered, opts(f, { now: at("12:15") }));
+        answered.jobs["issue-186"].status = { at: "2026-10-05T12:20:00.000Z", text: "tests running" };
+        expect(await statusStep(answered, opts(f, { now: at("12:30") }))).toEqual([
+            expect.objectContaining({ kind: "status-asked", job: "issue-186" }),
+        ]);
+        expect(answered.jobs["issue-186"].state).toBe("working");
+        expect(f.sent).toHaveLength(2);
+
+        const silent = claimed();
+        await statusStep(silent, opts(f, { now: at("12:15") }));
+        const lines = await statusStep(silent, opts(f, { now: at("12:30") }));
+        const reason = "no answer to the status question of 2026-10-05T12:15:00.000Z";
+        expect(lines).toEqual([{ kind: "claim-released", job: "issue-186", session: "s1", reason }]);
+        expect(silent.jobs["issue-186"]).toMatchObject({ state: "queued", holder: null, reason, statusAsk: null });
+        expect(f.sent).toHaveLength(3);
+    });
+
+    it("releases nothing on elapsed time alone: never asked, a question nobody heard, or a status from before", async () => {
+        const f = fake(["/s1.sock"]);
+        const unheard = claimed();
+        // The send fails: nobody heard the question, so its silence is not held against the session.
+        await statusStep(unheard, opts(f, { now: at("12:15") }));
+        expect(unheard.jobs["issue-186"].statusAsk.heard).toBe(false);
+        await statusStep(unheard, opts(f, { now: at("18:00") }));
+        expect(unheard.jobs["issue-186"].state).toBe("working");
+
+        // A session githerd may not message (outside workers.sessions) is never asked, so never released.
+        const outside = claimed();
+        const g = fake();
+        const none = { sessions: () => [] };
+        expect(await statusStep(outside, opts(g, { now: at("12:15"), ...none }))).toEqual([]);
+        expect(await statusStep(outside, opts(g, { now: at("23:00"), ...none }))).toEqual([]);
+        expect(outside.jobs["issue-186"].state).toBe("working");
+        expect(g.sent).toEqual([]);
+
+        // A status line written before the question is no answer to it.
+        const early = claimed();
+        early.jobs["issue-186"].status = { at: "2026-10-05T12:05:00.000Z", text: "starting" };
+        await statusStep(early, opts(g, { now: at("12:15") }));
+        await statusStep(early, opts(g, { now: at("12:30") }));
+        expect(early.jobs["issue-186"].state).toBe("queued");
+    });
+
+    it("leaves a worker's job, a verifying job and a kept job alone", async () => {
+        const f = fake();
+        const worker = claimed();
         worker.jobs["issue-186"].holder.startedBy = "githerd";
-        for (const state of [gone, worker]) expect(await nudgeStep(state, opts({ now: later }))).toEqual([]);
-        const dry = claimed("2026-10-05T11:50:00Z");
-        expect(await nudgeStep(dry, opts({ now: later, acting: false }))).toEqual([
-            expect.objectContaining({ kind: "would-do", group: "workers", op: "nudge graphty-13 about issue-186" }),
-            expect.objectContaining({ kind: "session-nudged", sent: [] }),
-        ]);
-        expect(sent).toEqual([]);
+        const verifying = claimed();
+        move(verifying.jobs["issue-186"], "verifying", at("12:01"));
+        const kept = claimed();
+        kept.jobs["issue-186"].kept = true;
+        for (const state of [worker, verifying, kept]) {
+            expect(await statusStep(state, opts(f, { now: at("13:00") }))).toEqual([]);
+        }
+        expect(f.sent).toEqual([]);
     });
 
-    it("forgets the window when the claim lapses or the job is finished, so a re-claim is not nudged", async () => {
-        const { sent, opts } = fake();
-        const later = new Date("2026-10-05T13:00:00Z");
-        const lapsed = claimed("2026-10-05T08:44:33Z");
-        const job = lapsed.jobs["issue-186"];
-        move(job, "queued", NOW, { reason: "claim lapsed" });
-        move(job, "starting", NOW, { holder: { session: "s1", window: null, startedBy: "owner" } });
-        move(job, "working", NOW);
-        expect(job.expect).toBeNull();
-        expect(await nudgeStep(lapsed, opts({ now: later }))).toEqual([]);
-        const done = claimed("2026-10-05T08:44:33Z");
-        move(done.jobs["issue-186"], "verifying", NOW);
-        expect(await nudgeStep(done, opts({ now: later }))).toEqual([]);
-        expect(sent).toEqual([]);
+    it("sends nothing in dry-run, ledgers a would-do line, and never releases on a question nobody heard", async () => {
+        const f = fake();
+        const state = claimed();
+        expect(await statusStep(state, opts(f, { now: at("12:15"), acting: false }))).toEqual([
+            {
+                kind: "would-do",
+                group: "workers",
+                op: "ask graphty-13 for the status of issue-186",
+                job: "issue-186",
+            },
+            { kind: "status-asked", job: "issue-186", session: "graphty-13", sent: [], failed: [] },
+        ]);
+        await statusStep(state, opts(f, { now: at("12:30"), acting: false }));
+        expect(state.jobs["issue-186"].state).toBe("working");
+        expect(f.sent).toEqual([]);
     });
 });

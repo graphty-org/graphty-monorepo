@@ -452,7 +452,11 @@ describe("HTTP endpoints", () => {
         });
         expect(daemon.state.jobs["issue-7"].state).toBe("queued");
         const ok = await tool("githerd_claim", claim);
-        expect(JSON.parse(ok.content[0].text)).toEqual({ ok: true, job: { id: "issue-7", state: "working" } });
+        expect(JSON.parse(ok.content[0].text)).toEqual({
+            ok: true,
+            job: { id: "issue-7", state: "working" },
+            instructions: expect.stringContaining("background subagent or workflow"),
+        });
         expect(saved().jobs["issue-7"].claim.session).toBe("wt-1");
         expect((await call({ jsonrpc: "2.0", method: "notifications/initialized" })).status).toBe(202);
     });
@@ -488,10 +492,100 @@ describe("HTTP endpoints", () => {
         clock = new Date(clock.getTime() + 30 * 60_000);
         await poll(daemon);
         expect(daemon.state.jobs["issue-7"].state).toBe("working");
+        // Dry-run: the status question is a would-do line that nobody heard.
+        expect((await readLedger(join(dir, ".githerd"))).filter((e) => e.op?.includes("for the status of"))).toEqual([
+            expect.objectContaining({
+                kind: "would-do",
+                group: "workers",
+                op: "ask graphty-2d for the status of issue-7",
+            }),
+        ]);
         listed = [];
         clock = new Date(clock.getTime() + 3 * 60_000);
         await poll(daemon);
         expect(daemon.state.jobs["issue-7"].state).toBe("queued");
+    });
+
+    it("asks an owner session for its job's status, keeps an answered claim and releases an unanswered one", async () => {
+        writeConfig({ mode: "acting", actions: { workers: true }, workers: { slots: 0, urgent: 0 } });
+        // A group switches to acting only once the ledger shows it ran dry (config-adopt.mjs).
+        mkdirSync(join(dir, ".githerd"), { recursive: true });
+        writeFileSync(
+            join(dir, ".githerd", "ledger.jsonl"),
+            `${JSON.stringify({ ts: clock.toISOString(), kind: "would-do", group: "workers", op: "earlier" })}\n`,
+        );
+        /** @type {[string, string][]} */
+        const sent = [];
+        const listed = [
+            { pid: 1, sessionId: "wt-1", name: "graphty-2d", cwd: dir, socket: "/s1.sock", status: "busy" },
+        ];
+        const transport = { send: async (/** @type {string} */ s, /** @type {string} */ t) => void sent.push([s, t]) };
+        const daemon = await start({ peers: { sessions: () => listed, transport } });
+        daemon.state.jobs = { "issue-7": newJob({ kind: "issue", target: "#7", id: "issue-7" }, clock) };
+        const tool = async (/** @type {string} */ name, /** @type {any} */ args) =>
+            (
+                await (
+                    await fetch(`${daemon.url}/rpc`, {
+                        method: "POST",
+                        headers: { "x-githerd-session": "wt-1" },
+                        body: JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: 2,
+                            method: "tools/call",
+                            params: { _meta: META, name, arguments: args },
+                        }),
+                    })
+                ).json()
+            ).result;
+        const next = JSON.parse((await tool("githerd_next", {})).content[0].text);
+        await tool("githerd_claim", {
+            job: "issue-7",
+            snapshotVersion: next.snapshot.version,
+            overlap: { decision: "independent", reason: "nothing else touches it" },
+            plan: "fix the bug",
+        });
+        const later = (/** @type {number} */ minutes) => (clock = new Date(clock.getTime() + minutes * 60_000));
+        later(15);
+        await poll(daemon);
+        expect(sent.map(([socket]) => socket)).toEqual(["/s1.sock"]);
+        expect(sent[0][1]).toContain("status check on issue-7");
+        await tool("githerd_expect", { job: "issue-7", minutes: 30, reason: "reproducing the bug" });
+        later(15);
+        await poll(daemon);
+        const job = daemon.state.jobs["issue-7"];
+        expect(job.state).toBe("working");
+        expect(job.status).toMatchObject({ text: "reproducing the bug" });
+        expect(statusText(statusData(daemon.state, { config: daemon.config, now: clock }, {}), clock)).toContain(
+            "status 12:15 UTC: reproducing the bug",
+        );
+        expect(sent).toHaveLength(2);
+        later(15);
+        await poll(daemon);
+        expect(job).toMatchObject({
+            state: "queued",
+            holder: null,
+            reason: "no answer to the status question of 2026-10-02T12:30:00.000Z",
+        });
+        expect((await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "claim-released")).toEqual([
+            expect.objectContaining({ job: "issue-7", session: "wt-1" }),
+        ]);
+    });
+
+    it("releases an owner session's claim at the first poll its session is gone, however recent its heartbeat", async () => {
+        /** @type {any[]} */
+        let listed = [{ pid: 1, sessionId: "wt-1", name: "graphty-2d", cwd: dir, socket: "/s1.sock", status: "busy" }];
+        const daemon = await start({ peers: { sessions: () => listed, transport: { send: async () => {} } } });
+        const job = newJob({ kind: "issue", target: "#7", id: "issue-7" }, clock);
+        move(job, "starting", clock, { holder: { session: "wt-1", window: null, startedBy: "owner" } });
+        move(job, "working", clock);
+        daemon.state.jobs = { "issue-7": job };
+        await poll(daemon);
+        expect(job.state).toBe("working");
+        listed = [];
+        // A heartbeat this very minute does not keep a session Claude Code no longer lists.
+        await fetch(`${daemon.url}/heartbeat`, { method: "POST", body: JSON.stringify({ session: "wt-1" }) });
+        await poll(daemon);
+        expect(job).toMatchObject({ state: "queued", reason: "claim lapsed: session wt-1 ended" });
     });
 
     it("registers a heartbeat and refuses one without a session", async () => {

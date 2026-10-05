@@ -206,7 +206,7 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
         const inFlight = Object.values(state.jobs ?? {})
             .filter((j) => j.state !== "queued" && !board.TERMINAL.includes(j.state))
             .sort((a, b) => a.id.localeCompare(b.id))
-            .map((j) => ({ job: j.id, state: j.state, reason: j.reason ?? "" }));
+            .map((j) => ({ job: j.id, state: j.state, reason: j.reason ?? "", status: j.status ?? null }));
         out.queue = {
             items: order.items,
             skipped: order.skipped,
@@ -379,7 +379,8 @@ function prLines(prs) {
  * requests that wait on the owner.
  * @param {{items: {job: string, reason: string}[], skipped: {job: string, reason: string}[],
  *   inUse?: {job: string, reason: string}[],
- *   inFlight: {job: string, state: string, reason: string}[], ownerWaiting: {target: string, reason: string}[],
+ *   inFlight: {job: string, state: string, reason: string, status?: {at: string, text: string} | null}[],
+ *   ownerWaiting: {target: string, reason: string}[],
  *   invited?: {at: string, count: number, acting: boolean} | null}} queue the queue data, with the last
  *   invitation of idle sessions
  * @returns {string[]} the lines
@@ -394,7 +395,11 @@ function queueLines({ items, skipped, inUse = [], inFlight, ownerWaiting, invite
     for (const i of skipped) lines.push(`  ${i.job} -- skipped: ${i.reason}`);
     for (const i of inUse) lines.push(`  ${i.job} -- in use: ${i.reason}`);
     if (inFlight.length) {
-        const jobs = inFlight.map((j) => (j.reason ? `${j.job} ${j.state} (${j.reason})` : `${j.job} ${j.state}`));
+        const jobs = inFlight.map((j) => {
+            const line = j.reason ? `${j.job} ${j.state} (${j.reason})` : `${j.job} ${j.state}`;
+            // The holder's last answer to githerd's status question (asks.mjs statusStep).
+            return j.status ? `${line} status ${String(j.status.at).slice(11, 16)} UTC: ${j.status.text}` : line;
+        });
         lines.push(`IN FLIGHT${countedList(jobs)}`);
     }
     if (ownerWaiting.length) {

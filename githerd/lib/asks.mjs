@@ -8,14 +8,17 @@
  * The question lives in `state.asks[<pr>]`: `{head, failing, askedAt, sessions, sent, failed,
  * owner}`. A new head drops it, so a new push starts over. An answer lapses when the answering
  * session ends.
+ *
+ * The same messaging asks each owner session holding a job for its status (`statusStep`), and
+ * invites idle sessions to pull work (`inviteStep`).
  */
 
 import { askProblems, failingRequired, headIsGitherds, jobOnPr, prOf } from "./queue.mjs";
-import { TERMINAL } from "./board.mjs";
+import { ownerHeld } from "./board.mjs";
+import { releaseOwnerJob } from "./jobs.mjs";
 import { tellSessions } from "./peers.mjs";
 
-/** How long past its githerd_expect window an owner session's job goes before it is nudged. */
-const NUDGE_GRACE_MS = 15 * 60 * 1000;
+const MINUTE = 60 * 1000;
 
 /**
  * The question for one pull request.
@@ -168,51 +171,67 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
 }
 
 /**
- * The nudge for a job whose expect window ended.
+ * The status question for one job.
  * @param {any} job the job
+ * @param {number} minutes how often githerd asks
  * @returns {string} the message
  */
-function nudgeText(job) {
+function statusText(job, minutes) {
     return (
-        `githerd: your githerd_expect window for ${job.id} (${job.expect.reason}) ended at ${job.expect.until} ` +
-        "and nothing has reported since. If a command is hung, stop it and carry on; if the step needs " +
-        "longer, call githerd_expect again; if the job is finished, call githerd_done."
+        `githerd: status check on ${job.id} (${job.target}), which this session holds. ` +
+        `Answer by calling githerd_expect with job ${job.id}, reason set to one line on where the job stands, ` +
+        "and minutes set to how long until your current step ends. " +
+        `If this is still unanswered when githerd asks again in ${minutes} minutes, the job goes back to the queue. ` +
+        "Do the job's work in a background subagent or workflow, so this conversation stays free to answer githerd."
     );
 }
 
+/** The states in which a holder works on its job; a `verifying` job is githerd's to settle. */
+const ASKED = new Set(["starting", "working", "waiting", "blocked", "parked"]);
+
 /**
- * Nudges an owner session whose claimed job outlived its `githerd_expect` window by 15 minutes:
- * one message, through Claude Code's session messaging, to that session only, once per window.
- * githerd's own workers have the watchdog instead; an owner session is never typed into. A new
- * `githerd_expect` opens a new window.
+ * Asks each owner session holding a job where that job stands (the owner's rule of 2026-10-05):
+ * every `minutes` from the claim, one message through Claude Code's session messaging to that
+ * session only. The session answers with `githerd_expect`, which records `job.status`. A question
+ * the session heard and left unanswered until the next one is due releases the job to the queue;
+ * nothing else here ends a claim, and elapsed time alone never does. A session githerd may not
+ * message (`workers.sessions`) is not asked, so its silence is never held against it; nor is a
+ * question nobody heard (dry-run, or a send that failed). githerd's own workers have the watchdog
+ * instead.
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
- *   transport: import("./peers.mjs").Transport}} opts the clock, whether the `workers` write group
- *   acts (else each send is a would-do line), the live sessions in this repository, the transport
+ *   transport: import("./peers.mjs").Transport, minutes: number}} opts the clock, whether the
+ *   `workers` write group acts (else each send is a would-do line), the sessions githerd may
+ *   message, the transport, and how often to ask (`workers.statusMinutes`)
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
-export async function nudgeStep(state, { now, acting, sessions, transport }) {
+export async function statusStep(state, { now, acting, sessions, transport, minutes }) {
     const lines = [];
-    /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a nudge is due */
+    /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
     let live = null;
     for (const job of Object.values(state.jobs ?? {})) {
         const session = job.holder?.session;
-        const until = job.expect?.until;
-        if (job.holder?.startedBy !== "owner" || !session || !until || TERMINAL.includes(job.state)) continue;
-        if (job.nudgedFor === until || now.getTime() - Date.parse(until) < NUDGE_GRACE_MS) continue;
+        if (!ownerHeld(job) || job.kept || !session || !ASKED.has(job.state)) continue;
+        const ask = job.statusAsk;
+        // A cadence, how often to ask: never a deadline on the work.
+        const since = Date.parse(ask?.at ?? job.claim?.at ?? job.stateSince);
+        if (now.getTime() - since < minutes * MINUTE) continue;
+        if (ask?.heard && !(job.status?.at >= ask.at)) {
+            const reason = `no answer to the status question of ${ask.at}`;
+            releaseOwnerJob(job, reason, now);
+            lines.push({ kind: "claim-released", job: job.id, session, reason });
+            continue;
+        }
         live ??= sessions();
         const target = live.filter((s) => s.sessionId === session);
         if (!target.length) continue;
-        job.nudgedFor = until;
-        if (!acting)
-            lines.push({
-                kind: "would-do",
-                group: "workers",
-                op: `nudge ${target[0].name} about ${job.id}`,
-                job: job.id,
-            });
-        const out = acting ? await tellSessions(target, nudgeText(job), transport) : { sent: [], failed: [] };
-        lines.push({ kind: "session-nudged", job: job.id, session: target[0].name, until, ...out });
+        if (!acting) {
+            const op = `ask ${target[0].name} for the status of ${job.id}`;
+            lines.push({ kind: "would-do", group: "workers", op, job: job.id });
+        }
+        const out = acting ? await tellSessions(target, statusText(job, minutes), transport) : { sent: [], failed: [] };
+        job.statusAsk = { at: now.toISOString(), heard: out.sent.length > 0 };
+        lines.push({ kind: "status-asked", job: job.id, session: target[0].name, ...out });
     }
     return lines;
 }

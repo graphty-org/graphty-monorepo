@@ -902,7 +902,7 @@ unknown; a usage stop (8.3); "Actions degraded" (CI waits only); machine load ab
 | `queued` | Waiting for a slot | Admitted -> `starting`; an owner session claims it -> `starting`, then on as for any claim; target closed -> `cancelled` | None; age and the gate holding it are on the board |
 | `blocked` | Waiting on another job, an incident, or a stack base to merge | Blocker ends -> `queued`; third session death -> `faulted` | None: it ends when its blocker ends, never on elapsed time; a wait that would close a cycle is refused |
 | `starting` | Worktree prepared, window open, waiting for `githerd_next` and `githerd_claim` | Claim -> `working`; join -> `cancelled`; wait -> `blocked` | Worktree 20 min -> `faulted`. Registry 30 s -> start failure. First call 3 min -> start failure, `queued` |
-| `working` | Doing the job | `githerd_wait` or `githerd_push` -> `waiting`; `githerd_ask_owner` or a permission prompt -> `parked`; `githerd_done` -> `verifying` | 4 h working time with no GitHub change (2 h for incidents) -> attempt ends with findings |
+| `working` | Doing the job | `githerd_wait` or `githerd_push` -> `waiting`; `githerd_ask_owner` or a permission prompt -> `parked`; `githerd_done` -> `verifying` | A githerd worker: 4 h working time with no GitHub change (2 h for incidents) -> attempt ends with findings. An owner session: none; its status question (8.2) and its registry entry settle the claim, never elapsed time |
 | `waiting` | A declared condition: checks on a head, a lane, a release, a job, a push, a local background task, or GitHub itself. The session is idle and open; a waiting job whose session died stays waiting with none | Condition changes -> doorbell -> `working`; done holds -> `done`; third session death -> `faulted` | Checks not started in 10 min -> doorbell. Running past twice their median -> doorbell. Local task output not growing for 20 min -> doorbell. Push bounded at twice the gate's duration |
 | `parked` | Waiting on an owner item; session ended unless a permission prompt keeps the window open for the owner | Owner answers -> `working` (resumed or fresh); answer was "not yet" -> `parked` on the same item, no page; third session death -> `faulted` | None for the job; the invariant check requires the item to be open |
 | `verifying` | `githerd_done` received | Holds -> `done`; does not -> `working` with what is missing; only CI pending -> `waiting`; third session death -> `faulted` | Two polls |
@@ -1009,7 +1009,10 @@ githerd_wait: { job: string, for: "checks"|"lane"|"release"|"job"|"local",
 // "local" names a background task the session started; its output file growth is progress.
 // -> { ok: true, until } | { ok: false, reason }            // refused if already settled
 
-// 5. Declare a long step (up to 3 hours) so the watchdog does not recycle it.
+// 5. Report where the job stands: `reason` is one line of status, recorded as the job's status
+//    {at, text} and shown on the board and in githerd_status; `minutes` is how long until the
+//    current step ends (up to 3 hours), during which the watchdog does not recycle a worker.
+//    It is the answer to githerd's status question to an owner session (8.2).
 githerd_expect: { job: string, minutes: integer /*1..180*/, reason: string /*<=300*/ }
 
 // 6. Push the job's branch through the daemon's queue and the pre-push gate.
@@ -1271,9 +1274,9 @@ only; it stops when the last worker ends).
   without charging attempts.
 - **Owner sessions** appear on the board through the registry [PF 6]; they may take work with
   `githerd_next` and `githerd_claim`, and are never assigned work, rung or ended. Their claims lapse
-  when the session ends (its Claude Code registry entry is gone or names another session; without a
-  recorded pid, 15 minutes without a githerd call or hook) or when it releases the job
-  (`githerd_done`): the job goes back to the queue (8.2).
+  at the first poll that finds no live entry naming the session in Claude Code's registry (no
+  heartbeat window decides it), when the session leaves githerd's status question unanswered
+  (8.2), or when it releases the job (`githerd_done`): the job goes back to the queue.
 
 ### 7.7 Session death
 
@@ -1322,6 +1325,25 @@ shows each limit with the measurement that applied at the last start.
   session ends; the holder gets news) or `wait`. It names related jobs.
 - `githerd_claim` succeeds only on the current snapshot version and refuses a wait that would close
   a cycle.
+- **An owner session's claim lives while the session answers** (owner rule 2026-10-05). Every
+  poll, a job an owner session holds whose session is no live entry in Claude Code's registry goes
+  back to the queue at once (`claim-lapsed`). Every `workers.statusMinutes` (default 15, 1 to 120)
+  from the claim, githerd messages the holding session, through the session messaging below and
+  only when `workers.sessions` allows it: "githerd: status check on <job> (<target>), which this
+  session holds. Answer by calling githerd_expect with job <job>, reason set to one line on where
+  the job stands, and minutes set to how long until your current step ends. If this is still
+  unanswered when githerd asks again in 15 minutes, the job goes back to the queue. Do the job's
+  work in a background subagent or workflow, so this conversation stays free to answer githerd."
+  The answer is recorded on the job as `{at, text}` and shown on the board and in `githerd_status`.
+  When the next question is due and the last one, heard by the session, has no answer since, the
+  job goes back to the queue with the reason "no answer to the status question of <time>"
+  (`claim-released`). The cadence is how often to ask, not a deadline on the work: nothing ends a
+  claim on elapsed time alone. A question nobody heard (dry-run, where it is a `would-do` line, or
+  a failed send) and a session githerd may not message are never held against the session. A
+  `verifying` job is githerd's to settle and is not asked about. The `githerd_claim` reply, the job
+  text and the repository's CLAUDE.md tell a session to do the job's work in a background subagent
+  or workflow, so the main conversation stays free to answer. githerd's own workers keep the
+  watchdog (9.3) instead.
 - **A pull request one session works on is never offered to another** (owner decisions 2026-10-04
   and 2026-10-05). A queued job is in use, so `githerd_next` does not offer it, `githerd_claim`
   refuses it and no worker starts on it, while its pull request (a `pr` or `title` job's, a

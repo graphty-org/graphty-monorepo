@@ -424,7 +424,10 @@ export const TOOLS = [
     },
     {
         name: "githerd_expect",
-        description: "Declare a long step, up to 180 minutes, so the watchdog does not recycle this session during it.",
+        description:
+            "Report where your job stands: reason is one line of status, minutes how long until your current step ends " +
+            "(up to 180; the watchdog does not recycle a githerd worker during it). This is the answer to githerd's " +
+            "status question; the board shows the line.",
         inputSchema: object({ job: JOB, minutes: { type: "integer", minimum: 1, maximum: 180 }, reason: REASON }, [
             "job",
             "minutes",

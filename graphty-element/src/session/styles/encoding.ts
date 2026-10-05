@@ -61,6 +61,7 @@
 import type { Binding, Channel, ChannelValue, PaletteDescriptor, Path, Rgba } from "../../catalog/types";
 import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
+import { clamp } from "../../utils/clamp";
 import { compareGroupKeys } from "../results/types";
 import {
     type ChannelDescriptor,
@@ -75,7 +76,6 @@ import {
 import { overflowCapacity, type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
 import {
     BUILT_IN_SCALES,
-    clamp,
     groupCount,
     isScaleMiss,
     quantileThresholds,

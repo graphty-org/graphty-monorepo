@@ -96,6 +96,24 @@ describe("ToolButton", () => {
         renderShell(<ToolButton label="Actions" icon={<span />} />);
         expect(screen.getByRole("button", { name: "Actions" })).not.toHaveAttribute("aria-pressed");
     });
+
+    it("stays focusable but ignores clicks while disabled, and says why", async () => {
+        const onClick = vi.fn();
+        renderShell(
+            <Toolbar aria-label="Canvas">
+                <ToolButton label="Analyze" icon={<span />} disabledReason="Nothing is drawn" onClick={onClick} />
+                <ToolButton label="Actions" icon={<span />} />
+            </Toolbar>,
+        );
+        const button = screen.getByRole("button", { name: "Analyze" });
+        expect(button).toHaveAttribute("aria-disabled", "true");
+        expect(button).toHaveAttribute("aria-description", "Nothing is drawn");
+        await userEvent.click(button);
+        expect(onClick).not.toHaveBeenCalled();
+        screen.getByRole("button", { name: "Actions" }).focus();
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(button).toHaveFocus();
+    });
 });
 
 // The overlays theme clamps the menu's height to the viewport, which jsdom reports as zero, so

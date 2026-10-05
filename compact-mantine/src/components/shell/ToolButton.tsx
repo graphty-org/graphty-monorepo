@@ -37,6 +37,13 @@ export interface ToolButtonProps
     selected?: boolean;
     /** Where the tooltip opens. Defaults to above, as on Figma's bottom toolbar. */
     tooltipPosition?: TooltipProps["position"];
+    /**
+     * Why the tool cannot be used now, as one sentence ("Nothing is drawn"). Set, the button is
+     * drawn in the disabled ink, ignores clicks and is `aria-disabled` -- it stays focusable, so the
+     * arrows still reach it -- and the reason follows the name in the tooltip and is read out as
+     * the button's description.
+     */
+    disabledReason?: string;
 }
 
 /**
@@ -49,20 +56,28 @@ export interface ToolButtonProps
  * @param props.shortcut - The keyboard shortcut shown in the tooltip
  * @param props.selected - Whether this is the current tool
  * @param props.tooltipPosition - Where the tooltip opens
+ * @param props.disabledReason - Why the tool cannot be used now; set, the tool is disabled
  * @returns The tool button
  */
 export const ToolButton = forwardRef<HTMLButtonElement, ToolButtonProps>(function ToolButton(
-    { label, icon, shortcut, selected, tooltipPosition = "top", className, ...others },
+    { label, icon, shortcut, selected, tooltipPosition = "top", disabledReason, className, onClick, ...others },
     ref,
 ) {
     useShellStyles();
+    const disabled = disabledReason !== undefined;
     return (
-        <Tooltip label={<TipLabel label={label} shortcut={shortcut} />} position={tooltipPosition}>
+        <Tooltip
+            label={<TipLabel label={disabled ? `${label}. ${disabledReason}` : label} shortcut={shortcut} />}
+            position={tooltipPosition}
+        >
             <UnstyledButton
                 {...others}
                 ref={ref}
                 aria-label={label}
                 aria-pressed={selected}
+                aria-disabled={disabled || undefined}
+                aria-description={disabledReason}
+                onClick={disabled ? undefined : onClick}
                 className={className ? `cm-tool ${className}` : "cm-tool"}
             >
                 <span className="cm-tool-icon" aria-hidden="true">

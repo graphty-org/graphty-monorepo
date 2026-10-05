@@ -27,7 +27,8 @@ export function useRovingFocus<T extends HTMLElement>(orientation: "horizontal" 
 
     const items = (): HTMLElement[] =>
         Array.from(ref.current?.querySelectorAll<HTMLElement>(ITEM_SELECTOR) ?? []).filter(
-            (el) => !(el as HTMLButtonElement).disabled && el.getAttribute("aria-disabled") !== "true",
+            // An aria-disabled item stays reachable, so its reason can be read (APG toolbar).
+            (el) => !(el as HTMLButtonElement).disabled,
         );
 
     const setCurrent = (all: HTMLElement[], active: HTMLElement): void => {

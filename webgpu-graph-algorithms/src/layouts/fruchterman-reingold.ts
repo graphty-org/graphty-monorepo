@@ -34,19 +34,13 @@ import {
     MAX_ITERATIONS_PER_STEP,
     SETTLE_FLOOR_FRACTION,
     TRACE_RECORD_BYTES,
-    UNIFORM_SLOT_BYTES,
 } from "../constants.js";
 import { type GpuContext } from "../context.js";
-import { BufferUsage } from "../device/webgpu-constants.js";
 import { WebGpuGraphError } from "../errors.js";
-import { type CommandBatch } from "../kernel/batch.js";
-import { type DispatchPlan, plan1d } from "../kernel/dispatch.js";
-import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
-import { type UniformBlock, type UniformValues } from "../kernel/struct-block.js";
+import { type UniformValues } from "../kernel/struct-block.js";
 import { type WgslModuleSpec } from "../kernel/wgsl.js";
-import { FA2_PARAMS, FA2_STATE, FA2_TRACE, FILL_PARAMS, kernelSpec } from "../kernels.js";
-import { arcCountOf } from "../primitives/core-shape.js";
-import { type GridSpec, gridSpecFor } from "../primitives/grid.js";
+import { FA2_STATE, FA2_TRACE, kernelSpec } from "../kernels.js";
+import { gridSpecFor } from "../primitives/grid.js";
 import {
     type FruchtermanReingoldStats,
     type FruchtermanReingoldTraceRecord,
@@ -54,10 +48,17 @@ import {
     type GpuLayoutTuning,
     type ResolvedLayoutTuning,
 } from "../types/layout.js";
-import { type Binding } from "../types/memory.js";
 import { type FruchtermanReingoldOptions, type ResolvedFruchtermanReingoldOptions } from "../types/options.js";
 import {
-    type BufferSpec,
+    type CompiledModel,
+    ForceModelBase,
+    LAW_K1_DEFAULTS,
+    LAW_K2_DEFAULTS,
+    LAW_K3_DEFAULTS,
+    LAW_K5_DEFAULTS,
+    LawRepulsion,
+} from "./force-model-base.js";
+import {
     type ForceModel,
     ForceSimulation,
     type ModelInputs,
@@ -67,11 +68,9 @@ import {
 } from "./force-simulation.js";
 import { resolveLayoutTuning, writeGridFrame } from "./forceatlas2.js";
 import {
-    type AttractionBound,
+    type AttractionBindings,
     bindAttraction,
     describeValue,
-    FILL_PARAMS_BUFFER,
-    FORCE_BYTES_PER_NODE,
     invalid,
     isPositiveInteger,
     type Overrides,
@@ -79,31 +78,12 @@ import {
     pickDim,
     pickNumber,
     pickSeed,
-    recordAttraction,
     scalar,
-    seedWord,
     subset,
-    vector,
 } from "./model-common.js";
-import { recordExactRepulsion } from "./repulsion-exact.js";
-import { type GridStage, RepulsionGrid, type RepulsionGridOverrides } from "./repulsion-grid.js";
+import { RepulsionGrid, type RepulsionGridOverrides } from "./repulsion-grid.js";
 
 // ============================================================ constants
-
-/** The stage names of both tiers in dispatch order plus the per-batch toScene (spec 7.20; P4 PD-17: the union list; the exact tier records K1 K2 K3 K5, the grid tier K1 K2 G1..G7 K5, K4 never). */
-const FR_STAGES = ["K1", "K2", "K3", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "K4", "K5", "toScene"] as const;
-
-/** The FR_STAGES index of the first grid stage, of K4, of K5 and of toScene. */
-const STAGE_G1 = 3;
-const STAGE_K4 = 10;
-const STAGE_K5 = 11;
-const STAGE_TO_SCENE = 12;
-
-/** The name of the model-owned hub-counter buffer K1 binds on every tier (P4 PD-14). */
-const HUB_COUNTERS_BUFFER = "hubCounters";
-
-/** The one-workgroup dispatch of K1 (spec 7.4). */
-const ONE_WORKGROUP: DispatchPlan = { x: 1, y: 1, z: 1, items: 1, stride: null };
 
 /** The model's override set, constant for every option record (PD-1, PD-20). */
 const FR_OVERRIDES: Overrides = Object.freeze({
@@ -125,19 +105,6 @@ const FR_GRID_OVERRIDES: RepulsionGridOverrides = Object.freeze({
     GRAVITY_CENTER: 0,
     LAW: 1,
 });
-
-/** Every override each kernel accepts, with its default (the names its registry entry declares). */
-const K1_DEFAULTS: Overrides = { STATS_MODE: 0 };
-const K2_DEFAULTS: Overrides = {
-    LINLOG: false,
-    DISTRIBUTED: false,
-    TIER: 0,
-    USE_PERM: false,
-    HAS_WEIGHTS: false,
-    LAW: 0,
-};
-const K3_DEFAULTS: Overrides = { SWING_MODE: 0, STRONG_GRAVITY: false, GRAVITY_CENTER: 0, LAW: 0 };
-const K5_DEFAULTS: Overrides = { SWING_MODE: 0, APPLY: 0 };
 
 /** The resolved record with no option given: FR_DEFAULTS plus the null / origin defaults. */
 const DEFAULT_RESOLVED: ResolvedFruchtermanReingoldOptions = Object.freeze<ResolvedFruchtermanReingoldOptions>({
@@ -290,45 +257,13 @@ function resolveFixed(s: GraphSnapshot, spec: NodeMask | string | null): NodeMas
 
 // ============================================================ the model
 
-/** Everything bind() produced for one load(): the kernels, their bind groups and the dispatch plans of this n. */
-interface BoundModel {
-    readonly n: number;
-    /** plan1d(n): K2, K3, K5, toScene. */
-    readonly plan: DispatchPlan;
-    /** plan1d(3n): the fill of force (3 words per node). */
-    readonly fillPlan: DispatchPlan;
-    readonly k1: Kernel;
-    readonly k1Bound: BoundKernel;
-    /** The K2 tier dispatches (P4 PD-7); null when arcCount === 0 (K2 is not recorded; the fill below zeroes force instead, spec 7.5). */
-    readonly attraction: AttractionBound | null;
-    /** K3 and its bind group, or null on the grid tier (P4 PD-18): one tier's kernels compile per load. */
-    readonly k3: Kernel | null;
-    readonly k3Bound: BoundKernel | null;
-    /** The grid-tier stage (G1-G7), or null on the exact tier (P4 PD-18). */
-    readonly grid: RepulsionGrid | null;
-    readonly k5: Kernel;
-    readonly k5Bound: BoundKernel;
-    readonly toScene: Kernel;
-    readonly toSceneBound: BoundKernel;
-    readonly fill: Kernel;
-    /** The fill of `force` (arcCount === 0 only). */
-    readonly fillForceBound: BoundKernel | null;
-}
-
 /** The Fruchterman-Reingold model (spec 7.20: K1 K2 K3 K5 per iteration on the exact tier, K1 K2 G1..G7 K5 on the grid tier; toScene once per batch). Stages: the union list of PD-17. */
-export class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldOptions, FruchtermanReingoldStats> {
+export class FruchtermanReingoldModel
+    extends ForceModelBase<LawRepulsion>
+    implements ForceModel<FruchtermanReingoldOptions, FruchtermanReingoldStats>
+{
     /** The model kind of spec 7.19. */
     readonly kind = "fruchtermanReingold";
-    /** The stage names in dispatch order (the `upTo` vocabulary of recordIteration and debugRunStages). */
-    readonly stages: typeof FR_STAGES = FR_STAGES;
-    /** Fa2Params: the per-iteration uniform block (the simulation writes the shared fields into it). */
-    readonly params: UniformBlock = FA2_PARAMS;
-    /** Fa2State: the state header block. */
-    readonly state: UniformBlock = FA2_STATE;
-    /** Fa2Trace: one record per iteration of a batch. */
-    readonly trace: UniformBlock = FA2_TRACE;
-    /** The resolved GPU-only tuning this model was created with. */
-    readonly tuning: ResolvedLayoutTuning;
 
     /** The option record the model holds: the constructor's record, replaced by onSetParams() ONLY (as FA2's). */
     private current: ResolvedFruchtermanReingoldOptions;
@@ -336,49 +271,16 @@ export class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldO
     private tempOrigin = 0;
     /** Armed by onReheat(); consumed by the next paramsFor(), which re-anchors tempOrigin (PD-5). */
     private pendingReheat = false;
-    private resources: ModelResources | null = null;
-    private bound: BoundModel | null = null;
-    /** The grid of the load inputs() last resolved (null on the exact tier): onLoad() writes its frame, specs() lists its kernels. */
-    private nextGrid: GridSpec | null = null;
-    /** The K1-K5 compute pass of the batch being recorded, keyed by CommandBatch.id (one pass per batch, contract 4.4). */
-    private openPass: { readonly id: number; readonly pass: GPUComputePassEncoder } | null = null;
 
     /**
-     * Creates the model for one simulation.
+     * Creates the model for one simulation. `oldForce` is allocated, bound and never read (PD-2); the toScene pass
+     * keeps FA2's label.
      * @param tuning - the resolved GPU-only tuning (the tier rule; compat has no effect on this model)
      * @param resolved - the resolved option record at creation
      */
     constructor(tuning: ResolvedLayoutTuning, resolved: ResolvedFruchtermanReingoldOptions) {
-        this.tuning = tuning;
+        super(tuning, { name: "Fruchterman-Reingold", pass: "fr", scenePass: "fa2-to-scene", carry: "oldForce" });
         this.current = resolved;
-    }
-
-    /**
-     * force 12n and oldForce 12n (zeroed; bound and never read, PD-2), the 256-byte FillParams uniform buffer the
-     * fill dispatch reads, the 16-byte `hubCounters` K1 binds on every tier (P4 PD-14), and the grid buffers of
-     * `RepulsionGrid.buffers` exactly when `tierFor(tuning, n)` is the grid tier (PD-18). n = 0 reports one node's
-     * worth of bytes so no zero-length buffer is ever created.
-     * @param n - the node count
-     * @param dim - the layout dimension (the force arrays are stride 3 in both; the grid's geometry differs)
-     * @returns the model-owned buffer specs
-     */
-    buffers(n: number, dim: 2 | 3): readonly BufferSpec[] {
-        const bytes = Math.max(1, n) * FORCE_BYTES_PER_NODE;
-        const usage = BufferUsage.STORAGE | BufferUsage.COPY_SRC | BufferUsage.COPY_DST;
-        const grid =
-            tierFor(this.tuning, n) === "grid" ? RepulsionGrid.buffers(n, gridSpecFor(n, dim, this.tuning)) : [];
-        return [
-            { name: "force", byteLength: bytes, usage, zero: true },
-            { name: "oldForce", byteLength: bytes, usage, zero: true },
-            {
-                name: FILL_PARAMS_BUFFER,
-                byteLength: UNIFORM_SLOT_BYTES,
-                usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
-                zero: false,
-            },
-            { name: HUB_COUNTERS_BUFFER, byteLength: 16, usage, zero: true },
-            ...grid,
-        ];
     }
 
     /**
@@ -423,10 +325,10 @@ export class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldO
     specs(overrides: Overrides, _subgroups: boolean): readonly WgslModuleSpec[] {
         const grid = this.nextGrid === null ? [] : RepulsionGrid.specs(FR_GRID_OVERRIDES, this.nextGrid);
         return [
-            kernelSpec("fa2-stats-finalize", subset(overrides, K1_DEFAULTS)),
-            kernelSpec("fa2-attraction", subset(overrides, K2_DEFAULTS)),
-            kernelSpec("fa2-repulsion-exact", subset(overrides, K3_DEFAULTS)),
-            kernelSpec("fa2-integrate", subset(overrides, K5_DEFAULTS)),
+            kernelSpec("fa2-stats-finalize", subset(overrides, LAW_K1_DEFAULTS)),
+            kernelSpec("fa2-attraction", subset(overrides, LAW_K2_DEFAULTS)),
+            kernelSpec("fa2-repulsion-exact", subset(overrides, LAW_K3_DEFAULTS)),
+            kernelSpec("fa2-integrate", subset(overrides, LAW_K5_DEFAULTS)),
             kernelSpec("fa2-to-scene"),
             kernelSpec("fill"),
             ...grid,
@@ -434,35 +336,30 @@ export class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldO
     }
 
     /**
-     * Compiles (through the cache) and binds every kernel against the buffers of this load(): K1, K2 over the degree
-     * tiers through bindAttraction (or the fill of force when arcCount === 0), K3 on the exact tier or G1-G7 through
-     * RepulsionGrid on the grid tier (PD-18), K5, toScene; writes the FillParams { count: 3n, value: 0, mode: 0 }
-     * into the model's uniform buffer. With n === 0 nothing is bound. The K2 TIER 1 / 2 pipelines compile on the
-     * first load whose degrees need them (P4 PD-7).
+     * Compiles the pipelines of one load, one after another: K1, K2 over the degree tiers through bindAttraction
+     * (none when arcCount === 0), K3 on the exact tier, K5, toScene, fill, then G1-G7 through RepulsionGrid on the
+     * grid tier (PD-18). The K2 TIER 1 / 2 pipelines compile on the first load whose degrees need them (P4 PD-7).
      * @param resources - the graph, the shared and model buffers, the ring and the cache
      * @param overrides - the merged override set
+     * @param attractionBindings - K2's group-1 / group-2 bindings
+     * @returns the pipelines
      */
-    async bind(resources: ModelResources, overrides: Overrides): Promise<void> {
-        this.dropBound();
-        this.resources = resources;
-        const { n, pipelines, caps, core, ring, device } = resources;
-        if (n === 0) {
-            return;
-        }
-        const pos = resources.buffer("positions");
-        const force = resources.buffer("force");
-        const params = ring.binding(FA2_PARAMS);
-        const hasArcs = core.colIdx !== null;
-        // sequential on purpose: PipelineCache.get compiles inside a validation scope, one stack per device
-        const k1 = await pipelines.kernel(kernelSpec("fa2-stats-finalize", subset(overrides, K1_DEFAULTS)));
-        const attraction = hasArcs
-            ? await bindAttraction(resources, subset(overrides, K2_DEFAULTS), { pos, force, params })
-            : null;
+    protected async compile(
+        resources: ModelResources,
+        overrides: Overrides,
+        attractionBindings: AttractionBindings,
+    ): Promise<CompiledModel<LawRepulsion>> {
+        const { n, pipelines } = resources;
+        const k1 = await pipelines.kernel(kernelSpec("fa2-stats-finalize", subset(overrides, LAW_K1_DEFAULTS)));
+        const attraction =
+            resources.core.colIdx !== null
+                ? await bindAttraction(resources, subset(overrides, LAW_K2_DEFAULTS), attractionBindings)
+                : null;
         const k3 =
             resources.tier === "grid"
                 ? null
-                : await pipelines.kernel(kernelSpec("fa2-repulsion-exact", subset(overrides, K3_DEFAULTS)));
-        const k5 = await pipelines.kernel(kernelSpec("fa2-integrate", subset(overrides, K5_DEFAULTS)));
+                : await pipelines.kernel(kernelSpec("fa2-repulsion-exact", subset(overrides, LAW_K3_DEFAULTS)));
+        const k5 = await pipelines.kernel(kernelSpec("fa2-integrate", subset(overrides, LAW_K5_DEFAULTS)));
         const toScene = await pipelines.kernel(kernelSpec("fa2-to-scene"));
         const fill = await pipelines.kernel(kernelSpec("fill"));
         const grid =
@@ -474,245 +371,34 @@ export class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldO
                       gridSpecFor(n, resources.dim, this.tuning),
                   )
                 : null;
-        if (this.resources !== resources) {
-            // a newer bind() superseded this one while the pipelines compiled; its own bind groups stand
-            grid?.dispose();
-            return;
-        }
-        const scene = resources.buffer("scenePositions");
-        const fixed = resources.buffer("fixed");
-        const partials = resources.buffer("partials");
-        const state = resources.buffer("state");
-        const trace = resources.buffer("trace");
-        const oldForce = resources.buffer("oldForce");
-        const fillParamsBuffer = resources.buffer(FILL_PARAMS_BUFFER);
-        const fillParams: Binding = {
-            buffer: fillParamsBuffer.buffer,
-            offset: fillParamsBuffer.offset,
-            size: FILL_PARAMS.byteLength,
-            window: null,
-        };
-        const fillBytes = new ArrayBuffer(FILL_PARAMS.byteLength);
-        FILL_PARAMS.write(new DataView(fillBytes), { count: 3 * n, value: 0, mode: 0 });
-        device.queue.writeBuffer(fillParamsBuffer.buffer, fillParamsBuffer.offset, fillBytes);
-        const hubCounters = resources.buffer(HUB_COUNTERS_BUFFER);
-        grid?.bind({
-            pos,
-            state,
-            trace,
-            force,
-            oldForce,
-            fixedMask: fixed,
-            partials,
-            params,
-            cellKey: resources.buffer("cellKey"),
-            cellVal: resources.buffer("cellVal"),
-            sortedKey: resources.buffer("sortedKey"),
-            sortedIdx: resources.buffer("sortedIdx"),
-            cellHist: resources.buffer("cellHist"),
-            cellStart: resources.buffer("cellStart"),
-            hubList: resources.buffer("hubList"),
-            hubCounters,
-            pyramid: resources.buffer("pyramid"),
-        });
-        const wg = k1.workgroupSize;
-        this.bound = {
-            n,
-            plan: plan1d(n, wg, caps),
-            fillPlan: plan1d(3 * n, wg, caps),
-            k1,
-            // PD-14: on the exact tier K1's cellHist slot takes a dummy (partials, both read-only) and the block is
-            // dead under gridMax 0; hubCounters is the model's 16-byte buffer on every tier
-            k1Bound: k1.bind({
-                partials,
-                S: state,
-                T: trace,
-                cellHist: grid === null ? partials : resources.buffer("cellHist"),
-                hubCounters,
-                P: params,
-            }),
-            attraction,
-            k3,
-            k3Bound: k3?.bind({ pos, S: state, force, oldForce, fixedMask: fixed, partials, P: params }) ?? null,
-            grid,
-            k5,
-            k5Bound: k5.bind({ force, oldForce, fixedMask: fixed, S: state, pos, partials, P: params }),
-            toScene,
-            toSceneBound: toScene.bind({ pos, scene, P: params }),
-            fill,
-            fillForceBound: hasArcs ? null : fill.bind({ dst: force, P: fillParams }),
-        };
+        const exact = k3 === null ? null : LawRepulsion.binder(k3);
+        return { k1, k5, toScene, fill, attraction, exact, grid };
     }
 
     /**
-     * The Fa2Params values of one iteration: the FA2 fields at their neutral values (scalingRatio, gravity and
-     * jitterTolerance 0), `frK` = k or 1 / sqrt(n), and this iteration's temperature (PD-5 anchors here). Under
-     * `cooling: "adaptive"` the flags carry FA2_FLAG_ADAPTIVE and the kernels take the temperature from the state
-     * block instead (K1 updates it, K5 reads it); the uniform's value is then the start temperature and unused. The
-     * simulation overwrites the shared fields with the same values and OR-s in its own flags.
+     * The Fa2Params values of one iteration: the shared fields, the FA2 fields at their neutral values (scalingRatio,
+     * gravity and jitterTolerance 0), `frK` = k or 1 / sqrt(n), and this iteration's temperature (PD-5 anchors here).
+     * Under `cooling: "adaptive"` the flags carry FA2_FLAG_ADAPTIVE and the kernels take the temperature from the
+     * state block instead (K1 updates it, K5 reads it); the uniform's value is then the start temperature and unused.
+     * The simulation overwrites the shared fields with the same values and OR-s in its own flags.
      * @param iteration - the GLOBAL iteration index
      * @param options - the simulation's current option record
      * @returns the uniform values
      */
     paramsFor(iteration: number, options: FruchtermanReingoldOptions): UniformValues {
-        const { n, core, tiers, tier, dim } = this.requireResources();
+        const { n } = this.requireResources();
         const resolved = resolveFruchtermanReingoldOptions(options, this.current);
-        const { nearMax, extentFactor } = this.tuning;
         const adaptive = resolved.cooling === "adaptive";
-        const grid = tier === "grid" ? gridSpecFor(n, dim, this.tuning) : null;
-        // P4 PD-7: TIER 2 reads [0, hiEnd), TIER 1 [hiEnd, midEnd), TIER 0 [tierStart, tierEnd) = [midEnd, n)
-        const so = tiers?.segmentOffsets;
-        const hiEnd = so?.[1] ?? 0;
-        const midEnd = so?.[2] ?? 0;
         return {
-            n,
-            dim: resolved.dim,
+            ...this.sharedParams(iteration, resolved),
             flags: adaptive ? FA2_FLAG_ADAPTIVE : 0,
-            tierStart: midEnd,
-            tierEnd: n,
-            iterationIndex: iteration,
-            seed: seedWord(resolved.seed),
-            nearMax,
             scalingRatio: 0,
             gravity: 0,
             jitterTolerance: 0,
-            scale: resolved.scale,
-            center: [resolved.center[0], resolved.center[1], resolved.center[2], 0],
-            settleThreshold: resolved.settleThreshold,
-            extentFactor,
-            gridMax: grid?.g ?? 0,
-            levels: grid?.levels ?? 0,
-            arcBase: 0,
-            arcEnd: arcCountOf(core),
-            accumulate: 0,
-            hiEnd,
-            midEnd,
             frK: resolved.k ?? 1 / Math.sqrt(n),
             settleFloor: SETTLE_FLOOR_FRACTION.fruchtermanReingold * (resolved.k ?? 1 / Math.sqrt(n)),
             temperature: adaptive ? FR_START_TEMPERATURE : this.temperatureAt(iteration, resolved),
         };
-    }
-
-    /**
-     * Records one iteration into the batch, stopping after stage `upTo` when given (PD-17: `upTo` names a position
-     * in the union list and the recording stops after the last stage recorded at or before it, so "K3" on the grid
-     * tier stops after K2 and "G5" on the exact tier after K3). The exact tier: K1, K2 (or the fill of force when
-     * arcCount === 0), K3, K5 in the batch's ONE compute pass (opened by the first call of a batch and reused by
-     * every later call with the same batch.id), then toScene in a second pass that ends it. The grid tier (PD-16):
-     * the passes `fr-k1` (K1), `fr-attraction` (K2's tiers) and `fr-grid` (G1-G7, K5) per iteration, then
-     * `fa2-to-scene`. With n === 0 nothing is recorded; a call before bind() completed is E_NOT_LOADED (never a
-     * silent no-op).
-     * @param batch - the batch being recorded
-     * @param slot - the UniformRing slot holding this iteration's Fa2Params
-     * @param tier - the tier the simulation resolved at load() (the same rule bind() applied, PD-18)
-     * @param upTo - a stage name to stop after; undefined records every stage including toScene
-     */
-    recordIteration(batch: CommandBatch, slot: number, tier: "exact" | "grid", upTo?: string): void {
-        const resources = this.requireResources();
-        const stop = upTo === undefined ? STAGE_TO_SCENE : this.stageIndex(upTo);
-        const { bound } = this;
-        if (bound === null) {
-            if (resources.n === 0) {
-                return;
-            }
-            throw new WebGpuGraphError(
-                "E_NOT_LOADED",
-                "the Fruchterman-Reingold model is not bound (bind() has not completed)",
-                { state: "loaded" },
-            );
-        }
-        const offset = resources.ring.offsetOf(slot);
-        if (tier === "grid") {
-            this.recordGridIteration(batch, bound, offset, stop);
-            return;
-        }
-        const { k3, k3Bound } = bound;
-        if (k3 === null || k3Bound === null) {
-            throw new WebGpuGraphError("E_NOT_LOADED", "the Fruchterman-Reingold model was bound on the grid tier", {
-                state: "loaded",
-            });
-        }
-        const pass = this.openPass !== null && this.openPass.id === batch.id ? this.openPass.pass : batch.pass("fr");
-        this.openPass = { id: batch.id, pass };
-        bound.k1.dispatch(pass, bound.k1Bound, ONE_WORKGROUP, [offset]);
-        if (stop < 1) {
-            return;
-        }
-        this.recordK2(pass, bound, offset);
-        if (stop < 2) {
-            return;
-        }
-        recordExactRepulsion(k3, pass, k3Bound, bound.plan, bound.n, offset);
-        if (stop < STAGE_K5) {
-            return;
-        }
-        bound.k5.dispatch(pass, bound.k5Bound, bound.plan, [offset]);
-        if (stop < STAGE_TO_SCENE) {
-            return;
-        }
-        this.recordToScene(batch, bound, offset);
-    }
-
-    /**
-     * The grid tier's iteration (PD-16): three compute passes before toScene; no K4.
-     * @param batch - the batch being recorded
-     * @param bound - the bound model
-     * @param offset - the Fa2Params dynamic offset of the iteration
-     * @param stop - the FR_STAGES index to stop after
-     */
-    private recordGridIteration(batch: CommandBatch, bound: BoundModel, offset: number, stop: number): void {
-        const { grid } = bound;
-        if (grid === null) {
-            throw new WebGpuGraphError("E_NOT_LOADED", "the Fruchterman-Reingold model was bound on the exact tier", {
-                state: "loaded",
-            });
-        }
-        this.openPass = null;
-        bound.k1.dispatch(batch.pass("fr-k1"), bound.k1Bound, ONE_WORKGROUP, [offset]);
-        if (stop < 1) {
-            return;
-        }
-        this.recordK2(batch.pass("fr-attraction"), bound, offset);
-        if (stop < STAGE_G1) {
-            return;
-        }
-        const pass = batch.pass("fr-grid");
-        const gridStop = stop < STAGE_K4 ? (FR_STAGES[stop] as GridStage) : undefined;
-        grid.recordRepulsion(pass, bound.n, offset, gridStop);
-        if (stop < STAGE_K5) {
-            return;
-        }
-        bound.k5.dispatch(pass, bound.k5Bound, bound.plan, [offset]);
-        if (stop < STAGE_TO_SCENE) {
-            return;
-        }
-        this.recordToScene(batch, bound, offset);
-    }
-
-    /**
-     * K2's tier dispatches, or the fill of force when the graph has no arcs (spec 7.5).
-     * @param pass - the open compute pass
-     * @param bound - the bound model
-     * @param offset - the Fa2Params dynamic offset
-     */
-    private recordK2(pass: GPUComputePassEncoder, bound: BoundModel, offset: number): void {
-        if (bound.attraction !== null) {
-            recordAttraction(pass, bound.attraction, offset);
-        } else if (bound.fillForceBound !== null) {
-            bound.fill.dispatch(pass, bound.fillForceBound, bound.fillPlan, [0]);
-        }
-    }
-
-    /**
-     * The toScene pass that ends the iteration's pass; the batch is complete after it, so nothing reuses the pass.
-     * @param batch - the batch
-     * @param bound - the bound model
-     * @param offset - the Fa2Params dynamic offset
-     */
-    private recordToScene(batch: CommandBatch, bound: BoundModel, offset: number): void {
-        this.openPass = null;
-        const scenePass = batch.pass("fa2-to-scene");
-        bound.toScene.dispatch(scenePass, bound.toSceneBound, bound.plan, [offset]);
     }
 
     /**
@@ -765,16 +451,14 @@ export class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldO
     }
 
     /**
-     * Decodes the state header and the k trace records of a completed batch into FruchtermanReingoldStats:
-     * `repulsionTier` is the bound tier, the grid fields are the header's on the grid tier and null on the exact
-     * tier, msPerIteration null (the simulation owns the clock), the temperature K1 wrote.
+     * Decodes the state header and the k trace records of a completed batch into FruchtermanReingoldStats: the shared
+     * fields (ForceModelBase.sharedStats), the temperature K1 wrote and the trace.
      * @param state - a DataView over the 256-byte state header
      * @param trace - a DataView over the k Fa2Trace records of the batch
      * @returns the stats
      */
     readStats(state: DataView, trace: DataView): FruchtermanReingoldStats {
         const header = FA2_STATE.read(state);
-        const centroid = vector(header, "centroid");
         const records: FruchtermanReingoldTraceRecord[] = [];
         const count = Math.floor(trace.byteLength / TRACE_RECORD_BYTES);
         for (let i = 0; i < count; i++) {
@@ -785,17 +469,8 @@ export class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldO
                 settledCount: scalar(record, "settledCount"),
             });
         }
-        const grid = this.resources?.tier === "grid";
         return {
-            iteration: scalar(header, "iteration"),
-            meanDisplacement: scalar(header, "meanDisplacement"),
-            rmsRadius: scalar(header, "rmsRadius"),
-            layoutRadius: scalar(header, "radius"),
-            centroid: [centroid[0], centroid[1], centroid[2]],
-            repulsionTier: grid ? "grid" : "exact",
-            maxCellOccupancy: grid ? scalar(header, "maxCellOccupancy") : null,
-            outsideGrid: grid ? scalar(header, "outsideGrid") : null,
-            msPerIteration: null,
+            ...this.sharedStats(header),
             temperature: scalar(header, "temperature"),
             trace: records,
         };
@@ -815,58 +490,6 @@ export class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldO
         }
         const dt = FR_START_TEMPERATURE / (resolved.iterations + 1);
         return Math.max(0, FR_START_TEMPERATURE - dt * (global - this.tempOrigin));
-    }
-
-    /**
-     * The resources of the last bind(), or E_NOT_LOADED before it.
-     * @returns the resources
-     */
-    private requireResources(): ModelResources {
-        if (this.resources === null) {
-            throw new WebGpuGraphError(
-                "E_NOT_LOADED",
-                "the Fruchterman-Reingold model has not been bound (load() first)",
-                { state: "created" },
-            );
-        }
-        return this.resources;
-    }
-
-    /**
-     * The index of a stage name in FR_STAGES, or E_INVALID_ARGUMENT.
-     * @param upTo - the stage name
-     * @returns its index
-     */
-    private stageIndex(upTo: string): number {
-        for (let i = 0; i < FR_STAGES.length; i++) {
-            if (FR_STAGES[i] === upTo) {
-                return i;
-            }
-        }
-        throw invalid("upTo", upTo, FR_STAGES.join(" | "));
-    }
-
-    /** Releases the grid stage's lease and the bind groups (the simulation calls it from dispose() once every in-flight batch has settled). */
-    dispose(): void {
-        this.dropBound();
-    }
-
-    /** Drops the bind groups of the previous bind() (the buffers changed), releases the grid stage's lease and forgets the pass of a batch recorded before the rebind. */
-    private dropBound(): void {
-        this.openPass = null;
-        const { bound } = this;
-        if (bound === null) {
-            return;
-        }
-        for (const kernel of [bound.k1, bound.k5, bound.toScene, bound.fill]) {
-            kernel.invalidate();
-        }
-        bound.k3?.invalidate();
-        for (const [kernel] of bound.attraction?.kernels ?? []) {
-            kernel.invalidate();
-        }
-        bound.grid?.dispose();
-        this.bound = null;
     }
 }
 

@@ -5,7 +5,7 @@
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
@@ -138,6 +138,35 @@ describe("the lanes outside CI", () => {
         const gpu = workflow("gpu.yml");
         assert.match(gpu, /pull_request: \{ types: \[labeled, synchronize, ready_for_review\] \}/);
         assert.match(job(gpu, "test-gpu"), /!github.event.pull_request.draft &&/);
+    });
+});
+
+describe("apt in the workflows", () => {
+    it("drops the Microsoft apt sources before every job's first apt use", () => {
+        // packages.microsoft.com, a source the hosted Ubuntu images ship and nothing here installs from,
+        // sometimes answers 403 and apt-get update exits 100 (run 37244710257). A job in a `container:`
+        // runs a bare image without that source.
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        const files = readdirSync(dir)
+            .filter((f) => f.endsWith(".yml"))
+            .map((f) => [f, readFileSync(new URL(f, dir), "utf8")]);
+        files.push([
+            "visual-review template",
+            readFileSync(new URL("../visual-review/templates/visual-review.yml", import.meta.url), "utf8"),
+        ]);
+        const APT = /--with-deps|install-deps|install-browser|apt-get/;
+        let checked = 0;
+        for (const [file, text] of files) {
+            const code = text.replace(/^\s*#.*$/gm, "");
+            for (const body of code.split(/\n(?= {4}[a-z][\w-]*:\n)/)) {
+                const use = body.search(APT);
+                if (use === -1 || /\n {8}container:/.test(body)) continue;
+                const drop = body.search(/drop-microsoft-apt-source|grep -rl packages\.microsoft\.com/);
+                assert.ok(drop !== -1 && drop < use, `${file}: ${body.trim().split("\n")[0]} drops the source first`);
+                checked++;
+            }
+        }
+        assert.ok(checked >= 4, `found the apt jobs (${checked})`);
     });
 });
 

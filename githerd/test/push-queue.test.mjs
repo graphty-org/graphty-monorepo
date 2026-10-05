@@ -117,14 +117,15 @@ function gate(what) {
 }
 
 /**
- * Whether a process exists.
+ * Whether a process runs. A killed process whose parent died too stays a zombie until init reaps
+ * it, which a loaded machine delays; it has exited all the same, so a zombie is not alive.
  * @param {number} pid the process
- * @returns {boolean} true when it does
+ * @returns {boolean} true when it runs
  */
 function alive(pid) {
     try {
-        process.kill(pid, 0);
-        return true;
+        const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+        return !stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z");
     } catch {
         return false;
     }

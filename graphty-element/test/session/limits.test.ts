@@ -33,11 +33,18 @@ describe("the limits the element ships with", () => {
 
     it("publishes the render ceilings the renderer was measured to reach, not the design table's", () => {
         // The design table said 200,000 nodes and 500,000 edges; the renderer died at 18,000 /
-        // 180,000 (issue #405). These are the enforced figures, measured for the DEFAULT edge style:
-        // a patterned line style gives every dot and dash a ShaderMaterial of its own
-        // (PatternedLineRenderer), so under one the heap runs out earlier than these say.
-        assert.strictEqual(DEFAULT_LIMITS.renderCeiling, 50_000);
-        assert.strictEqual(DEFAULT_LIMITS.edgesDrawn, 100_000);
+        // 180,000 (issue #405) while every edge was two meshes and a material. It is neither now:
+        // an edge's line and caps are thin instances of shared meshes, so an edge adds no scene
+        // object at all, and the pair below -- the worst case the two ceilings allow together --
+        // measured 1,994 MB of a 4,096 MB heap and 3.3 GB of renderer memory, loading in 27 s with
+        // the page still answering. The size above it, 150,000 / 1,500,000, survives as well but
+        // at 75 % of the heap, which leaves a layout and a run nothing, so it is the wall rather
+        // than the ceiling. On master the same renderer is dead at 30,000 / 300,000. Both figures
+        // are for the DEFAULT edge style: a patterned line gives every dot and dash a
+        // ShaderMaterial of its own (PatternedLineRenderer), so under one the heap runs out
+        // earlier than these say.
+        assert.strictEqual(DEFAULT_LIMITS.renderCeiling, 100_000);
+        assert.strictEqual(DEFAULT_LIMITS.edgesDrawn, 1_000_000);
     });
 
     it("states the selection cap the selection itself enforces, rather than a second copy of it", () => {

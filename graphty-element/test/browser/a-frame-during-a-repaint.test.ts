@@ -64,13 +64,20 @@ async function mount(): Promise<Graphty> {
 }
 
 /**
- * How see-through each arrow cap in the scene is drawn: `EdgeMesh.createArrowHead` writes the
- * cap's opacity onto the mesh as its visibility.
+ * How see-through each arrow cap in the picture is drawn: a cap carries its opacity as its
+ * visibility.
+ *
+ * READ OFF THE EDGES, NOT OFF THE SCENE. A cap is a slot in a mesh shared by every cap of the
+ * same appearance, and that mesh's name deliberately does not say "arrow", so a scene walk
+ * looking for one finds nothing at all -- which is an empty list, not a failure. The edge that
+ * owns a cap is the only place the answer exists.
  * @param element - The element.
- * @returns One visibility per arrow mesh.
+ * @returns One visibility per arrow cap.
  */
 function arrowCapOpacities(element: Graphty): number[] {
-    return element.graph.scene.meshes.filter((mesh) => mesh.name.includes("arrow")).map((mesh) => mesh.visibility);
+    return [...element.graph.getDataManager().edges.values()].flatMap((edge) =>
+        edge.drawnCaps.map((cap) => cap.visibility),
+    );
 }
 
 describe("a frame drawn while a style pass is painting", () => {

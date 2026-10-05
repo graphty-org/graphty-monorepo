@@ -74,17 +74,18 @@ export type { AddEdgesOptions } from "../session/project/ingest";
  * session's dispatcher, not a pointer observer.
  *
  * ONLY MESHES THE CALLER IS ABOUT TO DISPOSE may be passed: a live mesh dropped here would stay
- * alive and simply stop being drawn. Each element's own mesh, its arrowheads and everything parented
- * to them (a node's label plane) are collected; those are what `Node.dispose` and `Edge.dispose`
- * free. A mesh not collected -- a tooltip, a halo, a patterned line's segments -- is still freed
- * correctly by its own dispose, at the old per-mesh cost.
+ * alive and simply stop being drawn. Each element's own mesh and everything parented to it (a
+ * node's label plane) are collected; those are what `Node.dispose` and `Edge.dispose` free. A
+ * shared batch an edge's line or arrowhead is a slot in is never collected, because it still draws
+ * the edges that stay. A mesh not collected -- a batch, a tooltip, a halo, a patterned line's
+ * segments -- is still freed correctly by its own dispose, at the old per-mesh cost.
  * @param nodes - The nodes about to be disposed.
  * @param edges - The edges about to be disposed.
  */
 function releaseFromScene(nodes: Iterable<Node>, edges: Iterable<Edge>): void {
     const doomed = new Set<AbstractMesh>();
     // Anything that is not a live Babylon mesh is skipped: a patterned line, whose segments go by
-    // their own dispose, and an arrowhead the edge does not have.
+    // their own dispose.
     const add = (mesh: unknown): void => {
         if (mesh instanceof AbstractMesh && !mesh.isDisposed()) {
             doomed.add(mesh);
@@ -102,9 +103,12 @@ function releaseFromScene(nodes: Iterable<Node>, edges: Iterable<Edge>): void {
     }
 
     for (const edge of edges) {
-        add(edge.mesh);
-        add(edge.arrowMesh);
-        add(edge.arrowTailMesh);
+        // A line drawn as a slot in a shared batch points `edge.mesh` at the batch, which still
+        // draws every other edge in it: the batch disposes itself with its last slot. Arrowheads
+        // are always such slots (ArrowCap), so they own no mesh here.
+        if (!(edge.mesh instanceof AbstractMesh && edge.mesh.hasThinInstances)) {
+            add(edge.mesh);
+        }
     }
 
     // Only the parents that are not going themselves: a label's node mesh is, and its child list

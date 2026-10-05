@@ -85,7 +85,7 @@ function element(width: number, height: number, eye: Vector3): Element {
     return {
         scene,
         line: lineMesh.material as ShaderMaterial,
-        arrow: arrowMesh.material as ShaderMaterial,
+        arrow: arrowMesh.batchMesh?.material as ShaderMaterial,
         pattern: patternLine.meshes[0].material as ShaderMaterial,
         patternLine,
         dispose: () => {

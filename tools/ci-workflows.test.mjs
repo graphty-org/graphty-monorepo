@@ -162,12 +162,13 @@ describe(".mergify.yml", () => {
 describe("gpu.yml", () => {
     const gpu = workflow("gpu.yml");
 
-    it("runs on ready pull requests, master and nightly, never on a label, and never cancels a paid run", () => {
+    it("runs on ready pull requests and master, never on a label or a schedule, and never cancels a paid run", () => {
         assert.match(gpu, /pull_request: \{ types: \[opened, synchronize, reopened, ready_for_review\] \}/);
-        assert.match(gpu, /schedule: \[\{ cron: /);
+        // the nightly is off until the owner turns it on (spot on hold, issue #1003): no live schedule, no spot
+        assert.doesNotMatch(gpu, /^ {4}schedule:/m);
         assert.doesNotMatch(gpu, /labeled/);
         assert.match(gpu, /cancel-in-progress: false/);
-        assert.match(job(gpu, "test-gpu"), /tenancy=spot/);
+        assert.doesNotMatch(job(gpu, "test-gpu"), /tenancy=spot/);
     });
 
     it("runs the T4 only when the decision says so, and only for this repository's pull requests", () => {

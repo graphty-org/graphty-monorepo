@@ -525,7 +525,7 @@ package has no guide pages, so its documentation link is the generated API refer
 
 Releases go out on a daily train (`design/ci/ci-cd-plan.md`, sections 10 and 11). Once a day
 `release.yml` versions the newest master commit green on CI, GPU and Hosts and opens a
-`chore(release): publish` pull request (branch `release/train-<run id>`, label `priority:critical`)
+`chore(release): publish` pull request (branch `release/train-<run id>`, which Mergify puts first in the queue)
 holding only version fields and changelogs; Mergify merges it, and the merge starts `release.yml`'s
 publish job, which tags each package, creates its GitHub release and publishes it with npm trusted
 publishing from the tested build. Never edit or push to a release branch, and never close one

@@ -325,7 +325,8 @@ describe("release.yml", () => {
         assert.match(train, /is still open; it must merge or close first/);
         assert.match(train, /node tools\/release-hold.mjs apply --only "\$PACKAGES"/);
         assert.match(train, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
-        assert.match(train, /--label priority:critical/);
+        // the train is put first by .mergify.yml's "release train" priority rule, not a label
+        assert.doesNotMatch(train, /--label/);
     });
 
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {
@@ -344,6 +345,17 @@ describe("release.yml", () => {
         const rule = mergify.indexOf("- name: release");
         assert.ok(rule > 0 && rule < mergify.indexOf("- name: default"));
         assert.match(mergify.slice(rule), /^\s+- head~=\^release\/train-$/m);
+    });
+
+    it("puts the train first by its branch, and lets no priority rule interrupt the batches being checked", () => {
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        const rules = mergify.slice(mergify.indexOf("priority_rules:"), mergify.indexOf("queue_rules:"));
+        assert.doesNotMatch(rules, /allow_checks_interruption: *true/);
+        const train = rules.slice(rules.indexOf("- name: release train"));
+        assert.match(train, /^\s+- head~=\^release\/train-$/m);
+        assert.match(train, /^\s+- author=github-actions\[bot\]$/m);
+        assert.match(train, /^\s+priority: high$/m);
+        assert.match(train, /^\s+allow_checks_interruption: false$/m);
     });
 
     it("deploys graphty.app from every green CI run of a push to master", () => {

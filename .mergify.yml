@@ -37,15 +37,14 @@ priority_rules:
 queue_rules:
     # The release pull request that release.yml opens (its priority:critical label puts it first).
     # Listed before "default", so it takes this rule: checked alone, never batched with other pull
-    # requests, and merged with a merge commit (merge, never merge-batch: a batch commit's message
-    # names only pull request numbers), whose message names the release branch and so
+    # requests, and merged with a merge commit, whose message names the release branch and so
     # starts release.yml's publish job. Like a batch, it merges only after the full suite passed
     # on top of master.
     - name: release
       batch_size: 1
       max_checks_retries: 0
       update_method: merge
-      merge_method: merge
+      merge_method: merge # never merge-batch: a batch commit's message names only pull request numbers
       queue_conditions:
           - head~=^release/train-
           - author=github-actions[bot]

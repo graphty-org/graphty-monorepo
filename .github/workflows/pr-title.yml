@@ -20,6 +20,14 @@ permissions:
 jobs:
     lint-pr:
         name: Lint PR Title
+        # A Mergify merge-queue draft (branch mergify/merge-queue/*) carries Mergify's own title, not a commit
+        # message; the pull requests it holds were each checked here on their own. The whole job is skipped, not
+        # one step: under merge_method merge-batch (.mergify.yml) GitHub merges the draft itself, so this required
+        # check must be complete on the draft's head when Mergify merges, and Mergify edits the draft's body about
+        # once a minute. A skipped job completes at once and counts as passing; a job that installs first stays in
+        # progress for a minute after every edit. Only Mergify's own draft: the branch prefix alone is open to
+        # anyone, a fork included, so the repository and author must match.
+        if: ${{ !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') }}
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -39,12 +47,8 @@ jobs:
 
             # The title goes through an environment variable, never into the script text: a title is
             # attacker-controlled on a fork's pull request, and `${{ }}` inside `run:` is pasted into the
-            # shell before it runs. A Mergify merge-queue draft (branch mergify/merge-queue/*) carries
-            # Mergify's own title, not a commit message; the pull requests it holds were each checked
-            # here on their own, so the step is skipped and the job passes. Only Mergify's own draft: the
-            # branch prefix alone is open to anyone, a fork included, so the repository and author must match.
+            # shell before it runs.
             - name: Lint PR title
-              if: ${{ !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') }}
               env:
                   PR_TITLE: ${{ github.event.pull_request.title }}
               run: printf '%s\n' "$PR_TITLE" | pnpm exec commitlint

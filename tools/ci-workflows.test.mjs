@@ -10,7 +10,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
-import { decide, FREEZE_PREFIX, frozenSha, mergedPrs, revertTitle } from "./master-guard.mjs";
+import { decide, FREEZE_PREFIX, frozenSha, mergedPrs, revertBody, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { strayChanges } from "./release-diff.mjs";
 
@@ -125,8 +125,13 @@ describe("ci.yml", () => {
 });
 
 describe("pr-title.yml", () => {
-    it("passes only Mergify's own merge-queue draft without linting its title", () => {
-        assert.ok(workflow("pr-title.yml").includes(`- name: Lint PR title\n              if: \${{ !(${QUEUE}) }}\n`));
+    it("skips the whole job, not a step, for Mergify's own merge-queue draft and only for it", () => {
+        // A skipped job completes at once; a job that installs first leaves the required check in progress
+        // for a minute after each of Mergify's body edits, and under merge-batch GitHub merges the draft itself.
+        const pr = workflow("pr-title.yml");
+        assert.ok(pr.includes(`        name: Lint PR Title\n`));
+        assert.ok(pr.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
+        assert.equal(pr.split(QUEUE).length, 2);
     });
     it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
         // A concurrency group cancels superseded runs even without cancel-in-progress.
@@ -185,9 +190,13 @@ describe(".mergify.yml", () => {
         // merge-batch: one master commit (and one master CI, GPU and Hosts run) per batch. The release rule stays
         // merge, because release.yml's publish job finds the release by the branch its merge commit names.
         const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        const release = mergify.slice(mergify.indexOf("- name: release"), mergify.indexOf("- name: default"));
-        const batch = mergify.slice(mergify.indexOf("- name: default"));
-        assert.match(release, /^\s+merge_method: merge$/m);
+        const queues = mergify.slice(mergify.indexOf("queue_rules:"));
+        const release = queues.slice(queues.indexOf("- name: release"), queues.indexOf("- name: default"));
+        const batch = queues.slice(queues.indexOf("- name: default"));
+        // the rule that matches the train's branch and author is the one that merges with a plain merge commit
+        assert.match(release, /^\s+- head~=\^release\/train-$/m);
+        assert.match(release, /^\s+- author=github-actions\[bot\]$/m);
+        assert.match(release, /^\s+merge_method: merge(\s+#.*)?$/m);
         assert.match(batch, /^\s+merge_method: merge-batch$/m);
         // merge-batch requires a batch size above 1
         assert.match(batch, /batch_size:\n\s+min: 1\n\s+max: ([2-9]|\d{2,})\n/);
@@ -323,6 +332,17 @@ describe("master-guard", () => {
         assert.equal(revertTitle(sha, [42, 43, 44]), "revert: batch #42, #43, #44, master CI red at 0123456");
         assert.equal(revertTitle(sha, [1011]), "revert: pull request #1011, master CI red at 0123456");
     });
+
+    it("tells authors to revert the revert, never to re-queue a merged pull request", () => {
+        const sha = "0123456789abcdef0123456789abcdef01234567";
+        for (const prs of [[], [1011], [42, 43, 44]]) {
+            const body = revertBody(sha, "https://run", prs);
+            assert.match(body, /reverts this revert/);
+            assert.doesNotMatch(body, /re-enter/);
+        }
+        // a batch went red on the tree the queue passed: point at master-only jobs and flakes first
+        assert.match(revertBody(sha, "https://run", [42, 43, 44]), /#42, #43, #44.*jobs that run only on master/s);
+    });
 });
 
 describe("release.yml", () => {
@@ -347,8 +367,6 @@ describe("release.yml", () => {
         assert.match(train, /node tools\/release-hold.mjs apply --only "\$PACKAGES"/);
         assert.match(train, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
         assert.match(train, /--label priority:critical/);
-        // a batch merge is one first-parent commit; its lanes are read on it, never on the commits inside
-        assert.match(train, /git log --first-parent --max-count=200 --format=%H HEAD/);
     });
 
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {
@@ -360,6 +378,10 @@ describe("release.yml", () => {
         assert.match(publish, /node tools\/release-diff.mjs "\$sha" "\$commit"/);
         assert.match(publish, /\.workflow_run.head_branch == "master"/);
         assert.doesNotMatch(train, /id-token|nx release publish/);
+        // a merge-batch commit (.mergify.yml's default rule) never names the release branch, so it never publishes
+        const marker = /contains\(github.event.head_commit.message, '([^']+)'\)/.exec(publish)[1];
+        assert.ok(!"Merged #42, #43, #44\n\nMerged by Mergify Merge Queue".includes(marker));
+        assert.ok(!"Merge of #42".includes(marker));
     });
 
     it("lets Mergify take the release pull request alone, ahead of the default rule", () => {

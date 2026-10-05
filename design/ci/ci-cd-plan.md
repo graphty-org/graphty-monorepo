@@ -231,7 +231,12 @@ batches behind it are rebuilt without it.
 lanes run once per batch rather than once per pull request (one batch of two started two master
 runs, 54 minutes each, before). The original pull requests show as merged because their heads are
 reachable from master. A revert of a batch commit reverts the whole batch; master-guard's revert
-title lists its pull requests. The release pull request keeps `merge_method: merge` in its own
+title lists its pull requests. Because master's tree after a batch merge is the tree "Queue Checks
+Pass" just passed, a red master run on a batch commit points first at the jobs that run only on
+master (the benchmarks, the other push-only steps) or at a flake, not at one pull request of the
+batch; the guard still reverts the whole batch when the parent was green, and its revert body says
+so. A reverted pull request cannot re-enter the queue (its commits are already in master's
+history); the work comes back as a revert of the revert, with the fix or minus the culprit. The release pull request keeps `merge_method: merge` in its own
 rule, because release.yml's publish job finds it by the release branch named in the merge commit.
 Rollback: set the default rule back to `merge_method: merge`. Before the trial, Mergify merged the
 original pull requests with merge commits.

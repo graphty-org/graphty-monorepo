@@ -81,6 +81,28 @@ export function revertTitle(sha, prs) {
         : `revert: batch ${list}, master CI red at ${at}`;
 }
 
+/**
+ * The body of a revert pull request: what the revert takes out, and how the reverted work comes back.
+ * @param sha - The reverted commit.
+ * @param url - The red CI run.
+ * @param prs - The pull requests it landed (a batch merge lands several).
+ * @returns The body.
+ */
+export function revertBody(sha, url, prs) {
+    const list = prs.map((n) => `#${n}`).join(", ");
+    // A merged pull request cannot re-enter the queue: its commits are already in master's history, so merging
+    // them again changes nothing. The way back is a revert of this revert (or a new pull request).
+    const back =
+        "To bring the reverted work back, open a pull request that reverts this revert (git revert <the revert commit of this pull request>) together with the fix, or that reverts it minus the culprit's changes.";
+    if (prs.length > 1) {
+        // A batch merge is one commit whose tree is exactly the tree "Queue Checks Pass" passed, so a red master
+        // run on it more likely means a job that runs only on master, or a flake, than one culprit among them.
+        return `${sha} turned master's CI red: ${url}\n\nIts parent was green, so this reverts it. It landed a batch of ${prs.length} pull requests (${list}), and the revert takes out all of them. The merge queue had already passed this exact tree, so look first at the jobs that run only on master and at flakes; if the cause is one pull request of the batch, the others are innocent.\n\n${back}`;
+    }
+    const landed = prs.length ? ` (${list})` : "";
+    return `${sha} turned master's CI red: ${url}\n\nIts parent was green, so this reverts it, together with the pull request it landed${landed}.\n\n${back}`;
+}
+
 async function main() {
     const { workflow_run: run } = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
     const repo = process.env.GITHUB_REPOSITORY;
@@ -183,14 +205,7 @@ async function main() {
                 } catch {
                     return { note: `The revert did not apply or push cleanly. By hand:\n\n    ${manual}` };
                 }
-                const list = prs.map((n) => `#${n}`).join(", ");
-                // A batch merge is one commit, so its revert takes out every pull request in the batch: the
-                // queue tested them only together, and the culprit is not known yet.
-                const landed =
-                    prs.length > 1
-                        ? `It landed a batch of ${prs.length} pull requests (${list}); the revert takes out all of them. Each re-enters the queue once its author has checked it against the failure.`
-                        : `The pull request it landed${prs.length ? ` (${list})` : ""} re-enters once its author has found the cause.`;
-                const body = `${sha} turned master's CI red: ${run.html_url}\n\nIts parent was green, so this reverts it. ${landed}`;
+                const body = revertBody(sha, run.html_url, prs);
                 const token = process.env.PR_TOKEN || process.env.GITHUB_TOKEN;
                 try {
                     const opened = await gh(

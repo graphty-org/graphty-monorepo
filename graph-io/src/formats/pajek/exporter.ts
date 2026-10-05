@@ -12,12 +12,12 @@
  * weight is written for edges whose weight was explicit (the role-weight column's validity).
  */
 
-import { type Column, GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
+import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
 import { pairFolding } from "../../common/direction.js";
 import { isPajekLabel, quotePajekLabel } from "../../common/escape.js";
 import { capabilities, checkCapabilities, LOSS, type SanitizedIds, sanitizeIds } from "../../common/export.js";
-import { formatDecimal, formatF32, formatF64, formatInteger } from "../../common/format.js";
+import { formatDecimal, formatF32, formatInteger, idText } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { resolveExportOptions } from "../../common/options.js";
 import { inferTextDtype } from "../../common/text.js";
@@ -513,15 +513,6 @@ function labelOf(labels: Column | null, ids: SanitizedIds, i: number, needed: bo
         return idText(ids.originalAt(i));
     }
     return null;
-}
-
-/**
- * The text of an id.
- * @param id - the id
- * @returns String(id)
- */
-function idText(id: NodeId): string {
-    return typeof id === "number" ? formatF64(id) : id;
 }
 
 /**

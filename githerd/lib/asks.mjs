@@ -16,11 +16,12 @@
  * it is neither offered nor asked about. Nor is a pull request with an inferred owner
  * (`state.prInferred`, owners.mjs): the session that last pushed it, or works in its worktree.
  *
- * The same messaging asks each owner session holding a job for its status (`statusStep`), and
- * invites idle sessions to pull work (`inviteStep`).
+ * The same messaging asks each owner session holding a job for its status (`statusStep`), asks the
+ * owner of a broken pull request whether it is fixing it (`brokenOwned`), and invites idle sessions
+ * to pull work (`inviteStep`).
  */
 
-import { askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf } from "./queue.mjs";
+import { askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf, prWork } from "./queue.mjs";
 import { ownerHeld } from "./board.mjs";
 import { releaseOwnerJob } from "./jobs.mjs";
 import { tellSessions } from "./peers.mjs";
@@ -225,6 +226,98 @@ function statusText(jobs, minutes) {
     );
 }
 
+/**
+ * Why an owned pull request is broken and nobody works on it, or null: a failing required check
+ * other than the owner's visual review, or a conflict with its base seen twice, on a pull request
+ * that would be a `pr` job (`prWork`) with no job in flight on it.
+ * @param {any} state the daemon state
+ * @param {string} n the pull request
+ * @param {any} rec its record
+ * @returns {string | null} why
+ */
+function broken(state, n, rec) {
+    if (!prWork(n, rec, state) || jobOnPr(state, n) || headIsGitherds(state, rec)) return null;
+    const failing = rec.ownerGate ? [] : failingRequired(rec);
+    if (failing.length) return `required check failing: ${failing.join(", ")}`;
+    return (rec.conflictSightings ?? 0) >= 2 ? `conflicting with ${rec.baseRef ?? "its base"}` : null;
+}
+
+/**
+ * Whether the owner answered the question about pull request `n`: `githerd_mine` for it, or
+ * `githerd_expect` on a job on it, by the asked session since the question.
+ * @param {any} state the daemon state
+ * @param {string} n the pull request
+ * @param {{session: string, at: string}} ask the question
+ * @returns {boolean} it answered
+ */
+function brokenAnswered(state, n, ask) {
+    const mine = state.prOwners?.[n];
+    if (mine?.session === ask.session && mine.at >= ask.at) return true;
+    return Object.values(state.jobs ?? {}).some(
+        (j) => String(prOf(j)) === n && j.holder?.session === ask.session && j.status?.at >= ask.at,
+    );
+}
+
+/**
+ * The broken pull requests whose owner (`state.prOwners`, else `state.prInferred`) is due the
+ * question "are you fixing it?" (the owner's rule of 2026-10-05: owning is not working). Every
+ * `minutes` per pull request, `state.brokenAsks[<pr>]` = `{head, session, at, heard}`. A question
+ * the owner heard and left unanswered until the next is due, or an owner githerd cannot reach,
+ * releases the pull request from its ownership until a new push (`state.prReleased[<pr>]` = the
+ * head, read by `prInUse`), and its `pr` job is offered as usual.
+ * @param {any} state the daemon state, changed in place
+ * @param {{now: Date, minutes: number, owners: () => import("./peers.mjs").PeerSession[]}} opts the
+ *   clock, the cadence and every live session in this repository
+ * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
+ * @returns {Map<string, {n: string, why: string}[]>} the pull requests to ask about, by session
+ */
+function brokenOwned(state, { now, minutes, owners }, lines) {
+    state.brokenAsks ??= {};
+    state.prReleased ??= {};
+    for (const [n, head] of Object.entries(state.prReleased)) {
+        if (state.prs?.[n]?.headSha !== head) delete state.prReleased[n];
+    }
+    /** @type {Map<string, {n: string, why: string}[]>} */
+    const due = new Map();
+    /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
+    let live = null;
+    for (const [n, rec] of Object.entries(state.prs ?? {})) {
+        // A session that says it is its own after the release owns it again.
+        if (state.prOwners?.[n]) delete state.prReleased[n];
+        const owner = state.prOwners?.[n] ?? state.prInferred?.[n];
+        const why = owner && state.prReleased[n] !== rec.headSha ? broken(state, n, rec) : null;
+        if (!why) {
+            delete state.brokenAsks[n];
+            continue;
+        }
+        const ask = state.brokenAsks[n];
+        const same = ask?.head === rec.headSha && ask.session === owner.session;
+        // A cadence, how often to ask: never a deadline on the work.
+        if (same && now.getTime() - Date.parse(ask.at) < minutes * MINUTE) continue;
+        live ??= owners();
+        const gone = !live.some((s) => s.sessionId === owner.session);
+        if (gone || (same && ask.heard && !brokenAnswered(state, n, ask))) {
+            const reason = gone ? "githerd cannot ask its owner" : `no answer to the question of ${ask.at}`;
+            state.prReleased[n] = rec.headSha;
+            delete state.brokenAsks[n];
+            if (state.prOwners?.[n]?.session === owner.session) delete state.prOwners[n];
+            lines.push({ kind: "pr-released", pr: Number(n), head: rec.headSha, session: owner.session, reason });
+            continue;
+        }
+        due.set(owner.session, [...(due.get(owner.session) ?? []), { n, why }]);
+    }
+    return due;
+}
+
+/**
+ * The question to the owner of a broken pull request.
+ * @param {{n: string, why: string}} pr the pull request and why it is broken
+ * @returns {string} the message line
+ */
+const brokenText = ({ n, why }) =>
+    `githerd: #${n} is broken: ${why}. Are you fixing it? ` +
+    `Answer with githerd_mine pr ${n} to keep it, or ignore to release it to other sessions.`;
+
 /** The states in which a holder works on its job; a `verifying` job is githerd's to settle. */
 const ASKED = new Set(["starting", "working", "waiting"]);
 
@@ -251,15 +344,19 @@ function githerdWatches(job) {
  * it had pending is dropped, so it is never released for silence. A session githerd may not
  * message (`workers.sessions`) is not asked, so its silence is never held against it; nor is a
  * question nobody heard (dry-run, or a send that failed). githerd's own workers have the watchdog
- * instead.
+ * instead. The same message asks the owner of each broken pull request whether it is fixing it
+ * (`brokenOwned`), whoever that owner is: it asks about the session's own pull request, so
+ * `workers.sessions` does not apply.
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
- *   transport: import("./peers.mjs").Transport, minutes: number}} opts the clock, whether the
- *   `workers` write group acts (else each send is a would-do line), the sessions githerd may
- *   message, the transport, and how often to ask (`workers.statusMinutes`)
+ *   transport: import("./peers.mjs").Transport, minutes: number,
+ *   owners?: () => import("./peers.mjs").PeerSession[]}} opts the clock, whether the `workers`
+ *   write group acts (else each send is a would-do line), the sessions githerd may message, the
+ *   transport, how often to ask (`workers.statusMinutes`), and every live session in this
+ *   repository (`sessions` when absent)
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
-export async function statusStep(state, { now, acting, sessions, transport, minutes }) {
+export async function statusStep(state, { now, acting, sessions, transport, minutes, owners = sessions }) {
     const lines = [];
     /** @type {Map<string, any[]>} the due jobs of each holding session */
     const due = new Map();
@@ -283,21 +380,35 @@ export async function statusStep(state, { now, acting, sessions, transport, minu
         }
         due.set(session, [...(due.get(session) ?? []), job]);
     }
-    if (!due.size) return lines;
-    const live = sessions();
-    for (const [session, jobs] of due) {
-        const target = live.filter((s) => s.sessionId === session);
-        if (!target.length) continue;
+    const prsDue = brokenOwned(state, { now, minutes, owners }, lines);
+    if (!due.size && !prsDue.size) return lines;
+    const live = due.size ? sessions() : [];
+    const everyone = prsDue.size ? owners() : [];
+    for (const session of new Set([...due.keys(), ...prsDue.keys()])) {
+        const jobTarget = live.filter((s) => s.sessionId === session);
+        const jobs = jobTarget.length ? (due.get(session) ?? []) : [];
+        const prs = prsDue.get(session) ?? [];
+        const target = jobTarget.length ? jobTarget : everyone.filter((s) => s.sessionId === session);
+        if (!target.length || (!jobs.length && !prs.length)) continue;
         const ids = jobs.map((j) => j.id);
+        const nums = prs.map((p) => Number(p.n));
         if (!acting) {
-            const op = `ask ${target[0].name} for the status of ${ids.join(", ")}`;
+            const what = [...(ids.length ? [`the status of ${ids.join(", ")}`] : []), ...nums.map((p) => `#${p}`)];
+            const op = `ask ${target[0].name} for ${what.join(", ")}`;
             lines.push({ kind: "would-do", group: "workers", op, jobs: ids });
         }
-        const out = acting
-            ? await tellSessions(target, statusText(jobs, minutes), transport)
-            : { sent: [], failed: [] };
-        for (const job of jobs) job.statusAsk = { at: now.toISOString(), heard: out.sent.length > 0 };
-        lines.push({ kind: "status-asked", jobs: ids, session: target[0].name, ...out });
+        const text = [...(jobs.length ? [statusText(jobs, minutes)] : []), ...prs.map(brokenText)].join("\n");
+        const out = acting ? await tellSessions(target, text, transport) : { sent: [], failed: [] };
+        const ask = { at: now.toISOString(), heard: out.sent.length > 0 };
+        for (const job of jobs) job.statusAsk = { ...ask };
+        for (const p of prs) state.brokenAsks[p.n] = { head: state.prs[p.n].headSha, session, ...ask };
+        lines.push({
+            kind: "status-asked",
+            jobs: ids,
+            ...(nums.length ? { prs: nums } : {}),
+            session: target[0].name,
+            ...out,
+        });
     }
     return lines;
 }

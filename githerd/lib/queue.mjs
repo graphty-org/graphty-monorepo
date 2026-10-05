@@ -305,7 +305,9 @@ export function askFor(state, n) {
  *
  * 4. a live session holds an owner record for it (`state.prOwners`, asks.mjs): whatever its head;
  * 5. a live session owns it by inference (`state.prInferred`, owners.mjs): it last pushed the
- *    branch, or it works in the branch's worktree. The explicit record of 4 wins over it.
+ *    branch, or it works in the branch's worktree. The explicit record of 4 wins over it. Not in
+ *    use from here on when it is broken and its owner left githerd's question unanswered
+ *    (`state.prReleased`, asks.mjs brokenOwned), until a new push.
  *
  * A reason that names the asking session itself starts "yours:".
  *
@@ -324,6 +326,8 @@ export function prInUse(state, n, { config, now, except = null, review = false, 
     const owned = state.prOwners?.[String(n)];
     if (owned && session && owned.session === session) return "yours: you said it is yours";
     if (owned) return `session ${owned.name} owns it (${owned.by === "cli" ? "the owner said so" : "it said so"})`;
+    // Broken, and its owner did not say it is fixing it (asks.mjs brokenOwned): offered at once.
+    if (state.prReleased?.[String(n)] && state.prReleased[String(n)] === state.prs?.[String(n)]?.headSha) return null;
     const inferred = state.prInferred?.[String(n)];
     if (inferred && session && inferred.session === session) return `yours: ${inferred.evidence}`;
     if (inferred) return `session ${inferred.name} owns it (${inferred.evidence})`;

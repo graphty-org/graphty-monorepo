@@ -200,6 +200,7 @@ export function openPr(node, head, extra = {}) {
         number: node.number,
         author: node.author?.login ?? null,
         title: node.title,
+        headRef: node.headRefName ?? null,
         labels: (node.labels?.nodes ?? []).map((/** @type {any} */ l) => l.name),
         commits: head.commits,
         commitsTruncated: head.commitsTruncated,

@@ -63,6 +63,21 @@ describe("githerd/merge decision", () => {
         expect(mergeDecision(pr(), ctx({ login: null })).state).toBe("pending");
     });
 
+    it("line 1: trusts the release train's pull request, and no other bot's", () => {
+        const train = { author: "github-actions", headRef: "release/train-123", title: "chore(release): publish" };
+        const release = ctx({ releasePattern: "^chore\\(release\\): publish" });
+        expect(mergeDecision(pr(train), release).line).not.toBe(1);
+        const held = "held: the author github-actions is not the owner";
+        for (const other of [
+            { headRef: "chore/bump" },
+            { title: "chore(deps): bump vite" },
+            { author: "dependabot", headRef: "release/train-123" },
+        ]) {
+            expect(mergeDecision(pr({ ...train, ...other }), release)).toMatchObject({ line: 1 });
+        }
+        expect(mergeDecision(pr(train), ctx()).description).toBe(held);
+    });
+
     describe("line 2: holds", () => {
         it("a red CI lane holds every pull request but its incident's fix", () => {
             const red = ctx({ redLanes: [{ workflow: "CI", since: SINCE, fixPrs: [701] }] });

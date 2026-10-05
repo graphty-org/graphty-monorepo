@@ -1767,6 +1767,7 @@ export async function startDaemon({
             sessions: messageable,
             transport: peers.transport ?? socketTransport(),
             minutes: config.workers.statusMinutes,
+            owners: liveInRepo,
         });
         for (const line of lines) void ledger(line);
     }
@@ -1997,6 +1998,7 @@ export async function startDaemon({
             freezeMerges: activePolicies(state, "freeze-merges").length > 0,
             heldPackages: activePolicies(state, "hold-package").map((/** @type {any} */ p) => String(p.value)),
             starvation: starvation(),
+            releasePattern: config.release?.commitPattern ?? null,
         };
         const posted = await postMergeStatuses({ github: gh, repo: config.repo, branch, prs, ctx, record: gate });
         for (const error of posted.errors) void ledger({ kind: "error", where: "githerd/merge", error });
@@ -2074,14 +2076,23 @@ export async function startDaemon({
      * `needsReleaseDryRun`); and once a push's gate failed, the gate runs once on the green
      * commit, so a failure that is the green commit's own becomes a shared local incident. A check
      * that cannot run is a platform fault, ledgered by the check. It runs only while the statuses
-     * or workers group acts, the two that read its answers, and never in a development daemon: a
-     * pull request whose merge needs the dry-run waits there, and every other one does not.
+     * or workers group acts, the two that read its answers, and never in a development daemon unless
+     * it acts (`GITHERD_DEV_ACT=1`, the live one): elsewhere a pull request whose merge needs the
+     * dry-run waits there, and every other one does not.
      */
     function referenceWork() {
         const sha = state.master.greenSha;
         // Only what acts reads its answers: the posted merge statuses and the workers' incidents.
         const acting = writeMode("statuses") === "acting" || writeMode("workers") === "acting";
-        if (refWork !== null || !sha || !config || env.GITHERD_DEV || !workersOn || !acting) return;
+        if (
+            refWork !== null ||
+            !sha ||
+            !config ||
+            (env.GITHERD_DEV && env.GITHERD_DEV_ACT !== "1") ||
+            !workersOn ||
+            !acting
+        )
+            return;
         const heads = state.mergeGate?.heads ?? {};
         const dryRuns = Object.entries(heads).filter(
             ([, h]) => h.releaseFor !== h.sha && needsReleaseDryRun(h) === true,

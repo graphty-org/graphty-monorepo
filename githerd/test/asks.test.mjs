@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { askStep, inviteStep, statusStep, tellCancelled } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
-import { prInUse } from "../lib/queue.mjs";
+import { jobInUse, prInUse } from "../lib/queue.mjs";
 
 const NOW = new Date("2026-10-05T12:04:00Z");
 const HEAD = "a".repeat(40);
@@ -515,5 +515,84 @@ describe("telling an owner session that the job it held was cancelled", () => {
         ]);
         expect(await tellCancelled(cancelled, f.opts({ sessions: () => [] }))).toEqual([]);
         expect(f.sent).toEqual([]);
+    });
+});
+
+describe("asking the owner of a broken pull request whether it is fixing it", () => {
+    const at = (/** @type {string} */ hm) => new Date(`2026-10-05T${hm}:00Z`);
+    const QUESTION =
+        "githerd: #710 is broken: required check failing: All Checks Pass. Are you fixing it? " +
+        "Answer with githerd_mine pr 710 to keep it, or ignore to release it to other sessions.";
+    /**
+     * #710 failing, inferred to be graphty-14's (it last pushed), with its pr job queued.
+     * @returns {any} the state
+     */
+    const owned = () => {
+        const state = failed();
+        state.trust = { login: "owner" };
+        state.prs[710].author = "owner";
+        state.prInferred = { 710: { session: "s2", name: "graphty-14", evidence: "pushed" } };
+        return state;
+    };
+    // The owner is outside workers.sessions: the question is about its own pull request.
+    const opts = (/** @type {any} */ f, /** @type {any} */ over = {}) =>
+        f.opts({ minutes: 15, sessions: () => [], owners: () => SESSIONS, ...over });
+
+    it("puts an owned broken pull request in its owner's question, once per interval", async () => {
+        const f = fake();
+        const state = owned();
+        const lines = await statusStep(state, opts(f, { now: at("12:00") }));
+        expect(f.sent).toEqual([["/s2.sock", QUESTION]]);
+        expect(lines).toEqual([expect.objectContaining({ kind: "status-asked", prs: [710], session: "graphty-14" })]);
+        expect(prInUse(state, 710, { now: at("12:00") })).toBe("session graphty-14 owns it (pushed)");
+        await statusStep(state, opts(f, { now: at("12:14") }));
+        expect(f.sent).toHaveLength(1);
+    });
+
+    it("releases it when the question goes unanswered, and offers the pr job until a new push", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        const lines = await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(lines).toEqual([
+            {
+                kind: "pr-released",
+                pr: 710,
+                head: HEAD,
+                session: "s2",
+                reason: "no answer to the question of 2026-10-05T12:00:00.000Z",
+            },
+        ]);
+        expect(f.sent).toHaveLength(1);
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:15") })).toBeNull();
+        // A new push: owned again, and asked again.
+        state.prs[710].headSha = "b".repeat(40);
+        await statusStep(state, opts(f, { now: at("12:16") }));
+        expect(prInUse(state, 710, { now: at("12:16") })).toBe("session graphty-14 owns it (pushed)");
+        expect(f.sent).toHaveLength(2);
+    });
+
+    it("keeps it for the cycle when the owner answers with githerd_mine", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        state.prOwners = { 710: { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" } };
+        const lines = await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(lines).toEqual([expect.objectContaining({ kind: "status-asked", prs: [710] })]);
+        expect(prInUse(state, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (it said so)");
+    });
+
+    it("releases it at once when its owner cannot be asked, and never for a question nobody heard", async () => {
+        const gone = owned();
+        const f = fake();
+        const lines = await statusStep(gone, opts(f, { now: at("12:00"), owners: () => [] }));
+        expect(lines).toMatchObject([{ kind: "pr-released", pr: 710, reason: "githerd cannot ask its owner" }]);
+        expect(prInUse(gone, 710, { now: at("12:00") })).toBeNull();
+
+        const unheard = owned();
+        const g = fake(["/s2.sock"]);
+        await statusStep(unheard, opts(g, { now: at("12:00") }));
+        await statusStep(unheard, opts(g, { now: at("12:15") }));
+        expect(prInUse(unheard, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (pushed)");
     });
 });

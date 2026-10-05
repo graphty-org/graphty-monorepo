@@ -210,6 +210,13 @@ describe("syncJobs: pull requests", () => {
         expect(state.jobs["pr-10"].reason).toBe("conflicting with its base (GitHub: CONFLICTING)");
     });
 
+    it("never makes a job from the release train's pull request, failing or conflicting", () => {
+        const state = base();
+        const train = { author: "github-actions", headRef: "release/train-1", title: "chore(release): publish" };
+        failingPr(state, 1092, { ...train, conflictSightings: 2, labels: ["priority:critical"] });
+        expect(sync(state).created).toEqual([]);
+    });
+
     it("cancels a queued pr job whose pull request closed or stopped needing work, and makes it again later", () => {
         const state = base();
         failingPr(state, 4);

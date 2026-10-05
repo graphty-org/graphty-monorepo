@@ -928,6 +928,25 @@ describe("the poll loop", () => {
         expect(phone().filter((p) => p.message.startsWith("master red"))).toHaveLength(1);
     });
 
+    it("runs the reference worktree's work in a development daemon only when it acts", async () => {
+        writeConfig({ mode: "acting", actions: { workers: true }, workers: { slots: 0, urgent: 0 } });
+        // A group switches to acting only once the ledger shows it ran dry (config-adopt.mjs).
+        mkdirSync(join(dir, ".githerd"), { recursive: true });
+        writeFileSync(
+            join(dir, ".githerd", "ledger.jsonl"),
+            `${JSON.stringify({ ts: clock.toISOString(), kind: "would-do", group: "workers", op: "earlier" })}\n`,
+        );
+        const env = { GITHERD_CONFIG: configFile, PATH: process.env.PATH, GITHERD_DEV: "1" };
+        const dry = await start({ env });
+        await poll(dry);
+        expect(dry.state.master.greenSha).toBe(A);
+        expect(dry.state.reference).toBeUndefined();
+        await dry.shutdown();
+        const live = await start({ env: { ...env, GITHERD_DEV_ACT: "1" } });
+        await poll(live);
+        expect(live.state.reference).toMatchObject({ sha: A });
+    });
+
     it("keeps the last good config when master's is invalid, and escalates once", async () => {
         const daemon = await start();
         await poll(daemon);

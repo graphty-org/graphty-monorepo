@@ -550,7 +550,7 @@ const DESCRIPTION_MAX = 140;
  *   under `githerd/` or `.claude/`, and for an `issue` job the issue's current revision and the one
  *   the job acknowledged
  * @typedef {{
- *   number: number, author: string | null, title: string, labels: string[],
+ *   number: number, author: string | null, title: string, labels: string[], headRef?: string | null,
  *   commits: string[] | null, commitsTruncated?: boolean, files: string[] | null, filesTruncated?: boolean,
  *   dependencies: {added: string[], unknownToNpm: string[]} | null, ownerItemOpen?: boolean,
  *   job?: JobFacts | null, releaseBumps?: Bump[] | null, nxReleaseChanged?: boolean | null,
@@ -562,10 +562,12 @@ const DESCRIPTION_MAX = 140;
  * @typedef {{
  *   login: string | null, redLanes: RedLane[], releaseRunning?: boolean, freezeMerges?: boolean,
  *   heldPackages?: string[], starvation?: string | null, approvedMajors?: string[],
+ *   releasePattern?: string | null,
  * }} MergeContext the repository-wide facts: the owner's login, the code-red gating lanes, whether
  *   the release job (not its gate job) is running, the `freeze-merges` policy, the packages the
  *   owner's `hold-package` policies hold, the starvation hold's
- *   reason when one applies (4.7), and the projects whose major bump the owner approved as a group
+ *   reason when one applies (4.7), the projects whose major bump the owner approved as a group, and
+ *   the config's `release.commitPattern`
  * @typedef {{state: "success" | "failure" | "pending", description: string, line: number | null}}
  *   MergeStatus the `githerd/merge` commit status and the decision line that failed (null otherwise)
  * @typedef {string} LineResult `PASS`, `WAIT`, or the failure's reason ("held: ...")
@@ -705,14 +707,33 @@ function releaseSafe(pr, ctx) {
 }
 
 /**
- * Line 1: the author is the owner; undecided until the owner's login is known.
+ * Whether a pull request is the release train's: opened by the repository's own release.yml as
+ * github-actions on a `release/train-*` branch, titled as the config's release commit. The one bot
+ * pull request line 1 trusts; githerd makes no job from it (it is not the owner's).
+ * @param {{author: string | null, title: string, headRef?: string | null}} pr the pull request
+ * @param {string | null | undefined} pattern the config's `release.commitPattern`
+ * @returns {boolean} it is
+ */
+export function isReleaseTrain(pr, pattern) {
+    return (
+        Boolean(pattern) &&
+        pr.author === "github-actions" &&
+        /^release\/train-/.test(pr.headRef ?? "") &&
+        new RegExp(/** @type {string} */ (pattern)).test(pr.title)
+    );
+}
+
+/**
+ * Line 1: the author is the owner, or it is the release train's pull request; undecided until the
+ * owner's login is known.
  * @param {MergeFacts} pr the pull request
  * @param {MergeContext} ctx the repository facts
  * @returns {LineResult} the result
  */
 function ownerAuthored(pr, ctx) {
     if (!ctx.login) return WAIT;
-    return pr.author === ctx.login ? PASS : `held: the author ${pr.author ?? "(unknown)"} is not the owner`;
+    if (pr.author === ctx.login || isReleaseTrain(pr, ctx.releasePattern)) return PASS;
+    return `held: the author ${pr.author ?? "(unknown)"} is not the owner`;
 }
 
 /**

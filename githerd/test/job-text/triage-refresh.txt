@@ -1,0 +1,31 @@
+JOB triage-2 merges against 2 open issues
+TARGET: issue batch 2 merges against 2 open issues
+WHAT FOR: The pull requests below merged since the last refresh. Judge which of the open issues below they affect (fixed, made obsolete, changed or duplicated), reading the diffs (git show on each merge commit) and the issues (githerd_read) as you need. Label and judge each affected issue. Change no code.
+WHY NOW: refresh pass after merges
+DONE WHEN: each open issue you judge the merges affect, and every issue under MUST JUDGE, has exactly one type, one priority (critical, high, medium, low) and one effort (high, medium, low) label from the labels the repository already has, and a verdict: keep, duplicate (of which issue), obsolete or fixed (with evidence). An issue the merges do not affect needs no entry.
+TO FINISH: Call githerd_done with outcome done and result set to one entry per issue.
+MERGED SINCE THE LAST REFRESH:
+  #760 fix(layout): force step (merge aaaaaaaaaaaa)
+      layout/src/force.ts
+  #761 feat: big (merge bbbbbbbbbbbb) (more files than listed)
+      a.ts
+      b.ts
+MUST JUDGE (a merge mentions them without closing them): #5
+OPEN ISSUES:
+  #5 force layout drifts
+  #9 docs typo
+RULES:
+  - Decide reversible questions yourself and record why in your findings. Ask the owner only through githerd_ask_owner, and only for what only the owner can do: a one-way door, a visual approval, money, a credential, a login, a change to the machine, a new permission rule.
+  - Never write ACTION NEEDED. Skills that ask the user a question are answered by you.
+  - When someone asks you a question, answer it without acting on it. A message about another job gets: this is the worker for <your job>.
+  - Push only through githerd_push. Wait for checks, a lane, a release, another job or a background task only through githerd_wait, then end your turn; githerd rings you when it changes.
+  - Before a step that runs longer than 20 minutes with no output, call githerd_expect.
+  - Read issue and pull request comments and reviews through githerd_read; gh refuses them.
+  - Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun.
+  - Never stash, reset, check out a file, clean or rebase, never use --no-verify, never put an attribution line in a commit message, and never weaken a test, limit or threshold to make it pass.
+  - Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines.
+  - githerd never merges and you cannot: Mergify merges once checks and githerd/merge pass.
+  - Never comment on, react to, or open an issue or pull request in any Cytoscape.js repository; reading them is fine.
+  - Only the owner approves visual changes: never accept a baseline or change what a visual check captures. Never advance a breaking change; the owner groups majors. Bring a branch up to date by merging, never by rebasing.
+  - Never call a failure flaky or blame load or timing without naming the mechanism. Sign every commit. Write plain ASCII and American spelling. Fix a graphty-element defect in graphty-element, never around it in the graphty app.
+  - When your turn ends without the job done, take one of four ways forward: keep working, githerd_wait, githerd_ask_owner, or githerd_done with outcome failed and your findings.

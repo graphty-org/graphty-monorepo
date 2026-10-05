@@ -338,6 +338,10 @@ affected @graphty/remote-logger && { (cd remote-logger && npm run test:run -- --
 echo "  Testing visual-review..."
 affected visual-review && { (cd visual-review && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
 
+# githerd - Node.js unit tests of the daemon, launcher and CLI
+echo "  Testing githerd..."
+affected githerd && { (cd githerd && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
+
 # compact-mantine - run only default project
 echo "  Testing compact-mantine..."
 affected compact-mantine && { (cd compact-mantine && npm run test:run -- --project=default) || { FAILED=1; TESTS_FAILED=1; }; }

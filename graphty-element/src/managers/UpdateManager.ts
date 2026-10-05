@@ -1417,6 +1417,13 @@ export class UpdateManager implements Manager {
         }
 
         if (!this.activeMeshesFrozen) {
+            // A NEW RENDER ID FIRST. Freezing walks the scene and registers every instance in the
+            // list of visible instances kept under the CURRENT render id. Between frames that id is
+            // still the last frame's, whose list already holds every instance, so without this each
+            // instance is listed twice and every frozen frame draws it twice -- invisible on an
+            // opaque node, a doubled blend on a translucent one. Babylon bumps the id the same way
+            // before it evaluates the scene outside a render (`Scene._checkIsReady`).
+            scene.incrementRenderId();
             scene.freezeActiveMeshes();
             this.activeMeshesFrozen = true;
         }

@@ -4,7 +4,7 @@
  * `directed` / `multigraph` / `graph`), the d3 lineage of the same shape (`name` ids, integer
  * index endpoints), JSON Graph Format v2 (nodes keyed by id, per-edge `directed`, hyperedges),
  * Cytoscape.js elements (`data.id` / `data.source` / `data.target`, `position`, `classes`,
- * `data.parent`), graphology serialisation (`key` / `attributes`, `undirected` edges, `options`)
+ * `data.parent`), graphology serialization (`key` / `attributes`, `undirected` edges, `options`)
  * vis.js (`from` / `to`), and NetworkX adjacency_data (`nodes` + `adjacency`) and tree_data (nested
  * `id` / `children`) -- and pushes it scalar by scalar into the sink.
  *
@@ -45,30 +45,47 @@ import { uniqueColumnName } from "../../common/attributes.js";
 import {
     AMBIGUOUS_GRAPH_NAME_CODE,
     BAD_VALUE_CODE,
+    COLUMN_RENAMED_CODE,
     DANGLING_REFERENCE_CODE,
+    DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
+    ELEMENT_ISSUE,
+    EMPTY_COLUMN_DROPPED_CODE,
     EMPTY_INPUT_CODE,
     ENCODING_FALLBACK_CODE,
     GRAPH_NOT_FOUND_CODE,
     HYPEREDGE_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
+    JSON_NONSTANDARD_NUMBER_CODE,
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
     MULTIPLE_GRAPHS_CODE,
     OPTION_IGNORED_CODE,
+    PARENT_CYCLE_CODE,
+    PRECISION_CODE,
+    ROLE_TAKEN_CODE,
     SYNTAX_CODE,
     TOO_LARGE_CODE,
+    UNKNOWN_ELEMENT_CODE,
     UNKNOWN_ENCODING_CODE,
     UNKNOWN_PARENT_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
-import { readText, textChunks, throwIfAborted } from "../../common/input.js";
-import { flipY, MAYBE_UNSAFE_INTEGER, reviveNonstandard, rewriteNumbers } from "../../common/json-elements.js";
+import { readText, throwIfAborted } from "../../common/input.js";
+import {
+    findDuplicateKeys,
+    flipY,
+    MAYBE_INEXACT_EXPONENT,
+    MAYBE_UNSAFE_INTEGER,
+    rewriteNumbers,
+} from "../../common/json-elements.js";
 import {
     chooseGraph,
+    graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,
@@ -76,9 +93,10 @@ import {
     resolveImportOptions,
     SINK_OPTION_CODE,
 } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
-import { sniffJsonDialectHead } from "../../sniff.js";
+import { headBytes, sniffJsonDialectHead } from "../../sniff.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -112,75 +130,109 @@ import { importObographs } from "./obographs.js";
  * The format-specific options of the JSON importer. `graphIndex` / `graphName` choose one graph of
  * a JGF or OBO Graphs `graphs` array (the first by default); a graph's name is its `id`, else its
  * label.
+ * @category Built-in formats
  */
-export interface JsonImportOptions extends GraphChoiceOptions {
-    /** The dialect to read; "auto" (default) sniffs the parsed document. */
+export interface JsonImportOptions extends GraphChoiceOptions, CommonImportOptions {
+    /**
+     * The dialect to read; "auto" detects it from the document. `jsonShapeOf(snapshot).dialect` is
+     * the dialect that was read.
+     * @defaultValue "auto"
+     */
     dialect?: JsonImportDialect | "auto" | undefined;
     /**
-     * node-link / d3 / vis / adjacency / tree: the node key holding the id; auto: "id" (node-link /
-     * d3: "id" when any node has it, else "name").
+     * node-link, d3, vis, adjacency and tree documents: the node key that holds the id. The default
+     * is "id" (for node-link and d3, "name" when no node has an "id").
+     * @defaultValue "id"
      */
     nodeIdKey?: string | undefined;
-    /** node-link / d3: the top-level key holding the edges; auto: "edges" when present, else "links". */
+    /**
+     * node-link and d3 documents: the top-level key that holds the edges. The default is "edges"
+     * when the document has it, else "links".
+     * @defaultValue "edges" or "links"
+     */
     edgesKey?: string | undefined;
-    /** node-link / d3 / vis: the edge key holding the source; auto: "source", "src" or "from" (vis: "from"). */
+    /**
+     * node-link, d3 and vis documents: the edge key that holds the source. The default is the first
+     * of "source", "src" and "from" the edges use (vis: "from").
+     * @defaultValue "source"
+     */
     sourceKey?: string | undefined;
-    /** node-link / d3 / vis: the edge key holding the target; auto: "target", "dst" or "to" (vis: "to"). */
+    /**
+     * node-link, d3 and vis documents: the edge key that holds the target. The default is the first
+     * of "target", "dst" and "to" the edges use (vis: "to").
+     * @defaultValue "target"
+     */
     targetKey?: string | undefined;
     /**
-     * node-link / d3: whether edge endpoints are node array positions; "auto" (default) says yes when
-     * every endpoint is an integer below the node count and no node id is a number.
+     * node-link and d3 documents: whether edge ends are positions in the node array rather than
+     * ids; "auto" says yes when every end is an integer below the number of nodes and no node id is
+     * a number.
+     * @defaultValue "auto"
      */
     indexLinks?: boolean | "auto" | undefined;
     /**
-     * obographs: "curie" (default) reads `http://purl.obolibrary.org/obo/GO_0008150` as `GO:0008150`
-     * and `.../obo/go#regulates` as `regulates`, the identifiers the `.obo` file of the same ontology
-     * writes; "iri" keeps every IRI as written.
+     * OBO Graphs documents: "curie" reads `http://purl.obolibrary.org/obo/GO_0008150` as
+     * `GO:0008150` and `.../obo/go#regulates` as `regulates`, the ids the `.obo` file of the same
+     * ontology uses; "iri" keeps every IRI as written.
+     * @defaultValue "curie"
      */
     oboIds?: "curie" | "iri" | undefined;
     /**
-     * obographs: "metadata" (default) keeps PROPERTY nodes and their subPropertyOf / inverseOf edges
-     * in `meta.extra.obographs`, as the OBO importer keeps `[Typedef]` frames; "nodes" makes them
-     * nodes and edges.
+     * OBO Graphs documents: "metadata" keeps the relation definitions (PROPERTY nodes, with their
+     * subPropertyOf and inverseOf edges) in `snapshot.meta.extra.obographs`, the way the OBO
+     * importer keeps `[Typedef]` frames; "nodes" makes them nodes and edges of the graph.
+     * @defaultValue "metadata"
      */
     typedefs?: "metadata" | "nodes" | undefined;
     /**
-     * node-link / d3 / vis / graphology: where the node array is, as a dotted path of object keys
-     * from the document root (`"data.nodes"`); the object holding it is read as the graph record
-     * (its `directed`, `multigraph`, `graph` and edge keys). "nodes" by default. A path that names
-     * nothing is an E_MISSING_SECTION issue and the graph has no node records.
+     * node-link, d3, vis and graphology documents: where the node array is, as a dotted path of
+     * keys and array positions from the top of the document (`"data.nodes"`, `"graphs.0.nodes"`).
+     * The object that holds the array is read as the graph (its `directed`, `multigraph`, `graph`
+     * and edge keys). A path that leads nowhere is reported as E_MISSING_SECTION and the graph has
+     * no nodes.
+     * @defaultValue "nodes"
      */
     nodesPath?: string | undefined;
     /**
-     * node-link / d3 / vis / graphology: where the edge array is, as a dotted path of object keys
-     * from the document root (`"data.links"`); by default the edges or links key of the object
-     * holding the nodes. A path that names nothing is an E_MISSING_SECTION issue and the graph has
-     * no edge records.
+     * node-link, d3, vis and graphology documents: where the edge array is, as a dotted path
+     * (`"data.links"`). The default is the edges or links key next to the node array. A path that
+     * leads nowhere is reported as E_MISSING_SECTION and the graph has no edges.
+     * @defaultValue next to the nodes
      */
     edgesPath?: string | undefined;
 }
 
 /**
- * The issue codes the JSON importer records (design section 8.6), by name: the codes shared with
- * the other importers (src/common/codes.ts) and the JSON-specific ones. A key is the code without
+ * The issue codes the JSON importer records, by name: the codes shared with
+ * the other importers and the JSON-specific ones. A key is the code without
  * its severity and format prefixes.
+ * @category Built-in formats
  */
 export const JSON_ISSUE = Object.freeze({
-    /** The text is empty or whitespace (fatal). */
+    ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
+    /** The text is empty or whitespace. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** JSON.parse refused the text (fatal). */
+    /** The text is not valid JSON. The import stops. */
     SYNTAX: SYNTAX_CODE,
-    /** No dialect matches the document's top-level shape. */
+    /** No dialect matches the document's top-level shape. The import stops. */
     DIALECT: "E_JSON_DIALECT",
     /** A section (nodes, edges, elements, graph) has the wrong JSON type. */
     SHAPE: "E_JSON_SHAPE",
-    /** A node-link document lacks its nodes or its edges array, or a Cytoscape document its elements. */
-    MISSING_SECTION: "E_MISSING_SECTION",
+    /**
+     * A section the dialect expects is not there: a node-link document without its nodes or its edges array, an
+     * adjacency document without lists for some nodes, or a `nodesPath` / `edgesPath` that names nothing. Nothing is
+     * skipped: the graph is read without that section (nodes come from the edges, or there are no edges).
+     */
+    MISSING_SECTION: "W_MISSING_SECTION",
     /** A node record or an element is not an object. */
     BAD_ELEMENT: "E_BAD_ELEMENT",
     /** A node record has no id. */
     MISSING_ID: MISSING_ID_CODE,
-    /** A node id is a JSON boolean or null (legal in NetworkX, not a NodeId); coerced only under ids "string". */
+    /**
+     * A node id is a JSON boolean or null, which graph-io cannot use as an id; the node is skipped. With `ids:
+     * "string"` it is read as the text "true", "false" or "null".
+     */
     UNSUPPORTED_ID: "E_UNSUPPORTED_ID",
     /** An edge record has no source or no target. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
@@ -196,25 +248,35 @@ export const JSON_ISSUE = Object.freeze({
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge id (Cytoscape data.id, graphology key, vis id) repeated by a later edge; the edge is skipped. */
     DUPLICATE_EDGE_ID: DUPLICATE_EDGE_ID_CODE,
-    /** Two distinct id texts merged into one number under ids "number". */
+    /** Two different id texts became the same number because `ids` is "number", so their nodes were merged. */
     ID_MERGED: ID_MERGED_CODE,
     /** Edge ids of mixed JSON types were stored as text. */
     EDGE_ID_STRINGIFIED: "W_EDGE_ID_STRINGIFIED",
-    /** A JGF or OBO Graphs `graphs` array holds more than one graph; only the chosen one is read. */
+    /**
+     * The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph.
+     * `importAllGraphs()` reads every one.
+     */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
-    /** `graphIndex` is beyond the `graphs` array, or `graphName` names none of its graphs (fatal). */
+    /**
+     * `graphIndex` is past the end of the `graphs` array, or `graphName` matches none of its graphs. The import stops.
+     */
     GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
-    /** `graphName` names more than one graph of the `graphs` array (fatal). */
+    /** `graphName` matches more than one graph of the `graphs` array. The import stops. */
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
-    /** obographs: an edge uses the outdated `subj` key of the OBO Graphs README; it is read as `sub`. */
+    /** Obographs: an edge uses the outdated `subj` key of the OBO Graphs README; it is read as `sub`. */
     OBOGRAPHS_SUBJ: "W_JSON_OBOGRAPHS_SUBJ",
-    /** obographs: an edge endpoint missing from `nodes` (a placeholder node is made, or the edge dropped under addMissingNodes false). */
+    /**
+     * Obographs: an edge endpoint missing from `nodes` (a placeholder node is made, or the edge dropped under
+     * addMissingNodes false).
+     */
     DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,
-    /** The document is longer than one JavaScript string can hold (fatal; category unsupported). */
+    /** The document is longer than a JavaScript string can hold. The import stops. */
     TOO_LARGE: TOO_LARGE_CODE,
-    /** JGF hyperedges under the "error" policy. */
+    /** A JGF hyperedge (an edge with more than two ends) while `hyperedges` is "error". */
     HYPEREDGE: HYPEREDGE_CODE,
-    /** JGF hyperedges skipped under the default "skip" policy. */
+    /**
+     * JGF hyperedges were skipped, because `hyperedges` is "skip" (the default). Pass "star" or "clique" to keep them.
+     */
     HYPEREDGES_SKIPPED: "W_HYPEREDGES_SKIPPED",
     /** A JGF hyperedge with neither a nodes array nor source / target arrays. */
     HYPEREDGE_SHAPE: "E_HYPEREDGE_SHAPE",
@@ -222,22 +284,59 @@ export const JSON_ISSUE = Object.freeze({
     POSITIONAL_NODES: "W_POSITIONAL_NODES",
     /** A node-link / d3 top-level key the importer does not read (the other of edges / links, an unknown key); it is dropped. */
     UNREAD_KEY: "W_JSON_UNREAD_KEY",
-    /** A builder-policy option (addMissingNodes, duplicateEdges, selfLoops, weightDtype) differs from the sink's (the shared W_SINK_OPTION). */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
-    /** A common option the dialect has no use for (nodeIdFrom outside node-link, long, restoreMangledIds). */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** The input holds invalid UTF-8 (fatal). */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
+     * `encoding` option). The import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** The document uses the non-standard tokens NaN / Infinity / -Infinity (Python's json writes them); read as numbers. */
-    NONSTANDARD_NUMBER: "W_JSON_NONSTANDARD_NUMBER",
+    NONSTANDARD_NUMBER: JSON_NONSTANDARD_NUMBER_CODE,
     /** Integer literals beyond 2^53 were read as their exact digits (strings), not as rounded numbers. */
     BIG_INTEGER: "W_JSON_BIG_INTEGER",
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
+    PRECISION: PRECISION_CODE,
+    /**
+     * The document contradicts itself: a declared option its edges break (multigraph false with
+     * parallel links, graphology's options), a record whose section disagrees with its shape, a
+     * JGF inner id other than its key, the two listings of one adjacency edge.
+     */
+    INCONSISTENT: "W_JSON_INCONSISTENT",
+    /** IndexLinks "auto" read integer endpoints as array positions although they also name node ids. */
+    INDEX_LINKS: "W_JSON_INDEX_LINKS",
+    /** A Cytoscape parent link that would close a cycle; that link is dropped. */
+    PARENT_CYCLE: PARENT_CYCLE_CODE,
+    /** An attribute key that is null on every element makes no column (NetworkX writes None as null). */
+    EMPTY_COLUMN_DROPPED: EMPTY_COLUMN_DROPPED_CODE,
+    /** OBO Graphs: a node type or synonym predicate outside the schema's set; kept as written, once per name. */
+    UNKNOWN_ELEMENT: UNKNOWN_ELEMENT_CODE,
+    /**
+     * A key repeated in one JSON object (JSON.parse keeps the last value, the earlier is dropped),
+     * or, in OBO Graphs, a single-valued OBO tag given twice in basicPropertyValues (the first is kept).
+     */
+    DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
+    /**
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example
+     * two attributes declared with the same name.
+     */
+    COLUMN_RENAMED: COLUMN_RENAMED_CODE,
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
+    ROLE_TAKEN: ROLE_TAKEN_CODE,
 });
 
 /** The common options the JSON importer reads (the rest is reported by reportUnusedOptions). */
@@ -261,6 +360,9 @@ const FORMAT_DEFAULTS: ImportFormatDefaults = { ids: "keep", defaultDirected: fa
 
 /** Bytes of the head sniff() inspects. */
 const SNIFF_BYTES = 4096;
+
+/** How many dangling endpoints the W_DANGLING_REFERENCE message names. */
+const DANGLING_SHOWN = 5;
 
 /** Elements pushed between two checks of the cancellation signal (the whole document is one chunk). */
 const ABORT_CHECK_INTERVAL = 64;
@@ -405,18 +507,22 @@ function pathOption(name: string, value: unknown): readonly string[] | null {
 }
 
 /**
- * The value at a path of object keys, or undefined when a step is missing or not an object.
+ * The value at a path of object keys and array positions (`graphs.0.nodes`), or undefined when a
+ * step is missing.
  * @param root - the document
- * @param segments - the keys
+ * @param segments - the keys; a decimal integer indexes an array
  * @returns the value
  */
 function valueAt(root: unknown, segments: readonly string[]): unknown {
     let value = root;
     for (const segment of segments) {
-        if (!isJsonObject(value) || !hasKey(value, segment)) {
+        if (Array.isArray(value) && /^(0|[1-9]\d*)$/.test(segment) && Number(segment) < value.length) {
+            value = value[Number(segment)];
+        } else if (isJsonObject(value) && hasKey(value, segment)) {
+            value = value[segment];
+        } else {
             return undefined;
         }
-        value = value[segment];
     }
     return value;
 }
@@ -440,7 +546,7 @@ function applyPaths(root: unknown, json: ResolvedJsonOptions, report: ImportRepo
         const value = valueAt(root, segments);
         if (value === undefined) {
             const path = segments.join(".");
-            report.error(
+            report.warning(
                 "missing-value",
                 JSON_ISSUE.MISSING_SECTION,
                 `${option} ${JSON.stringify(path)} names nothing in the document`,
@@ -517,11 +623,22 @@ function pathEdgesKey(json: ResolvedJsonOptions, edgesPath: readonly string[]): 
  * rule over the record, else node-link.
  * @param record - the graph record
  * @param forced - the caller's dialect option
+ * @param placedEdges - whether edgesPath placed the record's edge array (under links or edges)
  * @returns the dialect
  */
-function pathDialect(record: unknown, forced: JsonImportDialect | "auto"): JsonImportDialect {
+function pathDialect(record: unknown, forced: JsonImportDialect | "auto", placedEdges: boolean): JsonImportDialect {
     if (forced !== "auto") {
         return forced;
+    }
+    // edgesPath puts the edge array under links only so a bare d3 document stays d3; under edges,
+    // vis and graphology edges are told apart from NetworkX links again. A links key the document
+    // itself holds is NetworkX's and settles node-link.
+    if (placedEdges && isJsonObject(record) && hasKey(record, "links") && !hasKey(record, "edges")) {
+        const { links, ...rest } = record;
+        const asEdges = sniffJsonDialect({ ...rest, edges: links });
+        if (asEdges === "vis" || asEdges === "graphology") {
+            return asEdges;
+        }
     }
     const sniffed = sniffJsonDialect(record);
     return sniffed !== null && PATH_DIALECTS.has(sniffed) ? sniffed : "node-link";
@@ -544,7 +661,7 @@ function documentOf(
         return { root: parsed, dialect: detectDialect(parsed, json.dialect, report) };
     }
     const root = applyPaths(parsed, json, report);
-    const dialect = pathDialect(root, json.dialect);
+    const dialect = pathDialect(root, json.dialect, json.edgesPath !== null);
     // vis and graphology read their edges from the edges key only
     if (json.edgesPath !== null && (dialect === "vis" || dialect === "graphology") && isJsonObject(root)) {
         const key = pathEdgesKey(json, json.edgesPath);
@@ -628,14 +745,21 @@ class AttributeWriter {
 
     private readonly reservedNames = new Set<string>();
 
+    private readonly report: ImportReportBuilder;
+
+    /** Column names written only with null so far (NetworkX writes None as null). */
+    private readonly nullOnly = new Set<string>();
+
     /**
      * Create a writer.
      * @param sink - the sink
      * @param domain - node or edge
+     * @param report - where a refused cell is recorded
      */
-    constructor(sink: GraphSink, domain: "node" | "edge") {
+    constructor(sink: GraphSink, domain: "node" | "edge", report: ImportReportBuilder) {
         this.sink = sink;
         this.domain = domain;
+        this.report = report;
     }
 
     /**
@@ -670,26 +794,56 @@ class AttributeWriter {
     }
 
     /**
-     * Write one attribute cell by its source key; null and undefined leave the row unset.
+     * Write one attribute cell by its source key; null and undefined leave the row unset. A cell the
+     * sink refuses is recorded and skipped, so the element's other keys are still written.
      * @param row - the node or edge index
      * @param key - the source key
      * @param value - the JSON value
      * @param suffix - the suffix applied when the key collides with a structural column
+     * @param element - the element name for an issue
      */
-    write(row: number, key: string, value: unknown, suffix: string): void {
-        if (value === undefined || value === null) {
+    write(row: number, key: string, value: unknown, suffix: string, element: string): void {
+        if (value === undefined) {
             return;
         }
         const name = this.reservedNames.has(key) ? `${key}${suffix}` : key;
-        const cached = this.handles.get(name);
-        if (cached !== undefined) {
-            this.set(cached, row, value);
+        if (value === null) {
+            this.nullOnly.add(name);
             return;
         }
-        this.set(name, row, value);
+        try {
+            const cached = this.handles.get(name);
+            if (cached !== undefined) {
+                this.set(cached, row, value);
+                return;
+            }
+            this.set(name, row, value);
+        } catch (err) {
+            if (!(err instanceof GraphFormatError)) {
+                throw err;
+            }
+            this.report.recordError(err, { element: `${element}.${key}` });
+            return;
+        }
         const handle = this.lookup(name);
         if (handle !== INVALID_INDEX) {
             this.handles.set(name, handle);
+        }
+    }
+
+    /**
+     * Report the keys that were null on every element that had them: they made no column, so a
+     * round trip loses them (W_EMPTY_COLUMN_DROPPED, one warning per table).
+     */
+    reportNullOnly(): void {
+        const names = [...this.nullOnly].filter((name) => this.lookup(name) === INVALID_INDEX);
+        if (names.length > 0) {
+            this.report.warning(
+                "missing-value",
+                EMPTY_COLUMN_DROPPED_CODE,
+                `${this.domain} key${plural(names.length)} ${names.map((n) => JSON.stringify(n)).join(", ")} ${agree(names.length, "is", "are")} null wherever they appear; no column is made for them`,
+                { element: names[0] },
+            );
         }
     }
 
@@ -721,6 +875,7 @@ class AttributeWriter {
 
 /**
  * Everything one import call shares between the dialect readers.
+ * @category Plugin helpers
  */
 export class ImportContext {
     readonly sink: GraphSink;
@@ -766,8 +921,8 @@ export class ImportContext {
         this.json = json;
         this.ids = new IdCoercer(options.ids);
         this.direction = new DirectionResolver(sink, report, options.onMixedDirection);
-        this.nodes = new AttributeWriter(sink, "node");
-        this.edges = new AttributeWriter(sink, "edge");
+        this.nodes = new AttributeWriter(sink, "node", report);
+        this.edges = new AttributeWriter(sink, "edge", report);
         this.explicitDefaultDirected = explicitDefaultDirected;
     }
 
@@ -882,16 +1037,17 @@ export class ImportContext {
      * Add a node, counting it or recording the failure.
      * @param id - the node id
      * @param element - the element name
+     * @param why - more about a repeated id, for the duplicate warning
      * @returns the node index, or -1 when the sink refused the node
      */
-    pushNode(id: NodeId, element: string): number {
+    pushNode(id: NodeId, element: string, why = ""): number {
         this.checkAbort();
         const existing = this.sink.indexOf(id);
         if (existing !== INVALID_INDEX) {
             this.report.warning(
                 "merged",
                 JSON_ISSUE.DUPLICATE_NODE,
-                `${element}: node ${JSON.stringify(id)} already exists; its attributes are merged (the later values win)`,
+                `${element}: node ${JSON.stringify(id)} already exists${why}; its attributes are merged (the later values win)`,
                 { element },
             );
             return existing;
@@ -920,15 +1076,70 @@ export class ImportContext {
     pushEdge(source: NodeId, target: NodeId, kind: EdgeKind, weight: number | undefined, element: string): number {
         this.checkAbort();
         const before = this.sink.edgeCount;
-        // endpoints the sink creates (addMissingNodes) count as nodes too
-        let created = this.sink.indexOf(source) === INVALID_INDEX ? 1 : 0;
-        if (source !== target && this.sink.indexOf(target) === INVALID_INDEX) {
-            created++;
-        }
+        // endpoints the sink creates (addMissingNodes) count as nodes too, and are reported
+        const missingSource = this.sink.indexOf(source) === INVALID_INDEX;
+        const missingTarget = source !== target && this.sink.indexOf(target) === INVALID_INDEX;
         const edge = this.direction.addEdge(source, target, kind, weight, { element });
         this.report.counts.edges += this.sink.edgeCount - before;
-        this.report.counts.nodes += created;
+        if (missingSource) {
+            this.dangling(source);
+        }
+        if (missingTarget) {
+            this.dangling(target);
+        }
         return edge;
+    }
+
+    /** Endpoints that named no node and became placeholder nodes, the first few kept for the message. */
+    private readonly danglingIds: NodeId[] = [];
+
+    private danglingCount = 0;
+
+    /** Set when the document has no node section: every node comes from an edge (E_MISSING_SECTION says so). */
+    nodesFromEdges = false;
+
+    /** Dangling endpoints whose id, as the other JSON type, is a node (`"1"` next to the node 1). */
+    private readonly nearMatches: NodeId[] = [];
+
+    /**
+     * Count a placeholder node an edge endpoint created.
+     * @param id - the endpoint
+     */
+    private dangling(id: NodeId): void {
+        this.report.counts.nodes++;
+        this.danglingCount++;
+        if (this.danglingIds.length < DANGLING_SHOWN) {
+            this.danglingIds.push(id);
+        }
+        const other = typeof id === "number" ? String(id) : Number(id);
+        if (
+            this.nearMatches.length < DANGLING_SHOWN &&
+            (typeof other === "string" || String(other) === id) &&
+            this.sink.indexOf(other) !== INVALID_INDEX
+        ) {
+            this.nearMatches.push(id);
+        }
+    }
+
+    /**
+     * Report the edge endpoints that named no node (the shared W_DANGLING_REFERENCE, once with the
+     * count): each became a placeholder node, which is rarely what the file meant.
+     */
+    reportDangling(): void {
+        if (this.danglingCount === 0 || this.nodesFromEdges) {
+            return;
+        }
+        const shown = this.danglingIds.map((id) => JSON.stringify(id)).join(", ");
+        const near =
+            this.nearMatches.length > 0
+                ? `; ${this.nearMatches.map((id) => JSON.stringify(id)).join(", ")} ${agree(this.nearMatches.length, "names", "name")} a node id of another JSON type (a string next to a number), which is a different id`
+                : "";
+        this.report.warning(
+            "validation-error",
+            JSON_ISSUE.DANGLING_REFERENCE,
+            `${this.danglingCount} edge endpoint${plural(this.danglingCount)} ${agree(this.danglingCount, "names", "name")} no node and became placeholder nodes: ${shown}${this.danglingCount > DANGLING_SHOWN ? ", ..." : ""}${near}`,
+            { element: String(this.danglingIds[0]) },
+        );
     }
 
     /**
@@ -1070,6 +1281,7 @@ export class ImportContext {
      * @param dict - the nested attribute dict
      * @param structural - the element keys that are not attributes
      * @param weightFrom - the weight key to skip in the dict, or null
+     * @param element - the element name for issues
      */
     writeNested(
         writer: AttributeWriter,
@@ -1078,15 +1290,16 @@ export class ImportContext {
         dict: JsonRecord,
         structural: ReadonlySet<string>,
         weightFrom: string | null,
+        element: string,
     ): void {
         for (const key of Object.keys(dict)) {
             if (key !== weightFrom) {
-                writer.write(row, key, dict[key], SUFFIX.data);
+                writer.write(row, key, dict[key], SUFFIX.data, element);
             }
         }
         for (const key of Object.keys(record)) {
             if (!structural.has(key)) {
-                writer.write(row, `${key}${SUFFIX.element}`, record[key], SUFFIX.data);
+                writer.write(row, `${key}${SUFFIX.element}`, record[key], SUFFIX.data, element);
             }
         }
     }
@@ -1140,6 +1353,7 @@ export class ImportContext {
     ): EdgeIdColumn | null {
         let numbers = 0;
         let strings = 0;
+        let others = 0;
         for (const edge of edges) {
             if (!isJsonObject(edge)) {
                 continue;
@@ -1149,12 +1363,15 @@ export class ImportContext {
                 numbers++;
             } else if (typeof raw === "string") {
                 strings++;
+            } else if (raw !== undefined && raw !== null) {
+                others++;
             }
         }
-        if (numbers + strings === 0) {
+        if (numbers + strings + others === 0) {
             return null;
         }
-        const dtype = strings === 0 ? "f64" : "string";
+        // ids of no usable type still get a column, so edgeIdValue() reports each instead of dropping it
+        const dtype = strings === 0 && numbers > 0 ? "f64" : "string";
         const columnName = uniqueColumnName(name, "id", (candidate) => this.edges.taken(candidate));
         const handle = this.edges.declare({ name: columnName, dtype, role: "id", nullable: true, unique });
         const stringify = strings > 0 && numbers > 0;
@@ -1163,7 +1380,7 @@ export class ImportContext {
             this.report.warning(
                 "coercion",
                 JSON_ISSUE.EDGE_ID_STRINGIFIED,
-                `edge ids mix numbers and strings; ${numbers} numeric id(s) stored as text`,
+                `edge ids mix numbers and strings; ${numbers} numeric id${plural(numbers)} stored as text`,
                 { element: columnName },
             );
         }
@@ -1223,7 +1440,8 @@ export class ImportContext {
 // ============================================================ document level
 
 /**
- * Parse the whole text; syntax errors and empty input abort the import.
+ * Parse the whole text; syntax errors and empty input abort the import. A key repeated in one
+ * object (which JSON.parse silently reduces to its last value) is reported per repetition.
  * @param text - the decoded text
  * @param report - the report
  * @returns the parsed value
@@ -1234,44 +1452,187 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
     }
     let root: unknown;
     let syntaxError: string | null = null;
+    // the text the syntax error was found in: the rewrite's when it parsed further than the original
+    let errorText = text;
     try {
         root = JSON.parse(text) as unknown;
     } catch (err) {
         syntaxError = err instanceof Error ? err.message : String(err);
     }
     // the fast path: strict JSON without a digit run long enough to be an unsafe integer
-    if (syntaxError === null && !MAYBE_UNSAFE_INTEGER.test(text)) {
+    if (syntaxError === null && !MAYBE_UNSAFE_INTEGER.test(text) && !MAYBE_INEXACT_EXPONENT.test(text)) {
+        reportDuplicateKeys(text, report);
         return root;
     }
-    const scan = rewriteNumbers(text);
-    if (scan.tokens.size > 0 || scan.bigIntegers.length > 0) {
-        try {
-            root = JSON.parse(scan.text, scan.tokens.size > 0 ? reviveNonstandard : undefined) as unknown;
-            syntaxError = null;
-        } catch {
-            // the rewrite did not make it valid JSON: report the parser's message on the original text
+    let scan: ReturnType<typeof rewriteNumbers>;
+    try {
+        scan = rewriteNumbers(text);
+        if (scan.tokens.size > 0 || scan.bigIntegers.length > 0) {
+            try {
+                root = JSON.parse(scan.text, scan.tokens.size > 0 ? scan.revive : undefined) as unknown;
+                syntaxError = null;
+            } catch (err) {
+                if (err instanceof RangeError) {
+                    throw err;
+                }
+                // the rewrite read past the non-standard tokens: its error is the real one
+                syntaxError = err instanceof Error ? err.message : String(err);
+                errorText = scan.text;
+            }
         }
+    } catch (err) {
+        if (!(err instanceof RangeError)) {
+            throw err;
+        }
+        // the rewrite (quoted big integers, sentinel strings) is longer than one string can hold
+        const message = `the document with its numbers rewritten is longer than the most one JavaScript string holds`;
+        report.error("unsupported", JSON_ISSUE.TOO_LARGE, message);
+        throw report.abort(message, { code: JSON_ISSUE.TOO_LARGE });
     }
     if (syntaxError !== null) {
-        return report.fail(JSON_ISSUE.SYNTAX, `invalid JSON: ${syntaxError}`);
+        return report.fail(JSON_ISSUE.SYNTAX, syntaxMessage(text, syntaxError), {
+            line: syntaxLine(errorText, syntaxError),
+        });
     }
+    reportDuplicateKeys(text, report);
     if (scan.tokens.size > 0) {
         report.warning(
             "coercion",
             JSON_ISSUE.NONSTANDARD_NUMBER,
-            `the document uses the non-standard token(s) ${[...scan.tokens].join(", ")}, which strict JSON does not allow; read as numbers`,
+            `the document uses the non-standard token${plural(scan.tokens.size)} ${[...scan.tokens].join(", ")}, which strict JSON does not allow; read as numbers`,
         );
     }
     if (scan.bigIntegers.length > 0) {
-        const shown = scan.bigIntegers.slice(0, BIG_INTEGERS_SHOWN).join(", ");
-        const more = scan.bigIntegers.length - BIG_INTEGERS_SHOWN;
         report.warning(
             "precision",
             JSON_ISSUE.BIG_INTEGER,
-            `${scan.bigIntegers.length} integer(s) beyond 2^53 kept as text so no digit is lost: ${shown}${more > 0 ? ` and ${more} more` : ""}`,
+            `${scan.bigIntegers.length} integer${plural(scan.bigIntegers.length)} beyond 2^53 kept as text so no digit is lost: ${listed(scan.bigIntegers)}`,
+        );
+    }
+    if (scan.inexact.length > 0) {
+        report.warning(
+            "precision",
+            JSON_ISSUE.PRECISION,
+            `${scan.inexact.length} number literal${plural(scan.inexact.length)} no double holds exactly, read as the nearest double (an infinity beyond the range, 0 below it): ${listed(scan.inexact)}`,
         );
     }
     return root;
+}
+
+/**
+ * The first literals of a list for a message, with the count of the rest.
+ * @param literals - the literals
+ * @returns the text
+ */
+function listed(literals: readonly string[]): string {
+    const more = literals.length - BIG_INTEGERS_SHOWN;
+    const shown = literals.slice(0, BIG_INTEGERS_SHOWN).join(", ");
+    return more > 0 ? `${shown} and ${more} more` : shown;
+}
+
+/** How many repeated keys are reported one by one before the rest is summed up. */
+const DUPLICATE_KEYS_SHOWN = 10;
+
+/**
+ * Report every key repeated in one object (JSON.parse keeps the last value, so the earlier one is
+ * gone): one warning per repetition up to DUPLICATE_KEYS_SHOWN, then one with the remaining count.
+ * @param text - the document text
+ * @param report - the report
+ */
+function reportDuplicateKeys(text: string, report: ImportReportBuilder): void {
+    const found = findDuplicateKeys(text);
+    let line = 1;
+    let counted = 0;
+    for (const { key, offset } of found.slice(0, DUPLICATE_KEYS_SHOWN)) {
+        line += countLines(text, counted, offset);
+        counted = offset;
+        report.warning(
+            "merged",
+            JSON_ISSUE.DUPLICATE_ATTRIBUTE,
+            `key ${JSON.stringify(key)} appears twice in one object; the earlier value is dropped (JSON.parse keeps the last)`,
+            { line, element: key },
+        );
+    }
+    if (found.length > DUPLICATE_KEYS_SHOWN) {
+        report.warning(
+            "merged",
+            JSON_ISSUE.DUPLICATE_ATTRIBUTE,
+            `${found.length - DUPLICATE_KEYS_SHOWN} more repeated key${plural(found.length - DUPLICATE_KEYS_SHOWN)}; each earlier value is dropped`,
+        );
+    }
+}
+
+/**
+ * The line breaks in a range of the text.
+ * @param text - the text
+ * @param from - the start offset
+ * @param to - the end offset
+ * @returns how many \n the range holds
+ */
+function countLines(text: string, from: number, to: number): number {
+    let lines = 0;
+    for (let i = text.indexOf("\n", from); i >= 0 && i < to; i = text.indexOf("\n", i + 1)) {
+        lines++;
+    }
+    return lines;
+}
+
+/** The longest text the line of an unpositioned syntax error is searched in (a bisection of JSON.parse calls). */
+const SYNTAX_SEARCH_LIMIT = 64 * 1024 * 1024;
+
+/**
+ * The 1-based line of a JSON.parse error: from the message's "(line L" or "position N" when the
+ * engine gives one, the last line for an unexpected end, else the shortest prefix that fails the
+ * same way (V8 names no position for "Unexpected token").
+ * @param text - the document
+ * @param message - the parser's message
+ * @returns the line
+ */
+function syntaxLine(text: string, message: string): number {
+    const line = /\(line (\d+)/.exec(message);
+    if (line !== null) {
+        return Number(line[1]);
+    }
+    const position = /position (\d+)/.exec(message);
+    if (position !== null) {
+        return countLines(text, 0, Number(position[1])) + 1;
+    }
+    if (!message.startsWith("Unexpected token") || text.length > SYNTAX_SEARCH_LIMIT) {
+        // ponytail: an unexpected end (or a huge text) is placed on the last line
+        return countLines(text, 0, text.length) + 1;
+    }
+    // the shortest prefix that holds the offending token: shorter prefixes end early instead
+    let lo = 0;
+    let hi = text.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        let failsOnToken = false;
+        try {
+            JSON.parse(text.slice(0, mid + 1));
+        } catch (err) {
+            failsOnToken = err instanceof Error && err.message.startsWith("Unexpected token");
+        }
+        if (failsOnToken) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    return countLines(text, 0, lo) + 1;
+}
+
+/**
+ * The E_SYNTAX message: the parser's, with a hint when the text is JSON Lines (one document per
+ * line, as apoc.export.json and many loggers write), which this importer does not read.
+ * @param text - the document
+ * @param message - the parser's message
+ * @returns the message
+ */
+function syntaxMessage(text: string, message: string): string {
+    if (looksLikeJsonLines(text)) {
+        return `invalid JSON: the input is JSON Lines (one JSON value per line), which is not a graph format graph-io reads; convert it to one JSON document (${message})`;
+    }
+    return `invalid JSON: ${message}`;
 }
 
 /** How many of the integers kept as text the warning lists. */
@@ -1355,7 +1716,7 @@ function flagOf(value: unknown, what: string, fallback: boolean, report: ImportR
 
 /**
  * The endpoint key and value of an edge record: the explicit key when given, else the first of the
- * default keys the record has.
+ * default keys the record has (a null value counts as absent).
  * @param record - the edge record
  * @param explicit - the caller's key, or null
  * @param defaults - the default keys
@@ -1367,15 +1728,67 @@ function endpointOf(
     defaults: readonly string[],
 ): { readonly key: string | null; readonly value: unknown } {
     if (explicit !== null) {
-        return { key: hasKey(record, explicit) ? explicit : null, value: record[explicit] };
+        return { key: present(record, explicit) ? explicit : null, value: record[explicit] };
     }
     for (const key of defaults) {
-        if (hasKey(record, key)) {
+        if (present(record, key)) {
             return { key, value: record[key] };
         }
     }
     return { key: null, value: undefined };
 }
+
+/**
+ * Whether a record has a key with a value other than null: a null endpoint is an absent one.
+ * @param record - the record
+ * @param key - the key
+ * @returns true when the key holds a non-null value
+ */
+function present(record: JsonRecord, key: string): boolean {
+    return hasKey(record, key) && record[key] !== null;
+}
+
+/**
+ * Report every key of a record the dialect does not read (W_JSON_UNREAD_KEY): it is dropped.
+ * @param ctx - the context
+ * @param record - the document or graph record
+ * @param known - the keys the dialect reads
+ * @param prefix - the record's path for the messages (`""` for the document, `"graph."`)
+ */
+function reportUnreadKeys(ctx: ImportContext, record: JsonRecord, known: ReadonlySet<string>, prefix: string): void {
+    for (const key of Object.keys(record)) {
+        if (known.has(key)) {
+            continue;
+        }
+        const value = record[key];
+        const entries = Array.isArray(value) && value.length === 1 ? "entry" : "entries";
+        const what = Array.isArray(value) ? `${String(value.length)} ${entries}` : describe(value);
+        ctx.report.warning(
+            "unsupported",
+            JSON_ISSUE.UNREAD_KEY,
+            `${prefix.length === 0 ? "top-level key" : "key"} ${prefix}${key} (${what}) is not read; dropped`,
+            { element: `${prefix}${key}` },
+        );
+    }
+}
+
+/** The keys of a vis.js document the reader reads. */
+const VIS_DOCUMENT_KEYS: ReadonlySet<string> = new Set(["nodes", "edges"]);
+
+/** The keys of a graphology serialization the reader reads. */
+const GRAPHOLOGY_DOCUMENT_KEYS: ReadonlySet<string> = new Set(["nodes", "edges", "options", "attributes"]);
+
+/** The keys of a JGF graph object the reader reads. */
+const JGF_GRAPH_KEYS: ReadonlySet<string> = new Set([
+    "id",
+    "type",
+    "label",
+    "directed",
+    "metadata",
+    "nodes",
+    "edges",
+    "hyperedges",
+]);
 
 /**
  * Whether any object of an array has a key with a non-null value.
@@ -1414,15 +1827,16 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
     const nodes = arraySection(root.nodes, "nodes", report);
     const edges = arraySection(root[edgesKey], edgesKey, report);
     if (nodes === null) {
-        report.error(
+        report.warning(
             "missing-value",
             JSON_ISSUE.MISSING_SECTION,
             "the document has no nodes array; nodes come from the edges",
             { element: "nodes" },
         );
+        ctx.nodesFromEdges = true;
     }
     if (edges === null) {
-        report.error(
+        report.warning(
             "missing-value",
             JSON_ISSUE.MISSING_SECTION,
             `the document has no ${edgesKey} array; the graph has no edges`,
@@ -1433,22 +1847,7 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
     const multigraph = hasKey(root, "multigraph") ? flagOf(root.multigraph, "multigraph", false, report) : null;
     ctx.setHeader(directed);
     ctx.writeGraphDict(root.graph, "graph");
-    for (const key of Object.keys(root)) {
-        if (key !== "nodes" && key !== edgesKey && key !== "directed" && key !== "multigraph" && key !== "graph") {
-            const value = root[key];
-            const what = Array.isArray(value)
-                ? `${String(value.length)} ${value.length === 1 ? "entry" : "entries"}`
-                : describe(value);
-            report.warning(
-                "unsupported",
-                JSON_ISSUE.UNREAD_KEY,
-                `top-level key ${key} (${what}) is not read; dropped`,
-                {
-                    element: key,
-                },
-            );
-        }
-    }
+    reportUnreadKeys(ctx, root, new Set(["nodes", edgesKey, "directed", "multigraph", "graph"]), "");
 
     const nodeList = nodes ?? [];
     const edgeList = edges ?? [];
@@ -1461,11 +1860,13 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
     if (!positional && nodeIdKey === null) {
         const candidates = ctx.options.nodeIdFrom === "label" ? ["label", "name", "id"] : ["id", "name"];
         nodeIdKey = candidates.find((key) => anyHas(nodeList, key)) ?? null;
-        if (ctx.options.nodeIdFrom === "label" && nodeIdKey === "id") {
+        if (ctx.options.nodeIdFrom === "label" && (nodeIdKey === "id" || nodeIdKey === "name")) {
             report.warning(
                 "unsupported",
                 JSON_ISSUE.OPTION_IGNORED,
-                'nodeIdFrom "label": no node has a label or name key; ids are read from "id"',
+                nodeIdKey === "id"
+                    ? 'nodeIdFrom "label": no node has a label or name key; ids are read from "id"'
+                    : 'nodeIdFrom "label": no node has a "label" key; ids are read from "name"',
                 { element: "nodeIdFrom" },
             );
         }
@@ -1495,6 +1896,9 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
         ({ indexLinks } = json);
     }
     const positionIds: (NodeId | null)[] | null = indexLinks ? [] : null;
+    if (indexLinks && !positional && json.indexLinks === "auto" && nodeIdKey !== null) {
+        reportAmbiguousIndexLinks(ctx, nodeList, edgeList, nodeIdKey);
+    }
 
     for (let i = 0; i < nodeList.length; i++) {
         const element = `nodes[${i}]`;
@@ -1515,14 +1919,14 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
                 const index = ctx.pushNode(id, element);
                 if (index >= 0) {
                     pushed = id;
-                    writeFlat(ctx, ctx.nodes, index, record, id, (key) => key !== nodeIdKey);
+                    writeFlat(ctx.nodes, index, record, id, (key) => key !== nodeIdKey);
                 }
             }
         }
         positionIds?.push(pushed);
     }
     throwIfAborted(ctx.options.signal);
-    const endpointKeys = importNodeLinkEdges(ctx, edgeList, edgesKey, positionIds);
+    const endpointKeys = importNodeLinkEdges(ctx, edgeList, edgesKey, positionIds, multigraph);
     ctx.setMeta(
         {
             dialect,
@@ -1543,6 +1947,7 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
  * @param edgeList - the edge records
  * @param edgesKey - the top-level key they came from, for issues
  * @param positionIds - the ids by array position under index links, or null
+ * @param multigraph - the declared multigraph flag, or null when the document has none
  * @returns the source and target keys the first well-formed edge used (null when none did)
  */
 function importNodeLinkEdges(
@@ -1550,11 +1955,17 @@ function importNodeLinkEdges(
     edgeList: readonly unknown[],
     edgesKey: string,
     positionIds: readonly (NodeId | null)[] | null,
+    multigraph: boolean | null,
 ): { source: string | null; target: string | null } {
     const { json } = ctx;
     const kind = ctx.uniformKind();
     let sourceKey: string | null = null;
     let targetKey: string | null = null;
+    // multigraph false: the pairs seen, to report parallel links; true: the (pair, key) triples, since
+    // NetworkX reads a repeated (u, v, key) as one edge
+    // ponytail: one string per edge whenever the flag is declared; a hash of the index pair if it shows in profiles
+    const pairs = multigraph === null ? null : new Set<string>();
+    let parallels = 0;
     for (let i = 0; i < edgeList.length; i++) {
         const element = `${edgesKey}[${i}]`;
         const record = edgeList[i];
@@ -1578,23 +1989,101 @@ function importNodeLinkEdges(
                 continue;
             }
             const weight = ctx.weightOf(record);
+            if (pairs !== null) {
+                const pair = pairKey(u, v, kind === "directed");
+                if (multigraph === false) {
+                    parallels += pairs.has(pair) ? 1 : 0;
+                    pairs.add(pair);
+                } else if (hasKey(record, "key")) {
+                    const triple = `${pair} ${JSON.stringify(record.key)}`;
+                    if (pairs.has(triple)) {
+                        throw new GraphFormatError(
+                            JSON_ISSUE.DUPLICATE_EDGE_ID,
+                            `${element}: key ${JSON.stringify(record.key)} is repeated for the same pair; NetworkX reads it as the same edge, so it is skipped`,
+                            { id: String(record.key) },
+                        );
+                    }
+                    pairs.add(triple);
+                }
+            }
             const edge = ctx.pushEdge(u, v, kind, weight, element);
             const { weightFrom } = ctx.options;
             for (const key of Object.keys(record)) {
                 if (key !== source.key && key !== target.key && key !== weightFrom) {
-                    ctx.edges.write(edge, key, record[key], SUFFIX.data);
+                    ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
                 }
             }
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
     }
+    if (parallels > 0) {
+        ctx.report.warning(
+            "validation-error",
+            JSON_ISSUE.INCONSISTENT,
+            `the document declares multigraph false, but ${parallels} link${plural(parallels)} ${agree(parallels, "repeats", "repeat")} the endpoints of an earlier one; all are kept`,
+            { element: edgesKey },
+        );
+    }
     return { source: sourceKey, target: targetKey };
 }
 
 /**
- * Write the flat attributes of a node record (every own key the filter keeps).
+ * The key of an endpoint pair: ordered for a directed edge, unordered for an undirected one.
+ * @param u - the source
+ * @param v - the target
+ * @param directed - whether the order matters
+ * @returns the key
+ */
+function pairKey(u: NodeId, v: NodeId, directed: boolean): string {
+    const a = JSON.stringify(u);
+    const b = JSON.stringify(v);
+    return directed || a <= b ? `${a} ${b}` : `${b} ${a}`;
+}
+
+/**
+ * Warn when indexLinks "auto" read integer endpoints as array positions although some also equal
+ * a node id's text (`"2"`): the file may mean the ids, and the edges are then off by the positions.
  * @param ctx - the context
+ * @param nodes - the node records
+ * @param edges - the edge records
+ * @param nodeIdKey - the node id key
+ */
+function reportAmbiguousIndexLinks(
+    ctx: ImportContext,
+    nodes: readonly unknown[],
+    edges: readonly unknown[],
+    nodeIdKey: string,
+): void {
+    const ids = new Set<string>();
+    for (const node of nodes) {
+        if (isJsonObject(node) && typeof node[nodeIdKey] === "string") {
+            ids.add(node[nodeIdKey]);
+        }
+    }
+    for (const edge of edges) {
+        if (!isJsonObject(edge)) {
+            continue;
+        }
+        for (const value of [
+            endpointOf(edge, ctx.json.sourceKey, NODE_LINK_SOURCE_KEYS).value,
+            endpointOf(edge, ctx.json.targetKey, NODE_LINK_TARGET_KEYS).value,
+        ]) {
+            if (typeof value === "number" && ids.has(String(value))) {
+                ctx.report.warning(
+                    "coercion",
+                    JSON_ISSUE.INDEX_LINKS,
+                    `integer endpoints are read as array positions, but ${value} is also a node id; pass indexLinks: false to read the endpoints as ids`,
+                    { element: "indexLinks" },
+                );
+                return;
+            }
+        }
+    }
+}
+
+/**
+ * Write the flat attributes of a node record (every own key the filter keeps).
  * @param writer - the node writer
  * @param index - the node index
  * @param record - the record
@@ -1602,27 +2091,22 @@ function importNodeLinkEdges(
  * @param keep - which keys are attributes
  */
 function writeFlat(
-    ctx: ImportContext,
     writer: AttributeWriter,
     index: number,
     record: JsonRecord,
     id: NodeId,
     keep: (key: string) => boolean,
 ): void {
-    try {
-        for (const key of Object.keys(record)) {
-            if (keep(key)) {
-                writer.write(index, key, record[key], SUFFIX.data);
-            }
+    for (const key of Object.keys(record)) {
+        if (keep(key)) {
+            writer.write(index, key, record[key], SUFFIX.data, String(id));
         }
-    } catch (err) {
-        ctx.report.recordError(err, { element: String(id) });
     }
 }
 
 /**
- * The d3 index-link heuristic: endpoints are array positions when every endpoint is a
- * non-negative integer and no node id is a number (a numeric id would make the endpoints ids;
+ * The d3 index-link heuristic: endpoints are array positions when every endpoint is a number, at
+ * least one is a non-negative integer, and no node id is a number (a numeric id would make the endpoints ids;
  * research note 07: d3 links reference nodes by array index and are never coerced to ids). An
  * index at or beyond the node count is then E_BAD_INDEX, never a new numeric node.
  * @param nodes - the node records
@@ -1652,10 +2136,14 @@ function looksIndexLinked(
         }
         const s = endpointOf(edge, json.sourceKey, NODE_LINK_SOURCE_KEYS).value;
         const t = endpointOf(edge, json.targetKey, NODE_LINK_TARGET_KEYS).value;
-        if (!isIndexBelow(s, Infinity) || !isIndexBelow(t, Infinity)) {
+        // a fractional or negative number is a bad index (E_BAD_INDEX), never a reason to read every
+        // other endpoint as an id; a missing endpoint is reported on its own
+        if ((s !== undefined && typeof s !== "number") || (t !== undefined && typeof t !== "number")) {
             return false;
         }
-        seen++;
+        if (isIndexBelow(s, Infinity) || isIndexBelow(t, Infinity)) {
+            seen++;
+        }
     }
     return seen > 0;
 }
@@ -1709,6 +2197,8 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
     const { report, json } = ctx;
     const nodes = arraySection(root.nodes, "nodes", report) ?? [];
     const edges = arraySection(root.edges, "edges", report) ?? [];
+    // vis.js options and groups are rendering settings, not graph data
+    reportUnreadKeys(ctx, root, VIS_DOCUMENT_KEYS, "");
     ctx.setHeader(ctx.defaultDirected("vis"));
     ctx.sink.reserve(nodes.length, edges.length);
     const nodeIdKey = json.nodeIdKey ?? "id";
@@ -1727,7 +2217,7 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
         }
         const index = ctx.pushNode(id, element);
         if (index >= 0) {
-            writeFlat(ctx, ctx.nodes, index, record, id, (key) => key !== nodeIdKey);
+            writeFlat(ctx.nodes, index, record, id, (key) => key !== nodeIdKey);
         }
     }
     throwIfAborted(ctx.options.signal);
@@ -1763,12 +2253,27 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
             const { weightFrom } = ctx.options;
             for (const key of Object.keys(record)) {
                 if (key !== source.key && key !== target.key && key !== "id" && key !== weightFrom) {
-                    ctx.edges.write(edge, key, record[key], SUFFIX.data);
+                    ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
                 }
             }
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
+    }
+    // vis.js draws arrows from the `arrows` edge option; the file declares no graph direction, so the
+    // arrows stay an attribute and the graph is read as the dialect's default
+    const arrows =
+        kind === "undirected"
+            ? edges.filter((e) => isJsonObject(e) && e.arrows !== undefined && e.arrows !== null && e.arrows !== "")
+                  .length
+            : 0;
+    if (arrows > 0) {
+        report.warning(
+            "validation-error",
+            JSON_ISSUE.INCONSISTENT,
+            `${arrows} edge${plural(arrows)} ${agree(arrows, "carries", "carry")} vis.js arrows but the graph is read undirected; the arrows are kept as an attribute (pass defaultDirected: true to read the edges as directed)`,
+            { element: "arrows" },
+        );
     }
     ctx.setMeta(
         { dialect: "vis", nodeIdKey, sourceKey: sourceKey ?? undefined, targetKey: targetKey ?? undefined },
@@ -1780,7 +2285,7 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
 
 /**
  * Read a NetworkX adjacency_data document: `nodes` as in node-link, and `adjacency[i]` the
- * neighbour list of `nodes[i]`, one `{ id, key?, ...attributes }` entry per edge. An undirected
+ * neighbor list of `nodes[i]`, one `{ id, key?, ...attributes }` entry per edge. An undirected
  * file lists every edge from both ends, so an entry whose mirror (the same pair and `key`) was
  * already read is that edge again and is not pushed twice; a self-loop is listed once.
  * @param ctx - the context
@@ -1791,7 +2296,7 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
     const nodes = arraySection(root.nodes, "nodes", report) ?? [];
     const adjacency = arraySection(root.adjacency, "adjacency", report);
     if (adjacency === null) {
-        report.error(
+        report.warning(
             "missing-value",
             JSON_ISSUE.MISSING_SECTION,
             "the document has no adjacency array; the graph has no edges",
@@ -1839,7 +2344,7 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
                 const index = ctx.pushNode(id, element);
                 if (index >= 0) {
                     pushed = id;
-                    writeFlat(ctx, ctx.nodes, index, record, id, (key) => key !== idKey);
+                    writeFlat(ctx.nodes, index, record, id, (key) => key !== idKey);
                 }
             }
         }
@@ -1848,8 +2353,9 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
     throwIfAborted(ctx.options.signal);
     const kind = ctx.uniformKind();
     const { weightFrom } = ctx.options;
-    // undirected: entries read once whose mirror is still to come, by pair and key
-    const pending = new Map<string, number>();
+    // undirected: entries read once whose mirror is still to come, by pair and key, with their attributes
+    const pending = new Map<string, string[]>();
+    let disagreeing = 0;
     for (let i = 0; i < lists.length; i++) {
         const element = `adjacency[${i}]`;
         const list = lists[i];
@@ -1863,7 +2369,7 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
             report.error(
                 "missing-value",
                 JSON_ISSUE.BAD_INDEX,
-                `${element}: ${why}; its ${list.length} edge(s) are skipped`,
+                `${element}: ${why}; its ${list.length} edge${plural(list.length)} ${agree(list.length, "is", "are")} skipped`,
                 {
                     element,
                 },
@@ -1888,13 +2394,17 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
                     ctx.countSkipped("edge");
                     continue;
                 }
-                if (!directed && isMirroredEntry(pending, source, target, record.key)) {
-                    continue;
+                if (!directed) {
+                    const mirror = mirroredEntry(pending, source, target, record, idKey);
+                    disagreeing += mirror === "disagrees" ? 1 : 0;
+                    if (mirror !== "new") {
+                        continue;
+                    }
                 }
                 const edge = ctx.pushEdge(source, target, kind, ctx.weightOf(record), entry);
                 for (const key of Object.keys(record)) {
                     if (key !== idKey && key !== weightFrom) {
-                        ctx.edges.write(edge, key, record[key], SUFFIX.data);
+                        ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
                     }
                 }
             } catch (err) {
@@ -1902,36 +2412,112 @@ function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
             }
         }
     }
+    reportAdjacencyShape(ctx, nodes.length, adjacency === null ? null : lists.length, disagreeing, pending);
     ctx.setMeta({}, { declaredMultigraph: multigraph, ...ctx.weightOriginPatch() });
 }
 
 /**
- * Whether an undirected adjacency entry is the mirror of one already read (the same unordered
- * pair and key), consuming it; otherwise the entry is remembered as awaiting its mirror. A
- * self-loop is listed once and never awaits one.
- * @param pending - the entries awaiting their mirror, by owner, other end and key
+ * Report what an adjacency_data document leaves inconsistent: nodes without an adjacency list
+ * (NetworkX writes one per node, so the file was cut), undirected edges whose two listings carry
+ * different attributes (the first is kept), and undirected entries whose mirror never came.
+ * @param ctx - the context
+ * @param nodes - the number of node records
+ * @param lists - the number of adjacency lists, or null when the section is missing (reported already)
+ * @param disagreeing - the mirrors whose attributes differ
+ * @param pending - the entries still awaiting their mirror
+ */
+function reportAdjacencyShape(
+    ctx: ImportContext,
+    nodes: number,
+    lists: number | null,
+    disagreeing: number,
+    pending: ReadonlyMap<string, readonly string[]>,
+): void {
+    const { report } = ctx;
+    if (lists !== null && lists < nodes) {
+        report.warning(
+            "missing-value",
+            JSON_ISSUE.MISSING_SECTION,
+            `${nodes - lists} node${plural(nodes - lists)} from nodes[${lists}] on ${agree(nodes - lists, "has", "have")} no adjacency list (NetworkX writes one per node); their edges listed elsewhere are kept`,
+            { element: "adjacency" },
+        );
+    }
+    if (disagreeing > 0) {
+        report.warning(
+            "validation-error",
+            JSON_ISSUE.INCONSISTENT,
+            `the two listings of ${disagreeing} undirected edge${plural(disagreeing)} ${agree(disagreeing, "disagrees", "disagree")} on their attributes; the first listing is kept`,
+            { element: "adjacency" },
+        );
+    }
+    let unmatched = 0;
+    for (const waiting of pending.values()) {
+        unmatched += waiting.length;
+    }
+    if (unmatched > 0) {
+        report.warning(
+            "validation-error",
+            JSON_ISSUE.INCONSISTENT,
+            `${unmatched} undirected adjacency entr(ies) have no mirror in the other node's list; each is read as one edge`,
+            { element: "adjacency" },
+        );
+    }
+}
+
+/**
+ * A JSON.stringify replacer that writes every object's keys in sorted order.
+ * @param _key - the key
+ * @param value - the value
+ * @returns the value, an object with its keys sorted
+ */
+function sortedKeys(_key: string, value: unknown): unknown {
+    return isJsonObject(value) ? Object.fromEntries(Object.entries(value).sort(([x], [y]) => (x < y ? -1 : 1))) : value;
+}
+
+/**
+ * Whether an undirected adjacency entry is the mirror of one already read (the same unordered pair
+ * and key), consuming it; otherwise the entry is remembered as awaiting its mirror. A self-loop is
+ * listed once and never awaits one.
+ * @param pending - the entries awaiting their mirror, by owner, other end and key: their attributes
  * @param source - the owner of the list
  * @param target - the entry's node
- * @param key - the entry's multigraph key, or undefined
- * @returns true when the entry is a mirror and must not be pushed
+ * @param record - the entry
+ * @param idKey - the entry's id key (not an attribute)
+ * @returns "new" for an entry to push, "mirror" for the second listing of one read, "disagrees"
+ * for a second listing with other attributes
  */
-function isMirroredEntry(pending: Map<string, number>, source: NodeId, target: NodeId, key: unknown): boolean {
+function mirroredEntry(
+    pending: Map<string, string[]>,
+    source: NodeId,
+    target: NodeId,
+    record: JsonRecord,
+    idKey: string,
+): "new" | "mirror" | "disagrees" {
     const a = JSON.stringify(source);
     const b = JSON.stringify(target);
     if (a === b) {
-        return false;
+        return "new";
     }
-    const k = JSON.stringify(key ?? null);
+    const k = JSON.stringify(record.key ?? null);
+    // key order is not part of a JSON object, so two listings in another order still agree
+    const attributes = JSON.stringify(
+        Object.fromEntries(Object.entries(record).filter(([key]) => key !== idKey)),
+        sortedKeys,
+    );
     // an entry is the mirror of one listed by the other end, never of a parallel entry of its own list
-    const mirror = `${b} ${a} ${k}`;
-    const waiting = pending.get(mirror) ?? 0;
-    if (waiting > 0) {
-        pending.set(mirror, waiting - 1);
-        return true;
+    const waiting = pending.get(`${b} ${a} ${k}`);
+    if (waiting !== undefined && waiting.length > 0) {
+        const first = waiting.shift();
+        return first === attributes ? "mirror" : "disagrees";
     }
     const own = `${a} ${b} ${k}`;
-    pending.set(own, (pending.get(own) ?? 0) + 1);
-    return false;
+    const list = pending.get(own);
+    if (list === undefined) {
+        pending.set(own, [attributes]);
+    } else {
+        list.push(attributes);
+    }
+    return "new";
 }
 
 /**
@@ -1971,7 +2557,7 @@ function importTree(ctx: ImportContext, root: JsonRecord): void {
         } else if (ctx.pushNode(id, element) < 0) {
             id = null;
         } else {
-            writeFlat(ctx, ctx.nodes, ctx.sink.indexOf(id), record, id, (key) => key !== idKey && key !== "children");
+            writeFlat(ctx.nodes, ctx.sink.indexOf(id), record, id, (key) => key !== idKey && key !== "children");
             if (parent !== null) {
                 try {
                     ctx.pushEdge(parent, id, kind, undefined, element);
@@ -2000,7 +2586,7 @@ function importTree(ctx: ImportContext, root: JsonRecord): void {
 // ============================================================ graphology
 
 /**
- * Read a graphology serialisation: `options.type` decides the header direction ("mixed" or absent:
+ * Read a graphology serialization: `options.type` decides the header direction ("mixed" or absent:
  * from the edges' `undirected` flags), `options.multi` the declared multigraph flag, node `key`
  * the id, `attributes` the columns, edge `key` the edge id.
  * @param ctx - the context
@@ -2010,6 +2596,7 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
     const { report } = ctx;
     const nodes = arraySection(root.nodes, "nodes", report) ?? [];
     const edges = arraySection(root.edges, "edges", report) ?? [];
+    reportUnreadKeys(ctx, root, GRAPHOLOGY_DOCUMENT_KEYS, "");
     const options = isJsonObject(root.options) ? root.options : {};
     if (hasKey(root, "options") && !isJsonObject(root.options)) {
         report.warning("validation-error", JSON_ISSUE.BAD_FLAG, "options is not an object; ignored", {
@@ -2064,6 +2651,9 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
     throwIfAborted(ctx.options.signal);
 
     const ids = ctx.declareEdgeIds(edges, (edge) => edge.key, "key", true);
+    // what the edges do against the declared options: graphology itself refuses such a document
+    const violations = { selfLoops: 0, parallels: 0, flags: 0 };
+    const pairs = multi === false ? new Set<string>() : null;
     for (let i = 0; i < edges.length; i++) {
         const element = `edges[${i}]`;
         const record = edges[i];
@@ -2071,8 +2661,8 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
             ctx.badElement("edge", element);
             continue;
         }
-        if (!hasKey(record, "source") || !hasKey(record, "target")) {
-            ctx.missingEndpoint(element, hasKey(record, "source") ? "target" : "source");
+        if (!present(record, "source") || !present(record, "target")) {
+            ctx.missingEndpoint(element, present(record, "source") ? "target" : "source");
             continue;
         }
         try {
@@ -2087,17 +2677,76 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
                 kind = flagOf(record.undirected, `${element}.undirected`, false, report) ? "undirected" : "directed";
             } else {
                 kind = type;
+                if (typeof record.undirected === "boolean" && record.undirected !== (type === "undirected")) {
+                    violations.flags++;
+                }
             }
-            const attributes = isJsonObject(record.attributes) ? record.attributes : {};
+            const { attributes: rawAttributes } = record;
+            if (rawAttributes !== undefined && rawAttributes !== null && !isJsonObject(rawAttributes)) {
+                report.error(
+                    "validation-error",
+                    JSON_ISSUE.BAD_VALUE,
+                    `${element}: attributes must be an object, found ${describe(rawAttributes)}`,
+                    { element },
+                );
+            }
+            const attributes = isJsonObject(rawAttributes) ? rawAttributes : {};
             const idValue = ctx.edgeIdValue(ids, record.key);
             const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(attributes), element);
             ctx.setEdgeId(ids, edge, idValue);
-            ctx.writeNested(ctx.edges, edge, record, attributes, GRAPHOLOGY_EDGE_KEYS, ctx.options.weightFrom);
+            ctx.writeNested(ctx.edges, edge, record, attributes, GRAPHOLOGY_EDGE_KEYS, ctx.options.weightFrom, element);
+            if (allowSelfLoops === false && u === v) {
+                violations.selfLoops++;
+            }
+            if (pairs !== null) {
+                const pair = `${kind} ${pairKey(u, v, kind === "directed")}`;
+                violations.parallels += pairs.has(pair) ? 1 : 0;
+                pairs.add(pair);
+            }
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
     }
+    reportGraphologyViolations(ctx, violations, type);
     ctx.setMeta({ dialect: "graphology", allowSelfLoops }, { declaredMultigraph: multi, ...ctx.weightOriginPatch() });
+}
+
+/**
+ * Report the edges that contradict a graphology document's declared options (W_JSON_INCONSISTENT,
+ * one warning per kind); they are kept.
+ * @param ctx - the context
+ * @param violations - the counts
+ * @param violations.selfLoops - self-loops under allowSelfLoops false
+ * @param violations.parallels - parallel edges under multi false
+ * @param violations.flags - per-edge undirected flags against options.type
+ * @param type - options.type
+ */
+function reportGraphologyViolations(
+    ctx: ImportContext,
+    violations: { readonly selfLoops: number; readonly parallels: number; readonly flags: number },
+    type: string,
+): void {
+    const notes: string[] = [];
+    if (violations.selfLoops > 0) {
+        notes.push(
+            `options.allowSelfLoops is false, but ${violations.selfLoops} self-loop${plural(violations.selfLoops)} ${agree(violations.selfLoops, "is", "are")} listed`,
+        );
+    }
+    if (violations.parallels > 0) {
+        notes.push(
+            `options.multi is false, but ${violations.parallels} parallel edge${plural(violations.parallels)} ${agree(violations.parallels, "is", "are")} listed`,
+        );
+    }
+    if (violations.flags > 0) {
+        notes.push(
+            `options.type is ${type}, but ${violations.flags} edge${plural(violations.flags)} ${agree(violations.flags, "carries", "carry")} the other undirected flag; read as ${type}`,
+        );
+    }
+    for (const note of notes) {
+        ctx.report.warning("validation-error", JSON_ISSUE.INCONSISTENT, `${note}; every edge is kept`, {
+            element: "options",
+        });
+    }
 }
 
 /**
@@ -2133,7 +2782,7 @@ function pushNestedNode(
                 { element },
             );
         }
-        ctx.writeNested(ctx.nodes, index, record, isJsonObject(dict) ? dict : {}, structural, null);
+        ctx.writeNested(ctx.nodes, index, record, isJsonObject(dict) ? dict : {}, structural, null, element);
     } catch (err) {
         ctx.report.recordError(err, { element: String(id) });
     }
@@ -2209,6 +2858,14 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
                 ctx.countSkipped("node");
                 continue;
             }
+            if (record !== null && hasKey(record, "id") && record.id !== key) {
+                report.warning(
+                    "validation-error",
+                    JSON_ISSUE.INCONSISTENT,
+                    `${element}: the inner id ${describe(record.id)} differs from the key; the key is the id, the inner one is kept as id${SUFFIX.element}`,
+                    { element },
+                );
+            }
             pushJgfNode(ctx, id, record ?? {}, labelColumn, element);
         }
     } else {
@@ -2258,7 +2915,7 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
                 element,
             });
         }
-        ctx.writeNested(ctx.edges, edge, record, dict, structural, ctx.options.weightFrom);
+        ctx.writeNested(ctx.edges, edge, record, dict, structural, ctx.options.weightFrom, element);
     };
 
     for (let i = 0; i < edges.length; i++) {
@@ -2268,8 +2925,8 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
             ctx.badElement("edge", element);
             continue;
         }
-        if (!hasKey(record, "source") || !hasKey(record, "target")) {
-            ctx.missingEndpoint(element, hasKey(record, "source") ? "target" : "source");
+        if (!present(record, "source") || !present(record, "target")) {
+            ctx.missingEndpoint(element, present(record, "source") ? "target" : "source");
             continue;
         }
         try {
@@ -2298,7 +2955,23 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
  * @returns the graph object; the import fails when there is none
  */
 function jgfGraphOf(ctx: ImportContext, root: JsonRecord): JsonRecord {
-    return isJsonObject(root.graph) ? root.graph : chosenGraph(ctx, root, "JGF");
+    const single = isJsonObject(root.graph);
+    // a document with both graph and graphs is read by its graph; the graphs are not
+    reportUnreadKeys(ctx, root, new Set([single ? "graph" : "graphs"]), "");
+    const graph = single ? (root.graph as JsonRecord) : chosenGraph(ctx, root, "JGF");
+    const prefix = single ? "graph." : `graphs[${(root.graphs as unknown[]).indexOf(graph)}].`;
+    reportUnreadKeys(ctx, graph, JGF_GRAPH_KEYS, prefix);
+    for (const key of ["id", "type", "label"]) {
+        if (graph[key] !== undefined && graph[key] !== null && typeof graph[key] !== "string") {
+            ctx.report.error(
+                "validation-error",
+                JSON_ISSUE.BAD_VALUE,
+                `${prefix}${key} must be a string, found ${describe(graph[key])}; ignored`,
+                { element: `${prefix}${key}` },
+            );
+        }
+    }
+    return graph;
 }
 
 /**
@@ -2308,6 +2981,7 @@ function jgfGraphOf(ctx: ImportContext, root: JsonRecord): JsonRecord {
  * @param root - the document
  * @param what - the dialect's name, for the messages
  * @returns the graph object; the import fails when there is none
+ * @category Plugin helpers
  */
 export function chosenGraph(ctx: ImportContext, root: JsonRecord, what: string): JsonRecord {
     const { report } = ctx;
@@ -2317,17 +2991,24 @@ export function chosenGraph(ctx: ImportContext, root: JsonRecord, what: string):
     }
     const index =
         ctx.json.all === true ? ctx.json.graphIndex : chooseGraph(graphs.map(graphNameOf), ctx.json.choice, report);
-    if (graphs.length > 1 && ctx.json.all !== true) {
+    if (graphs.length > 1 && ctx.json.all !== true && !graphChosen(ctx.json.choice)) {
         report.warning(
             "unsupported",
             JSON_ISSUE.MULTIPLE_GRAPHS,
-            `the document holds ${graphs.length} graphs; only graphs[${index}] is read (${graphs.length - 1} skipped), importAll() reads every one`,
+            `the document holds ${graphs.length} graphs; only graphs[${index}] is read (${graphs.length - 1} skipped); importAllGraphs() reads every one`,
             { element: "graphs" },
         );
     }
     const graph = graphs[index];
     if (!isJsonObject(graph)) {
-        return report.fail(JSON_ISSUE.SHAPE, `graphs[${index}] is not an object`);
+        if (ctx.json.all !== true) {
+            return report.fail(JSON_ISSUE.SHAPE, `graphs[${index}] is not an object`);
+        }
+        // importAll(): one bad graph is that graph's error, read as empty; the others are still read
+        report.error("validation-error", JSON_ISSUE.SHAPE, `graphs[${index}] is not an object; it is read as empty`, {
+            element: `graphs[${index}]`,
+        });
+        return {};
     }
     return graph;
 }
@@ -2391,38 +3072,29 @@ function listingsOf(root: unknown, dialect: JsonImportDialect): GraphListing[] {
     return [{ index: 0, name: null, nodes: null, edges: null }];
 }
 
-/** The longest string V8 makes (2^29 - 24 UTF-16 code units); a longer document cannot be one JSON.parse input. */
-const MAX_TEXT_LENGTH = 2 ** 29 - 24;
-
 /**
- * Read the whole input as one string, failing with E_TOO_LARGE (category unsupported) before the
- * join when it is longer than one JavaScript string can hold (OBO Graphs files such as
- * ncbitaxon.json are; design 7.1 defers streaming the JSON reader).
- * @param input - the input
- * @param report - the report
- * @param options - cancellation, progress and encoding
- * @returns the text
+ * Whether a text that is not one JSON document is JSON Lines / NDJSON: its first two non-blank
+ * lines are each a JSON object or array.
+ * @param text - the document
+ * @returns true for JSON Lines
  */
-async function readJsonText(
-    input: ImportInput,
-    report: ImportReportBuilder,
-    options: ResolvedImportOptions,
-): Promise<string> {
-    if (typeof input === "string") {
-        return readText(input, report, options);
-    }
-    const parts: string[] = [];
-    let length = 0;
-    for await (const chunk of textChunks(input, report, options)) {
-        length += chunk.length;
-        if (length > MAX_TEXT_LENGTH) {
-            const message = `the document is longer than ${MAX_TEXT_LENGTH} characters, the most one JavaScript string holds`;
-            report.error("unsupported", JSON_ISSUE.TOO_LARGE, message);
-            throw report.abort(message, { code: JSON_ISSUE.TOO_LARGE });
-        }
-        parts.push(chunk);
-    }
-    return parts.length === 1 ? parts[0] : parts.join("");
+function looksLikeJsonLines(text: string): boolean {
+    const lines = text
+        .slice(0, 64 * 1024)
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0)
+        .slice(0, 2);
+    return (
+        lines.length === 2 &&
+        lines.every((line) => {
+            try {
+                const value: unknown = JSON.parse(line);
+                return typeof value === "object" && value !== null;
+            } catch {
+                return false;
+            }
+        })
+    );
 }
 
 /**
@@ -2452,7 +3124,7 @@ function pushJgfNode(
                 element,
             });
         }
-        ctx.writeNested(ctx.nodes, index, record, isJsonObject(metadata) ? metadata : {}, JGF_NODE_KEYS, null);
+        ctx.writeNested(ctx.nodes, index, record, isJsonObject(metadata) ? metadata : {}, JGF_NODE_KEYS, null, element);
     } catch (err) {
         ctx.report.recordError(err, { element: String(id) });
     }
@@ -2488,23 +3160,52 @@ function importHyperedges(
     const { report } = ctx;
     const policy = ctx.options.hyperedges;
     if (policy === "error") {
-        report.error("unsupported", JSON_ISSUE.HYPEREDGE, `${hyperedges.length} hyperedge(s) (hyperedges: "error")`, {
-            element: "hyperedges",
-        });
+        report.error(
+            "unsupported",
+            JSON_ISSUE.HYPEREDGE,
+            `${hyperedges.length} hyperedge${plural(hyperedges.length)} (hyperedges: "error")`,
+            {
+                element: "hyperedges",
+            },
+        );
         throw report.abort("hyperedges refused", { code: JSON_ISSUE.HYPEREDGE, count: hyperedges.length });
     }
     if (policy === "skip") {
-        report.warning("unsupported", JSON_ISSUE.HYPEREDGES_SKIPPED, `${hyperedges.length} hyperedge(s) skipped`, {
-            element: "hyperedges",
-        });
+        report.warning(
+            "unsupported",
+            JSON_ISSUE.HYPEREDGES_SKIPPED,
+            `${hyperedges.length} hyperedge${plural(hyperedges.length)} skipped`,
+            {
+                element: "hyperedges",
+            },
+        );
         report.loss(
             JSON_ISSUE.HYPEREDGES_SKIPPED,
-            `${hyperedges.length} hyperedge(s) were not imported`,
+            `${hyperedges.length} hyperedge${plural(hyperedges.length)} ${agree(hyperedges.length, "was", "were")} not imported`,
             null,
             hyperedges.length,
         );
         return;
     }
+    // each expanded edge is pushed on its own, so one the sink refuses is reported and counted
+    // while the others stay
+    const expand = (
+        record: JsonRecord,
+        pairs: readonly (readonly [NodeId, NodeId])[],
+        kind: EdgeKind,
+        element: string,
+    ): void => {
+        for (const [u, v] of pairs) {
+            try {
+                push(record, u, v, kind, element, JGF_HYPEREDGE_KEYS);
+            } catch (err) {
+                ctx.skip(err, "edge", element);
+            }
+        }
+    };
+    // the edges expanded so far: the cap is on the whole import, so many hyperedges just under it
+    // cannot amplify without bound either
+    const budget = { used: 0 };
     for (let i = 0; i < hyperedges.length; i++) {
         const element = `hyperedges[${i}]`;
         const record = hyperedges[i];
@@ -2514,7 +3215,11 @@ function importHyperedges(
         }
         try {
             if (Array.isArray(record.nodes)) {
-                const members = record.nodes.map((raw) => ctx.requireId(raw, element));
+                const members = distinctMembers(
+                    ctx,
+                    record.nodes.map((raw) => ctx.requireId(raw, element)),
+                    element,
+                );
                 if (members.length < 2) {
                     throw new GraphFormatError(
                         "E_INVALID_ID",
@@ -2522,18 +3227,21 @@ function importHyperedges(
                         { reason: "hyperedge shape" },
                     );
                 }
-                const kind: EdgeKind = directed ? "directed" : "undirected";
+                const n = members.length;
+                checkExpansion(policy === "star" ? n - 1 : (n * (n - 1)) / 2, budget, element);
+                const pairs: [NodeId, NodeId][] = [];
                 if (policy === "star") {
-                    for (let k = 1; k < members.length; k++) {
-                        push(record, members[0], members[k], kind, element, JGF_HYPEREDGE_KEYS);
+                    for (let k = 1; k < n; k++) {
+                        pairs.push([members[0], members[k]]);
                     }
                 } else {
-                    for (let a = 0; a < members.length; a++) {
-                        for (let b = a + 1; b < members.length; b++) {
-                            push(record, members[a], members[b], kind, element, JGF_HYPEREDGE_KEYS);
+                    for (let a = 0; a < n; a++) {
+                        for (let b = a + 1; b < n; b++) {
+                            pairs.push([members[a], members[b]]);
                         }
                     }
                 }
+                expand(record, pairs, directed ? "directed" : "undirected", element);
             } else if (Array.isArray(record.source) && Array.isArray(record.target)) {
                 const sources = record.source.map((raw) => ctx.requireId(raw, element));
                 const targets = record.target.map((raw) => ctx.requireId(raw, element));
@@ -2544,11 +3252,13 @@ function importHyperedges(
                         { reason: "hyperedge shape" },
                     );
                 }
-                for (const s of sources) {
-                    for (const t of targets) {
-                        push(record, s, t, "directed", element, JGF_HYPEREDGE_KEYS);
-                    }
-                }
+                checkExpansion(sources.length * targets.length, budget, element);
+                expand(
+                    record,
+                    sources.flatMap((s) => targets.map((t) => [s, t] as const)),
+                    "directed",
+                    element,
+                );
             } else {
                 report.error(
                     "validation-error",
@@ -2559,9 +3269,62 @@ function importHyperedges(
                 ctx.countSkipped("edge");
             }
         } catch (err) {
-            ctx.skip(err, "edge", element);
+            if (err instanceof ExpansionRefused) {
+                // one hyperedge over the cap is skipped; the shared E_TOO_LARGE rule would stop the import
+                report.error("unsupported", err.code, err.message, { element });
+                ctx.countSkipped("edge");
+            } else {
+                ctx.skip(err, "edge", element);
+            }
         }
     }
+}
+
+/** A hyperedge whose expansion would pass MAX_HYPEREDGE_EXPANSION: that hyperedge alone is skipped. */
+class ExpansionRefused extends GraphFormatError {}
+
+/** The most edges the hyperedges of one import expand into; a 20k-member clique would be 200M edges. */
+// ponytail: a fixed cap; make it an option if a real file needs more
+const MAX_HYPEREDGE_EXPANSION = 1_000_000;
+
+/**
+ * Refuse an expansion that would take the import beyond MAX_HYPEREDGE_EXPANSION expanded edges,
+ * before any of it is pushed; otherwise count it against the budget.
+ * @param count - the number of edges the expansion makes
+ * @param budget - the edges the import's hyperedges expanded into so far
+ * @param budget.used - that count, updated
+ * @param element - the hyperedge's name
+ */
+function checkExpansion(count: number, budget: { used: number }, element: string): void {
+    if (budget.used + count > MAX_HYPEREDGE_EXPANSION) {
+        throw new ExpansionRefused(
+            "E_TOO_LARGE",
+            `${element}: the expansion makes ${count} edges, which with the ${budget.used} already expanded is more than ${MAX_HYPEREDGE_EXPANSION}; the hyperedge is skipped`,
+            { count, used: budget.used, limit: MAX_HYPEREDGE_EXPANSION },
+        );
+    }
+    budget.used += count;
+}
+
+/**
+ * The members of an undirected hyperedge with repeats removed (a repeat would expand into a
+ * self-loop and parallel edges), each repeat reported as E_HYPEREDGE_SHAPE.
+ * @param ctx - the context
+ * @param members - the members as listed
+ * @param element - the hyperedge's name
+ * @returns the distinct members in first-listed order
+ */
+function distinctMembers(ctx: ImportContext, members: readonly NodeId[], element: string): NodeId[] {
+    const distinct = [...new Set(members)];
+    if (distinct.length < members.length) {
+        ctx.report.error(
+            "validation-error",
+            JSON_ISSUE.HYPEREDGE_SHAPE,
+            `${element} lists ${members.length - distinct.length} member${plural(members.length - distinct.length)} more than once; each is read once`,
+            { element },
+        );
+    }
+    return distinct;
 }
 
 // ============================================================ Cytoscape
@@ -2611,7 +3374,8 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
             role: "position",
             mutable: true,
             nullable: true,
-            extra: { sourceDims: 2, units: "file" },
+            // 3D layouts written by Cytoscape-compatible tools carry a z
+            extra: { sourceDims: nodes.some(hasPositionZ) ? 3 : 2, units: "file" },
             origin: { format: "json", namespace: "cytoscape" },
         },
         anyHas(nodes, "position"),
@@ -2648,6 +3412,14 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
         if (index < 0) {
             continue;
         }
+        if (present(data, "source") && present(data, "target")) {
+            report.warning(
+                "validation-error",
+                JSON_ISSUE.INCONSISTENT,
+                `${element} has data.source and data.target, the shape of an edge, but its section or group says node; read as a node`,
+                { element },
+            );
+        }
         try {
             for (const key of Object.keys(data)) {
                 if (key === "id") {
@@ -2663,31 +3435,65 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
                     }
                     continue;
                 }
-                ctx.nodes.write(index, key, data[key], SUFFIX.data);
+                ctx.nodes.write(index, key, data[key], SUFFIX.data, element);
             }
             const { position } = record;
             if (position !== undefined && position !== null) {
-                if (isJsonObject(position) && typeof position.x === "number" && typeof position.y === "number") {
+                const z = isJsonObject(position) ? (position.z ?? 0) : 0;
+                if (isJsonObject(position) && isCoordinate(position.x) && isCoordinate(position.y) && isCoordinate(z)) {
                     point[0] = position.x;
                     // Cytoscape's y grows downward; positions are stored y-up (the exporter flips back)
                     point[1] = flipY(position.y);
+                    point[2] = z;
                     ctx.nodes.set(positionColumn, index, point);
                 } else {
                     report.error(
                         "validation-error",
                         JSON_ISSUE.BAD_VALUE,
-                        `${element}: position must be an object with numeric x and y`,
+                        `${element}: position must be an object with numeric x and y (and z) that are finite and within the f32 range`,
                         { element },
                     );
                 }
             }
             writeClasses(ctx, ctx.nodes, classesColumn, index, record.classes, element);
-            writeElementKeys(ctx.nodes, index, record);
+            writeElementKeys(ctx.nodes, index, record, element);
         } catch (err) {
             report.recordError(err, { element: String(id) });
         }
     }
-    for (const { index, parent, element } of parents) {
+    resolveCytoscapeParents(ctx, parents, parentColumn);
+    throwIfAborted(ctx.options.signal);
+
+    importCytoscapeEdges(ctx, edges, edgeClassesColumn);
+    ctx.setMeta({ dialect: "cytoscape", cytoscape: extra }, ctx.weightOriginPatch());
+}
+
+/** One Cytoscape parent link: the parent's index and id, its document order and element name. */
+interface ParentLink {
+    readonly parent: number;
+    readonly id: NodeId;
+    readonly order: number;
+    readonly element: string;
+}
+
+/**
+ * Set the parent of each Cytoscape node once every node is known (a parent may come later): an
+ * unknown parent is E_UNKNOWN_PARENT, a link that would make a node its own ancestor E_PARENT_CYCLE
+ * (Cytoscape.js refuses those too); either link is dropped and the node kept.
+ * @param ctx - the context
+ * @param parents - the parent links in document order
+ * @param parentColumn - the parent column
+ */
+function resolveCytoscapeParents(
+    ctx: ImportContext,
+    parents: readonly { readonly index: number; readonly parent: NodeId; readonly element: string }[],
+    parentColumn: ColumnHandle,
+): void {
+    const { report } = ctx;
+    // the last link per child (a duplicate node's later parent wins), child -> its link
+    const linkOf = new Map<number, ParentLink>();
+    for (let order = 0; order < parents.length; order++) {
+        const { index, parent, element } = parents[order];
         const parentIndex = ctx.sink.indexOf(parent);
         if (parentIndex === INVALID_INDEX) {
             report.error(
@@ -2698,12 +3504,57 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
             );
             continue;
         }
-        ctx.nodes.set(parentColumn, index, parentIndex);
+        linkOf.set(index, { parent: parentIndex, id: parent, order, element });
     }
-    throwIfAborted(ctx.options.signal);
+    // one walk per chain, each node visited once: on a cycle the link that came last in the document
+    // (the one that closed it) is dropped
+    const done = new Set<number>();
+    for (const start of linkOf.keys()) {
+        const path: number[] = [];
+        const onPath = new Set<number>();
+        let node: number | undefined = start;
+        while (node !== undefined && !done.has(node) && !onPath.has(node)) {
+            path.push(node);
+            onPath.add(node);
+            node = linkOf.get(node)?.parent;
+        }
+        if (node !== undefined && onPath.has(node)) {
+            dropClosingLink(report, linkOf, path.slice(path.indexOf(node)));
+        }
+        for (const member of path) {
+            done.add(member);
+        }
+    }
+    for (const [index, { parent }] of linkOf) {
+        ctx.nodes.set(parentColumn, index, parent);
+    }
+}
 
-    importCytoscapeEdges(ctx, edges, edgeClassesColumn);
-    ctx.setMeta({ dialect: "cytoscape", cytoscape: extra }, ctx.weightOriginPatch());
+/**
+ * Drop the link of a parent cycle that came last in the document (the one that closed it).
+ * @param report - the report
+ * @param linkOf - the links by child, the dropped one removed
+ * @param cycle - the nodes of the cycle
+ */
+function dropClosingLink(report: ImportReportBuilder, linkOf: Map<number, ParentLink>, cycle: readonly number[]): void {
+    let closing: [number, ParentLink] | null = null;
+    for (const member of cycle) {
+        const link = linkOf.get(member);
+        if (link !== undefined && (closing === null || link.order > closing[1].order)) {
+            closing = [member, link];
+        }
+    }
+    if (closing === null) {
+        return;
+    }
+    const { id, element } = closing[1];
+    report.error(
+        "validation-error",
+        JSON_ISSUE.PARENT_CYCLE,
+        `${element}: parent ${JSON.stringify(id)} would make the node its own ancestor; the link is dropped`,
+        { element },
+    );
+    linkOf.delete(closing[0]);
 }
 
 /**
@@ -2724,8 +3575,8 @@ function importCytoscapeEdges(ctx: ImportContext, edges: readonly unknown[], edg
             continue;
         }
         const { data } = record;
-        if (!hasKey(data, "source") || !hasKey(data, "target")) {
-            ctx.missingEndpoint(element, `data.${hasKey(data, "source") ? "target" : "source"}`);
+        if (!present(data, "source") || !present(data, "target")) {
+            ctx.missingEndpoint(element, `data.${present(data, "source") ? "target" : "source"}`);
             continue;
         }
         try {
@@ -2741,11 +3592,11 @@ function importCytoscapeEdges(ctx: ImportContext, edges: readonly unknown[], edg
             const { weightFrom } = ctx.options;
             for (const key of Object.keys(data)) {
                 if (key !== "id" && key !== "source" && key !== "target" && key !== weightFrom) {
-                    ctx.edges.write(edge, key, data[key], SUFFIX.data);
+                    ctx.edges.write(edge, key, data[key], SUFFIX.data, element);
                 }
             }
             writeClasses(ctx, ctx.edges, edgeClassesColumn, edge, record.classes, element);
-            writeElementKeys(ctx.edges, edge, record);
+            writeElementKeys(ctx.edges, edge, record, element);
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
@@ -2765,10 +3616,21 @@ function cytoscapeSections(
 ): { readonly nodes: readonly unknown[]; readonly edges: readonly unknown[] } {
     const { report } = ctx;
     if (Array.isArray(elements)) {
-        return {
-            nodes: elements.filter((item) => isJsonObject(item) && isNodeElement(item)),
-            edges: elements.filter((item) => isJsonObject(item) && !isNodeElement(item)),
-        };
+        const nodes: unknown[] = [];
+        const edges: unknown[] = [];
+        elements.forEach((item: unknown, i) => {
+            if (isJsonObject(item) && item.group !== undefined && item.group !== "nodes" && item.group !== "edges") {
+                report.error(
+                    "validation-error",
+                    JSON_ISSUE.BAD_VALUE,
+                    `elements[${i}]: group ${describe(item.group)} is neither "nodes" nor "edges"; classed by its endpoints`,
+                    { element: `elements[${i}]` },
+                );
+            }
+            // a non-object item stays with the nodes, whose reader reports it as E_BAD_ELEMENT
+            (isJsonObject(item) && !isNodeElement(item) ? edges : nodes).push(item);
+        });
+        return { nodes, edges };
     }
     if (isJsonObject(elements)) {
         return {
@@ -2777,12 +3639,33 @@ function cytoscapeSections(
         };
     }
     if (elements === undefined || elements === null) {
-        report.error("missing-value", JSON_ISSUE.MISSING_SECTION, "the document has no elements", {
+        report.warning("missing-value", JSON_ISSUE.MISSING_SECTION, "the document has no elements", {
             element: "elements",
         });
         return { nodes: [], edges: [] };
     }
     return report.fail(JSON_ISSUE.SHAPE, `elements must be an object or an array, found ${describe(elements)}`);
+}
+
+/**
+ * Whether a Cytoscape element's position has a numeric z.
+ * @param element - the element
+ * @returns true when position.z is a number
+ */
+function hasPositionZ(element: unknown): boolean {
+    return isJsonObject(element) && isJsonObject(element.position) && typeof element.position.z === "number";
+}
+
+/** The largest finite f32, the bound of a position coordinate. */
+const F32_MAX = 3.4028234663852886e38;
+
+/**
+ * Whether a value is a coordinate the f32 position column holds: a finite number within the f32 range.
+ * @param value - the value
+ * @returns true for a storable coordinate
+ */
+function isCoordinate(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= F32_MAX;
 }
 
 /**
@@ -2844,24 +3727,38 @@ function writeClasses(
  * @param writer - the table writer
  * @param row - the row
  * @param record - the element
+ * @param element - the element name for issues
  */
-function writeElementKeys(writer: AttributeWriter, row: number, record: JsonRecord): void {
+function writeElementKeys(writer: AttributeWriter, row: number, record: JsonRecord, element: string): void {
     for (const key of Object.keys(record)) {
         if (CYTOSCAPE_STRUCTURAL_KEYS.has(key)) {
             continue;
         }
         const name = CYTOSCAPE_ELEMENT_KEYS.has(key) ? key : `${key}${SUFFIX.element}`;
-        writer.write(row, name, record[key], SUFFIX.data);
+        writer.write(row, name, record[key], SUFFIX.data, element);
     }
 }
 
 // ============================================================ the plugin
 
 /**
- * The JSON importer plugin (design section 8.4).
+ * The JSON importer plugin.
+ * @category Built-in formats
  */
 export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
     format: "json",
+    options: Object.freeze([
+        "dialect",
+        "edgesKey",
+        "edgesPath",
+        "indexLinks",
+        "nodeIdKey",
+        "nodesPath",
+        "oboIds",
+        "sourceKey",
+        "targetKey",
+        "typedefs",
+    ]),
     extensions: Object.freeze([".json"]),
     mimeTypes: Object.freeze(["application/json"]),
 
@@ -2873,7 +3770,8 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
      * @returns the confidence
      */
     sniff(head: Uint8Array): number {
-        const text = new TextDecoder("utf-8").decode(head.subarray(0, SNIFF_BYTES));
+        // headBytes transcodes a UTF-16 head with a BOM, which import() decodes too
+        const text = new TextDecoder("utf-8").decode(headBytes(head).subarray(0, SNIFF_BYTES));
         const trimmed = (text.startsWith(BOM) ? text.slice(1) : text).trimStart();
         if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
             return 0;
@@ -2899,7 +3797,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
         const json = resolveJsonOptions(options);
         const report = new ImportReportBuilder("json", resolved.errorLimit);
-        const text = await readJsonText(input, report, resolved);
+        const text = await readText(input, report, { ...resolved, bomlessUtf16: true });
         const { root, dialect } = documentOf(parseDocument(text, report), json, report);
         readGraph(root, dialect, sink, report, resolved, json, options);
         return report.finish();
@@ -2920,7 +3818,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
         const json = resolveJsonOptions(options);
         const report = new ImportReportBuilder("json", resolved.errorLimit);
-        const text = await readJsonText(input, report, resolved);
+        const text = await readText(input, report, { ...resolved, bomlessUtf16: true });
         const { root, dialect } = documentOf(parseDocument(text, report), json, report);
         return listingsOf(root, dialect);
     },
@@ -2941,7 +3839,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
         const json = resolveJsonOptions(options);
         const first = new ImportReportBuilder("json", resolved.errorLimit);
-        const text = await readJsonText(input, first, resolved);
+        const text = await readText(input, first, { ...resolved, bomlessUtf16: true });
         const { root, dialect } = documentOf(parseDocument(text, first), json, first);
         const graphs = listingsOf(root, dialect).length;
         const reports: ImportReport[] = [];
@@ -2977,14 +3875,27 @@ function readGraph(
     // the obographs reader refuses missing endpoints itself, so addMissingNodes false holds on any sink
     reportSinkOptions(sink, options, report, dialect === "obographs");
     reportUnusedOptions(options, report, USED_OPTIONS);
+    readDialect(ctx, root, dialect);
+    ctx.reportDangling();
+    ctx.nodes.reportNullOnly();
+    ctx.edges.reportNullOnly();
+    throwIfAborted(resolved.signal);
+}
+
+/**
+ * Read one graph with the reader of its dialect.
+ * @param ctx - the import context
+ * @param root - the parsed document
+ * @param dialect - its dialect
+ */
+function readDialect(ctx: ImportContext, root: unknown, dialect: JsonImportDialect): void {
     if (dialect === "cytoscape") {
         importCytoscape(ctx, root);
-        throwIfAborted(resolved.signal);
         return;
     }
     const doc = isJsonObject(root)
         ? root
-        : report.fail(JSON_ISSUE.SHAPE, `a ${dialect} document must be a JSON object, found ${describe(root)}`);
+        : ctx.report.fail(JSON_ISSUE.SHAPE, `a ${dialect} document must be a JSON object, found ${describe(root)}`);
     switch (dialect) {
         case "node-link":
         case "d3":
@@ -3016,5 +3927,4 @@ function readGraph(
             });
         }
     }
-    throwIfAborted(resolved.signal);
 }

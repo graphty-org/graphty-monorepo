@@ -155,20 +155,39 @@ describe("ImportReportBuilder", () => {
         expect(b.warningCount).toBe(2);
     });
 
+    it("fork copies issues, counts, losses and warnOnce keys, and the two then diverge", () => {
+        const b = new ImportReportBuilder("csv", 5);
+        b.warnOnce("coercion", "W_ONCE", "first");
+        b.error("validation-error", "E_X", "bad");
+        b.loss("L_X", "lost");
+        b.counts.nodes = 3;
+        const copy = b.fork();
+        expect(copy.warnOnce("coercion", "W_ONCE", "again")).toBeNull();
+        expect(copy.finish()).toMatchObject({
+            counts: { nodes: 3 },
+            errorCount: 1,
+            warningCount: 1,
+            lossy: [{ code: "L_X" }],
+        });
+        copy.warning("coercion", "W_LATER", "only in the copy");
+        copy.counts.nodes++;
+        expect(b.issues.map((i) => i.code)).toEqual(["W_ONCE", "E_X"]);
+        expect(b.counts.nodes).toBe(3);
+        expect(copy.errorLimit).toBe(5);
+    });
+
     describe("recordError", () => {
         it("maps GraphFormatError codes to categories and keeps the code", () => {
             const b = new ImportReportBuilder("csv", Infinity);
             b.recordError(new GraphFormatError("E_UNKNOWN_NODE", "no node"), { line: 1 });
             b.recordError(new GraphFormatError("E_INVALID_WEIGHT", "nan"));
             b.recordError(new GraphFormatError("E_DIRECTED", "locked"));
-            b.recordError(new GraphFormatError("E_TOO_LARGE", "big"));
             b.recordError(new GraphFormatError("E_UNSUPPORTED", "nope"));
             b.recordError(new GraphFormatError("E_COLUMN_TYPE", "type"));
             expect(b.issues.map((i) => [i.category, i.code])).toEqual([
                 ["missing-value", "E_UNKNOWN_NODE"],
                 ["validation-error", "E_INVALID_WEIGHT"],
                 ["coercion", "E_DIRECTED"],
-                ["unsupported", "E_TOO_LARGE"],
                 ["unsupported", "E_UNSUPPORTED"],
                 ["validation-error", "E_COLUMN_TYPE"],
             ]);
@@ -195,6 +214,23 @@ describe("ImportReportBuilder", () => {
             expect(b.errorCount).toBe(0);
         });
 
+        it("aborts at once on E_TOO_LARGE (a full sink fails every later element too), as unsupported, without the limit", () => {
+            const b = new ImportReportBuilder("csv", Infinity);
+            let caught: unknown;
+            try {
+                b.recordError(new GraphFormatError("E_TOO_LARGE", "big"), { line: 3 });
+            } catch (err) {
+                caught = err;
+            }
+            expect(caught).toBeInstanceOf(ImportError);
+            const err = caught as ImportError;
+            expect(err.details.code).toBe("E_TOO_LARGE");
+            expect(err.report.issues.map((i) => [i.category, i.code, i.line])).toEqual([
+                ["unsupported", "E_TOO_LARGE", 3],
+            ]);
+            expect(err.report.truncated).toBe(false);
+        });
+
         it("aborts through the limit like error()", () => {
             const b = new ImportReportBuilder("csv", 0);
             expect(() => b.recordError(new GraphFormatError("E_COLUMN_TYPE", "x", {}))).toThrow(ImportError);
@@ -211,7 +247,7 @@ describe("ImportReportBuilder", () => {
         }
         expect(caught).toBeInstanceOf(ImportError);
         const err = caught as ImportError;
-        expect(err.message).toBe("bad bytes");
+        expect(err.message).toBe("line 2: bad bytes");
         expect(err.details).toEqual({ code: "E_INVALID_UTF8", byteOffset: 17 });
         expect(err.report.issues).toEqual([
             {
@@ -223,7 +259,8 @@ describe("ImportReportBuilder", () => {
                 element: null,
             },
         ]);
-        expect(err.report.truncated).toBe(true);
+        // a fatal error is not the error limit (truncated was set here before)
+        expect(err.report.truncated).toBe(false);
         const relaxed = new ImportReportBuilder("csv", 10);
         expect(() => relaxed.fail("E_X", "x")).toThrow(ImportError);
         expect(relaxed.truncated).toBe(false);
@@ -248,5 +285,22 @@ describe("ImportReportBuilder", () => {
         expect(messageOf(new Error("m"))).toBe("m");
         expect(messageOf("s")).toBe("s");
         expect(messageOf({})).toBe("non-error thrown (object)");
+    });
+});
+
+describe("ImportReportBuilder.include", () => {
+    it("adds another report's issues, counts, loss notes and truncated flag after its own", () => {
+        const inner = new ImportReportBuilder("csv", Infinity);
+        inner.counts.nodes = 3;
+        inner.counts.edges = 2;
+        inner.error("parse-error", "E_X", "bad row", { line: 7 });
+        inner.warning("coercion", "W_Y", "odd cell");
+        const outer = new ImportReportBuilder("wrapper", 0);
+        outer.warning("unsupported", "W_PREAMBLE", "skipped");
+        const report = outer.include(inner.finish()).finish();
+        expect(report.format).toBe("wrapper");
+        expect(report.issues.map((i) => i.code)).toEqual(["W_PREAMBLE", "E_X", "W_Y"]);
+        expect([report.errorCount, report.warningCount]).toEqual([1, 2]);
+        expect(report.counts).toMatchObject({ nodes: 3, edges: 2 });
     });
 });

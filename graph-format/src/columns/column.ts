@@ -197,7 +197,17 @@ function cloneJson<T>(value: T): T {
     if (isPlainObject(value)) {
         const out: Record<string, unknown> = {};
         for (const key of Object.keys(value)) {
-            out[key] = cloneJson(value[key]);
+            if (key === "__proto__") {
+                // a JSON key named __proto__ is data: assignment would call the prototype setter
+                Object.defineProperty(out, key, {
+                    value: cloneJson(value[key]),
+                    enumerable: true,
+                    writable: true,
+                    configurable: true,
+                });
+            } else {
+                out[key] = cloneJson(value[key]);
+            }
         }
         return out as T;
     }

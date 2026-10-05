@@ -1,0 +1,6 @@
+# written by Acme Graph Studio
+Source,Target,Type
+a,b,Directed
+b,c,Directed
+
+2

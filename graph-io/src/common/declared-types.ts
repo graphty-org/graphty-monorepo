@@ -15,16 +15,32 @@
 
 import { type Dtype, GraphFormatError, type ScalarDtype } from "@graphty/graph-format";
 
+import { withArticle } from "./plural.js";
 import { parseTemporal, type TemporalKind } from "./temporal.js";
 
-/** The formats whose declarations this table covers. */
+/**
+ * The formats whose declarations this table covers.
+ * @category Plugin helpers
+ */
 export type DeclaringFormat = "gexf" | "graphml" | "gml" | "neo4j";
 
 /** How the text of one scalar value (or one list item) is parsed. */
 type ValueKind =
-    "boolean" | "integer" | "long" | "float" | "double" | "string" | "temporal" | "duration" | "point" | "json";
+    | "boolean"
+    | "integer"
+    | "long"
+    | "float"
+    | "double"
+    | "string"
+    | "temporal"
+    | "duration"
+    | "point"
+    | "json";
 
-/** The resolved storage of a declared type. */
+/**
+ * The resolved storage of a declared type.
+ * @category Plugin helpers
+ */
 export interface DeclaredTypeSpec {
     /** The declared type text as given by the file (origin.type). */
     readonly declared: string;
@@ -140,6 +156,7 @@ const I32_MAX = 2147483647;
  * @param type - the type text as written (matched case-insensitively; GEXF `list*` and Neo4j `[]` denote lists)
  * @param long - how declared long / integer-64 columns are stored (the importer option)
  * @returns the spec, or null when the format does not define the type (the importer reports it and keeps the text)
+ * @category Plugin helpers
  */
 export function mapDeclaredType(
     format: DeclaringFormat,
@@ -188,6 +205,7 @@ export function mapDeclaredType(
  * The spec of an untyped attribute: a string column with the given (or absent) type text.
  * @param declared - the type text to record in origin.type, or null
  * @returns a string spec
+ * @category Plugin helpers
  */
 export function stringSpec(declared: string | null): DeclaredTypeSpec {
     return {
@@ -209,6 +227,7 @@ export function stringSpec(declared: string | null): DeclaredTypeSpec {
  * @param kind - the value kind
  * @param temporal - the temporal kind when `kind` is "temporal"
  * @returns a boolean, a number, a string or (point / json) a JSON value; E_COLUMN_TYPE when the text is not of the kind
+ * @category Plugin helpers
  */
 export function parseScalarText(text: string, kind: ValueKind, temporal: TemporalKind | null = null): unknown {
     switch (kind) {
@@ -267,6 +286,7 @@ export function parseScalarText(text: string, kind: ValueKind, temporal: Tempora
  * Parse a boolean text the way the formats write it: `true` / `false` in any case, or `1` / `0`.
  * @param text - the value text
  * @returns the boolean, or null when the text is neither
+ * @category Plugin helpers
  */
 export function parseBooleanText(text: string): boolean | null {
     switch (text.trim().toLowerCase()) {
@@ -287,6 +307,7 @@ export function parseBooleanText(text: string): boolean | null {
  * @param text - the value text
  * @param kind - float or double, for the error
  * @returns the number
+ * @category Plugin helpers
  */
 export function parseDecimalText(text: string, kind: ValueKind = "double"): number {
     const trimmed = text.trim();
@@ -310,10 +331,23 @@ export function parseDecimalText(text: string, kind: ValueKind = "double"): numb
 }
 
 /**
+ * Whether a number text is finite as written but too large for a double (`1e400`, a 400-digit
+ * integer), so it parses as Infinity: a value the importer should report, unlike `INF`.
+ * @param text - the value text
+ * @returns true when the text overflows
+ * @category Plugin helpers
+ */
+export function overflowsToInfinity(text: string): boolean {
+    const trimmed = text.trim();
+    return /^[+-]?[0-9.]/.test(trimmed) && Number(trimmed) === (trimmed.startsWith("-") ? -Infinity : Infinity);
+}
+
+/**
  * Parse a Neo4j point literal `{x:1.0, y:2.0, crs:'cartesian'}` (also `latitude` / `longitude` /
  * `height` / `z` / `srid`) into a JSON object; a JSON object text is accepted as well.
  * @param text - the value text
  * @returns an object with numeric coordinates and string crs
+ * @category Plugin helpers
  */
 export function parsePointText(text: string): Readonly<Record<string, number | string>> {
     const trimmed = text.trim();
@@ -370,5 +404,5 @@ function parseJsonText(text: string): unknown {
  */
 function typeError(text: string, kind: ValueKind): GraphFormatError {
     const shown = text.length > 40 ? `${text.slice(0, 40)}...` : text;
-    return new GraphFormatError("E_COLUMN_TYPE", `"${shown}" is not a ${kind}`, { value: text, kind });
+    return new GraphFormatError("E_COLUMN_TYPE", `"${shown}" is not ${withArticle(kind)}`, { value: text, kind });
 }

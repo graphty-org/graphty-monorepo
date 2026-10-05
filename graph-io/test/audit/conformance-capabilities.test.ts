@@ -66,16 +66,28 @@ interface Target {
     readonly aliases: Readonly<Record<string, readonly string[]>>;
 }
 
-const JSON_TARGETS: Target[] = JSON_DIALECTS.map((dialect: JsonDialect) => ({
-    name: `json:${dialect}`,
-    exporter: jsonExporter,
-    importer: jsonImporter,
-    caps: jsonCapabilities(dialect),
-    exportOptions: { dialect },
-    importOptions: { dialect },
-    attrDomain: "node",
-    aliases: {},
-}));
+const JSON_TARGETS: Target[] = JSON_DIALECTS.map(
+    (dialect: JsonDialect): Target => ({
+        name: `json:${dialect}`,
+        exporter: jsonExporter,
+        importer: jsonImporter,
+        caps: jsonCapabilities(dialect),
+        exportOptions: { dialect },
+        importOptions: { dialect },
+        attrDomain: "node",
+        // OBO Graphs keeps the OBO vocabulary only: every other column is reported where it goes
+        aliases:
+            dialect === "obographs"
+                ? {
+                      [LOSS.DTYPE]: ["W_COLUMN_AS_PROPERTY_VALUE"],
+                      [LOSS.LIST]: ["W_COLUMN_AS_PROPERTY_VALUE"],
+                      [LOSS.JSON]: ["W_COLUMN_AS_PROPERTY_VALUE"],
+                      [LOSS.COMPONENTS]: ["W_COLUMN_AS_PROPERTY_VALUE"],
+                      [LOSS.GRAPH_ATTRIBUTES]: ["W_GRAPH_COLUMN_AS_METADATA"],
+                  }
+                : {},
+    }),
+);
 
 const TARGETS: readonly Target[] = [
     {
@@ -784,7 +796,10 @@ describe("ExportCapabilities.idCharset truthfulness (design 8.5, Q26)", () => {
             // JGF / Cytoscape key nodes by JSON object keys: numeric ids come back as text and integer-like
             // keys first; both are reported by the exporter (W_NUMERIC_IDS_STRINGIFIED, W_NODE_ORDER), and the
             // 12.4 idCharset enum has no "text" level, so the test accepts the reported form there.
-            const reported = notes.includes("W_NUMERIC_IDS_STRINGIFIED") || notes.includes("W_NODE_ORDER");
+            const reported =
+                notes.includes("W_NUMERIC_IDS_STRINGIFIED") ||
+                notes.includes("W_NODE_ORDER") ||
+                notes.includes(LOSS.ID_TEXT_TYPE);
             if (reported) {
                 expect(back.ids.toArray().map(String).sort()).toEqual(ok.map(String).sort());
             } else {

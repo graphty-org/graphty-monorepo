@@ -383,6 +383,21 @@ describe("pajekExporter: writing", () => {
         expect(lines(await pajekExporter.exportToString(builder.freeze()))[0]).toBe("*Vertices 2");
     });
 
+    it("names the network with the name option, and writes a bare *Network line for an unnamed graph", async () => {
+        const builder = builderWith(true);
+        builder.addEdge(1, 2);
+        const unnamed = builder.freeze();
+        expect(lines(await pajekExporter.exportToString(unnamed, { networkHeader: true }))[0]).toBe("*Network");
+        const named = await pajekExporter.exportToString(unnamed, { name: "got" });
+        expect(lines(named).slice(0, 2)).toEqual(["*Network got", "*Vertices 2"]);
+        expect((await fromPajek(named)).meta.name).toBe("got");
+        expect((await fromPajek("*Network\n*Vertices 1\n1 a\n")).nodeCount).toBe(1);
+        expect(lines(await pajekExporter.exportToString(unnamed, { name: "got", networkHeader: false }))[0]).toBe(
+            "*Vertices 2",
+        );
+        expect(() => pajekExporter.check(unnamed, { name: "a\nb" })).toThrow(GraphFormatError);
+    });
+
     it("writes sections in runs of kind and relation, preserving the edge order", async () => {
         const source = [
             "*Vertices 3",

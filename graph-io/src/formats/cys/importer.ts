@@ -9,7 +9,9 @@
  * groups, nested-network pointers); the subnetwork's CyCSV tables give its columns (LOCAL_ATTRS as
  * they are, the SHARED_ATTRS columns `cytables.xml` joins in, HIDDEN and app tables as hidden
  * columns under their namespace); its first view gives positions (y flipped) and the `graphics`
- * column, further views `position@<n>` columns. 2.x: one full XGMML file per network, with
+ * column, further views `position@<n>` columns. A table's `name` is the label (what Cytoscape
+ * shows), in a label column named `name`, and ids an exporter mangled are restored from the node
+ * table's `graphty:originalId` (restoreMangledIds). 2.x: one full XGMML file per network, with
  * selection and hidden state from `cysession.xml`. Everything is resolved by the XGMML emitter, so
  * both readers share every column rule. Styles are not read (issue #706): W_STYLES_NOT_IMPORTED.
  */
@@ -18,15 +20,17 @@ import { GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-
 
 import { declareResolved } from "../../common/attributes.js";
 import { IdCoercer } from "../../common/ids.js";
-import { decodeEntryName, readBytes, throwIfAborted } from "../../common/input.js";
+import { decodeEntryName, throwIfAborted } from "../../common/input.js";
 import {
     chooseGraph,
+    graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { agree, elementCount, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { startsLikeZip } from "../../common/zip.js";
 import {
@@ -38,6 +42,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { ORIGINAL_ID_ATTRIBUTE } from "../graphml/constants.js";
 import { XGMML_ISSUE, XGMML_ORIGIN_NAMESPACE } from "../xgmml/constants.js";
 import {
     type AttRec,
@@ -52,6 +57,7 @@ import {
     dialectOf,
     type EmitExtras,
     membersOf,
+    parseCoordinate,
     XgmmlEmitter,
     type XgmmlSettings,
 } from "../xgmml/emit.js";
@@ -70,9 +76,11 @@ import {
 } from "./constants.js";
 import {
     elementsNamed,
+    entryLabel,
     listed,
     type NetworkEntry,
     openSession,
+    parseXmlTree,
     readXmlTree,
     type Session,
     type SessionEntry,
@@ -82,22 +90,33 @@ import {
 } from "./session.js";
 import { cellAtt, type CyTable, readCyTable, type VirtualColumn, virtualColumnsOf } from "./tables.js";
 
-/** The format-specific options of the session importer. */
-export interface CysImportOptions extends GraphChoiceOptions {
-    /** Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position. */
+/**
+ * The format-specific options of the session importer.
+ * @category Built-in formats
+ */
+export interface CysImportOptions extends GraphChoiceOptions, CommonImportOptions {
+    /**
+     * Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node
+     * attribute named `z`; "position" makes it the third coordinate of the position.
+     * @defaultValue "column"
+     */
     zAs?: "column" | "position" | undefined;
     /**
-     * The most bytes one import may inflate, in total (default 2 GiB); an entry beyond it, or one
-     * whose compression ratio is above 1000:1, is E_TOO_LARGE.
+     * The most bytes one import may unpack from the session archive, in total (2 GiB). A file that
+     * would unpack to more, or one compressed more than 1000 to 1, fails with E_TOO_LARGE.
+     * @defaultValue 2147483648
      */
     maxUncompressedBytes?: number | undefined;
 }
 
-/** The per-format defaults: SUIDs as written, edges directed unless they say otherwise, no weight. */
+/**
+ * The per-format defaults: SUIDs as written, edges directed unless they say otherwise, the edge
+ * `weight` column as the weight (as for XGMML, the format of the session's networks).
+ */
 const FORMAT_DEFAULTS: ImportFormatDefaults = {
     ids: "keep",
     defaultDirected: true,
-    weightFrom: null,
+    weightFrom: "weight",
     addMissingNodes: false,
 };
 
@@ -112,6 +131,7 @@ const USED_OPTIONS: ReadonlySet<keyof CommonImportOptions> = new Set<keyof Commo
     "weightFrom",
     "weightDtype",
     "long",
+    "restoreMangledIds",
     "errorLimit",
     "signal",
     "onProgress",
@@ -124,6 +144,8 @@ type Choice = Choice3 | Choice2;
 interface Choice3 {
     readonly era: "3";
     readonly network: NetworkEntry;
+    /** The subnetwork itself (two subnetworks can share an id). */
+    readonly graph: GraphRec;
     readonly graphId: string;
     readonly name: string | null;
     readonly nodes: number;
@@ -225,23 +247,72 @@ async function parseEntry(
     report: ImportReportBuilder,
     inner: ResolvedImportOptions,
 ): Promise<Parsed> {
-    const bytes = await session.read(entry);
-    const scratch = new ImportReportBuilder(FORMAT, Number.MAX_SAFE_INTEGER);
+    return (await parseOptionalEntry(session, entry, report, inner, false)) as Parsed;
+}
+
+/**
+ * Read an XGMML entry, its issues and counts relayed into the import's report (the entry name
+ * in each message), parsing within what is left of the import's error limit. A fatal issue fails
+ * the import, unless the entry is optional (a view): then it is recorded as an error and the
+ * entry is skipped (null).
+ * @param session - the session
+ * @param entry - the entry
+ * @param report - the import's report
+ * @param inner - the options entries are read with
+ * @param optional - whether the import can go on without the entry
+ * @returns the document and its dialect, or null for an optional entry that cannot be read
+ */
+async function parseOptionalEntry(
+    session: Session,
+    entry: SessionEntry,
+    report: ImportReportBuilder,
+    inner: ResolvedImportOptions,
+    optional: boolean,
+): Promise<Parsed | null> {
+    const scratch = new ImportReportBuilder(FORMAT, Math.max(0, report.errorLimit - report.errorCount));
     try {
+        // a damaged entry (bad CRC, truncated deflate) fails the scratch report like a parse error
+        const bytes = await session.read(entry, scratch);
         const doc = await parseXgmml(bytes, scratch, inner, undefined);
         const dialect = dialectOf(doc, scratch);
         relay(scratch.issues, report, entry.name);
+        addCounts(scratch, report);
         return { doc, dialect };
     } catch (err) {
         if (!(err instanceof ImportError)) {
             throw err;
         }
+        addCounts(scratch, report);
         const { issues } = scratch;
+        if (scratch.truncated) {
+            // the entry reached the import's error limit: relaying its errors aborts the import
+            relay(issues, report, entry.name);
+        }
         const fatal = issues.at(-1);
         relay(issues.slice(0, -1), report, entry.name);
-        return report.fail(fatal?.code ?? CYS_ISSUE.CORRUPT, `${entry.name}: ${fatal?.message ?? err.message}`, {
-            line: fatal?.line ?? null,
-        });
+        const message = `${entryLabel(entry.name)}: ${fatal?.message ?? err.message}`;
+        const where = { line: fatal?.line ?? null };
+        if (fatal?.code === CYS_ISSUE.TOO_LARGE) {
+            // the byte budget is a limit of the whole import, not damage to one entry
+            report.error("unsupported", fatal.code, message);
+            throw report.abort(message, { code: fatal.code });
+        }
+        if (optional) {
+            report.error("parse-error", fatal?.code ?? CYS_ISSUE.CORRUPT, `${message}; the entry is not read`, where);
+            return null;
+        }
+        return report.fail(fatal?.code ?? CYS_ISSUE.CORRUPT, message, where);
+    }
+}
+
+/**
+ * Add an entry's element counts (the nodes skipped while parsing it) to the import's.
+ * @param from - the entry's report
+ * @param to - the import's report
+ */
+function addCounts(from: ImportReportBuilder, to: ImportReportBuilder): void {
+    for (const key of Object.keys(from.counts) as (keyof typeof from.counts)[]) {
+        to.counts[key] += from.counts[key];
     }
 }
 
@@ -255,9 +326,9 @@ function relay(issues: ImportReport["issues"], report: ImportReportBuilder, entr
     for (const issue of issues) {
         const where = { line: issue.line, element: issue.element };
         if (issue.severity === "error") {
-            report.error(issue.category, issue.code, `${entry}: ${issue.message}`, where);
+            report.error(issue.category, issue.code, `${entryLabel(entry)}: ${issue.message}`, where);
         } else {
-            report.warning(issue.category, issue.code, `${entry}: ${issue.message}`, where);
+            report.warning(issue.category, issue.code, `${entryLabel(entry)}: ${issue.message}`, where);
         }
     }
 }
@@ -282,13 +353,31 @@ async function networks3(
     const choices: Choice3[] = [];
     for (const network of layout.networks) {
         const parsed = await parseEntry(session, network, report, inner);
+        if (parsed.dialect.view) {
+            report.fail(
+                XGMML_ISSUE.VIEW_DOCUMENT,
+                `${network.name}: this is a session view file (cy:view), not a network file; it holds no topology`,
+                { line: parsed.doc.root.line },
+            );
+        }
         docs.set(network.name, parsed);
         for (const graph of registeredGraphs(parsed)) {
+            if (graph.id === null) {
+                const label = graph.label === null ? "" : ` ("${graph.label}")`;
+                report.error(
+                    "missing-value",
+                    XGMML_ISSUE.MISSING_ID,
+                    `${network.name}: a registered subnetwork${label} has no id; its tables and views cannot be found and it is skipped`,
+                    { line: graph.line },
+                );
+                continue;
+            }
             const members = membersOf(parsed.doc, graph);
             choices.push({
                 era: "3",
                 network,
-                graphId: graph.id ?? "",
+                graph,
+                graphId: graph.id,
                 name: graph.label ?? graph.id,
                 nodes: new Set(members.nodes).size,
                 edges: members.edges.length,
@@ -307,13 +396,27 @@ async function networks3(
         report.warning(
             "validation-error",
             CYS_ISSUE.DANGLING_REFERENCE,
-            `${strayViews.length + strayTables.length} view(s) or table(s) belong to a network the session does not hold and were not read: ${listed([...strayViews, ...strayTables.map((t) => t.name)])}`,
+            `${strayViews.length + strayTables.length} view${plural(strayViews.length + strayTables.length)} or table${plural(strayViews.length + strayTables.length)} ${agree(strayViews.length + strayTables.length, "belongs", "belong")} to a network the session does not hold and were not read: ${listed([...strayViews, ...strayTables.map((t) => t.name)])}`,
         );
     }
     if (layout.networkList === null) {
         return choices;
     }
-    const tree = await readXmlTree(await session.read(layout.networkList), layout.networkList.name, report, inner);
+    const tree = await parseXmlTree(
+        await session.read(layout.networkList, report),
+        layout.networkList.name,
+        report,
+        inner,
+    );
+    if (typeof tree === "string") {
+        // the list only orders the networks: without it they keep the order of their entries
+        report.warning(
+            "unsupported",
+            CYS_ISSUE.ENTRY_SKIPPED,
+            `${layout.networkList.name}: ${tree}; it is not read and the networks are listed in entry order`,
+        );
+        return choices;
+    }
     const order = new Map<string, number>();
     for (const node of elementsNamed(tree, "network")) {
         const id = node.attrs.get("id");
@@ -355,7 +458,9 @@ function isGroupTable(table: TableEntry, session: Session, docs: ReadonlyMap<str
  * @returns the graphs
  */
 function registeredGraphs(parsed: Parsed): GraphRec[] {
-    return parsed.doc.root.subgraphs.filter((g) => isCyTrue(g.registered));
+    const subnetworks = parsed.doc.root.subgraphs.filter((g) => isCyTrue(g.registered));
+    // a registered root with no subnetworks (another tool's network file) is the network itself
+    return subnetworks.length === 0 && isCyTrue(parsed.doc.root.registered) ? [parsed.doc.root] : subnetworks;
 }
 
 /**
@@ -366,100 +471,88 @@ function registeredGraphs(parsed: Parsed): GraphRec[] {
  * @param parsed - its network file, parsed for this import (its records are filled in)
  */
 async function import3(prepared: Prepared, choice: Choice3, sink: GraphSink, parsed: Parsed): Promise<void> {
-    const { report, inner, session } = prepared;
-    const { layout } = session;
-    const { doc, dialect } = parsed;
-    const graph = doc.root.subgraphs.find((g) => g.id === choice.graphId) as GraphRec;
-    const members = membersOf(doc, graph);
+    const { graph } = choice;
+    const members = membersOf(parsed.doc, graph);
     const nodes = byId(members.nodes);
     const edges = byId(members.edges);
-    const cache = new Map<string, Promise<CyTable | null>>();
-    const tableOf = (path: string): Promise<CyTable | null> => {
-        let pending = cache.get(path);
-        if (pending === undefined) {
-            const entry = layout.tables.find((t) => t.tablePath === path);
-            pending =
-                entry === undefined
-                    ? Promise.resolve(null)
-                    : session.read(entry).then((bytes) => readCyTable(bytes, path, entry.name, report, inner));
-            cache.set(path, pending);
-        }
-        return pending;
-    };
-    const virtuals = layout.cytables === null ? [] : await readVirtuals(session, layout.cytables, report, inner);
-    // a row of an element the file declares outside this network (a collapsed group's member, a
-    // meta-edge) is Cytoscape's bookkeeping, not a stale row
-    const declared = new Set<string>([
-        ...doc.nodes.flatMap((n) => (n.id === null ? [] : [n.id])),
-        ...doc.edges.flatMap((e) => (e.id === null ? [] : [e.id])),
-    ]);
-    let unmatched = 0;
-    for (const entry of layout.tables.filter((t) => t.network === choice.graphId && t.element !== null)) {
-        throwIfAborted(inner.signal);
-        const table = await tableOf(entry.tablePath);
-        if (table === null) {
-            continue;
-        }
-        const local = entry.namespace === "LOCAL_ATTRS";
-        const shared = entry.namespace === "SHARED_ATTRS";
-        const namespace = local ? null : entry.namespace;
-        const hidden = !local && !shared;
-        const target = (key: string): AttRec[] | undefined => {
-            if (entry.element === "network") {
-                return key === choice.graphId ? graph.atts : undefined;
-            }
-            return (entry.element === "node" ? nodes : edges).get(key)?.atts;
-        };
-        for (const [key, cells] of table.rows) {
-            const atts = target(key);
-            if (atts === undefined) {
-                if (!declared.has(key)) {
-                    unmatched++;
-                }
-                continue;
-            }
-            const line = table.lines.get(key) ?? 0;
-            for (let i = 1; i < table.columns.length && i < cells.length; i++) {
-                const att = cellAtt(table.columns[i], cells[i], line, namespace, hidden);
-                if (att !== null) {
-                    atts.push(att);
-                }
-            }
-        }
-        for (const virtual of await virtualColumnsOf(table, virtuals, tableOf, report)) {
-            // a shared column named like a local one is renamed; the local one keeps the name
-            const owned = table.columns.some((c) => c.name === virtual.column.name);
-            let ns = namespace;
-            if (local) {
-                ns = owned ? "SHARED_ATTRS" : null;
-            }
-            for (const [key, text] of virtual.values) {
-                const att = cellAtt(virtual.column, text, table.lines.get(key) ?? 0, ns, hidden);
-                if (att !== null) {
-                    target(key)?.push(att);
-                }
-            }
-        }
+    // the records are shared by every network of the file: what this import adds is undone after
+    const restore = saveRecords(graph, nodes, edges);
+    try {
+        await fill3(prepared, choice, sink, parsed, nodes, edges);
+    } finally {
+        restore();
     }
+}
+
+/**
+ * The state of the records an import fills in (atts, coordinates, graphics), and a function that
+ * puts it back.
+ * @param graph - the subnetwork
+ * @param nodes - its node records
+ * @param edges - its edge records
+ * @returns the restore function
+ */
+function saveRecords(
+    graph: GraphRec,
+    nodes: ReadonlyMap<string, NodeRec>,
+    edges: ReadonlyMap<string, EdgeRec>,
+): () => void {
+    const saved = [...nodes.values()].map((n) => ({
+        n,
+        atts: n.atts.length,
+        x: n.x,
+        y: n.y,
+        z: n.z,
+        graphics: n.graphics,
+    }));
+    const savedEdges = [...edges.values()].map((e) => ({ e, atts: e.atts.length, graphics: e.graphics }));
+    const graphAtts = graph.atts.length;
+    const graphGraphics = graph.graphics;
+    return (): void => {
+        for (const { n, atts, x, y, z, graphics } of saved) {
+            n.atts.length = atts;
+            Object.assign(n, { x, y, z, graphics });
+        }
+        for (const { e, atts, graphics } of savedEdges) {
+            e.atts.length = atts;
+            e.graphics = graphics;
+        }
+        graph.atts.length = graphAtts;
+        graph.graphics = graphGraphics;
+    };
+}
+
+/**
+ * Fill one subnetwork's records from its tables and views and emit it.
+ * @param prepared - the prepared import
+ * @param choice - the subnetwork
+ * @param sink - the sink
+ * @param parsed - its network file
+ * @param nodes - its node records by id
+ * @param edges - its edge records by id
+ */
+async function fill3(
+    prepared: Prepared,
+    choice: Choice3,
+    sink: GraphSink,
+    parsed: Parsed,
+    nodes: ReadonlyMap<string, NodeRec>,
+    edges: ReadonlyMap<string, EdgeRec>,
+): Promise<void> {
+    const { report, inner } = prepared;
+    const { doc, dialect } = parsed;
+    const { graph } = choice;
+    const members = membersOf(doc, graph);
+    const unmatched = await applyTables(prepared, choice, doc, nodes, edges);
     if (unmatched > 0) {
         report.warning(
             "parse-error",
             CYS_ISSUE.TABLE_ROW,
-            `${unmatched} table row(s) of network ${choice.graphId} name no node, edge or network of it (stale rows); they are not read`,
+            `${unmatched} table row${plural(unmatched)} of network ${choice.graphId} ${agree(unmatched, "names", "name")} no node, edge or network in it (left over from deleted elements) and ${agree(unmatched, "is", "are")} not read`,
         );
     }
-    const views = layout.views.filter((v) => v.network === choice.graphId);
-    let visualStyle: string | null = null;
-    const extraViews: Map<string, [number, number, number]>[] = [];
-    for (const [i, view] of views.entries()) {
-        const viewDoc = (await parseEntry(session, view, report, inner)).doc;
-        if (i === 0) {
-            visualStyle = viewDoc.root.attrs.get("cy:visualStyle") ?? null;
-            applyView(viewDoc, graph, nodes, edges, report, view.name);
-        } else {
-            extraViews.push(viewPositions(viewDoc, prepared.zAs));
-        }
-    }
+    const restoredIds = inner.restoreMangledIds ? restoreIds(members.nodes) : new Map<string, string>();
+    const { visualStyle, extraViews, extraIds } = await readViews(prepared, choice, nodes, edges);
     const cyMeta = sessionMeta(prepared, {
         collection: doc.root.label ?? choice.network.title,
         network: choice.graphId,
@@ -473,38 +566,257 @@ async function import3(prepared: Prepared, choice: Choice3, sink: GraphSink, par
         entry: choice.network.name,
         graphName: localName(graph) ?? choice.name,
         metaExtra: { [META_KEY]: cyMeta },
-        groupNodes: new Set(
-            members.nodes
-                .filter((n) => n.atts.some((a) => a.name === "__isGroup" && isCyTrue(a.value)))
-                .flatMap((n) => (n.id === null ? [] : [n.id])),
-        ),
+        labelFromName: true,
+        restoredIds,
+        groupNodes: groupNodeIds(members.nodes),
         resolvePointer: pointerResolver(prepared, doc),
         onMissingMember: (group, member): void => {
-            const record = groups.find((g) => g.group === group);
-            if (record === undefined) {
-                groups.push({ group, members: [member] });
-            } else if (!record.members.includes(member)) {
-                record.members.push(member);
-            }
+            addMissingMember(groups, group, member);
         },
     };
     const settings: XgmmlSettings = { labelAliases: false, cytoscapeEscapes: false, zAs: prepared.zAs };
     new XgmmlEmitter(doc, dialect, sink, report, prepared.inner, settings, extras).emit(graph);
     if (groups.length > 0) {
+        const missing = groups.reduce((n, g) => n + g.members.length, 0);
         report.warning(
             "unsupported",
             CYS_ISSUE.COLLAPSED_GROUP,
-            `${groups.length} collapsed group(s) hold ${groups.reduce((n, g) => n + g.members.length, 0)} member(s) that are not in the network; they are listed in meta.extra.cytoscape.groups`,
+            `${groups.length} collapsed group${plural(groups.length)} ${agree(groups.length, "holds", "hold")} ${missing} member${plural(missing)} that are not in the network; they are listed in meta.extra.cytoscape.groups`,
         );
     }
     reportRootOnly(parsed, report, choice.network.name);
-    writeViewPositions(
-        sink,
-        extraViews,
-        views.slice(1).map((v) => v.view),
-        report,
-        prepared.inner,
+    writeViewPositions(sink, extraViews, extraIds, report, prepared.inner, restoredIds);
+}
+
+/**
+ * The ids of the nodes Cytoscape marks as groups.
+ * @param nodes - the network's node records
+ * @returns their ids
+ */
+function groupNodeIds(nodes: readonly NodeRec[]): Set<string> {
+    return new Set(
+        nodes
+            .filter((n) => n.atts.some((a) => a.name === "__isGroup" && isCyTrue(a.value)))
+            .flatMap((n) => (n.id === null ? [] : [n.id])),
     );
+}
+
+/**
+ * Record a collapsed group's member that is not in the network.
+ * @param groups - the groups with missing members, added to
+ * @param group - the group's id
+ * @param member - the member's id
+ */
+function addMissingMember(groups: { group: string; members: string[] }[], group: string, member: string): void {
+    const record = groups.find((g) => g.group === group);
+    if (record === undefined) {
+        groups.push({ group, members: [member] });
+    } else if (!record.members.includes(member)) {
+        record.members.push(member);
+    }
+}
+
+/** What reading one subnetwork's tables shares. */
+interface TableContext {
+    readonly choice: Choice3;
+    readonly graph: Choice3["graph"];
+    readonly nodes: ReadonlyMap<string, NodeRec>;
+    readonly edges: ReadonlyMap<string, EdgeRec>;
+    /** The ids of the elements the network file declares, inside this network or outside it. */
+    readonly declared: ReadonlySet<string>;
+    readonly virtuals: readonly VirtualColumn[];
+    readonly tableOf: (path: string) => Promise<CyTable | null>;
+    readonly report: ImportReportBuilder;
+}
+
+/**
+ * Add the cells of a subnetwork's tables to its node, edge and network records.
+ * @param prepared - the prepared import
+ * @param choice - the subnetwork
+ * @param doc - its network file
+ * @param nodes - its node records by id
+ * @param edges - its edge records by id
+ * @returns the number of rows that name no element of the network
+ */
+async function applyTables(
+    prepared: Prepared,
+    choice: Choice3,
+    doc: Parsed["doc"],
+    nodes: ReadonlyMap<string, NodeRec>,
+    edges: ReadonlyMap<string, EdgeRec>,
+): Promise<number> {
+    const { report, inner, session } = prepared;
+    const { layout } = session;
+    // each network reads its tables into its own report, so a shared table's issues, and a
+    // table that fails the import, land in every network that reads it.
+    // ponytail: a table shared by several networks is inflated and parsed once per network (the
+    // byte budget is charged once); cache the parse and relay its issues if importAll gets slow
+    const tables = new Map<string, Promise<CyTable | null>>();
+    const tableOf = (path: string): Promise<CyTable | null> => {
+        let pending = tables.get(path);
+        if (pending === undefined) {
+            const entry = layout.tables.find((t) => t.tablePath === path);
+            pending =
+                entry === undefined
+                    ? Promise.resolve(null)
+                    : session.read(entry, report).then((bytes) => readCyTable(bytes, path, entry.name, report, inner));
+            tables.set(path, pending);
+        }
+        return pending;
+    };
+    const ctx: TableContext = {
+        choice,
+        graph: choice.graph,
+        nodes,
+        edges,
+        // a row of an element the file declares outside this network (a collapsed group's member, a
+        // meta-edge) is Cytoscape's bookkeeping, not a stale row
+        declared: new Set<string>([
+            ...doc.nodes.flatMap((n) => (n.id === null ? [] : [n.id])),
+            ...doc.edges.flatMap((e) => (e.id === null ? [] : [e.id])),
+        ]),
+        virtuals: layout.cytables === null ? [] : await readVirtuals(session, layout.cytables, report, inner),
+        tableOf,
+        report,
+    };
+    let unmatched = 0;
+    for (const entry of layout.tables.filter((t) => t.network === choice.graphId && t.element !== null)) {
+        throwIfAborted(inner.signal);
+        const table = await tableOf(entry.tablePath);
+        if (table !== null) {
+            unmatched += await applyTable(ctx, entry, table);
+        }
+    }
+    return unmatched;
+}
+
+/**
+ * Add the cells of one table, and of the shared columns that extend it, to the records.
+ * @param ctx - the shared state
+ * @param entry - the table's entry
+ * @param table - the table
+ * @returns the number of rows that name no element of the network
+ */
+async function applyTable(ctx: TableContext, entry: TableEntry, table: CyTable): Promise<number> {
+    const local = entry.namespace === "LOCAL_ATTRS";
+    const namespace = local ? null : entry.namespace;
+    const hidden = !local && entry.namespace !== "SHARED_ATTRS";
+    const target = (key: string): AttRec[] | undefined => {
+        if (entry.element === "network") {
+            return key === ctx.choice.graphId ? ctx.graph.atts : undefined;
+        }
+        return (entry.element === "node" ? ctx.nodes : ctx.edges).get(key)?.atts;
+    };
+    let unmatched = 0;
+    for (const [key, cells] of table.rows) {
+        const atts = target(key);
+        if (atts !== undefined) {
+            atts.push(...rowAtts(table, key, cells, namespace, hidden));
+        } else if (!ctx.declared.has(key)) {
+            unmatched++;
+        }
+    }
+    for (const virtual of await virtualColumnsOf(table, ctx.virtuals, ctx.tableOf, ctx.report)) {
+        // a shared column named like a local one is renamed; the local one keeps the name
+        const owned = table.columns.some((c) => c.name === virtual.column.name);
+        const ns = local ? sharedNamespace(owned) : namespace;
+        for (const [key, text] of virtual.values) {
+            const atts = target(key);
+            if (atts !== undefined) {
+                pushAtt(atts, cellAtt(virtual.column, text, table.lines.get(key) ?? 0, ns, hidden));
+            }
+        }
+    }
+    return unmatched;
+}
+
+/**
+ * The attributes of one table row's cells (the first cell is the SUID key).
+ * @param table - the table
+ * @param key - the row's key
+ * @param cells - the row's cells
+ * @param namespace - the namespace the attributes are written in, or null
+ * @param hidden - whether the table is one of Cytoscape's hidden ones
+ * @returns the attributes of the cells that hold a value
+ */
+function rowAtts(
+    table: CyTable,
+    key: string,
+    cells: readonly string[],
+    namespace: string | null,
+    hidden: boolean,
+): AttRec[] {
+    const line = table.lines.get(key) ?? 0;
+    const out: AttRec[] = [];
+    for (let i = 1; i < table.columns.length && i < cells.length; i++) {
+        pushAtt(out, cellAtt(table.columns[i], cells[i], line, namespace, hidden));
+    }
+    return out;
+}
+
+/**
+ * The namespace of a shared column in a local table: renamed when a local column has its name.
+ * @param owned - whether a local column has the shared column's name
+ * @returns "SHARED_ATTRS", or null for none
+ */
+function sharedNamespace(owned: boolean): string | null {
+    return owned ? "SHARED_ATTRS" : null;
+}
+
+/**
+ * Add an attribute to a record's list, unless there is none.
+ * @param atts - the record's attributes
+ * @param att - the attribute, or null
+ */
+function pushAtt(atts: AttRec[], att: AttRec | null): void {
+    if (att !== null) {
+        atts.push(att);
+    }
+}
+
+/**
+ * Read a subnetwork's views: the first (the lowest view SUID, whatever the order of the entries)
+ * fills the records' coordinates and graphics, each further one gives positions only. A view that
+ * cannot be read is recorded and skipped.
+ * @param prepared - the prepared import
+ * @param choice - the subnetwork
+ * @param nodes - its node records by id
+ * @param edges - its edge records by id
+ * @returns the first view's style, and the positions and SUIDs of the further views
+ */
+async function readViews(
+    prepared: Prepared,
+    choice: Choice3,
+    nodes: ReadonlyMap<string, NodeRec>,
+    edges: ReadonlyMap<string, EdgeRec>,
+): Promise<{
+    visualStyle: string | null;
+    extraViews: Map<string, [number, number, number]>[];
+    extraIds: string[];
+}> {
+    const { report, inner, session } = prepared;
+    const views = session.layout.views
+        .filter((v) => v.network === choice.graphId)
+        .sort((a, b) => a.view.length - b.view.length || (a.view < b.view ? -1 : Number(a.view > b.view)));
+    let visualStyle: string | null = null;
+    const extraViews: Map<string, [number, number, number]>[] = [];
+    const extraIds: string[] = [];
+    let first = true;
+    for (const view of views) {
+        const viewDoc = (await parseOptionalEntry(session, view, report, inner, true))?.doc;
+        if (viewDoc === undefined) {
+            continue;
+        }
+        if (first) {
+            first = false;
+            visualStyle = viewDoc.root.attrs.get("cy:visualStyle") ?? null;
+            applyView(viewDoc, choice.graph, nodes, edges, report, view.name);
+        } else {
+            extraViews.push(viewPositions(viewDoc, prepared.zAs, nodes, report, view.name));
+            extraIds.push(view.view);
+        }
+    }
+    return { visualStyle, extraViews, extraIds };
 }
 
 /**
@@ -521,9 +833,28 @@ async function readVirtuals(
     report: ImportReportBuilder,
     inner: ResolvedImportOptions,
 ): Promise<VirtualColumn[]> {
-    const tree = await readXmlTree(await session.read(entry), entry.name, report, inner);
+    const tree = await parseXmlTree(await session.read(entry, report), entry.name, report, inner);
+    if (typeof tree === "string") {
+        // only the shared columns are lost: every table's own columns are still read
+        report.error(
+            "parse-error",
+            CYS_ISSUE.TABLE,
+            `${entryLabel(entry.name)}: ${tree}; its virtual columns are not read`,
+        );
+        return [];
+    }
     const out: VirtualColumn[] = [];
     for (const node of elementsNamed(tree, "virtualColumn")) {
+        const missing = ["name", "targetTable", "sourceTable", "sourceColumn"].filter((k) => !node.attrs.has(k));
+        if (missing.length > 0) {
+            const named = node.attrs.has("name") ? ` "${node.attrs.get("name") ?? ""}"` : "";
+            report.error(
+                "parse-error",
+                CYS_ISSUE.TABLE,
+                `${entryLabel(entry.name)}: a virtual column${named} has no ${missing.join(", ")}; the column is not read`,
+            );
+            continue;
+        }
         const a = (key: string): string => node.attrs.get(key) ?? "";
         out.push({
             name: a("name"),
@@ -572,12 +903,14 @@ function applyView(
     entry: string,
 ): void {
     let dangling = 0;
+    const seen = new Set<string>();
     for (const node of view.nodes) {
         const target = node.viewId === null ? undefined : nodes.get(node.viewId);
         if (target === undefined) {
             dangling++;
             continue;
         }
+        duplicateViewNode(seen, node, report, entry);
         target.x = node.x;
         target.y = node.y;
         target.z = node.z;
@@ -602,27 +935,92 @@ function applyView(
         report.warning(
             "validation-error",
             CYS_ISSUE.DANGLING_REFERENCE,
-            `${entry}: ${dangling} view element(s) name no node or edge of the network; they are not read`,
+            `${entryLabel(entry)}: ${dangling} view element${plural(dangling)} ${agree(dangling, "names", "name")} no node or edge of the network; they are not read`,
         );
     }
 }
 
 /**
- * The positions of a further view, by model node id: y flipped to y-up, z in the position only
- * under zAs "position".
+ * W_DUPLICATE_NODE for a view element that repeats a node an earlier one of the view gave.
+ * @param seen - the model node ids seen so far in the view
+ * @param node - the view element
+ * @param report - the report
+ * @param entry - the view entry name
+ */
+function duplicateViewNode(seen: Set<string>, node: NodeRec, report: ImportReportBuilder, entry: string): void {
+    const id = node.viewId as string;
+    if (seen.has(id)) {
+        report.warning(
+            "validation-error",
+            XGMML_ISSUE.DUPLICATE_NODE,
+            `${entryLabel(entry)}: the view gives node "${id}" twice; the later element is used`,
+            { line: node.line, element: id },
+        );
+    }
+    seen.add(id);
+}
+
+/**
+ * The positions of a further view, by model node id, read by the first view's rules: y flipped
+ * to y-up, z in the position only under zAs "position", a coordinate that does not parse
+ * E_BAD_VALUE (the position is unset; a bad z is 0), an element naming no node of the network
+ * counted in one W_DANGLING_REFERENCE.
  * @param view - the view document
  * @param zAs - where z goes
+ * @param nodes - the network's node records by id
+ * @param report - the report
+ * @param entry - the view entry name
  * @returns the positions
  */
-function viewPositions(view: XgmmlDocument, zAs: "column" | "position"): Map<string, [number, number, number]> {
+function viewPositions(
+    view: XgmmlDocument,
+    zAs: "column" | "position",
+    nodes: ReadonlyMap<string, NodeRec>,
+    report: ImportReportBuilder,
+    entry: string,
+): Map<string, [number, number, number]> {
     const out = new Map<string, [number, number, number]>();
-    for (const node of view.nodes) {
-        const x = Number(node.x);
-        const y = Number(node.y);
-        const z = zAs === "position" ? Number(node.z ?? 0) : 0;
-        if (node.viewId !== null && node.x !== null && node.y !== null && Number.isFinite(x) && Number.isFinite(y)) {
-            out.set(node.viewId, [x, y === 0 ? 0 : -y, Number.isFinite(z) ? z : 0]);
+    const seen = new Set<string>();
+    let dangling = 0;
+    const coordinate = (text: string | null, node: NodeRec): number | null => {
+        if (text === null) {
+            return null;
         }
+        const n = parseCoordinate(text);
+        if (n === null) {
+            report.error(
+                "validation-error",
+                XGMML_ISSUE.BAD_VALUE,
+                `${entryLabel(entry)}: graphics coordinate "${text}" is not a number`,
+                {
+                    line: node.line,
+                    element: node.viewId,
+                },
+            );
+        }
+        return n;
+    };
+    for (const node of view.nodes) {
+        if (node.viewId === null || !nodes.has(node.viewId)) {
+            dangling++;
+            continue;
+        }
+        duplicateViewNode(seen, node, report, entry);
+        const x = coordinate(node.x, node);
+        const y = coordinate(node.y, node);
+        const z = zAs === "position" ? coordinate(node.z, node) : null;
+        if (x !== null && y !== null) {
+            out.set(node.viewId, [x, y === 0 ? 0 : -y, z ?? 0]);
+        } else {
+            out.delete(node.viewId);
+        }
+    }
+    if (dangling > 0) {
+        report.warning(
+            "validation-error",
+            CYS_ISSUE.DANGLING_REFERENCE,
+            `${entryLabel(entry)}: ${dangling} view element${plural(dangling)} ${agree(dangling, "names", "name")} no node of the network; they are not read`,
+        );
     }
     return out;
 }
@@ -634,6 +1032,7 @@ function viewPositions(view: XgmmlDocument, zAs: "column" | "position"): Map<str
  * @param viewIds - each view's SUID
  * @param report - the report
  * @param common - the id rule
+ * @param restoredIds - the original ids of mangled nodes, by written id
  */
 function writeViewPositions(
     sink: GraphSink,
@@ -641,6 +1040,7 @@ function writeViewPositions(
     viewIds: readonly string[],
     report: ImportReportBuilder,
     common: ResolvedImportOptions,
+    restoredIds: ReadonlyMap<string, string>,
 ): void {
     const coercer = new IdCoercer(common.ids);
     views.forEach((positions, i) => {
@@ -668,7 +1068,7 @@ function writeViewPositions(
         for (const [id, xyz] of positions) {
             let index: number;
             try {
-                index = sink.indexOf(coercer.text(id));
+                index = sink.indexOf(coercer.text(restoredIds.get(id) ?? id));
             } catch {
                 continue; // an id the id rule refuses was refused, and recorded, as a node already
             }
@@ -677,6 +1077,30 @@ function writeViewPositions(
             }
         }
     });
+}
+
+/**
+ * The original ids an exporter's `sanitizeIds: "mangle"` kept in the node table's
+ * `graphty:originalId` column; each such cell is taken out of the node's columns.
+ * @param nodes - the node records, table cells merged in
+ * @returns the original id by written id
+ */
+function restoreIds(nodes: readonly NodeRec[]): Map<string, string> {
+    const out = new Map<string, string>();
+    for (const node of nodes) {
+        const at = node.atts.findIndex(
+            (a) =>
+                a.name === ORIGINAL_ID_ATTRIBUTE &&
+                (a.namespace ?? null) === null &&
+                a.value !== null &&
+                a.children.length === 0,
+        );
+        if (node.id !== null && at >= 0) {
+            out.set(node.id, node.atts[at].value as string);
+            node.atts.splice(at, 1);
+        }
+    }
+    return out;
 }
 
 /**
@@ -754,7 +1178,7 @@ function reportRootOnly(parsed: Parsed, report: ImportReportBuilder, entry: stri
         report.warning(
             "unsupported",
             XGMML_ISSUE.ROOT_ONLY_ELEMENTS,
-            `${entry}: ${nodes} node(s) and ${edges} edge(s) belong to no registered network (group meta-edges, collapsed group members) and were not read`,
+            `${entryLabel(entry)}: ${elementCount(nodes, edges)} ${agree(nodes + edges, "belongs", "belong")} to none of the session's networks (group meta-edges or collapsed group members) and ${agree(nodes + edges, "was", "were")} not read`,
         );
     }
 }
@@ -778,8 +1202,15 @@ async function networks2(
     if (layout.cysession === null) {
         return report.fail(CYS_ISSUE.NOT_SESSION, "the session has no cysession.xml");
     }
-    const tree = await readXmlTree(await session.read(layout.cysession), layout.cysession.name, report, inner);
+    const tree = await readXmlTree(await session.read(layout.cysession, report), layout.cysession.name, report, inner);
     const documentVersion = tree.attrs.get("documentVersion") ?? "";
+    if (documentVersion.length > 0 && !/^\d+(\.\d+)*$/.test(documentVersion.trim())) {
+        report.warning(
+            "validation-error",
+            XGMML_ISSUE.DOCUMENT_VERSION,
+            `${layout.cysession.name}: documentVersion "${documentVersion}" does not parse; the session is read as Cytoscape 2.x`,
+        );
+    }
     if (documentVersion.startsWith("3")) {
         report.fail(
             CYS_ISSUE.VERSION,
@@ -796,14 +1227,38 @@ async function networks2(
     const missing: string[] = [];
     const named = new Set<SessionEntry>();
     for (const record of elementsNamed(tree, "network")) {
-        const id = record.attrs.get("id") ?? "";
-        const filename = record.attrs.get("filename") ?? `${id}.xgmml`;
-        if (id === "Network Root") {
+        const given = record.attrs.get("id");
+        const filename = record.attrs.get("filename") ?? (given === undefined ? undefined : `${given}.xgmml`);
+        if (given === "Network Root") {
             continue;
+        }
+        if (filename === undefined) {
+            sessionRecord(
+                report,
+                layout.cysession.name,
+                "a <network> has neither an id nor a filename; it is not read",
+            );
+            continue;
+        }
+        const id = given ?? urlDecode(filename.replace(/\.xgmml$/i, ""));
+        if (given === undefined) {
+            sessionRecord(
+                report,
+                layout.cysession.name,
+                `a <network> for ${filename} has no id; it is named "${id}" after its file`,
+            );
         }
         const file = byDecoded.get(filename);
         if (file === undefined) {
             missing.push(filename);
+            continue;
+        }
+        if (named.has(file)) {
+            sessionRecord(
+                report,
+                layout.cysession.name,
+                `the <network> "${id}" names ${filename}, which an earlier record already names; it is not read a second time`,
+            );
             continue;
         }
         named.add(file);
@@ -820,7 +1275,7 @@ async function networks2(
         report.warning(
             "validation-error",
             CYS_ISSUE.DANGLING_REFERENCE,
-            `cysession.xml names ${missing.length} network file(s) the session does not hold: ${listed(missing)}`,
+            `cysession.xml names ${missing.length} network file${plural(missing.length)} the session does not hold: ${listed(missing)}`,
         );
     }
     const unnamed = order.filter((e) => !named.has(e)).map((e) => e.name);
@@ -828,10 +1283,21 @@ async function networks2(
         report.warning(
             "unsupported",
             CYS_ISSUE.ENTRY_SKIPPED,
-            `${unnamed.length} network file(s) are not in cysession.xml's network tree and were not read: ${listed(unnamed)}`,
+            `${unnamed.length} network file${plural(unnamed.length)} ${agree(unnamed.length, "is", "are")} not in cysession.xml's network tree and were not read: ${listed(unnamed)}`,
         );
     }
     return choices.sort((a, b) => order.indexOf(a.file) - order.indexOf(b.file));
+}
+
+/**
+ * W_CYS_SESSION_RECORD: a cysession.xml network record without an id, or one naming a file an
+ * earlier record names.
+ * @param report - the report
+ * @param entry - the cysession.xml entry name
+ * @param message - what is wrong and what is done
+ */
+function sessionRecord(report: ImportReportBuilder, entry: string, message: string): void {
+    report.warning("validation-error", CYS_ISSUE.SESSION_RECORD, `${entryLabel(entry)}: ${message}`);
 }
 
 /**
@@ -843,17 +1309,25 @@ async function networks2(
 async function import2(prepared: Prepared, choice: Choice2, sink: GraphSink): Promise<void> {
     const { report, inner, session } = prepared;
     const { doc, dialect } = await parseEntry(session, choice.file, report, inner);
+    let unmatched = 0;
     for (const [list, column] of [
         ["selectedNodes", SELECTED_COLUMN],
         ["hiddenNodes", HIDDEN_COLUMN],
     ] as const) {
-        mark(doc.nodes, idsIn(choice.record, list), column);
+        unmatched += mark(doc.nodes, idsIn(choice.record, list), column);
     }
     for (const [list, column] of [
         ["selectedEdges", SELECTED_COLUMN],
         ["hiddenEdges", HIDDEN_COLUMN],
     ] as const) {
-        mark(doc.edges, idsIn(choice.record, list), column);
+        unmatched += mark(doc.edges, idsIn(choice.record, list), column);
+    }
+    if (unmatched > 0) {
+        report.warning(
+            "validation-error",
+            CYS_ISSUE.DANGLING_REFERENCE,
+            `cysession.xml lists ${unmatched} selected or hidden name${plural(unmatched)} that ${choice.file.name} does not hold; they are not read`,
+        );
     }
     const cyMeta = sessionMeta(prepared, {
         collection: null,
@@ -896,12 +1370,20 @@ function idsIn(record: XmlNode, list: string): Set<string> {
  * @param records - the node or edge records
  * @param ids - the listed names
  * @param column - the column
+ * @returns how many listed names match no record
  */
-function mark(records: readonly (NodeRec | EdgeRec)[], ids: ReadonlySet<string>, column: string): void {
+function mark(records: readonly (NodeRec | EdgeRec)[], ids: ReadonlySet<string>, column: string): number {
     if (ids.size === 0) {
-        return;
+        return 0;
     }
+    const matched = new Set<string>();
     for (const record of records) {
+        if (record.id !== null && ids.has(record.id)) {
+            matched.add(record.id);
+        }
+        if (record.label !== null && ids.has(record.label)) {
+            matched.add(record.label);
+        }
         if ((record.id !== null && ids.has(record.id)) || (record.label !== null && ids.has(record.label))) {
             record.atts.push({
                 name: column,
@@ -921,6 +1403,7 @@ function mark(records: readonly (NodeRec | EdgeRec)[], ids: ReadonlySet<string>,
             });
         }
     }
+    return ids.size - matched.size;
 }
 
 // ---------------------------------------------------------------------------------------- shared
@@ -957,14 +1440,14 @@ function sessionMeta(
         report.warning(
             "unsupported",
             CYS_ISSUE.STYLES_NOT_IMPORTED,
-            `the session's styles (${layout.styles.map((s) => s.path).join(", ")}) are not applied: style import is issue #706`,
+            `the session's styles (${layout.styles.map((s) => s.path).join(", ")}) are not applied`,
         );
     }
     if (layout.skipped.length > 0) {
         report.warning(
             "unsupported",
             CYS_ISSUE.ENTRY_SKIPPED,
-            `${layout.skipped.length} entries hold no graph data and were not read (apps, global tables, properties, images): ${listed(layout.skipped)}`,
+            `${layout.skipped.length} ${layout.skipped.length === 1 ? "entry holds" : "entries hold"} no graph data and ${agree(layout.skipped.length, "was", "were")} not read (apps, global tables, properties, images): ${listed(layout.skipped)}`,
         );
     }
     return {
@@ -1011,14 +1494,16 @@ async function importCys(
         options,
         prepared.report,
     );
-    if (prepared.choices.length > 1) {
+    if (prepared.choices.length > 1 && !graphChosen(options)) {
         prepared.report.warning(
             "unsupported",
             CYS_ISSUE.MULTIPLE_GRAPHS,
-            `the session holds ${prepared.choices.length} networks; ${prepared.choices.length - 1} were not read (use importAll, graphIndex or graphName)`,
+            `the session holds ${prepared.choices.length} networks; only the first is read (importAllGraphs() reads every one; graphIndex or graphName chooses one)`,
         );
     }
-    return importChoice(prepared, index, sink);
+    const report = await importChoice(prepared, index, sink);
+    prepared.session.done();
+    return report;
 }
 
 /**
@@ -1033,17 +1518,19 @@ async function importAllCys(
     sinkFor: (index: number) => GraphSink,
     options?: CysImportOptions & CommonImportOptions,
 ): Promise<ImportReport[]> {
-    const bytes = (await readBytes(input, { signal: options?.signal ?? null })) ?? input;
-    const first = await prepare(bytes, null, options);
+    // the archive is opened and its network files parsed once: one byte budget, one progress,
+    // and every network's report starts from what reading the session recorded
+    const first = await prepare(input, null, options);
+    const opened = first.report.fork();
     const reports: ImportReport[] = [];
     for (let i = 0; i < first.choices.length; i++) {
         const sink = sinkFor(i);
-        // every network gets fresh records and a fresh report
-        const prepared = i === 0 ? first : await prepare(bytes, null, options);
+        const prepared = i === 0 ? first : { ...first, report: opened.fork() };
         reportSinkOptions(sink, options, prepared.report, true);
         reportUnusedOptions(options, prepared.report, USED_OPTIONS);
         reports.push(await importChoice(prepared, i, sink));
     }
+    first.session.done();
     return reports;
 }
 
@@ -1068,8 +1555,18 @@ async function listCysGraphs(
     );
 }
 
-/** A session's marker or folder name in the head of the archive. */
-const SESSION_NAME = /CytoscapeSession|cysession\.xml|\d+\.\d+\.\d+\.version/;
+/**
+ * A session's marker or folder name in the head of the archive, or an entry only a session has
+ * (Cytoscape's app state, a network, view or table file), for a session whose folder was renamed.
+ * The head is decoded whole, so a name can sit anywhere in it.
+ */
+const SESSION_NAMES: readonly RegExp[] = [
+    /CytoscapeSession|cysession\.xml/,
+    /(?<!\d)\d+\.\d+\.\d+\.version/,
+    /(?:^|\/)apps\/org\.cytoscape\./,
+    /(?:^|\/)(?:networks|views)\/\d+-[^/]*\.xgmml/,
+    /(?:^|\/)tables\/\d+-[^/]*\/[^/]+\.cytable/,
+];
 
 /**
  * Confidence that a head of bytes is a Cytoscape session: 0.95 for a zip whose head names the
@@ -1078,19 +1575,24 @@ const SESSION_NAME = /CytoscapeSession|cysession\.xml|\d+\.\d+\.\d+\.version/;
  * start after a short stub (a self-extracting archive) within the head.
  * @param head - the first bytes
  * @returns the confidence
+ * @category Plugin helpers
  */
 export function sniffCys(head: Uint8Array): number {
     for (let at = 0; at + 4 <= head.byteLength; at++) {
         if (startsLikeZip(head.subarray(at))) {
-            return SESSION_NAME.test(decodeEntryName(head.subarray(at))) ? 0.95 : 0;
+            return SESSION_NAMES.some((r) => r.test(decodeEntryName(head.subarray(at)))) ? 0.95 : 0;
         }
     }
     return 0;
 }
 
-/** The Cytoscape session importer. */
+/**
+ * The Cytoscape session importer.
+ * @category Built-in formats
+ */
 export const cysImporter: GraphImporter<CysImportOptions> = Object.freeze({
     format: FORMAT,
+    options: Object.freeze(["maxUncompressedBytes", "zAs"]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
     sniff: sniffCys,

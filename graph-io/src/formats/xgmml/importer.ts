@@ -17,12 +17,14 @@ import { GraphFormatError, type GraphSink } from "@graphty/graph-format";
 import { textChunks, throwIfAborted } from "../../common/input.js";
 import {
     chooseGraph,
+    graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { agree, elementCount } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { isWhitespace, tokenizeXml, xmlDeclaredEncoding, type XmlRepairs, XmlSyntaxError } from "../../common/xml.js";
 import {
@@ -45,24 +47,41 @@ import {
     type XgmmlSettings,
 } from "./emit.js";
 
-/** The format-specific options of the XGMML importer. */
-export interface XgmmlImportOptions extends GraphChoiceOptions {
+/**
+ * The format-specific options of the XGMML importer.
+ * @category Built-in formats
+ */
+export interface XgmmlImportOptions extends GraphChoiceOptions, CommonImportOptions {
     /**
-     * Resolve an edge endpoint that is missing or names no node through Cytoscape's
-     * `"source (interaction) target"` edge label, and fill a missing interaction from it. Default:
-     * on for files that use the Cytoscape (`cy`) namespace, off otherwise.
+     * Find an edge end that is missing, or names no node, from Cytoscape's `"source (interaction)
+     * target"` edge label, and fill a missing interaction from it. The default is on for files that
+     * use Cytoscape's (`cy`) namespace, off for others.
+     * @defaultValue on for Cytoscape files
      */
     labelAliases?: boolean | undefined;
     /**
-     * Decode Cytoscape's two-character `\n` and `\t` escapes in string values. Default: on for
-     * files that use the Cytoscape namespace, off otherwise.
+     * Decode Cytoscape's two-character `\n` and `\t` escapes in text values. The default is on for
+     * files that use Cytoscape's namespace, off for others.
+     * @defaultValue on for Cytoscape files
      */
     cytoscapeEscapes?: boolean | undefined;
-    /** Read an `&` not followed by `;` within 7 characters as `&amp;` (warned per occurrence). Default false. */
+    /**
+     * Read an `&` that is not followed by `;` within 7 characters as `&amp;`, with a warning for
+     * each, instead of failing on the invalid XML.
+     * @defaultValue false
+     */
     repairBareAmpersands?: boolean | undefined;
-    /** Join two surrogate character references into one character (warned per pair). Default false. */
+    /**
+     * Join two character references that each hold half of a character (`&#xD83D;&#xDE00;`) into
+     * that character, with a warning for each pair, instead of failing.
+     * @defaultValue false
+     */
     pairSurrogateReferences?: boolean | undefined;
-    /** Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position. */
+    /**
+     * Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node
+     * attribute named `z`; "position" makes it the third coordinate of the position.
+     * @defaultValue "column"
+     */
     zAs?: "column" | "position" | undefined;
 }
 
@@ -91,12 +110,6 @@ const USED_OPTIONS: ReadonlySet<keyof CommonImportOptions> = new Set<keyof Commo
     "encoding",
 ]);
 
-/** Bytes inspected by sniff(). */
-const SNIFF_BYTES = 4096;
-
-/** The head of the document kept for the DOCTYPE check. */
-const HEAD_CHARS = 2048;
-
 /** An XGMML DOCTYPE (Cytoscape's file filter tests the same). */
 const XGMML_DOCTYPE = /<!DOCTYPE\s+graph\s[^<>]*xgmml\.dtd/i;
 
@@ -105,6 +118,7 @@ const XGMML_DOCTYPE = /<!DOCTYPE\s+graph\s[^<>]*xgmml\.dtd/i;
  * @param options - the caller's options
  * @param cytoscape - whether the document uses the Cytoscape namespace
  * @returns the settings; E_UNSUPPORTED for a value of the wrong type
+ * @category Plugin helpers
  */
 export function resolveSettings(options: XgmmlImportOptions | undefined, cytoscape: boolean): XgmmlSettings {
     const zAs = options?.zAs ?? "column";
@@ -178,10 +192,10 @@ export async function parseXgmml(
             : undefined,
     };
     const parser = new XgmmlParser(report);
-    const seen = { head: "", content: false };
+    const seen = { content: false };
     try {
         await tokenizeXml(
-            watch(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding }), seen),
+            watch(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding, xml: true }), seen),
             parser,
             repairs,
         );
@@ -195,7 +209,7 @@ export async function parseXgmml(
         throw err;
     }
     const doc = parser.document();
-    if (!doc.xgmmlNamespace && !XGMML_DOCTYPE.test(seen.head)) {
+    if (!doc.xgmmlNamespace && !XGMML_DOCTYPE.test(doc.doctype ?? "")) {
         report.warning(
             "validation-error",
             XGMML_ISSUE.NO_NAMESPACE,
@@ -207,22 +221,18 @@ export async function parseXgmml(
 }
 
 /**
- * Pass text chunks through while keeping the head and noting non-whitespace content.
+ * Pass text chunks through while noting non-whitespace content.
  * @param chunks - the chunks
- * @param seen - where the head and the content flag are kept
- * @param seen.head - the first characters of the document
+ * @param seen - where the content flag is kept
  * @param seen.content - whether non-whitespace text was seen
  * @yields the chunks unchanged
  * @returns nothing
  */
 async function* watch(
     chunks: AsyncIterable<string>,
-    seen: { head: string; content: boolean },
+    seen: { content: boolean },
 ): AsyncGenerator<string, void, undefined> {
     for await (const chunk of chunks) {
-        if (seen.head.length < HEAD_CHARS) {
-            seen.head += chunk.slice(0, HEAD_CHARS - seen.head.length);
-        }
         seen.content ||= !isWhitespace(chunk);
         yield chunk;
     }
@@ -313,7 +323,7 @@ function reportRootOnly(prepared: Prepared): void {
         prepared.report.warning(
             "unsupported",
             XGMML_ISSUE.ROOT_ONLY_ELEMENTS,
-            `${nodes} node(s) and ${edges} edge(s) belong to no registered network (group meta-edges, collapsed group members) and were not read`,
+            `${elementCount(nodes, edges)} ${agree(nodes + edges, "belongs", "belong")} to none of the file's networks (group meta-edges or collapsed group members) and ${agree(nodes + edges, "was", "were")} not read`,
         );
     }
 }
@@ -336,11 +346,11 @@ async function importXgmml(
         options,
         prepared.report,
     );
-    if (prepared.graphs.length > 1) {
+    if (prepared.graphs.length > 1 && !graphChosen(options)) {
         prepared.report.warning(
             "unsupported",
             XGMML_ISSUE.MULTIPLE_GRAPHS,
-            `the session network document holds ${prepared.graphs.length} registered networks; ${prepared.graphs.length - 1} were not read (use importAll, graphIndex or graphName)`,
+            `the session network document holds ${prepared.graphs.length} registered networks; only the first is read (importAllGraphs() reads every one; graphIndex or graphName chooses one)`,
         );
     }
     return emitOne(prepared, prepared.graphs[index], sink);
@@ -359,12 +369,13 @@ async function importAllXgmml(
     sinkFor: (index: number) => GraphSink,
     options?: XgmmlImportOptions & CommonImportOptions,
 ): Promise<ImportReport[]> {
-    const bytes = await reread(input);
-    const first = await prepare(bytes, null, options);
+    const first = await prepare(input, null, options);
+    // the document is read once; every graph's report starts from what reading it recorded
+    const parsed = first.report.fork();
     const reports: ImportReport[] = [];
     for (let i = 0; i < first.graphs.length; i++) {
         const sink = sinkFor(i);
-        const prepared = i === 0 ? first : await prepare(bytes, null, options);
+        const prepared = i === 0 ? first : { ...first, report: parsed.fork() };
         reportSinkOptions(sink, options, prepared.report, true);
         reportUnusedOptions(options, prepared.report, USED_OPTIONS);
         reports.push(emitOne(prepared, prepared.graphs[i], sink));
@@ -405,57 +416,6 @@ function graphName(graph: GraphRec, doc: XgmmlDocument): string | null {
 }
 
 /**
- * The input in a form that can be read more than once (a stream is read into bytes).
- * @param input - the input
- * @returns the same input when it is a string or bytes, else the collected bytes
- */
-async function reread(input: ImportInput): Promise<string | Uint8Array> {
-    if (typeof input === "string" || input instanceof Uint8Array) {
-        return input;
-    }
-    const parts: (string | Uint8Array)[] = [];
-    const iterable: AsyncIterable<string | Uint8Array> =
-        typeof (input as { getReader?: unknown }).getReader === "function"
-            ? streamIterable(input as ReadableStream<Uint8Array>)
-            : (input as AsyncIterable<string | Uint8Array>);
-    for await (const chunk of iterable) {
-        parts.push(chunk);
-    }
-    if (parts.every((p) => typeof p === "string")) {
-        return parts.join("");
-    }
-    const bytes = parts.map((p) => (typeof p === "string" ? new TextEncoder().encode(p) : p));
-    const out = new Uint8Array(bytes.reduce((n, b) => n + b.byteLength, 0));
-    let at = 0;
-    for (const b of bytes) {
-        out.set(b, at);
-        at += b.byteLength;
-    }
-    return out;
-}
-
-/**
- * A ReadableStream as an async iterable.
- * @param stream - the stream
- * @yields its chunks
- * @returns nothing
- */
-async function* streamIterable(stream: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array, void, undefined> {
-    const reader = stream.getReader();
-    try {
-        for (;;) {
-            const { done, value } = await reader.read();
-            if (done) {
-                return;
-            }
-            yield value;
-        }
-    } finally {
-        reader.releaseLock();
-    }
-}
-
-/**
  * Confidence that a head of bytes is XGMML: 0.95 for a root `graph` in the XGMML namespace or an
  * XGMML DOCTYPE (Cytoscape's file filter tests the same two things, and a session view file still
  * scores so its failure names it), 0.5 for a root local name `graph` without either.
@@ -463,14 +423,22 @@ async function* streamIterable(stream: ReadableStream<Uint8Array>): AsyncGenerat
  * @returns the confidence
  */
 function sniffXgmml(head: Uint8Array): number {
-    const text = new TextDecoder("utf-8", { fatal: false }).decode(head.subarray(0, SNIFF_BYTES));
+    let encoding = "utf-8";
+    if ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0x3c && head[1] === 0 && head[2] === 0x3f)) {
+        encoding = "utf-16le";
+    } else if ((head[0] === 0xfe && head[1] === 0xff) || (head[0] === 0 && head[1] === 0x3c && head[2] === 0)) {
+        encoding = "utf-16be";
+    }
+    const text = new TextDecoder(encoding, { fatal: false }).decode(head);
     if (!/^\uFEFF?\s*</.test(text)) {
         return 0;
     }
     if (XGMML_DOCTYPE.test(text)) {
         return 0.95;
     }
-    const root = /<(?!\?|!)([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(text.replace(/<!--[\s\S]*?-->/g, ""));
+    const root = /<(?![?!])([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(
+        text.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""),
+    );
     if (root === null || root[2] !== "graph") {
         return 0;
     }
@@ -479,9 +447,19 @@ function sniffXgmml(head: Uint8Array): number {
     return tag.includes("http://www.cs.rpi.edu/XGMML") ? 0.95 : 0.5;
 }
 
-/** The XGMML importer. */
+/**
+ * The XGMML importer.
+ * @category Built-in formats
+ */
 export const xgmmlImporter: GraphImporter<XgmmlImportOptions> = Object.freeze({
     format: FORMAT,
+    options: Object.freeze([
+        "cytoscapeEscapes",
+        "labelAliases",
+        "pairSurrogateReferences",
+        "repairBareAmpersands",
+        "zAs",
+    ]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
     sniff: sniffXgmml,

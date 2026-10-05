@@ -1,22 +1,30 @@
 /**
  * What the GraphML importer and exporter share: the namespace, the format facts, the reserved
- * column names of the XML-attribute-derived columns (design section 5.6), the `meta.extra`
+ * column names of the XML-attribute-derived columns, the `meta.extra`
  * keys the importer records for the exporter, and the issue and loss codes.
  */
 
 import {
     BAD_DEFAULT_CODE,
     COLUMN_RENAMED_CODE,
+    COLUMN_TYPE_CODE,
     COUNT_HINT_CODE,
+    COUNT_MISMATCH_CODE,
+    DANGLING_REFERENCE_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
+    DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_KEY_CODE,
     DUPLICATE_NODE_CODE,
+    ELEMENT_ISSUE,
+    EMPTY_INPUT_CODE,
+    ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
     HYPEREDGE_CODE,
     ID_MERGED_CODE,
     ID_TEXT_TYPE_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MISSING_ENDPOINT_CODE,
@@ -35,69 +43,128 @@ import {
     UNKNOWN_ATTR_TYPE_CODE,
     UNKNOWN_ELEMENT_CODE,
     UNKNOWN_ENCODING_CODE,
+    UNKNOWN_PARENT_CODE,
+    UNKNOWN_XML_ATTRIBUTE_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 
-/** The GraphML namespace. */
+/**
+ * The GraphML namespace.
+ * @category Plugin helpers
+ */
 export const GRAPHML_NAMESPACE = "http://graphml.graphdrawing.org/xmlns";
 
-/** The yFiles extension namespace, declared as `xmlns:y` when a yfiles column is written. */
+/**
+ * The yFiles extension namespace, declared as `xmlns:y` when a yfiles column is written.
+ * @category Plugin helpers
+ */
 export const YFILES_NAMESPACE = "http://www.yworks.com/xml/graphml";
 
-/** The XML Schema instance namespace and the schema location the exporter writes. */
+/**
+ * The XML Schema instance namespace and the schema location the exporter writes.
+ * @category Plugin helpers
+ */
 export const XSI_NAMESPACE = "http://www.w3.org/2001/XMLSchema-instance";
 
-/** The GraphML schema location written by the exporter. */
+/**
+ * The GraphML schema location written by the exporter.
+ * @category Plugin helpers
+ */
 export const SCHEMA_LOCATION =
     "http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd";
 
-/** The format name. */
+/**
+ * The format name.
+ * @category Plugin helpers
+ */
 export const FORMAT = "graphml";
 
-/** File extensions. */
+/**
+ * File extensions.
+ * @category Plugin helpers
+ */
 export const EXTENSIONS: readonly string[] = Object.freeze([".graphml", ".xml"]);
 
-/** MIME types. */
+/**
+ * MIME types.
+ * @category Plugin helpers
+ */
 export const MIME_TYPES: readonly string[] = Object.freeze(["application/graphml+xml", "application/xml", "text/xml"]);
 
-/** The `attr.name` of the node key that carries ids rewritten by `sanitizeIds: "mangle"` (design section 8.5). */
+/**
+ * The `attr.name` of the node key that carries ids rewritten by `sanitizeIds: "mangle"`.
+ * @category Plugin helpers
+ */
 export const ORIGINAL_ID_ATTRIBUTE = "graphty:originalId";
 
-/** The node column that keeps original ids when `restoreMangledIds` is off (design section 5.6). */
+/**
+ * The node column that keeps original ids when `restoreMangledIds` is off.
+ * @category Plugin helpers
+ */
 export const ORIGINAL_ID_COLUMN = "graphty.originalId";
 
-/** The edge column of the `id` XML attribute (role id, unique). */
+/**
+ * The edge column of the `id` XML attribute (role id, unique).
+ * @category Plugin helpers
+ */
 export const EDGE_ID_COLUMN = "id";
 
-/** The edge columns of the `sourceport` / `targetport` XML attributes (roles sourcePort / targetPort). */
+/**
+ * The edge columns of the `sourceport` / `targetport` XML attributes (roles sourcePort / targetPort).
+ * @category Plugin helpers
+ */
 export const SOURCE_PORT_COLUMN = "sourceport";
 
-/** The edge column of the `targetport` XML attribute. */
+/**
+ * The edge column of the `targetport` XML attribute.
+ * @category Plugin helpers
+ */
 export const TARGET_PORT_COLUMN = "targetport";
 
-/** The node column of the containing node of a nested graph (u32, role parent, refersTo node). */
+/**
+ * The node column of the containing node of a nested graph (u32, role parent, refersTo node).
+ * @category Plugin helpers
+ */
 export const PARENT_COLUMN = "parent";
 
-/** The bool node column marking the hub nodes synthesised for hyperedges under `hyperedges: "star"`. */
+/**
+ * The bool node column marking the hub nodes synthesized for hyperedges under `hyperedges: "star"`.
+ * @category Plugin helpers
+ */
 export const HYPEREDGE_HUB_COLUMN = "graphty.hyperedge";
 
-/** The column name a node key titled `label` receives the `label` role under. */
+/**
+ * The column name a node key titled `label` receives the `label` role under.
+ * @category Plugin helpers
+ */
 export const LABEL_COLUMN = "label";
 
-/** Edge column names reserved for the XML-attribute-derived columns; a key titled like one is renamed `<name>#<id>`. */
+/**
+ * Edge column names reserved for the XML-attribute-derived columns; a key titled like one is renamed `<name>#<id>`.
+ * @category Plugin helpers
+ */
 export const RESERVED_EDGE_NAMES: ReadonlySet<string> = new Set([
     EDGE_ID_COLUMN,
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 ]);
 
-/** Node column names reserved for the XML-derived columns. */
+/**
+ * Node column names reserved for the XML-derived columns.
+ * @category Plugin helpers
+ */
 export const RESERVED_NODE_NAMES: ReadonlySet<string> = new Set([PARENT_COLUMN]);
 
-/** The `meta.extra` key under which the importer records what the exporter needs. */
+/**
+ * The `meta.extra` key under which the importer records what the exporter needs.
+ * @category Plugin helpers
+ */
 export const META_KEY = "graphml";
 
-/** What the importer stores under `meta.extra.graphml`. */
+/**
+ * What the importer stores under `meta.extra.graphml`.
+ * @category Plugin helpers
+ */
 export interface GraphmlMeta {
     /** The top-level `<graph id>`, or null. */
     readonly graphId: string | null;
@@ -108,24 +175,41 @@ export interface GraphmlMeta {
 }
 
 /**
- * The issue codes the GraphML importer records (design section 8.6), by name: the codes shared
- * with the other importers (src/common/codes.ts) and the GraphML-specific ones. A key is the code
+ * The issue codes the GraphML importer records, by name: the codes shared
+ * with the other importers and the GraphML-specific ones. A key is the code
  * without its severity and format prefixes.
+ * @category Built-in formats
  */
 export const GRAPHML_ISSUE = Object.freeze({
-    /** Fatal: the input is not well-formed XML. */
+    ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
+    /**
+     * A value that does not parse as the type its attribute declares ("x" in an integer attribute). The value is
+     * left unset; the node or edge is kept.
+     */
+    COLUMN_TYPE: COLUMN_TYPE_CODE,
+    /** The input is not well-formed XML. The import stops. */
     XML_SYNTAX: XML_SYNTAX_CODE,
-    /** Fatal: the input holds invalid UTF-8. */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
+     * `encoding` option). The import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
-    /** Fatal: the root element is not `<graphml>`. */
+    /** A declared encoding the byte order mark contradicts (the mark wins). */
+    ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
+    /** The input holds no XML at all: it is empty, whitespace or a byte order mark only. The import stops. */
+    EMPTY_INPUT: EMPTY_INPUT_CODE,
+    /** The root element is not `<graphml>`. The import stops. */
     NOT_GRAPHML: "E_NOT_GRAPHML",
-    /** Fatal: the document has no `<graph>`. */
+    /** The `<graphml>` root is in a namespace other than GraphML's; it is read as GraphML. */
+    NAMESPACE: "W_GRAPHML_NAMESPACE",
+    /** The document has no `<graph>`. The import stops. */
     NO_GRAPH: NO_GRAPH_CODE,
     /** A `<key>` without an id. */
     KEY_MISSING_ID: "E_GRAPHML_KEY_MISSING_ID",
@@ -137,8 +221,18 @@ export const GRAPHML_ISSUE = Object.freeze({
     MISSING_ID: MISSING_ID_CODE,
     /** An `<edge>` without a source or a target. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
+    /** An edge endpoint that names no declared node under `addMissingNodes: false`; the edge is skipped. */
+    UNKNOWN_NODE: "E_UNKNOWN_NODE",
+    /** An edge endpoint that names a nested `<graph>`, not a node; a node of that id is created. */
+    GRAPH_ENDPOINT: "W_GRAPHML_GRAPH_ENDPOINT",
+    /** The nodes of a nested graph whose container node was skipped lose their parent. */
+    UNKNOWN_PARENT: UNKNOWN_PARENT_CODE,
+    /** Two `<data>` of one key on one element, two `<default>` in one key, or two weight keys; one is kept. */
+    DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
     /** A `<data>` whose key was never declared. */
     UNKNOWN_KEY: "E_GRAPHML_UNKNOWN_KEY",
+    /** A `<key>` declared after `<data>` that used it; those values were already reported and dropped. */
+    KEY_DECLARED_LATE: "W_GRAPHML_KEY_DECLARED_LATE",
     /** A `<data>` whose key is declared for another domain. */
     KEY_DOMAIN: "W_GRAPHML_KEY_DOMAIN",
     /** A `<data>` without a key attribute. */
@@ -161,10 +255,20 @@ export const GRAPHML_ISSUE = Object.freeze({
     INVALID_EDGEDEFAULT: "E_GRAPHML_INVALID_EDGEDEFAULT",
     /** A `<graph>` without edgedefault; the `defaultDirected` option applies. */
     EDGEDEFAULT_MISSING: "W_GRAPHML_EDGEDEFAULT_MISSING",
-    /** A second top-level `<graph>`; its nodes and edges are merged into the first. */
+    /**
+     * The file holds more than one top-level `<graph>`; their nodes and edges are merged into one graph.
+     * `importAllGraphs()` reads every one.
+     */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
-    /** A `parse.nodes` / `parse.edges` hint the sink cannot reserve (ignored). */
+    /**
+     * A node or edge count the file announces is too large to reserve room for; it is ignored and the elements are
+     * read as they come.
+     */
     COUNT_HINT: COUNT_HINT_CODE,
+    /**
+     * A `parse.nodes` or `parse.edges` count disagrees with what the graph holds. The elements are read as they are.
+     */
+    COUNT_MISMATCH: COUNT_MISMATCH_CODE,
     /** A hyperedge under `hyperedges: "error"`. */
     HYPEREDGE: HYPEREDGE_CODE,
     /** Hyperedges skipped under `hyperedges: "skip"`. */
@@ -173,10 +277,23 @@ export const GRAPHML_ISSUE = Object.freeze({
     HYPEREDGE_ENDPOINT: "E_GRAPHML_HYPEREDGE_ENDPOINT",
     /** `<port>` declarations (and their data) are not kept; sourceport / targetport edge attributes are. */
     PORT_DECLARATION: "W_GRAPHML_PORT_DECLARATION",
-    /** A GraphML `parse.*` hint on `<graph>`, `<node>` or `<edge>` the importer does not act on (parse.nodeids, parse.order, ...). */
+    /** A `sourceport` / `targetport` naming a port its node does not declare (once, with the count). */
+    DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,
+    /** A `<graph>` inside an `<edge>` (legal GraphML): it and the nodes and edges it holds are dropped. */
+    EDGE_GRAPH_DROPPED: "W_GRAPHML_EDGE_GRAPH_DROPPED",
+    /** A `<node>` whose id is that of a hub `hyperedges: "star"` created; the node is merged into the hub. */
+    HUB_ID_CLASH: "W_GRAPHML_HUB_ID_CLASH",
+    /** A `graphty:originalId` value that is not text, or arrives after the node was added (after its nested graph). */
+    ORIGINAL_ID_IGNORED: "W_GRAPHML_ORIGINAL_ID_IGNORED",
+    /** A yFiles graphics value (a geometry coordinate, a width) that is not a number; it is not mapped. */
+    YFILES_VALUE: "W_GRAPHML_YFILES_VALUE",
+    /**
+     * A GraphML `parse.*` attribute (`parse.nodeids`, `parse.order`, ...) that graph-io does not act on; the file is
+     * read normally.
+     */
     PARSE_HINT_IGNORED: "W_GRAPHML_PARSE_HINT_IGNORED",
-    /** An XML attribute GraphML does not define on `<graph>`, `<node>` or `<edge>`; it is not kept. */
-    UNKNOWN_XML_ATTRIBUTE: "W_GRAPHML_UNKNOWN_XML_ATTRIBUTE",
+    /** An XML attribute GraphML does not define (or the importer does not keep) on an element; it is not kept. */
+    UNKNOWN_XML_ATTRIBUTE: UNKNOWN_XML_ATTRIBUTE_CODE,
     /** A `<locator>` element. */
     LOCATOR_DROPPED: "W_GRAPHML_LOCATOR_DROPPED",
     /** A `<desc>` of a node, an edge or a hyperedge. */
@@ -187,27 +304,43 @@ export const GRAPHML_ISSUE = Object.freeze({
     STRAY_TEXT: STRAY_TEXT_CODE,
     /** Two distinct id texts merged into one number under `ids: "number"`. */
     ID_MERGED: ID_MERGED_CODE,
-    /** An option GraphML has no use for (`nodeIdFrom`: nodes are identified by their id attribute). */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
     /** A yFiles key under `yfiles: "skip"`. */
     YFILES_SKIPPED: "W_GRAPHML_YFILES_SKIPPED",
-    /** A key renamed `<name>#<id>` because the name was taken (design section 5.6). */
+    /**
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example
+     * two attributes declared with the same name.
+     */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
-    /** A key declared without its role because the table already holds it. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
     /** A declared type the format does not define (kept as string). */
     UNKNOWN_ATTR_TYPE: UNKNOWN_ATTR_TYPE_CODE,
     /** A default that does not parse as the declared type. */
     BAD_DEFAULT: BAD_DEFAULT_CODE,
-    /** A long value beyond 2^53 rounded. */
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
     PRECISION: PRECISION_CODE,
-    /** A builder-policy option the sink does not honour. */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
-    /** The sink refused the file's direction. */
+    /**
+     * You read into a graph builder whose direction is already set, or which already holds edges, so the file is read
+     * with the builder's direction instead of its own.
+     */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
-    /** Edges forced to the policy's direction. */
+    /** Edges of the other direction were read with the direction `onMixedDirection` chose. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
-    /** A mixed file under onMixedDirection "error" (fatal). */
+    /**
+     * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
+     * format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write
+     * it anyway.
+     */
     MIXED_DIRECTION: MIXED_DIRECTION_CODE,
 });
 
@@ -215,26 +348,27 @@ export const GRAPHML_ISSUE = Object.freeze({
  * Loss note codes of the GraphML importer (report.lossy) and exporter (check()): the GraphML
  * ones; the generic ones (dtypes, lists, json text, positions, visual and temporal roles,
  * extension tables, id charsets, the weight key clash, name changes) are those of `LOSS`.
+ * @category Built-in formats
  */
 export const GRAPHML_LOSS = Object.freeze({
-    /** yFiles nested XML kept as a JSON tree: structure preserved, not byte-exact. */
+    /** YFiles nested XML kept as a JSON tree: structure preserved, not byte-exact. */
     YFILES_JSON: "W_GRAPHML_YFILES_JSON",
     /** A mutual pair written as one undirected edge; the mark is lost. */
     MUTUAL_AS_UNDIRECTED: MUTUAL_AS_UNDIRECTED_CODE,
     /** A `parents` (multi-parent) column cannot be written as nested graphs. */
     PARENTS_DROPPED: PARENTS_DROPPED_CODE,
-    /** A role column GraphML has no slot for (kind, node ids, ...) written as a plain attribute. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: ROLE_DROPPED_CODE,
     /** Containment order differs from index order; node indices change after a round trip. */
     HIERARCHY_REORDERED: "W_GRAPHML_HIERARCHY_REORDERED",
     /** Nodes whose parent chain never reaches a root are written at the top level. */
     PARENT_CYCLE: "W_GRAPHML_PARENT_CYCLE",
-    /** Node ids that change type after a round trip under the canonical rule (design section 4.1). */
+    /** Node ids that read back as a different type, such as the text "7" as the number 7. */
     ID_TEXT_TYPE: ID_TEXT_TYPE_CODE,
     /** A numeric edge id column reads back as string. */
     EDGE_ID_TEXT: "W_GRAPHML_EDGE_ID_TEXT",
     /** A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. */
     YFILES_GRAPHICS_STALE: "W_GRAPHML_YFILES_GRAPHICS_STALE",
-    /** A yfiles json value that is not a serialisable tree: export() will throw E_COLUMN_TYPE. */
+    /** A yEd graphics value that is not valid XML; the save fails with E_COLUMN_TYPE. */
     YFILES_TREE: "E_GRAPHML_YFILES_TREE",
 });

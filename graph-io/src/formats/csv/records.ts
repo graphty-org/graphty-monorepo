@@ -16,17 +16,26 @@
 
 import { GraphFormatError } from "@graphty/graph-format";
 
-import { type ReadOptions, textChunks } from "../../common/input.js";
+import { MAX_TEXT_LENGTH, type ReadOptions, textChunks, tooLarge } from "../../common/input.js";
 import { type ImportReportBuilder } from "../../common/report.js";
 import { type ImportInput } from "../../types.js";
 
-/** Issue code: a quoted field is never closed; the import aborts (everything after it would be one cell). */
+/**
+ * A quoted field is never closed; the import aborts (everything after it would be one cell).
+ * @category Issue and loss codes
+ */
 export const UNCLOSED_QUOTE_CODE = "E_CSV_UNCLOSED_QUOTE";
 
-/** Issue code: a closing quote is followed by text other than a delimiter or a line break; the import aborts. */
+/**
+ * A closing quote is followed by text other than a delimiter or a line break; the import aborts.
+ * @category Issue and loss codes
+ */
 export const BAD_QUOTE_CODE = "E_CSV_QUOTE";
 
-/** The delimiters tried, in priority order, when none is given. */
+/**
+ * The delimiters tried, in priority order, when none is given.
+ * @category Plugin helpers
+ */
 export const DELIMITER_CANDIDATES: readonly string[] = Object.freeze([",", "\t", ";", "|", " "]);
 
 /** Rows the delimiter sniff looks at. */
@@ -37,6 +46,11 @@ const PREVIEW_CHARS = 64 * 1024;
 
 const LF = 10;
 const CR = 13;
+const TAB = 9;
+const SPACE = 32;
+
+/** An Excel delimiter directive: a first line `sep=;` names the delimiter and is not a record. */
+const SEP_DIRECTIVE = /^sep=([^\r\n])(?:\r\n|\n|\r|$)/i;
 
 /** Tokeniser state: at the start of a field. */
 const START = 0;
@@ -53,7 +67,10 @@ const COMMENT = 5;
 
 type State = typeof START | typeof UNQUOTED | typeof QUOTED | typeof CLOSING | typeof AFTER_QUOTED | typeof COMMENT;
 
-/** The delimiter and quote of a reader. */
+/**
+ * The delimiter and quote of a reader.
+ * @category Plugin helpers
+ */
 export interface RecordSyntax {
     /** The field delimiter, one character; null sniffs it from the first rows. */
     readonly delimiter: string | null;
@@ -72,6 +89,20 @@ export interface RecordSyntax {
      * other text (see sniffDelimiter). False by default: that text then aborts the read.
      */
     readonly skipQuoteErrors?: boolean | undefined;
+    /**
+     * Whether a space delimiter means the whitespace dialect of SNAP / KONECT edge lists: any run of
+     * spaces and tabs separates two fields, and whitespace at the start and end of a line is
+     * ignored. False by default (every space is a delimiter).
+     */
+    readonly collapseSpaces?: boolean | undefined;
+    /** Whether an Excel `sep=X` first line names the delimiter for the sniff. False by default. */
+    readonly sepDirective?: boolean | undefined;
+    /**
+     * Called with the sniff preview (leading comment lines removed) and the line it starts on,
+     * before any record is scanned, so a caller can refuse input that is not delimited text at all.
+     * Only called when the delimiter is sniffed.
+     */
+    readonly inspect?: ((preview: string, line: number) => void) | undefined;
 }
 
 /**
@@ -79,6 +110,7 @@ export interface RecordSyntax {
  * must differ.
  * @param syntax - the delimiter (or null for sniffing) and quote
  * @returns the syntax unchanged; E_UNSUPPORTED when invalid
+ * @category Plugin helpers
  */
 export function checkRecordSyntax(syntax: RecordSyntax): RecordSyntax {
     for (const [option, value] of [
@@ -110,13 +142,14 @@ export function checkRecordSyntax(syntax: RecordSyntax): RecordSyntax {
  * (classic Mac files); `\n` otherwise.
  * @param text - the preview text
  * @returns "\n" or "\r"
+ * @category Plugin helpers
  */
 export function sniffNewline(text: string): "\n" | "\r" {
     return !text.includes("\n") && text.includes("\r") ? "\r" : "\n";
 }
 
 /**
- * Split a text into records synchronously (the first `maxRows` of them), honouring quotes; for
+ * Split a text into records synchronously (the first `maxRows` of them), honoring quotes; for
  * the delimiter sniff and the registry's head sniff, where the input is a bounded preview.
  * @param text - the text
  * @param delimiter - the delimiter
@@ -124,86 +157,177 @@ export function sniffNewline(text: string): "\n" | "\r" {
  * @param maxRows - the most rows to return
  * @param strictQuotes - return null when a closing quote is followed by text other than the
  * delimiter or a line break (the import would abort under this delimiter)
+ * @param collapse - the whitespace dialect (RecordSyntax.collapseSpaces) for a space delimiter
  * @returns the rows as cell arrays (blank lines skipped), or null (see strictQuotes)
+ * @category Plugin helpers
  */
-function splitRecords(
+export function splitRecords(
     text: string,
     delimiter: string,
     quote: string,
     maxRows: number,
     strictQuotes = false,
+    collapse = false,
 ): string[][] | null {
-    const rows: string[][] = [];
-    const delimiterCode = delimiter.charCodeAt(0);
-    const quoteCode = quote.charCodeAt(0);
-    let cells: string[] = [];
-    let state: State = START;
-    let segment = 0;
-    let field = "";
-    const n = text.length;
-    for (let i = 0; i < n && rows.length < maxRows; i++) {
-        const c = text.charCodeAt(i);
-        if (state === QUOTED) {
-            if (c === quoteCode) {
-                field += text.slice(segment, i);
-                state = CLOSING;
-            }
-            continue;
-        }
-        if (state === CLOSING) {
-            if (c === quoteCode) {
-                field += quote;
-                segment = i + 1;
-                state = QUOTED;
-                continue;
-            }
-            if (strictQuotes && c !== delimiterCode && c !== LF && c !== CR) {
-                return null;
-            }
-            state = AFTER_QUOTED;
-            segment = i;
-        }
-        if (c === delimiterCode || c === LF || c === CR) {
-            if (state === UNQUOTED || state === AFTER_QUOTED) {
-                field += text.slice(segment, i);
-            }
-            if (c === delimiterCode) {
-                cells.push(field);
-                field = "";
-                state = START;
-            } else {
-                if (state !== START || cells.length > 0) {
-                    cells.push(field);
-                    rows.push(cells);
-                    cells = [];
-                    field = "";
-                }
-                state = START;
-                if (c === CR && text.charCodeAt(i + 1) === LF) {
-                    i++;
-                }
-            }
-            segment = i + 1;
-            continue;
-        }
-        if (state === START) {
-            if (c === quoteCode) {
-                state = QUOTED;
-                segment = i + 1;
-            } else {
-                state = UNQUOTED;
-                segment = i;
-            }
+    const delimiterCode = delimiter.codePointAt(0);
+    const splitter = new RecordSplitter(text, quote, delimiterCode, collapse && delimiterCode === SPACE, strictQuotes);
+    let i = 0;
+    while (i < text.length && splitter.rows.length < maxRows) {
+        i = splitter.step(i);
+        if (i < 0) {
+            return null;
         }
     }
-    if (rows.length < maxRows && (state !== START || cells.length > 0)) {
-        if (state === UNQUOTED || state === AFTER_QUOTED || state === QUOTED) {
-            field += text.slice(segment, n);
-        }
-        cells.push(field);
-        rows.push(cells);
+    if (splitter.rows.length < maxRows) {
+        splitter.finish();
     }
-    return rows;
+    return splitter.rows;
+}
+
+/** The state machine of splitRecords(): one character at a time, quotes honored. */
+class RecordSplitter {
+    /** The rows read so far. */
+    readonly rows: string[][] = [];
+
+    private cells: string[] = [];
+
+    private state: State = START;
+
+    /** Where the unread part of the current field starts. */
+    private segment = 0;
+
+    private field = "";
+
+    private readonly quoteCode: number | undefined;
+
+    /**
+     * Create a splitter.
+     * @param text - the text
+     * @param quote - the quote character
+     * @param delimiterCode - the delimiter's code
+     * @param whitespace - whether runs of spaces and tabs are one separator
+     * @param strictQuotes - whether text after a closing quote gives up
+     */
+    constructor(
+        private readonly text: string,
+        private readonly quote: string,
+        private readonly delimiterCode: number | undefined,
+        private readonly whitespace: boolean,
+        private readonly strictQuotes: boolean,
+    ) {
+        this.quoteCode = quote.codePointAt(0);
+    }
+
+    /**
+     * Read one character.
+     * @param i - its index
+     * @returns the index of the next character to read, or -1 to give up (strictQuotes)
+     */
+    step(i: number): number {
+        const c = this.text.codePointAt(i);
+        if (this.state === QUOTED) {
+            if (c === this.quoteCode) {
+                this.field += this.text.slice(this.segment, i);
+                this.state = CLOSING;
+            }
+            return i + 1;
+        }
+        const isDelimiter = c === this.delimiterCode || (this.whitespace && c === TAB);
+        if (this.state === CLOSING) {
+            const next = this.afterQuote(i, c, isDelimiter || c === LF || c === CR);
+            if (next !== null) {
+                return next;
+            }
+        }
+        if (isDelimiter || c === LF || c === CR) {
+            return this.separator(i, isDelimiter);
+        }
+        if (this.state === START) {
+            const quoted = c === this.quoteCode;
+            this.state = quoted ? QUOTED : UNQUOTED;
+            this.segment = quoted ? i + 1 : i;
+        }
+        return i + 1;
+    }
+
+    /**
+     * Read the character after a quote that may close a quoted field: a second quote is a quote
+     * character in the field; anything else closes it.
+     * @param i - its index
+     * @param c - its code
+     * @param separates - whether it is a delimiter or a line break
+     * @returns the index of the next character to read, -1 to give up (strictQuotes), or null to
+     * read this character as the one after the field
+     */
+    private afterQuote(i: number, c: number | undefined, separates: boolean): number | null {
+        if (c === this.quoteCode) {
+            this.field += this.quote;
+            this.segment = i + 1;
+            this.state = QUOTED;
+            return i + 1;
+        }
+        if (this.strictQuotes && !separates) {
+            return -1;
+        }
+        this.state = AFTER_QUOTED;
+        this.segment = i;
+        return null;
+    }
+
+    /**
+     * Read a delimiter or a line break: end the field, and at a line break the row.
+     * @param i - its index
+     * @param isDelimiter - whether it is a delimiter
+     * @returns the index of the next character to read
+     */
+    private separator(i: number, isDelimiter: boolean): number {
+        if (this.state === UNQUOTED || this.state === AFTER_QUOTED) {
+            this.field += this.text.slice(this.segment, i);
+        }
+        let next = i + 1;
+        if (isDelimiter && this.whitespace && this.state === START) {
+            // a run of whitespace, or indentation: one separator
+        } else if (isDelimiter) {
+            this.cells.push(this.field);
+            this.field = "";
+            this.state = START;
+        } else {
+            this.endRow();
+            this.state = START;
+            if (this.text.codePointAt(i) === CR && this.text.codePointAt(i + 1) === LF) {
+                next = i + 2;
+            }
+        }
+        this.segment = next;
+        return next;
+    }
+
+    /** End the row at a line break; a blank line is no row. */
+    private endRow(): void {
+        if (this.state === START && this.cells.length === 0) {
+            return;
+        }
+        if (!(this.whitespace && this.state === START)) {
+            this.cells.push(this.field);
+        }
+        this.rows.push(this.cells);
+        this.cells = [];
+        this.field = "";
+    }
+
+    /** End the text: the last row, when it has no line break after it. */
+    finish(): void {
+        if (this.state === START && this.cells.length === 0) {
+            return;
+        }
+        if (this.state === UNQUOTED || this.state === AFTER_QUOTED || this.state === QUOTED) {
+            this.field += this.text.slice(this.segment);
+        }
+        if (!(this.whitespace && this.state === START)) {
+            this.cells.push(this.field);
+        }
+        this.rows.push(this.cells);
+    }
 }
 
 /**
@@ -212,30 +336,37 @@ function splitRecords(
  * @param text - the preview text
  * @param comments - the comment characters
  * @returns the text from the first non-comment line on
+ * @category Plugin helpers
  */
-function stripLeadingComments(text: string, comments: readonly string[]): string {
+export function stripLeadingComments(text: string, comments: readonly string[]): string {
     if (comments.length === 0) {
         return text;
     }
     let at = 0;
-    while (at < text.length && comments.includes(text[at])) {
+    while (at < text.length) {
+        if (text[at] === "\n" || text[at] === "\r") {
+            // a blank line among the leading comments (the scanner skips it too)
+            at++;
+            continue;
+        }
+        if (!comments.includes(text[at])) {
+            break;
+        }
         const lf = text.indexOf("\n", at);
         const cr = text.indexOf("\r", at);
         const end = Math.min(lf < 0 ? Infinity : lf, cr < 0 ? Infinity : cr);
         if (end === Infinity) {
             return "";
         }
-        at = end + 1;
-        if (text[at - 1] === "\r" && text[at] === "\n") {
-            at++;
-        }
+        at = end;
     }
     return at === 0 ? text : text.slice(at);
 }
 
 /**
  * Sniff the delimiter of a text: every candidate is tried over the first rows and the one whose
- * field count is most consistent across rows wins (ties broken by the higher field count); a
+ * field count is most consistent across rows wins (a tie goes to the earlier candidate, so a
+ * space inside comma-separated cells never beats the comma); a
  * candidate that yields fewer than two fields per row on average is never chosen. `null` when no
  * candidate qualifies (a single-column file).
  * @param text - the preview text
@@ -247,7 +378,9 @@ function stripLeadingComments(text: string, comments: readonly string[]): string
  * by other text. Only for inputs whose field counts say nothing (an adjacency table's rows vary in
  * width): elsewhere a stray character after a quote would make a worse candidate win silently
  * instead of aborting the read
+ * @param collapse - read a space candidate in the whitespace dialect (RecordSyntax.collapseSpaces)
  * @returns the delimiter, or null
+ * @category Plugin helpers
  */
 export function sniffDelimiter(
     text: string,
@@ -255,16 +388,16 @@ export function sniffDelimiter(
     candidates: readonly string[] = DELIMITER_CANDIDATES,
     quote = '"',
     skipQuoteErrors = false,
+    collapse = false,
 ): string | null {
     let best: string | null = null;
     let bestDelta = Infinity;
-    let bestAverage = 0;
     const terminated = text.endsWith("\n") || text.endsWith("\r");
     for (const delimiter of candidates) {
         if (delimiter === quote || delimiter === newline) {
             continue;
         }
-        const split = splitRecords(text, delimiter, quote, PREVIEW_ROWS, skipQuoteErrors);
+        const split = splitRecords(text, delimiter, quote, PREVIEW_ROWS, skipQuoteErrors, collapse);
         if (split === null) {
             // a quoted cell this delimiter does not close: it is not the file's delimiter
             continue;
@@ -287,10 +420,9 @@ export function sniffDelimiter(
             }
         }
         const average = total / rows.length;
-        if (average > 1.99 && (delta < bestDelta || (delta === bestDelta && average > bestAverage))) {
+        if (average > 1.99 && delta < bestDelta) {
             best = delimiter;
             bestDelta = delta;
-            bestAverage = average;
         }
     }
     return best;
@@ -312,6 +444,7 @@ function isBlankRow(row: readonly string[]): boolean {
  * are skipped. The arrays are reused between records. When the syntax gives no delimiter, the
  * first rows (PREVIEW_ROWS, or PREVIEW_CHARS characters) are buffered and the delimiter sniffed
  * from them before the first record is yielded.
+ * @category Plugin helpers
  */
 export class RecordReader implements AsyncIterable<number> {
     /** The cells of the record most recently yielded; only the first `count` entries are valid. */
@@ -323,9 +456,18 @@ export class RecordReader implements AsyncIterable<number> {
     /** The leading comment lines (without their line breaks), in order; empty without `syntax.comments`. */
     readonly leadingComments: string[] = [];
 
+    /** The 1-based line of each leading comment, parallel to `leadingComments`. */
+    readonly leadingCommentLines: number[] = [];
+
+    /** The line of the first quote inside an unquoted field (kept as text, RFC 4180 forbids it); 0 for none. */
+    strayQuoteLine = 0;
+
+    /** Whether the sniff took the delimiter from an Excel `sep=X` first line (yielded as the first record). */
+    sepDirective = false;
+
     private readonly input: ImportInput;
 
-    private readonly report: ImportReportBuilder;
+    readonly report: ImportReportBuilder;
 
     private readonly readOptions: ReadOptions;
 
@@ -398,12 +540,15 @@ export class RecordReader implements AsyncIterable<number> {
     /**
      * Record a text-after-quote error (fatal).
      * @param line - the line the field started on
+     * @param field - the 1-based position of the field in its record
      * @returns never
      */
-    badQuote(line: number): never {
-        return this.report.fail(BAD_QUOTE_CODE, `line ${line}: text after the closing quote of a quoted field`, {
-            line,
-        });
+    badQuote(line: number, field: number): never {
+        return this.report.fail(
+            BAD_QUOTE_CODE,
+            `text after the closing quote of quoted field ${field} (a quote inside a quoted field is written as two quotes)`,
+            { line },
+        );
     }
 
     /**
@@ -435,6 +580,11 @@ export class RecordReader implements AsyncIterable<number> {
         let breaks = 0;
         let lastWasCr = false;
         let sniffed = false;
+        // the leading comment lines are left out of the sniff, so they do not count toward its rows
+        const commentCodes = (this.syntax.comments ?? []).map((c) => c.codePointAt(0));
+        let leading = commentCodes.length > 0;
+        let lineStart = true;
+        let inComment = false;
         for await (const chunk of source) {
             if (sniffed) {
                 yield chunk;
@@ -444,12 +594,18 @@ export class RecordReader implements AsyncIterable<number> {
             length += chunk.length;
             for (let i = 0; i < chunk.length && breaks < PREVIEW_ROWS; i++) {
                 const c = chunk.charCodeAt(i);
-                if (c === LF) {
-                    if (!lastWasCr) {
+                if (c === LF || c === CR) {
+                    if (!(c === LF && lastWasCr) && !inComment) {
                         breaks++;
                     }
-                } else if (c === CR) {
-                    breaks++;
+                    inComment = false;
+                    lineStart = true;
+                } else {
+                    if (lineStart && leading) {
+                        inComment = commentCodes.includes(c);
+                        leading = inComment;
+                    }
+                    lineStart = false;
                 }
                 lastWasCr = c === CR;
             }
@@ -476,13 +632,30 @@ export class RecordReader implements AsyncIterable<number> {
      * @param text - the preview
      */
     private sniff(text: string): void {
-        const candidates = this.syntax.candidates ?? DELIMITER_CANDIDATES;
         // the sniff is a heuristic over the first rows: a single chunk holding a huge quoted cell
         // is capped so the candidate scans stay bounded
-        const body = stripLeadingComments(text.slice(0, PREVIEW_CHARS), this.syntax.comments ?? []);
+        const preview = text.slice(0, PREVIEW_CHARS);
+        const body = stripLeadingComments(preview, this.syntax.comments ?? []);
+        if (this.syntax.inspect !== undefined) {
+            const skipped = preview.slice(0, preview.length - body.length).match(/\r\n|\r|\n/g)?.length ?? 0;
+            this.syntax.inspect(body, skipped + 1);
+        }
+        const directive = this.syntax.sepDirective === true ? SEP_DIRECTIVE.exec(text) : null;
+        if (directive !== null && directive[1] !== this.syntax.quote) {
+            this.delimiterText = directive[1];
+            this.sepDirective = true;
+            return;
+        }
+        const candidates = this.syntax.candidates ?? DELIMITER_CANDIDATES;
         this.delimiterText =
-            sniffDelimiter(body, sniffNewline(body), candidates, this.syntax.quote, this.syntax.skipQuoteErrors) ??
-            candidates[0];
+            sniffDelimiter(
+                body,
+                sniffNewline(body),
+                candidates,
+                this.syntax.quote,
+                this.syntax.skipQuoteErrors,
+                this.syntax.collapseSpaces,
+            ) ?? candidates[0];
     }
 }
 
@@ -515,6 +688,9 @@ class RecordScanner {
 
     private delimiterCode = -1;
 
+    /** The whitespace dialect: the delimiter is a space and RecordSyntax.collapseSpaces is set. */
+    private collapse = false;
+
     private state: State = START;
 
     private field = "";
@@ -525,7 +701,7 @@ class RecordScanner {
 
     private lastWasCr = false;
 
-    /** Whether no record has started yet (comment lines are recognised until one does). */
+    /** Whether no record has started yet (comment lines are recognized until one does). */
     private leading: boolean;
 
     private comment = "";
@@ -552,6 +728,7 @@ class RecordScanner {
     setDelimiter(code: number): void {
         if (this.delimiterCode < 0) {
             this.delimiterCode = code;
+            this.collapse = code === SPACE && this.reader.syntax.collapseSpaces === true;
         }
     }
 
@@ -570,8 +747,9 @@ class RecordScanner {
             const c = chunk.charCodeAt(i);
             if (this.state === COMMENT) {
                 if (c === LF || c === CR) {
-                    this.comment += chunk.slice(this.segment, i);
+                    this.comment = this.grow(this.comment, chunk.slice(this.segment, i));
                     this.reader.leadingComments.push(this.comment);
+                    this.reader.leadingCommentLines.push(this.line);
                     this.comment = "";
                     this.state = START;
                     this.endLine(c);
@@ -591,29 +769,30 @@ class RecordScanner {
                     i = n;
                     break;
                 }
-                this.field += chunk.slice(this.segment, q);
+                this.field = this.grow(this.field, chunk.slice(this.segment, q));
                 this.state = CLOSING;
                 this.lastWasCr = false;
                 i = q + 1;
                 continue;
             }
+            const isDelimiter = c === delimiterCode || (this.collapse && c === TAB);
             if (this.state === CLOSING) {
                 if (c === quoteCode) {
-                    this.field += this.quoteText;
+                    this.field = this.grow(this.field, this.quoteText);
                     this.segment = i + 1;
                     this.state = QUOTED;
                     this.lastWasCr = false;
                     i++;
                     continue;
                 }
-                if (c !== delimiterCode && c !== LF && c !== CR) {
-                    this.reader.badQuote(this.startLine);
+                if (!isDelimiter && c !== LF && c !== CR) {
+                    this.reader.badQuote(this.startLine, this.count + 1);
                 }
                 this.state = AFTER_QUOTED;
                 this.segment = i;
                 // fall through to the delimiter / line-end handling below without consuming c
             }
-            if (c === delimiterCode || c === LF || c === CR) {
+            if (isDelimiter || c === LF || c === CR) {
                 if (c === LF && this.lastWasCr) {
                     // the second half of a CRLF already ended the record
                     this.lastWasCr = false;
@@ -622,9 +801,16 @@ class RecordScanner {
                     continue;
                 }
                 if (this.state === UNQUOTED) {
-                    this.field += chunk.slice(this.segment, i);
+                    this.field = this.grow(this.field, chunk.slice(this.segment, i));
                 }
-                if (c === delimiterCode) {
+                if (isDelimiter && this.collapse && this.state === START) {
+                    // a run of whitespace, or indentation: one separator
+                    this.lastWasCr = false;
+                    this.segment = i + 1;
+                    i++;
+                    continue;
+                }
+                if (isDelimiter) {
                     this.push();
                     this.state = START;
                     this.lastWasCr = false;
@@ -632,9 +818,11 @@ class RecordScanner {
                     i++;
                     continue;
                 }
-                const blank = this.state === START && this.count === 0;
-                if (!blank) {
+                // a line ending right after a whitespace run in the whitespace dialect ends no field
+                if (!(this.state === START && (this.count === 0 || this.collapse))) {
                     this.push();
+                }
+                if (this.count > 0) {
                     this.ready = true;
                     this.recordLine = this.startLine;
                 }
@@ -664,6 +852,8 @@ class RecordScanner {
                     this.state = UNQUOTED;
                     this.segment = i;
                 }
+            } else if (c === quoteCode && this.state === UNQUOTED && this.reader.strayQuoteLine === 0) {
+                this.reader.strayQuoteLine = this.startLine;
             }
             i++;
         }
@@ -680,9 +870,9 @@ class RecordScanner {
             return;
         }
         if (this.state === COMMENT) {
-            this.comment += chunk.slice(this.segment, n);
+            this.comment = this.grow(this.comment, chunk.slice(this.segment, n));
         } else if (this.state === QUOTED || this.state === UNQUOTED) {
-            this.field += chunk.slice(this.segment, n);
+            this.field = this.grow(this.field, chunk.slice(this.segment, n));
         }
         this.segment = n;
     }
@@ -696,13 +886,16 @@ class RecordScanner {
         const { state } = this;
         if (state === COMMENT) {
             this.reader.leadingComments.push(this.comment);
+            this.reader.leadingCommentLines.push(this.line);
             return false;
         }
         if (state === QUOTED) {
             this.reader.unclosedQuote(this.startLine);
         }
         if (state !== START || this.count > 0) {
-            this.push();
+            if (!(state === START && this.collapse)) {
+                this.push();
+            }
             this.recordLine = this.startLine;
             return true;
         }
@@ -716,23 +909,46 @@ class RecordScanner {
      * @param to - the index after the run
      */
     private countLineBreaks(chunk: string, from: number, to: number): void {
-        let { line, lastWasCr } = this;
-        for (let i = from; i < to; i++) {
-            const c = chunk.charCodeAt(i);
-            if (c === LF) {
-                if (!lastWasCr) {
+        // indexOf, not a charCodeAt loop: a quoted cell may be hundreds of MiB, and a per-character
+        // loop over it is the whole cost of reading it (and many times that under coverage)
+        const run = chunk.slice(from, to);
+        let { line } = this;
+        // the index of the last CR seen; -1 is a CR just before the run, -2 none
+        let lastCr = this.lastWasCr ? -1 : -2;
+        let lf = run.indexOf("\n");
+        let cr = run.indexOf("\r");
+        while (lf >= 0 || cr >= 0) {
+            if (lf < 0 || (cr >= 0 && cr < lf)) {
+                line++;
+                lastCr = cr;
+                cr = run.indexOf("\r", cr + 1);
+            } else {
+                if (lf !== lastCr + 1) {
                     line++;
                 }
-                lastWasCr = false;
-            } else if (c === CR) {
-                line++;
-                lastWasCr = true;
-            } else {
-                lastWasCr = false;
+                lf = run.indexOf("\n", lf + 1);
             }
         }
         this.line = line;
-        this.lastWasCr = lastWasCr;
+        this.lastWasCr = lastCr === run.length - 1;
+    }
+
+    /**
+     * Append to the field or comment in progress, failing with E_TOO_LARGE instead of a RangeError
+     * when the result would be longer than one JavaScript string can hold.
+     * @param text - the text so far
+     * @param piece - the text to append
+     * @returns the joined text
+     */
+    private grow(text: string, piece: string): string {
+        if (text.length + piece.length > MAX_TEXT_LENGTH) {
+            tooLarge(
+                this.reader.report,
+                `a cell is longer than ${MAX_TEXT_LENGTH} characters, the most one JavaScript string holds`,
+                this.startLine,
+            );
+        }
+        return text + piece;
     }
 
     /** Store the field in progress as the next cell. */
@@ -758,7 +974,10 @@ class RecordScanner {
     }
 }
 
-/** What the CSV importer's reader needs besides the input. */
+/**
+ * What the CSV importer's reader needs besides the input.
+ * @category Plugin helpers
+ */
 export interface CsvReaderOptions extends ReadOptions {
     /** The delimiter; null or undefined sniffs it from the preview. */
     readonly delimiter?: string | null | undefined;
@@ -766,6 +985,8 @@ export interface CsvReaderOptions extends ReadOptions {
     readonly comments?: readonly string[] | undefined;
     /** RecordSyntax.skipQuoteErrors; false by default. */
     readonly skipQuoteErrors?: boolean | undefined;
+    /** RecordSyntax.inspect; none by default. */
+    readonly inspect?: ((preview: string, line: number) => void) | undefined;
 }
 
 /**
@@ -774,7 +995,10 @@ export interface CsvReaderOptions extends ReadOptions {
  * on. The delimiter is known after the first row (`reader.delimiter`). Rows come out as fresh
  * arrays of cell texts exactly as written (no trimming, no typing); `reader.quoted` tells, for
  * the row just yielded, which cells were quoted (a quoted empty cell is the empty string, an
- * unquoted one is "not set"). Blank lines and whitespace-only single-cell lines are skipped.
+ * unquoted one is "not set"). Blank lines, whitespace-only lines and rows of empty unquoted cells
+ * are skipped. A space delimiter reads the whitespace dialect (RecordSyntax.collapseSpaces), and an
+ * Excel `sep=X` first line names the delimiter when none is given.
+ * @category Plugin helpers
  */
 export class CsvRecordReader implements AsyncIterable<string[]> {
     private readonly inner: RecordReader;
@@ -794,8 +1018,17 @@ export class CsvRecordReader implements AsyncIterable<string[]> {
                 quote: '"',
                 comments: options.comments,
                 skipQuoteErrors: options.skipQuoteErrors,
+                collapseSpaces: true,
+                sepDirective: true,
+                inspect: options.inspect,
             },
-            { signal: options.signal, onProgress: options.onProgress, encoding: options.encoding },
+            {
+                signal: options.signal,
+                onProgress: options.onProgress,
+                encoding: options.encoding,
+                allowEmpty: options.allowEmpty,
+                nulIsBinary: true,
+            },
         );
     }
 
@@ -805,6 +1038,14 @@ export class CsvRecordReader implements AsyncIterable<string[]> {
      */
     get leadingComments(): readonly string[] {
         return this.inner.leadingComments;
+    }
+
+    /**
+     * The 1-based line of each leading comment, parallel to `leadingComments`.
+     * @returns the lines
+     */
+    get leadingCommentLines(): readonly number[] {
+        return this.inner.leadingCommentLines;
     }
 
     /**
@@ -832,6 +1073,22 @@ export class CsvRecordReader implements AsyncIterable<string[]> {
     }
 
     /**
+     * The line of the first quote inside an unquoted field.
+     * @returns the line, or 0 when there was none
+     */
+    get strayQuoteLine(): number {
+        return this.inner.strayQuoteLine;
+    }
+
+    /**
+     * Whether the first record is an Excel `sep=X` line the delimiter was taken from.
+     * @returns true when it is
+     */
+    get sepDirective(): boolean {
+        return this.inner.sepDirective;
+    }
+
+    /**
      * Iterate the rows.
      * @yields one row at a time as its cell texts
      * @returns nothing
@@ -839,10 +1096,27 @@ export class CsvRecordReader implements AsyncIterable<string[]> {
     async *[Symbol.asyncIterator](): AsyncGenerator<string[], void, undefined> {
         const { inner } = this;
         for await (const count of inner) {
-            if (count === 1 && !inner.quoted[0] && inner.cells[0].trim().length === 0) {
+            if (isBlankRecord(inner.cells, inner.quoted, count)) {
                 continue;
             }
             yield inner.cells.slice(0, count);
         }
     }
+}
+
+/**
+ * Whether a record holds nothing: every cell unquoted and blank (a blank line, a whitespace-only
+ * line, or an Excel empty row `,,,`). A quoted empty cell is a value.
+ * @param cells - the cells
+ * @param quoted - whether each was quoted
+ * @param count - the cell count
+ * @returns true when the record carries no value
+ */
+function isBlankRecord(cells: readonly string[], quoted: readonly boolean[], count: number): boolean {
+    for (let k = 0; k < count; k++) {
+        if (quoted[k] || cells[k].trim().length > 0) {
+            return false;
+        }
+    }
+    return true;
 }

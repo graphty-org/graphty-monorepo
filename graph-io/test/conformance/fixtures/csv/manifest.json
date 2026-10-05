@@ -911,8 +911,7 @@
           "b",
           "c"
         ]
-      },
-      "knownFailure": "Excel sep= line not recognised (sources.md 7.4)"
+      }
     },
     {
       "file": "dialect/whitespace-around-fields.csv",
@@ -1186,8 +1185,7 @@
             "target": 4
           }
         ]
-      },
-      "knownFailure": "runs of whitespace are not one delimiter (sources.md 7.4)"
+      }
     },
     {
       "file": "gephi/edge-list.csv",

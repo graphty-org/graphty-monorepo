@@ -21,6 +21,7 @@ const ESCAPES: Readonly<Record<string, string>> = Object.freeze({
  * backslash at the very end is dropped.
  * @param text - raw text
  * @returns the unescaped text
+ * @category Plugin helpers
  */
 export function unescapeObo(text: string): string {
     if (!text.includes("\\")) {
@@ -57,9 +58,37 @@ function isEscaped(text: string, index: number): boolean {
 }
 
 /**
+ * Split a line at the form feeds outside quotes (the 1.4 grammar counts a form feed as a line end;
+ * one inside a quoted value is text).
+ * @param line - the raw line
+ * @returns the pieces, the line itself when it holds no such form feed
+ * @category Plugin helpers
+ */
+export function splitFormFeeds(line: string): string[] {
+    if (!line.includes("\f")) {
+        return [line];
+    }
+    const pieces: string[] = [];
+    let quoted = false;
+    let start = 0;
+    for (let i = 0; i < line.length; i += line[i] === "\\" ? 2 : 1) {
+        const ch = line[i];
+        if (ch === '"') {
+            quoted = !quoted;
+        } else if (ch === "\f" && !quoted) {
+            pieces.push(line.slice(start, i));
+            start = i + 1;
+        }
+    }
+    pieces.push(line.slice(start));
+    return pieces;
+}
+
+/**
  * Whether a raw line ends with an unescaped backslash (the 1.0 / 1.2 line continuation).
  * @param line - the raw line, trailing whitespace included
  * @returns true when the line continues on the next one
+ * @category Plugin helpers
  */
 export function endsWithContinuation(line: string): boolean {
     return line.endsWith("\\") && !isEscaped(line, line.length - 1);
@@ -77,6 +106,7 @@ interface TagValue {
  * Split a line at its first unescaped colon (values contain colons freely: `is_a: GO:0000001`).
  * @param line - the raw line, trimmed
  * @returns the tag and the rest, or null when the line has no colon
+ * @category Plugin helpers
  */
 export function splitTagValue(line: string): TagValue | null {
     for (let i = 0; i < line.length; i++) {
@@ -99,6 +129,7 @@ export function splitTagValue(line: string): TagValue | null {
  * hide the comment after it.
  * @param rest - the raw value
  * @returns the value before the comment, trailing whitespace removed
+ * @category Plugin helpers
  */
 export function stripComment(rest: string): string {
     let quoted = false;
@@ -118,7 +149,10 @@ export function stripComment(rest: string): string {
     return rest.trimEnd();
 }
 
-/** The qualifiers of a clause: name to value (a list when a name repeats). */
+/**
+ * The qualifiers of a clause: name to value (a list when a name repeats).
+ * @category Plugin helpers
+ */
 export type Qualifiers = Record<string, string | string[]>;
 
 /** A value with its trailing qualifier blocks split off. */
@@ -134,37 +168,55 @@ interface QualifiedValue {
 /**
  * Split the trailing qualifier blocks off a value: a `{...}` is a block only when it closes the
  * value (after the comment was stripped); several blocks (`{a="1"}{b="2"}`, 1.2 examples) are
- * merged. A closing brace whose block does not parse is left in the value and reported.
+ * merged. A closing brace whose block does not parse is left in the value and reported. The value
+ * is scanned once, so a value of many blocks costs its length, not its length times its blocks.
  * @param value - the raw value without its comment
  * @returns the value and its qualifiers
+ * @category Plugin helpers
  */
 export function splitQualifiers(value: string): QualifiedValue {
-    let rest = value;
-    let qualifiers: Qualifiers | null = null;
-    for (;;) {
-        if (!rest.endsWith("}") || isEscaped(rest, rest.length - 1)) {
-            return { value: rest, qualifiers, badBlock: null };
-        }
-        const open = openingBrace(rest);
-        const parsed = open < 0 ? null : parseQualifiers(rest.slice(open + 1, -1));
-        if (parsed === null) {
-            return { value: rest, qualifiers, badBlock: open < 0 ? rest : rest.slice(open) };
-        }
-        // a block read right to left: an earlier block's names come first
-        qualifiers = qualifiers === null ? parsed : mergeQualifiers(parsed, qualifiers);
-        rest = rest.slice(0, open).trimEnd();
+    if (!value.endsWith("}")) {
+        return { value, qualifiers: null, badBlock: null };
     }
+    const blocks = braceBlocks(value);
+    // the blocks read right to left, merged left to right below
+    const parsed: Qualifiers[] = [];
+    let end = value.length;
+    let badBlock: string | null = null;
+    while (end > 0 && value[end - 1] === "}" && !isEscaped(value, end - 1)) {
+        const open = blocks.get(end - 1) ?? -1;
+        const block = open < 0 ? null : parseQualifiers(value.slice(open + 1, end - 1));
+        if (block === null) {
+            badBlock = value.slice(Math.max(open, 0), end);
+            break;
+        }
+        parsed.push(block);
+        end = open;
+        while (end > 0 && /\s/.test(value[end - 1])) {
+            end--;
+        }
+    }
+    let qualifiers: Qualifiers | null = null;
+    for (let i = parsed.length - 1; i >= 0; i--) {
+        qualifiers ??= Object.create(null) as Qualifiers;
+        for (const [name, v] of Object.entries(parsed[i])) {
+            addQualifier(qualifiers, name, v);
+        }
+    }
+    return { value: value.slice(0, end), qualifiers, badBlock };
 }
 
 /**
- * The index of the unescaped `{` outside quotes that opens the block closing the value.
- * @param value - a raw value ending with `}`
- * @returns the index, or -1 when there is none
+ * The qualifier blocks of a value in one scan: for every unescaped `}` outside quotes, the index of
+ * the unescaped `{` outside quotes that opens it (-1 when a `}` came after that `{`, or none did).
+ * @param value - a raw value
+ * @returns the opening index by closing index
  */
-function openingBrace(value: string): number {
+function braceBlocks(value: string): Map<number, number> {
+    const blocks = new Map<number, number>();
     let quoted = false;
     let open = -1;
-    for (let i = 0; i < value.length - 1; i++) {
+    for (let i = 0; i < value.length; i++) {
         const ch = value[i];
         if (ch === "\\") {
             i++;
@@ -175,39 +227,60 @@ function openingBrace(value: string): number {
         } else if (!quoted && ch === "{") {
             open = i;
         } else if (!quoted && ch === "}") {
+            blocks.set(i, open);
             open = -1;
         }
     }
-    return quoted ? -1 : open;
+    return blocks;
 }
 
 /**
- * Merge two qualifier records, a repeated name becoming a list.
- * @param first - the earlier record
- * @param second - the later record
- * @returns the merged record
+ * The index of an unescaped `{` outside quotes that no `}` closes: a qualifier block cut short (a
+ * file truncated inside it).
+ * @param value - a raw value, closing blocks already split off
+ * @returns the index, or -1 when every brace is closed
+ * @category Plugin helpers
  */
-function mergeQualifiers(first: Qualifiers, second: Qualifiers): Qualifiers {
-    const out: Qualifiers = { ...first };
-    for (const [name, value] of Object.entries(second)) {
-        addQualifier(out, name, value);
+export function unclosedBlock(value: string): number {
+    let quoted = false;
+    let open = -1;
+    for (let i = 0; i < value.length; i += value[i] === "\\" ? 2 : 1) {
+        const ch = value[i];
+        if (ch === "\\") {
+            continue;
+        }
+        if (ch === '"' && open < 0) {
+            quoted = !quoted;
+        } else if (!quoted && ch === "{") {
+            open = i;
+        } else if (!quoted && ch === "}") {
+            open = -1;
+        }
     }
-    return out;
+    return open;
 }
 
 /**
- * Add one qualifier, turning a repeated name into a list.
+ * Add one qualifier, turning a repeated name into a list (a list the record owns, appended to in
+ * place). The record must have a null prototype, so a name such as `__proto__` is an own key.
  * @param record - the record
  * @param name - the name
  * @param value - the value (or values)
  */
 function addQualifier(record: Qualifiers, name: string, value: string | string[]): void {
+    const values = Array.isArray(value) ? value : [value];
     if (!Object.prototype.hasOwnProperty.call(record, name)) {
-        record[name] = value;
+        record[name] = Array.isArray(value) ? [...value] : value;
         return;
     }
     const before = record[name];
-    record[name] = [...(Array.isArray(before) ? before : [before]), ...(Array.isArray(value) ? value : [value])];
+    if (Array.isArray(before)) {
+        for (const v of values) {
+            before.push(v);
+        }
+    } else {
+        record[name] = [before, ...values];
+    }
 }
 
 /**
@@ -216,6 +289,7 @@ function addQualifier(record: Qualifiers, name: string, value: string | string[]
  * (qualifier names may be IRIs with colons).
  * @param inner - the text between the braces
  * @returns the qualifiers, or null when the block does not parse (a pair without `=`, an unclosed quote)
+ * @category Plugin helpers
  */
 export function parseQualifiers(inner: string): Qualifiers | null {
     const out: Qualifiers = Object.create(null) as Qualifiers;
@@ -260,7 +334,7 @@ export function parseQualifiers(inner: string): Qualifiers | null {
         addQualifier(out, name, value);
         any = true;
     }
-    return any ? { ...out } : null;
+    return any ? out : null;
 }
 
 /**
@@ -280,7 +354,10 @@ function closingQuote(text: string, from: number): number {
     return -1;
 }
 
-/** One token of a value. */
+/**
+ * One token of a value.
+ * @category Plugin helpers
+ */
 export interface Token {
     /** A bare word, a quoted string or a bracketed list. */
     readonly kind: "word" | "quoted" | "list";
@@ -295,6 +372,7 @@ export interface Token {
  * Whitespace separates tokens; an escaped space belongs to its word.
  * @param value - the raw value
  * @returns the tokens
+ * @category Plugin helpers
  */
 export function tokenize(value: string): Token[] {
     const tokens: Token[] = [];
@@ -364,7 +442,10 @@ function closingBracket(text: string, from: number): number {
     return -1;
 }
 
-/** One cross-reference: `ID "description" {qualifiers}`. */
+/**
+ * One cross-reference: `ID "description" {qualifiers}`.
+ * @category Plugin helpers
+ */
 export interface Xref {
     /** The id (may hold spaces: `NIST Chemistry WebBook:110-63-4`, which owlapi reads). */
     readonly id: string;
@@ -372,6 +453,8 @@ export interface Xref {
     readonly description: string | null;
     /** Per-xref qualifiers (OBO 1.2 inside a list), or null. */
     readonly qualifiers: Qualifiers | null;
+    /** Whether the description's quote was never closed (it runs to the end). */
+    readonly unterminated: boolean;
 }
 
 /**
@@ -379,6 +462,7 @@ export interface Xref {
  * string its description, a closing block its qualifiers.
  * @param raw - the raw text of one xref
  * @returns the xref, or null when it has no id
+ * @category Plugin helpers
  */
 export function parseXref(raw: string): Xref | null {
     const { value, qualifiers } = splitQualifiers(raw.trim());
@@ -396,11 +480,13 @@ export function parseXref(raw: string): Xref | null {
         return null;
     }
     let description: string | null = null;
+    let unterminated = false;
     if (quote >= 0) {
         const end = closingQuote(value, quote + 1);
+        unterminated = end < 0;
         description = unescapeObo(value.slice(quote + 1, end < 0 ? value.length : end));
     }
-    return { id, description, qualifiers };
+    return { id, description, qualifiers, unterminated };
 }
 
 /**
@@ -408,6 +494,7 @@ export function parseXref(raw: string): Xref | null {
  * braces (a solitary xref needs no escaping of its commas only outside a list).
  * @param inner - the raw text between the brackets
  * @returns the xrefs, in order
+ * @category Plugin helpers
  */
 export function parseXrefList(inner: string): Xref[] {
     const out: Xref[] = [];
@@ -445,6 +532,7 @@ export function parseXrefList(inner: string): Xref[] {
  * have escaped).
  * @param value - the raw value, qualifiers already split off
  * @returns true when a stray brace is present
+ * @category Plugin helpers
  */
 export function hasStrayBrace(value: string): boolean {
     let quoted = false;
@@ -463,4 +551,111 @@ export function hasStrayBrace(value: string): boolean {
         }
     }
     return false;
+}
+
+// ============================================================ the writer side
+
+/** A carriage return, a CRLF pair or a form feed: line ends OBO text cannot carry. */
+const LINE_ENDS = /\r\n|\r|\f/g;
+
+/**
+ * Whether a text holds a carriage return or a form feed, which the OBO line grammar reads as a line
+ * end wherever it stands and no escape can spell; the writers turn them into `\n`.
+ * @param text - the text
+ * @returns true when the text loses a character on the way through an OBO file
+ * @category Plugin helpers
+ */
+export function hasLineEnd(text: string): boolean {
+    return text.includes("\r") || text.includes("\f");
+}
+
+/**
+ * Escape text for a quoted OBO string (`def: "..."`, a synonym, a qualifier value): backslash,
+ * quote, newline and tab. A carriage return or form feed becomes a newline (see hasLineEnd()).
+ * `\W` is never written: graph-io reads it as a space, fastobo and the 1.4 BNF as the letter W.
+ * @param text - the text
+ * @returns the escaped text, without the quotes
+ * @category Plugin helpers
+ */
+export function escapeOboQuoted(text: string): string {
+    return text.replaceAll(LINE_ENDS, "\n").replaceAll(/[\\"\n\t]/g, (ch) => {
+        switch (ch) {
+            case "\n":
+                return String.raw`\n`;
+            case "\t":
+                return String.raw`\t`;
+            default:
+                return `\\${ch}`;
+        }
+    });
+}
+
+/**
+ * Escape text for an unquoted OBO value (`name:`, `comment:`, an xref id, an unknown tag): what
+ * escapeOboQuoted() escapes plus `!` (a comment), `{` and `}` (a qualifier block), `[`, `]` and `,`
+ * (an xref list) and `"` (a quoted string). The reader trims an unquoted value, so its leading
+ * and trailing spaces cannot be kept.
+ * @param text - the text
+ * @returns the escaped text
+ * @category Plugin helpers
+ */
+export function escapeOboValue(text: string): string {
+    return escapeOboQuoted(text).replaceAll(/[!{}[\],]/g, (ch) => `\\${ch}`);
+}
+
+/**
+ * Whether a text can stand as one OBO word (an id, a relation, a subset or synonym type name): not
+ * empty, no whitespace, no control character (the importer refuses an id holding one), no `!`, `{`
+ * or `}`. escapeOboWord() escapes what else would end it or turn
+ * it into another token (a backslash, a quote, a leading `[`).
+ * @param text - the text
+ * @returns true when the text is a word
+ * @category Plugin helpers
+ */
+export function isOboWord(text: string): boolean {
+    return text.length > 0 && !NOT_IN_WORD.test(text);
+}
+
+/**
+ * A character an OBO word cannot hold: whitespace, a control character, `!`, `{` or `}`.
+ * @category Plugin helpers
+ */
+export const NOT_IN_WORD = /[\s!{}\p{Cc}]/u;
+
+/**
+ * Write a word (see isOboWord()): a backslash and a quote escaped, and a leading `[` (which would
+ * open an xref list).
+ * @param word - a text isOboWord() accepts
+ * @returns the text to write
+ * @category Plugin helpers
+ */
+export function escapeOboWord(word: string): string {
+    const out = word.replaceAll(/[\\"]/g, (ch) => `\\${ch}`);
+    return out.startsWith("[") ? `\\${out}` : out;
+}
+
+/**
+ * Whether a text can be a qualifier name: not empty, no surrounding space, none of `=`, `"`, `,`,
+ * `{`, `}`, `[`, `]`, `!`, a backslash or a line end (the reader takes a name as everything up to
+ * the first `=`, unescaped only after the split).
+ * @param name - the name
+ * @returns true when the name is written as it is
+ * @category Plugin helpers
+ */
+export function isQualifierName(name: string): boolean {
+    return name.length > 0 && name === name.trim() && !/[=",{}[\]!\\\n\r\t\f]/.test(name);
+}
+
+/**
+ * A qualifier block: `{name="value", ...}`, a list value as one pair per item.
+ * @param pairs - the name / value pairs, in order (names isQualifierName() accepts)
+ * @returns the block with a leading space, or "" when there are no pairs
+ * @category Plugin helpers
+ */
+export function qualifierBlock(pairs: readonly (readonly [string, string])[]): string {
+    if (pairs.length === 0) {
+        return "";
+    }
+    const items = pairs.map(([name, value]) => `${name}="${escapeOboQuoted(value)}"`);
+    return ` {${items.join(", ")}}`;
 }

@@ -1,0 +1,5 @@
+W_PAJEK_KEY_DROPPED: edge column "Edge Label" cannot be a Pajek parameter key; it is not written
+W_EDGE_IDS_DROPPED: edge id column "id" cannot be written
+W_ID_RENUMBERED: 107 node ids are not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value
+first id after the round trip: Aemon
+got.net: id 1, label Aemon

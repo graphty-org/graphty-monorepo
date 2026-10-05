@@ -15,6 +15,7 @@ import {
     ImportError,
     type ImportInput,
     type ImportReport,
+    INPUT_ISSUE,
 } from "@graphty/graph-io";
 
 import type { AdHocData } from "../config/common.js";
@@ -164,12 +165,40 @@ export async function importDocument<Opts>(
 }
 
 /**
+ * The error a load fails with when graph-io stopped because the input holds nothing at all: the
+ * file is empty, not unreadable, so it is refused as an empty load like a file of no records.
+ * @param error - what graph-io threw
+ * @param format - the format the file was read as
+ * @returns a `GraphtyError` with `E_EMPTY_LOAD`, or null when the input was not empty
+ */
+export function emptyLoad(error: unknown, format: string): GraphtyError | null {
+    if (
+        !(error instanceof ImportError) ||
+        !error.report.issues.some((issue) => issue.code === INPUT_ISSUE.EMPTY_INPUT)
+    ) {
+        return null;
+    }
+
+    return GraphtyError.wrap(error, {
+        code: "E_EMPTY_LOAD",
+        source: "data",
+        message: `The ${format} source is empty, so there was nothing to load. Check the file.`,
+        details: { format, rowErrors: 0 },
+    });
+}
+
+/**
  * The error a load fails with when the importer could not read the file.
  * @param importer - the graph-io importer for the format
  * @param error - the importer's error
  * @returns a `GraphtyError` with `E_PARSE_FAILED` naming the format and the last error line
  */
 function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError {
+    const empty = emptyLoad(error, importer.format);
+    if (empty !== null) {
+        return empty;
+    }
+
     const line = error.report.issues.filter((issue) => issue.severity === "error").at(-1)?.line ?? null;
     return GraphtyError.wrap(error, {
         code: "E_PARSE_FAILED",

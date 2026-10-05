@@ -26,6 +26,10 @@ features:
       details: Graph layout algorithms. Force-directed, geometric, hierarchical, and spectral layouts in 2D/3D.
       link: /layout/api/generated/
       linkText: API Reference
+    - title: graph-io
+      details: Read and write 13 graph file formats (GraphML, GEXF, GML, DOT, Pajek, CSV, JSON, Neo4j, Cytoscape and more), streaming, with a report of anything a file could not keep.
+      link: /graph-io/
+      linkText: Documentation
     - title: visual-review
       details: Visual regression review for any Storybook. Captures in GitHub Actions, baselines in git, review on your own machine.
       link: /visual-review/

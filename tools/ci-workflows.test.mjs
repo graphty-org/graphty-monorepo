@@ -337,8 +337,11 @@ describe("release.yml", () => {
     it("audits the released commit's dependencies before it opens the release pull request", () => {
         const audit = train.indexOf("run: pnpm audit --audit-level=high");
         assert.ok(audit > train.indexOf("pnpm install --frozen-lockfile"), "after install");
+        assert.ok(audit < train.indexOf("nx release --skip-publish"), "before versioning");
+        assert.ok(audit < train.indexOf("name: Keep the builds for the publish job"), "before the 30-day artifact");
         assert.ok(audit < train.indexOf("gh pr create"), "before the release pull request");
         const step = train.slice(train.lastIndexOf("- name:", audit), audit);
+        assert.match(step, /if: \$\{\{ steps.lanes.outputs.release == 'true' \}\}/, "runs whenever a release is cut");
         assert.doesNotMatch(step, /continue-on-error/, "a high advisory blocks the release");
     });
 

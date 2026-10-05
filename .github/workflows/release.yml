@@ -131,15 +131,6 @@ jobs:
                   run-id: ${{ steps.lanes.outputs.ci_run_id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Keep the builds for the publish job
-              if: ${{ steps.lanes.outputs.release == 'true' }}
-              uses: actions/upload-artifact@v4
-              with:
-                  name: release-builds-${{ steps.lanes.outputs.sha }}
-                  path: ${{ runner.temp }}/builds
-                  retention-days: 30
-                  if-no-files-found: error
-
             - uses: pnpm/action-setup@v4
               if: ${{ steps.lanes.outputs.release == 'true' }}
 
@@ -160,6 +151,16 @@ jobs:
             - name: Security audit
               if: ${{ steps.lanes.outputs.release == 'true' }}
               run: pnpm audit --audit-level=high
+
+            # After the audit, so a release the audit blocks leaves no 30-day artifact behind.
+            - name: Keep the builds for the publish job
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: release-builds-${{ steps.lanes.outputs.sha }}
+                  path: ${{ runner.temp }}/builds
+                  retention-days: 30
+                  if-no-files-found: error
 
             # A package listed in release-hold.json is left out of nx.json's release.projects in this checkout, so
             # it is neither versioned nor published -- not even as a dependent of a package that is released. An ad

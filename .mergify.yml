@@ -16,6 +16,12 @@
 # retried in halves (bisection) until the culprit is found; nothing is retried as-is. The visual gate
 # accepts a batch: it passes only when every capture equals an image the owner approved on one of the
 # batch's pull requests (visual-review/trusted/gate.mjs, --queue-event).
+# One merge commit per batch (merge_method: merge-batch, a trial since 2026-10-05): Mergify merges the
+# batch's draft pull request itself, so master gets one commit, titled "Merged #42, #43, #44", whose
+# tree is exactly the tree "Queue Checks Pass" tested, and master's CI, GPU and Hosts lanes run once per
+# batch instead of once per pull request. The original pull requests still show as merged (their head
+# commits are reachable from master). A revert of that commit reverts the whole batch; master-guard
+# names every pull request in it. To roll back, set the default rule's merge_method back to merge.
 merge_queue:
     max_parallel_checks: 2
 
@@ -31,7 +37,8 @@ priority_rules:
 queue_rules:
     # The release pull request that release.yml opens (its priority:critical label puts it first).
     # Listed before "default", so it takes this rule: checked alone, never batched with other pull
-    # requests, and merged with a merge commit, whose message names the release branch and so
+    # requests, and merged with a merge commit (merge, never merge-batch: a batch commit's message
+    # names only pull request numbers), whose message names the release branch and so
     # starts release.yml's publish job. Like a batch, it merges only after the full suite passed
     # on top of master.
     - name: release
@@ -53,7 +60,7 @@ queue_rules:
       batch_max_wait_time: 5 min
       max_checks_retries: 0
       update_method: merge
-      merge_method: merge
+      merge_method: merge-batch
       # Checked for as long as a pull request is queued: adding "hold" (or retitling it as a breaking
       # change) takes an already-queued pull request out of the queue. A pull request enters only
       # once its own CI passed; the ruleset's required checks (All Checks Pass, Lint PR Title) are

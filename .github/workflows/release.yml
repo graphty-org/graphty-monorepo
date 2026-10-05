@@ -73,7 +73,9 @@ jobs:
                   done < <(git log -1 --format=%b "$last" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
                   # Candidates, newest first: master's first-parent line down to the commit that brought the last
                   # version commit in (its pull request's merge, or the version commit itself). Commits merged
-                  # while that pull request waited are released with the first green commit after it.
+                  # while that pull request waited are released with the first green commit after it. A batch
+                  # merge (.mergify.yml, merge-batch) is ONE first-parent commit however many pull requests it
+                  # holds, and the lanes run on it once, so a batch is released whole or not at all.
                   candidates=()
                   while read -r sha; do
                       git merge-base --is-ancestor "$last" "${sha}^1" 2>/dev/null || { echo "last release lands at ${sha}"; break; }
@@ -234,7 +236,8 @@ jobs:
                           -f target_url="$run_url" >/dev/null
                   done
 
-    # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch.
+    # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch. The
+    # release queue rule merges with merge_method: merge for this reason; a merge-batch commit names only numbers.
     publish:
         name: Publish the release
         if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '/release/train-') }}

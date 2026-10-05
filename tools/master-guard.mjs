@@ -2,7 +2,8 @@
 // CI, GPU or Hosts finishes on master, with the finished run in GITHUB_EVENT_PATH.
 //
 // - CI red on a master commit: freeze the Mergify queue (pull requests labelled priority:critical still
-//   merge, so the fix can land), open a revert of the commit when its parent was green, and open a
+//   merge, so the fix can land), open a revert of the commit when its parent was green (a batch merge's
+//   revert takes out the whole batch, and its title lists the pull requests), and open a
 //   priority:critical issue.
 // - CI green on a commit at or after a frozen red commit: lift that freeze.
 // - GPU or Hosts red on master (a push or the nightly): open (or add to) a priority:critical issue naming
@@ -49,25 +50,35 @@ export function frozenSha(reason) {
 }
 
 /**
- * The pull request a merge commit landed.
- * @param message - The commit message ("Merge pull request #12 from ...").
- * @returns The pull request number, or null for another commit.
+ * The pull requests a merge commit landed: one for GitHub's "Merge pull request #12 from ...", every one for a
+ * Mergify merge-batch commit ("Merged #42, #43, #44"; .mergify.yml).
+ * @param message - The commit message.
+ * @returns The pull request numbers; empty for another commit.
  */
-export function mergedPr(message) {
-    const m = /^Merge pull request #(\d+) /.exec(message);
-    return m ? Number(m[1]) : null;
+export function mergedPrs(message) {
+    const single = /^Merge pull request #(\d+) /.exec(message);
+    if (single) {
+        return [Number(single[1])];
+    }
+    const title = message.split("\n")[0];
+    return title.startsWith("Merged #") ? [...title.matchAll(/#(\d+)/g)].map((m) => Number(m[1])) : [];
 }
 
 /**
  * The title of a revert pull request; conventional, so Lint PR Title passes it.
  * @param sha - The reverted commit.
- * @param pr - The pull request it landed, if any.
+ * @param prs - The pull requests it landed (a batch merge lands several).
  * @returns The title.
  */
-export function revertTitle(sha, pr) {
-    return pr
-        ? `revert: pull request #${pr}, master CI red at ${sha.slice(0, 7)}`
-        : `revert: ${sha.slice(0, 7)}, master CI red`;
+export function revertTitle(sha, prs) {
+    const at = sha.slice(0, 7);
+    if (!prs.length) {
+        return `revert: ${at}, master CI red`;
+    }
+    const list = prs.map((n) => `#${n}`).join(", ");
+    return prs.length === 1
+        ? `revert: pull request ${list}, master CI red at ${at}`
+        : `revert: batch ${list}, master CI red at ${at}`;
 }
 
 async function main() {
@@ -156,7 +167,7 @@ async function main() {
                         note: `Its parent ${parent} has CI \`${parentCi}\`, so the culprit is not certain and no revert was made.`,
                     };
                 }
-                const pr = mergedPr(commit.commit.message);
+                const prs = mergedPrs(commit.commit.message);
                 const branch = `revert/${short}`;
                 const mainline = commit.parents.length > 1 ? ["-m", "1"] : [];
                 const git = (...args) => execFileSync("git", args, { stdio: "inherit" });
@@ -165,20 +176,26 @@ async function main() {
                 git("fetch", "origin", "master", sha);
                 git("switch", "-c", branch, "origin/master");
                 const by = ["git revert", ...mainline, sha].join(" ");
-                const manual = `git fetch origin && git switch -c ${branch} origin/master && ${by} && git push -u origin HEAD && gh pr create --title "${revertTitle(sha, pr)}" --label priority:critical --body "Reverts ${sha}."`;
+                const manual = `git fetch origin && git switch -c ${branch} origin/master && ${by} && git push -u origin HEAD && gh pr create --title "${revertTitle(sha, prs)}" --label priority:critical --body "Reverts ${sha}."`;
                 try {
                     git("revert", ...mainline, "--no-edit", sha);
                     git("push", "origin", `HEAD:refs/heads/${branch}`);
                 } catch {
                     return { note: `The revert did not apply or push cleanly. By hand:\n\n    ${manual}` };
                 }
-                const landed = pr ? ` (#${pr})` : "";
-                const body = `${sha} turned master's CI red: ${run.html_url}\n\nIts parent was green, so this reverts it. The pull request it landed${landed} re-enters once its author has found the cause.`;
+                const list = prs.map((n) => `#${n}`).join(", ");
+                // A batch merge is one commit, so its revert takes out every pull request in the batch: the
+                // queue tested them only together, and the culprit is not known yet.
+                const landed =
+                    prs.length > 1
+                        ? `It landed a batch of ${prs.length} pull requests (${list}); the revert takes out all of them. Each re-enters the queue once its author has checked it against the failure.`
+                        : `The pull request it landed${prs.length ? ` (${list})` : ""} re-enters once its author has found the cause.`;
+                const body = `${sha} turned master's CI red: ${run.html_url}\n\nIts parent was green, so this reverts it. ${landed}`;
                 const token = process.env.PR_TOKEN || process.env.GITHUB_TOKEN;
                 try {
                     const opened = await gh(
                         "/pulls",
-                        json("POST", { title: revertTitle(sha, pr), head: branch, base: "master", body }),
+                        json("POST", { title: revertTitle(sha, prs), head: branch, base: "master", body }),
                         token,
                     );
                     await gh(`/issues/${opened.number}/labels`, json("POST", { labels: ["priority:critical"] }), token);
@@ -189,7 +206,7 @@ async function main() {
                 } catch (e) {
                     console.log(`::warning::could not open the revert pull request: ${e.message}`);
                     return {
-                        note: `The revert is pushed to \`${branch}\`, but the pull request could not be opened. Open it:\n\n    gh pr create --head ${branch} --title "${revertTitle(sha, pr)}" --label priority:critical --body "Reverts ${sha}."`,
+                        note: `The revert is pushed to \`${branch}\`, but the pull request could not be opened. Open it:\n\n    gh pr create --head ${branch} --title "${revertTitle(sha, prs)}" --label priority:critical --body "Reverts ${sha}."`,
                     };
                 }
             });
@@ -242,7 +259,7 @@ async function main() {
                 // ponytail: compare lists at most 250 commits; a lane red that long has bigger problems
                 const { commits } = await gh(`/compare/${last}...${sha}`);
                 const merges = commits // the pull requests that landed, not the branch merges inside them
-                    .filter((c) => mergedPr(c.commit.message))
+                    .filter((c) => mergedPrs(c.commit.message).length)
                     .map((c) => `- ${c.sha.slice(0, 7)} ${c.commit.message.split("\n")[0]}`);
                 since = `Merges since its last green run (${last.slice(0, 7)}):\n\n${merges.join("\n") || "- none: the lane went red on a commit it had passed before (a flake, or the hardware)"}`;
             }

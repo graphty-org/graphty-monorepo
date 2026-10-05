@@ -10,7 +10,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
-import { decide, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
+import { decide, FREEZE_PREFIX, frozenSha, mergedPrs, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { strayChanges } from "./release-diff.mjs";
 
@@ -181,6 +181,18 @@ describe("apt in the workflows", () => {
 });
 
 describe(".mergify.yml", () => {
+    it("merges each batch with one commit, and the release pull request with its own merge commit", () => {
+        // merge-batch: one master commit (and one master CI, GPU and Hosts run) per batch. The release rule stays
+        // merge, because release.yml's publish job finds the release by the branch its merge commit names.
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        const release = mergify.slice(mergify.indexOf("- name: release"), mergify.indexOf("- name: default"));
+        const batch = mergify.slice(mergify.indexOf("- name: default"));
+        assert.match(release, /^\s+merge_method: merge$/m);
+        assert.match(batch, /^\s+merge_method: merge-batch$/m);
+        // merge-batch requires a batch size above 1
+        assert.match(batch, /batch_size:\n\s+min: 1\n\s+max: ([2-9]|\d{2,})\n/);
+    });
+
     it("does not make the queue wait on the visual gate before the gate accepts a batch", () => {
         // In a queue run the gate's --pr is the queue draft's own number, which no review record names,
         // so a batch that changes a baseline fails "Queue Checks Pass" every time. merge_conditions may
@@ -289,15 +301,27 @@ describe("master-guard", () => {
         const sha = "a".repeat(40);
         assert.equal(frozenSha(`${FREEZE_PREFIX}${sha} (url)`), sha);
         assert.equal(frozenSha("release freeze"), null);
-        assert.equal(mergedPr("Merge pull request #1011 from graphty-org/x\n\nbody"), 1011);
-        assert.equal(mergedPr("chore(release): publish"), null);
+        assert.deepEqual(mergedPrs("Merge pull request #1011 from graphty-org/x\n\nbody"), [1011]);
+        assert.deepEqual(mergedPrs("Merged #42, #43, #44\n\nMerged by Mergify Merge Queue"), [42, 43, 44]);
+        assert.deepEqual(mergedPrs("Merged #42\n\nMerged by Mergify Merge Queue"), [42]);
+        // the merges inside a batch branch are not landings of their own
+        assert.deepEqual(mergedPrs("Merge of #42"), []);
+        assert.deepEqual(mergedPrs("chore(release): publish"), []);
     });
 
     it("titles a revert so Lint PR Title passes it", () => {
         const lint = (title) =>
             spawnSync("pnpm", ["exec", "commitlint"], { input: `${title}\n`, encoding: "utf8" }).status;
-        assert.equal(lint(revertTitle("0123456789abcdef0123456789abcdef01234567", 1011)), 0);
-        assert.equal(lint(revertTitle("0123456789abcdef0123456789abcdef01234567", null)), 0);
+        const sha = "0123456789abcdef0123456789abcdef01234567";
+        assert.equal(lint(revertTitle(sha, [1011])), 0);
+        assert.equal(lint(revertTitle(sha, [])), 0);
+        assert.equal(lint(revertTitle(sha, [42, 43, 44])), 0);
+    });
+
+    it("names every pull request of a reverted batch", () => {
+        const sha = "0123456789abcdef0123456789abcdef01234567";
+        assert.equal(revertTitle(sha, [42, 43, 44]), "revert: batch #42, #43, #44, master CI red at 0123456");
+        assert.equal(revertTitle(sha, [1011]), "revert: pull request #1011, master CI red at 0123456");
     });
 });
 
@@ -323,6 +347,8 @@ describe("release.yml", () => {
         assert.match(train, /node tools\/release-hold.mjs apply --only "\$PACKAGES"/);
         assert.match(train, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
         assert.match(train, /--label priority:critical/);
+        // a batch merge is one first-parent commit; its lanes are read on it, never on the commits inside
+        assert.match(train, /git log --first-parent --max-count=200 --format=%H HEAD/);
     });
 
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {

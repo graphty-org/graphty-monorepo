@@ -225,7 +225,17 @@ batches behind it are rebuilt without it.
   that an earlier red one was transient.
 - `max_checks_retries` stays 0.
 
-**How the merge lands:** Mergify merges the original pull requests with merge commits, as today.
+**How the merge lands:** Mergify merges each batch's draft pull request with one merge commit
+(`merge_method: merge-batch` on the default queue rule, a trial since 2026-10-05), titled "Merged
+#42, #43, #44". Master's tip is then the exact tree the queue tested, and master's CI, GPU and Hosts
+lanes run once per batch rather than once per pull request (one batch of two started two master
+runs, 54 minutes each, before). The original pull requests show as merged because their heads are
+reachable from master. A revert of a batch commit reverts the whole batch; master-guard's revert
+title lists its pull requests. The release pull request keeps `merge_method: merge` in its own
+rule, because release.yml's publish job finds it by the release branch named in the merge commit.
+Rollback: set the default rule back to `merge_method: merge`. Before the trial, Mergify merged the
+original pull requests with merge commits.
+
 GitHub's ruleset on master must not require branches to be up to date, because the queue
 proves that instead. Otherwise GitHub refuses the merge of a pull request whose own head is
 behind (Mergify documentation, "GitHub rulesets"). Two alternatives fix that refusal: make

@@ -64,6 +64,7 @@ jobs:
             affected: ${{ steps.plan.outputs.affected }}
             test-matrix: ${{ steps.plan.outputs.test-matrix }}
             test-count: ${{ steps.plan.outputs.test-count }}
+            visual-skip: ${{ steps.plan.outputs.visual-skip }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -97,11 +98,17 @@ jobs:
             # explicitly for the same reason as "Build affected (PR)" below. A merge-queue run is a pull
             # request event but tests everything, like master: full=true selects the master path for the
             # build and lint steps below as well.
+            # visual-skip names the Storybooks whose screenshots this run leaves out (tools/visual-capture-plan.mjs:
+            # only on a pull request's own run, never with a root file changed or the "dequeued" label). The
+            # switch stays "false" until master's visual-review/trusted/gate.mjs accepts the not-affected marker:
+            # CI runs master's gate, and an older one fails every project it finds no capture for.
             - name: Plan affected projects and test shards
               id: plan
               env:
                   EVENT: ${{ github.event_name }}
                   BASE_REF: ${{ github.base_ref }}
+                  SKIP_UNAFFECTED_CAPTURES: "false"
+                  LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
               run: |
                   all=$(pnpm exec nx show projects --json)
                   if [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]]; then
@@ -112,6 +119,8 @@ jobs:
                       affected="$all"
                   fi
                   node tools/ci-test-matrix.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
+                  PULL_REQUEST=$([[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && echo true || echo false) \
+                      node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
 
             # The shard groups, the draft and merge-queue conditions and the title check's queue exemption.
             - name: CI workflow tests
@@ -1042,6 +1051,20 @@ jobs:
                     - project: graphty
                       artifact: build-storybook-app
         steps:
+            # A Storybook this pull request cannot affect (the build job's visual-skip) is not captured: the job
+            # writes the not-affected marker in place of results.json and uploads it as the capture, so the
+            # gate can tell a project left out on purpose from one whose capture failed. Every step below
+            # but the upload and the summary is skipped then.
+            - name: Skip a Storybook this pull request cannot affect
+              id: skip
+              if: contains(fromJSON(needs.build.outputs.visual-skip || '[]'), matrix.project)
+              env:
+                  PROJECT: ${{ matrix.project }}
+              run: |
+                  mkdir -p "$RUNNER_TEMP/visual"
+                  printf '{"skipped":"not affected","project":"%s"}\n' "$PROJECT" > "$RUNNER_TEMP/visual/skipped.json"
+                  echo "skip=true" >> "$GITHUB_OUTPUT"
+
             # Baseline PNGs are Git LFS objects. The checkout leaves them as pointer files (no job fetches
             # LFS objects by default); this job alone fetches them, and only its own project's, plus the
             # pinned fonts every capture draws with (visual-fonts/, the config's "fontconfig"). The objects
@@ -1051,10 +1074,12 @@ jobs:
             # stays near zero. design/visual-testing/design.md section 7 has the estimate. Depth 2 for the
             # base branch tip (HEAD^1 of a pull request's merge commit), whose capture code runs below.
             - uses: actions/checkout@v4
+              if: steps.skip.outputs.skip != 'true'
               with:
                   fetch-depth: 2
 
             - name: Restore this project's baseline images
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/cache@v4
               with:
                   path: .git/lfs/objects
@@ -1062,48 +1087,57 @@ jobs:
                   restore-keys: lfs-${{ matrix.project }}-
 
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
+              if: steps.skip.outputs.skip != 'true'
               run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
 
             # A pull request runs the base branch's copy of the tool (capture and the trusted code it
             # imports), never its own: code that wrote "unchanged" for everything would otherwise pass
             # the gate. A change to capture is first exercised here by the pull request after it.
             - name: Use the base branch's capture code
-              if: github.event_name == 'pull_request'
+              if: github.event_name == 'pull_request' && steps.skip.outputs.skip != 'true'
               run: |
                   rm -rf visual-review/capture visual-review/trusted
                   git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x
 
             - uses: pnpm/action-setup@v4
+              if: steps.skip.outputs.skip != 'true'
 
             - name: Setup Node.js
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/setup-node@v4
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
+              if: steps.skip.outputs.skip != 'true'
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
             # Keyed by the Playwright version capture imports, so a bump downloads the matching Chromium.
             - name: Read the Playwright version
+              if: steps.skip.outputs.skip != 'true'
               id: playwright
               run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
 
             - name: Cache Playwright browsers
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/cache@v4
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
+              if: steps.skip.outputs.skip != 'true'
 
             # With the browser cached this installs only the system libraries Chromium needs.
             - name: Install Chromium
+              if: steps.skip.outputs.skip != 'true'
               run: pnpm exec visual-review install-browser
 
             - name: Download Storybook build
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/download-artifact@v4
               with:
                   name: ${{ matrix.artifact }}
@@ -1114,13 +1148,14 @@ jobs:
             # Without a reference (none downloaded) every story with no baseline is "new".
             - name: Download master's newest capture
               id: reference
-              if: github.event_name == 'pull_request'
+              if: github.event_name == 'pull_request' && steps.skip.outputs.skip != 'true'
               continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}
               run: echo "dir=$(pnpm exec visual-review reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
 
             - name: Capture
+              if: steps.skip.outputs.skip != 'true'
               run: pnpm exec visual-review capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --reference "${{ steps.reference.outputs.dir }}"
 
             # Kept even when capture crashed, so the owner sees the partial results.json.
@@ -1142,6 +1177,8 @@ jobs:
                           jq -r '"seeded: \(.seeded), complete: \(.complete), \(.items | length) of \(.expected) items, master reference run: \(.reference)",
                               "", "| status | items |", "|---|---|",
                               (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
+                      elif [[ -f "$RUNNER_TEMP/visual/skipped.json" ]]; then
+                          echo "Not captured: this pull request cannot affect it."
                       else
                           echo "No results.json: capture did not start."
                       fi

@@ -13,6 +13,7 @@ import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { decide, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { strayChanges } from "./release-diff.mjs";
+import { skippedProjects } from "./visual-capture-plan.mjs";
 
 const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const job = (text, name) => {
@@ -121,6 +122,84 @@ describe("ci.yml", () => {
 
     it("keeps the benchmarks advisory", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
+    });
+});
+
+describe("screenshots of Storybooks a pull request cannot affect", () => {
+    const ci = workflow("ci.yml");
+    const VISUAL = ["compact-mantine", "graphty-element", "layout", "algorithms", "graphty"];
+    const ALL = [...PACKAGES, "@graphty/remote-logger", "visual-review"];
+    const base = {
+        on: true,
+        pullRequest: true,
+        labels: [],
+        visual: VISUAL,
+        all: ALL,
+        affected: ["graph-io"],
+        changed: ["graph-io/src/index.ts"],
+    };
+
+    it("leaves out the unaffected Storybooks on a pull request's own run", () => {
+        assert.deepEqual(skippedProjects(base), VISUAL);
+        assert.deepEqual(
+            skippedProjects({
+                ...base,
+                affected: ["layout", "graphty-element", "graphty"],
+                changed: ["layout/src/a.ts"],
+            }),
+            ["compact-mantine", "algorithms"],
+        );
+    });
+
+    it("captures everything when off, in the queue or on master, after a dequeue, or with a root file changed", () => {
+        assert.deepEqual(skippedProjects({ ...base, on: false }), []);
+        assert.deepEqual(skippedProjects({ ...base, pullRequest: false }), []);
+        assert.deepEqual(skippedProjects({ ...base, labels: ["queued", "dequeued"] }), []);
+        assert.deepEqual(skippedProjects({ ...base, changed: [] }), []);
+        for (const root of [
+            "pnpm-lock.yaml",
+            ".github/workflows/ci.yml",
+            "visual-baselines/layout/a.png",
+            "visual-fonts/fonts.conf",
+            "design/x.md",
+        ]) {
+            assert.deepEqual(skippedProjects({ ...base, changed: ["graph-io/src/index.ts", root] }), [], root);
+        }
+    });
+
+    it("is switched off in ci.yml until master's gate accepts the not-affected marker", () => {
+        const build = job(ci, "build");
+        assert.match(build, /\n {18}SKIP_UNAFFECTED_CAPTURES: "false"\n/);
+        assert.match(build, /LABELS: \$\{\{ toJSON\(github\.event\.pull_request\.labels\.\*\.name\) \}\}/);
+        assert.match(build, /node tools\/visual-capture-plan\.mjs "\$all" "\$affected" \| tee -a "\$GITHUB_OUTPUT"/);
+        assert.match(build, /visual-skip: \$\{\{ steps\.plan\.outputs\.visual-skip \}\}/);
+    });
+
+    it("writes the marker in place of a capture and skips every other step but the upload and the summary", () => {
+        const visual = job(ci, "visual");
+        const steps = visual.split(/\n(?= {12}- (?:name|uses): )/).slice(1);
+        assert.match(steps[0], /- name: Skip a Storybook this pull request cannot affect\n {14}id: skip\n/);
+        assert.match(
+            steps[0],
+            /contains\(fromJSON\(needs\.build\.outputs\.visual-skip \|\| '\[\]'\), matrix\.project\)/,
+        );
+        assert.match(steps[0], /\{"skipped":"not affected","project":"%s"\}/);
+        for (const step of steps.slice(1)) {
+            const title = step.trim().split("\n")[0];
+            if (/Upload captures|Write the counts/.test(title)) {
+                assert.match(step, /if: always\(\)/, title);
+            } else {
+                assert.match(step, /\n {14}if: .*steps\.skip\.outputs\.skip != 'true'\n/, title);
+            }
+        }
+    });
+
+    it("writes the marker the trusted gate reads", async () => {
+        const { isSkipMarker, SKIPPED_FILE } = await import("../visual-review/trusted/lib/results.mjs");
+        const visual = job(ci, "visual");
+        assert.ok(visual.includes(`"$RUNNER_TEMP/visual/${SKIPPED_FILE}"`));
+        const printf = /printf '(.+?)\\n' "\$PROJECT"/.exec(visual)[1];
+        assert.ok(isSkipMarker(JSON.parse(printf.replace("%s", "layout")), "layout"));
     });
 });
 

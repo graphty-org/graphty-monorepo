@@ -1,0 +1,60 @@
+{
+    "repo": "graphty-org/graphty-monorepo",
+    "mode": "dry-run",
+    "pollSeconds": 180,
+    "servherdCommand": ["npx", "-y", "servherd@^1.2.0"],
+    "lanes": {
+        "ci": { "workflow": "ci.yml", "gating": "required" },
+        "gpu": { "workflow": "gpu.yml", "gating": "required", "maxMinutes": 240 },
+        "hosts": { "workflow": "hosts.yml", "gating": "if-run" },
+        "release": { "workflow": "release.yml", "gating": "watch" }
+    },
+    "release": { "commitPattern": "^chore\\(release\\): publish", "stallHours": 36 },
+    "requiredChecks": ["All Checks Pass", "Lint PR Title"],
+    "ownerGate": {
+        "steps": ["^Check visual changes were accepted$"],
+        "rejectMarker": "visual-review-rejects",
+        "reviewServer": { "name": "visual-review", "command": ["node", "visual-review/trusted/cli.mjs", "serve"] }
+    },
+    "labels": {
+        "types": ["bug", "enhancement", "research", "infrastructure", "documentation"],
+        "priorities": ["priority:critical", "priority:high", "priority:medium", "priority:low"],
+        "efforts": ["effort:high", "effort:medium", "effort:low"]
+    },
+    "protectedPaths": [
+        "visual-baselines/",
+        "visual-review/",
+        ".github/",
+        "githerd/",
+        "githerd.config.json",
+        ".mcp.json",
+        ".claude/",
+        "CLAUDE.md"
+    ],
+    "actions": {
+        "statuses": false,
+        "prUpkeep": false,
+        "workers": false,
+        "proposals": false,
+        "incidents": false
+    },
+    "grace": { "closeIssueDays": 7, "closeIssueShownDays": 3, "revertMinutes": 30 },
+    "workers": {
+        "model": "claude-opus-5-5",
+        "slots": 3,
+        "urgent": 1,
+        "waiting": 6,
+        "hoursPerDay": 10
+    },
+    "backlog": { "agingDays": 60 },
+    "notify": {
+        "command": [
+            "/home/apowers/.claude/scripts/claude-notify.sh",
+            "{status}",
+            "[graphty-monorepo] {message}",
+            "githerd"
+        ],
+        "maxPerHour": 6
+    },
+    "digest": { "weekday": "sun", "hourUtc": 16, "issue": null }
+}

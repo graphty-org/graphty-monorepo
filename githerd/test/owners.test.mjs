@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -8,7 +8,7 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { askStep } from "../lib/asks.mjs";
 import { newJob } from "../lib/board.mjs";
-import { inferOwners, parseWorktrees, readPushLog } from "../lib/owners.mjs";
+import { inferOwners, parseWorktrees, pushedBranches, readPushLog, scanTranscripts } from "../lib/owners.mjs";
 import { identify } from "../lib/proc.mjs";
 import { prInUse } from "../lib/queue.mjs";
 import { makeRepo } from "./helpers/git-repo.mjs";
@@ -105,6 +105,101 @@ describe("inferOwners", () => {
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
+    });
+});
+
+describe("pushes found in Claude Code transcripts", () => {
+    /** @type {string[]} */
+    const dirs = [];
+    afterEach(() => {
+        for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+    });
+
+    /**
+     * One transcript line: an assistant message running `command` through Bash at `at`.
+     * @param {string} command the command
+     * @param {string} at the time
+     * @returns {string} the line
+     */
+    const bash = (command, at) =>
+        JSON.stringify({
+            type: "assistant",
+            timestamp: at,
+            message: { content: [{ type: "tool_use", name: "Bash", input: { command } }] },
+        }) + "\n";
+
+    /**
+     * A projects directory holding Alice's transcript (cwd /r/a) and Bob's subagent transcript.
+     * @returns {{projects: string, alice: string, bob: string}} the directory and the two files
+     */
+    function projectsDir() {
+        const projects = mkdtempSync(join(tmpdir(), "githerd-transcripts-"));
+        dirs.push(projects);
+        mkdirSync(join(projects, "-r-a"), { recursive: true });
+        mkdirSync(join(projects, "-r", "sb", "subagents", "workflows", "w"), { recursive: true });
+        const alice = join(projects, "-r-a", "sa.jsonl");
+        const bob = join(projects, "-r", "sb", "subagents", "workflows", "w", "agent-1.jsonl");
+        writeFileSync(alice, bash("tmp/push-queue.sh git push -q origin HEAD:feat/x 2>&1", "2026-10-05T10:00:00Z"));
+        writeFileSync(join(projects, "-r", "sb.jsonl"), '{"type":"user","message":"git push origin feat/x"}\n');
+        writeFileSync(bob, bash("git push origin feat/y", "2026-10-05T11:00:00Z"));
+        return { projects, alice, bob };
+    }
+    const sessions = [
+        { ...ALICE, cwd: "/r/a" },
+        { ...BOB, cwd: ROOT },
+    ];
+
+    it("reads the branch a push names, and nothing else", () => {
+        expect(pushedBranches("cd w && git push -u origin HEAD:feat/a 2>&1 | tail -3")).toEqual(["feat/a"]);
+        expect(pushedBranches("git -C w push origin +x:refs/heads/feat/b feat/c")).toEqual(["feat/b", "feat/c"]);
+        expect(pushedBranches("gh pr create --head feat/d --title t")).toEqual(["feat/d"]);
+        expect(pushedBranches("git push origin --delete feat/e; git push origin HEAD; git push")).toEqual([]);
+    });
+
+    it("gives a pull request to a live session whose transcript pushed its branch, and not to a dead one", async () => {
+        const { projects } = projectsDir();
+        const scans = {};
+        await scanTranscripts(scans, sessions, { root: ROOT, projectsDir: projects });
+        expect(scans).toMatchObject({
+            sa: { pushes: { "feat/x": "2026-10-05T10:00:00Z" } },
+            sb: { pushes: { "feat/y": "2026-10-05T11:00:00Z" } },
+        });
+        expect(inferOwners(PRS, facts({ transcripts: scans }))).toEqual({
+            710: { session: "sa", name: "graphty-a", evidence: "pushed feat/x (transcript, 2026-10-05 10:00 UTC)" },
+        });
+        // Alice's session ends: her scan is forgotten and the pull request is free.
+        await scanTranscripts(scans, [sessions[1]], { root: ROOT, projectsDir: projects });
+        expect(Object.keys(scans)).toEqual(["sb"]);
+        expect(inferOwners(PRS, facts({ sessions: [BOB], transcripts: scans }))).toEqual({});
+        // githerd's own workers are never scanned.
+        const worker = { ...ALICE, cwd: `${ROOT}/.worktrees/githerd-pr-710` };
+        await scanTranscripts(scans, [worker], { root: ROOT, projectsDir: projects });
+        expect(scans).toEqual({});
+    });
+
+    it("lets the push log win over a transcript, and a later logged push free it", () => {
+        const transcripts = { sb: { files: {}, pushes: { "feat/x": "2026-10-05T21:50:00Z" } } };
+        expect(inferOwners(PRS, facts({ pushLog: [push(ALICE)], transcripts }))["710"].session).toBe("sa");
+        const later = { sb: { files: {}, pushes: { "feat/x": "2026-10-05T21:00:00Z" } } };
+        expect(inferOwners(PRS, facts({ pushLog: [push(null)], transcripts: later }))).toEqual({});
+    });
+
+    it("reads on from where it stopped, within the budget, and finds a push appended later", async () => {
+        const { projects, alice } = projectsDir();
+        const scans = /** @type {Record<string, any>} */ ({});
+        // A budget of one byte reads no whole line, so nothing is found and nothing is consumed.
+        await scanTranscripts(scans, sessions, { root: ROOT, projectsDir: projects, budget: 1 });
+        expect([scans.sa.pushes, scans.sb.pushes]).toEqual([{}, {}]);
+        expect(Object.values({ ...scans.sa.files, ...scans.sb.files }).every((n) => n === 0)).toBe(true);
+        await scanTranscripts(scans, sessions, { root: ROOT, projectsDir: projects });
+        const size = readFileSync(alice).length;
+        expect(scans.sa.files[""]).toBe(size);
+        // Replacing what was read with junk of the same length shows it is not read again.
+        writeFileSync(alice, "x".repeat(size - 1) + "\n");
+        appendFileSync(alice, bash("git push origin HEAD:feat/z", "2026-10-05T12:00:00Z"));
+        await scanTranscripts(scans, sessions, { root: ROOT, projectsDir: projects });
+        expect(scans.sa.pushes).toEqual({ "feat/x": "2026-10-05T10:00:00Z", "feat/z": "2026-10-05T12:00:00Z" });
+        expect(scans.sa.files[""]).toBe(readFileSync(alice).length);
     });
 });
 

@@ -114,7 +114,7 @@ import {
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
 import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
 import { containerStart, identify } from "./proc.mjs";
-import { inferOwners, parseWorktrees, processTable, readPushLog } from "./owners.mjs";
+import { inferOwners, parseWorktrees, processTable, readPushLog, scanTranscripts } from "./owners.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
 import { needsReleaseDryRun, patchId, releaseSectionChanged, touches, updatePrs, whyStuck } from "./prs.mjs";
@@ -1716,16 +1716,22 @@ export async function startDaemon({
 
     /**
      * What pull request ownership is inferred from (owners.mjs): the push log, every live
-     * registered session, the process table and the worktrees with a branch checked out.
+     * registered session and the pushes in its transcripts (read on from where the last poll
+     * stopped), the process table and the worktrees with a branch checked out.
      * @returns {Promise<Omit<Parameters<typeof inferOwners>[1], "root">>} the facts
      */
     async function ownerFacts() {
         const list = await runGit(["worktree", "list", "--porcelain"]);
+        const claude = join(env.HOME ?? homedir(), ".claude");
+        const sessions = registeredSessions({ sessionsDir: join(claude, "sessions") });
+        state.transcripts ??= {};
+        await scanTranscripts(state.transcripts, sessions, { root, projectsDir: join(claude, "projects") });
         return {
             pushLog: readPushLog(join(root, "tmp", "push-log.jsonl")),
-            sessions: registeredSessions({ sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions") }),
+            sessions,
             procs: processTable(),
             worktrees: list.code === 0 ? parseWorktrees(list.stdout) : [],
+            transcripts: state.transcripts,
         };
     }
 

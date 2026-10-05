@@ -102,7 +102,7 @@ export function liveSessions({ sessionsDir, root, alive = pidAlive }) {
  * live, since a session too old to take a message still owns what it pushed.
  * @param {{sessionsDir: string, alive?: (pid: number) => boolean}} opts the registry directory and
  *   the liveness test
- * @returns {{pid: number, sessionId: string, name: string}[]} the sessions
+ * @returns {{pid: number, sessionId: string, name: string, cwd: string}[]} the sessions
  */
 export function registeredSessions({ sessionsDir, alive = pidAlive }) {
     let files;
@@ -120,6 +120,7 @@ export function registeredSessions({ sessionsDir, alive = pidAlive }) {
                 pid: e.pid,
                 sessionId: e.sessionId,
                 name: typeof e.name === "string" ? e.name : `pid ${e.pid}`,
+                cwd: typeof e.cwd === "string" ? e.cwd : "",
             });
         } catch {
             // A torn or unreadable entry is no session.

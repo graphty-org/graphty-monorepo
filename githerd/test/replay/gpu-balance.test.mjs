@@ -174,7 +174,7 @@ describe("replay: the 10-02 GPU balance stretches through the whole daemon", () 
             token: gh.token,
             git: async () => ({ code: 0, stdout: "", stderr: "" }),
             now: () => new Date(t),
-            env: { GITHERD_CONFIG: config, PATH: process.env.PATH },
+            env: { GITHERD_CONFIG: config, PATH: process.env.PATH, HOME: dir },
             stateDir: join(dir, ".githerd"),
             autoPoll: false,
             runs: false,

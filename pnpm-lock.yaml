@@ -69,7 +69,7 @@ importers:
         version: 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)
       '@nx/react':
         specifier: 22.7.12
-        version: 22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@types/babel__core@7.20.5)(@zkochan/js-yaml@0.0.7)(esbuild@0.25.12)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@4.1.11)
+        version: 22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@types/babel__core@7.20.5)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@4.1.11)
       '@nx/storybook':
         specifier: 22.7.12
         version: 22.7.12(@babel/traverse@7.29.8)(@nx/web@22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@4.1.11))(nx@22.7.12))(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(storybook@9.1.20(@testing-library/dom@10.4.1)(prettier@3.7.4)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0)))(typescript@5.9.3)
@@ -410,7 +410,7 @@ importers:
         version: link:../webgpu-graph-algorithms
       webgpu:
         specifier: '>=0.4.0 <1.0.0'
-        version: 0.4.0
+        version: 0.6.1
     devDependencies:
       '@graphty/algorithms':
         specifier: workspace:^
@@ -12377,7 +12377,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@module-federation/enhanced@0.22.0(@rspack/core@1.6.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(webpack@5.104.1(esbuild@0.25.12))':
+  '@module-federation/enhanced@0.22.0(@rspack/core@1.6.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(webpack@5.104.1)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 0.22.0
       '@module-federation/cli': 0.22.0(typescript@5.9.3)
@@ -12395,7 +12395,7 @@ snapshots:
       upath: 2.0.1
     optionalDependencies:
       typescript: 5.9.3
-      webpack: 5.104.1(esbuild@0.25.12)
+      webpack: 5.104.1
     transitivePeerDependencies:
       - '@rspack/core'
       - bufferutil
@@ -12405,7 +12405,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@module-federation/enhanced@2.9.1(@rspack/core@1.6.8)(typescript@5.9.3)(webpack@5.104.1(esbuild@0.25.12))':
+  '@module-federation/enhanced@2.9.1(@rspack/core@1.6.8)(typescript@5.9.3)(webpack@5.104.1)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.9.1
       '@module-federation/cli': 2.9.1(typescript@5.9.3)
@@ -12422,7 +12422,7 @@ snapshots:
       tapable: 2.3.0
     optionalDependencies:
       typescript: 5.9.3
-      webpack: 5.104.1(esbuild@0.25.12)
+      webpack: 5.104.1
     transitivePeerDependencies:
       - '@rspack/core'
       - bufferutil
@@ -12478,15 +12478,15 @@ snapshots:
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/node@2.7.26(@rspack/core@1.6.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(webpack@5.104.1(esbuild@0.25.12))':
+  '@module-federation/node@2.7.26(@rspack/core@1.6.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(webpack@5.104.1)':
     dependencies:
-      '@module-federation/enhanced': 0.22.0(@rspack/core@1.6.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(webpack@5.104.1(esbuild@0.25.12))
+      '@module-federation/enhanced': 0.22.0(@rspack/core@1.6.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(webpack@5.104.1)
       '@module-federation/runtime': 0.22.0
       '@module-federation/sdk': 0.22.0
       btoa: 1.2.1
       encoding: 0.1.13
       node-fetch: 2.7.0(encoding@0.1.13)
-      webpack: 5.104.1(esbuild@0.25.12)
+      webpack: 5.104.1
     optionalDependencies:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
@@ -12739,10 +12739,10 @@ snapshots:
       - nx
       - supports-color
 
-  '@nx/module-federation@22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@4.1.11))(esbuild@0.25.12)(nx@22.7.12)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)':
+  '@nx/module-federation@22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@4.1.11))(nx@22.7.12)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)':
     dependencies:
-      '@module-federation/enhanced': 2.9.1(@rspack/core@1.6.8)(typescript@5.9.3)(webpack@5.104.1(esbuild@0.25.12))
-      '@module-federation/node': 2.7.26(@rspack/core@1.6.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(webpack@5.104.1(esbuild@0.25.12))
+      '@module-federation/enhanced': 2.9.1(@rspack/core@1.6.8)(typescript@5.9.3)(webpack@5.104.1)
+      '@module-federation/node': 2.7.26(@rspack/core@1.6.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(webpack@5.104.1)
       '@module-federation/sdk': 2.9.1
       '@nx/devkit': 22.7.12(nx@22.7.12)
       '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)
@@ -12752,7 +12752,7 @@ snapshots:
       http-proxy-middleware: 3.0.7
       picocolors: 1.1.1
       tslib: 2.8.1
-      webpack: 5.104.1(esbuild@0.25.12)
+      webpack: 5.104.1
     transitivePeerDependencies:
       - '@babel/traverse'
       - '@nx/cypress'
@@ -12809,12 +12809,12 @@ snapshots:
   '@nx/nx-win32-x64-msvc@22.7.12':
     optional: true
 
-  '@nx/react@22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@types/babel__core@7.20.5)(@zkochan/js-yaml@0.0.7)(esbuild@0.25.12)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@4.1.11)':
+  '@nx/react@22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@types/babel__core@7.20.5)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@4.1.11)':
     dependencies:
       '@nx/devkit': 22.7.12(nx@22.7.12)
       '@nx/eslint': 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)
       '@nx/js': 22.7.12(@babel/traverse@7.29.8)(nx@22.7.12)
-      '@nx/module-federation': 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@4.1.11))(esbuild@0.25.12)(nx@22.7.12)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
+      '@nx/module-federation': 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@4.1.11))(nx@22.7.12)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       '@nx/rollup': 22.7.12(@babel/core@7.29.7)(@babel/traverse@7.29.8)(@types/babel__core@7.20.5)(nx@22.7.12)(typescript@5.9.3)
       '@nx/web': 22.7.12(@babel/traverse@7.29.8)(@nx/cypress@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)(typescript@5.9.3))(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(@nx/vite@22.7.12(@babel/traverse@7.29.8)(@nx/eslint@22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12))(nx@22.7.12)(typescript@5.9.3)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))(vitest@4.1.11))(nx@22.7.12)
       '@phenomnomnominal/tsquery': 6.2.0(typescript@5.9.3)
@@ -20902,16 +20902,14 @@ snapshots:
       ansi-escapes: 7.2.0
       supports-hyperlinks: 4.5.0
 
-  terser-webpack-plugin@5.3.16(esbuild@0.25.12)(webpack@5.104.1(esbuild@0.25.12)):
+  terser-webpack-plugin@5.3.16(webpack@5.104.1):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.3
       serialize-javascript: 7.1.2
       terser: 5.44.1
-      webpack: 5.104.1(esbuild@0.25.12)
-    optionalDependencies:
-      esbuild: 0.25.12
+      webpack: 5.104.1
 
   terser@5.44.1:
     dependencies:
@@ -21619,7 +21617,7 @@ snapshots:
 
   webpack-virtual-modules@0.6.2: {}
 
-  webpack@5.104.1(esbuild@0.25.12):
+  webpack@5.104.1:
     dependencies:
       '@types/eslint-scope': 3.7.7
       '@types/estree': 1.0.9
@@ -21643,7 +21641,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 4.3.3
       tapable: 2.3.0
-      terser-webpack-plugin: 5.3.16(esbuild@0.25.12)(webpack@5.104.1(esbuild@0.25.12))
+      terser-webpack-plugin: 5.3.16(webpack@5.104.1)
       watchpack: 2.5.0
       webpack-sources: 3.3.3
     transitivePeerDependencies:

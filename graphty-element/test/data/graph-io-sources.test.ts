@@ -292,7 +292,7 @@ describe("JSON read through graph-io", () => {
         assert.strictEqual(source.getErrorAggregator().getErrorCount(), 0);
     });
 
-    test("keeps the first record of a repeated node id, as the element does", async () => {
+    test("hands every record of a repeated node id to the element, which keeps the first", async () => {
         const data = JSON.stringify({
             nodes: [
                 { id: "a", v: 1 },
@@ -302,7 +302,10 @@ describe("JSON read through graph-io", () => {
         });
         const { nodes } = await collect(new JsonDataSource({ data }));
 
-        assert.deepStrictEqual(nodes, [{ id: "a", v: 1 }]);
+        assert.deepStrictEqual(nodes, [
+            { id: "a", v: 1 },
+            { id: "a", v: 2 },
+        ]);
     });
 
     test("reads arrays a JMESPath expression selects", async () => {

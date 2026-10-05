@@ -277,6 +277,16 @@ const FALSE_CLAIMS = [
         "type labels",
     ],
     [
+        "triage label of another value, without its prefix",
+        "triage",
+        "new",
+        { batch: [5] },
+        { result: [{ issue: 5, verdict: "keep", labels: { type: "bug", priority: "medium", effort: "low" } }] },
+        {},
+        {},
+        "#5 has priority labels [priority:high] on GitHub, not exactly medium",
+    ],
+    [
         "triage unknown verdict and issue",
         "triage",
         "new",
@@ -392,6 +402,13 @@ describe("verifyClaim", () => {
                             labels: { type: "bug", priority: "priority:high", effort: "effort:low" },
                         },
                     ],
+                }),
+            ],
+            // The same labels named without their kind's prefix, as a worker writes them.
+            [
+                working("triage", "new", { batch: [5] }),
+                report({
+                    result: [{ issue: 5, verdict: "keep", labels: { type: "bug", priority: "high", effort: "low" } }],
                 }),
             ],
             // A refresh whose session judged that the merges affect no listed issue.

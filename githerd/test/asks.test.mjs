@@ -289,4 +289,20 @@ describe("nudging an owner session past its expect window", () => {
         ]);
         expect(sent).toEqual([]);
     });
+
+    it("forgets the window when the claim lapses or the job is finished, so a re-claim is not nudged", async () => {
+        const { sent, opts } = fake();
+        const later = new Date("2026-10-05T13:00:00Z");
+        const lapsed = claimed("2026-10-05T08:44:33Z");
+        const job = lapsed.jobs["issue-186"];
+        move(job, "queued", NOW, { reason: "claim lapsed" });
+        move(job, "starting", NOW, { holder: { session: "s1", window: null, startedBy: "owner" } });
+        move(job, "working", NOW);
+        expect(job.expect).toBeNull();
+        expect(await nudgeStep(lapsed, opts({ now: later }))).toEqual([]);
+        const done = claimed("2026-10-05T08:44:33Z");
+        move(done.jobs["issue-186"], "verifying", NOW);
+        expect(await nudgeStep(done, opts({ now: later }))).toEqual([]);
+        expect(sent).toEqual([]);
+    });
 });

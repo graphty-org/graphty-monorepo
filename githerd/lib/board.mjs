@@ -270,6 +270,8 @@ const VERIFY_POLLS = 2;
  *   next, skip, storybook
  * @property {string | null} [cancelledBy] the job or event that superseded it
  * @property {"worktree" | "registry" | "first-call"} [phase] the start phase while `starting`
+ * @property {{until: string, reason: string} | null} [expect] the open githerd_expect window
+ * @property {string | null} [nudgedFor] the window end its owner session was last nudged about
  */
 
 /**
@@ -367,6 +369,12 @@ export function move(job, to, now, opts = {}) {
     else if (to === "verifying") job.verifyPolls = 0;
     if (to === "cancelled") job.cancelledBy = opts.cancelledBy ?? null;
     if (["queued", "faulted", ...TERMINAL].includes(to)) job.holder = null;
+    // A githerd_expect window belongs to one stretch of work: any move out of working and
+    // waiting (a lapse, a requeue, a done, a new claim's start) ends it, so it is never nudged.
+    if (to !== "working" && to !== "waiting") {
+        job.expect = null;
+        job.nudgedFor = null;
+    }
     return job;
 }
 

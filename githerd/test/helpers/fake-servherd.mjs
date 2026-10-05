@@ -123,7 +123,11 @@ if (argv[0] === "pm2") {
     const list = Object.values(registry).map((e) => ({
         name: e.pm2Name,
         pid: e.pid,
-        pm2_env: { status: alive(e.pid) ? "online" : "stopped", autorestart: e.autorestart },
+        pm2_env: {
+            status: alive(e.pid) ? "online" : "stopped",
+            autorestart: e.autorestart,
+            pm_err_log_path: join(dir, `${e.name}.log`),
+        },
     }));
     console.log(JSON.stringify(list));
     process.exit(0);

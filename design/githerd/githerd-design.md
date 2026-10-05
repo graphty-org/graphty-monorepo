@@ -1478,9 +1478,11 @@ gives servherd the same name, `githerd`, the same working directory and the same
 directory is the state directory `~/.githerd/graphty-monorepo`, not `current`: servherd records the
 directory as the process reports it, and a process started in a symbolic link reports the link's
 target, so every new version would be a second server. The command is
-`env -i GITHERD_ROOT=<repository> GITHERD_STATE_DIR=<state directory> PORT={{port}} node
+`env -i GITHERD_ROOT=<repository> GITHERD_STATE_DIR=<state directory> PORT={{port}} <node>
 <state directory>/current/bin/githerd-daemon.mjs` with servherd's `--autorestart`, and it is what
-`githerd install` prints. `env -i` keeps out the stale `CLAUDE*` variables pm2 carries [R19]; the
+`githerd install` prints. `<node>` is the absolute path of the node running the launcher: with no
+`PATH`, `env` looks only in `/bin` and `/usr/bin`, so a bare `node` installed anywhere else (a CI
+runner's tool cache, nvm) is not found and the daemon exits at once. `env -i` keeps out the stale `CLAUDE*` variables pm2 carries [R19]; the
 daemon takes the rest of its environment from `daemon-env.json` in the state directory, an
 allow-list (`HOME`, `USER`, `LANG`, `PATH`, `SSH_AUTH_SOCK`, the `GIT_CONFIG_*` signing variables
 and the notify command's Pushover keys) written owner-only by `githerd install`, or by the first

@@ -751,7 +751,7 @@ describe("dev", () => {
             `GITHERD_CONFIG=${env.GITHERD_CONFIG}`,
             "GITHERD_DEV=1",
             "PORT={{port}}",
-            "node",
+            process.execPath,
             join(PACKAGE_DIR, "bin", "githerd-daemon.mjs"),
         ]);
         expect(start?.cwd).toBe(devState);

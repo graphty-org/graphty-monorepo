@@ -55,6 +55,7 @@ import {
     currentDir,
     currentHash,
     gateTree,
+    tail as lastLines,
     reapGating,
     readSelfUpdate,
     realGates,
@@ -547,16 +548,19 @@ export async function waitFor(ctx, ready, exited = async () => null) {
 }
 
 /**
- * The daemon's pm2 process: its pid (0 when it has none) and status, or null when pm2 cannot say.
+ * The daemon's pm2 process: its pid (0 when it has none), status and error log, or null when pm2
+ * cannot say.
  * @param {LauncherContext} ctx the context
- * @returns {Promise<{pid: number, status: string} | null>} the process
+ * @returns {Promise<{pid: number, status: string, errLog: string} | null>} the process
  */
 async function pm2Process(ctx) {
     try {
         const out = await run([...ctx.pm2, "jlist"], pm2Options(ctx));
         const apps = JSON.parse(out.slice(out.indexOf("[")));
         const app = apps.find((/** @type {any} */ a) => a.name === `servherd-${ctx.name}`);
-        return app ? { pid: Number(app.pid) || 0, status: String(app.pm2_env?.status ?? "") } : null;
+        if (!app) return null;
+        const errLog = String(app.pm2_env?.pm_err_log_path ?? "");
+        return { pid: Number(app.pid) || 0, status: String(app.pm2_env?.status ?? ""), errLog };
     } catch {
         return null;
     }
@@ -568,11 +572,12 @@ async function pm2Process(ctx) {
  * gone: the start has failed when pm2 holds no live process for it (stopped or errored), or when a
  * second process exited too (pm2's autorestart bringing back a daemon that dies at start). One exit
  * that pm2 replaced is waited out, as before. While pm2 cannot be read, nothing is decided here.
+ * The reason ends with the last lines of the process's error log, which say why it exited.
  * @param {LauncherContext} ctx the context
  * @returns {() => Promise<string | null>} the `exited` test for `waitFor`
  */
 function startWatch(ctx) {
-    /** @type {{pid: number, status: string} | null | undefined} */
+    /** @type {{pid: number, status: string, errLog: string} | null | undefined} */
     let proc;
     let exits = 0;
     const live = (/** @type {number} */ pid) => pid > 0 && identify(pid) !== null && !zombie(pid);
@@ -585,8 +590,23 @@ function startWatch(ctx) {
         if (!proc) return null;
         if (exits < 2 && live(proc.pid) && proc.pid !== was) return null;
         const pm2 = proc.status ? "; pm2 says " + proc.status : "";
-        return `the daemon process ${was || "(none)"} exited${pm2}`;
+        return `the daemon process ${was || "(none)"} exited${pm2}${errLogEnd(proc.errLog)}`;
     };
+}
+
+/**
+ * The last lines of a pm2 error log, as a suffix for a reason.
+ * @param {string} path the log, or "" when pm2 named none
+ * @returns {string} `; its log ends: ...`, or "" when there is no log or it is empty
+ */
+function errLogEnd(path) {
+    let lines = "";
+    try {
+        lines = lastLines({ stdout: tail(path), stderr: "" });
+    } catch {
+        // no log
+    }
+    return lines ? `; its log ends: ${lines}` : "";
 }
 
 /**
@@ -738,7 +758,9 @@ export function daemonStartArgs({ name, root, stateDir, script, extra = [] }) {
         `GITHERD_STATE_DIR=${stateDir}`,
         ...extra,
         "PORT={{port}}",
-        "node",
+        // Never a bare `node`: under `env -i` there is no PATH, so `env` looks only in /bin and
+        // /usr/bin, and a node installed anywhere else (a runner's tool cache, nvm) is not found.
+        process.execPath,
         script,
     ];
 }

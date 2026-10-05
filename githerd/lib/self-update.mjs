@@ -150,7 +150,7 @@ export function updateGate(stateDir, hash) {
  * @param {{stdout: string, stderr: string}} r the output
  * @returns {string} up to five lines joined with ` | `
  */
-function tail(r) {
+export function tail(r) {
     // stdout last: a test runner's summary ends it.
     return `${r.stderr}\n${r.stdout}`
         .replaceAll(/[^\x20-\x7e\n]/g, "")

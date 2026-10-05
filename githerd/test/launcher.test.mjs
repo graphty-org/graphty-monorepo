@@ -375,7 +375,7 @@ describe("startup", () => {
             `GITHERD_ROOT=${root}`,
             `GITHERD_STATE_DIR=${stateDir()}`,
             "PORT={{port}}",
-            "node",
+            process.execPath,
             join(stateDir(), "current", "bin", "githerd-daemon.mjs"),
         ]);
         // No pm2 re-creation: servherd's --autorestart is the supervision.
@@ -545,7 +545,7 @@ describe("install and the daemon's environment", () => {
         expect(installCommand(ctx)).toBe(
             `cd ${stateDir()} && ${process.execPath} ${FAKE_SERVHERD} start -n githerd --autorestart -- env -i ` +
                 `GITHERD_ROOT=${root} GITHERD_STATE_DIR=${stateDir()} ` +
-                `'PORT={{port}}' node ${join(stateDir(), "current", "bin", "githerd-daemon.mjs")}`,
+                `'PORT={{port}}' ${process.execPath} ${join(stateDir(), "current", "bin", "githerd-daemon.mjs")}`,
         );
     });
 
@@ -1078,6 +1078,18 @@ describe("the session proxy", () => {
         expect(readFileSync(join(stateDir(), "state.json"), "utf8")).toBe(before);
         input.end();
         await running;
+    });
+
+    it("says why a daemon that exits at start exited, from the end of its error log", async () => {
+        pushPackage("broken daemon", (pkg) =>
+            writeFileSync(
+                join(pkg, "bin", "githerd-daemon.mjs"),
+                'console.error("cannot open the store"); process.exit(1);\n',
+            ),
+        );
+        await expect(ensureDaemon(context())).rejects.toThrow(
+            /^githerd daemon failed to start: the daemon process \d+ exited; pm2 says stopped; its log ends: cannot open the store /,
+        );
     });
 
     it("reports a daemon that does not start as a tool error, with why", async () => {

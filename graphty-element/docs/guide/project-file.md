@@ -47,7 +47,8 @@ openInput.addEventListener("change", () => {
   `extensions` name or value it cannot store.
 - **`project.open(file)`** takes the `File` (or any `Blob`), its bytes, or its text. It never
   takes a URL: nothing is fetched. Opening a project replaces what the session holds and starts a
-  fresh undo history.
+  fresh undo history. It also opens any data file, so one "Open..." button serves both (see
+  [Opening a data file](#opening-a-data-file)).
 - **`project.dirty`** is true when something the file saves has changed since the last save or
   open. Opening a project over unsaved changes is refused with `E_UNSAVED_CHANGES` unless you pass
   `{ discard: true }`, which means "discard the session's unsaved changes"; `discard: false` is the
@@ -75,6 +76,24 @@ try {
     }
 }
 ```
+
+## Opening a data file
+
+`project.open` is the one intake verb: hand it whatever file the reader picked and it decides
+what the file is, so the page never looks at a name or the bytes. A graphty project or document
+opens as above. Any other file -- CSV, GraphML, GML, GEXF, DOT, Pajek, JSON graph data -- is read
+into a [load draft](./load-preview), as `session.data.prepare` reads it, and the report says
+`opened: "graph"` and carries the `draft`. Nothing is in the graph until you load it, so the
+reader can check the columns first, and the unsaved-changes check does not apply.
+
+```typescript
+const report = await project.open(file, { discard: true });
+if (report.opened === "graph") await report.draft?.load(); // or show report.draft to the reader first
+```
+
+A data file no format reads is refused with `E_UNKNOWN_FORMAT`, and one its format cannot read
+with `E_PARSE_FAILED`, as `prepare` refuses them. Text handed over without a `File` is read by its
+content; pass `{ fileName }` so its extension names the format.
 
 ## Saving without a download
 

@@ -501,12 +501,18 @@ list, the annotations, the exit code, the runner label and the pull request's fi
 |---|---|---|---|
 | 1 | **Credential** | 401; "Bad credentials"; 403 with "auth" or "permission"; "Permission denied (publickey)"; OIDC 403; npm E401; gpg or ssh-keygen signing errors; StopFailure `authentication_failed` | One owner item per credential; no attempts charged; stop only what needs it |
 | 2 | **Paid capacity** | "Insufficient balance"; "limited to 30 minutes"; "Concurrent runner limit reached"; runner loss ("received a shutdown signal" in the log, "lost communication" in an annotation, a failed job with no steps) on a rented label; StopFailure `billing_error` | One owner item; that lane parked for merges; the release waits; backoff re-run of the lane's failed jobs (3.2) |
-| 3 | **Outside or platform** | Third-party 5xx, ETIMEDOUT, ECONNRESET naming a remote host; registry or corepack errors; "Actions degraded"; queued past the pickup bound | One daemon re-run after 15 minutes, or a pause with a banner; never a fix job; no attempts charged |
+| 3 | **Outside or platform** | Third-party 5xx, ETIMEDOUT, ECONNRESET naming a remote host; registry or corepack errors; a package server or mirror failing an install ("Failed to fetch <url> 403/404/5xx", "is no longer signed", "Temporary failure resolving", "Could not resolve host", Playwright's "Failed to install browser dependencies"); "Actions degraded"; queued past the pickup bound | One daemon re-run after 15 minutes, or a pause with a banner; never a fix job; no attempts charged |
 | 4 | **Environment drift** | The `Set up job` and tool-version diff between the last green and first red run is non-empty; "automatically failed because it uses a deprecated version" | Incident with the diff attached; never a revert; never an intermittent issue |
 | 5 | **Inherited** | The same key is red on master | Wait on the master incident |
 | 6 | **Shared or master-side** | The same key on 1 or more other open pull requests within 6 hours (the second pull request); or the pull request's diff cannot affect the key (an audit key with no dependency file changed, the dependency files being `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` and `.npmrc`; a build key with no package source changed); or a local gate key that also fails on the green commit | One shared incident at the first such pull request; no `pr` job (and no "join" escape) |
 | 7 | **Known intermittent** | An open `intermittent` issue names the key | One daemon re-run of that head |
 | 8 | **Own** | Anything else | A `pr` job |
+
+A summary job, one that only reports whether other jobs passed (a required check such as `All
+Checks Pass`, or any job named `... Checks Pass`, such as `Queue Checks Pass`), is never a failure
+of its own: its failure is the failure of a job it summarizes. It never opens an incident key, and a
+lane's class and reason come from the jobs it summarizes, so a summary job beside an outage does not
+make the lane code red.
 
 The patterns live in one table in code, with a fixture per pattern taken from the recorded logs
 (`incidents/logs*` in the evidence set, and the jobs read in [PF 9.5] and [PF 9.6]). The classifier

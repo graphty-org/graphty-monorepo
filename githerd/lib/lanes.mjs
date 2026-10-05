@@ -191,6 +191,21 @@ export function failureKey(workflow, job, step = "") {
     return `${workflow} / ${norm(job)} / ${norm(step)}`;
 }
 
+/** The name of a job that only summarizes others, such as `All Checks Pass` or `Queue Checks Pass`. */
+const SUMMARY_NAME = /\bChecks? Pass(?:ed)?$/i;
+
+/**
+ * Whether a job only reports whether other jobs passed: a required check of the config, or a job
+ * named like one (`... Checks Pass`). Such a job is never a failure of its own: its failure is the
+ * failure of a job it summarizes.
+ * @param {string} name the job's name
+ * @param {string[]} [requiredChecks] the config's required checks
+ * @returns {boolean} true for a summary job
+ */
+export function isSummaryJob(name, requiredChecks = []) {
+    return requiredChecks.includes(name) || SUMMARY_NAME.test(name);
+}
+
 /**
  * The failure keys of one run's jobs. A summary job (one that only reports whether the others
  * passed, such as `All Checks Pass`) is left out when another job failed, because its failure is

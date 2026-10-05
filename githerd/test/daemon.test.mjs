@@ -1473,6 +1473,81 @@ describe("failure classes on master", () => {
         expect(gh.writes()).toEqual([]);
     });
 
+    it("parks a package-server outage during an install, whatever the summary jobs beside it say", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass", "Lint PR Title"] });
+        scene.ci = [{ ...run(240, A, "failure"), name: "CI" }];
+        const summary = (/** @type {number} */ id, /** @type {string} */ name) => ({
+            id,
+            run_attempt: 1,
+            name,
+            conclusion: "failure",
+            labels: ["ubuntu-24.04"],
+            steps: [{ name: "Check the run passed", conclusion: "failure" }],
+        });
+        scene.jobs = {
+            240: [
+                {
+                    id: 2400,
+                    run_attempt: 1,
+                    name: "Test (graphty-element-browser-4)",
+                    conclusion: "failure",
+                    labels: ["ubuntu-24.04"],
+                    steps: [{ name: "Install Playwright deps", conclusion: "failure" }],
+                },
+                summary(2401, "All Checks Pass"),
+                summary(2402, "Queue Checks Pass"),
+            ],
+        };
+        // CI run 37244710257's log, 2026-10-04.
+        scene.logs = {
+            2400: [
+                "E: Failed to fetch https://packages.microsoft.com/ubuntu/24.04/prod/dists/noble/InRelease  403  Forbidden [IP: 13.107.246.40 443]",
+                "E: The repository 'https://packages.microsoft.com/ubuntu/24.04/prod noble InRelease' is no longer signed.",
+                "Failed to install browser dependencies",
+                "Error: Installation process exited with code: 100",
+            ].join("\n"),
+        };
+        const daemon = await start();
+        for (const at of ["12:00", "12:03"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        expect(daemon.state.master.lanes.ci).toMatchObject({ verdict: "red", redClass: "outside" });
+        expect(daemon.state.incidents).toEqual({});
+        expect(Object.keys(daemon.state.jobs ?? {}).filter((id) => id.startsWith("incident-"))).toEqual([]);
+    });
+
+    it("never makes a summary job an incident of its own", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass"] });
+        scene.ci = [{ ...run(250, A, "failure"), name: "CI" }];
+        const failing = (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ step) => ({
+            id,
+            run_attempt: 1,
+            name,
+            conclusion: "failure",
+            labels: ["ubuntu-24.04"],
+            steps: [{ name: step, conclusion: "failure" }],
+        });
+        scene.jobs = {
+            250: [
+                failing(2500, "Build", "Build packages"),
+                failing(2501, "All Checks Pass", "Check the run passed"),
+                failing(2502, "Queue Checks Pass", "Check the run passed, and was the full suite in the queue"),
+            ],
+        };
+        const daemon = await start();
+        for (const at of ["12:00", "12:03", "12:06"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        expect(daemon.state.master.lanes.ci.redReason).toBe("Build: Build packages");
+        const [incident] = Object.values(daemon.state.incidents);
+        expect(Object.keys(incident.keys)).toEqual(["CI / Build / Build packages"]);
+        expect(Object.keys(daemon.state.jobs).filter((id) => id.startsWith("incident-"))).toEqual([
+            "incident-CI-Build-Build-packages",
+        ]);
+    });
+
     it("names no code suspect when no commit since the last green one touches the red lane's code", async () => {
         gpuConfig();
         scene.gpu = [{ ...run(230, A, "success"), name: "GPU" }];

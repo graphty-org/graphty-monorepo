@@ -96,7 +96,7 @@ import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, ta
 import { doneIo, pollVerifying } from "./done.mjs";
 import { classify, isNoLog } from "./classify.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
-import { failureKey, notePickups, queueAges } from "./lanes.mjs";
+import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { sessionWriteCheck } from "./session-writes.mjs";
@@ -1051,7 +1051,9 @@ export async function startDaemon({
                     reason: verdict.reason,
                 });
             }
-            const first = refs.find((r) => r.class === "code") ?? refs[0];
+            // A summary job's failure is the failure of a job it summarizes: name that one.
+            const real = refs.filter((r) => !isSummaryJob(r.name, config.requiredChecks));
+            const first = real.find((r) => r.class === "code") ?? real[0] ?? refs[0];
             Object.assign(lane, {
                 redJobs: refs,
                 redClass: first?.class ?? "code",
@@ -1131,8 +1133,8 @@ export async function startDaemon({
     }
 
     /**
-     * Runs the incident procedure for each failure key of an open incident. A summary job (a
-     * required check that only reports the others) is a key only when nothing else failed.
+     * Runs the incident procedure for each failure key of an open incident. A summary job (one
+     * that only reports the others, `isSummaryJob`) is never a key: its failure is theirs.
      * @param {any} incident the open incident, its `keys` record updated in place
      * @param {ReturnType<typeof createIncidentActions>} actions the incident actions
      */
@@ -1141,8 +1143,8 @@ export async function startDaemon({
         for (const [name, lane] of Object.entries(incident.lanes)) {
             const workflow = state.master.lanes[name]?.workflowName ?? name;
             const refs = lane.jobRefs ?? [];
-            const own = refs.filter((/** @type {any} */ j) => !config.requiredChecks.includes(j.name));
-            for (const job of own.length ? own : refs) {
+            const own = refs.filter((/** @type {any} */ j) => !isSummaryJob(j.name, config.requiredChecks));
+            for (const job of own) {
                 const key = failureKey(workflow, job.name, job.step);
                 const rec = (keys[key] ??= { seen: 0 });
                 rec.seen++;

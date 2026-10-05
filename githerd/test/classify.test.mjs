@@ -102,6 +102,18 @@ const FIXTURES = {
         ],
     }),
     // Coverage job 109002321893, 2026-09-28.
+    // CI run 37244710257, job Test (graphty-element-browser-4), 2026-10-04: packages.microsoft.com
+    // refused the apt index while Playwright installed its system dependencies.
+    "package server or mirror failed an install": job({
+        job: "Test (graphty-element-browser-4)",
+        steps: ["Install Playwright deps"],
+        log: [
+            "E: Failed to fetch https://packages.microsoft.com/ubuntu/24.04/prod/dists/noble/InRelease  403  Forbidden [IP: 13.107.246.40 443]",
+            "E: The repository 'https://packages.microsoft.com/ubuntu/24.04/prod noble InRelease' is no longer signed.",
+            "Failed to install browser dependencies",
+            "Error: Installation process exited with code: 100",
+        ].join("\n"),
+    }),
     "third-party 5xx": job({
         workflow: "Coverage",
         job: "Publish Coverage",
@@ -262,6 +274,21 @@ describe("classes from facts", () => {
         });
         expect(v.class).toBe("code");
         expect(classify(FIXTURES["third-party 5xx"], { where: "master" }).class).toBe("outside");
+        // A package server's outage during an install is no incident against the code.
+        expect(classify(FIXTURES["package server or mirror failed an install"], { where: "master" }).class).toBe(
+            "outside",
+        );
+        for (const text of [
+            "Err:5 http://archive.ubuntu.com/ubuntu noble InRelease Temporary failure resolving 'archive.ubuntu.com'",
+            "curl: (6) Could not resolve host: registry.npmjs.org",
+            "E: Failed to fetch http://azure.archive.ubuntu.com/ubuntu/dists/noble/InRelease 503 Service Unavailable",
+        ]) {
+            expect(classify(job({ steps: ["Install"], log: text }), { where: "master" }).class, text).toBe("outside");
+        }
+        // A failed fetch with no server error says nothing about the server.
+        expect(classify(job({ log: "Failed to fetch https://example.test/x 200 OK" }), { where: "master" }).class).toBe(
+            "code",
+        );
         expect(classify(own, { where: "master", drift: ["- a"] }).class).toBe("drift");
     });
 

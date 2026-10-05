@@ -146,6 +146,15 @@ export const PATTERNS = /** @type {Pattern[]} */ ([
             /ERR_PNPM_(?:META_)?FETCH|ERR_PNPM_TARBALL|corepack.*(?:error|failed)|Error when performing the request to https:/i,
         ),
     },
+    // A package server or mirror failing a dependency install (apt, npm, Playwright's system
+    // dependencies): an outage outside the code, re-run once it is back.
+    {
+        class: "outside",
+        name: "package server or mirror failed an install",
+        test: line(
+            /\bFailed to fetch https?:\/\/\S+ +(?:40[34]|5\d\d)\b|\bis no longer signed\b|Temporary failure resolving|Could not resolve host|Failed to install browser dependencies/,
+        ),
+    },
     {
         class: "drift",
         name: "deprecated runner or action",

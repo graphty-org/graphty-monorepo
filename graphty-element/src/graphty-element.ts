@@ -3159,8 +3159,9 @@ export class Graphty extends LitElement {
      * Wait until the picture is final.
      *
      * Resolves once every queued operation has run, the layout has converged, the camera has
-     * finished framing what it arrived at, and a frame has been drawn showing that. This is what
-     * a screenshot, a video frame or a visual regression snapshot needs: the `graph-settled`
+     * finished framing what it arrived at, a frame has been drawn showing that, and that frame's
+     * {@link Graphty.nodeLabelCounts} have been announced (`graphty-label-change`, when they
+     * changed), so a page that shows the counts shows the final ones. This is what a screenshot, a video frame or a visual regression snapshot needs: the `graph-settled`
      * event fires one update pass earlier, before the final framing has even been requested, so
      * a picture taken on that event is a picture of a camera still in motion.
      *

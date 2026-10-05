@@ -509,9 +509,9 @@ daily train. It does exactly what the scheduled run does, immediately:
    `{projectName}@{version}`, exactly as the train does.
 
 **Optional: only some packages.** A `packages` input (nx project names, comma separated) limits
-the release to those packages. The workflow writes a temporary `release-hold.json` in its own
-checkout that holds every other project, then runs the same `tools/release-hold.mjs apply` the
-train uses; nothing is committed. Two consequences, both from how holds work today: a held
+the release to those packages. The workflow runs the same `tools/release-hold.mjs apply` the
+train uses, with `--only <packages>`, which holds every other project for that run; nothing is
+committed. Two consequences, both from how holds work today: a held
 package is not patch-bumped as a dependent of a released one, and the next daily train releases
 everything that was left out, from its last tag. Holds already committed in `release-hold.json`
 still apply, so a dispatch cannot release a package the owner has held.

@@ -52,6 +52,10 @@ queue_rules:
       # temporary draft pull request instead, whose title fails Lint PR Title and whose number the
       # visual-review gate does not know. The ruleset's required checks (All Checks Pass, Lint PR
       # Title) are added to the queue conditions by Mergify on its own.
+      # Do NOT add merge_conditions naming "Queue Checks Pass" (or batch_size above 1) before the
+      # visual-review gate accepts a batch's pull request numbers: in a queue run the gate's --pr is the
+      # queue draft's own number, which no review record names, so every batch that changes a baseline
+      # would fail and be ejected, even alone. tools/ci-workflows.test.mjs enforces it.
 
 # Merge Protections' auto-merge puts a pull request into the queue once it matches these conditions;
 # the queue's own queue_conditions still gate it. (pull_request_rules would need Mergify's Workflow

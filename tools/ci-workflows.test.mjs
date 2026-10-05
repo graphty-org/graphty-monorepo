@@ -21,8 +21,8 @@ const job = (text, name) => {
     return next === -1 ? text.slice(start) : text.slice(start, start + 1 + next);
 };
 const PACKAGES = [...new Set(SHARDS.map((s) => s.package))];
-const DRAFT_GUARD =
-    "github.event_name != 'pull_request' || !github.event.pull_request.draft || startsWith(github.head_ref, 'mergify/merge-queue/')";
+const QUEUE =
+    "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
     it("runs every shard exactly once on a full run, in 13 jobs", () => {
@@ -75,14 +75,29 @@ describe("ci.yml", () => {
 
     it("starts a run when a draft is marked ready, and skips drafts except the merge queue's", () => {
         assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
-        for (const name of ["build", "all-checks", "queue-checks"]) {
-            assert.ok(job(ci, name).includes(DRAFT_GUARD), `${name} carries the draft condition`);
+        assert.ok(
+            job(ci, "build").includes(
+                `if: github.event_name != 'pull_request' || !github.event.pull_request.draft || (${QUEUE})\n`,
+            ),
+        );
+        assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
+    });
+
+    it("fails, never skips, the summary checks on a draft", () => {
+        // A skipped required check counts as passing, and the draft run's check stays on the head SHA
+        // after "gh pr ready" until the new run reports.
+        for (const name of ["all-checks", "queue-checks"]) {
+            assert.match(job(ci, name), /\n {8}if: always\(\)\n/, `${name} always runs`);
         }
+        assert.match(
+            job(ci, "all-checks"),
+            /if \[\[ "\$BUILD" == "skipped" \]\]; then\n.*draft: CI not run.*\n\s+exit 1/,
+        );
     });
 
     it("runs the full suite on a merge-queue branch", () => {
         const step = job(ci, "build");
-        assert.match(step, /"\$EVENT" == "pull_request" && "\$HEAD_REF" != mergify\/merge-queue\/\*/);
+        assert.match(step, /"\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true"/);
         assert.match(step, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t build/);
         assert.match(step, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t lint/);
     });
@@ -92,7 +107,7 @@ describe("ci.yml", () => {
         const queue = job(ci, "queue-checks");
         assert.match(queue, /name: Queue Checks Pass/);
         assert.match(queue, /"\$ALL_CHECKS" != "success"/);
-        assert.match(queue, /mergify\/merge-queue\/\* && "\$FULL" != "true"/);
+        assert.match(queue, /"\$MERGE_QUEUE" == "true" && "\$FULL" != "true"/);
     });
 
     it("gates every pull request that affects graphty-element on the cost estimates", () => {
@@ -109,11 +124,36 @@ describe("ci.yml", () => {
 });
 
 describe("pr-title.yml", () => {
-    it("passes a merge-queue draft without linting Mergify's title", () => {
+    it("passes only Mergify's own merge-queue draft without linting its title", () => {
+        assert.ok(workflow("pr-title.yml").includes(`- name: Lint PR title\n              if: \${{ !(${QUEUE}) }}\n`));
+    });
+});
+
+describe("the lanes outside CI", () => {
+    it("run nothing on a draft and start when it is marked ready", () => {
+        const hosts = workflow("hosts.yml");
+        assert.match(hosts, /types: \[opened, synchronize, reopened, ready_for_review\]/);
         assert.match(
-            workflow("pr-title.yml"),
-            /- name: Lint PR title\n\s+if: \$\{\{ !startsWith\(github.head_ref, 'mergify\/merge-queue\/'\) \}\}/,
+            job(hosts, "test"),
+            /if: github.event_name != 'pull_request' \|\| !github.event.pull_request.draft\n/,
         );
+        const gpu = workflow("gpu.yml");
+        assert.match(gpu, /pull_request: \{ types: \[labeled, synchronize, ready_for_review\] \}/);
+        assert.match(job(gpu, "test-gpu"), /!github.event.pull_request.draft &&/);
+    });
+});
+
+describe(".mergify.yml", () => {
+    it("does not make the queue wait on the visual gate before the gate accepts a batch", () => {
+        // In a queue run the gate's --pr is the queue draft's own number, which no review record names,
+        // so a batch that changes a baseline fails "Queue Checks Pass" every time. merge_conditions may
+        // name it only once the trusted gate takes a batch's pull request numbers (its usage says so).
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        const gate = readFileSync(new URL("../visual-review/trusted/gate.mjs", import.meta.url), "utf8");
+        const usage = gate.slice(gate.indexOf("export const GATE_USAGE"));
+        if (/^\s*merge_conditions:/m.test(mergify) || /^\s*batch_size: *([2-9]|\d{2,})/m.test(mergify)) {
+            assert.match(usage.slice(0, usage.indexOf("`;")), /batch/i, "the gate accepts a batch first");
+        }
     });
 });
 
@@ -194,7 +234,7 @@ describe("release-diff", () => {
 });
 
 describe("pr-status-broker", () => {
-    it("writes one compact record per pull request, checks by name", () => {
+    it("writes one compact record per pull request, the newest check of each name", () => {
         const pr = (number, rollup) => ({
             number,
             title: "t",
@@ -206,9 +246,24 @@ describe("pr-status-broker", () => {
             commits: { nodes: rollup === undefined ? [] : [{ commit: { statusCheckRollup: rollup } }] },
         });
         const contexts = {
+            pageInfo: { hasNextPage: true },
             nodes: [
-                { name: "Build", status: "COMPLETED", conclusion: "SUCCESS" },
-                { name: "Links", status: "IN_PROGRESS", conclusion: null },
+                { name: "Build", status: "COMPLETED", conclusion: "SUCCESS", startedAt: "2026-10-04T10:00:00Z" },
+                // The draft run's skipped check, older, listed after the real one: the newest wins.
+                {
+                    name: "All Checks Pass",
+                    status: "COMPLETED",
+                    conclusion: "SUCCESS",
+                    startedAt: "2026-10-04T10:20:00Z",
+                },
+                {
+                    name: "All Checks Pass",
+                    status: "COMPLETED",
+                    conclusion: "SKIPPED",
+                    startedAt: "2026-10-04T09:00:00Z",
+                },
+                { name: "Links", status: "COMPLETED", conclusion: "FAILURE", startedAt: "2026-10-04T10:00:00Z" },
+                { name: "Links", status: "QUEUED", conclusion: null, startedAt: null },
                 {},
             ],
         };
@@ -224,7 +279,8 @@ describe("pr-status-broker", () => {
             mergeable: "MERGEABLE",
             labels: ["hold"],
             state: "PENDING",
-            checks: { Build: "SUCCESS", Links: "IN_PROGRESS" },
+            checks: { Build: "SUCCESS", "All Checks Pass": "SUCCESS", Links: "QUEUED" },
+            checksTruncated: true,
         });
         assert.equal(b.state, null);
         assert.deepEqual(b.checks, {});

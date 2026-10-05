@@ -19,7 +19,7 @@ import type { EdgeId } from "../../catalog/types";
 import { DataSource, type DataSourceChunk, type DeclaredDirection } from "../../data/DataSource";
 import { decideRepeat } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
-import { ErrorAggregator } from "../../data/ErrorAggregator";
+import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
 import { type ImportReport, type ImportTally, newImportTally, sealImportReport } from "../../data/report";
 import { readSeedPosition } from "../../data/seedPosition";
@@ -191,16 +191,87 @@ export interface IngestHost<K extends KnownEdge> {
  * so it reports records read and no total.
  * @param progress - How far the load has got.
  * @param phase - Whether it is still going.
+ * @param end - How it ended, on its last change.
  * @returns The change.
  */
-function loadProgressChange(progress: LoadProgress, phase: ProgressChange["phase"]): ProgressChange {
+function loadProgressChange(
+    progress: LoadProgress,
+    phase: ProgressChange["phase"],
+    end?: Pick<ProgressChange, "outcome" | "error">,
+): ProgressChange {
     return {
         task: "load",
         phase,
         completed: progress.nodeRecords + progress.edgeRecords,
         total: null,
         fraction: null,
+        ...(progress.source === undefined ? {} : { source: progress.source }),
+        ...end,
     };
+}
+
+/**
+ * What a load's progress names as its source: the name it was given or its file's, and its URL.
+ * @param opts - The data source's options.
+ * @param name - The name the import was given.
+ * @returns The source, or undefined when nothing names it.
+ */
+export function progressSource(opts: object, name: string | undefined): ProgressChange["source"] {
+    const { url, file, filename } = opts as { url?: unknown; file?: { name?: unknown }; filename?: unknown };
+    const link = typeof url === "string" && !url.startsWith("data:") ? url : undefined;
+    const named = [name, filename, file?.name, link?.split(/[?#]/)[0]?.split("/").pop()].find(
+        (each): each is string => typeof each === "string" && each !== "",
+    );
+    if (named === undefined && link === undefined) {
+        return undefined;
+    }
+
+    return Object.freeze({
+        ...(named === undefined ? {} : { name: named }),
+        ...(link === undefined ? {} : { url: link }),
+    });
+}
+
+/**
+ * How a failed load ended, for its last progress change.
+ * @param error - What it threw.
+ * @param signal - Its cancel signal.
+ * @returns The outcome, and the coded error when it carried one.
+ */
+export function failedEnd(error: unknown, signal: AbortSignal | undefined): Pick<ProgressChange, "outcome" | "error"> {
+    if (signal?.aborted === true) {
+        return { outcome: "cancelled" };
+    }
+
+    return isGraphtyError(error)
+        ? { outcome: "failed", error: Object.freeze({ code: error.code, details: error.details ?? {} }) }
+        : { outcome: "failed" };
+}
+
+/**
+ * The refusal of a source whose parser could not read it: one that produced no record and
+ * reported a parse error. An empty file, or one whose rows were all refused by its schema, is
+ * not this; it is `E_EMPTY_LOAD`.
+ * @param format - The data source that read it.
+ * @param errors - The errors its read reported.
+ * @returns `E_PARSE_FAILED` naming the format and, when known, the line; null when no parse error.
+ */
+export function unreadableSource(format: string, errors: readonly DataLoadingError[]): GraphtyError | null {
+    const unreadable = errors.find((each) => each.category === "parse-error");
+    if (unreadable === undefined) {
+        return null;
+    }
+
+    return new GraphtyError({
+        code: "E_PARSE_FAILED",
+        source: "data",
+        message: `The ${format} source could not be read: ${unreadable.message}`,
+        details: {
+            format,
+            rowErrors: errors.length,
+            ...(unreadable.line === undefined ? {} : { line: unreadable.line }),
+        },
+    });
 }
 
 /** How far a load has got. */
@@ -215,6 +286,8 @@ interface LoadProgress {
     readonly edgeRecords: number;
     /** Chunks ingested so far. */
     readonly chunks: number;
+    /** What is being read, as progress names it. */
+    readonly source?: ProgressChange["source"];
 }
 
 /**
@@ -260,6 +333,9 @@ export class Ingest<K extends KnownEdge> {
 
     /** The load in progress drops an edge naming a node no node record holds. */
     private leaveOutUnmatched = false;
+
+    /** What the load in progress does with a node record repeating an id an earlier one gave. */
+    private duplicateIds: NonNullable<DataImportCommand["duplicateIds"]> = "first";
 
     /** The graph held nodes when the load in progress began, so its edges can name them. */
     private loadBeganWithNodes = false;
@@ -379,13 +455,25 @@ export class Ingest<K extends KnownEdge> {
         }
 
         this.leaveOutUnmatched = command.unmatched === "leave-out";
-        this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
-        // A replacing load is measured against an empty graph, which is what it leaves.
+        this.duplicateIds = command.duplicateIds ?? "first";
+        // A replacing load is measured against an empty graph, which is what it leaves. Set before
+        // the graph is counted, so a measured merge matches its edges against the graph it counts
+        // as there, as the real merge does (#935).
         this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
+        this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
         try {
-            await this.addDataFromSource(type, config, writer, signal, command.mode !== "merge", command.held);
+            await this.addDataFromSource(
+                type,
+                config,
+                writer,
+                signal,
+                command.mode !== "merge",
+                command.held,
+                command.source.name,
+            );
         } finally {
             this.leaveOutUnmatched = false;
+            this.duplicateIds = "first";
             this.measure = null;
         }
     }
@@ -435,6 +523,9 @@ export class Ingest<K extends KnownEdge> {
 
         for (const [i, node] of nodes.entries()) {
             const nodeId = ids[i];
+            if (this.loadTally !== null && this.loadRowSkipped(nodeId, node, writer, this.loadTally)) {
+                continue;
+            }
 
             if (this.hasNode(nodeId)) {
                 continue;
@@ -451,6 +542,52 @@ export class Ingest<K extends KnownEdge> {
         if (nodes.length > 0) {
             this.host.nodesArrived(nodes.length);
         }
+    }
+
+    /**
+     * Count one node record of a load against the load's tally, and say whether it adds no node:
+     * a record with no usable id is rejected, and one repeating an id an earlier record of the
+     * same load gave is a duplicate, kept out (`"first"`), folded into the first (`"merge"`) or
+     * refused (`"refuse"`, `E_DUPLICATE_ID`; a measured load counts it instead).
+     * @param id - The id the record gave.
+     * @param record - The record.
+     * @param writer - The graph primitives to write through.
+     * @param tally - The load's tally.
+     * @returns True when the record adds no node.
+     * @throws A `GraphtyError` with `E_DUPLICATE_ID` under `"refuse"`.
+     */
+    private loadRowSkipped(
+        id: NodeIdType,
+        record: Record<string | number, unknown>,
+        writer: GraphWriter,
+        tally: ImportTally,
+    ): boolean {
+        if (!isStorableId(id)) {
+            tally.rejected++;
+            return true;
+        }
+
+        if (!tally.nodeIds.has(id)) {
+            tally.nodeIds.add(id);
+            return false;
+        }
+
+        tally.duplicateRows++;
+        tally.duplicateIds.add(id);
+        if (this.duplicateIds === "refuse" && this.measure === null) {
+            throw new GraphtyError({
+                code: "E_DUPLICATE_ID",
+                source: "data",
+                message: `Two node rows give the id ${JSON.stringify(id)}, and the load refuses duplicate ids.`,
+                details: { id },
+            });
+        }
+
+        if (this.duplicateIds === "merge" && this.measure === null) {
+            writer.setAttributes("node", id, frozenRecord(record));
+        }
+
+        return true;
     }
 
     /**
@@ -922,6 +1059,7 @@ export class Ingest<K extends KnownEdge> {
      * @param replacing - Whether the load replaces the graph, so reading only part of the file
      *     is a failure
      * @param held - Rows a draft already read, loaded instead of reading the source
+     * @param name - What the import called the data, for its progress
      */
     async addDataFromSource(
         type: string,
@@ -930,6 +1068,7 @@ export class Ingest<K extends KnownEdge> {
         signal?: AbortSignal,
         replacing = false,
         held?: HeldRows,
+        name?: string,
     ): Promise<void> {
         this.logger.info("Loading data source", { type, options: opts });
 
@@ -941,6 +1080,17 @@ export class Ingest<K extends KnownEdge> {
             nodeRecords: 0,
             edgeRecords: 0,
             chunks: 0,
+            source: progressSource(opts, name),
+        };
+        // The first change, published before anything is read, so a watcher sees the load from
+        // its first moment.
+        this.host.progress?.(loadProgressChange(progress, "progress"));
+        let ended = false;
+        const end = (outcome: Pick<ProgressChange, "outcome" | "error">): void => {
+            if (!ended) {
+                ended = true;
+                this.host.progress?.(loadProgressChange(progress, "end", outcome));
+            }
         };
 
         // One tally and one endpoint decision for the WHOLE load, however many chunks it arrives
@@ -1014,6 +1164,15 @@ export class Ingest<K extends KnownEdge> {
                 // rolls back rather than recording an empty graph as a load. A file of edges alone
                 // is not empty: its endpoints become nodes.
                 const rowErrors = errors.getErrorCount();
+                // A file the parser could not read is not an empty file: the two have different fixes.
+                const unreadable =
+                    progress.nodeRecords + progress.edgeRecords === 0
+                        ? unreadableSource(type, errors.getErrors())
+                        : null;
+                if (unreadable !== null) {
+                    throw unreadable;
+                }
+
                 if (progress.nodeRecords === 0 && progress.edgeRecords === 0) {
                     throw new GraphtyError({
                         code: "E_EMPTY_LOAD",
@@ -1062,9 +1221,9 @@ export class Ingest<K extends KnownEdge> {
                 });
 
                 this.host.loadComplete(type, report, progress, duration, errorCount);
-                this.host.progress?.(loadProgressChange(progress, "end"));
+                end({ outcome: "succeeded" });
             } catch (error) {
-                this.host.progress?.(loadProgressChange(progress, "end"));
+                end(failedEnd(error, signal));
                 // A cancelled load did not fail: whoever cancelled it says why.
                 if (signal?.aborted === true) {
                     throw error;
@@ -1093,6 +1252,7 @@ export class Ingest<K extends KnownEdge> {
                 );
             }
         } catch (error) {
+            end(failedEnd(error, signal));
             // Same rule one level out: a coded failure is the answer, not something to re-word.
             if (isGraphtyError(error) || signal?.aborted === true) {
                 throw error;

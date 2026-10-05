@@ -316,6 +316,8 @@ export class Graphty extends LitElement {
         if (change.phase === "end") {
             this.#progressAt.delete(key);
         } else {
+            // The first change of a task is never held back (nothing was sent before it); only
+            // the steps after it are.
             const now = Date.now();
             if (now - (this.#progressAt.get(key) ?? 0) < RUN_PROGRESS_INTERVAL_MS) {
                 return;

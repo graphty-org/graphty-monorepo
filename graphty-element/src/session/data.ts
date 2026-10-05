@@ -23,9 +23,11 @@ import type {
     RunId,
     ScopeInput,
 } from "../catalog/types";
+import { isPairConfig } from "../data/CSVDataSource";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
+import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
@@ -41,10 +43,10 @@ import {
     type ImportSource,
     SOURCE_VALUE,
 } from "./commands/data";
-import { Draft, isPair, readSource } from "./draft";
+import { Draft, readSource } from "./draft";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
-import { Ingest } from "./project/ingest";
+import { failedEnd, Ingest, progressSource } from "./project/ingest";
 import type { GraphSlice, RunEntry } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
 import {
@@ -62,7 +64,7 @@ import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
-import type { ColumnRef } from "./shared";
+import type { ColumnRef, ProgressChange } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type { CompiledLayer } from "./styles/Layer";
 import type {
@@ -115,6 +117,8 @@ interface DataWrites {
     setSource(source: DataSourceDescriptor): Promise<unknown>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
+    /** Publish a progress change as the session's `progress:changed`. */
+    progress?(change: ProgressChange): void;
     /** The style stack and the finished runs now: what reads a column. */
     readers(): {
         readonly styles: readonly CompiledLayer[];
@@ -512,7 +516,12 @@ export class SessionData implements SessionDataApi {
         // synchronously, and detecting the format may have to read the file or fetch the URL.
         const send = this.writes.importer();
         this.draft?.dispose();
-        if (options.mapping !== undefined || options.unmatched !== undefined || options.directed !== undefined) {
+        if (
+            options.mapping !== undefined ||
+            options.unmatched !== undefined ||
+            options.directed !== undefined ||
+            options.duplicateIds !== undefined
+        ) {
             const draft = await this.prepare(source);
             try {
                 await draft.loadVia(send, options);
@@ -546,8 +555,7 @@ export class SessionData implements SessionDataApi {
     async prepare(source: DataSourceInput, options: { readonly signal?: AbortSignal } = {}): Promise<Draft> {
         this.requireLive("prepare");
         this.draft?.dispose();
-        const resolved = resolveImportSource(source);
-        const read = await readSource(resolved instanceof Promise ? await resolved : resolved, options.signal);
+        const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
         const draft = new Draft(read, {
             config: () => this.readConfig(),
             graph: () => {
@@ -1097,7 +1105,7 @@ export class SessionData implements SessionDataApi {
         const space = edgeSpaceOf(snapshot);
         const members = scope === undefined ? null : this.pages.resolve(scope);
         const count = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const end = touching === undefined ? INVALID_INDEX : snapshot.ids.indexOf(touching);
+        const end = touching === undefined ? INVALID_INDEX : rowOfEitherSpelling(snapshot, touching);
         const rows: number[] = [];
         // ponytail: `touching` scans every edge once per revision; read the undirected CSR if a
         // host pages the edges of many nodes per revision.
@@ -1723,6 +1731,56 @@ function fileOf(
 }
 
 /**
+ * Settle a source and read it once, publishing the read as `task: "prepare"` progress: a first
+ * change before anything is read, the rows read so far, and an end saying how it stopped.
+ * @param source - What `prepare` takes.
+ * @param signal - Abandons the read.
+ * @param publish - Where the progress goes.
+ * @returns What was read.
+ * @throws What reading throws, after the end is published.
+ */
+async function readWithProgress(
+    source: DataSourceInput,
+    signal: AbortSignal | undefined,
+    publish: (change: ProgressChange) => void,
+): Promise<Awaited<ReturnType<typeof readSource>>> {
+    const named = progressSource(source.config, source.name);
+    let completed = 0;
+    let fraction: number | null = null;
+    const change = (phase: ProgressChange["phase"], end?: Pick<ProgressChange, "outcome" | "error">): void => {
+        publish({
+            task: "prepare",
+            phase,
+            completed,
+            total: null,
+            fraction,
+            ...(named === undefined ? {} : { source: named }),
+            ...end,
+        });
+    };
+
+    // The first change, sent before anything is read.
+    change("progress");
+    try {
+        const resolved = resolveImportSource(source);
+        const read = await readSource(
+            resolved instanceof Promise ? await resolved : resolved,
+            signal,
+            (rows, share) => {
+                completed = rows;
+                fraction = share ?? null;
+                change("progress");
+            },
+        );
+        change("end", { outcome: "succeeded" });
+        return read;
+    } catch (error) {
+        change("end", failedEnd(error, signal));
+        throw error;
+    }
+}
+
+/**
  * Settle what an import will read: the format, detected when it was not named, and the name and
  * size the graph keeps beside it. A URL whose name says nothing is fetched once here and its text
  * handed on, so the data source does not fetch it again.
@@ -1747,7 +1805,7 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     // A node file and an edge file handed over as a pair are only ever CSV.
-    if (isPair(config)) {
+    if (isPairConfig(config)) {
         return { type: "csv", config, ...described };
     }
 
@@ -1784,4 +1842,16 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     return detect(undefined);
+}
+
+/**
+ * The row of a node named in either spelling of an integer id, so `touching: "34"` finds node `34`.
+ * @param snapshot - The snapshot.
+ * @param id - The node, as the caller wrote it.
+ * @returns The row, or INVALID_INDEX when the graph holds neither spelling.
+ */
+function rowOfEitherSpelling(snapshot: GraphSnapshot, id: NodeId): number {
+    const row = snapshot.ids.indexOf(id);
+    const other = row === INVALID_INDEX ? otherIdSpelling(id) : undefined;
+    return other === undefined ? row : snapshot.ids.indexOf(other);
 }

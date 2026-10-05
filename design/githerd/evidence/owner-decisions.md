@@ -171,6 +171,12 @@ incident procedure's revert step, requires a code verdict. An environment verdic
 hold, and if the failure persists it raises an owner item. This applies the standing rule above:
 Claude makes the judgment call, code enforces it.
 
+**Invite idle sessions to pull work (2026-10-05).** When a job is queued and no worker slot takes
+it, githerd messages the idle Claude sessions in this repository once per job: "githerd has work
+queued (<job>, <one-line reason>). If you're free, call githerd_next and claim a job; otherwise
+ignore this." Never githerd's own workers, never more than once per job, and only while githerd may
+start workers (dry-run records what it would have sent). The board shows when it last invited.
+
 **REJECTED: footprints guessed from issue text (2026-10-03 04:31).** The proposal: before any
 work starts, guess which files an issue touches by parsing paths and package names from its text.
 Owner: "stage 1 sounds like magic, there's no way that would work in practice".

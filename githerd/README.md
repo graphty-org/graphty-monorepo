@@ -70,7 +70,9 @@ Every session gets the thirteen tools of design section 6 from the MCP server in
 unambiguous patterns (a credential, paid capacity, a lost runner, a package mirror or DNS outage)
 is unclassified: githerd holds merges, re-runs the job once and queues an urgent verdict job, and
 the session that takes it calls `githerd_verdict` with code or environment. Only a code verdict
-allows a revert; an environment verdict lifts the hold. A session calls `githerd_next` for its job (a worker) or the queued jobs it could
+allows a revert; an environment verdict lifts the hold. When a job waits in the queue with no
+free worker slot, githerd messages the idle sessions in this repository once per job, inviting them
+to call `githerd_next` and claim it. A session calls `githerd_next` for its job (a worker) or the queued jobs it could
 take (an owner session), and `githerd_claim` with its overlap judgment before any edit. A pull
 request another session works on is never offered (design section 8.2): one whose job a live session
 claimed; one whose CI is running on a head someone other than githerd pushed; and one whose CI

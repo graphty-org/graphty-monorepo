@@ -203,10 +203,18 @@ const RENDER = {
 
     jobs(v, now) {
         const jobs = openJobs(v.state).filter((j) => j.kind !== "incident");
-        if (!jobs.length) return ["JOBS: none"];
+        const inv = v.state.invited;
+        // The last time idle sessions were asked to pull work (asks.mjs inviteStep).
+        const invited = inv
+            ? [
+                  `  ${inv.acting ? "invited" : "would have invited"} ${inv.count} idle sessions at ${when(inv.at).slice(6)}`,
+              ]
+            : [];
+        if (!jobs.length) return ["JOBS: none", ...invited];
         return [
             `JOBS (${jobs.length}):`,
             ...jobs.map((j) => `  ${j.id} ${jobState(j, now)} -- ${j.reason || "no reason recorded"}`),
+            ...invited,
         ];
     },
 

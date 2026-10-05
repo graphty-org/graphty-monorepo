@@ -239,6 +239,8 @@ async function start(options = {}) {
         log: (line) => lines.push(line),
         // githerd's real tmux server is never read by a test.
         platform: { windows: () => [] },
+        // Nor are the owner's real Claude sessions: no session is listed unless a test lists one.
+        peers: { sessions: () => [], transport: { send: async () => {} } },
         ...options,
     });
     daemons.push(daemon);
@@ -657,7 +659,6 @@ describe("the poll loop", () => {
         expect(gh.writes()).toEqual([]);
         const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
         expect(wouldDo.map((e) => [e.group, e.op, e.situation, e.key])).toEqual([
-            // the incident job a worker would take, were the workers group acting
             // the verdict job a worker would take, were the workers group acting
             ["workers", "start a worker for verdict-ci-Build-", undefined, undefined],
             // no parent re-test: that waits for Claude's code verdict
@@ -1357,6 +1358,38 @@ describe("asking whose a failed pull request is", () => {
         clock = new Date("2026-10-02T12:03:00Z");
         await poll(daemon);
         expect((await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "pr-asked")).toHaveLength(1);
+    });
+});
+
+describe("inviting idle sessions to pull work", () => {
+    it("announces a queued job no worker took once, to idle sessions only, a would-do in dry-run", async () => {
+        /** @type {string[]} */
+        const sent = [];
+        const peers = {
+            sessions: () => [
+                { pid: 1, sessionId: "s1", name: "graphty-13", cwd: dir, socket: "/s1.sock", status: "idle" },
+                { pid: 2, sessionId: "s2", name: "graphty-14", cwd: dir, socket: "/s2.sock", status: "busy" },
+            ],
+            transport: { send: async (/** @type {string} */ socket) => void sent.push(socket) },
+        };
+        const daemon = await start({ peers });
+        await poll(daemon);
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/feat"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["12:03", "12:06"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        const invites = (await readLedger(join(dir, ".githerd"))).filter(
+            (e) => e.kind === "would-do" && e.op?.startsWith("invite"),
+        );
+        expect(invites).toEqual([
+            expect.objectContaining({ group: "workers", op: "invite 1 idle session(s) to take verdict-ci-Build-" }),
+        ]);
+        expect(sent).toEqual([]);
+        const text = statusText(statusData(daemon.state, { config: daemon.config, now: clock }, {}), clock);
+        expect(text).toContain("would have invited 1 idle sessions at 12:06 UTC");
     });
 });
 

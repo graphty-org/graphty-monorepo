@@ -64,7 +64,7 @@ import { homedir } from "node:os";
 import { inspect } from "node:util";
 
 import { createPushQueue } from "./actor/push.mjs";
-import { askStep } from "./asks.mjs";
+import { askStep, inviteStep } from "./asks.mjs";
 import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
@@ -108,7 +108,7 @@ import { liveSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
 import { needsReleaseDryRun, patchId, releaseSectionChanged, touches, updatePrs, whyStuck } from "./prs.mjs";
 import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
-import { NEXT, SKIP } from "./queue.mjs";
+import { jobInUse, jobOrder, NEXT, SKIP } from "./queue.mjs";
 import {
     appendLedger,
     clearFatal,
@@ -1522,6 +1522,7 @@ export async function startDaemon({
         }
         referenceWork();
         await workerPass();
+        if (state.trust.login) await inviteIdle(t);
         escalationItems();
         await ownerItemsPoll({
             api: gh,
@@ -1651,6 +1652,29 @@ export async function startDaemon({
                 }),
             transport: peers.transport ?? socketTransport(),
             sessionGone: (session) => ownerSessionGone(session, t),
+        });
+        for (const line of lines) void ledger(line);
+    }
+
+    /**
+     * Invites the idle sessions in this repository to take the queued jobs no worker slot took
+     * (asks.mjs, the owner's decision of 2026-10-05); in dry-run each invitation is a would-do line.
+     * @param {Date} t the poll's time
+     */
+    async function inviteIdle(t) {
+        const offered = jobOrder(state.jobs ?? {}, {
+            inUse: (j) => jobInUse(state, j, { config, now: t }),
+        }).items;
+        const lines = await inviteStep(state, {
+            now: t,
+            acting: writeMode("workers") === "acting",
+            sessions: () =>
+                (peers.sessions ?? liveSessions)({
+                    sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions"),
+                    root,
+                }),
+            transport: peers.transport ?? socketTransport(),
+            offered,
         });
         for (const line of lines) void ledger(line);
     }

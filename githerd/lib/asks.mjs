@@ -105,3 +105,52 @@ export async function askStep(state, { now, acting, sessions, transport, session
     }
     return lines;
 }
+
+/**
+ * The invitation for one queued job.
+ * @param {string} job the job
+ * @param {string} reason its one-line reason from the queue order
+ * @returns {string} the message
+ */
+function inviteText(job, reason) {
+    return (
+        `githerd has work queued (${job}, ${reason}). If you're free, call githerd_next and claim a job; ` +
+        "otherwise ignore this."
+    );
+}
+
+/**
+ * Invites the idle Claude sessions in this repository to pull work (the owner's decision of
+ * 2026-10-05): each queued job no worker slot took is announced once, to every session whose
+ * registry status is `idle`. githerd's own workers are never among them (`liveSessions` leaves
+ * them out). A job is marked (`invitedAt`) only once a session was there to hear it, so a job
+ * queued while every session is busy is announced when one goes idle. The last invitation is kept
+ * in `state.invited` for the board.
+ * @param {any} state the daemon state, changed in place
+ * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
+ *   transport: import("./peers.mjs").Transport, offered: {job: string, reason: string}[]}} opts the
+ *   clock, whether the `workers` write group acts (else each send is a would-do line), the live
+ *   sessions in this repository, the transport, and the queued jobs githerd would offer, in order
+ * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
+ */
+export async function inviteStep(state, { now, acting, sessions, transport, offered }) {
+    const lines = [];
+    /** @type {import("./peers.mjs").PeerSession[] | null} read once, when an invitation is due */
+    let idle = null;
+    for (const { job: id, reason } of offered) {
+        const job = state.jobs?.[id];
+        if (job?.state !== "queued" || job.invitedAt) continue;
+        idle ??= sessions().filter((s) => s.status === "idle");
+        if (!idle.length) break;
+        const names = idle.map((s) => s.name);
+        job.invitedAt = now.toISOString();
+        if (!acting) {
+            const op = `invite ${names.length} idle session(s) to take ${id}`;
+            lines.push({ kind: "would-do", group: "workers", op, job: id });
+        }
+        const out = acting ? await tellSessions(idle, inviteText(id, reason), transport) : { sent: [], failed: [] };
+        state.invited = { at: job.invitedAt, count: acting ? out.sent.length : names.length, acting };
+        lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });
+    }
+    return lines;
+}

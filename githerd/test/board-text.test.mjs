@@ -47,6 +47,15 @@ describe("renderBoard", () => {
         ]);
     });
 
+    it("shows the last invitation of idle sessions under the jobs", () => {
+        const text = renderBoard(
+            view({ invited: { at: "2026-10-03T11:42:00.000Z", count: 2, acting: true } }),
+            NOW,
+            "jobs",
+        );
+        expect(text.split("\n").slice(1)).toEqual(["JOBS: none", "  invited 2 idle sessions at 11:42"]);
+    });
+
     it("refuses an unknown section, and says nothing is waiting when nothing is", () => {
         expect(() => renderBoard(view({}), NOW, "weather")).toThrow(/unknown section weather/);
         const text = renderBoard(view({}), NOW);

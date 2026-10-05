@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { askStep } from "../lib/asks.mjs";
+import { askStep, inviteStep } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { prInUse } from "../lib/queue.mjs";
 
@@ -152,5 +152,68 @@ describe("asking the live sessions whose a failed pull request is", () => {
         expect(again.map((l) => l.kind)).toEqual(["pr-asked"]);
         expect(state.asks[710].head).toBe("b".repeat(40));
         expect(f.sent).toHaveLength(4);
+    });
+});
+
+describe("inviting idle sessions to pull work", () => {
+    /**
+     * A state with queued jobs.
+     * @param {...string} ids the jobs
+     * @returns {any} the state
+     */
+    const queued = (...ids) => ({
+        jobs: Object.fromEntries(ids.map((id) => [id, newJob({ kind: "issue", target: "#1", id }, NOW)])),
+    });
+    const offered = [
+        { job: "issue-5", reason: "high bug" },
+        { job: "triage-new-1", reason: "triage of new issues" },
+    ];
+
+    it("tells only the idle sessions, once per job, and keeps the last invitation for the board", async () => {
+        const state = queued("issue-5", "triage-new-1");
+        const f = fake();
+        const lines = await inviteStep(state, { ...f.opts(), offered });
+        expect(f.sent).toEqual([
+            [
+                "/s1.sock",
+                "githerd has work queued (issue-5, high bug). If you're free, call githerd_next and claim a job; otherwise ignore this.",
+            ],
+            [
+                "/s1.sock",
+                "githerd has work queued (triage-new-1, triage of new issues). If you're free, call githerd_next and claim a job; otherwise ignore this.",
+            ],
+        ]);
+        expect(lines.map((l) => [l.kind, l.job, l.sent])).toEqual([
+            ["sessions-invited", "issue-5", ["graphty-13"]],
+            ["sessions-invited", "triage-new-1", ["graphty-13"]],
+        ]);
+        expect(state.invited).toEqual({ at: NOW.toISOString(), count: 1, acting: true });
+        // Never twice for the same job.
+        expect(await inviteStep(state, { ...f.opts(), offered })).toEqual([]);
+        expect(f.sent).toHaveLength(2);
+    });
+
+    it("waits for an idle session, and skips a job that left the queue", async () => {
+        const state = queued("issue-5", "triage-new-1");
+        move(state.jobs["triage-new-1"], "starting", NOW, { holder: { session: "w1", nonce: "n" } });
+        const f = fake();
+        const busy = () => SESSIONS.map((s) => ({ ...s, status: "busy" }));
+        expect(await inviteStep(state, { ...f.opts({ sessions: busy }), offered })).toEqual([]);
+        expect(state.jobs["issue-5"].invitedAt).toBeUndefined();
+        await inviteStep(state, { ...f.opts(), offered });
+        expect(f.sent.map(([, t]) => t.split(",")[0])).toEqual(["githerd has work queued (issue-5"]);
+    });
+
+    it("in dry-run sends nothing and writes one would-do per job", async () => {
+        const state = queued("issue-5");
+        const f = fake();
+        const lines = await inviteStep(state, { ...f.opts({ acting: false }), offered });
+        expect(f.sent).toEqual([]);
+        expect(lines[0]).toMatchObject({
+            kind: "would-do",
+            group: "workers",
+            op: "invite 1 idle session(s) to take issue-5",
+        });
+        expect(state.invited).toMatchObject({ count: 1, acting: false });
     });
 });

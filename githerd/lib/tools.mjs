@@ -213,6 +213,7 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
             inUse: order.inUse,
             inFlight,
             ownerWaiting: ownerWaitingPrs(state, now),
+            invited: state.invited ?? null,
         };
     }
     if (want("sessions")) {
@@ -378,13 +379,18 @@ function prLines(prs) {
  * requests that wait on the owner.
  * @param {{items: {job: string, reason: string}[], skipped: {job: string, reason: string}[],
  *   inUse?: {job: string, reason: string}[],
- *   inFlight: {job: string, state: string, reason: string}[], ownerWaiting: {target: string, reason: string}[]}} queue
- *   the queue data
+ *   inFlight: {job: string, state: string, reason: string}[], ownerWaiting: {target: string, reason: string}[],
+ *   invited?: {at: string, count: number, acting: boolean} | null}} queue the queue data, with the last
+ *   invitation of idle sessions
  * @returns {string[]} the lines
  */
-function queueLines({ items, skipped, inUse = [], inFlight, ownerWaiting }) {
+function queueLines({ items, skipped, inUse = [], inFlight, ownerWaiting, invited = null }) {
     const lines = [`QUEUE (${items.length})${items.length ? ":" : ": nothing to do"}`];
     for (const i of items) lines.push(`  ${i.job} -- ${i.reason}`);
+    if (invited) {
+        const did = invited.acting ? "invited" : "would have invited";
+        lines.push(`  ${did} ${invited.count} idle sessions at ${String(invited.at).slice(11, 16)} UTC`);
+    }
     for (const i of skipped) lines.push(`  ${i.job} -- skipped: ${i.reason}`);
     for (const i of inUse) lines.push(`  ${i.job} -- in use: ${i.reason}`);
     if (inFlight.length) {

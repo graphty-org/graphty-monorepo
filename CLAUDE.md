@@ -997,7 +997,9 @@ section 6 of `design/githerd/githerd-design.md` (`githerd_status`, `githerd_next
 `githerd_wait`, `githerd_expect`, `githerd_push`, `githerd_rerun`, `githerd_read`, `githerd_done`,
 `githerd_ask_owner`, `githerd_record`, `githerd_mine`, `githerd_verdict`) through the server in
 `.mcp.json`. A master failure githerd cannot classify waits for a Claude session to judge it code
-or environment with `githerd_verdict` before anything is reverted.
+or environment with `githerd_verdict` before anything is reverted. When a job waits with no free
+worker, githerd messages idle sessions once per job ("githerd has work queued ..."): if you are
+free, call `githerd_next` and claim a job; otherwise ignore it.
 When a pull request's CI fails on a head another session pushed, githerd sends each live session in
 this repository a message asking whose it is. If it is yours, call `githerd_mine` with its number
 (or claim its job); otherwise ignore the message. With no answer in 10 minutes githerd offers it as

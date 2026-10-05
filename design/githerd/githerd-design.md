@@ -1337,6 +1337,15 @@ shows each limit with the measurement that applied at the last start.
      `workers.askMinutes` (default 10, 1 to 60), or when no session could be asked, the pull
      request is offered as a `pr` job.
 
+- **Idle sessions are invited to pull work** (owner decision 2026-10-05). When a job is queued and
+  no worker slot takes it on that reconcile, githerd messages each idle session in this repository
+  (registry status `idle`, githerd's own workers left out) once per job, through the same session
+  messaging: "githerd has work queued (<job>, <one-line reason>). If you're free, call githerd_next
+  and claim a job; otherwise ignore this." Only jobs `githerd_next` would offer are announced. A job
+  queued while no session is idle is announced when one goes idle. The `workers` group gates it: in
+  dry-run each invitation is a `would-do` line. Each is ledgered (`sessions-invited`), and the board
+  shows the last one ("invited N idle sessions at HH:MM").
+
   githerd's own heads are those `githerd_push` and the upkeep recorded (`state.pushedByGitherd`)
   and GitHub's own commits (committer `noreply@github.com`: update-branch, Mergify); they are never
   in use for 2 or 3. A review runs beside the worker whose patch it reviews; only an owner

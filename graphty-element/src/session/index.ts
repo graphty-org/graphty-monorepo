@@ -10,6 +10,7 @@
  * enforces it.
  */
 
+export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { LayoutRecommendation, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
@@ -28,6 +29,7 @@ export type {
     DataSourceInput,
     DraftColumn,
     DraftRow,
+    DraftRowFilter,
     DraftRowOptions,
     DraftTable,
     EdgePageOptions,

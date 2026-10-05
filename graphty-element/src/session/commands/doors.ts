@@ -1432,6 +1432,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             type: READ,
             tables: READ,
             mapping: READ,
+            missing: READ,
+            resolve: READ,
             // Measured in a scratch session; this one is untouched.
             report: READ,
             rows: READ,

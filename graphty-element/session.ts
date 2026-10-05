@@ -72,6 +72,7 @@ export type {
     DataSourceInput,
     DraftColumn,
     DraftRow,
+    DraftRowFilter,
     DraftRowOptions,
     DraftTable,
     EdgePageOptions,
@@ -167,6 +168,12 @@ export type { ReadonlyElementPositions } from "./src/session";
 
 export type { LayoutRecommendation, LayoutRecommendationOptions } from "./src/session";
 export { recommendLayout } from "./src/session";
+
+// ---------------------------------------------------------------------------------------------
+// Previewing a load: the column roles a table of each kind takes and requires
+// ---------------------------------------------------------------------------------------------
+
+export { LOAD_ROLES } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // Runs: starting a computation, watching it, stopping it, and finding it again

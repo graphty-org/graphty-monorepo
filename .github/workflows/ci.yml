@@ -64,10 +64,23 @@ jobs:
             affected: ${{ steps.plan.outputs.affected }}
             test-matrix: ${{ steps.plan.outputs.test-matrix }}
             test-count: ${{ steps.plan.outputs.test-count }}
+            advisory-checks: ${{ steps.advisory.outputs.checks }}
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
+
+            # New required checks start as warnings. tools/ci-advisory-checks.json lists each new job or step
+            # with the date it becomes required ("enforce"); until then "All Checks Pass" reports a listed
+            # job's failure as a warning, and a listed step carries
+            #   continue-on-error: ${{ contains(fromJSON(needs.build.outputs.advisory-checks), '<job>/<step>') }}
+            # (steps.advisory.outputs.checks inside this job). The output is the JSON list of "<job>" and
+            # "<job>/<step>" still in their warning period. tools/ci-workflows.test.mjs refuses a new required
+            # job or step that is in neither the file's "required" baseline nor its "advisory" list.
+            - name: List advisory checks
+              id: advisory
+              run: |
+                  echo "checks=$(jq -c --arg today "$(date -u +%F)" '[.advisory[] | select(.enforce > $today) | .job + (if .step then "/" + .step else "" end)]' tools/ci-advisory-checks.json)" | tee -a "$GITHUB_OUTPUT"
 
             - uses: pnpm/action-setup@v4
 
@@ -1181,6 +1194,7 @@ jobs:
                   NEEDS: ${{ toJSON(needs) }}
                   BUILD: ${{ needs.build.result }}
                   FULL: ${{ needs.build.outputs.full }}
+                  ADVISORY: ${{ needs.build.outputs.advisory-checks }}
               run: |
                   if [[ "$BUILD" == "skipped" ]]; then
                       echo "::error::draft: CI not run. Mark the pull request ready (gh pr ready) to run it."
@@ -1193,8 +1207,11 @@ jobs:
                   # The visual job never decides here, whatever result job-level continue-on-error makes
                   # it report: on a pull request the gate step below judges its results.json, and on
                   # master a capture crash must not hold release, deploy or coverage.
-                  bad=$(jq -r --argjson ok "$ok" \
-                      'to_entries[] | select(.key != "visual") | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
+                  # A job in its warning period (tools/ci-advisory-checks.json, see the build job) only warns.
+                  adv="${ADVISORY:-[]}"
+                  jq -r --argjson adv "$adv" 'to_entries[] | select(.key as $k | $adv | index($k)) | select(.value.result != "success" and .value.result != "skipped") | "::warning::advisory check \(.key): \(.value.result) (required from its enforce date in tools/ci-advisory-checks.json)"' <<<"$NEEDS"
+                  bad=$(jq -r --argjson ok "$ok" --argjson adv "$adv" \
+                      'to_entries[] | select(.key != "visual") | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"

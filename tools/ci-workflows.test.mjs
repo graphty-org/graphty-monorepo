@@ -1,7 +1,8 @@
 // Tests of the CI shape: the test matrix's shard groups (tools/ci-test-matrix.mjs), the parts of
 // ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, the
 // release train (release.yml, tools/release-diff.mjs, deploy-pages.yml, .mergify.yml's release
-// rule), and the record tools/pr-status-broker.mjs writes for agents.
+// rule), the record tools/pr-status-broker.mjs writes for agents, and the warning period of new
+// required checks (tools/ci-advisory-checks.json).
 //
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
@@ -121,6 +122,144 @@ describe("ci.yml", () => {
 
     it("keeps the benchmarks advisory", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
+    });
+});
+
+// The (job, step) pairs that can fail "All Checks Pass" or "Queue Checks Pass": every step of every job
+// in their `needs` closure, less a job or step marked `continue-on-error: true`. A step is named by its
+// `name`, or by its `uses` when it has none; `coe` is its continue-on-error value, if any.
+const requiredChecks = (text) => {
+    const jobs = {};
+    let job;
+    let step;
+    let inNeeds = false;
+    for (const line of text.slice(text.indexOf("\njobs:\n")).split("\n")) {
+        let m = /^ {4}([\w-]+):\s*$/.exec(line);
+        if (m) {
+            job = jobs[m[1]] = { needs: "", steps: [], advisory: false };
+            step = undefined;
+            continue;
+        }
+        if (!job) continue;
+        if (/^ {8}\S/.test(line)) {
+            step = undefined;
+            inNeeds = line.startsWith("        needs:");
+            if (/^ {8}continue-on-error: true\s*$/.test(line)) job.advisory = true;
+        }
+        if (inNeeds) job.needs += line.replace(/^ {8}needs:/, "");
+        if ((m = /^ {12}- (?:([\w-]+):\s*(.*))?/.exec(line))) {
+            step = {};
+            job.steps.push(step);
+            if (m[1]) step[m[1]] = m[2];
+        } else if (step && (m = /^ {14}([\w-]+):\s*(.*)$/.exec(line))) step[m[1]] = m[2];
+    }
+    const closure = new Set();
+    const visit = (name) => {
+        if (closure.has(name)) return;
+        closure.add(name);
+        for (const need of jobs[name].needs.match(/[\w-]+/g) ?? []) visit(need);
+    };
+    visit("all-checks");
+    visit("queue-checks");
+    return Object.fromEntries(
+        [...closure]
+            .filter((name) => !jobs[name].advisory)
+            .map((name) => [
+                name,
+                jobs[name].steps
+                    .filter((s) => s["continue-on-error"] !== "true")
+                    .map((s) => ({ name: s.name ?? s.uses, coe: s["continue-on-error"] })),
+            ]),
+    );
+};
+
+describe("new required checks start as warnings", () => {
+    const ci = workflow("ci.yml");
+    const registry = JSON.parse(readFileSync(new URL("ci-advisory-checks.json", import.meta.url), "utf8"));
+    const checks = requiredChecks(ci);
+    const DAY = 86_400_000;
+    const today = new Date().toISOString().slice(0, 10);
+    const isAdvisory = (job, step) =>
+        registry.advisory.some((a) => a.job === job && (a.step === undefined || a.step === step));
+
+    it("finds the required jobs and steps", () => {
+        assert.ok(checks.build.some((s) => s.name === "Install dependencies"));
+        assert.ok(checks["all-checks"].some((s) => s.name === "Check visual changes were accepted"));
+        assert.ok(!("visual" in checks) && !("performance" in checks), "continue-on-error jobs never block");
+        assert.ok(!checks["all-checks"].some((s) => s.name === "Download visual captures"));
+    });
+
+    it("refuses a required job or step that is neither in the baseline nor in its warning period", () => {
+        const unregistered = Object.entries(checks).flatMap(([job, steps]) =>
+            steps
+                .filter((s) => !registry.required[job]?.includes(s.name) && !isAdvisory(job, s.name))
+                .map((s) => `${job} / ${s.name}`),
+        );
+        assert.deepEqual(
+            unregistered,
+            [],
+            'a new check goes into tools/ci-advisory-checks.json "advisory" first (a renamed or moved one into "required")',
+        );
+    });
+
+    it("keeps every advisory entry new, real, wired and at most 21 days old", () => {
+        for (const a of registry.advisory) {
+            const id = a.step === undefined ? a.job : `${a.job}/${a.step}`;
+            assert.match(a.added, /^\d{4}-\d\d-\d\d$/, `${id}: added`);
+            assert.match(a.enforce, /^\d{4}-\d\d-\d\d$/, `${id}: enforce`);
+            assert.ok(Number.isInteger(a.issue), `${id}: names its tracking issue`);
+            const added = Date.parse(a.added);
+            const enforce = Date.parse(a.enforce);
+            assert.ok(enforce > added && enforce <= added + 21 * DAY, `${id}: enforce within 21 days of added`);
+            assert.ok(
+                Date.parse(today) <= added + 21 * DAY,
+                `${id}: older than 21 days: promote it to "required" or remove it`,
+            );
+            assert.ok(a.job in checks, `${id}: a job "All Checks Pass" needs`);
+            assert.ok(!(a.job in registry.required) || a.step !== undefined, `${id}: an existing job is not new`);
+            if (a.step === undefined) continue;
+            assert.ok(!registry.required[a.job]?.includes(a.step), `${id}: an existing step is not new`);
+            const step = checks[a.job].find((s) => s.name === a.step);
+            assert.ok(step, `${id}: the step exists`);
+            const list = a.job === "build" ? "steps.advisory.outputs.checks" : "needs.build.outputs.advisory-checks";
+            assert.equal(step.coe, `\${{ contains(fromJSON(${list}), '${id}') }}`, `${id}: continue-on-error`);
+        }
+    });
+
+    it("lists the entries before their enforce date, and only warns about those jobs", () => {
+        const program = /jq -c --arg today "\$\(date -u \+%F\)" '([^']+)'/.exec(job(ci, "build"));
+        assert.ok(program, "the build job lists the advisory checks");
+        const fixture = JSON.stringify({
+            advisory: [
+                { job: "links", added: "2026-10-01", enforce: "2026-10-08" },
+                { job: "build", step: "Lint", added: "2026-10-01", enforce: "2026-10-08" },
+                { job: "test", added: "2026-09-20", enforce: "2026-10-05" },
+            ],
+        });
+        const r = spawnSync("jq", ["-c", "--arg", "today", "2026-10-05", program[1]], {
+            input: fixture,
+            encoding: "utf8",
+        });
+        assert.equal(r.stdout.trim(), '["links","build/Lint"]');
+
+        const body = job(ci, "all-checks");
+        const run = /- name: Check all jobs passed\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(body)[1];
+        const verdict = (advisory) =>
+            spawnSync("bash", ["-e", "-c", run], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    BUILD: "success",
+                    FULL: "true",
+                    ADVISORY: advisory,
+                    NEEDS: JSON.stringify({ build: { result: "success" }, links: { result: "failure" } }),
+                },
+            });
+        const warned = verdict('["links"]');
+        assert.equal(warned.status, 0, warned.stdout);
+        assert.match(warned.stdout, /::warning::advisory check links: failure/);
+        assert.equal(verdict("[]").status, 1);
+        assert.equal(verdict('["build"]').status, 1);
     });
 });
 

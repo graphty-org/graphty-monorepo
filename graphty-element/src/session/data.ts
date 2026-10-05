@@ -14,7 +14,16 @@ import "../data/index";
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
-import type { AttributeDescriptor, EdgeId, MeasurementDeclaration, RunId, ScopeInput } from "../catalog/types";
+import type {
+    AttributeDescriptor,
+    AttributeRole,
+    AttributeUse,
+    EdgeId,
+    MeasurementDeclaration,
+    RunId,
+    ScopeInput,
+} from "../catalog/types";
+import { isPairConfig } from "../data/CSVDataSource";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
@@ -33,11 +42,11 @@ import {
     type ImportSource,
     SOURCE_VALUE,
 } from "./commands/data";
-import { Draft, isPair, readSource } from "./draft";
+import { Draft, readSource } from "./draft";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
-import { Ingest } from "./project/ingest";
-import type { GraphSlice } from "./project/state";
+import { failedEnd, Ingest, progressSource } from "./project/ingest";
+import type { GraphSlice, RunEntry } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
 import {
     primaryResultColumn,
@@ -47,12 +56,18 @@ import {
     resultCellRanks,
     resultSortValue,
 } from "./results/pageColumns";
+import { buildHistogram, resolveBinCount } from "./results/statistics";
+import type { HistogramOptions } from "./results/types";
 import { RevisionCache } from "./revision";
 import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
-import type { ColumnRef } from "./shared";
+import type { SelectionTextMode } from "./selection";
+import { searchOf } from "./selection/targets";
+import type { ColumnRef, ProgressChange } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
+import type { CompiledLayer } from "./styles/Layer";
 import type {
+    ColumnHistogram,
     DataSourceDescriptor,
     DataSourceInput,
     EdgePageOptions,
@@ -97,8 +112,17 @@ interface DataWrites {
     measure(command: DataImportCommand, config: SessionDataConfig): Promise<LoadReport>;
     /** Dispatch `data.declare`. */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
+    /** Dispatch `data.setSource`. */
+    setSource(source: DataSourceDescriptor): Promise<unknown>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
+    /** Publish a progress change as the session's `progress:changed`. */
+    progress?(change: ProgressChange): void;
+    /** The style stack and the finished runs now: what reads a column. */
+    readers(): {
+        readonly styles: readonly CompiledLayer[];
+        readonly runs: ReadonlyMap<RunId, RunEntry>;
+    };
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -118,6 +142,14 @@ interface PageSources {
      * @returns the hits
      */
     search(text: string, request: SearchRequest): SearchAnswer;
+    /**
+     * Whether one record matches a text, by row: a page's `matching`, over the query engine.
+     * @param text - What was typed, its mode prefix already read
+     * @param mode - How to match it
+     * @param target - Nodes or edges
+     * @returns The test
+     */
+    textTest(text: string, mode: SelectionTextMode, target: "node" | "edge"): (index: number) => boolean;
     /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
@@ -266,6 +298,21 @@ function pageWindow(
 }
 
 /**
+ * A page's `matching`, its mode settled: the text's prefix read when no mode was given.
+ * @param matching - the option
+ * @returns the text and the mode, or undefined when the page is not narrowed
+ */
+function matchingOf(
+    matching: RecordPageOptions["matching"],
+): { readonly text: string; readonly mode: SelectionTextMode } | undefined {
+    if (matching === undefined) {
+        return undefined;
+    }
+
+    return matching.mode === undefined ? searchOf(matching.text) : { text: matching.text, mode: matching.mode };
+}
+
+/**
  * A reader by record id, read by row.
  * @param byId - reads one record by its id
  * @param snapshot - the current snapshot
@@ -350,6 +397,12 @@ export class SessionData implements SessionDataApi {
     private readonly neighborLists: RevisionCache<NeighborList>;
     /** The attribute walk, for the current revision. */
     private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
+    /** The descriptors with their declarations and roles laid over, and what they were laid from. */
+    private attributeOverlay: {
+        readonly described: readonly AttributeDescriptor[];
+        readonly key: string;
+        readonly result: readonly AttributeDescriptor[];
+    } | null = null;
     private disposed = false;
 
     /**
@@ -462,7 +515,12 @@ export class SessionData implements SessionDataApi {
         // synchronously, and detecting the format may have to read the file or fetch the URL.
         const send = this.writes.importer();
         this.draft?.dispose();
-        if (options.mapping !== undefined || options.unmatched !== undefined || options.directed !== undefined) {
+        if (
+            options.mapping !== undefined ||
+            options.unmatched !== undefined ||
+            options.directed !== undefined ||
+            options.duplicateIds !== undefined
+        ) {
             const draft = await this.prepare(source);
             try {
                 await draft.loadVia(send, options);
@@ -496,8 +554,7 @@ export class SessionData implements SessionDataApi {
     async prepare(source: DataSourceInput, options: { readonly signal?: AbortSignal } = {}): Promise<Draft> {
         this.requireLive("prepare");
         this.draft?.dispose();
-        const resolved = resolveImportSource(source);
-        const read = await readSource(resolved instanceof Promise ? await resolved : resolved, options.signal);
+        const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
         const draft = new Draft(read, {
             config: () => this.readConfig(),
             graph: () => {
@@ -563,6 +620,17 @@ export class SessionData implements SessionDataApi {
         }
 
         return this.nodeAt(index, id);
+    }
+
+    /**
+     * What a node is called: the name {@link SessionData.neighbors} gives it.
+     * @param id - the node id, compared without coercion
+     * @returns the name, or undefined when the graph has no such node
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    name(id: NodeId): string | undefined {
+        const index = this.current().ids.indexOf(id);
+        return index === INVALID_INDEX ? undefined : this.nameOf(index, id);
     }
 
     /**
@@ -875,7 +943,8 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * A node's name: the value at `data.knownFields.nodeLabelPath`, as text, else its id.
+     * A node's name: the value at `data.knownFields.nodeLabelPath`, as text, else its id. An empty
+     * label names nothing, so it falls back to the id too.
      * @param index - the node's row
      * @param id - the node's id
      * @returns the name
@@ -885,7 +954,7 @@ export class SessionData implements SessionDataApi {
         const value = key === null ? undefined : this.records?.nodeAttributes(index, id)?.[key];
         switch (typeof value) {
             case "string":
-                return value;
+                return value === "" ? String(id) : value;
             case "number":
             case "bigint":
             case "boolean":
@@ -983,7 +1052,8 @@ export class SessionData implements SessionDataApi {
         const scope = options.scope === "graph" ? undefined : options.scope;
         const touching = target === "edge" ? options.touching : undefined;
         const { sort } = options;
-        if (scope === undefined && touching === undefined && sort === undefined) {
+        const matching = matchingOf(options.matching);
+        if (scope === undefined && touching === undefined && sort === undefined && matching === undefined) {
             return null;
         }
 
@@ -992,7 +1062,7 @@ export class SessionData implements SessionDataApi {
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching]);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching]);
         return this.orders.get(key, () => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -1008,7 +1078,8 @@ export class SessionData implements SessionDataApi {
                                         )
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
-            return this.computeOrder(snapshot, target, scope, touching, order);
+            const matches = matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target);
+            return this.computeOrder(snapshot, target, scope, touching, order, matches);
         });
     }
 
@@ -1019,6 +1090,7 @@ export class SessionData implements SessionDataApi {
      * @param scope - the scope, or undefined for the whole graph
      * @param touching - for edges, the node one end must be
      * @param sort - the direction and what a row sorts by, or undefined for graph order
+     * @param matches - keeps only the rows matching a page's text, or null for every row
      * @returns the rows
      */
     private computeOrder(
@@ -1027,6 +1099,7 @@ export class SessionData implements SessionDataApi {
         scope: ScopeInput | undefined,
         touching: NodeId | undefined,
         sort: { readonly descending: boolean; value(index: number): unknown } | undefined,
+        matches: ((index: number) => boolean) | null,
     ): Uint32Array {
         const space = edgeSpaceOf(snapshot);
         const members = scope === undefined ? null : this.pages.resolve(scope);
@@ -1040,6 +1113,10 @@ export class SessionData implements SessionDataApi {
                 touching !== undefined &&
                 (end === INVALID_INDEX || (snapshot.edgeSource(index) !== end && snapshot.edgeTarget(index) !== end))
             ) {
+                continue;
+            }
+
+            if (matches !== null && !matches(index)) {
                 continue;
             }
 
@@ -1125,6 +1202,36 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Give the loaded source a new name, as one undoable step.
+     * @param name - the new name
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when no source is loaded or the name is empty.
+     */
+    async renameSource(name: string): Promise<void> {
+        this.requireLive("renameSource");
+        const current = this.source();
+        if (current === null) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "No data source is loaded, so there is none to rename.",
+                source: "data",
+                details: { reason: "no-source", name },
+            });
+        }
+
+        if (typeof name !== "string" || name.trim() === "") {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "A data source's new name is a string with something in it.",
+                source: "data",
+                details: { reason: "empty-name", name },
+            });
+        }
+
+        await this.writes.setSource({ ...current, name });
+    }
+
+    /**
      * What the last load did.
      * @returns the report, or null when nothing has been loaded into this graph
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
@@ -1146,19 +1253,115 @@ export class SessionData implements SessionDataApi {
         const snapshot = this.current();
         const described = this.attributeCache.get("", () => describeAttributes(snapshot, this.records));
         const declarations = this.writes.declarations();
-        if (declarations.size === 0) {
-            return described;
+        const roles = this.columnRoles();
+        const uses = this.columnUses(described);
+        // The same array back while nothing it was laid from moved, so a consumer can memo on it.
+        const key = JSON.stringify([[...declarations], [...roles], [...uses]]);
+        const memo = this.attributeOverlay;
+        if (memo?.described === described && memo.key === key) {
+            return memo.result;
         }
 
-        // ponytail: overlaid per call while anything is declared; a few dozen spreads.
-        return Object.freeze(
-            described.map((each) => {
-                const declared = declarations.get(declarationKey(each));
-                return declared === undefined
-                    ? each
-                    : Object.freeze({ ...each, measurement: declared.measurement, measurementSource: "declared" });
-            }),
-        );
+        const result =
+            declarations.size === 0 && roles.size === 0 && uses.size === 0
+                ? described
+                : Object.freeze(
+                      described.map((each) => {
+                          const declared = declarations.get(declarationKey(each));
+                          const played = roles.get(declarationKey(each));
+                          const used = uses.get(declarationKey(each));
+                          return declared === undefined && played === undefined && used === undefined
+                              ? each
+                              : Object.freeze({
+                                    ...each,
+                                    ...(declared === undefined
+                                        ? {}
+                                        : {
+                                              measurement: declared.measurement,
+                                              measurementSource: "declared" as const,
+                                          }),
+                                    ...(played === undefined ? {} : { roles: Object.freeze(played) }),
+                                    ...(used === undefined ? {} : { usedBy: Object.freeze(used) }),
+                                });
+                      }),
+                  );
+        this.attributeOverlay = { described, key, result };
+        return result;
+    }
+
+    /**
+     * What reads each column, by `<kind>:<name>`: the layers whose selector or bindings read a
+     * `data.` path under it, in stack order, then the runs that weighed their edges by it.
+     * @param described - the columns
+     * @returns the readers
+     */
+    private columnUses(described: readonly AttributeDescriptor[]): Map<string, AttributeUse[]> {
+        const { styles, runs } = this.writes.readers();
+        const out = new Map<string, AttributeUse[]>();
+        const add = (at: string, use: AttributeUse): void => {
+            const list = out.get(at) ?? [];
+            if (!list.some((each) => each.kind === use.kind && each.id === use.id)) {
+                list.push(use);
+                out.set(at, list);
+            }
+        };
+
+        // A column `address` is read by `data.address` and by `data.address.city`; matched against
+        // the columns themselves, because a column's own name may hold a dot.
+        // ponytail: columns x paths per call; index the paths by first segment if a file has
+        // thousands of columns and dozens of layers.
+        for (const { layer, reads } of styles) {
+            for (const path of reads) {
+                for (const column of described) {
+                    if (column.kind === layer.target && (path === column.path || path.startsWith(`${column.path}.`))) {
+                        add(declarationKey(column), { kind: "layer", id: layer.id });
+                    }
+                }
+            }
+        }
+
+        for (const [id, entry] of runs) {
+            const attribute = entry.record.caveats.weight?.attribute;
+            if (attribute !== undefined) {
+                add(`edge:${attribute}`, { kind: "run", id });
+            }
+        }
+
+        return out;
+    }
+
+    /**
+     * The roles columns play, by `<kind>:<name>`: from the data configuration and the last load.
+     * A path the element reads as an expression names the column it is a plain or quoted key of;
+     * one it reads as a literal key names that column.
+     * @returns the roles, each column's in a fixed order
+     */
+    private columnRoles(): Map<string, AttributeRole[]> {
+        const { knownFields } = this.readConfig();
+        const report = this.lastImport();
+        const out = new Map<string, AttributeRole[]>();
+        const add = (kind: "node" | "edge", role: AttributeRole, path: string | null | undefined): void => {
+            if (path === null || path === undefined) {
+                return;
+            }
+
+            for (const name of new Set([path, keyOfExpression(path)])) {
+                if (name !== null) {
+                    const at = `${kind}:${name}`;
+                    out.set(at, [...(out.get(at) ?? []), role]);
+                }
+            }
+        };
+
+        add("node", "key", knownFields.nodeIdPath);
+        add("node", "label", knownFields.nodeLabelPath);
+        add("node", "time", knownFields.nodeTimePath);
+        add("edge", "source", report?.endpoints.source ?? knownFields.edgeSrcIdPath);
+        add("edge", "target", report?.endpoints.target ?? knownFields.edgeDstIdPath);
+        add("edge", "weight", report?.weights.attribute ?? knownFields.edgeWeightPath);
+        add("edge", "time", knownFields.edgeTimePath);
+        add("edge", "edgeId", knownFields.edgeIdPath);
+        return out;
     }
 
     /**
@@ -1173,6 +1376,56 @@ export class SessionData implements SessionDataApi {
         this.requireLive("declare");
         const { kind, name } = resolveColumn(this.attributes(), column);
         await this.writes.declare({ kind, name }, declaration);
+    }
+
+    /**
+     * How one data column's values are distributed.
+     * @param column - the column
+     * @param options - the bin count and, for a numeric column, the scale
+     * @returns the distribution
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
+     *     `E_OPTION_RANGE` for a bad bin count.
+     */
+    histogram(column: ColumnRef, options: HistogramOptions = {}): ColumnHistogram {
+        const snapshot = this.current();
+        const descriptor = resolveColumn(this.attributes(), column);
+        const { name } = descriptor;
+        const count = descriptor.kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        const valueAt =
+            descriptor.kind === "node"
+                ? (index: number): unknown => this.records?.nodeAttributes(index, snapshot.ids.idOf(index))?.[name]
+                : (index: number): unknown => this.records?.edgeAttributes(index)?.[name];
+
+        if (descriptor.measurement === "quantitative") {
+            const column = {
+                length: count,
+                get: (index: number): number => {
+                    const value = valueAt(index);
+                    return typeof value === "number" ? value : Number.NaN;
+                },
+            };
+            const histogram = buildHistogram(column, { ...options, integerValued: descriptor.type === "integer" });
+            return Object.freeze({ kind: "numeric", ...histogram });
+        }
+
+        const limit = resolveBinCount(options.bins);
+        // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
+        const counts = new Map<string | number | boolean, number>();
+        let present = 0;
+        for (let index = 0; index < count; index++) {
+            const value = valueAt(index);
+            if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+                present++;
+                counts.set(value, (counts.get(value) ?? 0) + 1);
+            }
+        }
+
+        const values = [...counts]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, limit)
+            .map(([value, n]) => Object.freeze({ value, count: n }));
+        const listed = values.reduce((sum, each) => sum + each.count, 0);
+        return Object.freeze({ kind: "categorical", values: Object.freeze(values), otherCount: present - listed });
     }
 
     /**
@@ -1324,6 +1577,22 @@ export function recordsInRowOrder(
 /** A JMESPath expression that is nothing but a top-level property name. */
 const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
+/** A JMESPath quoted identifier: a top-level property name written as a JSON string. */
+const QUOTED_KEY = /^"(?:[^"\\]|\\.)*"$/;
+
+/**
+ * The top-level key a JMESPath expression reads, when that is all it does.
+ * @param expression - The expression, such as `id` or `"shared chapters"`.
+ * @returns The key, or null for an expression that reads anything else.
+ */
+function keyOfExpression(expression: string): string | null {
+    if (PLAIN_KEY.test(expression)) {
+        return expression;
+    }
+
+    return QUOTED_KEY.test(expression) ? (JSON.parse(expression) as string) : null;
+}
+
 /**
  * An edge record without the keys its endpoints were read from.
  * @param record - The record.
@@ -1391,6 +1660,9 @@ export function headlessDataService(
             ingest.apply(mutation, dispatcher.graph.writer(draft, store));
         },
         import: (command, draft, signal) => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal),
+        values: (values, draft) => {
+            dispatcher.graph.writer(draft, store).setGraphValues(values);
+        },
     };
 }
 
@@ -1458,6 +1730,56 @@ function fileOf(
 }
 
 /**
+ * Settle a source and read it once, publishing the read as `task: "prepare"` progress: a first
+ * change before anything is read, the rows read so far, and an end saying how it stopped.
+ * @param source - What `prepare` takes.
+ * @param signal - Abandons the read.
+ * @param publish - Where the progress goes.
+ * @returns What was read.
+ * @throws What reading throws, after the end is published.
+ */
+async function readWithProgress(
+    source: DataSourceInput,
+    signal: AbortSignal | undefined,
+    publish: (change: ProgressChange) => void,
+): Promise<Awaited<ReturnType<typeof readSource>>> {
+    const named = progressSource(source.config, source.name);
+    let completed = 0;
+    let fraction: number | null = null;
+    const change = (phase: ProgressChange["phase"], end?: Pick<ProgressChange, "outcome" | "error">): void => {
+        publish({
+            task: "prepare",
+            phase,
+            completed,
+            total: null,
+            fraction,
+            ...(named === undefined ? {} : { source: named }),
+            ...end,
+        });
+    };
+
+    // The first change, sent before anything is read.
+    change("progress");
+    try {
+        const resolved = resolveImportSource(source);
+        const read = await readSource(
+            resolved instanceof Promise ? await resolved : resolved,
+            signal,
+            (rows, share) => {
+                completed = rows;
+                fraction = share ?? null;
+                change("progress");
+            },
+        );
+        change("end", { outcome: "succeeded" });
+        return read;
+    } catch (error) {
+        change("end", failedEnd(error, signal));
+        throw error;
+    }
+}
+
+/**
  * Settle what an import will read: the format, detected when it was not named, and the name and
  * size the graph keeps beside it. A URL whose name says nothing is fetched once here and its text
  * handed on, so the data source does not fetch it again.
@@ -1482,7 +1804,7 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     // A node file and an edge file handed over as a pair are only ever CSV.
-    if (isPair(config)) {
+    if (isPairConfig(config)) {
         return { type: "csv", config, ...described };
     }
 

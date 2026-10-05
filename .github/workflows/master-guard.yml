@@ -1,0 +1,48 @@
+# Keeps master green (design/ci/ci-cd-plan.md section 12). When CI, GPU or Hosts finishes on master,
+# tools/master-guard.mjs:
+# - CI red: freezes the Mergify queue (only priority:critical pull requests merge), opens a revert of the
+#   commit when its parent was green, and opens a priority:critical issue;
+# - CI green at or after a frozen red commit: lifts the freeze;
+# - GPU or Hosts red (a master push or the nightly): opens, or adds to, a priority:critical issue naming the
+#   merges since the lane's last green run. Never freezes; release.yml already refuses to release.
+#
+# MERGIFY_API_KEY must be a Mergify application key with the admin scope (freezes need it).
+# MASTER_GUARD_TOKEN is optional: a token that may open pull requests (contents and pull requests write). A pull
+# request opened with the workflow's own token starts no workflows, so without it the revert pull request (or, when
+# Actions may not open pull requests at all, the pushed revert branch) waits for a person or an agent; the issue
+# says what to do.
+name: Master guard
+
+on:
+    workflow_run:
+        workflows: ["CI", "GPU", "Hosts"]
+        types: [completed]
+        branches: [master]
+
+# No concurrency group: a pending run would be replaced by the next one and its red would be lost. Two runs at
+# once are safe: each freeze names its own commit and is lifted only by a green run that contains that commit.
+permissions:
+    contents: write # push the revert branch
+    pull-requests: write
+    issues: write
+    actions: read
+
+jobs:
+    guard:
+        name: Freeze, revert and report
+        # Only master's own runs: a fork's pull request from a branch named master also reports head_branch master.
+        if: >-
+            github.event.workflow_run.head_repository.full_name == github.repository &&
+            (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'schedule')
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v4
+              with: { ref: master, fetch-depth: 0 }
+            - uses: actions/setup-node@v4
+              with: { node-version: 22.x }
+            - run: node tools/master-guard.mjs
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  PR_TOKEN: ${{ secrets.MASTER_GUARD_TOKEN }}
+                  MERGIFY_API_KEY: ${{ secrets.MERGIFY_API_KEY }}

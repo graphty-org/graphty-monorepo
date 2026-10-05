@@ -52,6 +52,7 @@ import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
 import type { ResultsApi, RunRef } from "./results";
+import type { Histogram, HistogramOptions } from "./results/types";
 import type {
     Caveats,
     EngineVersions,
@@ -65,7 +66,7 @@ import type {
     WeightMeaning,
 } from "./runs";
 import type { ScopeApi } from "./scope/index";
-import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget } from "./selection";
+import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, SelectionTextMode } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
 import type { ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
@@ -205,6 +206,18 @@ export interface RecordPageOptions {
      * same order. The records themselves are unchanged.
      */
     readonly columns?: readonly ResultColumn[];
+    /**
+     * Only the records that match a text, as `selection.apply({ text, mode })` matches it: a
+     * node by its id and its attribute values, an edge by its id, its two endpoints' ids and its
+     * attribute values. With no `mode` the text may carry one as a prefix (`exact:`, `regex:`,
+     * `<attribute>:`); otherwise it is found anywhere, ignoring case. Combines with `scope`,
+     * `sort` and `columns`; `total` counts the matches. Selects nothing.
+     *
+     * ```ts
+     * session.data.nodePage({ matching: { text: "jav" }, limit: 30 }); // Javert, ...
+     * ```
+     */
+    readonly matching?: { readonly text: string; readonly mode?: SelectionTextMode };
 }
 
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */
@@ -523,6 +536,21 @@ export interface GraphStatistics {
      */
     readonly meanDegree: number;
     /**
+     * How the total degree is distributed: the same measure {@link GraphStatistics.degreeRange}
+     * summarises, binned the way `RunResult.histogram` bins a count. One bar per degree when there
+     * are few distinct degrees, whole-number bands otherwise; the bars' counts add up to
+     * {@link GraphStatistics.nodeCount}.
+     *
+     * `session.data.statistics()` always fills it in. It is optional only so statistics a caller
+     * builds by hand, to pass to `recommendLayout` or a cost estimate, need not build one.
+     *
+     * ```ts
+     * const histogram = session.data.statistics().degreeHistogram;
+     * // binning "per-value": bins[i].from === bins[i].to, one degree each
+     * ```
+     */
+    readonly degreeHistogram?: Histogram;
+    /**
      * The share of wedges -- two edges meeting at a node -- whose open ends are also joined, so
      * that the three nodes form a triangle: the global clustering coefficient, read with arc
      * direction ignored. 0 on a graph with no triangles (a tree, a grid, a sparse random graph),
@@ -539,6 +567,28 @@ export interface GraphStatistics {
     /** The connected-component shape. */
     readonly components: ComponentStatistics;
 }
+
+/**
+ * How one data column's values are distributed: what `session.data.histogram(column)` returns.
+ *
+ * A column that measures amounts (`measurement: "quantitative"`) is binned like a run's field,
+ * with `kind: "numeric"` beside the {@link Histogram} fields. Any other column is counted by
+ * value, with `kind: "categorical"`.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type ColumnHistogram =
+    | (Histogram & { readonly kind: "numeric" })
+    | {
+          readonly kind: "categorical";
+          /**
+           * The commonest values, most elements first; a tie keeps the order the values were first
+           * seen in. At most `bins` of them (20 unless asked).
+           */
+          readonly values: readonly { readonly value: string | number | boolean; readonly count: number }[];
+          /** How many elements carry a value not in `values`; 0 when every value made the list. */
+          readonly otherCount: number;
+      };
 
 /**
  * The O(1) half of a session: the facts a status chip or a disabled button needs before it can
@@ -687,6 +737,19 @@ export interface SessionDataApi {
      */
     node(id: NodeId): NodeRecord | undefined;
     /**
+     * What a node is called: the value of its label column (`data.knownFields.nodeLabelPath`) as
+     * text, else its id as text. The same name {@link neighbors} gives each neighbor and a result
+     * summary gives each element, so a header and a list never disagree. Untrusted text from the
+     * data: render it as text, never as markup.
+     *
+     * ```ts
+     * const title = session.data.name(nodeId) ?? String(nodeId); // "Javert"
+     * ```
+     * @param id - the node id, compared without coercion
+     * @returns the name, or undefined when the graph has no such node
+     */
+    name(id: NodeId): string | undefined;
+    /**
      * One edge, by the element-assigned edge id.
      * @param id - the edge id
      * @returns the record, or undefined when the graph has no such edge
@@ -775,6 +838,21 @@ export interface SessionDataApi {
      */
     source(): DataSourceDescriptor | null;
     /**
+     * Give the source the graph was loaded from a new name, as one undoable step: what
+     * {@link source} reports as `name` from then on. The name is saved with the project, and undo
+     * restores the old one.
+     *
+     * ```ts
+     * await session.data.renameSource("Les Miserables characters");
+     * session.data.source()?.name; // "Les Miserables characters"
+     * ```
+     * @param name - the new name; not empty
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"no-source"`) when no
+     *     source is loaded, and (`"empty-name"`) for an empty name.
+     */
+    renameSource(name: string): Promise<void>;
+    /**
      * Every attribute the graph's records carry, with its type, what it measures, how complete
      * it is and a few sample values. Walked once per revision and cached.
      * @returns the descriptors, node attributes first, each kind in first-seen order
@@ -800,6 +878,25 @@ export interface SessionDataApi {
      *     no record carries, and `E_BAD_COMMAND` for a declaration that is not one.
      */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
+    /**
+     * How a data column's values are distributed, for a chart of one attribute. A quantitative
+     * column comes back binned (`kind: "numeric"`, the {@link Histogram} shape a run's field has),
+     * any other column counted by value, commonest first (`kind: "categorical"`). Elements with no
+     * value in the column are not counted. Walks the column on every call.
+     *
+     * ```ts
+     * const age = session.data.histogram({ kind: "node", name: "age" });
+     * if (age.kind === "numeric") drawBars(age.bins);
+     * else drawBars(age.values, age.otherCount);
+     * ```
+     * @param column - the column; an attribute descriptor can be passed as it is
+     * @param options - `bins`: how many bars, or how many values a categorical column lists (20
+     *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it
+     * @returns the distribution
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
+     *     no record carries, and `E_OPTION_RANGE` for a bin count outside 1 to 100.
+     */
+    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     /**
      * The graph's shape. Walked once per snapshot and cached.
      * @returns the statistics
@@ -900,6 +997,25 @@ export interface LoadDraft {
     /** The element's own reading: every table, with every role it found written out. */
     readonly mapping: LoadMappingRead;
     /**
+     * Every table's roles as a load with these choices reads them: the reader's mapping over the
+     * element's own reading, in the full form `mapping` has. After a table's `rowsAre` changes,
+     * this is where the key, the endpoints and the rest the element now reads are found.
+     * @param choices - The same choices `load` takes.
+     * @returns The roles.
+     * @throws `E_BAD_COMMAND` or `E_UNKNOWN_ATTRIBUTE` for a mapping the draft cannot carry out.
+     */
+    resolve(choices?: LoadChoices): LoadMappingRead;
+    /**
+     * The roles each table needs and does not have under a set of choices, for a per-table
+     * "ready" check: `LOAD_ROLES[rowsAre].requires` less the roles the choices and the element's
+     * own reading set. An edge table needs `source` and `target`; a node table needs nothing.
+     * `report` and `load` refuse a table the reader maps that is not ready with
+     * `E_EDGE_ENDPOINTS_UNRESOLVED`, whose `details.table` and `details.missing` say the same.
+     * @param choices - The same choices `load` takes.
+     * @returns By table id, the required roles left unset; an empty list means the table is ready.
+     */
+    missing(choices?: LoadChoices): Readonly<Record<string, readonly ColumnRole[]>>;
+    /**
      * What `load(choices)` would do to the graph as it is now, computed from the held rows with
      * no I/O. A load past the element's limit is reported in `tooLarge` rather than thrown.
      * @param choices - The same choices `load` takes.
@@ -938,6 +1054,19 @@ export interface DraftTable {
     readonly fixed: boolean;
     /** Its columns, in the order the file has them, computed over every row. */
     readonly columns: readonly DraftColumn[];
+    /**
+     * A column that could be the table's edge weight, offered rather than applied: present when
+     * the element's own reading of the table as edges finds no weight, naming the first column
+     * that holds a number on every row and has no other role. Naming it as the `weight` role in
+     * a mapping applies it. Absent for a table whose format sets its roles.
+     */
+    readonly weightCandidate?: string;
+    /**
+     * How a CSV table's file was split into columns: the separator (`","`, `";"`, `"\t"` or `"|"`)
+     * and whether the element detected it (`true`) or the source's `delimiter` option named it.
+     * Absent for any other format.
+     */
+    readonly delimiter?: { readonly value: string; readonly detected: boolean };
 }
 
 /** One column of a draft table, described as `data.attributes()` describes it after a load. */
@@ -969,12 +1098,27 @@ export interface DraftRowOptions {
     readonly offset?: number;
     /** The most rows; `Infinity` reads to the end. Default 100. */
     readonly limit?: number;
+    /** Which rows to read; every row when absent. */
+    readonly only?: DraftRowFilter;
     /**
-     * `"unmatched"`: edge rows naming a node no node row (nor, for a merge, the graph) holds.
-     * `"rejected"`: rows whose key or endpoints cannot be a node id. Read with the draft's own mapping.
+     * The choices the rows are read under: the same `LoadChoices` `report` and `load` take, so
+     * the rows listed are the rows that report counted. Absent reads with the draft's own
+     * mapping, replacing the graph -- never with the choices an earlier `report` was given.
      */
-    readonly only?: "unmatched" | "rejected";
+    readonly choices?: LoadChoices;
 }
+
+/**
+ * Which rows of a draft table `LoadDraft.rows` reads, under the choices it is given.
+ *
+ * - `"unmatched"`: edge rows naming a node no node row (nor, for a merge, the graph) holds.
+ * - `"rejected"`: rows whose key or endpoints cannot be a node id.
+ * - `"loaded"`: the rows the load makes into nodes or edges: every row not rejected, less the
+ *   unmatched edge rows when `unmatched` is `"leave-out"`.
+ *
+ * OPEN UNION: later releases may add filters.
+ */
+export type DraftRowFilter = "unmatched" | "rejected" | "loaded";
 
 /**
  * The column roles of one table. Every value is a column name exactly as `DraftColumn.name`
@@ -1030,6 +1174,17 @@ export interface LoadChoices extends ImportOptions {
      * drops the edge.
      */
     readonly unmatched?: "add" | "leave-out";
+    /**
+     * A node row repeating an id an earlier node row of the same load gave: `"first"` (the
+     * default) keeps the first row's node and leaves the later row out; `"merge"` also writes
+     * the later row's values onto that node, later rows winning; `"refuse"` refuses the load with
+     * `E_DUPLICATE_ID` (`details.id`). Every case is counted in `LoadReport.duplicates`, which a
+     * `report()` fills under `"refuse"` instead of refusing. A row with no usable id is never a
+     * duplicate: it is rejected and counted in `counts.rejected`.
+     *
+     * OPEN UNION: later releases may add policies.
+     */
+    readonly duplicateIds?: "first" | "merge" | "refuse";
     /** Writes `data.directed` in the same step. */
     readonly directed?: boolean | "auto";
 }
@@ -1431,6 +1586,8 @@ export interface CommandOutcomeMap {
     "data.expand": Promise<void>;
     /** Settles once the declaration is recorded. */
     "data.declare": Promise<void>;
+    /** Settles once the source is recorded. */
+    "data.setSource": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */

@@ -63,6 +63,7 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import type { SelectionOp } from "./src/session/selection";
 
 export type {
+    ColumnHistogram,
     ColumnRole,
     CommandOutcome,
     CommandOutcomeMap,
@@ -72,6 +73,7 @@ export type {
     DataSourceInput,
     DraftColumn,
     DraftRow,
+    DraftRowFilter,
     DraftRowOptions,
     DraftTable,
     EdgePageOptions,
@@ -167,6 +169,12 @@ export type { ReadonlyElementPositions } from "./src/session";
 
 export type { LayoutRecommendation, LayoutRecommendationOptions } from "./src/session";
 export { recommendLayout } from "./src/session";
+
+// ---------------------------------------------------------------------------------------------
+// Previewing a load: the column roles a table of each kind takes and requires
+// ---------------------------------------------------------------------------------------------
+
+export { LOAD_ROLES } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // Runs: starting a computation, watching it, stopping it, and finding it again
@@ -368,6 +376,8 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
     AttributeDescriptor,
+    AttributeRole,
+    AttributeUse,
     Binding,
     BindingOverflow,
     Channel,

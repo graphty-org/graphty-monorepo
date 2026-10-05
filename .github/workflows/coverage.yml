@@ -73,6 +73,15 @@ jobs:
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            # A shard group's artifact (ci.yml, "Upload coverage (shard group)") holds one
+            # coverage-<shard> directory per member: move them up beside the other shards' artifacts.
+            - name: Lift the shard groups' coverage out of their artifacts
+              run: |
+                  shopt -s nullglob
+                  for dir in coverage-reports/coverage-group-*/coverage-*; do
+                      mv "$dir" coverage-reports/
+                  done
+
             - name: List downloaded artifacts
               run: |
                   echo "Downloaded coverage artifacts:"

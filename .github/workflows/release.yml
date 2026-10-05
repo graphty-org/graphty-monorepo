@@ -1,73 +1,84 @@
 name: Release
 
-# Three triggers, one decision. A release needs CI, GPU and (when it ran) Hosts green on the same commit, and
-# those lanes finish in any order, so the completion of each one starts this workflow and the gate below looks for
-# the newest commit that is now green everywhere. workflow_dispatch is the manual retry: it runs the same gate and
-# releases whatever it finds. To retry a failed publish, re-run the failed Release job: it finds the version commit
-# it already made and publishes what is missing.
+# A daily release train, landed through the merge queue like every other change (design/ci/ci-cd-plan.md,
+# sections 10 and 11).
+#
+# 1. Once a day (the schedule), or at once when the owner dispatches it (the ad hoc release), the train job finds
+#    the newest master commit green on every lane, versions it with nx release, and opens a "chore(release):
+#    publish" pull request holding only version fields and changelogs, labeled priority:critical. Mergify merges
+#    it ahead of waiting pull requests.
+# 2. That merge is a push to master, which starts the publish job: it tags each released package
+#    {projectName}@{version}, creates its GitHub release and publishes it to npm with trusted publishing (OIDC),
+#    from the build of the commit every lane tested.
+#
+# Nothing here pushes to master: the version commit reaches master only by the pull request. The file keeps its
+# name because npm's trusted-publisher entry for every package names it.
+#
+# Ad hoc release: `gh workflow run release.yml --ref master`, optionally `-f packages=graph-format,graph-io` (nx
+# project names) to release only those; every other project is held for that run, on top of release-hold.json.
 on:
-    workflow_run:
-        workflows: ["CI", "GPU", "Hosts"]
-        types:
-            - completed
+    schedule:
+        - cron: "0 14 * * *"
+    workflow_dispatch:
+        inputs:
+            packages:
+                description: "Release only these nx projects (comma separated). Empty: every package with releasable commits."
+                required: false
+                default: ""
+                type: string
+    push:
         branches:
             - master
-    workflow_dispatch:
-
-# Runs queue behind one another rather than racing (a later pending run replaces an earlier pending one, which
-# is harmless: every run re-evaluates master from scratch).
-concurrency:
-    group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-    # The release waits for every lane that ran on the released commit, not only CI (the owner's rule of
-    # 2026-09-18: no release while any lane is red). GPU (gpu.yml, a machine.dev T4) and Hosts (hosts.yml, Dawn on
-    # Metal and on D3D12/WARP, WebKit) are separate workflows so an offline runner can never stall a pull request,
-    # and this job is where they become required. Hosts is filtered by paths, so a commit that touched none of
-    # them has no Hosts run, which counts as nothing to wait for; CI and the GPU lane run on every push to master
-    # and must exist.
-    #
-    # The released commit is the NEWEST commit on master's first-parent line, after the last release commit,
-    # whose lanes all succeeded -- not necessarily master's tip. The GPU lane takes about 40 minutes and runs one
-    # commit at a time (a newer push replaces the pending one, which ends cancelled), so when master moves faster
-    # than that its tip is almost never green and waiting for the tip would never release. A commit whose lanes
-    # failed, were cancelled or are still running is passed over, never released. A commit at or before the last
-    # release commit is never a candidate, so a run that finds the newest green commit already released does
-    # nothing, and a release never goes backwards.
-    gate:
-        name: Find the newest commit green on every lane
+    # The released commit is the NEWEST commit on master's first-parent line, after the last release landed, whose
+    # lanes all succeeded: CI and the GPU lane must exist and be green; Hosts is filtered by paths, so a commit with
+    # no Hosts run has nothing to wait for (owner rule of 2026-09-18: no release while any lane is red). A commit
+    # whose lanes failed, were cancelled or are still running is passed over, never released.
+    train:
+        name: Open the release pull request
+        if: ${{ github.event_name != 'push' && github.ref == 'refs/heads/master' }}
         runs-on: ubuntu-24.04
-        if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+        # A second train waits for the first, which has opened its pull request by then and so stops the second.
+        concurrency:
+            group: release-train
         permissions:
             actions: read
-            contents: read
-        outputs:
-            release: ${{ steps.lanes.outputs.release }}
-            sha: ${{ steps.lanes.outputs.sha }}
-            ci_run_id: ${{ steps.lanes.outputs.ci_run_id }}
+            contents: write
+            issues: write
+            pull-requests: write
+            statuses: write
         env:
             GH_TOKEN: ${{ github.token }}
         steps:
-            # Commit history only (no trees or blobs): the gate reads subjects and parents, never files.
             - uses: actions/checkout@v4
               with:
                   ref: master
                   fetch-depth: 0
-                  filter: tree:0
 
             - name: Pick the newest commit since the last release with CI, GPU and Hosts green
               id: lanes
               run: |
                   set -euo pipefail
                   skip() { echo "::notice::$1"; echo "release=false" >> "$GITHUB_OUTPUT"; exit 0; }
-                  # Candidates, newest first: master's first-parent line down to the last release commit. A
-                  # release commit (nx's "chore(release): publish", or the merge that lands one on a master that
-                  # had moved on) carries [skip ci], so no lane ever runs on it; it is the floor.
+                  open=$(gh pr list --state open --limit 200 --json number,headRefName \
+                      --jq '[.[] | select(.headRefName | startswith("release/train-")) | .number] | first // empty')
+                  [ -z "$open" ] || skip "release pull request #${open} is still open; it must merge or close first"
+                  # The newest version commit, and whether its publish run has tagged it yet. Until it has, nx
+                  # would version from the previous tags and release the same versions a second time.
+                  last=$(git log -1 --no-merges --grep='^chore(release): publish' --format=%H HEAD)
+                  while read -r project version; do
+                      git rev-parse -q --verify "refs/tags/${project}@${version}" >/dev/null ||
+                          skip "the last release (${last}) has no tag ${project}@${version} yet; its publish run must finish first"
+                  done < <(git log -1 --format=%b "$last" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
+                  # Candidates, newest first: master's first-parent line down to the commit that brought the last
+                  # version commit in (its pull request's merge, or the version commit itself). Commits merged
+                  # while that pull request waited are released with the first green commit after it.
                   candidates=()
-                  while read -r sha subject; do
-                      case "$subject" in "chore(release): publish"*) echo "last release: ${sha} ${subject}"; break ;; esac
+                  while read -r sha; do
+                      git merge-base --is-ancestor "$last" "${sha}^1" 2>/dev/null || { echo "last release lands at ${sha}"; break; }
                       candidates+=("$sha")
-                  done < <(git log --first-parent --max-count=200 --format='%H %s' HEAD)
+                  done < <(git log --first-parent --max-count=200 --format=%H HEAD)
                   [ "${#candidates[@]}" -gt 0 ] || skip "nothing on master since the last release"
                   # Every lane's master runs, newest first, as "head_sha id status conclusion". The first line for a
                   # commit is its newest run (a re-run keeps its id and updates in place).
@@ -77,17 +88,13 @@ jobs:
                   }
                   ci_runs=$(runs ci.yml); gpu_runs=$(runs gpu.yml); hosts_runs=$(runs hosts.yml)
                   newest() { awk -v s="$2" '$1 == s { print $2, $3, $4; exit }' <<< "$1"; }
-                  # The release reuses the CI run's per-package builds (the downloads in the job below), and the
-                  # deploy reuses its Storybooks, docs and example pages; CI keeps all of them for one day.
+                  # The release ships the CI run's per-package builds, which CI keeps for one day.
                   artifacts_ok() {
                       local live
                       live=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$1/artifacts?per_page=100" --jq '
                           [.artifacts[] | select(.expired | not) | .name] as $live
                           | ["graph-format", "graph-io", "webgpu-graph-algorithms", "graph-samples", "algorithms",
-                             "layout", "graphty", "graphty-element", "remote-logger", "compact-mantine",
-                             "storybook-element", "storybook-app", "storybook-compact-mantine",
-                             "storybook-algorithms", "storybook-layout", "docs", "ghpages-algorithms",
-                             "ghpages-layout"]
+                             "layout", "graphty", "graphty-element", "remote-logger", "compact-mantine"]
                           | map("build-" + .) - $live | length')
                       [ "$live" = 0 ]
                   }
@@ -99,53 +106,188 @@ jobs:
                       case "$hosts" in "" | *" completed success") ;; *) continue ;; esac
                       ci_run_id=${ci%% *}
                       artifacts_ok "$ci_run_id" ||
-                          skip "${sha} is green but CI run ${ci_run_id} no longer holds its builds; a newer green commit releases"
+                          skip "${sha} is green but CI run ${ci_run_id} no longer holds its builds; the next train tries a newer commit"
                       echo "every lane green on ${sha}; CI run ${ci_run_id} holds the build artifacts"
                       { echo "release=true"; echo "sha=${sha}"; echo "ci_run_id=${ci_run_id}"; } >> "$GITHUB_OUTPUT"
                       exit 0
                   done
-                  skip "no commit since the last release is green on every lane yet; the next lane to finish tries again"
+                  skip "no commit since the last release is green on every lane yet; dispatch again once one is"
 
-    release:
-        name: Release
+            # The version commit must sit on the tree the lanes tested.
+            - name: Check out the green commit
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+              env:
+                  SHA: ${{ steps.lanes.outputs.sha }}
+              run: git checkout --quiet --detach "$SHA"
+
+            # The tested builds, kept in this run for 30 days under the commit's name, so the publish job finds
+            # them however long the pull request waits in the queue (CI keeps its own copy for one day).
+            - name: Download the green commit's builds
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,algorithms,layout,graphty,graphty-element,remote-logger,compact-mantine}"
+                  path: ${{ runner.temp }}/builds
+                  run-id: ${{ steps.lanes.outputs.ci_run_id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Keep the builds for the publish job
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: release-builds-${{ steps.lanes.outputs.sha }}
+                  path: ${{ runner.temp }}/builds
+                  retention-days: 30
+                  if-no-files-found: error
+
+            - uses: pnpm/action-setup@v4
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+
+            - uses: actions/setup-node@v4
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # A package listed in release-hold.json is left out of nx.json's release.projects in this checkout, so
+            # it is neither versioned nor published -- not even as a dependent of a package that is released. An ad
+            # hoc release with `packages` holds every other project too. nx commits only the manifests and
+            # changelogs it wrote, never this nx.json edit. To stop one package, add it to release-hold.json; never
+            # disable this workflow (CLAUDE.md, "Release versioning").
+            - name: Leave out the held packages
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+              env:
+                  PACKAGES: ${{ inputs.packages }}
+              run: |
+                  if [ -n "${PACKAGES// /}" ]; then
+                      node tools/release-hold.mjs apply --only "$PACKAGES"
+                  else
+                      node tools/release-hold.mjs apply
+                  fi
+
+            # Version and changelogs only, as one commit. The tags and the GitHub releases wait for the merge (the
+            # publish job), so a pull request that never merges leaves nothing behind; nothing is pushed by nx.
+            - name: Version the packages
+              id: version
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+              run: |
+                  set -euo pipefail
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  jq '.release.git.tag = false | .release.git.push = false
+                      | .release.changelog.projectChangelogs.createRelease = false' nx.json > "$RUNNER_TEMP/nx.json"
+                  cp "$RUNNER_TEMP/nx.json" nx.json
+                  pnpm exec nx release --skip-publish --verbose
+                  if [ "$(git rev-parse HEAD)" = "$SHA" ]; then
+                      echo "::notice::nothing to release since the last release"
+                      echo "commit=" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+                  fi
+              env:
+                  SHA: ${{ steps.lanes.outputs.sha }}
+                  # the changelog renderer looks up commit authors' GitHub handles
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  HUSKY: "0"
+
+            # The release pull request gets no full CI: its code is the commit every lane already passed. What is
+            # checked is that the version commit adds nothing else, and that its title is a valid commit message.
+            # Those two results are reported under the names master's ruleset requires; a pull request opened with
+            # GITHUB_TOKEN starts no workflow of its own. Any later push to the branch (Mergify bringing it up to
+            # date, a person) starts CI and Lint PR Title as usual, and they report on the new head.
+            - name: Open the release pull request
+              if: ${{ steps.version.outputs.commit != '' }}
+              env:
+                  SHA: ${{ steps.lanes.outputs.sha }}
+                  COMMIT: ${{ steps.version.outputs.commit }}
+                  CI_RUN: ${{ steps.lanes.outputs.ci_run_id }}
+                  PACKAGES: ${{ inputs.packages }}
+              run: |
+                  set -euo pipefail
+                  node tools/release-diff.mjs "$SHA" "$COMMIT"
+                  title="chore(release): publish"
+                  printf '%s\n' "$title" | pnpm exec commitlint
+                  branch="release/train-${GITHUB_RUN_ID}"
+                  git push origin "${COMMIT}:refs/heads/${branch}"
+                  run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  kind=daily
+                  [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] || kind="ad hoc"
+                  {
+                      echo "The ${kind} release train versions ${SHA}, the newest master commit green on CI, GPU and Hosts (CI run ${CI_RUN})."
+                      [ -z "${PACKAGES// /}" ] || echo "Only these packages are released: ${PACKAGES}."
+                      echo
+                      echo "Releases:"
+                      git log -1 --format=%b "$COMMIT" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/- \1 \2/p'
+                      echo
+                      echo "This pull request changes only version fields and changelogs (tools/release-diff.mjs). When it merges, release.yml tags each package, creates its GitHub release and publishes it to npm from that commit's tested build. Opened by ${run_url}."
+                  } > "$RUNNER_TEMP/body.md"
+                  gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md" --label priority:critical
+                  for context in "All Checks Pass" "Lint PR Title"; do
+                      gh api "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}" -f state=success -f context="$context" \
+                          -f description="release train: versions and changelogs only, on a commit green on every lane" \
+                          -f target_url="$run_url" >/dev/null
+                  done
+
+    # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch.
+    publish:
+        name: Publish the release
+        if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '/release/train-') }}
         runs-on: ubuntu-24.04
-        needs: gate
-        if: ${{ needs.gate.outputs.release == 'true' }}
+        concurrency:
+            group: release-publish
         permissions:
+            actions: read
             contents: write
-            issues: write
-            pull-requests: write
             id-token: write
+        env:
+            GH_TOKEN: ${{ github.token }}
         steps:
-            # The release pushes its version commit and tags straight to master, which the
-            # "Protect master" ruleset allows only for deploy keys. So the checkout (and every
-            # git push after it) goes over SSH with the repo's release deploy key rather than
-            # GITHUB_TOKEN, which a repository ruleset cannot exempt. npm trusted publishing is
-            # unaffected: it proves this workflow's identity with the OIDC token (id-token:
-            # write above), not with the git credential. GitHub API calls in this job still use
-            # GITHUB_TOKEN.
-            #
-            # The checkout is the commit the gate found green, not master's tip: the CI artifacts below are
-            # that commit's build, and the version commit nx makes must sit on the tree those lanes tested.
             - uses: actions/checkout@v4
               with:
-                  ref: ${{ needs.gate.outputs.sha }}
                   fetch-depth: 0
-                  ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
-            # A re-run of this job after a failed publish must not version the commit a second time: its
-            # version commit and tags already exist. Find that commit (on master, or only on its tags when
-            # landing it failed) and continue from it.
-            - name: Look for a release commit already made on this commit
-              id: existing
+            # The version commit this push brought onto master, and the green commit below it. Its builds must be
+            # the ones a train run on master kept: that ties the publish to a commit the train found green.
+            - name: Find the version commit
+              id: commit
+              env:
+                  BEFORE: ${{ github.event.before }}
               run: |
-                  release=$(git rev-list --parents --max-count=20 --grep='^chore(release): publish' origin/master --tags |
-                      awk -v c="${{ needs.gate.outputs.sha }}" '$2 == c && NF == 2 { print $1; exit }')
-                  if [ -n "$release" ]; then
-                      echo "already versioned as ${release}; publishing from it"
-                      git checkout --detach "$release"
-                  fi
-                  echo "commit=${release}" >> "$GITHUB_OUTPUT"
+                  set -euo pipefail
+                  mapfile -t found < <(git log --no-merges --format=%H --grep='^chore(release): publish' "${BEFORE}..${GITHUB_SHA}")
+                  [ "${#found[@]}" = 1 ] || { echo "::error::expected one version commit in ${BEFORE}..${GITHUB_SHA}, found ${#found[@]}"; exit 1; }
+                  commit=${found[0]}
+                  sha=$(git rev-parse "${commit}^1")
+                  node tools/release-diff.mjs "$sha" "$commit"
+                  run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=release-builds-${sha}" --jq '
+                      [.artifacts[] | select((.expired | not) and .workflow_run.head_branch == "master"
+                          and .workflow_run.head_repository_id == .workflow_run.repository_id) | .workflow_run.id] | first // empty')
+                  [ -n "$run" ] || { echo "::error::no train run on master kept builds for ${sha}"; exit 1; }
+                  echo "publishing ${commit} (versions on ${sha}) with the builds of train run ${run}"
+                  git checkout --quiet --detach "$commit"
+                  { echo "commit=${commit}"; echo "run=${run}"; echo "sha=${sha}"; } >> "$GITHUB_OUTPUT"
+
+            - name: Download the tested builds
+              uses: actions/download-artifact@v4
+              with:
+                  name: release-builds-${{ steps.commit.outputs.sha }}
+                  path: ${{ runner.temp }}/builds
+                  run-id: ${{ steps.commit.outputs.run }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Put each build in its package
+              run: |
+                  for dir in "$RUNNER_TEMP"/builds/build-*; do
+                      pkg=${dir##*/build-}
+                      mkdir -p "${pkg}/dist"
+                      cp -a "${dir}/." "${pkg}/dist/"
+                  done
 
             - uses: pnpm/action-setup@v4
 
@@ -157,16 +299,11 @@ jobs:
 
             # Upgrade npm to 11.5.1+ for OIDC trusted publishing support.
             #
-            # Pinned to 11 rather than latest. nx builds its pnpm publish command
-            # as `pnpm publish ... --no-git-checks`, and pnpm forwards that flag
-            # to npm even though pnpm owns it. npm read unknown config as a
-            # warning through 11.x and made it fatal in 12.0.0 (2026-07-08), so
-            # `npm@latest` now fails every publish with
-            # EUNKNOWNCONFIG: Unknown cli flag: --git-checks.
-            #
-            # 11.x still satisfies the 11.5.1+ this step exists for, and is the
-            # line that published every current version on the registry. Drop the
-            # pin once pnpm stops forwarding the flag or nx stops passing it.
+            # Pinned to 11 rather than latest. nx builds its pnpm publish command as `pnpm publish ...
+            # --no-git-checks`, and pnpm forwards that flag to npm even though pnpm owns it. npm read unknown
+            # config as a warning through 11.x and made it fatal in 12.0.0 (2026-07-08), so `npm@latest` fails
+            # every publish with EUNKNOWNCONFIG: Unknown cli flag: --git-checks. Drop the pin once pnpm stops
+            # forwarding the flag or nx stops passing it.
             - name: Upgrade npm for trusted publishing
               run: |
                   npm install -g npm@11
@@ -177,228 +314,52 @@ jobs:
               env:
                   HUSKY: "0"
 
-            # Download build artifacts from CI workflow instead of rebuilding
-            # This ensures we release the exact same code that was tested
-            - name: Download graph-format build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graph-format
-                  path: graph-format/dist/
-                  run-id: ${{ needs.gate.outputs.ci_run_id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Download graph-io build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graph-io
-                  path: graph-io/dist/
-                  run-id: ${{ needs.gate.outputs.ci_run_id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Download webgpu-graph-algorithms build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-webgpu-graph-algorithms
-                  path: webgpu-graph-algorithms/dist/
-                  run-id: ${{ needs.gate.outputs.ci_run_id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Download graph-samples build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graph-samples
-                  path: graph-samples/dist/
-                  run-id: ${{ needs.gate.outputs.ci_run_id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Download algorithms build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-algorithms
-                  path: algorithms/dist/
-                  run-id: ${{ needs.gate.outputs.ci_run_id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Download layout build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-layout
-                  path: layout/dist/
-                  run-id: ${{ needs.gate.outputs.ci_run_id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Download graphty build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graphty
-                  path: graphty/dist/
-                  run-id: ${{ needs.gate.outputs.ci_run_id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Download graphty-element build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-graphty-element
-                  path: graphty-element/dist/
-                  run-id: ${{ needs.gate.outputs.ci_run_id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Download remote-logger build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-remote-logger
-                  path: remote-logger/dist/
-                  run-id: ${{ needs.gate.outputs.ci_run_id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Download compact-mantine build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-compact-mantine
-                  path: compact-mantine/dist/
-                  run-id: ${{ needs.gate.outputs.ci_run_id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-
-            # A package listed in release-hold.json is left out of nx.json's release.projects in this checkout,
-            # so the version and publish steps below neither version nor publish it -- not even as a dependent
-            # of a package that is released -- while every other package and the graphty.app deploy go ahead.
-            # nx commits only the manifests and changelogs it wrote, never this nx.json edit. To stop one
-            # package, add it to release-hold.json; never disable this workflow (CLAUDE.md, "Release versioning").
-            - name: Leave out the packages release-hold.json holds
-              run: node tools/release-hold.mjs apply
-
-            - name: Configure Git
-              run: |
-                  git config user.name "github-actions[bot]"
-                  git config user.email "github-actions[bot]@users.noreply.github.com"
-
-            - name: Cache Nx
-              uses: actions/cache@v4
-              with:
-                  path: .nx/cache
-                  key: nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
-                  restore-keys: |
-                      nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
-                      nx-${{ runner.os }}-
-
-            # nx.json's git.pushArgs makes nx push the new tags only (they carry the version commit with
-            # them), not a branch: the version commit sits on the gate's commit, which need not be master's tip
-            # any more. The next step puts it on master.
-            - name: Version and Release
-              if: ${{ steps.existing.outputs.commit == '' }}
-              run: |
-                  echo "npm version: $(npm --version)"
-                  echo "node version: $(node --version)"
-                  # Version, changelog, commit, tag and push -- but do NOT publish:
-                  #
-                  #   shouldPublish        = !!args.yes && !args.skipPublish && hasNewVersion
-                  #   shouldPromptPublishing = !args.yes && !args.skipPublish && !args.dryRun && ...
-                  #
-                  # --skip-publish makes both false, so publishing happens exactly
-                  # once, in the separate command below. Without it nx publishes
-                  # here as well, and the second pass races npm's staged-publish
-                  # window: nx skips a package only when it can already see the
-                  # version in the registry, a just-published version is staged and
-                  # not yet visible, so nx publishes it again and npm answers
-                  # "409 Conflict - Cannot publish over previously staged version".
-                  # That reported a red build on every release that had in fact
-                  # published everything, and bailing on the first 409 left the
-                  # packages behind it unpublished.
-                  #
-                  # --yes is deliberately absent: nx rejects it alongside
-                  # --skip-publish as mutually exclusive, and it is not needed.
-                  # Those two lines are the only places nx reads args.yes -- it
-                  # exists solely to auto-answer the publish prompt, and skipping
-                  # publishing means there is no prompt to answer. Versioning,
-                  # changelog and the GitHub release never consult it.
-                  pnpm exec nx release --skip-publish --verbose
+            # One tag and one GitHub release per package the version commit lists, on the version commit; its
+            # notes are the changelog section nx wrote. nx reads these tags (`git tag --merged`) to find each
+            # package's last version next time. A re-run skips the releases that exist already.
+            - name: Tag the release
+              id: tags
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  # OIDC trusted publishing - npm will use the GitHub Actions OIDC token
-                  # Requires configuring trusted publishers on npmjs.com
-                  NPM_CONFIG_PROVENANCE: true
-                  # Clear any NODE_AUTH_TOKEN that might interfere with OIDC
-                  NODE_AUTH_TOKEN: ""
-                  # Disable husky hooks - they interfere with release commits
-                  # (prepare-commit-msg tries to open TTY, pre-push runs tests again)
-                  HUSKY: "0"
-
-            # Put the version commit on master without rewriting either side. When master still points at the
-            # gate's commit this is a fast-forward, exactly as before. When master has moved on, it is a merge
-            # commit -- master's newer commits as the first parent, the version commit as the second -- so the
-            # tags stay on the tree the lanes tested and npm ships, and they are reachable from master, which
-            # is where nx looks for the last version (`git tag --merged`) next time. The merge's subject starts
-            # with "chore(release): publish" and carries [skip ci]: no lane runs on it, and the gate treats it
-            # as the last release, so the commits it merged in (newer than the released one, older than the
-            # merge) are released by the first green commit after it. Only package.json version lines and
-            # CHANGELOG.md files differ from the released commit, so the merge conflicts only if a commit on
-            # master edited those same lines; then nothing lands or publishes, the tags are pushed already,
-            # and a person merges the version commit by hand and re-runs this job. A push that loses a race
-            # with a new master commit is retried on the new tip, never forced.
-            - name: Put the version commit on master
+                  COMMIT: ${{ steps.commit.outputs.commit }}
               run: |
-                  release=$(git rev-parse HEAD)
-                  git worktree add --detach "$RUNNER_TEMP/land" >/dev/null
-                  cd "$RUNNER_TEMP/land"
-                  for try in 1 2 3 4 5; do
-                      git fetch --quiet origin +refs/heads/master:refs/remotes/origin/master
-                      if git merge-base --is-ancestor "$release" origin/master; then
-                          echo "master holds ${release}"; exit 0
-                      fi
-                      git checkout --quiet --detach origin/master
-                      git merge --no-verify --no-edit -m "chore(release): publish $(git log -1 --format=%h "$release") onto master [skip ci]" "$release" ||
-                          { echo "::error::the version commit ${release} does not merge cleanly into master; merge it by hand, then re-run this job"; exit 1; }
-                      git push --no-verify origin HEAD:refs/heads/master && { echo "master now holds ${release}"; exit 0; }
-                      echo "try ${try}: master moved during the push; merging again"
-                  done
-                  echo "::error::could not land ${release} on master in five tries"; exit 1
-              env:
-                  HUSKY: "0"
+                  set -euo pipefail
+                  projects=()
+                  while read -r project version; do
+                      projects+=("$project")
+                      tag="${project}@${version}"
+                      if gh release view "$tag" >/dev/null 2>&1; then echo "${tag} exists already"; continue; fi
+                      root=$(pnpm exec nx show project "$project" --json | jq -r .root)
+                      git diff -U0 "${COMMIT}^1" "$COMMIT" -- "${root}/CHANGELOG.md" | sed -n '/^+++/d; s/^+//p' > "$RUNNER_TEMP/notes.md"
+                      gh release create "$tag" --target "$COMMIT" --title "$tag" --notes-file "$RUNNER_TEMP/notes.md"
+                  done < <(git log -1 --format=%b "$COMMIT" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
+                  [ "${#projects[@]}" -gt 0 ] || { echo "::error::${COMMIT} lists no released project"; exit 1; }
+                  echo "projects=$(IFS=,; echo "${projects[*]}")" >> "$GITHUB_OUTPUT"
 
             - name: Publish
               run: |
-                  # The only publish. It is a separate command because `nx release`
-                  # publishes only when it versioned something in the same run, so
-                  # a release whose publish step fails could never be retried. The
-                  # tags are already pushed, so the next run resolves the current
-                  # version from them, finds no new conventional commits, reports
-                  # "No changes were detected" and skips publishing. The packages
-                  # stay tagged and unpublished for good. That is exactly what
-                  # happened when npm 12 broke the publish command.
-                  #
-                  # `nx release publish` does not consult hasNewVersion: it
-                  # publishes the versions in the manifests and queries the registry
-                  # per package, skipping any version that is already there.
-                  # Re-running this job after a failed publish finds the release
-                  # commit already made (the lookup step above), skips versioning,
-                  # and ships whatever is still missing.
-                  #
-                  # --nxBail=false is nx's default already (it reads NX_BAIL when the flag is absent); it is
-                  # spelled out so one package's failed publish never stops the packages behind it.
+                  # `nx release publish` publishes the versions in the manifests and asks the registry per
+                  # package, skipping any version already there, so re-running this job after a failed publish
+                  # ships only what is missing. --nxBail=false: one package's failed publish never stops the
+                  # packages behind it.
                   #
                   # A failed publish does not fail this step: the next step, which polls the registry, decides.
                   # npm answers a retry inside its propagation window (up to about 7.5 minutes after it accepted
                   # an upload) with E409 "Cannot publish over previously staged version" (npm/cli#9889), which
-                  # failed the 3.1.0 release although every version it refused was already published. Any other
-                  # failure leaves a version missing, and the next step fails on it.
-                  pnpm exec nx release publish --nxBail=false ||
+                  # failed the 3.1.0 release although every version it refused was already published.
+                  pnpm exec nx release publish --projects="$PROJECTS" --nxBail=false ||
                       echo "::warning::nx release publish reported a failure; the registry check below decides"
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  # OIDC trusted publishing - npm will use the GitHub Actions OIDC token
-                  # Requires configuring trusted publishers on npmjs.com
+                  PROJECTS: ${{ steps.tags.outputs.projects }}
+                  # OIDC trusted publishing: npm uses the GitHub Actions OIDC token (id-token: write above).
                   NPM_CONFIG_PROVENANCE: true
                   # Clear any NODE_AUTH_TOKEN that might interfere with OIDC
                   NODE_AUTH_TOKEN: ""
-                  # Disable husky hooks - they interfere with release commits
-                  # (prepare-commit-msg tries to open TTY, pre-push runs tests again)
                   HUSKY: "0"
 
             # npm can accept a publish and still not serve it, and nx release publish skips any package whose
             # dependency failed. So the last word is the registry: every non-private package's version at the
             # version commit must be installable. npm takes a while to serve a fresh version (up to about 7.5
-            # minutes), hence the bounded poll (20 tries, 30 s apart) against the registry before calling a
-            # package missing.
+            # minutes), hence the bounded poll (20 tries, 30 s apart).
             - name: Check every version is on npm
               run: |
                   missing() {
@@ -413,58 +374,5 @@ jobs:
                       echo "try ${try}: not on npm yet: ${absent//$'\n'/ }"
                       sleep 30
                   done
-                  for spec in $absent; do echo "::error::${spec} is versioned on master but not on npm; run this workflow again to publish it"; done
+                  for spec in $absent; do echo "::error::${spec} is versioned on master but not on npm; re-run this job to publish it"; done
                   exit 1
-
-    # graphty.app (the app, the docs, the Storybooks and the hosted data: one Pages site) goes live only after
-    # a successful build and release, built from the released commit's CI artifacts. deploy-pages.yml skips a
-    # commit that is live already, which is what a re-found commit with nothing to version looks like.
-    deploy:
-        name: Deploy graphty.app
-        needs: [gate, release]
-        permissions:
-            contents: read
-            pages: write
-            id-token: write
-            actions: read
-        uses: ./.github/workflows/deploy-pages.yml
-        with:
-            run-id: ${{ needs.gate.outputs.ci_run_id }}
-            sha: ${{ needs.gate.outputs.sha }}
-
-    # The release commit carries [skip ci] (nx.json, release.git.commitMessage) so that pushing it cannot start
-    # CI, the paid GPU lane, Hosts, the Pages deploy, and through CI's completion a second release. That also means
-    # no push workflow ever looks at it, so this job is the one check the released tree gets: the version bumps,
-    # the changelogs and the lockfile as nx release left them must still install, build and lint.
-    verify-release-commit:
-        name: Verify the release commit
-        runs-on: ubuntu-24.04
-        needs: release
-        permissions:
-            contents: read
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  ref: master
-                  fetch-depth: 0
-
-            - name: Record the commit under test
-              run: echo "verifying $(git log -1 --format='%H %s')"
-
-            - uses: pnpm/action-setup@v4
-
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: "pnpm"
-
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
-              env:
-                  HUSKY: "0"
-
-            - name: Build
-              run: pnpm exec nx run-many -t build --parallel=3
-
-            - name: Lint
-              run: pnpm exec nx run-many -t lint --parallel=3

@@ -132,6 +132,17 @@ you give one. A file read also records its `size` in bytes. The inline text and 
 are never kept; the loaded rows already hold them. After `session.data.clear()`, `source()`
 answers `null`.
 
+To give the source a name of your reader's choosing, rename it. It is one undoable step, and the
+name is saved with the project:
+
+```typescript
+await session.data.renameSource("Les Miserables characters");
+session.data.source()?.name; // "Les Miserables characters"
+```
+
+With nothing loaded, `renameSource` rejects with `E_BAD_COMMAND` and `details.reason` `"no-source"`;
+an empty name rejects with `"empty-name"`.
+
 ## Preview a Load Before Loading It
 
 `session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and
@@ -159,7 +170,9 @@ try {
 `replace` is accepted by `loadFromFile`, `loadFromUrl` and, as a third argument, by
 `addDataFromSource(type, opts, { replace: true })`. A source that holds no nodes and no edges at
 all fails with `E_EMPTY_LOAD`, whether or not it was replacing; when every row was rejected by
-the format's schema, `data-loading-error-summary` still reports why. A replacing load that stops at
+the format's schema, `data-loading-error-summary` still reports why. A file its parser could not
+read at all (`{` as JSON, `<graphml` as GraphML) is not empty: it fails with `E_PARSE_FAILED`,
+naming the format and, when the parser knows it, the line. A replacing load that stops at
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
 keeps the current graph.
 

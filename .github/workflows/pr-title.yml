@@ -3,13 +3,16 @@ name: PR Title
 # Its own workflow, not a job of CI, so that editing a pull request's title re-checks it: a
 # re-run of a job reuses the event it started from, so a CI re-run after a rename still read the
 # old title and failed. `edited` also fires for body edits; the check takes seconds.
+#
+# No concurrency group, on purpose. Mergify edits a merge-queue draft's body about once a minute,
+# and each edit starts a run. In a group, every new run cancelled the one before it -- and even
+# with cancel-in-progress off, a group keeps one pending run and cancels the others ("a higher
+# priority waiting request exists"). A cancelled "Lint PR Title" is a required check that was
+# interrupted, and Mergify dequeued the whole batch for it. Overlapping runs are harmless: each
+# lints the title in its own event and finishes in seconds.
 on:
     pull_request:
         types: [opened, edited, synchronize, reopened]
-
-concurrency:
-    group: pr-title-${{ github.event.pull_request.number }}
-    cancel-in-progress: true
 
 permissions:
     contents: read
@@ -36,8 +39,12 @@ jobs:
 
             # The title goes through an environment variable, never into the script text: a title is
             # attacker-controlled on a fork's pull request, and `${{ }}` inside `run:` is pasted into the
-            # shell before it runs.
+            # shell before it runs. A Mergify merge-queue draft (branch mergify/merge-queue/*) carries
+            # Mergify's own title, not a commit message; the pull requests it holds were each checked
+            # here on their own, so the step is skipped and the job passes. Only Mergify's own draft: the
+            # branch prefix alone is open to anyone, a fork included, so the repository and author must match.
             - name: Lint PR title
+              if: ${{ !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') }}
               env:
                   PR_TITLE: ${{ github.event.pull_request.title }}
               run: printf '%s\n' "$PR_TITLE" | pnpm exec commitlint

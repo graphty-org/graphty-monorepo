@@ -1,6 +1,10 @@
 # Local screenshot previews, Finish on local captures, and the pending-approvals inbox
 
-Date: 2026-10-04. Status: adopted design, not yet built. Measurements are against master at
+Date: 2026-10-04. Status: adopted design. Built: pinned fonts (section 3), the preview script
+(section 5, started by the agent after each push rather than by the server), and review and
+Finish on local captures (section 6, without the "CI differs from your local approval" mark: such
+an image simply comes back undecided). Not yet built: the inbox (section 7) and the notifier
+(section 8). Measurements are against master at
 0b9d4393b.
 
 This document extends the visual review system described in `design.md` (same folder). That
@@ -239,6 +243,10 @@ changes a package with a Storybook, it starts the script for it (one at a time, 
 first), when started with `--local-previews`. Relying on each agent to remember a background step
 after every push fails silently; the server sees every push. A capture whose head is no longer
 the pull request's head when it finishes is discarded.
+
+Until the server starts previews itself, the agent that pushes runs the script after each push
+(the project `CLAUDE.md`, "Visual review"), and the server lists only a preview whose head is the
+pull request's current head.
 
 ## 6. Reviewing and finishing on local captures
 

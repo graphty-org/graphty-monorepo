@@ -126,43 +126,8 @@ function incidentJobs(state, add, cancel) {
     const open = Object.values(state.incidents ?? {}).find((i) => i.status === "open");
     const live = new Set();
     for (const [key, rec] of Object.entries(open?.keys ?? {})) {
-        const r = /** @type {any} */ (rec);
-        if (r.outcome === "intermittent") continue;
-        const lane = state.master?.lanes?.[r.lane];
-        const since = lane?.redSince ?? open.openedAt;
-        const verdict = lane?.verdicts?.[key]?.verdict;
-        if (verdict === "environment") continue;
-        if (!verdict) {
-            const ref = (lane?.redJobs ?? []).find((/** @type {any} */ j) => j.key === key);
-            const job = add({
-                id: `verdict-${slug(key)}`,
-                kind: "incident",
-                target: key,
-                priority: "urgent",
-                reason: "master failed on no known pattern: is it the code or the environment?",
-                facts: {
-                    scope: "verdict",
-                    since,
-                    lane: r.lane ?? null,
-                    incident: open.id,
-                    runId: ref?.runId ?? null,
-                    jobId: ref?.id ?? null,
-                    redSha: lane?.sha ?? null,
-                    greenSha: open.lastGreenSha ?? null,
-                },
-            });
-            live.add(job.id);
-            continue;
-        }
-        const job = add({
-            id: `incident-${slug(key)}`,
-            kind: "incident",
-            target: key,
-            priority: "urgent",
-            reason: `master red since ${since}`,
-            facts: { scope: "master", since, lane: r.lane ?? null, incident: open.id },
-        });
-        live.add(job.id);
+        const spec = masterKeyJob(state, open, key, /** @type {any} */ (rec));
+        if (spec) live.add(add(spec).id);
     }
     for (const esc of Object.values(state.escalations ?? {})) {
         const e = /** @type {any} */ (esc);
@@ -200,6 +165,45 @@ function incidentJobs(state, add, cancel) {
         const scope = job.facts?.scope;
         if (job.kind === "incident" && scope in ended && !live.has(job.id)) cancel(job, ended[scope]);
     }
+}
+
+/**
+ * The job one key of the open master incident calls for: a verdict job while Claude has not judged
+ * it, a fix job once it is judged code, and none once it went intermittent or was judged the
+ * environment.
+ * @param {any} state the daemon state
+ * @param {any} open the open incident
+ * @param {string} key the failure key
+ * @param {any} r the key's incident record
+ * @returns {any} the job spec, or null
+ */
+function masterKeyJob(state, open, key, r) {
+    if (r.outcome === "intermittent") return null;
+    const lane = state.master?.lanes?.[r.lane];
+    const since = lane?.redSince ?? open.openedAt;
+    const verdict = lane?.verdicts?.[key]?.verdict;
+    if (verdict === "environment") return null;
+    const base = { kind: "incident", target: key, priority: "urgent" };
+    if (verdict) {
+        const facts = { scope: "master", since, lane: r.lane ?? null, incident: open.id };
+        return { ...base, id: `incident-${slug(key)}`, reason: `master red since ${since}`, facts };
+    }
+    const ref = (lane?.redJobs ?? []).find((/** @type {any} */ j) => j.key === key);
+    return {
+        ...base,
+        id: `verdict-${slug(key)}`,
+        reason: "master failed on no known pattern: is it the code or the environment?",
+        facts: {
+            scope: "verdict",
+            since,
+            lane: r.lane ?? null,
+            incident: open.id,
+            runId: ref?.runId ?? null,
+            jobId: ref?.id ?? null,
+            redSha: lane?.sha ?? null,
+            greenSha: open.lastGreenSha ?? null,
+        },
+    };
 }
 
 /**
@@ -349,9 +353,8 @@ function triageJobs(state, config, now, add) {
                   batch.map((n) => [n, missingLabelKinds(state.issues?.byNumber?.[n]?.labels ?? [], config)]),
               )
             : null;
-    const reason = missing
-        ? `missing labels: ${batch.map((n) => `#${n} ${missing[n].join("+")}`).join(", ")}`
-        : `${scope} pass after merges`;
+    const lacks = missing ? batch.map((n) => "#" + n + " " + missing[n].join("+")) : [];
+    const reason = missing ? `missing labels: ${lacks.join(", ")}` : `${scope} pass after merges`;
     add({
         id: `triage-${scope}-${passes.seq}`,
         kind: "triage",

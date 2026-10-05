@@ -184,6 +184,25 @@ function earlier(job) {
 }
 
 /**
+ * The lines a job's facts add for its worker: a refresh's merges and issues, the label kinds a new
+ * triage batch lacks, and where a verdict job's failure is.
+ * @param {any} job the job
+ * @param {{refresh: boolean, verdict: boolean}} kind whether it is a refresh triage or a verdict job
+ * @returns {string[]} the lines
+ */
+function factLines(job, { refresh, verdict }) {
+    if (refresh) return refreshLines(job.facts);
+    if (verdict) return verdictLines(job.facts);
+    if (job.kind !== "triage" || !job.facts?.missing) return [];
+    return [
+        "MISSING LABELS (add only these kinds; keep the labels each issue already has):",
+        ...Object.entries(job.facts.missing).map(
+            ([n, kinds]) => `  #${n}: ${/** @type {string[]} */ (kinds).join(", ")}`,
+        ),
+    ];
+}
+
+/**
  * The job's text for its worker.
  * @param {any} job the job record (`board.newJob`)
  * @param {{policies?: {text: string, endedAt?: string | null}[]}} [ctx] the owner's policies; only
@@ -204,16 +223,7 @@ export function jobText(job, ctx = {}) {
     if (job.reason) lines.push(`WHY NOW: ${job.reason}`);
     const finish = FINISH[verdict ? "verdict" : job.kind] ?? FINISH_DEFAULT;
     lines.push(`DONE WHEN: ${done}`, `TO FINISH: ${finish}`, ...earlier(job));
-    if (refresh) lines.push(...refreshLines(job.facts));
-    if (job.kind === "triage" && job.facts?.missing) {
-        lines.push(
-            "MISSING LABELS (add only these kinds; keep the labels each issue already has):",
-            ...Object.entries(job.facts.missing).map(
-                ([n, kinds]) => `  #${n}: ${/** @type {string[]} */ (kinds).join(", ")}`,
-            ),
-        );
-    }
-    if (verdict) lines.push(...verdictLines(job.facts));
+    lines.push(...factLines(job, { refresh, verdict }));
     const policies = (ctx.policies ?? []).filter((p) => !p.endedAt && p.text);
     if (policies.length) lines.push("OWNER POLICIES:", ...policies.map((p) => `  - ${p.text}`));
     lines.push("RULES:", ...RULES.map((r) => `  - ${r}`));

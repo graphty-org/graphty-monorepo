@@ -584,7 +584,8 @@ function startWatch(ctx) {
         proc = await pm2Process(ctx);
         if (!proc) return null;
         if (exits < 2 && live(proc.pid) && proc.pid !== was) return null;
-        return `the daemon process ${was || "(none)"} exited${proc.status ? `; pm2 says ${proc.status}` : ""}`;
+        const pm2 = proc.status ? "; pm2 says " + proc.status : "";
+        return `the daemon process ${was || "(none)"} exited${pm2}`;
     };
 }
 
@@ -596,7 +597,7 @@ function startWatch(ctx) {
 function zombie(pid) {
     try {
         const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
-        return stat.slice(stat.lastIndexOf(")") + 2)[0] === "Z";
+        return stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z");
     } catch {
         return false;
     }

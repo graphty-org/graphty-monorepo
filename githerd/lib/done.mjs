@@ -312,7 +312,7 @@ function labelGaps(r, issue, sets) {
         const on = names.filter((/** @type {string} */ l) => (sets[set] ?? []).includes(l));
         const want = r.labels?.[key];
         // "medium" and "priority:medium" name the same label: the kind's prefix is optional on both sides.
-        const bare = (/** @type {unknown} */ l) => String(l ?? "").replace(`${key}:`, "");
+        const bare = (/** @type {unknown} */ l) => (typeof l === "string" ? l : "").replace(`${key}:`, "");
         if (on.length !== 1 || !want || bare(on[0]) !== bare(want)) {
             gaps.push(`#${r.issue} has ${key} labels [${on.join(", ")}] on GitHub, not exactly ${want ?? "one"}`);
         }

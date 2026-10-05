@@ -6,7 +6,6 @@ import {
     Engine,
     GreasedLineBaseMesh,
     GreasedLineMeshColorMode,
-    type InstancedMesh,
     Mesh,
     MeshBuilder,
     RawTexture,
@@ -18,12 +17,16 @@ import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBu
 
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
+import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
+
+const PATTERNED_TYPES = new Set(["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
 
 interface EdgeMeshOptions {
     styleId: string;
@@ -253,7 +256,6 @@ void main() {
         dstPoint?: Vector3,
     ): AbstractMesh | PatternedLineMesh {
         const lineType = style.line?.type ?? "solid";
-        const PATTERNED_TYPES = ["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"];
 
         // PHASE 5: Bezier curves use CustomLineRenderer with multi-point paths (individual meshes, no caching)
         // Each bezier curve has unique geometry based on src/dst points, so can't be cached
@@ -293,7 +295,7 @@ void main() {
         // PHASE 5: Pattern lines use PatternedLineRenderer (individual meshes, no caching)
         // See: design/mesh-based-patterned-lines.md Phase 5
         // Note: Edge.transformArrowCap() provides start/end already adjusted for node surfaces and arrows
-        if (PATTERNED_TYPES.includes(lineType)) {
+        if (PATTERNED_TYPES.has(lineType)) {
             return PatternedLineRenderer.create(
                 lineType as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
                 new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
@@ -332,6 +334,55 @@ void main() {
     }
 
     /**
+     * The thin-instance batch that draws one edge appearance, when this style can be batched.
+     *
+     * THE ONE STYLE THIS DRAWS, FOR NOW: a straight solid line in 3D, which is what the default
+     * edge style and the great majority of every graph is made of. That line used to be an
+     * `InstancedMesh` per edge -- a scene object and about 12.7 KB of heap each -- and it is the
+     * one branch of {@link EdgeMesh.create} whose geometry is already a shared unit segment
+     * placed by a world matrix, so moving it into a batch changes where the matrix lives and
+     * nothing else. No shader is edited: the line shader composes `finalWorld` through Babylon's
+     * `instancesDeclaration` / `instancesVertex` includes, which carry the thin-instance branch.
+     *
+     * Every other edge -- bezier, patterned, animated, and everything in 2D -- answers null here
+     * and is drawn exactly as it was, one mesh at a time. Those are separate pieces of work with
+     * separate reviews, and each of them needs something a single slot cannot express yet (a run
+     * of slots for a curve's segments, per-instance colour for a 2D line's material).
+     *
+     * The colour, the width and the opacity stay folded into the key, so there are exactly as
+     * many batches as there were cached source meshes.
+     * @param cache - The mesh cache, which owns the batches so that they die when it does.
+     * @param options - Edge mesh options including styleId, width, and color.
+     * @param style - Full edge style configuration.
+     * @param scene - Babylon.js scene.
+     * @returns The batch to take a slot in, or null for an edge this path cannot draw.
+     */
+    static lineBatch(
+        cache: MeshCache,
+        options: EdgeMeshOptions,
+        style: EdgeStyleConfig,
+        scene: Scene,
+    ): EdgeLineBatch | null {
+        const lineType = style.line?.type ?? "solid";
+        const batchable =
+            this.USE_CUSTOM_RENDERER &&
+            lineType === "solid" &&
+            style.line?.bezier !== true &&
+            !style.line?.animationSpeed &&
+            !this.is2DMode(scene);
+
+        if (!batchable) {
+            return null;
+        }
+
+        return cache.getBatch(
+            `edge-style-${options.styleId}`,
+            () => this.createStaticLine(options, style, scene, cache),
+            scene,
+        );
+    }
+
+    /**
      * Creates an arrow head mesh for edge endpoints.
      *
      * Supports multiple arrow types:
@@ -342,10 +393,10 @@ void main() {
      * In 2D mode, uses StandardMaterial with XY rotation.
      * In 3D mode, uses shader-based billboard rendering.
      *
-     * The head is an InstancedMesh of a batch its scene shares with every head of the same
+     * The head is a thin-instance slot in a batch its scene shares with every head of the same
      * shape (and, where the material holds them, the same colour and opacity), so a graph's
-     * arrowheads cost a draw call per batch rather than per edge. See
-     * `FilledArrowRenderer.instanceOf`.
+     * arrowheads cost one draw call and one material per batch, and nothing at all per edge.
+     * See `ArrowCapBatch`.
      * @param _cache - MeshCache instance (currently unused, kept for API compatibility)
      * @param _styleId - Style ID (currently unused, kept for API compatibility)
      * @param options - Arrow head options including type, width, color, size, and opacity
@@ -357,7 +408,7 @@ void main() {
         _styleId: string,
         options: ArrowHeadOptions,
         scene: Scene,
-    ): InstancedMesh | null {
+    ): ArrowCap | null {
         if (!options.type || options.type === "none") {
             return null;
         }
@@ -387,6 +438,15 @@ void main() {
             "sphere-dot",
         ];
 
+        // A CAP IS A SLOT, NOT A MESH. The note that used to stand here said thin instances had
+        // been measured at a 1,147 ms bottleneck, 35 times slower than moving a mesh, and that
+        // sentence is why every cap and every line in this file was a scene object with its own
+        // material. What it measured was an API misuse: `thinInstanceSetMatrixAt` re-uploads the
+        // WHOLE buffer unless it is told not to, so moving n of them one at a time is O(n^2) --
+        // 42 seconds a frame at 20,000 instances. Writing the floats and uploading once a frame
+        // is 1.7 ms for the same 20,000. See EdgeLineBatch for the lines and ArrowCapBatch for
+        // these caps.
+
         const arrowType = options.type;
         if (!FILLED_ARROWS.includes(arrowType)) {
             throw new Error(`Unsupported arrow type: ${options.type}`);
@@ -394,8 +454,8 @@ void main() {
 
         if (is2D) {
             // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
-            // so they are part of the batch; size and direction are the instance's transform.
-            const instance = FilledArrowRenderer.instanceOf(
+            // so they are part of the batch key; the size and the turn are the slot's matrix.
+            return FilledArrowRenderer.capOf(
                 scene,
                 `2d|${arrowType}|${options.color}|${String(opacity)}`,
                 () => {
@@ -403,11 +463,8 @@ void main() {
                     source.visibility = opacity;
                     return source;
                 },
+                { scale: length, billboard: false },
             );
-            instance.scaling.setAll(length);
-            instance.rotation.x = Math.PI / 2;
-            instance.metadata = { is2D: true };
-            return instance;
         }
 
         if (arrowType === "sphere-dot") {
@@ -415,7 +472,7 @@ void main() {
         }
 
         // 3D mode: shader-based billboard arrows; size and colour are per instance.
-        return FilledArrowRenderer.createArrowInstance(
+        return FilledArrowRenderer.createArrowCap(
             arrowType,
             () => this.createArrowShape(arrowType, scene),
             {
@@ -429,33 +486,39 @@ void main() {
 
     /**
      * A 3D sphere-dot arrowhead: an unlit sphere, batched by colour and opacity, sized by the
-     * instance's scale.
+     * slot's own scale.
      * @param length - Arrow length in world units
      * @param color - Arrow color as hex string
      * @param opacity - Arrow opacity (0-1)
      * @param scene - Babylon.js scene
-     * @returns The sphere instance
+     * @returns The sphere cap
      */
-    private static createSphereDot(length: number, color: string, opacity: number, scene: Scene): InstancedMesh {
+    private static createSphereDot(length: number, color: string, opacity: number, scene: Scene): ArrowCap {
         // CRITICAL: The sphere size must match what positioning code expects
         // calculateArrowPosition() uses actualSize = length * scaleFactor
         // So the sphere's diameter must be length * scaleFactor
         const sphereDotScaleFactor = EdgeMesh.getArrowGeometry("sphere-dot").scaleFactor ?? 1.0;
         const sphereDiameter = length * sphereDotScaleFactor; // e.g., 0.5 * 0.25 = 0.125
 
-        const instance = FilledArrowRenderer.instanceOf(scene, `sphere-dot|${color}|${String(opacity)}`, () => {
-            const sphereMesh = MeshBuilder.CreateSphere("sphere-dot-arrow-3d", { diameter: 1, segments: 16 }, scene);
-            const sphereMaterial = new StandardMaterial("sphere-dot-material-3d", scene);
-            sphereMaterial.diffuseColor = Color3.FromHexString(color);
-            sphereMaterial.emissiveColor = Color3.FromHexString(color);
-            sphereMaterial.disableLighting = true;
-            sphereMesh.material = sphereMaterial;
-            sphereMesh.visibility = opacity;
-            return sphereMesh;
-        });
-        instance.scaling.setAll(sphereDiameter);
-
-        return instance;
+        return FilledArrowRenderer.capOf(
+            scene,
+            `sphere-dot|${color}|${String(opacity)}`,
+            () => {
+                const sphereMesh = MeshBuilder.CreateSphere(
+                    "sphere-dot-arrow-3d",
+                    { diameter: 1, segments: 16 },
+                    scene,
+                );
+                const sphereMaterial = new StandardMaterial("sphere-dot-material-3d", scene);
+                sphereMaterial.diffuseColor = Color3.FromHexString(color);
+                sphereMaterial.emissiveColor = Color3.FromHexString(color);
+                sphereMaterial.disableLighting = true;
+                sphereMesh.material = sphereMaterial;
+                sphereMesh.visibility = opacity;
+                return sphereMesh;
+            },
+            { scale: sphereDiameter, billboard: false },
+        );
     }
 
     /**

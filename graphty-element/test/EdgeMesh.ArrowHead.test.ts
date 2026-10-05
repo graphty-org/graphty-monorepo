@@ -1,4 +1,4 @@
-import { InstancedMesh, NullEngine, Scene } from "@babylonjs/core";
+import { NullEngine, Scene } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
@@ -23,10 +23,11 @@ describe("Arrow Shape Generation", () => {
         );
 
         assert.exists(arrowMesh);
-        // The mesh should be named appropriately (filled arrows use FilledArrowRenderer)
+        // The cap should be named appropriately (filled arrows use FilledArrowRenderer)
         assert.isTrue(arrowMesh.name.includes("filled-triangle-arrow"));
-        // An instance of the scene's shared mesh for this shape (issue #25)
-        assert.instanceOf(arrowMesh, InstancedMesh);
+        // A thin-instance slot in the scene's shared batch for this shape (issues #25, #419),
+        // so it has no mesh of its own and the geometry it is drawn from is the batch's.
+        assert.isNotNull(arrowMesh.batchMesh);
     });
 
     test("dot arrow creates circular shape", () => {
@@ -39,9 +40,9 @@ describe("Arrow Shape Generation", () => {
 
         assert.exists(arrowMesh);
         assert.isTrue(arrowMesh.name.includes("filled-circle-arrow"));
-        assert.instanceOf(arrowMesh, InstancedMesh);
-        // Verify the mesh has geometry
-        const positions = arrowMesh.getVerticesData("position");
+        assert.isNotNull(arrowMesh.batchMesh);
+        // Verify the mesh it is drawn from has geometry
+        const positions = arrowMesh.batchMesh.getVerticesData("position");
         assert.exists(positions);
         assert.isAtLeast(positions.length, 9); // At least 3 vertices for a circle
     });
@@ -56,9 +57,9 @@ describe("Arrow Shape Generation", () => {
 
         assert.exists(arrowMesh);
         assert.isTrue(arrowMesh.name.includes("filled-diamond-arrow"));
-        assert.instanceOf(arrowMesh, InstancedMesh);
+        assert.isNotNull(arrowMesh.batchMesh);
         // Verify diamond has vertices (should have 4 corner points)
-        const positions = arrowMesh.getVerticesData("position");
+        const positions = arrowMesh.batchMesh.getVerticesData("position");
         assert.exists(positions);
         assert.equal(positions.length, 12); // 4 vertices * 3 components (x, y, z)
     });
@@ -73,9 +74,9 @@ describe("Arrow Shape Generation", () => {
 
         assert.exists(arrowMesh);
         assert.isTrue(arrowMesh.name.includes("filled-box-arrow"));
-        assert.instanceOf(arrowMesh, InstancedMesh);
+        assert.isNotNull(arrowMesh.batchMesh);
         // Verify box has vertices (should have 4 corners)
-        const positions = arrowMesh.getVerticesData("position");
+        const positions = arrowMesh.batchMesh.getVerticesData("position");
         assert.exists(positions);
         assert.equal(positions.length, 12); // 4 vertices * 3 components
     });
@@ -90,7 +91,7 @@ describe("Arrow Shape Generation", () => {
 
         assert.exists(arrowMesh);
         assert.isTrue(arrowMesh.name.includes("filled-triangle-arrow"));
-        assert.instanceOf(arrowMesh, InstancedMesh);
+        assert.isNotNull(arrowMesh.batchMesh);
     });
 
     test("unsupported arrow type throws error", () => {
@@ -98,7 +99,7 @@ describe("Arrow Shape Generation", () => {
             EdgeMesh.createArrowHead(
                 meshCache,
                 "test-invalid",
-                 
+
                 { type: "invalid-type" as any, width: 1.0, color: "#FF0000" },
                 scene,
             );

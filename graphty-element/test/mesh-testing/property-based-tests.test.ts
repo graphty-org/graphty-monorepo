@@ -274,7 +274,10 @@ describe("Property-Based Tests", () => {
                         );
 
                         assert.isNotNull(cap);
-                        assert.isAbove(cap.getTotalVertices(), 0);
+                        // The geometry is the batch's, shared by every cap of this appearance;
+                        // what the cap itself carries is its slot's share of it.
+                        assert.isAbove(cap.batchMesh?.getTotalVertices() ?? 0, 0);
+                        assert.isAbove(cap.span, 0);
                         assert.closeTo(cap.visibility, opacity, 1e-6);
                     },
                 ),

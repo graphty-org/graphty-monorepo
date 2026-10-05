@@ -14,10 +14,10 @@
  *   reading the log, and never asserted.
  * - Load, clear, load, clear must return the scene to exactly the meshes, materials and textures
  *   it started with.
- * - Draw calls and materials must not grow with the number of edges.
+ * - Draw calls, materials and scene meshes must not grow with the number of edges.
  *
- * When a change lowers a count on purpose (instanced edges, issue #419, will), or raises one and
- * the cost is accepted, rewrite the baseline and commit it:
+ * When a change lowers a count on purpose, or raises one and the cost is accepted, rewrite the
+ * baseline and commit it:
  *
  *     GRAPHTY_UPDATE_RENDER_BUDGET=1 npx vitest run --project=browser test/browser/render-budget.test.ts
  */
@@ -232,11 +232,9 @@ describe("the number of edges", () => {
         assert.strictEqual(more.materials, fewer.materials, "materials grew with the edges");
     });
 
-    // Known failure, kept as a tripwire. Every edge's line and arrowhead is still an InstancedMesh,
-    // and Babylon lists each one in scene.meshes, so the list grows by two per edge. Issue #419 draws
-    // edges as instances of one mesh per style; when that lands this starts passing, `it.fails`
-    // reports it, and the fix is to change `it.fails` to `it`.
-    it.fails("does not change the number of scene meshes", async () => {
+    // Each edge's line and arrowhead is a slot in one batch mesh per appearance (issue #419), so
+    // twice the edges is the same scene meshes. A renderer that gives each edge a mesh fails it.
+    it("does not change the number of scene meshes", async () => {
         const fewer = await costOf(200);
         const more = await costOf(400);
 

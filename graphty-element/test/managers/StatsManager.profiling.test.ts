@@ -1,5 +1,5 @@
 import type { EngineInstrumentation, SceneInstrumentation } from "@babylonjs/core";
-import { assert, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { EventManager } from "../../src/managers/EventManager";
 import { StatsManager } from "../../src/managers/StatsManager";
@@ -7,14 +7,26 @@ import { StatsManager } from "../../src/managers/StatsManager";
 describe("StatsManager - Profiling", () => {
     let statsManager: StatsManager;
     let mockEventManager: EventManager;
+    // A fake clock: a measured callback "takes" exactly what it spends, however the test process is
+    // scheduled. Busy-waiting on the real clock let one preemption under load inflate a duration.
+    let clock = 0;
+    const spend = (ms: number): void => {
+        clock += ms;
+    };
 
     beforeEach(() => {
+        clock = 0;
+        vi.spyOn(performance, "now").mockImplementation(() => clock);
         // Create mock EventManager
         mockEventManager = {
             emitGraphEvent: vi.fn(),
         } as unknown as EventManager;
 
         statsManager = new StatsManager(mockEventManager);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
     });
 
     describe("enable/disable", () => {
@@ -95,6 +107,7 @@ describe("StatsManager - Profiling", () => {
                 await new Promise((resolve) => {
                     setTimeout(resolve, 10);
                 });
+                spend(10);
                 return "done";
             });
 
@@ -130,18 +143,12 @@ describe("StatsManager - Profiling", () => {
             // Run multiple measurements
             statsManager.measure("test", () => {
                 // Simulate ~1ms work
-                const start = performance.now();
-                while (performance.now() - start < 1) {
-                    // Busy wait
-                }
+                spend(1);
             });
 
             statsManager.measure("test", () => {
                 // Simulate ~2ms work
-                const start = performance.now();
-                while (performance.now() - start < 2) {
-                    // Busy wait
-                }
+                spend(2);
             });
 
             const snapshot = statsManager.getSnapshot();
@@ -185,10 +192,7 @@ describe("StatsManager - Profiling", () => {
 
             statsManager.startMeasurement("manual");
             // Simulate work
-            const start = performance.now();
-            while (performance.now() - start < 5) {
-                // Busy wait
-            }
+            spend(5);
             statsManager.endMeasurement("manual");
 
             const snapshot = statsManager.getSnapshot();
@@ -276,80 +280,64 @@ describe("StatsManager - Profiling", () => {
             statsManager.enableProfiling();
 
             // Generate measurements with spread-out values: 2, 6, 10, 14, 18ms
-            // Using larger gaps to avoid timing granularity issues
             for (let i = 1; i <= 5; i++) {
                 const targetMs = i * 4 - 2; // 2, 6, 10, 14, 18
                 statsManager.measure("test", () => {
-                    const start = performance.now();
-                    while (performance.now() - start < targetMs) {
-                        // Busy wait
-                    }
+                    spend(targetMs);
                 });
             }
 
             const snapshot = statsManager.getSnapshot();
             const stat = snapshot.cpu[0];
 
-            // P50 should be between min and max (inclusive due to timing variations)
-            assert.isAtLeast(stat.p50, stat.min);
-            assert.isAtMost(stat.p50, stat.max);
-            // P50 should be reasonably close to average for this distribution
-            assert.approximately(stat.p50, stat.avg, stat.avg * 0.5);
+            // The median of 2, 6, 10, 14 and 18
+            assert.equal(stat.p50, 10);
+            assert.equal(stat.avg, 10);
         });
 
         it("should calculate p95", () => {
             statsManager.enableProfiling();
 
-            // Generate 100 measurements: 95 fast (1ms), 5 slow (10ms)
-            for (let i = 0; i < 95; i++) {
+            // Generate 100 measurements: 90 fast (1ms), 10 slow (10ms), so the 95th is a slow one
+            for (let i = 0; i < 90; i++) {
                 statsManager.measure("test", () => {
-                    const start = performance.now();
-                    while (performance.now() - start < 1) {
-                        // Busy wait
-                    }
+                    spend(1);
                 });
             }
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 10; i++) {
                 statsManager.measure("test", () => {
-                    const start = performance.now();
-                    while (performance.now() - start < 10) {
-                        // Busy wait
-                    }
+                    spend(10);
                 });
             }
 
             const snapshot = statsManager.getSnapshot();
             const stat = snapshot.cpu[0];
 
-            // P95 should be higher than P50 (median)
-            assert.isAbove(stat.p95, stat.p50);
+            assert.equal(stat.p50, 1);
+            assert.equal(stat.p95, 10);
         });
 
         it("should calculate p99", () => {
             statsManager.enableProfiling();
 
-            // Generate 100 measurements: 99 fast (1ms), 1 very slow (20ms)
-            for (let i = 0; i < 99; i++) {
+            // Generate 100 measurements: 98 fast (1ms), 2 very slow (20ms), so the 99th is a slow one
+            for (let i = 0; i < 98; i++) {
                 statsManager.measure("test", () => {
-                    const start = performance.now();
-                    while (performance.now() - start < 1) {
-                        // Busy wait
-                    }
+                    spend(1);
                 });
             }
-            statsManager.measure("test", () => {
-                const start = performance.now();
-                while (performance.now() - start < 20) {
-                    // Busy wait
-                }
-            });
+            for (let i = 0; i < 2; i++) {
+                statsManager.measure("test", () => {
+                    spend(20);
+                });
+            }
 
             const snapshot = statsManager.getSnapshot();
             const stat = snapshot.cpu[0];
 
-            // P99 should be higher than P95 and close to max
-            assert.isAbove(stat.p99, stat.p95);
-            assert.isAbove(stat.p99, stat.p50);
+            assert.equal(stat.p50, 1);
+            assert.equal(stat.p95, 1);
+            assert.equal(stat.p99, 20);
         });
 
         it("should return 0 for percentiles when no data", () => {
@@ -887,16 +875,10 @@ describe("StatsManager - Profiling", () => {
             // Simulate frame with operations
             statsManager.startFrameProfiling();
             statsManager.measure("operation-a", () => {
-                const start = performance.now();
-                while (performance.now() - start < 5) {
-                    // 5ms work
-                }
+                spend(5);
             });
             statsManager.measure("operation-b", () => {
-                const start = performance.now();
-                while (performance.now() - start < 3) {
-                    // 3ms work
-                }
+                spend(3);
             });
             statsManager.endFrameProfiling();
 
@@ -949,10 +931,7 @@ describe("StatsManager - Profiling", () => {
             // Simulate frame with operations (total CPU time will be low compared to inter-frame time)
             statsManager.startFrameProfiling();
             statsManager.measure("blocking-operation", () => {
-                const start = performance.now();
-                while (performance.now() - start < 10) {
-                    // 10ms CPU work, but 50ms total frame time = 40ms blocking
-                }
+                spend(10);
             });
             statsManager.endFrameProfiling();
 
@@ -1003,10 +982,7 @@ describe("StatsManager - Profiling", () => {
             // Simulate frame with normal operations
             statsManager.startFrameProfiling();
             statsManager.measure("normal-operation", () => {
-                const start = performance.now();
-                while (performance.now() - start < 8) {
-                    // 8ms CPU work, 10ms total frame time = only 2ms blocking (low)
-                }
+                spend(8);
             });
             statsManager.endFrameProfiling();
 
@@ -1240,17 +1216,14 @@ describe("StatsManager - Profiling", () => {
 
                 assert.equal(snapshot.length, 3);
 
-                 
                 const cacheHits = snapshot.find((c) => c.label === "cache.hits")!;
                 assert.equal(cacheHits.value, 10);
                 assert.equal(cacheHits.operations, 1); // incremented once (with amount 10)
 
-                 
                 const cacheMisses = snapshot.find((c) => c.label === "cache.misses")!;
                 assert.equal(cacheMisses.value, 2);
                 assert.equal(cacheMisses.operations, 1);
 
-                 
                 const poolSize = snapshot.find((c) => c.label === "pool.size")!;
                 assert.equal(poolSize.value, 50);
                 assert.equal(poolSize.operations, 1); // set once
@@ -1265,7 +1238,7 @@ describe("StatsManager - Profiling", () => {
                 statsManager.setCounter("test", 100);
 
                 const snapshot = statsManager.getCountersSnapshot();
-                 
+
                 const counter = snapshot.find((c) => c.label === "test")!;
 
                 assert.equal(counter.value, 100);
@@ -1333,7 +1306,7 @@ describe("StatsManager - Profiling", () => {
 
                 // Verify derived metrics are calculated
                 assert.isDefined(tableData);
-                 
+
                 const hitsRow = tableData.find((row: any) => row.Label === "cache.hits");
                 assert.equal(hitsRow.Value, 90);
 

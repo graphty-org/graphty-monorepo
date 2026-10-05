@@ -189,7 +189,8 @@ function laneNews(state, job, name) {
  * Settles every declared wait whose condition changed (design 7.4): the job goes back to work with
  * a news line, and its worker is rung. A push wait is the push queue's, a done check's wait on CI
  * is the verification poll's, and a local task's wait ends when its output file records the exit (or by its bound). A blocked job whose
- * blocker ended goes back to the queue.
+ * blocker ended goes back to the queue; that is the only way out of `blocked` short of a session's death or a cancel, and no
+ * time limit applies.
  * @param {any} state the daemon state
  * @param {Date} now the clock
  * @returns {Step[]} what settled

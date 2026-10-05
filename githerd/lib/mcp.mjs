@@ -381,7 +381,8 @@ export const TOOLS = [
         name: "githerd_claim",
         description:
             "Claim your job before any edit, with your overlap judgment against the snapshot from githerd_next. " +
-            'decision "wait" blocks your job on the job named in `with`, or on an issue written "#736": githerd makes ' +
+            'decision "wait" blocks your job on the job named in `with`, or on an issue written "#736", until that job ends ' +
+            "(no time limit): githerd makes " +
             "that issue's job when none exists (only for an open issue by the owner) and offers it next. " +
             "Refused when the snapshot is stale or the wait would make a cycle; the refusal carries a fresh snapshot.",
         inputSchema: object(

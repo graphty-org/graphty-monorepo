@@ -221,8 +221,6 @@ export const TERMINAL = ["done", "failed", "cancelled"];
 const ATTEMPTS = 3;
 /** Working time with no GitHub change before an attempt ends: 4 hours, 2 for incidents. */
 const WORKING_MS = { incident: 2 * HOUR, other: 4 * HOUR };
-/** The longest a job waits on another job before it is re-judged. */
-const BLOCKED_MS = 4 * HOUR;
 /** The start deadlines: the worktree, the registry entry, the first githerd call. */
 // The registry deadline outlasts tmux.mjs's own 30 s poll (REGISTRY_MS), so it fires only for a
 // start the daemon lost, never while startWorker is still waiting.
@@ -362,8 +360,8 @@ export function move(job, to, now, opts = {}) {
     if (opts.reason) job.reason = opts.reason;
     if (opts.holder !== undefined) job.holder = opts.holder;
     job.waitingFor = opts.waitingFor ?? (to === "parked" ? job.waitingFor : null);
-    if (to === "blocked") startClock(job, BLOCKED_MS, "requeue", now);
-    else if (to === "starting") startClock(job, START_MS[opts.phase ?? "worktree"], startAction(opts.phase), now);
+    // A blocked job has no clock: it waits until its blocker ends (settleWaits in advance.mjs).
+    if (to === "starting") startClock(job, START_MS[opts.phase ?? "worktree"], startAction(opts.phase), now);
     else if (to === "working") startClock(job, job.budget.workingMinutes * MINUTE, "end-attempt", now);
     else if (to === "waiting") startClock(job, opts.boundMs ?? waitBound(job.waitingFor), "doorbell", now);
     else if (to === "verifying") job.verifyPolls = 0;
@@ -455,12 +453,16 @@ export function tick(job, now, pauses = {}) {
 /**
  * Restarts every deadline clock at `now`, so the time the daemon was down is not counted: githerd's
  * view was unknown then, and every deadline pauses while it is (design 5.3). Called once at start,
- * after the state is loaded.
+ * after the state is loaded. A blocked job saved with the old 4-hour clock loses it: a blocked
+ * job waits until its blocker ends, however long that takes.
  * @param {any} state the daemon state
  * @param {Date} now the current time
  */
 export function resumeClocks(state, now) {
-    for (const job of Object.values(state.jobs ?? {})) if (job.clock) job.clock.at = now.toISOString();
+    for (const job of Object.values(state.jobs ?? {})) {
+        if (job.state === "blocked") Object.assign(job, { clock: null, deadline: null, deadlineAction: null });
+        else if (job.clock) job.clock.at = now.toISOString();
+    }
 }
 
 /**
@@ -471,10 +473,7 @@ export function resumeClocks(state, now) {
  */
 function fire(job, now) {
     const action = /** @type {string} */ (job.deadlineAction);
-    if (action === "requeue") {
-        addNews(job, `waited 4 hours on ${describeWait(job.waitingFor)}; judge again whether to wait`, now);
-        move(job, "queued", now);
-    } else if (action === "fault") {
+    if (action === "fault") {
         return fault(job, "worktree not ready within 20 minutes", now);
     } else if (action === "start-failure") {
         move(job, "queued", now, { reason: "session start failed" });
@@ -690,7 +689,7 @@ export function claimSnapshot(state, { worktrees = [], ownerSessions = [] }) {
  * - `independent`: the job is `working`.
  * - `join`: this job's target is added to the job named by `with`, whose holder gets the news, and
  *   this job is `cancelled` with a pointer to it.
- * - `wait`: the job is `blocked` on the job named by `with`, capped at 4 hours. `with` may name an
+ * - `wait`: the job is `blocked` on the job named by `with` until that job ends. `with` may name an
  *   issue as "#736": its issue job, made `queued` when none is live, for an open issue by the owner.
  * @param {any} state the daemon state
  * @param {{job: string, snapshotVersion: number, overlap: {decision: "independent" | "join" | "wait",
@@ -786,7 +785,7 @@ export function claimJob(state, args, caller, snapshot, now) {
         }
     } else if (args.overlap.decision === "wait") {
         move(job, "blocked", now, {
-            waitingFor: { job: other.id, until: new Date(now.getTime() + BLOCKED_MS).toISOString() },
+            waitingFor: { job: other.id },
         });
     } else {
         move(job, "working", now);
@@ -847,7 +846,7 @@ export function checkInvariants(state, facts) {
 }
 
 /** States that run a deadline clock. */
-const CLOCKED = new Set(["blocked", "starting", "working", "waiting"]);
+const CLOCKED = new Set(["starting", "working", "waiting"]);
 
 /**
  * @typedef {{sessionAlive: (session: string) => boolean, recovering: (job: string) => boolean,

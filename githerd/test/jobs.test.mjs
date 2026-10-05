@@ -135,13 +135,25 @@ describe("move: every state has a tested exit", () => {
 });
 
 describe("deadlines and what follows them", () => {
-    it("blocked: after 4 hours it is requeued with news", () => {
+    it("blocked: no deadline; it stays blocked however long its blocker runs", () => {
         const job = jobIn(["starting", "blocked"]);
-        expect(job.deadline).toBe(at(240).toISOString());
-        expect(tick(job, at(239))).toBeNull();
-        expect(tick(job, at(240))).toEqual({ action: "requeue", job: "issue-737" });
-        expect(job.state).toBe("queued");
-        expect(job.news[0].text).toContain("waited 4 hours on job pr-412");
+        expect(job).toMatchObject({ clock: null, deadline: null, deadlineAction: null });
+        expect(tick(job, at(240))).toBeNull();
+        expect(tick(job, at(365 * 24 * 60))).toBeNull();
+        expect(job).toMatchObject({ state: "blocked", news: [] });
+    });
+
+    it("blocked: a daemon restart drops a clock saved by an older version", () => {
+        const job = jobIn(["starting", "blocked"]);
+        Object.assign(job, {
+            clock: { budgetMs: 240 * MIN, usedMs: 0, at: T0.toISOString() },
+            deadline: at(240).toISOString(),
+            deadlineAction: "requeue",
+        });
+        resumeClocks({ jobs: { [job.id]: job } }, at(1));
+        expect(job).toMatchObject({ clock: null, deadline: null, deadlineAction: null });
+        expect(tick(job, at(10000))).toBeNull();
+        expect(job.state).toBe("blocked");
     });
 
     it("starting: a worktree not ready in 20 minutes faults the job", () => {
@@ -483,7 +495,7 @@ describe("claims", () => {
         expect(other.news[0].text).toContain("job issue-737 joined yours");
     });
 
-    it("wait: blocked on the other job for at most 4 hours", () => {
+    it("wait: blocked on the other job with no time limit", () => {
         const mine = jobIn(["starting"]);
         const other = jobIn(["starting", "working"], { kind: "pr", target: "412" });
         const state = stateOf(mine, other);
@@ -492,8 +504,8 @@ describe("claims", () => {
         claimJob(state, { job: mine.id, snapshotVersion: snap.version, overlap, plan }, { session: "w1" }, snap, at(1));
         expect(mine).toMatchObject({
             state: "blocked",
-            waitingFor: { job: "pr-412", until: at(241).toISOString() },
-            deadline: at(241).toISOString(),
+            waitingFor: { job: "pr-412" },
+            deadline: null,
         });
     });
 

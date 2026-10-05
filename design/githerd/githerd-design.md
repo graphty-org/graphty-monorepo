@@ -68,7 +68,8 @@ Every mechanism below follows these. A mechanism that breaks one is a defect in 
    before anything is reverted, re-run, held or handed to a worker. A payment problem, an
    expired credential or an outage is never handed to a worker as a code problem.
 3. **Every unit of work is a record with a state, a holder and a deadline**, and an invariant
-   check turns a record without one into a visible fault (section 9.5).
+   check turns a record without one into a visible fault (section 9.5). A job blocked on another
+   job has no deadline of its own: it ends when that job ends.
 4. **Every wait is bounded, and every bound names its next state.** Bounds pause for causes the
    owner already knows about (usage limit, GitHub unknown, machine load, steering), and only then.
 5. **Unknown is a state.** A failed, stale or backwards read gives "unknown since <time>", never
@@ -350,7 +351,7 @@ adversarial review added (section 3.10). Columns:
 | Owner asks for status | `githerd status` (from `state.json` when the daemon is down), `githerd_status`, the board window, each session's start line, the `needs-decision` label | Always current; "nothing is waiting on you" when empty; `githerd why <item>` | D | Answered in one call |
 | Alert fatigue | githerd's alert log | One page per item when actionable, again only on change; workers cannot page | D | n/a |
 | Owner policy given in one session | `githerd_record` kind `policy`, or `githerd policy` [CAT 9] | Kept in state, ledger and every start line; switches enforced at once | D | Ended by the owner |
-| Work the owner asked for is silently dropped | Invariant check (section 9.5) | Fault at the top of every surface; paged once after 24 hours | D | Nothing lacks a holder, state and deadline |
+| Work the owner asked for is silently dropped | Invariant check (section 9.5) | Fault at the top of every surface; paged once after 24 hours | D | Nothing lacks a holder, state and deadline (a blocked job: a named blocker) |
 | Owner approves in chat but the agent cannot act | Not needed | Mergify merges by rule | Mergify | n/a |
 
 ### 3.8 Combinations
@@ -405,7 +406,7 @@ adversarial review added (section 3.10). Columns:
 | A doorbell lands in a dialog (usage menu, plan approval, picker) | Pane capture | Ring only on a positive match of the empty prompt box with no dialog markers; text verified in the box before Enter, else cleared and recorded | D | n/a |
 | A worker fans out subagents or browsers | Subagent transcripts; Chromium count in its process tree | Subagent growth is progress; Workflow tool denied; at most 2 concurrent subagents per worker (guard); browser launches refused at the machine cap | D | n/a |
 | The owner's tmux server is killed | Workers live on their own socket `tmux -L githerd` [PF 2.2] | Unaffected; if the githerd socket dies, working jobs recover one at a time | D | n/a |
-| Jobs waiting on each other in a cycle | The wait graph | A wait that closes a cycle is refused; any wait on a job is capped at 4 hours, then re-judged | D | n/a |
+| Jobs waiting on each other in a cycle | The wait graph | A wait that closes a cycle is refused; a job waits on another job until that job ends, with no time limit | D | n/a |
 | An incident fix waits for a review slot | Review of an incident fix | Uses the urgent slot | D | n/a |
 | Worker plugins that demand user interaction | A turn that ends with a question to the user | Generated worker settings disable such plugins [PF 10.1]; the job text says skills that ask the user are answered by the worker itself | D | n/a |
 | Usage limit with no reset time while the owner is away | StopFailure `rate_limit` without a parseable time | Probe after 1 h, 3 h, 6 h with one canary incident worker; nothing else rung until it succeeds | D | A canary turn completes |
@@ -899,7 +900,7 @@ unknown; a usage stop (8.3); "Actions degraded" (CI waits only); machine load ab
 | State | Meaning | Leaves when | Deadline and what follows |
 |---|---|---|---|
 | `queued` | Waiting for a slot | Admitted -> `starting`; an owner session claims it -> `starting`, then on as for any claim; target closed -> `cancelled` | None; age and the gate holding it are on the board |
-| `blocked` | Waiting on another job, an incident, or a stack base to merge | Blocker ends -> `queued`; third session death -> `faulted` | Capped at 4 hours, then re-judged by its worker or requeued with the news; a wait that would close a cycle is refused |
+| `blocked` | Waiting on another job, an incident, or a stack base to merge | Blocker ends -> `queued`; third session death -> `faulted` | None: it ends when its blocker ends, never on elapsed time; a wait that would close a cycle is refused |
 | `starting` | Worktree prepared, window open, waiting for `githerd_next` and `githerd_claim` | Claim -> `working`; join -> `cancelled`; wait -> `blocked` | Worktree 20 min -> `faulted`. Registry 30 s -> start failure. First call 3 min -> start failure, `queued` |
 | `working` | Doing the job | `githerd_wait` or `githerd_push` -> `waiting`; `githerd_ask_owner` or a permission prompt -> `parked`; `githerd_done` -> `verifying` | 4 h working time with no GitHub change (2 h for incidents) -> attempt ends with findings |
 | `waiting` | A declared condition: checks on a head, a lane, a release, a job, a push, a local background task, or GitHub itself. The session is idle and open; a waiting job whose session died stays waiting with none | Condition changes -> doorbell -> `working`; done holds -> `done`; third session death -> `faulted` | Checks not started in 10 min -> doorbell. Running past twice their median -> doorbell. Local task output not growing for 20 min -> doorbell. Push bounded at twice the gate's duration |
@@ -1505,7 +1506,8 @@ denies them ("workers never start or change githerd"). An uncaught exception ent
 ### 9.5 The invariant check
 
 At the end of every reconcile: every job, incident, owner item, proposal and order has a state, a
-holder (a session, the queue, the owner or a named blocker) and a deadline or a terminal state;
+holder (a session, the queue, the owner or a named blocker) and a deadline or a terminal state (a
+`blocked` job needs only its named blocker: it waits until that job ends, with no deadline);
 every `waiting` job's condition is still pending; every `parked` job's item is open; every working
 job's session is alive or being recovered; every open owner pull request has a current
 `githerd/merge`; every order's issues each have a job, a terminal state or a reason; master's
@@ -1899,7 +1901,7 @@ Each finding below is resolved in this design, or the reason it is not adopted i
 | The owner's Finish commit forced a second review | Patch id excludes `visual-baselines/**` (4.6) |
 | The abandoned rule took pull requests waiting on the owner | Excluded; only githerd pull requests are taken (3.3) |
 | "Kept current" while parked was undefined | Not updated while parked; one update on unpark (3.3) |
-| Jobs waiting behind a parked job waited a week | Waits capped at 4 hours and re-judged (5.3) |
+| Jobs waiting behind a parked job waited a week | A parked blocker is an owner item on the board; the blocked job is released when that job ends (5.3) |
 | Any owner comment unparked a job and re-paged | Re-park on the same item, no page (5.3, 6) |
 | Unpushed work lost when a target changed | Salvage branches; foreign heads as news; attempts per job (3.10) |
 | Approval churn from speculative updates | No speculative update after a finished review; approved-once pull requests do not count against the limit (3.3, 8.1) |

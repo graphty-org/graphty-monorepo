@@ -113,6 +113,18 @@ describe("settleWaits", () => {
         move(blocked, "blocked", T0, { waitingFor: { job: "push" } });
         const state = stateOf(push, verify, blocked);
         expect(settleWaits(state, at(1))).toEqual([]);
+        // No time span releases it: a year of ticks leaves it blocked and raises no fault.
+        const year = at(365 * 24 * 60);
+        expect(tickJobs(stateOf(blocked), year, {})).toEqual([]);
+        expect(settleWaits(state, year)).toEqual([]);
+        const reads = {
+            sessionAlive: () => true,
+            recovering: () => false,
+            waitPending: () => true,
+            itemOpen: () => true,
+        };
+        expect(checkFaults(state, reads, year).filter((f) => f.record === "job blocked")).toEqual([]);
+        expect(blocked.state).toBe("blocked");
         move(push, "done", at(2));
         expect(settleWaits(state, at(3)).map((s) => s.job)).toEqual(["blocked"]);
         expect(blocked).toMatchObject({ state: "queued", reason: "blocker push ended" });

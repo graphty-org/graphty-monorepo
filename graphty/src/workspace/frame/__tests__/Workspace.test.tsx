@@ -31,13 +31,13 @@ afterEach(() => {
 });
 
 describe("the workspace frame", () => {
-    it("opens on the start screen, and New project opens the frame", async () => {
+    it("opens on the start screen, and a sample opens the frame", async () => {
         renderWorkspace();
 
-        assert.isNull(screen.queryByRole("banner"));
-        await userEvent.click(screen.getByRole("button", { name: "New project" }));
+        assert.isNull(screen.queryByRole("banner", { name: "Project" }));
+        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
 
-        assert.isNotNull(screen.getByRole("button", { name: "Project: Untitled" }));
+        assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine families" }));
         assert.isNotNull(screen.getByRole("toolbar", { name: "Places" }));
         assert.isNotNull(screen.getByRole("complementary", { name: "Inspector" }));
     });
@@ -45,9 +45,10 @@ describe("the workspace frame", () => {
     it("draws every region with its package's stub", () => {
         renderWorkspace(OPEN);
 
-        for (const stub of ["Graph place", "Inspector", "Toolbar", "Legend card and state cards", "Privacy chip"]) {
+        for (const stub of ["Graph place", "Inspector", "Toolbar", "Legend card and state cards"]) {
             assert.isNotNull(screen.getByText(stub), stub);
         }
+        assert.isNotNull(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
         assert.isNotNull(document.querySelector("graphty-element"));
     });
 

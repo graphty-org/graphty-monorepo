@@ -13,14 +13,15 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
-import { initSentry } from "./lib/sentry";
 import { theme } from "./theme";
+import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 
 // Re-export theme for tests and other modules
 export { theme } from "./theme";
 
-// Initialize Sentry before React render
-initSentry();
+// Nothing is sent until the reader says Share usage data on the start screen or in Settings >
+// Privacy; a reader who said so on an earlier visit starts sending again here, before React renders.
+startUsageDataIfShared();
 
 // Initialize Eruda for development/testing (mobile console)
 if (import.meta.env.DEV) {

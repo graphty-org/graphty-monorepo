@@ -1,13 +1,31 @@
-import { defineRegistration, stubCommands } from "../commands/registry";
+import { defineRegistration } from "../commands/registry";
+import { readUsageAnswer } from "./usageData";
 
 /**
- * The usage data package's commands. Stubs until that package builds them: each holds its id, label
- * and keys, and nothing draws it.
+ * The usage data package's commands: Settings > Privacy (the privacy chip's door) and Report a
+ * problem, the feedback widget that is part of usage data.
  */
 export const registration = defineRegistration({
     owner: "privacy",
-    commands: stubCommands([
-        { id: "settings.privacy", label: "Privacy settings", group: "Settings and help" },
-        { id: "help.report", label: "Report a problem", group: "Settings and help" },
-    ]),
+    commands: [
+        {
+            id: "settings.privacy",
+            label: "Privacy settings",
+            group: "Settings and help",
+            keywords: ["usage data"],
+            run: ({ workspace }) => {
+                workspace.set({ dialog: "settings:privacy" });
+            },
+        },
+        {
+            id: "help.report",
+            label: "Report a problem",
+            group: "Settings and help",
+            disabled: () =>
+                readUsageAnswer() === "share" ? null : "Turn on usage data in Settings > Privacy to send a report",
+            run: ({ workspace }) => {
+                workspace.set({ dialog: "report" });
+            },
+        },
+    ],
 });

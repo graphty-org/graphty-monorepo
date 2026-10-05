@@ -218,3 +218,65 @@ export const SAMPLE_SECTION_HINT = "Click one to load it";
 
 /** The frozen section name on both surfaces. */
 export const SAMPLE_SECTION_NAME = "Sample datasets";
+
+/**
+ * One sample on the tier 1 start screen (design/ui/tier1-real-app/tier1-design.md section 2.11).
+ * @public
+ */
+export interface StartSample {
+    /** Stable id. */
+    readonly id: string;
+    /** The dataset's name, which the project opens under. */
+    readonly name: string;
+    /** What it is and what it is good for, naming only tier 1 jobs. */
+    readonly sentence: string;
+    /** Its size as the start screen reads it, before anything is loaded. */
+    readonly size: string;
+    /** Where the element imports it from, under the app's base URL. */
+    readonly url: string;
+}
+
+/**
+ * The four tier 1 samples, Les Miserables first. Each opens by URL through graphty-element's
+ * ordinary import, with nothing run.
+ *
+ * TEMPORARY WORKAROUND: the list of samples belongs in graphty-element, so every consumer can
+ * offer and import them; this list stays only until the element issue "samples listed and
+ * imported through the element" lands (design/ui/tier1-real-app/plan.md section 2). The sizes are
+ * the source files' own counts, which graph-samples' dataset metadata and public/samples/SOURCES.md
+ * also record.
+ */
+export const START_SAMPLES: readonly StartSample[] = [
+    {
+        id: "les-miserables",
+        name: "Les Miserables",
+        sentence:
+            "Characters who share a chapter of the novel. Good for a first look at communities and who holds the story together.",
+        size: "77 characters",
+        url: `${import.meta.env.BASE_URL}samples/les-miserables.gml`,
+    },
+    {
+        id: "karate",
+        name: "Zachary's karate club",
+        sentence:
+            "Members of a club and who met outside it. Good for finding who connects the club and which members group together.",
+        size: "34 members",
+        url: `${import.meta.env.BASE_URL}samples/karate.gml`,
+    },
+    {
+        id: "college-football",
+        name: "College football",
+        sentence:
+            "Teams and the games they played in one season. Good for finding groups of teams that play each other most.",
+        size: "115 teams",
+        url: `${import.meta.env.BASE_URL}samples/football.gml`,
+    },
+    {
+        id: "florentine",
+        name: "Florentine families",
+        sentence:
+            "Marriages between the leading families of Renaissance Florence. Good for finding who brokers between groups.",
+        size: "15 families",
+        url: `${import.meta.env.BASE_URL}samples/florentine.gml`,
+    },
+];

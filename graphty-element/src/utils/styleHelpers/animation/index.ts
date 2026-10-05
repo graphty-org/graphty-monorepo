@@ -5,6 +5,8 @@
  * for creating smooth visual transitions.
  */
 
+import { clamp } from "../../clamp";
+
 /**
  * Easing function type
  */
@@ -121,7 +123,7 @@ export function easeOutBounce(t: number): number {
  * interpolate(1, 5, 0.5, easeInOut) // → 3
  */
 export function interpolate(from: number, to: number, progress: number, easing: EasingFunction = linear): number {
-    const t = Math.max(0, Math.min(1, progress)); // Clamp to [0, 1]
+    const t = clamp(progress, 0, 1); // Clamp to [0, 1]
     const easedProgress = easing(t);
     return from + (to - from) * easedProgress;
 }
@@ -138,7 +140,7 @@ export function interpolate(from: number, to: number, progress: number, easing: 
  * stepped(colors, 0.33, linear) // → "#00FF00"
  */
 export function stepped<T>(values: T[], progress: number, easing: EasingFunction = linear): T {
-    const t = Math.max(0, Math.min(1, progress));
+    const t = clamp(progress, 0, 1);
     const easedProgress = easing(t);
     const index = Math.floor(easedProgress * values.length);
     return values[Math.min(index, values.length - 1)];
@@ -232,7 +234,7 @@ export function stagger(
  * const size = interpolate(0, 5, spring(progress, 200, 20));
  */
 export function spring(progress: number, stiffness = 170, damping = 26): number {
-    const t = Math.max(0, Math.min(1, progress));
+    const t = clamp(progress, 0, 1);
     const w = Math.sqrt(stiffness);
     const zeta = damping / (2 * Math.sqrt(stiffness));
 

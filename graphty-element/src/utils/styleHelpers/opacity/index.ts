@@ -2,6 +2,8 @@
  * Opacity helpers for de-emphasizing less important elements
  */
 
+import { clamp } from "../../clamp";
+
 /**
  * Linear fade from [0,1] to [minOpacity, maxOpacity]
  * Default range: [0.1, 1.0]
@@ -16,7 +18,7 @@
  */
 export function linear(value: number, minOpacity = 0.1, maxOpacity = 1.0): number {
     // Clamp value to [0, 1]
-    const clampedValue = Math.max(0, Math.min(1, value));
+    const clampedValue = clamp(value, 0, 1);
     return minOpacity + clampedValue * (maxOpacity - minOpacity);
 }
 
@@ -66,7 +68,7 @@ export function binary(isVisible: boolean, visibleOpacity = 1.0, hiddenOpacity =
  */
 export function inverse(value: number, minOpacity = 0.1, maxOpacity = 1.0): number {
     // Clamp value to [0, 1]
-    const clampedValue = Math.max(0, Math.min(1, value));
+    const clampedValue = clamp(value, 0, 1);
     // Invert: 1 - value
     return minOpacity + (1 - clampedValue) * (maxOpacity - minOpacity);
 }

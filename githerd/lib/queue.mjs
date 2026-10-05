@@ -40,14 +40,20 @@ export function ownerLabel(rec, label) {
 }
 
 /**
- * Whether an issue lacks a type, priority or effort label from a configured set.
+ * The label kinds an issue lacks: each of type, priority and effort with a configured set that
+ * none of its labels is from.
  * @param {string[]} labels the issue's labels
  * @param {any} config the normalized config
- * @returns {boolean} true when one is missing
+ * @returns {("type" | "priority" | "effort")[]} the missing kinds, empty when none is missing
  */
-function missingLabels(labels, config) {
+export function missingLabelKinds(labels, config) {
     const { types = [], priorities = [], efforts = [] } = config.labels ?? {};
-    return [types, priorities, efforts].some((set) => set.length > 0 && !labels.some((l) => set.includes(l)));
+    const sets = /** @type {const} */ ([
+        ["type", types],
+        ["priority", priorities],
+        ["effort", efforts],
+    ]);
+    return sets.filter(([, set]) => set.length > 0 && !labels.some((l) => set.includes(l))).map(([kind]) => kind);
 }
 
 /**
@@ -171,7 +177,7 @@ function rankIssue(issue, config, now) {
 }
 
 /**
- * The owner's open issues that are ready: unlabeled ones (to triage), oldest first, and labeled
+ * The owner's open issues that are ready: those missing a label kind (to triage), oldest first, and labeled
  * ones in rank order (design 5.4): `githerd:next` first, then priority, bug before other types,
  * oldest. An issue an open pull request already works on is left out of the ranked list.
  * @param {any} state the daemon state
@@ -187,7 +193,7 @@ export function readyIssues(state, config, now) {
         const labels = issue.labels ?? [];
         if (!issueReady(state, issue, labels)) continue;
         const sortable = { number: Number(n), createdAt: issue.createdAt ?? null, next: ownerLabel(issue, NEXT) };
-        if (missingLabels(labels, config)) triage.push(sortable);
+        if (missingLabelKinds(labels, config).length) triage.push(sortable);
         else if (openPrFor(state, Number(n)) === null) ranked.push({ ...sortable, ...rankIssue(issue, config, now) });
     }
     triage.sort((a, b) => Number(b.next) - Number(a.next) || oldest(a, b));

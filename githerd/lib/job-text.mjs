@@ -205,6 +205,14 @@ export function jobText(job, ctx = {}) {
     const finish = FINISH[verdict ? "verdict" : job.kind] ?? FINISH_DEFAULT;
     lines.push(`DONE WHEN: ${done}`, `TO FINISH: ${finish}`, ...earlier(job));
     if (refresh) lines.push(...refreshLines(job.facts));
+    if (job.kind === "triage" && job.facts?.missing) {
+        lines.push(
+            "MISSING LABELS (add only these kinds; keep the labels each issue already has):",
+            ...Object.entries(job.facts.missing).map(
+                ([n, kinds]) => `  #${n}: ${/** @type {string[]} */ (kinds).join(", ")}`,
+            ),
+        );
+    }
     if (verdict) lines.push(...verdictLines(job.facts));
     const policies = (ctx.policies ?? []).filter((p) => !p.endedAt && p.text);
     if (policies.length) lines.push("OWNER POLICIES:", ...policies.map((p) => `  - ${p.text}`));

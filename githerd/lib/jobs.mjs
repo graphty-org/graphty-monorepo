@@ -16,7 +16,8 @@
  *   config, hooks or worker instructions (those are listed for the owner's sessions).
  * - `title-<n>`: such a pull request whose only failing check is `Lint PR Title`.
  * - `review-<n>`: a pull request a githerd job made, at a patch id no review has seen.
- * - `triage-<scope>-<seq>`: one triage job at a time: unlabeled issues first (`new`, 20 at most),
+ * - `triage-<scope>-<seq>`: one triage job at a time: issues missing a type, priority or effort label
+ *   first (`new`, 20 at most, each with the kinds it lacks),
  *   then a refresh after 20 merges, and a full pass over every open issue after 100 merges (20 per
  *   job). A refresh job is given the merged pull requests with their changed files and the open
  *   issues; its session judges which issues the merges affect. The issues a merge mentions without
@@ -32,7 +33,7 @@
 
 import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
 import { orderPosition } from "./owner.mjs";
-import { NEXT, ownerLabel, prWork, readyIssues, SKIP } from "./queue.mjs";
+import { missingLabelKinds, NEXT, ownerLabel, prWork, readyIssues, SKIP } from "./queue.mjs";
 import { touches } from "./prs.mjs";
 import { slug } from "./worktrees.mjs";
 
@@ -303,7 +304,7 @@ function reviewJob(state, n, maker, add) {
 }
 
 /**
- * The triage jobs, one in flight at a time: unlabeled issues first, then the refresh and full
+ * The triage jobs, one in flight at a time: issues missing a label kind first, then the refresh and full
  * passes that merges call for. A full pass takes 20 issues per job. A refresh is one job holding the
  * merges and the open issues they may affect: which ones they do is the session's judgment, and
  * the done check only validates its verdicts (done.mjs).
@@ -322,9 +323,8 @@ function triageJobs(state, config, now, add) {
     schedulePasses(state, passes, open, merges);
     const inFlight = Object.values(state.jobs).some((j) => j.kind === "triage" && !TERMINAL.includes(j.state));
     if (inFlight) return;
-    const unlabeled = readyIssues(state, config, now).triage;
     let scope = "new";
-    let batch = unlabeled.slice(0, TRIAGE_BATCH);
+    let batch = readyIssues(state, config, now).triage.slice(0, TRIAGE_BATCH);
     if (!batch.length && passes.queue[0]?.scope === "refresh") {
         refreshJob(state, passes, open, now, add);
         return;
@@ -341,12 +341,23 @@ function triageJobs(state, config, now, add) {
     }
     passes.seq += 1;
     const refs = batch.map((n) => `#${n}`).join(" ");
+    // Which label kinds each new issue lacks: an issue with a type and a priority needs only its
+    // effort, and must not be told it is unlabeled.
+    const missing =
+        scope === "new"
+            ? Object.fromEntries(
+                  batch.map((n) => [n, missingLabelKinds(state.issues?.byNumber?.[n]?.labels ?? [], config)]),
+              )
+            : null;
+    const reason = missing
+        ? `missing labels: ${batch.map((n) => `#${n} ${missing[n].join("+")}`).join(", ")}`
+        : `${scope} pass after merges`;
     add({
         id: `triage-${scope}-${passes.seq}`,
         kind: "triage",
         target: `${batch.length} issues: ${refs}`,
-        reason: scope === "new" ? "unlabeled issues" : `${scope} pass after merges`,
-        facts: { scope, batch, since: now.toISOString() },
+        reason,
+        facts: { scope, batch, since: now.toISOString(), ...(missing ? { missing } : {}) },
     });
 }
 

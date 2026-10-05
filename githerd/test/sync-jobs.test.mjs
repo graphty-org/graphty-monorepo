@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { move } from "../lib/board.mjs";
 import { normalizeConfig } from "../lib/config.mjs";
+import { jobText } from "../lib/job-text.mjs";
 import { syncJobs } from "../lib/jobs.mjs";
 import { jobInUse, jobOrder } from "../lib/queue.mjs";
 import { accumulateMerged } from "../lib/merged.mjs";
@@ -277,7 +278,21 @@ describe("syncJobs: reviews", () => {
 });
 
 describe("syncJobs: triage", () => {
-    it("batches unlabeled issues 20 at a time, one triage job at a time", () => {
+    it("names the label kinds each issue lacks, never calling a partly labeled issue unlabeled", () => {
+        const state = base();
+        // Issue #441 had bug and priority:medium since 2026-09-26; only its effort was missing.
+        issue(state, 441, ["bug", "priority:medium"]);
+        issue(state, 442, []);
+        expect(sync(state).created).toEqual(["triage-new-1"]);
+        const job = state.jobs["triage-new-1"];
+        expect(job.reason).toBe("missing labels: #441 effort, #442 type+priority+effort");
+        expect(job.facts.missing).toEqual({ 441: ["effort"], 442: ["type", "priority", "effort"] });
+        expect(jobText(job)).toContain(
+            "MISSING LABELS (add only these kinds; keep the labels each issue already has):\n  #441: effort\n  #442: type, priority, effort\n",
+        );
+    });
+
+    it("batches issues missing labels 20 at a time, one triage job at a time", () => {
         const state = base();
         for (let n = 1; n <= 25; n++) issue(state, n, []);
         issue(state, 30, [], { author: "stranger" });

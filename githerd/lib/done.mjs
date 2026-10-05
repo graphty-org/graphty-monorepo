@@ -264,9 +264,15 @@ function conditionAnswer(job, view) {
     if (job.facts.scope === "release") {
         const open = view.io.releaseOpen();
         if (!open) return null;
-        return open.includes(job.target)
-            ? { missing: [`${job.target} is still a half-state: npm and the tags disagree`] }
-            : { holds: true };
+        if (!open.includes(job.target)) return { holds: true };
+        const why = String(job.target).startsWith("release-stalled:")
+            ? "no release has landed since master became release-eligible"
+            : "the release run still fails";
+        return {
+            missing: [
+                `${job.target} is still open: ${why}. The job ends by itself once a release lands; report done only after one has`,
+            ],
+        };
     }
     const gate = view.io.localGate();
     const green = view.state.master?.greenSha;

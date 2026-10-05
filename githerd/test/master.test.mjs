@@ -323,11 +323,13 @@ describe("releaseState", () => {
             stalled: false,
             stuckOnly: false,
         });
-        const later = releaseState(first, lanes, CONFIG, commits, T0 + 6 * 60 * MIN + 1);
+        const later = releaseState(first, lanes, CONFIG, commits, T0 + CONFIG.release.stallHours * 60 * MIN + 1);
         expect(later).toMatchObject({ releaseEligibleSince: first.releaseEligibleSince, stalled: true });
         // A new release commit restarts the clock.
         const released = [commit("r2", "c3", "chore(release): publish [skip ci]"), ...commits];
-        expect(releaseState(first, lanes, CONFIG, released, T0 + 7 * 60 * MIN)).toMatchObject({
+        expect(
+            releaseState(first, lanes, CONFIG, released, T0 + (CONFIG.release.stallHours + 1) * 60 * MIN),
+        ).toMatchObject({
             lastRelease: { sha: "r2" },
             releaseEligibleSince: null,
             stalled: false,
@@ -343,7 +345,9 @@ describe("releaseState", () => {
             releaseEligibleSince: "2026-10-02T15:00:00.000Z",
             stalled: false,
         });
-        expect(releaseState(first, lanes, CONFIG, commits, T0 + 7 * 60 * MIN)).toMatchObject({
+        expect(
+            releaseState(first, lanes, CONFIG, commits, T0 + (CONFIG.release.stallHours + 1) * 60 * MIN),
+        ).toMatchObject({
             stuckOnly: true,
             stalled: true,
         });

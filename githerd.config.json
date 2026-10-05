@@ -9,7 +9,7 @@
         "hosts": { "workflow": "hosts.yml", "gating": "if-run" },
         "release": { "workflow": "release.yml", "gating": "watch" }
     },
-    "release": { "commitPattern": "^chore\\(release\\): publish", "stallHours": 6 },
+    "release": { "commitPattern": "^chore\\(release\\): publish", "stallHours": 36 },
     "requiredChecks": ["All Checks Pass", "Lint PR Title"],
     "ownerGate": {
         "steps": ["^Check visual changes were accepted$"],

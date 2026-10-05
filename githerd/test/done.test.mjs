@@ -239,7 +239,17 @@ const FALSE_CLAIMS = [
         {},
         {},
         { releaseOpen: () => ["release:abc"] },
-        "half-state",
+        "the release run still fails",
+    ],
+    [
+        "release still stalled",
+        "incident",
+        "release-stalled:abc",
+        { scope: "release" },
+        {},
+        {},
+        { releaseOpen: () => ["release-stalled:abc"] },
+        "no release has landed",
     ],
     [
         "local gate failing",

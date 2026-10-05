@@ -531,7 +531,7 @@ describe("watchPass", () => {
             const j = await held("issue-40", { screen: "idle" });
             const holder = j.holder;
             const { state, ctx } = claimable(j, false);
-            expect((await githerdDone(ctx, j, claim, "sess-old")).text).toBe('{"verified":true}');
+            expect(JSON.parse((await githerdDone(ctx, j, claim, "sess-old")).text)).toMatchObject({ verified: true });
             expect([j.state, j.holder]).toEqual(["done", null]);
             const lines = await endRetired(state, { sleep });
             expect(lines).toEqual([

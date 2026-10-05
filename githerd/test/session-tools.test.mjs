@@ -381,7 +381,7 @@ describe("sessionToolSet", () => {
         const job = heldJob("pr-7");
         const { ctx, commits } = setup({ jobs: { "pr-7": job } });
         const report = { job: "pr-7", outcome: "failed", findings: "flaky runner", defects: [] };
-        expect(JSON.parse((await call(ctx, "githerd_done", report)).text)).toEqual({ verified: true });
+        expect(JSON.parse((await call(ctx, "githerd_done", report)).text)).toMatchObject({ verified: true });
         expect(commits).toEqual([expect.objectContaining({ kind: "done-report", job: "pr-7", outcome: "failed" })]);
         expect(job.report).toMatchObject({ outcome: "failed", session: "w1" });
         const other = await call(ctx, "githerd_done", report, { session: "w2", job: "pr-7", nonce: "n1" });

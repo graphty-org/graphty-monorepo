@@ -1042,8 +1042,12 @@ githerd_done: { job: string, outcome: "done"|"split"|"not-needed"|"failed",
 // A pushedHead that is an ancestor of GitHub's head is accepted when every later commit is a
 // merge from master (the daemon's update-branch call, Mergify's update and the review tool all add
 // one). A merge is recognized by its shape: on the first-parent line, its other parents on master.
-// -> { verified: true } | { verified: false, missing: string[], ended?: true }
-// `ended` is set when this was the third refused claim in a row and the attempt ended.
+// -> { verified: true, attempts } | { verified: false, missing: string[], ended?: true, attempts }
+// `ended` is set when this was the third refused claim in a row and the attempt ended. `attempts`
+// says in plain words whether the worker may retry, how many refused claims end this attempt, how
+// many attempts the job has left, and what ending means (back to the queue for a fresh session, or
+// the job failed). A defect with neither an issue nor a commit is not refused: it is ledgered and
+// raised to the owner as a "worker reported defects" item.
 
 // 10. Ask the owner. Only for what only the owner can do.
 githerd_ask_owner: { job: string,

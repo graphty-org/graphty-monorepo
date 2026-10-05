@@ -465,23 +465,62 @@ async function check(job, report, view) {
  * What the worker's tool result says about an answer.
  * @param {Answer} answer the answer
  * @param {any} after what board.verifyResult returned
- * @param {string} [error] why it was undecided
- * @returns {{verified: boolean, missing?: string[], ended?: boolean}} the result
+ * @param {string | undefined} error why it was undecided
+ * @param {any} job the job, after the answer was applied
+ * @returns {{verified: boolean, missing?: string[], ended?: boolean, attempts: string}} the result, with
+ *   whether and how often the worker may retry
  */
-function toolAnswer(answer, after, error) {
-    if (answer && "holds" in answer) return { verified: true };
+function toolAnswer(answer, after, error, job) {
+    if (answer && "holds" in answer) return { verified: true, attempts: attemptsText(job, after) };
     if (answer && "ciPending" in answer) {
         return {
             verified: false,
             missing: [`checks still running on ${answer.ciPending.slice(0, 9)}; githerd rings you when they finish`],
+            attempts:
+                "this is not a refusal and costs nothing: wait for githerd to ring you, then call githerd_done again",
         };
     }
     if (!answer) {
         const why = error ? `GitHub could not be read (${error})` : "GitHub's answer is behind the branch";
-        return { verified: false, missing: [`not decided yet: ${why}; githerd checks again on its next poll`] };
+        return {
+            verified: false,
+            missing: [`not decided yet: ${why}; githerd checks again on its next poll`],
+            attempts: "this is not a refusal and costs nothing: githerd decides on its own and rings you",
+        };
     }
     const missing = /** @type {{missing: string[]}} */ (answer).missing;
-    return { verified: false, missing, ...(after?.action === "working" ? {} : { ended: true }) };
+    const ended = after?.action !== "working";
+    return { verified: false, missing, ...(ended ? { ended: true } : {}), attempts: attemptsText(job, after) };
+}
+
+/**
+ * What a `githerd_done` answer says about retrying, in plain words: how many refused claims this
+ * attempt has left, how many attempts the job has left, and what ending means.
+ * @param {any} job the job, after the answer was applied
+ * @param {any} after what was done with it (`board.verifyResult` or `board.endAttempt`)
+ * @returns {string} the sentence
+ */
+function attemptsText(job, after) {
+    const left = Math.max(0, job.budget.attempts - job.attempts.length);
+    const jobLeft = `${left} of ${job.budget.attempts} attempts remain for ${job.id}`;
+    switch (after?.action) {
+        case "done":
+            return `accepted: ${job.id} is done; there is nothing to retry`;
+        case "working": {
+            const claims = board.VERIFY_FAILS_TO_END - job.verifyFailures;
+            return (
+                `refused, and you may retry: fix what is missing and call githerd_done again. ` +
+                `${claims} more refused claim${claims === 1 ? "" : "s"} end this attempt, ` +
+                `after which ${Math.max(0, left - 1)} of ${job.budget.attempts} attempts remain for ${job.id}`
+            );
+        }
+        case "requeue":
+            return `this attempt has ended: stop working on ${job.id}. It goes back to the queue for a fresh session with your findings; ${jobLeft}`;
+        case "failed":
+            return `this attempt has ended and it was the last: ${job.id} failed, no attempts remain, and the owner is told when it is urgent`;
+        default:
+            return `githerd is checking this claim; ${jobLeft}`;
+    }
 }
 
 /**
@@ -594,7 +633,7 @@ async function settleClaim(ctx, job, report, session) {
     job.report = { ...report, at: now.toISOString(), session };
     await reportLoose(ctx, job, report.defects);
     if (report.outcome === "failed") {
-        if (!answer || !("holds" in answer)) return reply(toolAnswer(answer, { action: "working" }, error));
+        if (!answer || !("holds" in answer)) return reply(toolAnswer(answer, { action: "working" }, error, job));
         const ended = board.endAttempt(
             job,
             { outcome: "failed", findings: report.findings, theory: report.theory ?? "" },
@@ -602,7 +641,7 @@ async function settleClaim(ctx, job, report, session) {
         );
         afterSettle(ctx.state, job, holder, ended, now);
         await ctx.commit({ kind: "done-report", job: job.id, outcome: "failed", next: ended.action });
-        return reply({ verified: true });
+        return reply({ verified: true, attempts: attemptsText(job, ended) });
     }
     board.move(job, "verifying", now);
     const after = board.verifyResult(job, answer, now);
@@ -617,7 +656,7 @@ async function settleClaim(ctx, job, report, session) {
         next: after?.action ?? "verifying",
         error,
     });
-    return reply(toolAnswer(answer, after, error));
+    return reply(toolAnswer(answer, after, error, job));
 }
 
 /**
@@ -691,7 +730,7 @@ function itemTarget(job) {
 
 /**
  * A tool result from an answer object.
- * @param {{verified: boolean, missing?: string[], ended?: boolean}} body the answer
+ * @param {{verified: boolean, missing?: string[], ended?: boolean, attempts?: string}} body the answer
  * @returns {{text: string, isError?: boolean}} the result
  */
 function reply(body) {

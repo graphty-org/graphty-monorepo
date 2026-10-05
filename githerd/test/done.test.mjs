@@ -544,7 +544,12 @@ describe("githerdDone", () => {
         const s = state();
         const job = (s.jobs["pr-7"] = working("pr", "7"));
         const { ctx, commits } = setup(s);
-        expect(await githerdDone(ctx, job, report(), "w1")).toEqual({ text: '{"verified":true}' });
+        const accepted = await githerdDone(ctx, job, report(), "w1");
+        expect(accepted.isError).toBeUndefined();
+        expect(JSON.parse(accepted.text)).toEqual({
+            verified: true,
+            attempts: "accepted: pr-7 is done; there is nothing to retry",
+        });
         expect(job.state).toBe("done");
         expect(commits).toEqual([expect.objectContaining({ kind: "done-report", outcome: "done", next: "done" })]);
     });
@@ -553,14 +558,27 @@ describe("githerdDone", () => {
         const s = state({ prs: { 7: pr({ draft: true }) } });
         const job = (s.jobs["pr-7"] = working("pr", "7"));
         const { ctx } = setup(s);
-        for (const n of [1, 2]) {
+        for (const [n, left] of [
+            [1, "2 more refused claims"],
+            [2, "1 more refused claim"],
+        ]) {
             const r = await githerdDone(ctx, job, report(), "w1");
             expect(r.isError).toBe(true);
-            expect(JSON.parse(r.text)).toEqual({ verified: false, missing: ["#7 is a draft"] });
+            expect(JSON.parse(r.text)).toEqual({
+                verified: false,
+                missing: ["#7 is a draft"],
+                attempts:
+                    "refused, and you may retry: fix what is missing and call githerd_done again. " +
+                    `${left} end this attempt, after which 2 of 3 attempts remain for pr-7`,
+            });
             expect([job.state, job.verifyFailures]).toEqual(["working", n]);
         }
         const third = JSON.parse((await githerdDone(ctx, job, report(), "w1")).text);
         expect(third.ended).toBe(true);
+        expect(third.attempts).toBe(
+            "this attempt has ended: stop working on pr-7. It goes back to the queue for a fresh session " +
+                "with your findings; 2 of 3 attempts remain for pr-7",
+        );
         expect(job.state).toBe("queued");
         expect(job.attempts).toHaveLength(1);
     });
@@ -637,7 +655,7 @@ describe("githerdDone", () => {
         expect(refused.isError).toBe(true);
         expect(job.state).toBe("working");
         const ok = await githerdDone(ctx, job, report({ outcome: "failed", theory: "t" }), "w1");
-        expect(ok.text).toBe('{"verified":true}');
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
         expect(job.attempts[0]).toMatchObject({ outcome: "failed", findings: "f", theory: "t" });
         expect(commits.at(-1)).toMatchObject({ outcome: "failed", next: "requeue" });
     });
@@ -651,7 +669,7 @@ describe("githerdDone", () => {
             { summary: "filed", issue: 9 },
         ];
         const ok = await githerdDone(ctx, job, report({ outcome: "failed", defects }), "w1");
-        expect(ok.text).toBe('{"verified":true}');
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
         expect(s.ownerItems["defects:pr-7"]).toMatchObject({
             kind: "defects",
             question:
@@ -671,7 +689,7 @@ describe("githerdDone", () => {
         const refused = JSON.parse((await githerdDone(ctx, job, report({ outcome: "not-needed" }), "w1")).text);
         expect(refused.missing[0]).toContain("needs evidence");
         const ok = await githerdDone(ctx, job, report({ outcome: "not-needed", evidence: "done in #12" }), "w1");
-        expect(ok.text).toBe('{"verified":true}');
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
         expect(s.proposals["issue:9"]).toMatchObject({ kind: "not-needed", status: "unconfirmed", proposedBy: "w1" });
     });
 
@@ -680,7 +698,7 @@ describe("githerdDone", () => {
         const job = (s.jobs["pr-7"] = working("pr", "7"));
         const { ctx } = setup(s, fakeIo({ pull: async () => ({ state: "open" }) }));
         const ok = await githerdDone(ctx, job, report({ outcome: "not-needed", evidence: "landed in #12" }), "w1");
-        expect(ok.text).toBe('{"verified":true}');
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
         expect(job.state).toBe("done");
         expect(s.proposals["pr:7"]).toMatchObject({ kind: "not-needed-pr", status: "unconfirmed", proposedBy: "w1" });
     });
@@ -697,7 +715,9 @@ describe("githerdDone", () => {
                 labels: { type: "bug", priority: "priority:high", effort: "effort:low" },
             },
         ];
-        expect((await githerdDone(ctx, triage, report({ result }), "w1")).text).toBe('{"verified":true}');
+        expect(JSON.parse((await githerdDone(ctx, triage, report({ result }), "w1")).text)).toMatchObject({
+            verified: true,
+        });
         expect(s.proposals["issue:5"]).toMatchObject({ kind: "obsolete" });
         const parent = (s.jobs["issue-5"] = working("issue", "5"));
         await githerdDone(ctx, parent, report({ outcome: "split", children: [9] }), "w1");
@@ -797,7 +817,13 @@ describe("githerdDone and pollVerifying while a job moves", () => {
                 move(job, "working", NOW);
             }
             const r = await githerdDone(ctx, job, report({ outcome: "failed", findings: `finding ${n}` }), `w${n}`);
-            expect(r.text).toBe('{"verified":true}');
+            expect(JSON.parse(r.text)).toMatchObject({
+                verified: true,
+                attempts:
+                    n < 3
+                        ? `this attempt has ended: stop working on ${job.id}. It goes back to the queue for a fresh session with your findings; ${3 - n} of 3 attempts remain for ${job.id}`
+                        : `this attempt has ended and it was the last: ${job.id} failed, no attempts remain, and the owner is told when it is urgent`,
+            });
         }
         expect(job.state).toBe("failed");
         const items = Object.values(s.ownerItems ?? {});

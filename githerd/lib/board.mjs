@@ -234,7 +234,7 @@ const DEATH_FRESH_MS = 30 * MINUTE;
 /** Deaths and counted faults that end a job's chances. */
 const DEATHS_TO_FAULT = 3;
 const FAULTS_TO_FAIL = 3;
-const VERIFY_FAILS_TO_END = 3;
+export const VERIFY_FAILS_TO_END = 3;
 const VERIFY_POLLS = 2;
 
 /**

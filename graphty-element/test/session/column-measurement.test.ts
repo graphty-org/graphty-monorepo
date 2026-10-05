@@ -185,15 +185,21 @@ describe("encoding a column", () => {
                         },
                     ],
                     measured: { nodes: graph.data.nodes().length, edges: graph.data.edges().length },
-                    nodes: onEdges ? [] : graph.data.nodes().map((node, index) => ({ id: node.id, values: { value: index } })),
-                    edges: onEdges ? graph.data.edges().map((edge, index) => ({ id: edge.id, values: { value: index } })) : [],
+                    nodes: onEdges
+                        ? []
+                        : graph.data.nodes().map((node, index) => ({ id: node.id, values: { value: index } })),
+                    edges: onEdges
+                        ? graph.data.edges().map((edge, index) => ({ id: edge.id, values: { value: index } }))
+                        : [],
                     caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "test", notes: [] },
                     durationMs: 1,
                 }),
             });
         };
         const graph = createGraphSession({ runs: { execute } });
-        await graph.data.addNodes(Array.from({ length: 40 }, (_, index) => ({ id: `n${String(index)}`, score: index })));
+        await graph.data.addNodes(
+            Array.from({ length: 40 }, (_, index) => ({ id: `n${String(index)}`, score: index })),
+        );
         await graph.data.addEdges(
             Array.from({ length: 39 }, (_, index) => ({
                 src: `n${String(index)}`,

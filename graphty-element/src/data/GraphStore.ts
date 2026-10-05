@@ -255,6 +255,38 @@ function mergeAt<R extends { readonly index: number }>(list: readonly Row<R>[], 
 }
 
 /**
+ * Where a builder row lands once the rows taken out before it are compacted away: the row less
+ * how many of those sit below it.
+ * @param row - The builder row, itself not taken out.
+ * @param taken - The builder rows taken out, ascending.
+ * @returns The row in the compacted graph.
+ */
+function compacted(row: number, taken: readonly number[]): number {
+    let low = 0;
+    let high = taken.length;
+    while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (taken[middle] < row) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+
+    return row - low;
+}
+
+/**
+ * Two ascending lists of distinct rows as one.
+ * @param one - One list.
+ * @param other - The other.
+ * @returns Both, ascending.
+ */
+function mergeSorted(one: readonly number[], other: readonly number[]): number[] {
+    return [...one, ...other].sort((a, b) => a - b);
+}
+
+/**
  * Follow one remap with another.
  * @param first - old index -> middle index.
  * @param second - middle index -> new index, or null for none.
@@ -342,6 +374,17 @@ export class GraphStore {
     private readonly indexByEdgeId: number[] = [];
     private pending: PendingPublish | null = null;
     private pendingPositions: PendingPositions | null = null;
+    /**
+     * The builder rows {@link GraphStore.removeRows} has taken out since the cached snapshot was
+     * frozen, each list ascending, while nothing else has written the graph or frozen it: the
+     * revision the last of those removals left, and the snapshot they were all read against.
+     */
+    private removedSinceFreeze: {
+        readonly revision: number;
+        readonly snapshot: GraphSnapshot;
+        readonly nodes: readonly number[];
+        readonly edges: readonly number[];
+    } | null = null;
     /**
      * Where the rows each removal and each kept graph took out were in the lane, read again at
      * every redo: the lane half of a removed row, so undoing the removal puts the node back where
@@ -860,8 +903,28 @@ export class GraphStore {
      * @returns What was removed.
      */
     removeRows(nodeIds: readonly NodeId[], edgeIds: readonly number[]): RemovedRows {
-        // Settled and compacted, so a builder row is a snapshot row and every column is readable.
-        this.getSnapshot();
+        // Settled and compacted, so a builder row is a snapshot row and every column is readable --
+        // UNLESS the only writes since the last freeze were earlier removals. Those leave every
+        // other builder row, every column value and the lane where the freeze put them, so this
+        // reads them unfrozen and only renumbers what it records (`compacted` below). A run of
+        // removals then costs one freeze at the next read rather than one each: a freeze compacts
+        // every row of the graph, which at the render ceiling is most of what a one-node removal
+        // costs. Anything else written, or any freeze, ends the run.
+        let chain = this.removedSinceFreeze;
+        if (
+            chain?.revision !== this.revision ||
+            chain.snapshot !== this.cache ||
+            this.cachedRevision === this.revision ||
+            this.structural.length > 0 ||
+            this.pending !== null ||
+            this.pendingPositions !== null
+        ) {
+            this.getSnapshot();
+            chain = null;
+        }
+
+        const earlierNodes = chain?.nodes ?? [];
+        const earlierEdges = chain?.edges ?? [];
         const builder = this.current;
         const nodeRows = new Set<number>();
         for (const id of nodeIds) {
@@ -897,7 +960,7 @@ export class GraphStore {
                 const [source, target] = builder.edgeEndpoints(row);
                 return {
                     edgeId: this.edgeIdAt(row),
-                    index: row,
+                    index: compacted(row, earlierEdges),
                     source: builder.idOf(source),
                     target: builder.idOf(target),
                     weight: builder.edgeWeight(row),
@@ -909,26 +972,35 @@ export class GraphStore {
             .map(
                 (row): RemovedNode => ({
                     id: builder.idOf(row),
-                    index: row,
+                    index: compacted(row, earlierNodes),
                     values: this.rowValues(this.frozenColumns.node, row),
                 }),
             );
+        const nodeRowList = [...nodeRows].sort((a, b) => a - b);
+        const edgeRowList = [...edgeRows].sort((a, b) => a - b);
         const lane = this.positions.view(this.positions.count);
         const coords = new Float32Array(3 * nodes.length);
-        nodes.forEach((node, at) => {
-            coords.set(lane.subarray(POSITION_COMPONENTS * node.index, POSITION_COMPONENTS * node.index + 3), 3 * at);
+        nodeRowList.forEach((row, at) => {
+            coords.set(lane.subarray(POSITION_COMPONENTS * row, POSITION_COMPONENTS * row + 3), 3 * at);
         });
-        for (const edge of edges) {
-            builder.removeEdge(edge.index);
+        for (const row of edgeRowList) {
+            builder.removeEdge(row);
         }
 
-        for (const node of nodes) {
-            builder.removeNodeByIndex(node.index);
+        for (const row of nodeRowList) {
+            builder.removeNodeByIndex(row);
         }
 
         if (nodes.length > 0 || edges.length > 0) {
             this.touch();
         }
+
+        this.removedSinceFreeze = {
+            revision: this.revision,
+            snapshot: this.cache as GraphSnapshot,
+            nodes: mergeSorted(earlierNodes, nodeRowList),
+            edges: mergeSorted(earlierEdges, edgeRowList),
+        };
 
         const removed = { nodes, edges };
         this.heldLane.set(removed, { ids: nodes.map((node) => node.id), coords });

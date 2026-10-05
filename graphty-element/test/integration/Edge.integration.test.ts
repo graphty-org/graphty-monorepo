@@ -15,7 +15,7 @@ import { asData } from "../helpers/testSetup";
 /**
  * Helper to check if a mesh is disposed, handling both AbstractMesh (method) and PatternedLineMesh (property)
  */
-function isDisposed(mesh: AbstractMesh | PatternedLineMesh): boolean {
+function isDisposed(mesh: AbstractMesh | PatternedLineMesh | ArrowCap): boolean {
     if ("isDisposed" in mesh) {
         if (typeof mesh.isDisposed === "function") {
             return mesh.isDisposed();
@@ -33,6 +33,7 @@ import type { GraphContext } from "../../src/managers/GraphContext";
 import { LayoutManager } from "../../src/managers/LayoutManager";
 import { StatsManager } from "../../src/managers/StatsManager";
 import type { EdgePaint } from "../../src/managers/StylePainter";
+import type { ArrowCap } from "../../src/meshes/ArrowCapBatch";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { Node } from "../../src/Node";
@@ -66,7 +67,6 @@ function createMockGraphContext(
         getScene: () => scene,
         getStatsManager: () => statsManager,
         is2D: () => false,
-        needsRayUpdate: () => true,
         getConfig: () => ({}),
         isRunning: () => false,
         setRunning: vi.fn(),
@@ -321,7 +321,7 @@ describe("Edge Integration", () => {
             // it, and neither takes a style id any more.
             edge.applySessionPaint(updatedPaint);
 
-            const drawn: AbstractMesh | null = edge.arrowMesh;
+            const drawn: ArrowCap | null = edge.arrowMesh;
 
             assert.exists(drawn);
             /* WHICH style it was drawn from, not merely that something was drawn. That identity
@@ -367,9 +367,7 @@ describe("Edge Integration", () => {
                1.x, and for the whole of the 2.0 branch no public route wrote it. This is the
                renderer half of that gap: the cap really is built at the size the style names,
                which is what makes `edge.arrowHeadSize` worth publishing. */
-            const spanOf = (mesh: AbstractMesh): number => mesh.getBoundingInfo().boundingBox.extendSize.length();
-
-            assert.isAbove(spanOf(large.arrowMesh), spanOf(small.arrowMesh) * 2);
+            assert.isAbove(large.arrowMesh.span, small.arrowMesh.span * 2);
         });
 
         test("draws an arrow at the opacity its own style asks for", () => {

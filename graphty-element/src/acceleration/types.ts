@@ -490,11 +490,11 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         // Loses at every size the element holds (0.74x at best, at 20,000); 1.4x to 1.6x at
         // 50,000 nodes on ten edges a node, 1.2x to 1.9x above. Was 28,000.
         eigenvectorCentrality: 100_000,
-        // Above the render ceiling: 0.25x to 0.74x at 50,000 nodes, 1.0x to 1.6x at 100,000. Was 141,000.
+        // At the render ceiling: 0.25x to 0.74x at 50,000 nodes, 1.0x to 1.6x at 100,000. Was 141,000.
         breadthFirstSearch: 100_000,
-        // Above the render ceiling: 0.74x to 1.47x at 50,000 nodes, 1.8x to 2.7x at 100,000. Was 107,000.
+        // At the render ceiling: 0.74x to 1.47x at 50,000 nodes, 1.8x to 2.7x at 100,000. Was 107,000.
         sssp: 100_000,
-        // Above the render ceiling: 0.29x to 0.55x at 50,000 nodes with 100,000 edges, 1.6x to 3.9x at
+        // At the render ceiling: 0.29x to 0.55x at 50,000 nodes with 100,000 edges, 1.6x to 3.9x at
         // 100,000. Was 132,000.
         connectedComponents: 100_000,
         // No node floor: the triangle count is floored on its edges instead, in

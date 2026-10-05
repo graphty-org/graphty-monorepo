@@ -121,20 +121,16 @@ const lineInk = async (scene: Drawn): Promise<string> =>
 /**
  * How big the arrow caps in the scene are drawn, largest first.
  *
- * WHY THIS IS MEASURED RATHER THAN READ. An arrow's size is geometry: `EdgeMesh.createArrowHead`
- * multiplies the cap's length and width by `arrowHead.size` when it builds the mesh, so the only
- * reading of "how big is that arrow" is the mesh's own bounding box. The names in
- * `scene.arrowMeshNames` carry the cap's SHAPE and nothing about its size, so a story that asks
- * for a cap at two and a half times the element's own size and gets the default passes every
- * arrow assertion in stories/assertions.ts.
+ * WHY THIS IS MEASURED RATHER THAN READ FROM A NAME. An arrow's size is geometry, and the names
+ * in `scene.arrowMeshNames` carry the cap's SHAPE and nothing about its size -- so a story that
+ * asks for a cap at two and a half times the element's own size and gets the default passes
+ * every arrow assertion in stories/assertions.ts. The span is the drawn extent of the cap, the
+ * same number a bounding box gave while a cap still had one.
  * @param scene - What the story drew.
- * @returns One span per arrow mesh, in world units, largest first.
+ * @returns One span per cap, in world units, largest first.
  */
 const arrowCapSpans = (scene: Drawn): number[] =>
-    scene.graph.scene.meshes
-        .filter((mesh) => mesh.name.includes("arrow"))
-        .map((mesh) => mesh.getBoundingInfo().boundingBox.extendSizeWorld.length())
-        .sort((first, second) => second - first);
+    scene.arrowCaps.map((cap) => cap.span).sort((first, second) => second - first);
 
 /**
  * How big a normal cap of the element's own size reads by {@link arrowCapSpans}, in world units.
@@ -149,14 +145,14 @@ const DEFAULT_CAP_SPAN = 0.9327;
 /**
  * How see-through each arrow cap in the scene is drawn.
  *
- * `EdgeMesh.createArrowHead` writes the cap's opacity onto the mesh as its visibility, which is
- * the one place it is legible from outside: the cap's own material is a shader material in 3D
- * and its alpha is not a property a story can read back.
+ * The cap's opacity is written onto the batch that draws it as that batch's visibility, which is
+ * the one place it is legible from outside: the material is a shader material in 3D and its
+ * alpha is not a property a story can read back. Opacity is part of a batch's key for exactly
+ * that reason -- it is what puts the batch in the alpha-blended queue.
  * @param scene - What the story drew.
- * @returns One visibility per arrow mesh.
+ * @returns One visibility per cap.
  */
-const arrowCapOpacities = (scene: Drawn): number[] =>
-    scene.graph.scene.meshes.filter((mesh) => mesh.name.includes("arrow")).map((mesh) => mesh.visibility);
+const arrowCapOpacities = (scene: Drawn): number[] => scene.arrowCaps.map((cap) => cap.visibility);
 
 /**
  * Every layer in a grid story painted the one edge it names, and every edge is captioned.

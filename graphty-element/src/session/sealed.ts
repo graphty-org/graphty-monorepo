@@ -13,10 +13,29 @@ import { GraphtyError } from "../errors";
  * the instance before it is frozen, and a caller that reaches for one is told rather than ignored.
  * @param values - What to put in it.
  * @param hint - What to call instead, said in the error.
+ * @param alias - The other spelling of a value, which `has` also answers for. Iteration, `size`
+ *     and the values the set yields are unchanged by it.
  * @returns The sealed set.
  */
-export function sealedSet<T>(values: Iterable<T>, hint: string): ReadonlySet<T> {
+export function sealedSet<T>(values: Iterable<T>, hint: string, alias?: (value: T) => T | undefined): ReadonlySet<T> {
     const set = new Set<T>(values);
+
+    if (alias) {
+        const exact = set.has.bind(set);
+        Object.defineProperty(set, "has", {
+            configurable: false,
+            enumerable: false,
+            writable: false,
+            value: (value: T): boolean => {
+                if (exact(value)) {
+                    return true;
+                }
+
+                const other = alias(value);
+                return other !== undefined && exact(other);
+            },
+        });
+    }
 
     for (const verb of ["add", "delete", "clear"] as const) {
         Object.defineProperty(set, verb, {

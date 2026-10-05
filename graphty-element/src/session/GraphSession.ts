@@ -44,6 +44,7 @@ import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
+import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
@@ -950,13 +951,14 @@ export function dispatcherOf(session: GraphSession): Dispatcher {
 
 /**
  * The pinned ids as a consumer reads them: a sealed copy, because the slice itself is project
- * state that only the dispatcher writes.
+ * state that only the dispatcher writes. Its `has` takes either spelling of an integer id, as
+ * `pin` does.
  * @param pins - The pins slice.
  * @returns The copy.
  */
 function pinnedOf(pins: ReadonlySet<NodeId>): ReadonlySet<NodeId> {
     // ponytail: copies per read (O(pins)); cache per pins revision if a caller reads it per frame.
-    return sealedSet(pins, "Call session.positions.pin() or unpin() to change what is pinned.");
+    return sealedSet(pins, "Call session.positions.pin() or unpin() to change what is pinned.", otherIdSpelling);
 }
 
 /**

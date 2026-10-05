@@ -334,11 +334,29 @@ describe("the arrangement under undo and redo", () => {
         await session.data.addNodes([{ id: 34 }]);
 
         await session.positions.pin(["34"]);
-        assert.isTrue(session.positions.pinned.has(34), "the node the graph holds is pinned, under its own id");
-        assert.isFalse(session.positions.pinned.has("34"));
+        const { pinned } = session.positions;
+        assert.isTrue(pinned.has(34), "the node the graph holds is pinned, under its own id");
+        assert.isTrue(pinned.has("34"), "the set is asked with either spelling, as pin() is");
+        assert.deepEqual([...pinned], [34], "it yields only the id the graph holds");
+        assert.strictEqual(pinned.size, 1);
 
         await session.positions.unpin(["34"]);
         assert.isFalse(session.positions.pinned.has(34));
+        assert.isFalse(session.positions.pinned.has("34"));
+        session.dispose();
+    });
+
+    it("answers a string id exactly when it does not spell an integer", async () => {
+        const session = await fixtureSession();
+        await session.data.addNodes([{ id: "x" }, { id: "3.5" }, { id: "12" }]);
+
+        await session.positions.pin(["x", "3.5", "12"]);
+        const { pinned } = session.positions;
+        assert.isTrue(pinned.has("x"));
+        assert.isTrue(pinned.has("3.5"));
+        assert.isFalse(pinned.has(3.5), "only an integer has a second spelling");
+        assert.isTrue(pinned.has(12), "a string-held integer id is found by its number too");
+        assert.deepEqual([...pinned].sort(), ["12", "3.5", "x"]);
         session.dispose();
     });
 

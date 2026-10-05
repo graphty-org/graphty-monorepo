@@ -525,9 +525,7 @@ describe("tools forwarded to a fake daemon", () => {
         const { send, received } = await fakeDaemon({ protocols: [TOOL_PROTOCOL + 1] });
         const res = await session(send).handle(request("tools/call", { name: "githerd_next", arguments: {} }));
         expect(res.result.isError).toBe(true);
-        expect(res.result.content[0].text).toMatch(
-            new RegExp(`^BANNER\nprotocol mismatch: this client speaks ${TOOL_PROTOCOL}`),
-        );
+        expect(res.result.content[0].text).toMatch(/^BANNER\nprotocol mismatch: this client speaks 1/);
         expect(received).toHaveLength(1);
     });
 

@@ -266,7 +266,7 @@ function reply(id, body) {
 }
 
 /** The version of the tools' names and schemas; a changed schema is a new version. */
-export const TOOL_PROTOCOL = 2;
+export const TOOL_PROTOCOL = 1;
 
 /** How a refusal for a version mismatch ends: the caller is not charged for it (design 9.8). */
 const NOT_AN_ATTEMPT = "nothing was done and this call is not an attempt";

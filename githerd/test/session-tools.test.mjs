@@ -405,6 +405,31 @@ describe("sessionToolSet", () => {
         expect(JSON.parse((await call(ctx, "githerd_claim", claim, other)).text).ok).toBe(true);
     });
 
+    it("serves githerd_expect from a client that never sends capacity, in tool protocol 1", async () => {
+        // capacity is optional and additive: a session started before it existed keeps working.
+        expect(TOOL_PROTOCOL).toBe(1);
+        const job = heldJob("pr-7");
+        const { ctx } = setup({ jobs: { "pr-7": job } });
+        const old = await call(
+            ctx,
+            "githerd_expect",
+            { job: "pr-7", minutes: 30, reason: "build" },
+            {
+                protocol: 1,
+                session: "w1",
+                job: "pr-7",
+                nonce: "n1",
+            },
+        );
+        expect(old).toEqual({ text: JSON.stringify({ ok: true, until: "2026-10-04T12:30:00.000Z" }), isError: false });
+        expect(job.status.text).toBe("build");
+        expect(ctx.state.capacity).toBeUndefined();
+        // Nor does a later answer without it forget the session's last capacity answer.
+        ctx.state.capacity = { w1: { n: 1, at: "2026-10-04T11:00:00.000Z" } };
+        await call(ctx, "githerd_expect", { job: "pr-7", minutes: 5, reason: "tests" });
+        expect(ctx.state.capacity.w1.n).toBe(1);
+    });
+
     it("declares a wait and a long step only for a job the caller holds", async () => {
         const job = heldJob("pr-7");
         const other = heldJob("pr-8");

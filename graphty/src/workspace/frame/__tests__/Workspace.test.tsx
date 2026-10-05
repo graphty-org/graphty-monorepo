@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { act, render, screen, within } from "../../../test/test-utils";
-import type { WorkspaceRegistration } from "../../commands/registry";
+import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -21,6 +21,12 @@ const OPEN: Partial<WorkspaceState> = { project: { name: "Les Miserables", id: 1
  * @param registrations - the registrations, every package's by default.
  * @returns the render result.
  */
+/** A command a later package declares but has not built yet: a stub, with a key. */
+const LATER = defineRegistration({
+    owner: "later",
+    commands: stubCommands([{ id: "later.tool", label: "Later tool", group: "View", keys: ["Mod+Alt+L"] }]),
+});
+
 function renderWorkspace(initialState?: Partial<WorkspaceState>, registrations?: readonly WorkspaceRegistration[]) {
     return render(<Workspace initialState={initialState} registrations={registrations} />);
 }
@@ -142,14 +148,14 @@ describe("the workspace frame", () => {
     });
 
     it("opens the keyboard shortcuts with ? and lists every built command's key", async () => {
-        renderWorkspace(OPEN);
+        renderWorkspace(OPEN, [...REGISTRATIONS, LATER]);
 
         await userEvent.keyboard("?");
         const sheet = await screen.findByRole("region", { name: "Keyboard shortcuts" });
         assert.isNotNull(within(sheet).getByText("Rename"));
         assert.isNotNull(within(sheet).getByText("F2"));
         // A stub's key is not listed until its command is built.
-        assert.isNull(within(sheet).queryByText("Save as..."));
+        assert.isNull(within(sheet).queryByText("Later tool"));
     });
 
     it("ignores single-key shortcuts when the reader switched them off", async () => {

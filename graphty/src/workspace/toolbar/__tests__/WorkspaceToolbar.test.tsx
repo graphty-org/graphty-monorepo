@@ -8,13 +8,19 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
 import { render, screen, within } from "../../../test/test-utils";
-import { createRegistry } from "../../commands/registry";
+import { createRegistry, defineRegistration, stubCommands } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { togglePopover } from "../popover";
 
 const OPEN = { project: { name: "Les Miserables", id: 1 } } as const;
+
+/** A command a later package declares but has not built yet: a stub, with a key. */
+const LATER = defineRegistration({
+    owner: "later",
+    commands: stubCommands([{ id: "later.tool", label: "Later tool", group: "View", keys: ["Mod+Alt+L"] }]),
+});
 
 describe("the canvas toolbar", () => {
     // The design's frame, 1366 x 768. At the runner's default 414 px the panels leave the canvas
@@ -45,14 +51,14 @@ describe("the canvas toolbar", () => {
     });
 
     it("opens Quick actions with Ctrl+K, listing built commands by their homes", async () => {
-        render(<Workspace initialState={OPEN} />);
+        render(<Workspace initialState={OPEN} registrations={[...REGISTRATIONS, LATER]} />);
 
         await userEvent.keyboard("{Control>}k{/Control}");
         const list = await screen.findByRole("listbox");
         assert.isNotNull(within(list).getByRole("group", { name: "Analyze" }));
         assert.isNotNull(within(list).getByRole("option", { name: /Keyboard shortcuts/ }));
         // A stub is not listed until its package builds it.
-        assert.isNull(within(list).queryByRole("option", { name: /Save as/ }));
+        assert.isNull(within(list).queryByRole("option", { name: /Later tool/ }));
     });
 
     it("runs a command from Quick actions and closes the palette", async () => {

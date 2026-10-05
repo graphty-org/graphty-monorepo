@@ -12,6 +12,12 @@ import {
 
 const noop = (): void => undefined;
 
+/** A command a later package declares but has not built yet: a stub, with a key. */
+const LATER = defineRegistration({
+    owner: "later",
+    commands: stubCommands([{ id: "later.tool", label: "Later tool", group: "View", keys: ["Mod+Alt+L"] }]),
+});
+
 describe("the workspace command registry", () => {
     const registry = createRegistry(REGISTRATIONS);
 
@@ -48,11 +54,12 @@ describe("the workspace command registry", () => {
     });
 
     it("hides a stub from every door but keeps its id", () => {
-        const stub = registry.get("style.add-label-line");
+        const withStub = createRegistry([...REGISTRATIONS, LATER]);
+        const stub = withStub.get("later.tool");
         assert.isTrue(stub?.stub);
-        assert.isUndefined(registry.built("style.add-label-line"));
-        assert.notInclude(registry.live, stub);
-        assert.isDefined(registry.built("help.about"));
+        assert.isUndefined(withStub.built("later.tool"));
+        assert.notInclude(withStub.live, stub);
+        assert.isDefined(withStub.built("help.about"));
     });
 
     it("refuses a command id registered twice", () => {

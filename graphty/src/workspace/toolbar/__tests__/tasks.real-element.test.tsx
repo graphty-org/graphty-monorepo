@@ -23,13 +23,12 @@ import { Workspace } from "../../Workspace";
 const TIMEOUT_MS = 90_000;
 
 /**
- * From the empty app: New project, then Zachary's karate club opened through the element's
+ * A new, empty project, then Zachary's karate club opened through the element's
  * import, with the layout the element recommends for it.
  * @returns the session, with the sample loaded.
  */
 async function openKarate(): Promise<GraphSession> {
-    render(<Workspace />);
-    await userEvent.click(screen.getByRole("button", { name: "New project" }));
+    render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
     let session: GraphSession | undefined;
     await waitFor(
         () => {
@@ -45,9 +44,17 @@ async function openKarate(): Promise<GraphSession> {
     const loaded = session;
     await waitFor(() => {
         assert.equal(loaded.data.statistics().nodeCount, 34);
-        assert.isFalse(screen.getByRole("button", { name: "Analyze" }).hasAttribute("aria-disabled"));
+        assert.isFalse(analyzeTool().hasAttribute("aria-disabled"));
     });
     return loaded;
+}
+
+/**
+ * The toolbar's Analyze tool. The Graph place's footer line carries an Analyze link too.
+ * @returns the tool.
+ */
+function analyzeTool(): HTMLElement {
+    return within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", { name: "Analyze" });
 }
 
 /**
@@ -56,7 +63,7 @@ async function openKarate(): Promise<GraphSession> {
  * @param entry - the entry's name.
  */
 async function analyze(filter: string, entry: string): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: "Analyze" }));
+    await userEvent.click(analyzeTool());
     const box = await screen.findByRole("searchbox", { name: "Filter analyses" });
     await userEvent.type(box, filter);
     await userEvent.click(await screen.findByRole("button", { name: new RegExp(`^${entry}`) }));
@@ -105,7 +112,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.isNotNull(screen.getByText("PageRank added, running"));
             // Focus goes back to Analyze, not to the page.
             await waitFor(() => {
-                assert.equal(document.activeElement, screen.getByRole("button", { name: "Analyze" }));
+                assert.equal(document.activeElement, analyzeTool());
             });
 
             const runId = await finished(session, "pagerank");
@@ -115,7 +122,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             });
 
             // Picking it again revises the same row, so the button says so.
-            await userEvent.click(screen.getByRole("button", { name: "Analyze" }));
+            await userEvent.click(analyzeTool());
             const recent = await screen.findByRole("region", { name: "Recent" });
             await userEvent.click(within(recent).getByRole("button", { name: /^PageRank/ }));
             assert.isNotNull(await screen.findByRole("button", { name: "Update PageRank row" }));

@@ -101,7 +101,10 @@ describe("the Graph place", () => {
     });
 
     it("keeps the words but draws no link while Analyze is not built", async () => {
-        renderPlace(await sessionWithGraph());
+        renderPlace(
+            await sessionWithGraph(),
+            REGISTRATIONS.filter((r) => r.owner !== "analyze"),
+        );
         const footer = screen.getByText(/to add results here/);
         assert.equal(footer.textContent, "Analyze (Shift+A) to add results here");
         assert.isNull(within(footer).queryByRole("button"));

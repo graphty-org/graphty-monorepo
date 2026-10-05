@@ -38,12 +38,11 @@ const EVERYTHING_GRAY = {
 } as const;
 
 /**
- * Opens a new project from the start screen and waits for its element.
+ * Opens a new, empty project and waits for its element.
  * @returns the element's session.
  */
 async function newProject(): Promise<GraphSession> {
-    render(<Workspace />);
-    await userEvent.click(screen.getByRole("button", { name: "New project" }));
+    render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
     let session: GraphSession | undefined;
     await waitFor(
         () => {

@@ -57,7 +57,7 @@ type Story = StoryObj<typeof meta>;
 /** No project open: the start screen (a stub until the Start screen package lands). */
 export const StartScreen: Story = {};
 
-/** A new project, nothing loaded: every region with its package's stub. */
+/** A new project, nothing loaded: every region. */
 export const EmptyProject: Story = { args: { initialState: OPEN } };
 
 /** A small graph just loaded, nothing run (the mock's `#/graph-place/karate`). */

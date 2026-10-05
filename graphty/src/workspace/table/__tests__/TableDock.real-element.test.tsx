@@ -58,8 +58,7 @@ describe("the table dock", () => {
     it(
         "shows the element's records, sorts a result column, narrows to a group and exports",
         async () => {
-            render(<Workspace />);
-            await userEvent.click(screen.getByRole("button", { name: "New project" }));
+            render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
             let session: GraphSession | undefined;
             await waitFor(
                 () => {

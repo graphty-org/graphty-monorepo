@@ -35,13 +35,12 @@ const EDGES = [
 ];
 
 /**
- * From the empty app: New project, then the graph added through the element's session.
+ * A new, empty project, then the graph added through the element's session.
  * @returns the session and the chrome store.
  */
 async function openGraph(): Promise<{ session: GraphSession; store: WorkspaceStore }> {
-    const store = createWorkspaceStore();
+    const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    await userEvent.click(screen.getByRole("button", { name: "New project" }));
     let session: GraphSession | undefined;
     await waitFor(
         () => {

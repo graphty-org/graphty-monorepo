@@ -44,12 +44,13 @@ interface Opened {
 }
 
 /**
- * Renders the workspace with a project open, waits for the element and loads the graph.
+ * Renders the workspace with a project open on the Everything row, as a click on it in the
+ * Graph place opens it, waits for the element and loads the graph.
  * @param stacked - put every node on one spot with the fixed layout, so their labels overlap.
  * @returns the session, the element and the store.
  */
 async function openWithGraph(stacked = false): Promise<Opened> {
-    const store = createWorkspaceStore({ project: { name: "Ring", id: 1 } });
+    const store = createWorkspaceStore({ project: { name: "Ring", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
     let element: HTMLElementTagNameMap["graphty-element"] | null = null;
     await waitFor(
@@ -69,6 +70,17 @@ async function openWithGraph(stacked = false): Promise<Opened> {
     await session.data.addNodes(stacked ? NODES.map((n) => ({ ...n, position: { x: 0, y: 0, z: 0 } })) : NODES);
     await session.data.addEdges(EDGES);
     return { session, element, store };
+}
+
+/**
+ * Picks the inspector's Style tab, as a reader does on a row that opens on Values (a run's row).
+ * The choice is remembered per kind, so the tab may already be picked.
+ */
+async function pickStyleTab(): Promise<void> {
+    const tab = await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS });
+    if (tab.getAttribute("aria-selected") !== "true") {
+        await userEvent.click(tab);
+    }
 }
 
 /**
@@ -203,6 +215,7 @@ describe("the Style tab on the real element", () => {
 
             for (const kind of ["measure-row", "run-row"]) {
                 store.set({ inspected: { kind, id: runId } });
+                await pickStyleTab();
                 // The run's own Color line, bound to its result: the Detach door is the run's.
                 await waitFor(
                     () => {
@@ -234,6 +247,7 @@ describe("the Style tab on the real element", () => {
                 throw new Error("PageRank painted nothing");
             }
             store.set({ inspected: { kind: "measure-row", id: runId } });
+            await pickStyleTab();
 
             // Shape "+" > Size adds a Size line.
             // The tab remounts for the new row: read it afresh.

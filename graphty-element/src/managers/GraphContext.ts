@@ -83,6 +83,13 @@ export interface GraphContext {
     is2D(): boolean;
 
     /**
+     * Always false.
+     * @deprecated Each edge aims its own ray when it needs one. Will be removed in
+     * graphty-element 4.0.
+     */
+    needsRayUpdate(): boolean;
+
+    /**
      * Get graph-level configuration options
      */
     getConfig(): GraphContextConfig;
@@ -250,6 +257,16 @@ export class DefaultGraphContext implements GraphContext {
         // Support both new viewMode and deprecated twoD for backward compatibility
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         return config.viewMode === "2d" || config.twoD;
+    }
+
+    /**
+     * Always false.
+     * @deprecated Each edge aims its own ray when it needs one. Will be removed in
+     * graphty-element 4.0.
+     * @returns false
+     */
+    needsRayUpdate(): boolean {
+        return false;
     }
 
     /**

@@ -82,7 +82,7 @@ function elementMeshes(): Set<AbstractMesh> {
 function batchMeshes(): Set<AbstractMesh> {
     const batches = new Set<AbstractMesh>();
     for (const edge of graph.getDataManager().edges.values()) {
-        for (const mesh of [edge.mesh, edge.arrowMesh?.batchMesh, edge.arrowTailMesh?.batchMesh]) {
+        for (const mesh of [edge.mesh, edge.arrowCap?.batchMesh, edge.arrowTailCap?.batchMesh]) {
             if (isBatch(mesh) && !mesh.isDisposed()) {
                 batches.add(mesh);
             }

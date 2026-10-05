@@ -217,8 +217,8 @@ describe("Node shape changes and connected edges", () => {
         const dstNode = addNode(harness, "dst", nodeStyle({ shape: { type: "icosphere", size: 1 } }));
         const edge = addEdge(harness, ARROW_EDGE_STYLE);
 
-        assert.isNotNull(edge.arrowMesh, "the test needs an arrowhead: it is what marks the surface point");
-        const sphereEndpoint = edge.arrowMesh?.position.clone();
+        assert.isNotNull(edge.arrowCap, "the test needs an arrowhead: it is what marks the surface point");
+        const sphereEndpoint = edge.arrowCap?.position.clone();
         assert.isDefined(sphereEndpoint);
 
         // Same declared size, different geometry. Before the fix this changed nothing about the
@@ -226,7 +226,7 @@ describe("Node shape changes and connected edges", () => {
         dstNode.applySessionPaint(nodePaintOf(nodeStyle({ shape: { type: "box", size: 1 } })));
         edge.update();
 
-        const boxEndpoint = edge.arrowMesh?.position.clone();
+        const boxEndpoint = edge.arrowCap?.position.clone();
         assert.isDefined(boxEndpoint);
         assert.isAbove(
             Vector3.Distance(sphereEndpoint, boxEndpoint),
@@ -238,7 +238,7 @@ describe("Node shape changes and connected edges", () => {
         dstNode.applySessionPaint(nodePaintOf(nodeStyle({ shape: { type: "icosphere", size: 1 } })));
         edge.update();
 
-        const backAgain = edge.arrowMesh?.position.clone();
+        const backAgain = edge.arrowCap?.position.clone();
         assert.isDefined(backAgain);
         assert.isBelow(Vector3.Distance(sphereEndpoint, backAgain), 0.001, "switching back must restore the endpoint");
     });
@@ -248,7 +248,7 @@ describe("Node shape changes and connected edges", () => {
         addNode(harness, "src", nodeStyle({}));
         const dstNode = addNode(harness, "dst", nodeStyle({}));
         const edge = addEdge(harness, ARROW_EDGE_STYLE);
-        assert.isNotNull(edge.arrowMesh);
+        assert.isNotNull(edge.arrowCap);
 
         // A sentinel is the only honest probe here: a colour change leaves the geometry identical,
         // so a recomputed endpoint and a cached one have the SAME value. Parking the arrow
@@ -257,13 +257,13 @@ describe("Node shape changes and connected edges", () => {
         const sentinel = new Vector3(99, 99, 99);
         // A cap has no position to assign any more -- it is a slot in a shared batch -- so the
         // sentinel is written the way the renderer writes one, through the cap's own placement.
-        edge.arrowMesh?.place(sentinel, Vector3.Right());
+        edge.arrowCap?.place(sentinel, Vector3.Right());
 
         dstNode.applySessionPaint(nodePaintOf(nodeStyle({ texture: { color: "#FF0000" } })));
         edge.update();
 
         assert.isTrue(
-            edge.arrowMesh?.position.equalsWithEpsilon(sentinel, 0.001),
+            edge.arrowCap?.position.equalsWithEpsilon(sentinel, 0.001),
             "a colour-only change must not invalidate the edge position cache",
         );
     });
@@ -354,17 +354,17 @@ describe("Node and Edge disposal", () => {
         addNode(harness, "dst", nodeStyle({}));
         const edge = addEdge(harness, ARROW_EDGE_STYLE);
 
-        const { arrowMesh } = edge;
-        assert.isNotNull(arrowMesh, "the test needs an arrowhead to prove it is freed");
+        const { arrowCap } = edge;
+        assert.isNotNull(arrowCap, "the test needs an arrowhead to prove it is freed");
 
         edge.dispose();
 
         assert.isTrue(edge.isDisposed());
         assert.isTrue(
-            arrowMesh?.isDisposed(),
+            arrowCap?.isDisposed(),
             "the arrowhead is created bare against the scene; only dispose frees it",
         );
-        assert.isNull(edge.arrowMesh);
+        assert.isNull(edge.arrowCap);
     });
 
     it("refuses to rebuild a disposed node's mesh", () => {

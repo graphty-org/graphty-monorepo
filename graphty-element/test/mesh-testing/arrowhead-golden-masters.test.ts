@@ -80,7 +80,7 @@ function arrow(type: string, extra: { size?: number; color?: string; opacity?: n
  * @param extra - The size, colour and opacity the cap is asked for.
  * @returns The batch's mesh.
  */
-function arrowMesh(type: string, extra: { size?: number; color?: string; opacity?: number } = {}): Mesh {
+function arrowCap(type: string, extra: { size?: number; color?: string; opacity?: number } = {}): Mesh {
     const mesh = arrow(type, extra).batchMesh;
     assert.isNotNull(mesh, `the cap for "${type}" is drawn by no mesh`);
     return mesh;
@@ -168,7 +168,7 @@ describe("Arrowhead Golden Masters", () => {
 
         ARROW_GEOMETRY.forEach(({ type, vertices }) => {
             test(`${type} has ${vertices} vertices and real faces`, () => {
-                const mesh = arrowMesh(type);
+                const mesh = arrowCap(type);
 
                 assert.equal(mesh.getTotalVertices(), vertices);
                 assert.isAbove(mesh.getTotalIndices(), 0, "vertices with no indices are never rasterised");
@@ -179,7 +179,7 @@ describe("Arrowhead Golden Masters", () => {
             test(`${type} is flat in the XZ plane, which the billboard shader requires`, () => {
                 // The tangent-billboarding shader rotates the cap about Y to face the camera. A
                 // vertex off the plane would tumble out of the arrow when it does.
-                const positions = mesh3DPositions(arrowMesh(type));
+                const positions = mesh3DPositions(arrowCap(type));
 
                 for (let i = 1; i < positions.length; i += 3) {
                     assert.equal(positions[i], 0, `${type} has a vertex off the XZ plane`);
@@ -188,7 +188,7 @@ describe("Arrowhead Golden Masters", () => {
         });
 
         test("sphere-dot is the one cap with real volume", () => {
-            const positions = mesh3DPositions(arrowMesh("sphere-dot"));
+            const positions = mesh3DPositions(arrowCap("sphere-dot"));
             let offPlane = 0;
             for (let i = 1; i < positions.length; i += 3) {
                 if (positions[i] !== 0) {
@@ -207,7 +207,7 @@ describe("Arrowhead Golden Masters", () => {
             const seen = new Map<string, string>();
 
             for (const { type } of ARROW_GEOMETRY) {
-                const fingerprint = geometryFingerprint(arrowMesh(type));
+                const fingerprint = geometryFingerprint(arrowCap(type));
                 const clash = seen.get(fingerprint);
                 assert.isUndefined(clash, `${type} draws the same geometry as ${clash}`);
                 seen.set(fingerprint, type);
@@ -217,8 +217,8 @@ describe("Arrowhead Golden Masters", () => {
         });
 
         test("normal and inverted point in opposite directions", () => {
-            const normal = mesh3DPositions(arrowMesh("normal"));
-            const inverted = mesh3DPositions(arrowMesh("inverted"));
+            const normal = mesh3DPositions(arrowCap("normal"));
+            const inverted = mesh3DPositions(arrowCap("inverted"));
             const normalReach = Math.max(...everyThird(normal, 0));
             const invertedReach = Math.max(...everyThird(inverted, 0));
 
@@ -237,14 +237,14 @@ describe("Arrowhead Golden Masters", () => {
 
         ARROW_GEOMETRY.filter((entry) => entry.type !== "sphere-dot").forEach(({ type }) => {
             test(`${type} is drawn with the billboard ShaderMaterial`, () => {
-                const mesh = arrowMesh(type);
+                const mesh = arrowCap(type);
 
                 assert.instanceOf(mesh.material, ShaderMaterial);
             });
         });
 
         test("sphere-dot is drawn with an unlit StandardMaterial instead", () => {
-            const mesh = arrowMesh("sphere-dot");
+            const mesh = arrowCap("sphere-dot");
             const material = mesh.material as StandardMaterial;
 
             assert.instanceOf(material, StandardMaterial);
@@ -254,7 +254,7 @@ describe("Arrowhead Golden Masters", () => {
         });
 
         test("the shader carries the attributes and uniforms tangent billboarding needs", () => {
-            const material = arrowMesh("normal").material as ShaderMaterial;
+            const material = arrowCap("normal").material as ShaderMaterial;
             const options = material.options as unknown as { uniforms: string[]; attributes: string[] };
 
             // Direction, size and colour are PER-INSTANCE attributes: every edge's head is a
@@ -313,7 +313,7 @@ describe("Arrowhead Golden Masters", () => {
         });
 
         test("2D arrows are unlit and coloured through the emissive channel", () => {
-            const material = arrowMesh("normal", { color: "#00FF00" }).material as StandardMaterial;
+            const material = arrowCap("normal", { color: "#00FF00" }).material as StandardMaterial;
 
             assert.isTrue(material.disableLighting);
             assert.deepEqual([material.emissiveColor.r, material.emissiveColor.g, material.emissiveColor.b], [0, 1, 0]);
@@ -334,7 +334,7 @@ describe("Arrowhead Golden Masters", () => {
 
         ARROW_GEOMETRY.forEach(({ type }) => {
             test(`2D ${type} is built from its own geometry, not a default triangle`, () => {
-                const mesh = arrowMesh(type);
+                const mesh = arrowCap(type);
                 const expected = TWO_D_VERTICES.get(type);
 
                 assert.equal(mesh.getTotalVertices(), expected, `2D ${type} should have ${String(expected)} vertices`);
@@ -349,7 +349,7 @@ describe("Arrowhead Golden Masters", () => {
             const seen = new Map<string, string[]>();
 
             for (const { type } of ARROW_GEOMETRY) {
-                const fingerprint = geometryFingerprint(arrowMesh(type));
+                const fingerprint = geometryFingerprint(arrowCap(type));
                 const names = seen.get(fingerprint) ?? [];
 
                 names.push(type);
@@ -365,7 +365,7 @@ describe("Arrowhead Golden Masters", () => {
         test("2D sphere-dot is a flat circle, not a sphere", () => {
             // In 2D there is no depth to see a sphere with, so sphere-dot falls back to the same
             // 34-vertex disc as `dot`. In 3D it is a 703-vertex sphere. Both are deliberate.
-            const flat = arrowMesh("sphere-dot");
+            const flat = arrowCap("sphere-dot");
 
             assert.equal(flat.getTotalVertices(), 34);
         });
@@ -373,7 +373,7 @@ describe("Arrowhead Golden Masters", () => {
         [0, 0.25, 0.5, 0.75, 1].forEach((opacity) => {
             test(`2D opacity ${opacity} reaches the mesh and the material`, () => {
                 const cap = arrow("normal", { opacity });
-                const mesh = arrowMesh("normal", { opacity });
+                const mesh = arrowCap("normal", { opacity });
 
                 assert.equal(cap.visibility, opacity);
                 assert.equal((mesh.material as StandardMaterial).alpha, opacity);
@@ -408,7 +408,7 @@ describe("Arrowhead Golden Masters", () => {
 
         ["#FF0000", "#00FF00", "#0000FF", "#FFFF00"].forEach((color) => {
             test(`colour ${color} reaches the material`, () => {
-                const material = arrowMesh("sphere-dot", { color }).material as StandardMaterial;
+                const material = arrowCap("sphere-dot", { color }).material as StandardMaterial;
                 const expected = [
                     parseInt(color.slice(1, 3), 16) / 255,
                     parseInt(color.slice(3, 5), 16) / 255,

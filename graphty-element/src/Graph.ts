@@ -306,6 +306,12 @@ export class Graph implements GraphContext {
     #autoFrame = true;
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
+    /**
+     * Has no effect: the element never reads it.
+     * @deprecated Each edge aims its own ray when it needs one. Will be removed in
+     * graphty-element 4.0.
+     */
+    needRays = false;
     // graph engine - delegate to LayoutManager
     pinOnDrag?: boolean;
     // graph
@@ -3775,12 +3781,12 @@ export class Graph implements GraphContext {
             }
 
             // Dispose arrow meshes too
-            if (edge.arrowMesh && !edge.arrowMesh.isDisposed()) {
-                edge.arrowMesh.dispose();
+            if (edge.arrowCap && !edge.arrowCap.isDisposed()) {
+                edge.arrowCap.dispose();
             }
 
-            if (edge.arrowTailMesh && !edge.arrowTailMesh.isDisposed()) {
-                edge.arrowTailMesh.dispose();
+            if (edge.arrowTailCap && !edge.arrowTailCap.isDisposed()) {
+                edge.arrowTailCap.dispose();
             }
 
             edge.updateStyle();
@@ -3886,6 +3892,16 @@ export class Graph implements GraphContext {
             enableDetailedProfiling: this.enableDetailedProfiling,
             xr: this.graphContext.getConfig().xr,
         };
+    }
+
+    /**
+     * Always false.
+     * @deprecated Each edge aims its own ray when it needs one. Will be removed in
+     * graphty-element 4.0.
+     * @returns false
+     */
+    needsRayUpdate(): boolean {
+        return false;
     }
 
     /**

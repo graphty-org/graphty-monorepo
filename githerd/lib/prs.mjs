@@ -482,7 +482,8 @@ const DESCRIPTION_MAX = 140;
 
 /**
  * @typedef {{workflow: string, since: string, fixPrs?: number[]}} RedLane a gating lane that is red
- *   and classified code (paid capacity, outside and drift park a lane instead): its workflow name,
+ *   and judged code or not judged yet (paid capacity, outside and an environment verdict park a
+ *   lane instead): its workflow name,
  *   when its red stretch began (ISO), and the pull requests recorded as its incident's fix or revert
  * @typedef {{project: string, from: string, to: string}} Bump one "New version" line of the
  *   release dry-run on the reference worktree merged with the head

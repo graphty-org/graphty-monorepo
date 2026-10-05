@@ -80,9 +80,54 @@ function issue(state, n, labels, over = {}) {
 const sync = (/** @type {any} */ state) => syncJobs(state, { config: CONFIG, now: NOW });
 
 describe("syncJobs: incidents", () => {
-    it("makes one urgent job per code-red key that did not go intermittent, and cancels it when the incident ends", () => {
+    it("makes one urgent verdict job per key Claude has not judged, then a fix job once it is judged code", () => {
         const state = base();
-        state.master.lanes.ci = { redSince: "2026-10-04T11:00:00Z" };
+        state.master.lanes.ci = {
+            redSince: "2026-10-04T11:00:00Z",
+            sha: "c".repeat(40),
+            redJobs: [{ id: 55, runId: 5, key: "CI / Build / Run build", textClass: "unclassified" }],
+        };
+        state.incidents.i1 = {
+            id: "i1",
+            status: "open",
+            openedAt: "2026-10-04T11:05:00Z",
+            lastGreenSha: "a".repeat(40),
+            keys: { "CI / Build / Run build": { lane: "ci", outcome: "waiting" } },
+        };
+        expect(sync(state).created).toEqual(["verdict-CI-Build-Run-build"]);
+        expect(state.jobs["verdict-CI-Build-Run-build"]).toMatchObject({
+            kind: "incident",
+            target: "CI / Build / Run build",
+            priority: "urgent",
+            facts: {
+                scope: "verdict",
+                lane: "ci",
+                runId: 5,
+                jobId: 55,
+                redSha: "c".repeat(40),
+                greenSha: "a".repeat(40),
+            },
+        });
+        state.master.lanes.ci.verdicts = { "CI / Build / Run build": { verdict: "code" } };
+        const after = sync(state);
+        expect(after.created).toEqual(["incident-CI-Build-Run-build"]);
+        expect(after.cancelled).toEqual([
+            { job: "verdict-CI-Build-Run-build", reason: "a verdict was recorded, or master's incident ended" },
+        ]);
+        // An environment verdict makes no fix job.
+        const env = base();
+        env.master.lanes.ci = { verdicts: { "CI / Build / Run build": { verdict: "environment" } } };
+        env.incidents.i1 = { ...state.incidents.i1 };
+        expect(sync(env).created).toEqual([]);
+    });
+
+    it("makes one urgent job per key judged code that did not go intermittent, and cancels it when the incident ends", () => {
+        const state = base();
+        const code = { verdict: "code" };
+        state.master.lanes.ci = {
+            redSince: "2026-10-04T11:00:00Z",
+            verdicts: { "CI / Build / Run build": code, "CI / Test / Run tests": code },
+        };
         state.incidents.i1 = {
             id: "i1",
             status: "open",

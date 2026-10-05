@@ -7,26 +7,23 @@
  * The text patterns live in one table, `PATTERNS`. A failure's text is read in the order its
  * sources carry it: step names first (the rented runner's balance rejection is only a step name),
  * then annotations ("lost communication" is only an annotation), then the log (a runner shutdown is
- * only in the log) [PF 9.5]. Facts that are not text (the `Set up job` drift, the same key red on
- * master or on other pull requests, an open `intermittent` issue) arrive in the context, computed
- * by the caller.
+ * only in the log) [PF 9.5]. Facts that are not text (the same key red on master or on other pull
+ * requests, an open `intermittent` issue) arrive in the context, computed by the caller.
+ *
+ * The table holds only unambiguous failures (the owner's decision of 2026-10-05). On master,
+ * anything it does not match is `unclassified`: githerd holds merges and re-runs the job once, and
+ * a Claude session records whether it is the code or the environment (`githerd_verdict`). Claude
+ * makes the judgment; code enforces it.
  *
  * Pure: no I/O, no clock.
  */
 
 import { failureKey } from "./lanes.mjs";
 
-/** The classes, in the order they are tried (design 4.4). */
-const CLASSES = /** @type {const} */ ([
-    "credential",
-    "paid-capacity",
-    "outside",
-    "drift",
-    "inherited",
-    "shared",
-    "intermittent",
-    "own",
-]);
+/**
+ * @typedef {"credential" | "paid-capacity" | "outside" | "inherited" | "shared" | "intermittent" | "own"}
+ *   Class the classes, in the order they are tried (design 4.4)
+ */
 
 /** The prefix of a runner label served by the rented GPU provider (`runs-on: machine/...` in `gpu.yml`). */
 const RENTED_PREFIX = "machine/";
@@ -54,10 +51,6 @@ const NOT_BUILT = /^(?:design|\.claude)\//;
 /**
  * @typedef {object} Context facts about the failure that are not in its text
  * @property {"pr" | "master"} [where] where the failure ran; `pr` by default
- * @property {string[]} [drift] the `Set up job` diff between the last green and the first red run
- *   (`setupDrift`); non-empty is environment drift
- * @property {boolean} [platformDegraded] githubstatus.com reports Actions degraded, or a gating job
- *   sits queued past its label's pickup bound
  * @property {Iterable<string>} [masterRed] the keys red on master now
  * @property {number} [others] other open pull requests with the same key within `SHARED_WINDOW_MS`
  *   (`othersWithKey`)
@@ -67,14 +60,15 @@ const NOT_BUILT = /^(?:design|\.claude)\//;
 
 /**
  * @typedef {object} Verdict
- * @property {(typeof CLASSES)[number] | "code"} class the class; `code` on master past class 4
+ * @property {Class | "unclassified"} class the class; `unclassified` on master past
+ *   class 3, for a Claude session to judge
  * @property {string} key the failure key
  * @property {string} reason the pattern or rule that decided it
  */
 
 /**
  * @typedef {object} Pattern
- * @property {(typeof CLASSES)[number]} class the class it puts a failure in
+ * @property {Class} class the class it puts a failure in
  * @property {string} name what it matches, in a few words
  * @property {(f: Failure, text: string[]) => boolean} test true on a match; `text` is the step
  *   names, then the annotations, then the log lines
@@ -97,15 +91,15 @@ const line =
  */
 const rented = (f) => (f.labels ?? []).some((l) => l.startsWith(RENTED_PREFIX));
 
-/** What names the benchmark comparison step of the GPU lane (`node scripts/bench-compare.js`). */
-const BENCHMARK_STEP = "bench-compare";
+/** A runner that went away mid-job, as the runner and GitHub report it. */
+const RUNNER_LOST = /received a shutdown signal|lost communication with the server/;
 
-/** A connection error code, as Node and npm print them. */
-const NET_ERROR = /\bE(?:TIMEDOUT|CONNRESET|CONNREFUSED|AI_AGAIN|NOTFOUND)\b/;
-/** A remote host: a URL that is not loopback, or a public domain name. */
-const REMOTE_HOST = /https?:\/\/(?!localhost|127\.)|\b[\w-]+\.(?:com|org|io|net|dev)\b/i;
-
-/** The text patterns, in class order. */
+/**
+ * The text patterns, in class order. Only unambiguous failures with an obvious action are here
+ * (the owner's decision of 2026-10-05): a credential, paid capacity, a runner lost mid-job, and the
+ * known outside outages (a package server or mirror, DNS). Anything else on master is
+ * `unclassified`, and a Claude session judges it (design 4.4).
+ */
 export const PATTERNS = /** @type {Pattern[]} */ ([
     {
         class: "credential",
@@ -128,63 +122,27 @@ export const PATTERNS = /** @type {Pattern[]} */ ([
     {
         class: "paid-capacity",
         name: "runner lost on a rented label",
-        test: (f, text) =>
-            rented(f) &&
-            (f.steps.length === 0 ||
-                text.some((l) => /received a shutdown signal|lost communication with the server/.test(l))),
+        test: (f, text) => rented(f) && (f.steps.length === 0 || text.some((l) => RUNNER_LOST.test(l))),
     },
+    // The same loss on any other runner: re-run once it is back.
+    { class: "outside", name: "runner lost mid-job", test: line(RUNNER_LOST) },
     {
         class: "outside",
-        name: "third-party 5xx",
-        test: line(/\b5\d\d\b/, /Internal Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out/i),
+        name: "package registry fetch failed",
+        test: line(/ERR_PNPM_(?:META_)?FETCH|ERR_PNPM_TARBALL|Error when performing the request to https:/),
     },
-    { class: "outside", name: "connection error naming a remote host", test: line(NET_ERROR, REMOTE_HOST) },
-    {
-        class: "outside",
-        name: "registry or corepack error",
-        test: line(
-            /ERR_PNPM_(?:META_)?FETCH|ERR_PNPM_TARBALL|corepack.*(?:error|failed)|Error when performing the request to https:/i,
-        ),
-    },
-    // A package server or mirror failing a dependency install (apt, npm, Playwright's system
+    // A package server or mirror failing a dependency install (apt, Playwright's system
     // dependencies): an outage outside the code, re-run once it is back.
     {
         class: "outside",
         name: "package server or mirror failed an install",
         test: line(
-            /\bFailed to fetch https?:\/\/\S+ +(?:40[34]|5\d\d)\b|\bis no longer signed\b|Temporary failure resolving|Could not resolve host|Failed to install browser dependencies/,
+            /\bFailed to fetch https?:\/\/\S+ +(?:40[34]|5\d\d)\b|\bis no longer signed\b|Failed to install browser dependencies/,
         ),
     },
-    {
-        class: "drift",
-        name: "deprecated runner or action",
-        test: line(/automatically failed because it uses a deprecated version/),
-    },
-    // The job's machine or container lacks what the run needs: the runner image or the job's own
-    // setup, not the code under test.
-    {
-        class: "drift",
-        name: "missing system library",
-        test: line(/error while loading shared libraries|cannot open shared object file/),
-    },
-    { class: "drift", name: "C library too old", test: line(/version `GLIBC_[\d.]+' not found/) },
-    {
-        class: "drift",
-        name: "browser or its system dependencies not installed",
-        test: line(/Host system is missing dependencies|Executable doesn't exist at \S*ms-playwright/),
-    },
-    { class: "drift", name: "runner out of disk space", test: line(/No space left on device|\bENOSPC\b/) },
-    // gpu.yml locks the T4's clock before the benchmarks and warns when the runner refuses (issue
-    // #703); at the power governor's clock a benchmark can run several times slower than its
-    // baseline. Only when the comparison is the sole failure: a failing test is still code.
-    {
-        class: "drift",
-        name: "benchmark run at an unlocked GPU clock",
-        test: (f, text) =>
-            f.steps.length > 0 &&
-            f.steps.every((s) => s.includes(BENCHMARK_STEP)) &&
-            text.some((l) => l.includes("nvidia-smi -lgc") && l.includes("was refused")),
-    },
+    // apt's and curl's words for a resolver that did not answer. Node's `getaddrinfo EAI_AGAIN` is not
+    // here: a test resolving a made-up host prints it too (remote-logger's `test-server`).
+    { class: "outside", name: "DNS lookup failed", test: line(/Temporary failure resolving|Could not resolve host/) },
 ]);
 
 /**
@@ -210,17 +168,11 @@ export function cannotAffect(f) {
 export function classify(f, ctx = {}) {
     const key = failureKey(f.workflow, f.job, f.steps[0]);
     const text = [...f.steps, ...(f.annotations ?? []), ...(f.log ?? "").split("\n")];
-    for (const p of PATTERNS) {
-        if (CLASSES.indexOf(p.class) > CLASSES.indexOf("outside")) break;
-        if (p.test(f, text)) return { class: p.class, key, reason: p.name };
-    }
-    if (ctx.platformDegraded)
-        return { class: "outside", key, reason: "Actions degraded or queued past the pickup bound" };
-    if (ctx.drift?.length) return { class: "drift", key, reason: "Set up job changed since the last green run" };
-    const environment = PATTERNS.find((p) => p.class === "drift" && p.test(f, text));
-    if (environment) return { class: "drift", key, reason: environment.name };
-    // Classes 5 to 8 need a pull request; on master anything past class 4 is code (design 4.5).
-    if (ctx.where === "master") return { class: "code", key, reason: "not credential, capacity, outside or drift" };
+    const hit = PATTERNS.find((p) => p.test(f, text));
+    if (hit) return { class: hit.class, key, reason: hit.name };
+    // Classes 4 to 7 need a pull request; on master the rest is Claude's to judge (design 4.5).
+    if (ctx.where === "master")
+        return { class: "unclassified", key, reason: "no unambiguous pattern: Claude judges code or environment" };
     if (new Set(ctx.masterRed ?? []).has(key))
         return { class: "inherited", key, reason: "the same key is red on master" };
     if ((ctx.others ?? 0) >= 1)

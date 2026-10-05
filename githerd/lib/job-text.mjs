@@ -37,12 +37,35 @@ const PURPOSE = /** @type {Record<string, string>} */ ({
  * that does not gate merges, so its condition is master's.
  */
 const INCIDENT_DONE = /** @type {Record<string, string>} */ ({
+    verdict: "githerd has a verdict, code or environment, for this failure key (githerd_verdict).",
     master: "the failing workflow's newest run on master is green at a commit that contains your fix.",
     low: "the failing workflow's newest run on master is green at a commit that contains your fix.",
     shared: "the failing check passes on master at a commit with your fix, and on one other open pull request after it is updated from master.",
     release: "npm has every version the release tagged, and master has the release's version commit.",
     local: "the pre-push gate passes on the last green commit of master.",
 });
+
+/** What a verdict job is for: Claude judges a master failure no pattern recognized (design 4.4). */
+const VERDICT_PURPOSE =
+    "Master failed on something githerd does not recognize. Judge whether the code or the environment broke it. " +
+    "Read the failed step's log (gh run view <run> --log-failed --job <job id>) and the commits since the last green run " +
+    "(git fetch origin, then git log <green>..<red>), then call githerd_verdict with the key, code or environment, and a " +
+    "one-line reason. Change no code. Until then githerd holds merges on the pull requests this lane can affect and " +
+    "re-runs the job once. Code allows the incident procedure, its revert included; environment lifts the hold, " +
+    "and the owner is told if the failure persists.";
+
+/**
+ * The lines that locate a verdict job's failure.
+ * @param {any} f the job's facts
+ * @returns {string[]} the lines
+ */
+function verdictLines(f) {
+    const short = (/** @type {string | null | undefined} */ sha) => (sha ? sha.slice(0, 12) : "unknown");
+    return [
+        `FAILED JOB: run ${f.runId ?? "unknown"}, job id ${f.jobId ?? "unknown"} (lane ${f.lane ?? "unknown"})`,
+        `RED COMMIT: ${short(f.redSha)}; LAST GREEN COMMIT: ${short(f.greenSha)}`,
+    ];
+}
 
 /** The done-condition of every other kind. */
 const DONE = /** @type {Record<string, string>} */ ({
@@ -95,6 +118,7 @@ function refreshLines(facts) {
 
 /** How to report the end, by kind. */
 const FINISH = /** @type {Record<string, string>} */ ({
+    verdict: "Call githerd_verdict, then githerd_done with outcome done and your reason as the findings.",
     triage: "Call githerd_done with outcome done and result set to one entry per issue.",
     review: "Call githerd_done with outcome done and result set to your verdict, the patch id and your notes.",
 });
@@ -173,11 +197,15 @@ export function jobText(job, ctx = {}) {
     if (refresh) done = REFRESH_DONE;
     else if (job.kind === "incident") done = INCIDENT_DONE[job.facts?.scope ?? "master"];
     if (!done) throw new Error(`no done-condition for incident scope ${job.facts?.scope}`);
-    const purpose = refresh ? REFRESH_PURPOSE : PURPOSE[job.kind];
+    const verdict = job.kind === "incident" && job.facts?.scope === "verdict";
+    let purpose = refresh ? REFRESH_PURPOSE : PURPOSE[job.kind];
+    if (verdict) purpose = VERDICT_PURPOSE;
     const lines = [`JOB ${job.id}`, `TARGET: ${TARGET_NOUN[job.kind]} ${job.target}`, `WHAT FOR: ${purpose}`];
     if (job.reason) lines.push(`WHY NOW: ${job.reason}`);
-    lines.push(`DONE WHEN: ${done}`, `TO FINISH: ${FINISH[job.kind] ?? FINISH_DEFAULT}`, ...earlier(job));
+    const finish = FINISH[verdict ? "verdict" : job.kind] ?? FINISH_DEFAULT;
+    lines.push(`DONE WHEN: ${done}`, `TO FINISH: ${finish}`, ...earlier(job));
     if (refresh) lines.push(...refreshLines(job.facts));
+    if (verdict) lines.push(...verdictLines(job.facts));
     const policies = (ctx.policies ?? []).filter((p) => !p.endedAt && p.text);
     if (policies.length) lines.push("OWNER POLICIES:", ...policies.map((p) => `  - ${p.text}`));
     lines.push("RULES:", ...RULES.map((r) => `  - ${r}`));

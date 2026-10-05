@@ -402,7 +402,7 @@ describe("HTTP endpoints", () => {
         expect(daemon.url).toBe(`http://127.0.0.1:${daemon.port}`);
     });
 
-    it("lists the twelve session tools on /rpc", async () => {
+    it("lists the thirteen session tools on /rpc", async () => {
         const daemon = await start();
         const res = await fetch(`${daemon.url}/rpc`, {
             method: "POST",
@@ -411,7 +411,7 @@ describe("HTTP endpoints", () => {
         });
         const names = (await res.json()).result.tools.map((t) => t.name);
         expect(names).toEqual(TOOLS.map((t) => t.name));
-        expect(names).toHaveLength(12);
+        expect(names).toHaveLength(13);
     });
 
     it("persists a job claim before replying, and a notification gets 202", async () => {
@@ -652,15 +652,16 @@ describe("the poll loop", () => {
         expect(daemon.state.ownerItems[`master-red:${id}`]).toMatchObject({ endedBy: "cleared" });
 
         // the dry-run fake gh recorded no write; from the reconcile after the red sighting the failing
-        // job would have been re-run once on the red head and once on the last green commit
+        // job would have been re-run once on the red head
         expect(gh.calls.length).toBeGreaterThan(0);
         expect(gh.writes()).toEqual([]);
         const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
         expect(wouldDo.map((e) => [e.group, e.op, e.situation, e.key])).toEqual([
             // the incident job a worker would take, were the workers group acting
-            ["workers", "start a worker for incident-ci-Build-", undefined, undefined],
+            // the verdict job a worker would take, were the workers group acting
+            ["workers", "start a worker for verdict-ci-Build-", undefined, undefined],
+            // no parent re-test: that waits for Claude's code verdict
             ["incidents", "POST actions/jobs/900/rerun", "red-head-rerun", "ci / Build / "],
-            ["incidents", "POST actions/jobs/900/rerun", "parent-retest", "ci / Build / "],
         ]);
         // git ran with no prompt, only to fetch the default branch when its head moved and to read
         // its .mergify.yml after each fetch and once per start
@@ -1404,42 +1405,96 @@ describe("failure classes on master", () => {
         expect(daemon.state.ownerItems["paid-capacity:gpu"]).toMatchObject({ endedBy: "cleared" });
     });
 
-    it("parks a lane whose job container lacks a system library: an owner item, no incident, no hold", async () => {
+    /**
+     * Calls `githerd_verdict` as an owner session would.
+     * @param {any} daemon the daemon
+     * @param {any} args the tool's arguments
+     * @returns {Promise<any>} the parsed answer
+     */
+    const verdict = async (daemon, args) => {
+        const reply = await daemon.rpc(
+            {
+                jsonrpc: "2.0",
+                id: 1,
+                method: "tools/call",
+                params: { _meta: META, name: "githerd_verdict", arguments: args },
+            },
+            { session: "owner-1" },
+        );
+        return JSON.parse(reply.result.content.at(-1).text);
+    };
+
+    it("holds a failure no pattern knows for Claude: one re-run, a hold, a verdict job; environment lifts it", async () => {
         gpuConfig();
+        const glib = (/** @type {number} */ id) => ({
+            id,
+            run_attempt: 1,
+            name: "Test (NVIDIA T4)",
+            conclusion: "failure",
+            labels: [RENTED],
+            steps: [{ name: "Browser smoke on NVIDIA", conclusion: "failure" }],
+        });
         scene.gpu = [{ ...run(210, A, "failure"), name: "GPU" }];
-        scene.jobs = {
-            210: [
-                {
-                    id: 2100,
-                    run_attempt: 1,
-                    name: "Test (NVIDIA T4)",
-                    conclusion: "failure",
-                    labels: [RENTED],
-                    steps: [{ name: "Browser smoke on NVIDIA", conclusion: "failure" }],
-                },
-            ],
-        };
+        scene.jobs = { 210: [glib(2100)] };
         scene.annotations = [{ message: "Process completed with exit code 1." }];
+        // GPU job 111465235370, 2026-10-04: the job container had no glib.
         scene.logs = {
             2100: "chrome-headless-shell: error while loading shared libraries: libglib-2.0.so.0: cannot open shared object file: No such file or directory\n##[error]Process completed with exit code 1.",
         };
         const daemon = await start();
-        for (const at of ["12:00", "12:03"]) {
+        for (const at of ["12:00", "12:03", "12:06"]) {
             clock = new Date(`2026-10-02T${at}:00Z`);
             await poll(daemon);
         }
-        expect(daemon.state.master.lanes.gpu).toMatchObject({ verdict: "red", redClass: "drift" });
-        expect(daemon.state.master.lanes.gpu.redJobs[0].reason).toBe("missing system library");
-        expect(daemon.state.incidents).toEqual({});
-        expect(daemon.state.ownerItems["drift:gpu"]).toMatchObject({ blocks: "release" });
-        expect(daemon.state.ownerItems["drift:gpu"].question).toMatch(/^gpu fails on its runner environment/);
-        expect(gh.writes()).toEqual([]);
-        // The log is read once, when the job's steps and annotations alone read as code.
+        const KEY = "GPU / Test (NVIDIA T4) / Browser smoke on NVIDIA";
+        expect(daemon.state.master.lanes.gpu).toMatchObject({ verdict: "red", redClass: "unclassified" });
+        // The log is read once, when the job's steps and annotations alone match no pattern.
         const logReads = gh.calls.filter((c) => c.args.at(-1)?.endsWith("/actions/jobs/2100/logs"));
         expect(logReads).toHaveLength(1);
+        const [incident] = Object.values(daemon.state.incidents);
+        expect(incident.status).toBe("open");
+        const verdictJobs = Object.values(daemon.state.jobs).filter((j) => j.facts?.scope === "verdict");
+        expect(verdictJobs).toEqual([
+            expect.objectContaining({ kind: "incident", target: KEY, priority: "urgent", state: "queued" }),
+        ]);
+        expect(verdictJobs[0].facts).toMatchObject({ lane: "gpu", runId: 210, jobId: 2100 });
+        expect(Object.keys(daemon.state.jobs).filter((id) => id.startsWith("incident-"))).toEqual([]);
+        // Only the reversible step: one re-run of the red head; no parent re-test, no revert.
+        const incidents = async () =>
+            (await readLedger(join(dir, ".githerd"))).filter((e) => e.group === "incidents").map((e) => e.situation);
+        expect(await incidents()).toEqual(["red-head-rerun"]);
+
+        // A key that is not waiting for a verdict is refused.
+        await expect(verdict(daemon, { key: "GPU / x / y", verdict: "code", reason: "r" })).rejects.toThrow();
+        expect(
+            await verdict(daemon, { key: KEY, verdict: "environment", reason: "the job container lacks glib" }),
+        ).toMatchObject({ ok: true, verdict: "environment" });
+        expect(await verdict(daemon, { key: KEY, verdict: "code", reason: "changed my mind" })).toMatchObject({
+            ok: false,
+        });
+        clock = new Date("2026-10-02T12:08:00Z");
+        await poll(daemon);
+        // No hold, no incident, and no owner item until the failure persists.
+        expect(daemon.state.master.lanes.gpu).toMatchObject({ redClass: "environment", redPersists: false });
+        expect(incident).toMatchObject({ status: "resolved", resolvedAs: "environment" });
+        expect(daemon.state.jobs[verdictJobs[0].id].state).toBe("cancelled");
+        expect(daemon.state.ownerItems?.["environment:gpu"]).toBeUndefined();
+
+        // The next run fails the same way: the owner hears of it.
+        scene.gpu = [{ ...run(211, A, "failure"), name: "GPU" }, ...scene.gpu];
+        scene.jobs[211] = [glib(2110)];
+        scene.logs[2110] = scene.logs[2100];
+        clock = new Date("2026-10-02T12:09:00Z");
+        await poll(daemon);
+        expect(daemon.state.master.lanes.gpu).toMatchObject({ redClass: "environment", redPersists: true });
+        expect(daemon.state.ownerItems["environment:gpu"]).toMatchObject({ blocks: "release" });
+        expect(daemon.state.ownerItems["environment:gpu"].question).toMatch(/^gpu still fails, and Claude judged it/);
+        expect(Object.values(daemon.state.incidents).filter((i) => i.status === "open")).toEqual([]);
+        expect(await incidents()).toEqual(["red-head-rerun"]);
+        expect(gh.writes()).toEqual([]);
     });
 
-    it("parks a benchmark regression measured at a refused clock lock: no incident, no suspects, no hold", async () => {
+    it("goes on to the parent re-test once Claude judges the failure code", async () => {
         gpuConfig();
         scene.gpu = [{ ...run(220, A, "failure"), name: "GPU" }];
         scene.jobs = {
@@ -1454,25 +1509,22 @@ describe("failure classes on master", () => {
                 },
             ],
         };
-        // GPU job 111514123789's annotations, as recorded on 2026-10-04.
-        scene.annotations = [
-            { message: "Process completed with exit code 1." },
-            {
-                message:
-                    "nvidia-smi -lgc 1590,1590 was refused: the benchmarks run at the power governor's clock (issue #703)",
-            },
-        ];
         const daemon = await start();
         for (const at of ["12:00", "12:03"]) {
             clock = new Date(`2026-10-02T${at}:00Z`);
             await poll(daemon);
         }
-        expect(daemon.state.master.lanes.gpu).toMatchObject({ verdict: "red", redClass: "drift" });
-        expect(daemon.state.master.lanes.gpu.redJobs[0].reason).toBe("benchmark run at an unlocked GPU clock");
-        expect(daemon.state.incidents).toEqual({});
-        // The release still waits for a green GPU run; merges do not.
-        expect(daemon.state.ownerItems["drift:gpu"]).toMatchObject({ blocks: "release" });
-        expect(gh.writes()).toEqual([]);
+        const KEY = "GPU / Test (NVIDIA T4) / Run node scripts/bench-compare.js";
+        expect(
+            await verdict(daemon, { key: KEY, verdict: "code", reason: "the kernel change slowed fr-10k" }),
+        ).toMatchObject({ ok: true });
+        clock = new Date("2026-10-02T12:06:00Z");
+        await poll(daemon);
+        expect(daemon.state.master.lanes.gpu.redClass).toBe("code");
+        expect(Object.keys(daemon.state.jobs).filter((id) => id.startsWith("incident-"))).toHaveLength(1);
+        const jobs = Object.values(daemon.state.jobs);
+        expect(jobs.find((j) => j.facts?.scope === "verdict")?.state).toBe("cancelled");
+        expect(Object.values(daemon.state.incidents)[0].status).toBe("open");
     });
 
     it("parks a package-server outage during an install, whatever the summary jobs beside it say", async () => {
@@ -1545,8 +1597,8 @@ describe("failure classes on master", () => {
         expect(daemon.state.master.lanes.ci.redReason).toBe("Build: Build packages");
         const [incident] = Object.values(daemon.state.incidents);
         expect(Object.keys(incident.keys)).toEqual(["CI / Build / Build packages"]);
-        expect(Object.keys(daemon.state.jobs).filter((id) => id.startsWith("incident-"))).toEqual([
-            "incident-CI-Build-Build-packages",
+        expect(Object.keys(daemon.state.jobs).filter((id) => /^(?:incident|verdict)-/.test(id))).toEqual([
+            "verdict-CI-Build-Build-packages",
         ]);
     });
 

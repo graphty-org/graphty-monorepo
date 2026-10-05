@@ -91,7 +91,8 @@ function replayMerges() {
     const jobsByRun = new Map();
     for (const j of replay.record.failedJobs) jobsByRun.set(j.run, [...(jobsByRun.get(j.run) ?? []), j]);
     /**
-     * Whether a red run is code: any failed job past class 4, or no failed job recorded.
+     * Whether a red run holds merges: any failed job that matched no unambiguous pattern (held
+     * until Claude's verdict), or no failed job recorded.
      * @param {string} workflow the lane
      * @param {number} runId its first red run
      * @returns {boolean} true for code
@@ -106,7 +107,7 @@ function replayMerges() {
             jobs.some(
                 (/** @type {any} */ j) =>
                     classify({ workflow, job: j.job, steps: j.steps, labels: labels(j.job) }, { where: "master" })
-                        .class === "code",
+                        .class === "unclassified",
             )
         );
     };

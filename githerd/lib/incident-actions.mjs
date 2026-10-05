@@ -61,12 +61,14 @@ const REVERT = `mutation RevertPullRequest($id: ID!, $title: String!, $body: Str
  *   `intermittent` issue per `<sha> <key>`, and when each would-do of a group that did not act was
  *   ledgered
  * @typedef {{
- *   key: string, redSha: string, redJob: JobRef, parentSha: string | null, parentJob: JobRef | null,
- *   suspects: import("./incident.mjs").Suspect[], confirmed: boolean, excerpt: string,
- * }} CodeRed one code-red key on master: the red commit and its failing job, the last green
- *   commit and the same job of its run (null when not known), the first-parent commits between
- *   them, whether an earlier reconcile already saw the key red (the first one posts the merge
- *   hold and reads the steps; design 4.5 steps 1 to 3), and a log excerpt for the issue
+ *   key: string, verdict?: "code" | null, redSha: string, redJob: JobRef, parentSha: string | null,
+ *   parentJob: JobRef | null, suspects: import("./incident.mjs").Suspect[], confirmed: boolean,
+ *   excerpt: string,
+ * }} CodeRed one code-red key on master: Claude's verdict on it (`code`, or null while it is
+ *   unclassified), the red commit and its failing job, the last green commit and the same job of
+ *   its run (null when not known), the first-parent commits between them, whether an earlier
+ *   reconcile already saw the key red (the first one posts the merge hold and reads the steps;
+ *   design 4.5 steps 1 to 3), and a log excerpt for the issue
  * @typedef {{
  *   lane: string, openedAt: number, run: {id: number, attempt: number},
  *   running: boolean, notProgressing: boolean,
@@ -385,20 +387,24 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
 
     /**
      * The incident procedure's daemon steps for one code-red key (design 4.5, steps 3 and 4): from
-     * the reconcile after its first sighting, re-run the failing job on the red head and the same
-     * job of the last green commit's run, then act on the outcome table: an intermittent pass files
-     * the issue, a single merge between green and red is reverted. The other outcomes are the
-     * worker's.
+     * the reconcile after its first sighting, re-run the failing job on the red head, then act on
+     * the outcome table: an intermittent pass files the issue. While the key has no `code` verdict
+     * from Claude nothing else happens, because a re-run is the only reversible step (the owner's
+     * decision of 2026-10-05). With one, the same job of the last green commit's run is re-run and a
+     * single merge between green and red is reverted. The other outcomes are the worker's.
      * @param {CodeRed} inc the key
-     * @returns {Promise<import("./incident.mjs").Outcome | {outcome: "waiting", waitingFor: "confirmation"}
+     * @returns {Promise<import("./incident.mjs").Outcome
+     *   | {outcome: "waiting", waitingFor: "confirmation" | "verdict"}
      *   | (import("./incident.mjs").Outcome & {issue?: number | null, revertPr?: number | null})>} the
      *   outcome, with the issue or revert pull request it led to (null: not made yet)
      */
     async function codeRed(inc) {
         if (!inc.confirmed) return { outcome: "waiting", waitingFor: "confirmation" };
         await rerun(inc.redJob, inc.redSha, inc.key, "red-head-rerun");
-        if (inc.parentJob && inc.parentSha) await rerun(inc.parentJob, inc.parentSha, inc.key, "parent-retest");
+        const code = inc.verdict === "code";
+        if (code && inc.parentJob && inc.parentSha) await rerun(inc.parentJob, inc.parentSha, inc.key, "parent-retest");
         const redHead = await rerunResult(inc.redJob);
+        if (!code && redHead !== "success") return { outcome: "waiting", waitingFor: "verdict" };
         const parent = redHead === "failure" && inc.parentJob ? await rerunResult(inc.parentJob) : null;
         const out = incidentOutcome({ redHead, parent, suspects: inc.suspects });
         if (out.outcome === "intermittent")

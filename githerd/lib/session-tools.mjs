@@ -1,5 +1,5 @@
 /**
- * The handlers of the twelve tools of design section 6, as the daemon serves them to every session:
+ * The handlers of the thirteen tools of design section 6, as the daemon serves them to every session:
  * owner sessions and workers. Names, descriptions and schemas are
  * `TOOLS` in mcp.mjs; the session's MCP server forwards calls here with `params._meta.githerd`
  * (the client's protocol, session, job and nonce), and the MCP core refuses a call in a protocol
@@ -167,7 +167,7 @@ function snapshot(ctx) {
 }
 
 /**
- * The twelve tools with their handlers, bound to one request.
+ * The thirteen tools with their handlers, bound to one request.
  * @param {SessionToolContext} ctx the request context
  * @returns {import("./mcp.mjs").Tool[]} the tools
  */
@@ -338,6 +338,32 @@ export function sessionToolSet(ctx) {
                 until: "this session ends or a new push",
             });
         },
+        githerd_verdict: async (args, caller, client) => {
+            const session = sessionOf(caller, client);
+            if (!session) throw new Error("this session is not identified yet; try again in a moment");
+            const found = unjudged(state, args.key);
+            if (!found) throw new Error(`${args.key} is not a red failure on master that waits for a verdict`);
+            const verdicts = (found.lane.verdicts ??= {});
+            const had = verdicts[args.key];
+            if (had) {
+                const text = `${args.key} was already judged ${had.verdict} at ${had.at}: ${had.reason}`;
+                return { text: JSON.stringify({ ok: false, reason: text }), isError: true };
+            }
+            const at = now.toISOString();
+            verdicts[args.key] = {
+                verdict: args.verdict,
+                reason: args.reason,
+                by: session,
+                at,
+                runId: found.lane.runId,
+            };
+            await ctx.commit({ kind: "verdict", key: args.key, verdict: args.verdict, reason: args.reason, session });
+            const effect =
+                args.verdict === "code"
+                    ? "the incident procedure goes on, its revert step included"
+                    : "the merge hold lifts at the next poll; the owner is told if the failure persists";
+            return JSON.stringify({ ok: true, key: args.key, verdict: args.verdict, effect });
+        },
     };
 
     return TOOLS.map((tool) => ({
@@ -356,6 +382,23 @@ export function sessionToolSet(ctx) {
             return handlers[tool.name](args, caller, client ?? {});
         },
     }));
+}
+
+/**
+ * The red master lane with a failing job on a key that matched no unambiguous pattern (design 4.4),
+ * or null.
+ * @param {any} state the daemon state
+ * @param {string} key the failure key
+ * @returns {{name: string, lane: any} | null} the lane
+ */
+function unjudged(state, key) {
+    for (const [name, lane] of Object.entries(state.master?.lanes ?? {})) {
+        const l = /** @type {any} */ (lane);
+        if (l.verdict !== "red") continue;
+        if ((l.redJobs ?? []).some((/** @type {any} */ j) => j.key === key && j.textClass === "unclassified"))
+            return { name, lane: l };
+    }
+    return null;
 }
 
 /**

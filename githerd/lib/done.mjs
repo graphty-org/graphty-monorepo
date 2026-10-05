@@ -15,7 +15,8 @@
  *   tool's `update` all add such a merge). Its required checks are green, or the only failing one is
  *   the owner's visual review, and `githerd/merge` does not fail on a line the worker can fix. An
  *   `issue` job's pull request must reference the issue.
- * - `incident`: master and low-priority scopes need the lane's newest master run green at a commit
+ * - `incident`: a verdict job needs Claude's verdict on its key recorded; master and low-priority
+ *   scopes need the lane's newest master run green at a commit
  *   containing the fix; a shared key also needs one canary pull request green on a head containing
  *   it; a release key must be gone from the daemon's release truth; a local key needs the gate to
  *   pass on the green commit.
@@ -217,6 +218,13 @@ async function canaryAnswer(prs, fix, view) {
  */
 async function incidentAnswer(job, report, view) {
     const scope = job.facts?.scope;
+    if (scope === "verdict") {
+        // A lane that is no longer red has nothing left to judge.
+        const lane = view.state.master?.lanes?.[job.facts.lane];
+        return lane?.verdict !== "red" || lane.verdicts?.[job.target]
+            ? { holds: true }
+            : { missing: [`no verdict for ${job.target}: call githerd_verdict with code or environment`] };
+    }
     if (scope === "release" || scope === "local") return conditionAnswer(job, view);
     const fix = report.pushedHead ?? job.pushedHead;
     if (!fix) return { missing: ["pushedHead: name the fix commit you pushed"] };

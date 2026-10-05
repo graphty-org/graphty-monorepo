@@ -484,6 +484,20 @@ describe("verifyClaim", () => {
         });
     });
 
+    it("accepts a verdict job once its key has a verdict, or once its lane is no longer red", async () => {
+        const KEY = "CI / Build / x";
+        const job = working("incident", KEY, { scope: "verdict", lane: "CI" });
+        const io = fakeIo();
+        const red = (/** @type {any} */ verdicts) => state({ master: { lanes: { CI: { verdict: "red", verdicts } } } });
+        expect(await verifyClaim(job, report(), view(red({}), io))).toEqual({
+            missing: [`no verdict for ${KEY}: call githerd_verdict with code or environment`],
+        });
+        const judged = red({ [KEY]: { verdict: "environment" } });
+        expect(await verifyClaim(job, report(), view(judged, io))).toEqual({ holds: true });
+        const green = state({ master: { lanes: { CI: { verdict: "green" } } } });
+        expect(await verifyClaim(job, report(), view(green, io))).toEqual({ holds: true });
+    });
+
     it("leaves release, local gate and npm checks undecided without their facts", async () => {
         const io = fakeIo({ releaseOpen: () => null, localGate: () => null, npmLatest: async () => null });
         expect(

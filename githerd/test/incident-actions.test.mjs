@@ -138,11 +138,17 @@ const done = (conclusion, name = "Test (NVIDIA T4)") => [{ name, status: "comple
  * A code-red key: red run 2, last green run 1.
  * @param {{sha: string, pr: number | null}[]} [suspects] the merges between them
  * @param {boolean} [confirmed] whether an earlier reconcile saw the key
+ * @param {"code" | null} [verdict] Claude's verdict; null while the key is unclassified
  * @returns the key's incident input
  */
-function incident(suspects = [{ sha: "c2", pr: 701 }], confirmed = true) {
+function incident(
+    suspects = [{ sha: "c2", pr: 701 }],
+    confirmed = true,
+    verdict = /** @type {"code" | null} */ ("code"),
+) {
     return {
         key: KEY,
+        verdict,
         redSha: "c2".padEnd(40, "0"),
         redJob: job(2, 1),
         parentSha: "c1".padEnd(40, "0"),
@@ -213,6 +219,41 @@ describe("codeRed: the incident procedure's daemon steps", () => {
             waitingFor: "confirmation",
         });
         expect(repo.gh.calls).toEqual([]);
+    });
+
+    it("without Claude's code verdict, only re-runs the red head: no parent re-test and no revert", async () => {
+        // The red head fails again, the parent would pass, and one merge lies between them: the
+        // revert case of the table, held until Claude says it is the code.
+        const repo = fakeRepo({
+            runs: { 1: 1, 2: 1 },
+            jobs: { "2/2": done("failure"), "1/2": done("success") },
+            pulls: [
+                { number: 701, title: "fix(tools): x", state: "closed", base: { ref: "master" }, node_id: "PR701" },
+            ],
+        });
+        const { actions } = setup(repo);
+        expect(await actions.codeRed(incident(undefined, true, null))).toEqual({
+            outcome: "waiting",
+            waitingFor: "verdict",
+        });
+        expect(await actions.codeRed(incident(undefined, true, null))).toEqual({
+            outcome: "waiting",
+            waitingFor: "verdict",
+        });
+        expect(repo.gh.writes().map((c) => c.args[4])).toEqual([`${R}actions/jobs/20/rerun`]);
+        expect(repo.s.pulls.filter((p) => p.title.startsWith("Revert"))).toEqual([]);
+        // Claude says code: the parent is re-tested, and its pass makes the one merge the revert.
+        expect(await actions.codeRed(incident())).toMatchObject({ outcome: "revert", revertPr: 901 });
+        expect(repo.gh.writes()[1].args[4]).toBe(`${R}actions/jobs/10/rerun`);
+    });
+
+    it("without a verdict, a red-head pass is still intermittent", async () => {
+        const repo = fakeRepo({ runs: { 1: 1, 2: 1 }, jobs: { "2/2": done("success") } });
+        const { actions } = setup(repo);
+        expect(await actions.codeRed(incident(undefined, true, null))).toMatchObject({
+            outcome: "intermittent",
+            issue: 800,
+        });
     });
 
     it("re-runs the red head and the parent once each, then waits for the red head's answer", async () => {

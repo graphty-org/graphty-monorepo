@@ -101,7 +101,15 @@ const FIXTURES = {
             "The self-hosted runner lost communication with the server. Verify the machine is running and has a healthy network connection.",
         ],
     }),
-    // Coverage job 109002321893, 2026-09-28.
+    // GitHub's answer when a hosted runner went away mid-job.
+    "runner lost mid-job": job({
+        steps: ["Run tests"],
+        annotations: [
+            "The hosted runner: GitHub Actions 12 lost communication with the server. Anything in your workflow that terminates the runner process, starves it for CPU/Memory, or blocks its network access can cause this error.",
+        ],
+    }),
+    // curl's answer when the resolver does not answer.
+    "DNS lookup failed": job({ steps: ["Install"], log: "curl: (6) Could not resolve host: registry.npmjs.org" }),
     // CI run 37244710257, job Test (graphty-element-browser-4), 2026-10-04: packages.microsoft.com
     // refused the apt index while Playwright installed its system dependencies.
     "package server or mirror failed an install": job({
@@ -114,86 +122,46 @@ const FIXTURES = {
             "Error: Installation process exited with code: 100",
         ].join("\n"),
     }),
-    "third-party 5xx": job({
-        workflow: "Coverage",
-        job: "Publish Coverage",
-        steps: ["Publish to Coveralls"],
-        log: "Error: Internal Server Error (500)\nInternal server error. Please contact Coveralls team with the error details above.",
-    }),
-    // npm's answer when the registry does not answer.
-    "connection error naming a remote host": job({
-        steps: ["Install dependencies"],
-        log: "npm error request to https://registry.npmjs.org/braces failed, reason: connect ETIMEDOUT 104.16.1.35:443",
-    }),
     // corepack's answer when it cannot fetch pnpm.
-    "registry or corepack error": job({
+    "package registry fetch failed": job({
         steps: ["Setup pnpm"],
         log: "Internal Error: Error when performing the request to https://registry.npmjs.org/pnpm/latest; for troubleshooting help, see https://github.com/nodejs/corepack#troubleshooting",
-    }),
-    // GitHub's notice for a retired action version.
-    "deprecated runner or action": job({
-        steps: [],
-        annotations: [
-            "This request has been automatically failed because it uses a deprecated version of `actions/upload-artifact: v3`.",
-        ],
-    }),
-    // GPU job 111465235370, 2026-10-04 15:51: the job container had no glib; the text only in the log.
-    "missing system library": job({
-        workflow: "GPU",
-        job: "Test (NVIDIA T4)",
-        steps: ["Browser smoke on NVIDIA"],
-        labels: RENTED,
-        annotations: ["Process completed with exit code 1."],
-        log: [
-            "2026-10-04T15:51:34.7702851Z [pid=15976][err] /github/home/.cache/ms-playwright/chromium_headless_shell-1200/chrome-headless-shell-linux64/chrome-headless-shell: error while loading shared libraries: libglib-2.0.so.0: cannot open shared object file: No such file or directory",
-            "2026-10-04T15:51:34.8792926Z ##[error]Process completed with exit code 1.",
-        ].join("\n"),
-    }),
-    // The dynamic loader's answer to a binary built for a newer C library.
-    "C library too old": job({
-        log: "node: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.38' not found (required by node)",
-    }),
-    // Playwright's answers to a browser, or its system packages, missing from the image.
-    "browser or its system dependencies not installed": job({
-        log: "browserType.launch: Executable doesn't exist at /home/runner/.cache/ms-playwright/chromium_headless_shell-1200/chrome-headless-shell-linux64/chrome-headless-shell",
-    }),
-    // The kernel's answer when the runner's disk is full.
-    "runner out of disk space": job({ log: "Error: ENOSPC: no space left on device, write" }),
-    // GPU job 111514123789 (run 37228458287, 7fd13ca, 2026-10-04): one benchmark 2.8x over its
-    // baseline after the clock lock was refused; its annotations as recorded.
-    "benchmark run at an unlocked GPU clock": job({
-        workflow: "GPU",
-        job: "Test (NVIDIA T4)",
-        steps: ["Run node scripts/bench-compare.js"],
-        labels: RENTED,
-        annotations: GPU_CLOCK_REFUSED,
     }),
 };
 
 describe("the pattern table", () => {
-    it("reads a missing system library on master as the environment, not code", () => {
-        const v = classify(FIXTURES["missing system library"], { where: "master" });
-        expect(v).toMatchObject({ class: "drift", reason: "missing system library" });
-        // Without its log the same job is code: the error is in no step name or annotation.
-        expect(classify({ ...FIXTURES["missing system library"], log: null }, { where: "master" }).class).toBe("code");
-    });
-
-    it("reads a benchmark regression at a refused clock lock as the environment, and nothing else", () => {
-        const bench = FIXTURES["benchmark run at an unlocked GPU clock"];
-        expect(classify(bench, { where: "master" })).toMatchObject({
-            class: "drift",
-            reason: "benchmark run at an unlocked GPU clock",
+    it("leaves the environment failures that are not unambiguous to Claude on master", () => {
+        // GPU job 111465235370, 2026-10-04: the job container had no glib. Environment or code is
+        // Claude's verdict now, not a pattern's.
+        const glib = job({
+            workflow: "GPU",
+            job: "Test (NVIDIA T4)",
+            steps: ["Browser smoke on NVIDIA"],
+            labels: RENTED,
+            log: "chrome-headless-shell: error while loading shared libraries: libglib-2.0.so.0: cannot open shared object file",
         });
-        // The lock held: the regression is the code's.
-        const locked = GPU_CLOCK_REFUSED.filter((a) => !a.includes("nvidia-smi"));
-        expect(classify({ ...bench, annotations: locked }, { where: "master" }).class).toBe("code");
-        // A test failed besides the comparison: code, whatever the clock.
-        const tests = { ...bench, steps: ["Run node tests", "Run node scripts/bench-compare.js"] };
-        expect(classify(tests, { where: "master" }).class).toBe("code");
-        // The warning as the log prints it counts the same as its annotation.
-        const log =
-            "2026-10-04T19:31:02Z ##[warning]nvidia-smi -lgc 1590,1590 was refused: the benchmarks run at the power governor's clock (issue #703)";
-        expect(classify({ ...bench, annotations: locked, log }, { where: "master" }).class).toBe("drift");
+        expect(classify(glib, { where: "master" })).toMatchObject({ class: "unclassified" });
+        // GPU job 111514123789: a benchmark at a refused clock lock.
+        const bench = job({
+            workflow: "GPU",
+            job: "Test (NVIDIA T4)",
+            steps: ["Run node scripts/bench-compare.js"],
+            labels: RENTED,
+            annotations: GPU_CLOCK_REFUSED,
+        });
+        expect(classify(bench, { where: "master" }).class).toBe("unclassified");
+        // A third party's 500 and a connection error are not known outages either.
+        for (const log of [
+            "Error: Internal Server Error (500)\nInternal server error. Please contact Coveralls team.",
+            "npm error request to https://registry.npmjs.org/braces failed, reason: connect ETIMEDOUT 104.16.1.35:443",
+            "No space left on device",
+            // CI job 103414194732, 2026-09-11: remote-logger's tests resolving a made-up host.
+            "Error: getaddrinfo EAI_AGAIN test-server",
+        ]) {
+            expect(classify(job({ log }), { where: "master" }).class, log).toBe("unclassified");
+        }
+        // On a pull request the same text is its own.
+        expect(classify(bench).class).toBe("own");
     });
 
     it("has one fixture per pattern, and each fixture is matched by its own pattern", () => {
@@ -206,7 +174,7 @@ describe("the pattern table", () => {
     });
 
     it("lists the patterns in class order", () => {
-        const order = ["credential", "paid-capacity", "outside", "drift"];
+        const order = ["credential", "paid-capacity", "outside"];
         const ranks = PATTERNS.map((p) => order.indexOf(p.class));
         expect(ranks.every((r) => r >= 0)).toBe(true);
         expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
@@ -223,7 +191,11 @@ describe("the pattern table", () => {
             log: "##[error]The runner has received a shutdown signal. This can happen when the runner service is stopped, or a manually started runner is canceled.",
         });
         expect(classify(shutdown).class).toBe("paid-capacity");
-        expect(classify({ ...shutdown, labels: ["gpu-linux-t4"] }).class).toBe("own");
+        // The same loss on a runner nobody pays for is an outage: re-run it.
+        expect(classify({ ...shutdown, labels: ["gpu-linux-t4"] })).toMatchObject({
+            class: "outside",
+            reason: "runner lost mid-job",
+        });
         // A hosted job with no steps is not runner loss on a paid label.
         expect(classify(job({ steps: [], labels: ["gpu-linux-t4"] })).class).toBe("own");
     });
@@ -254,26 +226,22 @@ describe("the pattern table", () => {
 describe("classes from facts", () => {
     const own = job({ job: "Test (graphty)", steps: ["Run tests"], files: ["graphty/src/App.tsx"] });
 
-    it("orders outside, drift, inherited, shared, intermittent and own", () => {
+    it("orders inherited, shared, intermittent and own", () => {
         expect(classify(own).class).toBe("own");
         expect(classify(own, { intermittent: [classify(own).key] }).class).toBe("intermittent");
         expect(classify(own, { intermittent: ["other"], failsOnGreen: true }).class).toBe("shared");
         expect(classify(own, { others: 1, intermittent: [classify(own).key] }).class).toBe("shared");
         expect(classify(own, { masterRed: [classify(own).key], others: 3 }).class).toBe("inherited");
-        expect(classify(own, { drift: ["+ Version: 20251001.1"], masterRed: [classify(own).key] }).class).toBe("drift");
-        expect(classify(own, { platformDegraded: true, drift: ["+ x"] }).class).toBe("outside");
-        expect(classify(own, { drift: [] }).class).toBe("own");
     });
 
-    it("stops at class 4 on master: everything else is code", () => {
+    it("stops at class 3 on master: everything else waits for Claude's verdict", () => {
         const v = classify(own, {
             where: "master",
             masterRed: [classify(own).key],
             others: 5,
             intermittent: [classify(own).key],
         });
-        expect(v.class).toBe("code");
-        expect(classify(FIXTURES["third-party 5xx"], { where: "master" }).class).toBe("outside");
+        expect(v.class).toBe("unclassified");
         // A package server's outage during an install is no incident against the code.
         expect(classify(FIXTURES["package server or mirror failed an install"], { where: "master" }).class).toBe(
             "outside",
@@ -287,9 +255,8 @@ describe("classes from facts", () => {
         }
         // A failed fetch with no server error says nothing about the server.
         expect(classify(job({ log: "Failed to fetch https://example.test/x 200 OK" }), { where: "master" }).class).toBe(
-            "code",
+            "unclassified",
         );
-        expect(classify(own, { where: "master", drift: ["- a"] }).class).toBe("drift");
     });
 
     it("explains a shared verdict", () => {

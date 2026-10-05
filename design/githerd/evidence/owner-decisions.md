@@ -157,6 +157,20 @@ using the best tool for the job." The memory note on using Claude for judgment g
 anything that needs understanding is judged by Claude from the real inputs, and code only
 validates and enforces the answer.
 
+**Claude triage before any revert (2026-10-05).** The failure classifier's text patterns had
+grown to guess at the environment (a missing system library, a full disk, a third-party 5xx, a
+benchmark at an unlocked clock), and a wrong guess either reverts good code or lets a regression
+through. The owner's decision: the patterns keep only the unambiguous failures with an obvious
+action (a credential, paid capacity, a runner lost mid-job, the known outside outages: a package
+mirror, DNS). Every other master failure is unclassified and gets an urgent triage job: a Claude
+session, a worker or an owner session, reads the failed step's log and the commits since the last
+green run and records a verdict, code or environment with a short reason, through the
+`githerd_verdict` tool. While a failure is unclassified githerd only does reversible things: it
+re-runs the failed job once and holds merges on the affected pull requests. A revert, and the
+incident procedure's revert step, requires a code verdict. An environment verdict lifts the merge
+hold, and if the failure persists it raises an owner item. This applies the standing rule above:
+Claude makes the judgment call, code enforces it.
+
 **REJECTED: footprints guessed from issue text (2026-10-03 04:31).** The proposal: before any
 work starts, guess which files an issue touches by parsing paths and package names from its text.
 Owner: "stage 1 sounds like magic, there's no way that would work in practice".

@@ -132,6 +132,7 @@ the worker guard's unit tests; "self-test" the platform self-test (section 11.4)
 | "how do you ensure that the agents keep pulling work from githerd?" [OD 2] | The daemon fills free slots; the Stop gate blocks an unfinished stop; declared waits are watched by the daemon, which rings the session when they end (sections 7.3 to 7.5) | self-test, replay |
 | "I just want the skill to poll, including polling master ... it should run forever after I start it" [OD 2] | 60-second conditional polls; restart by servherd, by every live session's MCP server and by `githerd ensure`; fatal mode instead of exit (sections 4.2, 9.6) | replay |
 | "MCPs start automatically when I start claude, that might be a better mechanism" [OD 2] | The MCP server starts the daemon when it is not running (section 9.6) | self-test |
+| "Claude triage before any revert" (2026-10-05): the text patterns only catch the unambiguous failures, and Claude judges every other master failure code or environment [OD 3] | The classifier's table is credential, paid capacity, a runner lost mid-job and the known outside outages; anything else on master is `unclassified` and gets an urgent verdict job; until `githerd_verdict` says code, githerd only re-runs the job once and holds merges (sections 4.4, 4.5, 6) | daemon tests |
 | "just use claude to determine if there is potential overlap or potential conflict, don't try to do it programmatically" [OD 3] | Overlap, grouping, duplicates, obsolescence and "does this pull request address the issue" are judged by workers; code validates and enforces (sections 5, 8.2) | schema tests |
 | "the problem with conflicts happening is then you can't group things together" [OD 3] | A worker judges overlap before its first edit; a push without a claim is refused (section 8.2) | guard test |
 | "PRs should be the oldest PR first; github issues need some consideration of fixing bugs / highest priority / age" [OD 4] | Queue order (section 5.4) | queue tests |
@@ -213,7 +214,7 @@ adversarial review added (section 3.10). Columns:
 | Security advisory fails the dependency audit | The advisory feed sorted by update time, a free poll (it answers `If-None-Match` with 304, and the braces advisory of 10-02 is on its first page with its update time) [PF 9.4]. Names matched against master's lockfile; a match runs the audit exactly as `ci.yml`'s `Security audit` step does (`pnpm audit --audit-level=high`, honoring `ignoreGhsas`; the failure is read from its text, since `ci.yml` does not ask for JSON) in the reference worktree [R5]. A matched advisory that passes locally stays on a recheck list until a CI audit has run after its update time | A failure is a shared incident before any pull request fails; per-PR audit failures on pull requests that do not touch dependencies are master-side (classifier) and create no `pr` job. The worker upgrades, overrides, or records an ignore with a reason and a dated review (allowed by the review rubric) | D; W `incident` | The audit passes on master's lockfile and on one canary pull request updated and green; the other pull requests are updated only when each comes up to merge |
 | Audit exception expires or a patch appears | The advisory feed shows an update to a GHSA listed in `ignoreGhsas` [R5] | A job to remove the ignore and upgrade | D; W `issue` | The ignore is gone and the audit passes |
 | Dependabot alerts disagree with reality | Not read | Dependabot alerts never create work [CAT] | - | n/a |
-| Runner image moves under the project | On every red gating key: a diff of the `Set up job` runner-image block and the tool-version lines (node, pnpm, Chrome, Mesa, driver) between the last green and the first red run of that job, 2 log fetches; deprecation annotations on completed master runs [PF 9.5] | A non-empty diff makes the incident "environment drift": no revert, the worker starts from the diff. An issue is filed only when a version the gate records changes, not when the image string changes | D; W `incident` | The lane is green on the new image |
+| Runner image moves under the project | A red gating key that no unambiguous pattern matches (4.4) | The failure is `unclassified`: a verdict job's session reads the failed step's log and the commits since the last green run, and records "environment" with `githerd_verdict`; that lifts the merge hold, and an owner item opens if the failure persists. No revert without a "code" verdict | D; W `incident` | The lane is green on the new image |
 | Rented GPU runner out of balance | Balance text in a step name ("Machine: Insufficient balance to run job. Current balance: ..."); the rejected job has no annotation and no log. Runner loss on the rented label counts as possible balance [INC1 2], [PF 9.5], [PF 9.6] | Classifier class "paid capacity": no incident, no worker. One owner item. The GPU lane is parked for merges (merges continue; release waits, enforced by `release.yml` itself [R7]). The daemon re-runs the failed jobs of the GPU lane's newest red run on master (`rerun-failed-jobs`) at 30 minutes, 2 hours, then every 6 hours while the item is open, never while a run of the lane is in progress or queued past its pickup bound; a re-run raises that run's attempt number at once, so its read-back confirms it, where a new dispatch creates its run later and an immediate read-back would miss it: a balance-rejected job fails about 5 seconds after it is created and is not charged [PF 9.6] | D; O | The lane completes on master's head (a silent top-up ends the item by itself) |
 | Rented runner plan limits | Log or annotation "limited to 30 minutes" or "Concurrent runner limit reached" [INC2 4] | Same class; owner item for the plan; an `infrastructure` issue if the workflow must be restructured | D; O | The job completes within the plan |
 | Job or step time budget overrun | Step durations from the jobs API for completed runs of workflows with timeouts, 1 call [INC2 4] | One issue per workflow and step, while there is still margin | D; W `issue` | Worst recent duration under 80 percent of its limit |
@@ -387,7 +388,7 @@ adversarial review added (section 3.10). Columns:
 | A flaky benchmark turns master's GPU lane red after an innocent merge | Classifier, then the incident procedure | Daemon re-run of the failing job on the red head and parent re-test on the last green commit before any revert; a red-head pass is "intermittent" (issue filed by the daemon); merge hold only for pull requests the lane can affect | D | As 3.1 |
 | GPU provider outage: the job sits queued | Queue age per gating job (status `queued` and no `runner_name`; now minus `created_at`, because GitHub fills `started_at` with `created_at` while a job waits) above the worst pickup time seen on that label, 926 s on the rented label from 09-18 to 10-03 [PF 9.8] | "Lane not progressing": one owner item (provider or account), release waits, merges continue, no re-dispatch while no runner picks up | D; O | The lane starts |
 | GitHub Actions degraded (API fine, runs not starting) | Two or more heads pushed in 15 minutes with no check suite, or githubstatus.com reports Actions degraded [S27] | One "Actions degraded" state: CI-wait deadlines paused, not-started and slow-check rules and doorbells suppressed, lane re-dispatch held | D | A run starts on a recent head |
-| A scheduled GitHub deprecation brownout | Annotations on completed master runs (`annotations_count` > 0) [PF 9.5]; step text "automatically failed because it uses a deprecated version" | One `infrastructure` issue per deprecation with its date; a failure in the brownout window is environment drift (no revert, no intermittent issue) | D; W `issue` | The workflow no longer uses the deprecated item |
+| A scheduled GitHub deprecation brownout | Annotations on completed master runs (`annotations_count` > 0) [PF 9.5]; step text "automatically failed because it uses a deprecated version" | One `infrastructure` issue per deprecation with its date; a failure in the brownout window is `unclassified` until a session judges it environment (no revert, no intermittent issue) | D; W `issue` | The workflow no longer uses the deprecated item |
 | A non-gating master workflow fails (`deploy-pages.yml`, `coverage.yml`) | The same free runs poll returns every workflow [R4] | Low-priority incident, no merge hold | D; W `incident` | Its newest master run is green |
 | Release stuck green because CI artifacts expired | Release gate notice "no longer holds" its builds, read from annotations after each release run [R6], [R7], [PF 9.5] | The daemon re-runs CI on that commit, which recreates the artifacts and triggers the release on completion; no worker | D | npm shows the versions |
 | Release pending is real, not a quiet day | The daemon's `nx release --dry-run` on the green commit says whether anything would publish [S31] | Only a commit that would publish and is not on npm 2 hours after its lanes went green opens a release incident | D; W `incident` | npm shows the versions |
@@ -497,16 +498,35 @@ the push queue's gate runs, install and audit runs in the reference worktree, an
 text of a worker's failed attempt. The inputs are the failed step name, the job log, the steps
 list, the annotations, the exit code, the runner label and the pull request's file list.
 
+**Claude judges; the patterns only catch the obvious (owner decision, 2026-10-05).** The text
+patterns cover only failures that are unambiguous and have an obvious action: a credential, paid
+capacity, a runner lost mid-job, and the known outside outages (a package server or mirror, DNS).
+A text that could be the code or the environment (a missing system library, a full disk, a
+third-party 5xx, a connection error, a benchmark at an unlocked GPU clock) is not a pattern, because
+a wrong guess either reverts good code or waves a real regression through. On master, anything
+the patterns do not match is **unclassified**, and a Claude session decides (below and 4.5).
+
 | Order | Class | Matches | What follows |
 |---|---|---|---|
 | 1 | **Credential** | 401; "Bad credentials"; 403 with "auth" or "permission"; "Permission denied (publickey)"; OIDC 403; npm E401; gpg or ssh-keygen signing errors; StopFailure `authentication_failed` | One owner item per credential; no attempts charged; stop only what needs it |
 | 2 | **Paid capacity** | "Insufficient balance"; "limited to 30 minutes"; "Concurrent runner limit reached"; runner loss ("received a shutdown signal" in the log, "lost communication" in an annotation, a failed job with no steps) on a rented label; StopFailure `billing_error` | One owner item; that lane parked for merges; the release waits; backoff re-run of the lane's failed jobs (3.2) |
-| 3 | **Outside or platform** | Third-party 5xx, ETIMEDOUT, ECONNRESET naming a remote host; registry or corepack errors; a package server or mirror failing an install ("Failed to fetch <url> 403/404/5xx", "is no longer signed", "Temporary failure resolving", "Could not resolve host", Playwright's "Failed to install browser dependencies"); "Actions degraded"; queued past the pickup bound | One daemon re-run after 15 minutes, or a pause with a banner; never a fix job; no attempts charged |
-| 4 | **Environment drift** | The `Set up job` and tool-version diff between the last green and first red run is non-empty; "automatically failed because it uses a deprecated version" | Incident with the diff attached; never a revert; never an intermittent issue |
-| 5 | **Inherited** | The same key is red on master | Wait on the master incident |
-| 6 | **Shared or master-side** | The same key on 1 or more other open pull requests within 6 hours (the second pull request); or the pull request's diff cannot affect the key (an audit key with no dependency file changed, the dependency files being `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` and `.npmrc`; a build key with no package source changed); or a local gate key that also fails on the green commit | One shared incident at the first such pull request; no `pr` job (and no "join" escape) |
-| 7 | **Known intermittent** | An open `intermittent` issue names the key | One daemon re-run of that head |
-| 8 | **Own** | Anything else | A `pr` job |
+| 3 | **Outside** | A runner lost mid-job on any other label (the same two texts); a package registry fetch (`ERR_PNPM_FETCH`, `ERR_PNPM_TARBALL`, corepack's "Error when performing the request to https:"); a package server or mirror failing an install ("Failed to fetch <url> 403/404/5xx", "is no longer signed", Playwright's "Failed to install browser dependencies"); a DNS failure ("Temporary failure resolving", "Could not resolve host"; not Node's `getaddrinfo`, which a test resolving a made-up host prints too) | One daemon re-run after 15 minutes, or a pause with a banner; never a fix job; no attempts charged |
+| 4 | **Inherited** | The same key is red on master | Wait on the master incident |
+| 5 | **Shared or master-side** | The same key on 1 or more other open pull requests within 6 hours (the second pull request); or the pull request's diff cannot affect the key (an audit key with no dependency file changed, the dependency files being `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` and `.npmrc`; a build key with no package source changed); or a local gate key that also fails on the green commit | One shared incident at the first such pull request; no `pr` job (and no "join" escape) |
+| 6 | **Known intermittent** | An open `intermittent` issue names the key | One daemon re-run of that head |
+| 7 | **Own** | Anything else on a pull request | A `pr` job |
+| - | **Unclassified** | Anything else on master | Merge hold and one red-head re-run, nothing else; an urgent verdict job (4.5) |
+
+**The verdict.** An unclassified key on master gets an urgent `incident` job of scope `verdict`
+(`verdict-<key>`). Its session, a worker or an owner session that claims it, reads the failed
+step's log and the commits since the last green run, and calls `githerd_verdict` with the key,
+`code` or `environment`, and a one-line reason. Any session may record it; one verdict per key
+while its lane stays red, kept on the lane and dropped when the lane goes green. While a key is
+unclassified githerd does only reversible things: the merge hold, and one re-run of the failed job
+on the red head. A `code` verdict lets the incident procedure go on (4.5), its parent re-test and
+revert included; no revert happens without one. An `environment` verdict lifts the merge hold and
+parks the lane; if the failure persists (the lane fails again on a re-run or a later run), an owner
+item opens. This is the owner's standing rule: Claude makes the judgment, code enforces it.
 
 A summary job, one that only reports whether other jobs passed (a required check such as `All
 Checks Pass`, or any job named `... Checks Pass`, such as `Queue Checks Pass`), is never a failure
@@ -522,22 +542,28 @@ storage `BlobNotFound` document, which is "no log", not an error.
 
 ### 4.5 The master incident procedure
 
-On the first sighting of a red gating run on master, classified "code" (classes 5 to 8 do not
-apply on master; anything not in classes 1 to 4 is code):
+On the first sighting of a red gating run on master that is unclassified or judged code (classes 4
+to 7 do not apply on master; anything not in classes 1 to 3 is unclassified until a Claude session
+records a verdict, 4.4):
 
 1. **Merge hold** on the pull requests that lane can affect (4.6, line 2): `githerd/merge` turns
    `failure` on each, so Mergify drops them from its queue.
-2. Fetch steps, annotations and the `Set up job` diff (4.2). A non-empty diff reclassifies the
-   key as environment drift.
+2. Fetch steps, annotations and, when they match no pattern, the log (4.2). A key that is still
+   unclassified gets an urgent verdict job, whose session records code or environment with
+   `githerd_verdict` (4.4). An environment verdict ends the incident for that key: the hold lifts,
+   nothing is reverted, and the owner hears of it only if the failure persists.
 3. On the reconcile after the first sighting the incident record exists and is urgent (a finished
    run is sighted only once, so waiting for a second sighting of it would wait forever when no
-   newer run follows, as with the 10-02 benchmark failure). An `incident` worker starts
-   in the urgent slot at once. In parallel, needing no Claude, the daemon:
-   - re-runs the failing job on the red head, once per (head, key) [PF 9.7];
-   - re-runs the same job of the last green commit's run (`gh run rerun --job <job id>`; `gh`
-     refuses a run id together with `--job`), which tests the old commit in today's world: the run
-     keeps its head sha and its `run_attempt` goes up by one [PF 9.7].
-4. Outcomes:
+   newer run follows, as with the 10-02 benchmark failure). The verdict job, and once the key is
+   judged code the `incident` job, starts in the urgent slot at once. In parallel, needing no
+   Claude, the daemon re-runs the failing job on the red head, once per (head, key) [PF 9.7]. That
+   is all it does while the key is unclassified: a re-run and the hold are reversible, a revert is
+   not. Once Claude judges the key code, the daemon also re-runs the same job of the last green
+   commit's run (`gh run rerun --job <job id>`; `gh` refuses a run id together with `--job`), which
+   tests the old commit in today's world: the run keeps its head sha and its `run_attempt` goes up
+   by one [PF 9.7].
+4. Outcomes. A red-head pass needs no verdict; every other row needs a code verdict, and the
+   revert row cannot happen without one:
 
 | Red head re-run | Parent re-run | Merges between green and red | Meaning | The daemon does |
 |---|---|---|---|---|
@@ -817,7 +843,7 @@ A kind exists only if GitHub or the machine can check its done-condition.
 
 | Kind | Made when | Target | Done-condition, checked by the daemon |
 |---|---|---|---|
-| `incident` | A code-red key on master (4.5); a shared or master-side key (4.4); a release half-state or a real pending release; a visual coverage gap on master; a required check that never reports; a matched advisory failing the audit; a red non-gating master workflow (low priority); a shared local gate key | one key or one named condition | Master: the failing workflow's newest master run is green at a commit containing the recorded fix. Shared: the key passes on master's fix and on one canary pull request updated and green. Release: npm has the tagged versions and master the version commit. Local: the gate passes on the green commit |
+| `incident` | An unclassified key on master, scope `verdict`, done when `githerd_verdict` recorded its verdict or the lane is no longer red (4.4); a key judged code on master (4.5); a shared or master-side key (4.4); a release half-state or a real pending release; a visual coverage gap on master; a required check that never reports; a matched advisory failing the audit; a red non-gating master workflow (low priority); a shared local gate key | one key or one named condition | Master: the failing workflow's newest master run is green at a commit containing the recorded fix. Shared: the key passes on master's fix and on one canary pull request updated and green. Release: npm has the tagged versions and master the version commit. Local: the gate passes on the green commit |
 | `pr` | An own failure; a conflict the tools cannot resolve; an owner's visual reject [R14]; an abandoned githerd pull request | one pull request | Required checks green on the current head (base master, not draft), or waiting only on the owner (visual review, owner item) |
 | `issue` | A labelled, unclaimed issue at the front of the queue; a re-land after a revert; an `intermittent` issue; an audit ignore to remove | one issue or a triage group | A pull request referencing the issue, base master, not draft, whose head equals `git ls-remote` of its branch, required checks green or waiting only on the owner, and `githerd/merge` not failing on a line the worker can fix (section 4.6 lines 3, a breaking commit under a title without `!`; 4, a package npm does not know; 8, the issue revision acknowledged). Or closed through the propose, confirm and grace path, or split into filed children. Every listed defect has an issue or commit |
 | `triage` | New or changed issues (20 per job); a refresh after 20 merges; a full pass after 100 merges | a batch | Each issue has one type, priority and effort label from the existing set and a recorded verdict |
@@ -1039,6 +1065,12 @@ githerd_mine: { pr: integer }
 // -> { ok: true, pr, head, until } | { ok: false, reason }  (another session already said so)
 // Refused from a worker: its pull request is its job's. Keeps the pull request from being offered
 // until this session ends or a new push arrives.
+
+// 13. Judge a master failure no pattern matched (4.4). Any session; a verdict job's session must.
+githerd_verdict: { key: string /*the failure key*/, verdict: "code"|"environment", reason: string /*<=300*/ }
+// -> { ok: true, key, verdict, effect } | { ok: false, reason }  (already judged)
+// Refused for a key that is not an unclassified failure of a red master lane. Code lets the incident
+// procedure go on to its parent re-test and revert; environment lifts the merge hold.
 ```
 
 There is no tool to merge, close, revert, retarget, post a status, or touch githerd's labels.
@@ -1688,7 +1720,7 @@ models)", "N% used", "Resets ..."; else display-only). Failure stops starts, is 
 everywhere, and pages once.
 
 It checks Claude Code, not the daemon: the worker's hook and MCP commands are probes that report
-to the self-test (the MCP probe serves the twelve tools' real schemas, the hook probe prints the
+to the self-test (the MCP probe serves the thirteen tools' real schemas, the hook probe prints the
 real hook's output), and the guard is the installed one, reached through a symlink as `current/`
 is. That symlink is how the first run found a guard that never ran: it compared `argv[1]`, the
 link, with its own file, so every call was allowed. Two more facts from the first run: Claude Code
@@ -1754,7 +1786,7 @@ It predates this design and is reworked by the plan. Most of its fact-finding an
 | `proc.mjs` | process identity by pid and start time | container restart by PID 1 start time instead of boot id [R21] |
 | `config.mjs` | strict validation from the default branch, widening keys rejected | bounds; the last-good file and the replay gate live in `config-adopt.mjs` |
 | `version.mjs` | running master's code, never a worktree's | `versions/<version>-<hash8>/`, protocol versions |
-| `mcp.mjs`, `schema.mjs` | JSON-RPC core and schema validator | the twelve tools of section 6 |
+| `mcp.mjs`, `schema.mjs` | JSON-RPC core and schema validator | the thirteen tools of section 6 |
 | `launcher.mjs` | find or start the one daemon, forward calls | fixed cwd; `alive` check; restart lock; supervision is servherd's `--autorestart` (1.2.0) |
 | `notify.mjs` | once per key; "phone alerts broken" | owner items only; batching; presence and digest |
 | `text.mjs` | ASCII and credential checks on outgoing text | none |
@@ -1767,7 +1799,7 @@ It predates this design and is reworked by the plan. Most of its fact-finding an
 | `retriage.mjs` | nothing | removed: refresh and full passes are triage jobs that merges call for (`jobs.mjs`), built from the issue records the poll already keeps |
 | `cli.mjs` | the command frame and state-file fallback | the commands of 11.2 |
 | `daemon.mjs` | the poll loop, HTTP endpoint and tool dispatch | the reconcile of 9.3, fatal mode, `alive` and `progress` |
-| `tools.mjs` | the board's status data and text | the seven old tools removed; the twelve tools are `session-tools.mjs` |
+| `tools.mjs` | the board's status data and text | the seven old tools removed; the thirteen tools are `session-tools.mjs` |
 | `runner.mjs`, `run-tools.mjs`, `dispatch.mjs`, `paging.mjs`, `prompts.mjs`, the playbooks | nothing | removed (2026-10-04): they existed for headless runs, run tokens and dollar budgets |
 
 New code: the classifier; the incident procedure; the `githerd/merge` status and stacks; the push queue;

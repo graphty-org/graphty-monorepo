@@ -5,8 +5,11 @@
  * target closed, merged or no longer needs work. Jobs in flight are left to their holders and to
  * the done check.
  *
- * - `incident-<key>`: every code-red key of the open master incident whose procedure did not end
- *   intermittent, and every open release escalation (a failed or stalled release).
+ * - `verdict-<key>`: every key of the open master incident that matched no unambiguous pattern and
+ *   has no verdict yet: its session records code or environment with `githerd_verdict` (design 4.4).
+ * - `incident-<key>`: every key of the open master incident that Claude judged code and whose
+ *   procedure did not end intermittent, and every open release escalation (a failed or stalled
+ *   release).
  * - `incident-local-<step>`: the pre-push gate failing on the green commit (the reference worktree).
  * - `pr-<n>`: the owner's non-draft, non-stacked pull requests with an own failing required check,
  *   a conflict seen twice, or the owner's visual reject; never one that changes githerd's own
@@ -111,8 +114,9 @@ function lapseOwnerClaims(state, gone, now, out) {
 }
 
 /**
- * The incident jobs: one per code-red key of the open master incident that did not end
- * intermittent, and one per open release escalation.
+ * The incident jobs: per key of the open master incident that did not end intermittent, a verdict
+ * job while it has no verdict and a fix job once it is judged code; and one per open release
+ * escalation.
  * @param {any} state the daemon state
  * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
  * @param {(job: any, reason: string) => void} cancel cancels a queued job
@@ -123,7 +127,32 @@ function incidentJobs(state, add, cancel) {
     for (const [key, rec] of Object.entries(open?.keys ?? {})) {
         const r = /** @type {any} */ (rec);
         if (r.outcome === "intermittent") continue;
-        const since = state.master?.lanes?.[r.lane]?.redSince ?? open.openedAt;
+        const lane = state.master?.lanes?.[r.lane];
+        const since = lane?.redSince ?? open.openedAt;
+        const verdict = lane?.verdicts?.[key]?.verdict;
+        if (verdict === "environment") continue;
+        if (!verdict) {
+            const ref = (lane?.redJobs ?? []).find((/** @type {any} */ j) => j.key === key);
+            const job = add({
+                id: `verdict-${slug(key)}`,
+                kind: "incident",
+                target: key,
+                priority: "urgent",
+                reason: "master failed on no known pattern: is it the code or the environment?",
+                facts: {
+                    scope: "verdict",
+                    since,
+                    lane: r.lane ?? null,
+                    incident: open.id,
+                    runId: ref?.runId ?? null,
+                    jobId: ref?.id ?? null,
+                    redSha: lane?.sha ?? null,
+                    greenSha: open.lastGreenSha ?? null,
+                },
+            });
+            live.add(job.id);
+            continue;
+        }
         const job = add({
             id: `incident-${slug(key)}`,
             kind: "incident",
@@ -162,6 +191,7 @@ function incidentJobs(state, add, cancel) {
     }
     const ended = {
         master: "master's incident ended or went intermittent",
+        verdict: "a verdict was recorded, or master's incident ended",
         release: "the release recovered",
         local: "the gate passes on the green commit",
     };

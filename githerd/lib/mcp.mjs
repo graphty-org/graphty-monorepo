@@ -4,7 +4,7 @@
  * method. Notifications and responses get no reply. Transport is the caller's: the launcher reads
  * stdin lines, the daemon reads HTTP bodies; both hand each message to `handle`.
  *
- * Also the twelve githerd tools of design section 6 (`TOOLS`), the client side that forwards them
+ * Also the thirteen githerd tools of design section 6 (`TOOLS`), the client side that forwards them
  * to the daemon (`forwardingTools`), and how a session's MCP server learns which session it serves
  * (`identifySession`). Every forwarded call carries `params._meta.githerd`: the tool protocol
  * version, the session, and for a worker its job and nonce. A call the daemon refuses, for bad
@@ -350,7 +350,7 @@ const REVIEW_RESULT = object(
 );
 
 /**
- * The twelve tools of design section 6: names, descriptions and argument schemas. Handlers are the
+ * The thirteen tools of design section 6: names, descriptions and argument schemas. Handlers are the
  * caller's: the daemon runs them, a session's MCP server forwards them (`forwardingTools`).
  * @type {{name: string, description: string, inputSchema: import("./schema.mjs").Schema}[]}
  */
@@ -538,13 +538,28 @@ export const TOOLS = [
             "offers it to nobody else until this session ends or a new push arrives.",
         inputSchema: object({ pr: NUMBER }, ["pr"]),
     },
+    {
+        name: "githerd_verdict",
+        description:
+            "Judge a master failure githerd could not classify: code or environment, with a one-line reason, after " +
+            "reading the failed step's log and the commits since the last green run. Code allows the revert; " +
+            "environment lifts the merge hold. One verdict per failure key while its lane is red.",
+        inputSchema: object(
+            {
+                key: { type: "string", minLength: 1, maxLength: 300 },
+                verdict: { type: "string", enum: ["code", "environment"] },
+                reason: REASON,
+            },
+            ["key", "verdict", "reason"],
+        ),
+    },
 ];
 
 /** The id of the last request forwarded to the daemon, unique within this process. */
 let forwardedId = 0;
 
 /**
- * The twelve tools for a session's MCP server: each validates its arguments here, so a refused call
+ * The thirteen tools for a session's MCP server: each validates its arguments here, so a refused call
  * never reaches the daemon, then forwards the call with the client's metadata and passes the
  * daemon's answer through. `githerd_record` also carries the newest prompt the owner typed into the
  * session.

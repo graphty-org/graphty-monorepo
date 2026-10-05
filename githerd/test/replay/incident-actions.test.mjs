@@ -78,7 +78,7 @@ describe("replay: the daemon's incident actions on 2026-10-02", () => {
                 opened.push(`${when} ${verdict.class} ${ref.runId}`);
                 const run = { id: ref.runId, attempt: ref.attempt };
                 if (verdict.class === "paid-capacity") paid ??= { lane: "gpu", openedAt: at, run };
-                if (verdict.class === "code") {
+                if (verdict.class === "unclassified") {
                     code = {
                         key: verdict.key,
                         redSha: ref.sha,
@@ -108,11 +108,12 @@ describe("replay: the daemon's incident actions on 2026-10-02", () => {
         expect(fake.writes()).toEqual([]);
         expect(opened).toEqual([
             "10-02T04:05 paid-capacity 36962785245",
-            "10-02T07:30 code 36973764479",
+            "10-02T07:30 unclassified 36973764479",
             "10-02T23:41 paid-capacity 37078532134",
         ]);
         // The red head is re-run on the reconcile after the first sighting (the owner's own re-run
-        // started at 07:31:52), its pass at 08:20 files the issue, and nothing is reverted. Every
+        // started at 07:31:52), its pass at 08:20 files the issue, and nothing is reverted: with no
+        // verdict from Claude the re-run is the only step, and the pass made one unneeded. Every
         // backoff slot of the two balance stretches (04:35, 00:11) fell while a GPU run was in
         // progress, so the paid lane is never re-run by the daemon.
         expect(outcomes).toEqual(["10-02T08:21 intermittent"]);

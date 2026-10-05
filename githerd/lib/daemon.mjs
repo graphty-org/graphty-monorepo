@@ -177,11 +177,14 @@ const RED_JOB = new Set(["failure", "timed_out", "startup_failure"]);
  * longer is held to that.
  */
 const PICKUP_FLOOR_MS = 926_000;
-/** The owner item of each failure class on a master lane that is not code (design 4.4). */
+/**
+ * The owner item of each failure class on a master lane that is not code (design 4.4). An
+ * `environment` lane (Claude's verdict) raises its item only once the failure persists.
+ */
 const PARKED_ITEMS = /** @type {Record<string, string>} */ ({
     "paid-capacity": "cannot get a rented runner",
     credential: "fails on a credential",
-    drift: "fails on its runner environment, not on the code",
+    environment: "still fails, and Claude judged it the environment, not the code",
 });
 /** Escalation kinds that are owner items, and what each blocks (design 11.3). */
 const ITEM_KINDS = /** @type {Record<string, "workers" | null>} */ ({
@@ -341,16 +344,50 @@ function noteLaneName(lane, runName, ms) {
         delete lane.redReason;
         delete lane.redJobs;
         delete lane.classifiedFor;
+        delete lane.redPersists;
+        delete lane.verdicts;
     } else lane.redSince ??= lane.updatedAt ?? new Date(ms).toISOString();
 }
 
 /**
- * Whether a red lane counts as code red: classified `code`, or not classified yet (fail closed).
- * Paid capacity, credential, outside and drift park the lane instead (design 4.4).
+ * Whether a red lane holds merges: `code` by Claude's verdict, or `unclassified` while it has none,
+ * or not classified yet (fail closed). Paid capacity, credential, outside and an `environment`
+ * verdict park the lane instead (design 4.4).
  * @param {any} lane the lane record
  * @returns {boolean} true for code red
  */
-const codeRed = (lane) => (lane.redClass ?? "code") === "code";
+const codeRed = (lane) => ["code", "unclassified"].includes(lane.redClass ?? "unclassified");
+
+/**
+ * Applies Claude's verdicts (`githerd_verdict`, kept in `lane.verdicts` by failure key until the
+ * lane is green) to a red lane's failing jobs, and sets the lane's class from them: an
+ * `unclassified` job becomes `code` or `environment`. A job read by an older githerd as `code` or
+ * `drift` counts as unclassified. An `environment` lane persists once a re-run or a later run of it
+ * failed too.
+ * @param {any} lane the lane record, changed in place
+ * @param {string} workflow its workflow's name
+ * @param {string[]} required the required checks, which tell a summary job apart
+ */
+function judge(lane, workflow, required) {
+    const verdicts = lane.verdicts ?? {};
+    const refs = lane.redJobs ?? [];
+    for (const r of refs) {
+        r.textClass ??= ["code", "drift"].includes(r.class) ? "unclassified" : r.class;
+        r.key = failureKey(workflow, r.name, r.step);
+        r.class = r.textClass === "unclassified" ? (verdicts[r.key]?.verdict ?? "unclassified") : r.textClass;
+    }
+    // A summary job's failure is the failure of a job it summarizes: name that one.
+    const real = refs.filter((/** @type {any} */ r) => !isSummaryJob(r.name, required));
+    const first =
+        real.find((/** @type {any} */ r) => r.class === "code") ??
+        real.find((/** @type {any} */ r) => r.class === "unclassified") ??
+        real[0] ??
+        refs[0];
+    lane.redClass = first?.class ?? "unclassified";
+    lane.redReason = first ? `${first.name}: ${first.step || first.reason}` : "no failing job";
+    const v = first && verdicts[first.key];
+    lane.redPersists = Boolean(v) && first.class === "environment" && (lane.attempt > 1 || lane.runId !== v.runId);
+}
 
 /**
  * Describes an incident's failing lanes for an owner item.
@@ -1011,8 +1048,8 @@ export async function startDaemon({
     /**
      * Classifies each red gating lane's newest run attempt once (design 4.4): every failing job,
      * by its failed step names, its annotations and its runner labels, on master. The lane is code
-     * red when any job is `code`; otherwise it takes the first job's class and is parked, with no
-     * incident and no merge hold.
+     * red (incident, merge hold) when any job is `code` or `unclassified` (`judge`); otherwise it
+     * takes the first job's class and is parked, with no incident and no merge hold.
      * @param {any} m the master record
      */
     async function classifyLanes(m) {
@@ -1037,9 +1074,9 @@ export async function startDaemon({
                     labels: j.labels,
                 };
                 let verdict = classify(failure, { where: "master" });
-                // Some causes are only in the log (a library missing from the job's container), so a
-                // job that reads as code is read once more with its log.
-                if (verdict.class === "code")
+                // Some causes are only in the log (a runner shutdown, a mirror outage), so a job that
+                // reads as unclassified is read once more with its log.
+                if (verdict.class === "unclassified")
                     verdict = classify({ ...failure, log: await jobLog(j.id) }, { where: "master" });
                 refs.push({
                     id: j.id,
@@ -1051,15 +1088,8 @@ export async function startDaemon({
                     reason: verdict.reason,
                 });
             }
-            // A summary job's failure is the failure of a job it summarizes: name that one.
-            const real = refs.filter((r) => !isSummaryJob(r.name, config.requiredChecks));
-            const first = real.find((r) => r.class === "code") ?? real[0] ?? refs[0];
-            Object.assign(lane, {
-                redJobs: refs,
-                redClass: first?.class ?? "code",
-                redReason: first ? `${first.name}: ${first.step || first.reason}` : "no failing job",
-                classifiedFor: at,
-            });
+            Object.assign(lane, { redJobs: refs, classifiedFor: at });
+            judge(lane, workflow, config.requiredChecks);
             event("lane-classified", { lane: name, runId: lane.runId, attempt: lane.attempt, class: lane.redClass });
         }
     }
@@ -1089,12 +1119,22 @@ export async function startDaemon({
     async function track(m, previousGreen, iso) {
         const open = Object.values(state.incidents).find((i) => i.status === "open");
         await classifyLanes(m);
+        // A verdict recorded since the last poll applies now.
+        for (const [name, l] of Object.entries(m.lanes)) {
+            const lane = /** @type {any} */ (l);
+            if (lane.verdict === "red" && lane.redJobs) judge(lane, lane.workflowName ?? name, config.requiredChecks);
+        }
         const codeLanes = Object.entries(m.lanes).filter(
             ([name, l]) => gatingLane(name) && /** @type {any} */ (l).verdict === "red" && codeRed(l),
         );
         if (m.verdict === "red" && codeLanes.length) {
             trackRed(codeLanes, open, previousGreen, iso);
             await readRange(codeLanes);
+        } else if (m.verdict === "red" && open) {
+            // Still red, but every red lane is judged the environment or parked: no code incident.
+            Object.assign(open, { status: "resolved", resolvedAt: iso, resolvedAs: "environment" });
+            event("incident-not-code", { incident: open.id });
+            endItem(state, `master-red:${open.id}`, "cleared", now());
         } else if (m.verdict !== "unknown" && open) {
             open.status = "resolved";
             open.resolvedAt = iso;
@@ -1149,8 +1189,10 @@ export async function startDaemon({
                 const rec = (keys[key] ??= { seen: 0 });
                 rec.seen++;
                 rec.lane = name;
-                if (settled(rec)) continue;
+                const verdict = state.master.lanes[name]?.verdicts?.[key]?.verdict ?? null;
+                if (settled(rec) || verdict === "environment") continue;
                 const out = await actions.codeRed({
+                    verdict,
                     key,
                     redSha: lane.sha,
                     redJob: job,
@@ -1181,7 +1223,8 @@ export async function startDaemon({
             const l = state.master.lanes[name];
             for (const [cls, what] of Object.entries(PARKED_ITEMS)) {
                 const id = `${cls}:${name}`;
-                if (!gatingLane(name) || l?.verdict !== "red" || l.redClass !== cls) {
+                const persists = cls !== "environment" || l?.redPersists;
+                if (!gatingLane(name) || l?.verdict !== "red" || l.redClass !== cls || !persists) {
                     endItem(state, id, "cleared", now());
                     continue;
                 }
@@ -1308,7 +1351,9 @@ export async function startDaemon({
         const incident = open ?? openIncident(gatingRed[0][1], previousGreen, iso);
         for (const [name, l] of gatingRed) {
             if (incident.lanes[name]?.classifiedFor === l.classifiedFor) continue;
-            const refs = (l.redJobs ?? []).filter((/** @type {any} */ j) => (j.class ?? "code") === "code");
+            const refs = (l.redJobs ?? []).filter((/** @type {any} */ j) =>
+                ["code", "unclassified"].includes(j.class ?? "unclassified"),
+            );
             incident.lanes[name] = {
                 runId: l.runId,
                 attempt: l.attempt,
@@ -1781,8 +1826,8 @@ export async function startDaemon({
             prs.push(openPr(node, head, { ownerItemOpen, job, releaseBumps: head.releaseBumps ?? null }));
         }
         const fixPrs = incidentFixPrs();
-        // Only a code-red lane holds merges; a lane parked for paid capacity, a credential, an
-        // outside failure or drift does not (design 4.4).
+        // Only a code-red lane holds merges, judged code or not judged yet; a lane parked for paid
+        // capacity, a credential, an outside failure or an environment verdict does not (design 4.4).
         const redLanes = Object.entries(m.lanes)
             .filter(([name, l]) => gatingLane(name) && l.verdict === "red" && codeRed(l))
             .map(([name, l]) => ({
@@ -2445,7 +2490,7 @@ export async function startDaemon({
     ];
 
     /**
-     * The twelve tools of design section 6, for every session. It serves
+     * The thirteen tools of design section 6, for every session. It serves
      * the current tool protocol, and the previous one while a live session may still speak it; a
      * call in any other protocol is refused before anything runs (design 9.8).
      */

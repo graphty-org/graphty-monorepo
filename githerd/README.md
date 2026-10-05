@@ -63,10 +63,14 @@ the worker's `gh pr create`, comments, issue creation and every other `gh` write
 run for real and write nothing to GitHub. Its worktree (`.worktrees/githerd-<job>`) is installed
 and built in the background first; sessions open one at a time, urgent ones first.
 
-Every session gets the twelve tools of design section 6 from the MCP server in `.mcp.json`:
+Every session gets the thirteen tools of design section 6 from the MCP server in `.mcp.json`:
 `githerd_status`, `githerd_next`, `githerd_claim`, `githerd_wait`, `githerd_expect`, `githerd_push`,
-`githerd_rerun`, `githerd_read`, `githerd_done`, `githerd_ask_owner`, `githerd_record` and
-`githerd_mine`. A session calls `githerd_next` for its job (a worker) or the queued jobs it could
+`githerd_rerun`, `githerd_read`, `githerd_done`, `githerd_ask_owner`, `githerd_record`,
+`githerd_mine` and `githerd_verdict`. A master failure that matches none of the classifier's
+unambiguous patterns (a credential, paid capacity, a lost runner, a package mirror or DNS outage)
+is unclassified: githerd holds merges, re-runs the job once and queues an urgent verdict job, and
+the session that takes it calls `githerd_verdict` with code or environment. Only a code verdict
+allows a revert; an environment verdict lifts the hold. A session calls `githerd_next` for its job (a worker) or the queued jobs it could
 take (an owner session), and `githerd_claim` with its overlap judgment before any edit. A pull
 request another session works on is never offered (design section 8.2): one whose job a live session
 claimed; one whose CI is running on a head someone other than githerd pushed; and one whose CI

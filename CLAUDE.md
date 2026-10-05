@@ -992,10 +992,12 @@ end your reply with ACTION NEEDED as usual when the owner must act.
 
 githerd is the repository's pipeline daemon: it watches master, pull requests and issues, turns
 them into jobs it hands to interactive worker sessions in its own tmux server, pages the owner only
-for what only he can do, and gives every Claude session the twelve `githerd_*` MCP tools of
+for what only he can do, and gives every Claude session the thirteen `githerd_*` MCP tools of
 section 6 of `design/githerd/githerd-design.md` (`githerd_status`, `githerd_next`, `githerd_claim`,
 `githerd_wait`, `githerd_expect`, `githerd_push`, `githerd_rerun`, `githerd_read`, `githerd_done`,
-`githerd_ask_owner`, `githerd_record`, `githerd_mine`) through the server in `.mcp.json`.
+`githerd_ask_owner`, `githerd_record`, `githerd_mine`, `githerd_verdict`) through the server in
+`.mcp.json`. A master failure githerd cannot classify waits for a Claude session to judge it code
+or environment with `githerd_verdict` before anything is reverted.
 When a pull request's CI fails on a head another session pushed, githerd sends each live session in
 this repository a message asking whose it is. If it is yours, call `githerd_mine` with its number
 (or claim its job); otherwise ignore the message. With no answer in 10 minutes githerd offers it as

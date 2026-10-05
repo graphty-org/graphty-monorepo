@@ -337,6 +337,7 @@ function tier(job) {
     const scope = job.facts?.scope;
     switch (job.kind) {
         case "incident":
+            if (scope === "verdict") return [1, "master failure awaiting Claude's verdict"];
             if (scope === "master" || scope === "release") return [1, `${scope} incident`];
             if (scope === "shared") return [1.5, "shared incident"];
             return [8.5, "low-priority incident on a non-gating workflow"];

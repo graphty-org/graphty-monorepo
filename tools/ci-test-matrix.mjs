@@ -138,6 +138,13 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run visual-review:coverage",
         "needs-browser": true,
     },
+    // githerd - single shard (Node.js, no browser; coverage counts lib/)
+    {
+        shard: "githerd",
+        package: "githerd",
+        "test-command": "pnpm exec nx run githerd:coverage",
+        "needs-browser": false,
+    },
     // compact-mantine - single shard (uses Playwright for browser-based vitest)
     {
         shard: "compact-mantine",
@@ -193,7 +200,7 @@ export const SHARDS = [
  * the groups a full run asked for 22 test runners at once; with them it asks for 13.
  */
 export const GROUPS = {
-    "small-node": ["graph-format", "graph-io", "graph-samples", "layout", "algorithms-default"],
+    "small-node": ["graph-format", "graph-io", "graph-samples", "layout", "algorithms-default", "githerd"],
     "small-browser": [
         "algorithms-browser",
         "remote-logger",

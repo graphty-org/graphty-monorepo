@@ -73,7 +73,7 @@ export default defineConfig({
                     name: "eslint-rules",
                     environment: "node",
                     include: ["eslint-rules/**/*.test.ts"],
-                    // One TypeScript program over the element's source is built per run.
+                    // One TypeScript program over the element's published .d.ts files is built per run.
                     testTimeout: 60000,
                 },
             },

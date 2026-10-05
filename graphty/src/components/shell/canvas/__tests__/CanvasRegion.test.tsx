@@ -28,7 +28,6 @@ const NO_DOCKS: CanvasDockState = {
     drawerOpen: false,
     drawerHeight: DATA_DRAWER_DEFAULT_HEIGHT,
     drawerMaximised: false,
-    compareOpen: false,
 };
 
 const ALL_OVERLAYS: CanvasOverlayVisibility = {

@@ -1713,15 +1713,21 @@ export interface SessionPositions extends ReadonlyElementPositions {
      */
     set(entries: readonly PositionEntry[]): Promise<void>;
     /**
-     * Pin nodes where they are. One step. A node the graph does not hold is skipped.
+     * Pin nodes where they are. One step. An integer id may be written either way: `"34"` pins
+     * node `34`.
      * @param ids - The nodes.
      * @returns Settles once the step is recorded and the layout has taken the pins.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` naming every id the graph does
+     *     not hold, in `details.ids`; nothing is pinned then.
      */
     pin(ids: readonly NodeId[]): Promise<void>;
     /**
-     * Release pinned nodes, so the layout arranges them again. One step.
+     * Release pinned nodes, so the layout arranges them again. One step. Ids are looked up as
+     * {@link SessionPositions.pin} looks them up.
      * @param ids - The nodes.
      * @returns Settles once the step is recorded and the layout has taken the change.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` naming every id the graph does
+     *     not hold, in `details.ids`; nothing is released then.
      */
     unpin(ids: readonly NodeId[]): Promise<void>;
 }

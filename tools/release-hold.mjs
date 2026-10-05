@@ -17,8 +17,13 @@
  * `{projectName}@{version}` tag, so when it leaves the list the next release bumps it from every
  * commit since that tag.
  *
+ * An ad hoc release of named packages (release.yml's `packages` input) runs `apply --only a,b`:
+ * every project not named is held for that run as well, on top of the holds in the file, which
+ * still apply. Nothing is written to release-hold.json.
+ *
  * Usage: node tools/release-hold.mjs check   (exit 1 when release-hold.json is invalid)
  *        node tools/release-hold.mjs apply   (check, then leave the held projects out of nx.json)
+ *        node tools/release-hold.mjs apply --only <project>[,<project>...]
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -71,15 +76,47 @@ export function releaseProjects(current, held) {
     return [...current, ...held.map((name) => `!${name}`)];
 }
 
-function main(mode) {
-    const hold = JSON.parse(readFileSync(join(ROOT, "release-hold.json"), "utf8"));
+/**
+ * The hold list for a release of only the named projects: the file's holds plus every project
+ * not named.
+ * @param hold - the parsed, valid release-hold.json
+ * @param projects - every nx project name in the workspace
+ * @param only - the project names to release
+ * @param since - today, YYYY-MM-DD
+ * @returns the widened hold list, or the problems with `only`
+ */
+export function holdAllBut(hold, projects, only, since) {
+    const unknown = only.filter((name) => !projects.includes(name));
+    if (only.length === 0 || unknown.length > 0) {
+        return {
+            problems: [`--only must name nx projects; not one: ${unknown.join(", ") || "(none given)"}`],
+        };
+    }
+    const held = new Set(hold.hold.map((h) => h.project));
+    const reason = `not named by the ad hoc release of ${only.join(", ")}`;
+    const extra = projects
+        .filter((name) => !only.includes(name) && !held.has(name))
+        .map((project) => ({ project, reason, since }));
+    return { hold: { hold: [...hold.hold, ...extra] }, problems: [] };
+}
+
+function fail(found) {
+    for (const p of found) console.error(`release-hold.json: ${p}`);
+    process.exit(1);
+}
+
+function main(mode, only) {
+    let hold = JSON.parse(readFileSync(join(ROOT, "release-hold.json"), "utf8"));
     const projects = JSON.parse(
         execFileSync("pnpm", ["exec", "nx", "show", "projects", "--json"], { cwd: ROOT, encoding: "utf8" }),
     );
-    const found = problems(hold, projects);
-    if (found.length > 0) {
-        for (const p of found) console.error(`release-hold.json: ${p}`);
-        process.exit(1);
+    let found = problems(hold, projects);
+    if (found.length > 0) fail(found);
+    if (only) {
+        const widened = holdAllBut(hold, projects, only, new Date().toISOString().slice(0, 10));
+        found = widened.problems.length > 0 ? widened.problems : problems(widened.hold, projects);
+        if (found.length > 0) fail(found);
+        hold = widened.hold;
     }
     for (const { project, reason, since } of hold.hold) {
         // a workflow annotation in a release run, a plain line anywhere else
@@ -97,10 +134,17 @@ function main(mode) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    const mode = process.argv[2] ?? "check";
-    if (mode !== "check" && mode !== "apply") {
-        console.error("usage: node tools/release-hold.mjs [check|apply]");
+    const [mode = "check", flag, list] = process.argv.slice(2);
+    const onlyGiven = mode === "apply" && flag === "--only";
+    if ((mode !== "check" && mode !== "apply") || (flag !== undefined && !onlyGiven)) {
+        console.error("usage: node tools/release-hold.mjs [check|apply [--only <project>,...]]");
         process.exit(2);
     }
-    main(mode);
+    const only = onlyGiven
+        ? (list ?? "")
+              .split(",")
+              .map((name) => name.trim())
+              .filter(Boolean)
+        : undefined;
+    main(mode, only);
 }

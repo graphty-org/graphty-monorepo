@@ -1,3 +1,25 @@
+## 3.14.5 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.34
+- Updated @graphty/remote-logger to 2.0.6
+- Updated graph-samples to 0.1.20
+- Updated graph-format to 1.3.5
+- Updated algorithms to 3.3.5
+- Updated graph-io to 0.3.25
+- Updated layout to 2.2.6
+
+## 3.14.4 (2026-10-05)
+
+### 🩹 Fixes
+
+- **graphty-element:** price degree for the heap the element runs it in ([4c6a4c196](https://github.com/graphty-org/graphty-monorepo/commit/4c6a4c196))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.14.3 (2026-10-05)
 
 ### 🧱 Updated Dependencies

@@ -97,6 +97,38 @@ export function liveSessions({ sessionsDir, root, alive = pidAlive }) {
 }
 
 /**
+ * Every live session in Claude Code's registry, wherever it runs and whether or not it speaks the
+ * peer protocol: what ownership inferred from pushes and worktrees (owners.mjs) needs to know is
+ * live, since a session too old to take a message still owns what it pushed.
+ * @param {{sessionsDir: string, alive?: (pid: number) => boolean}} opts the registry directory and
+ *   the liveness test
+ * @returns {{pid: number, sessionId: string, name: string}[]} the sessions
+ */
+export function registeredSessions({ sessionsDir, alive = pidAlive }) {
+    let files;
+    try {
+        files = readdirSync(sessionsDir).filter((f) => /^\d+\.json$/.test(f));
+    } catch {
+        return [];
+    }
+    const out = [];
+    for (const file of files) {
+        try {
+            const e = JSON.parse(readFileSync(join(sessionsDir, file), "utf8"));
+            if (!Number.isInteger(e.pid) || typeof e.sessionId !== "string" || !alive(e.pid)) continue;
+            out.push({
+                pid: e.pid,
+                sessionId: e.sessionId,
+                name: typeof e.name === "string" ? e.name : `pid ${e.pid}`,
+            });
+        } catch {
+            // A torn or unreadable entry is no session.
+        }
+    }
+    return out;
+}
+
+/**
  * The transport over Claude Code's messaging sockets: one connection per message, one JSON line.
  * @returns {Transport} the transport
  */

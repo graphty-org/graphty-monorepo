@@ -241,8 +241,13 @@ async function start(options = {}) {
         log: (line) => lines.push(line),
         // githerd's real tmux server is never read by a test.
         platform: { windows: () => [] },
-        // Nor are the owner's real Claude sessions: no session is listed unless a test lists one.
-        peers: { sessions: () => [], transport: { send: async () => {} } },
+        // Nor are the owner's real Claude sessions: no session is listed unless a test lists one,
+        // and no pull request's owner is inferred from this machine's pushes and processes.
+        peers: {
+            sessions: () => [],
+            transport: { send: async () => {} },
+            ownerFacts: async () => ({ pushLog: [], sessions: [], procs: [], worktrees: [] }),
+        },
         ...options,
     });
     daemons.push(daemon);

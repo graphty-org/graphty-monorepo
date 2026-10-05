@@ -114,7 +114,8 @@ import {
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
 import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
 import { containerStart, identify } from "./proc.mjs";
-import { liveSessions, socketTransport } from "./peers.mjs";
+import { inferOwners, parseWorktrees, processTable, readPushLog } from "./owners.mjs";
+import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
 import { needsReleaseDryRun, patchId, releaseSectionChanged, touches, updatePrs, whyStuck } from "./prs.mjs";
 import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
@@ -493,8 +494,11 @@ function requeueLostStarts(state, at) {
  * @param {import("./merge-status.mjs").NpmLookup} [options.npm] whether npm knows a package; the
  *   registry by default
  * @param {{sessions?: typeof import("./peers.mjs").liveSessions,
- *   transport?: import("./peers.mjs").Transport}} [options.peers] the live Claude sessions of this
- *   repository and the messaging transport (asks.mjs); the registry and the sockets by default
+ *   transport?: import("./peers.mjs").Transport,
+ *   ownerFacts?: () => Promise<Omit<Parameters<typeof inferOwners>[1], "root">>}} [options.peers]
+ *   the live Claude sessions of this repository, the messaging transport (asks.mjs), and what
+ *   pull request ownership is inferred from (owners.mjs); the registry, the sockets, the push log,
+ *   /proc and git by default
  * @returns {Promise<Daemon>} the running daemon
  */
 export async function startDaemon({
@@ -1699,6 +1703,7 @@ export async function startDaemon({
      * @param {Date} t the poll's time
      */
     async function askOwners(t) {
+        state.prInferred = inferOwners(state.prs ?? {}, { root, ...(await (peers.ownerFacts ?? ownerFacts)()) });
         const lines = await askStep(state, {
             now: t,
             acting: writeMode("workers") === "acting",
@@ -1707,6 +1712,21 @@ export async function startDaemon({
             sessionGone: ownerSessionGone,
         });
         for (const line of lines) void ledger(line);
+    }
+
+    /**
+     * What pull request ownership is inferred from (owners.mjs): the push log, every live
+     * registered session, the process table and the worktrees with a branch checked out.
+     * @returns {Promise<Omit<Parameters<typeof inferOwners>[1], "root">>} the facts
+     */
+    async function ownerFacts() {
+        const list = await runGit(["worktree", "list", "--porcelain"]);
+        return {
+            pushLog: readPushLog(join(root, "tmp", "push-log.jsonl")),
+            sessions: registeredSessions({ sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions") }),
+            procs: processTable(),
+            worktrees: list.code === 0 ? parseWorktrees(list.stdout) : [],
+        };
     }
 
     /**

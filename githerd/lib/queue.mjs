@@ -303,7 +303,9 @@ export function askFor(state, n) {
  *    no session to ask. While asks are dry-run nobody heard the question, so silence says nothing
  *    and the pull request stays in use.
  *
- * 4. a live session holds an owner record for it (`state.prOwners`, asks.mjs): whatever its head.
+ * 4. a live session holds an owner record for it (`state.prOwners`, asks.mjs): whatever its head;
+ * 5. a live session owns it by inference (`state.prInferred`, owners.mjs): it last pushed the
+ *    branch, or it works in the branch's worktree. The explicit record of 4 wins over it.
  *
  * A reason that names the asking session itself starts "yours:".
  *
@@ -322,6 +324,9 @@ export function prInUse(state, n, { config, now, except = null, review = false, 
     const owned = state.prOwners?.[String(n)];
     if (owned && session && owned.session === session) return "yours: you said it is yours";
     if (owned) return `session ${owned.name} owns it (${owned.by === "cli" ? "the owner said so" : "it said so"})`;
+    const inferred = state.prInferred?.[String(n)];
+    if (inferred && session && inferred.session === session) return `yours: ${inferred.evidence}`;
+    if (inferred) return `session ${inferred.name} owns it (${inferred.evidence})`;
     const rec = state.prs?.[String(n)];
     if (!rec?.headSha || headIsGitherds(state, rec)) return null;
     const head = String(rec.headSha ?? "").slice(0, 7);
@@ -344,8 +349,9 @@ export function prInUse(state, n, { config, now, except = null, review = false, 
 
 /**
  * The sessions that wrote pull request `n`: every session that claimed a job on it other than a
- * review (the job that made it, and those that pushed to it), and the session that said it is its
- * own (`state.prOwners`, or the answer to githerd's question).
+ * review (the job that made it, and those that pushed to it), the session that said it is its
+ * own (`state.prOwners`, or the answer to githerd's question), and its inferred owner
+ * (`state.prInferred`).
  * @param {any} state the daemon state
  * @param {number | string} n the pull request
  * @returns {Set<string>} the session ids
@@ -355,7 +361,8 @@ export function prAuthors(state, n) {
     for (const j of Object.values(state.jobs ?? {})) {
         if (j.kind !== "review" && String(prOf(j)) === String(n)) for (const s of j.sessions ?? []) authors.add(s);
     }
-    for (const s of [state.prOwners?.[String(n)]?.session, askFor(state, n)?.owner?.session]) if (s) authors.add(s);
+    const owners = [state.prOwners, state.prInferred].map((o) => o?.[String(n)]?.session);
+    for (const s of [...owners, askFor(state, n)?.owner?.session]) if (s) authors.add(s);
     return authors;
 }
 

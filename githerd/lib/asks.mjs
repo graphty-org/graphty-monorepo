@@ -13,7 +13,8 @@
  * record, `state.prOwners[<pr>]`: `{session, name, at, by: "tool" | "cli"}`. A new push keeps it;
  * it drops when that session leaves Claude Code's session registry or the pull request closes
  * (`settleOwners`). While it holds, `prInUse` reports the pull request in use by that session, so
- * it is neither offered nor asked about.
+ * it is neither offered nor asked about. Nor is a pull request with an inferred owner
+ * (`state.prInferred`, owners.mjs): the session that last pushed it, or works in its worktree.
  *
  * The same messaging asks each owner session holding a job for its status (`statusStep`), and
  * invites idle sessions to pull work (`inviteStep`).
@@ -96,7 +97,15 @@ function questionFor(state, job, acting) {
     const n = String(prOf(job));
     const rec = state.prs?.[n];
     const asked = state.asks[n]?.head === rec?.headSha && !(acting && state.asks[n]?.dryRun);
-    if (!rec || asked || state.prOwners?.[n] || headIsGitherds(state, rec) || jobOnPr(state, n)) return null;
+    if (
+        !rec ||
+        asked ||
+        state.prOwners?.[n] ||
+        state.prInferred?.[n] ||
+        headIsGitherds(state, rec) ||
+        jobOnPr(state, n)
+    )
+        return null;
     const failing = askProblems(rec);
     return failing.length ? { n, rec, failing } : null;
 }

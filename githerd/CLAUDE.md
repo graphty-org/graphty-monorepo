@@ -64,4 +64,6 @@ Build order and per-task done-criteria: `design/githerd/githerd-plan.md`.
   `git push` as its command, an incident's fix as critical, and the reference worktree's gate runs
   through it too. `tools/prepush.sh` takes no lock of its own; adding one would make the three
   slots one gate at a time for every session. The board reads the queue's tickets in the main
-  checkout's `tmp/push-queue/` (`pushQueueTickets` in `lib/proc.mjs`).
+  checkout's `tmp/push-queue/` (`pushQueueTickets` in `lib/proc.mjs`). The script also appends one line per push
+  to the main checkout's `tmp/push-log.jsonl` naming the Claude session that launched it, from
+  which `lib/owners.mjs` infers each pull request's owner every poll (with worktree presence).

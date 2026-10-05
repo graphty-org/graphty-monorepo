@@ -193,7 +193,12 @@ const RENDER = {
             ...v.prs.map((p) => {
                 // A session's durable owner record (asks.mjs): githerd neither offers nor asks about it.
                 const o = v.state?.prOwners?.[p.number];
-                const owned = o ? ` -- owned by session ${o.name} (${o.by})` : "";
+                const i = v.state?.prInferred?.[p.number];
+                const owned = o
+                    ? ` -- owned by session ${o.name} (${o.by})`
+                    : i
+                      ? ` -- owned by session ${i.name} (${i.evidence})`
+                      : "";
                 return `  #${[p.number, p.title].filter(Boolean).join(" ")} -- ${mergeWords(p.decision)}${owned}`;
             }),
         ];

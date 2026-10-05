@@ -136,6 +136,15 @@ describe("renderBoard", () => {
             NOW,
         );
         expect(owned).toContain("  #8 -- githerd is evaluating -- owned by session graphty-7c (cli)");
+        delete state.prOwners;
+        state.prInferred = { 8: { session: "s-3", name: "graphty-9", evidence: "working in .worktrees/x" } };
+        const inferred = renderBoard(
+            view(state, { prs: [{ number: 8, decision: { state: "pending", description: "", line: null } }] }),
+            NOW,
+        );
+        expect(inferred).toContain(
+            "  #8 -- githerd is evaluating -- owned by session graphty-9 (working in .worktrees/x)",
+        );
         expect(text).toContain("SESSIONS (1):\n  s-2\n");
         expect(text).toContain("  order o1: #4 #5\n  policy p1: freeze-merges\n");
         expect(text).not.toContain("policy p2");

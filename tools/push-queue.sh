@@ -37,4 +37,44 @@ while :; do
     done
     sleep 10
 done
+
+# The push log, which githerd reads to learn whose pull request a branch is
+# (githerd/lib/owners.mjs): one JSON line per push, appended when it ends, with the pushed branch
+# and commit and the Claude Code session that launched it -- the first ancestor process with a
+# registry entry in ~/.claude/sessions (its procStart matching, so a reused pid is not mistaken for
+# it), or null. Append only; a missing jq skips the line, never the push.
+# ponytail: only the last refspec of a push is logged; one branch per push is the norm here.
+log=${PUSH_QUEUE_LOG:-$(dirname "$dir")/push-log.jsonl}
+branch=; sha=; session=
+args=("$@"); i=1
+if [ "${args[0]:-}" = git ]; then
+    while [ $i -lt ${#args[@]} ] && [ "${args[$i]}" != push ]; do i=$((i + 1)); done
+    pos=()
+    for a in "${args[@]:$((i + 1))}"; do case $a in -*) ;; *) pos+=("$a") ;; esac; done
+    if [ ${#pos[@]} -ge 2 ]; then
+        ref=${pos[${#pos[@]} - 1]}; src=${ref%%:*}; src=${src#+}; dst=${ref#*:}
+    else
+        src=HEAD; dst=$(git symbolic-ref --short -q HEAD)
+    fi
+    branch=${dst#refs/heads/}
+    sha=$(git rev-parse --verify -q "${src:-HEAD}^{commit}" 2>/dev/null)
+fi
+p=$$
+while [ "${p:-0}" -gt 1 ] && [ -r "/proc/$p/stat" ]; do
+    read -ra f <<<"$(sed 's/.*) //' "/proc/$p/stat")"
+    entry="${HOME:-}/.claude/sessions/$p.json"
+    if [ -f "$entry" ]; then
+        session=$(jq -c --arg s "${f[19]}" 'select((.procStart // $s | tostring) == $s and .sessionId != null)
+            | {sessionId, name}' "$entry" 2>/dev/null)
+        [ -n "$session" ] && break
+    fi
+    p=${f[1]}
+done
 "$@"
+rc=$?
+jq -nc --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg branch "$branch" --arg sha "$sha" --arg cwd "$PWD" \
+    --argjson exit "$rc" --argjson session "${session:-null}" \
+    '{at: $at, branch: (if $branch == "" then null else $branch end),
+      sha: (if $sha == "" then null else $sha end), exit: $exit, cwd: $cwd,
+      sessionId: $session.sessionId, name: $session.name}' >>"$log" 2>/dev/null
+exit $rc

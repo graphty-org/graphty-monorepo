@@ -1,3 +1,29 @@
+## 0.8.54 (2026-10-05)
+
+### 🚀 Features
+
+- **graphty:** the inspector, with every tier 1 kind's Values tab and Why this look ([#895](https://github.com/graphty-org/graphty-monorepo/issues/895), [#896](https://github.com/graphty-org/graphty-monorepo/issues/896), [#897](https://github.com/graphty-org/graphty-monorepo/issues/897), [#898](https://github.com/graphty-org/graphty-monorepo/issues/898), [#899](https://github.com/graphty-org/graphty-monorepo/issues/899), [#900](https://github.com/graphty-org/graphty-monorepo/issues/900), [#903](https://github.com/graphty-org/graphty-monorepo/issues/903), [#810](https://github.com/graphty-org/graphty-monorepo/issues/810), [#791](https://github.com/graphty-org/graphty-monorepo/issues/791))
+
+### 🩹 Fixes
+
+- **graphty:** draw the Compare button disabled until Compare is built ([#826](https://github.com/graphty-org/graphty-monorepo/issues/826), [#186](https://github.com/graphty-org/graphty-monorepo/issues/186))
+- **graphty:** type the no-element-mutation test from the element's .d.ts files ([fe66271b2](https://github.com/graphty-org/graphty-monorepo/commit/fe66271b2))
+- **graphty:** read the inspector's first and last group with at() ([02def33af](https://github.com/graphty-org/graphty-monorepo/commit/02def33af))
+- **graphty:** name the inspector's groups from the element's rank ([e87b847ef](https://github.com/graphty-org/graphty-monorepo/commit/e87b847ef))
+- **graphty:** clear the SonarQube findings on the tier 1 inspector ([89aaf9417](https://github.com/graphty-org/graphty-monorepo/commit/89aaf9417))
+- **graphty:** stop exporting the inspector's FinishedRun type ([e3219f711](https://github.com/graphty-org/graphty-monorepo/commit/e3219f711))
+- **graphty:** inspector review fixes: exact counts, element facts, kind words ([#931](https://github.com/graphty-org/graphty-monorepo/issues/931), [#893](https://github.com/graphty-org/graphty-monorepo/issues/893), [#932](https://github.com/graphty-org/graphty-monorepo/issues/932))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.35
+- Updated compact-mantine to 0.9.7
+- Updated graphty-element to 3.15.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.53 (2026-10-05)
 
 ### 🧱 Updated Dependencies

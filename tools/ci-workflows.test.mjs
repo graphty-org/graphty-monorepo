@@ -127,6 +127,10 @@ describe("pr-title.yml", () => {
     it("passes only Mergify's own merge-queue draft without linting its title", () => {
         assert.ok(workflow("pr-title.yml").includes(`- name: Lint PR title\n              if: \${{ !(${QUEUE}) }}\n`));
     });
+    it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
+        // A concurrency group cancels superseded runs even without cancel-in-progress.
+        assert.doesNotMatch(workflow("pr-title.yml"), /^concurrency:/m);
+    });
 });
 
 describe("the lanes outside CI", () => {

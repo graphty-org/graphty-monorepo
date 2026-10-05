@@ -1,3 +1,11 @@
+## 0.8.53 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.34
+- Updated compact-mantine to 0.9.6
+- Updated graphty-element to 3.14.5
+
 ## 0.8.52 (2026-10-05)
 
 ### 🧱 Updated Dependencies

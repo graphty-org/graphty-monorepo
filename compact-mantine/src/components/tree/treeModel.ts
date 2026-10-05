@@ -9,8 +9,13 @@ import type React from "react";
 export interface TreeNodeData {
     /** Stable, unique across the whole tree. */
     id: string;
-    /** The visible name; also the item's accessible name and its type-ahead key. */
+    /** The visible name; also the item's type-ahead key, and its accessible name unless `label` is given. */
     name: string;
+    /**
+     * The accessible name, when the visible name alone is not enough: "value, edge attribute"
+     * where two rows read "value". Start it with the visible name. Defaults to `name`.
+     */
+    label?: string;
     /** The 16 x 16 type glyph drawn before the name. */
     icon?: React.ReactNode;
     /**
@@ -30,7 +35,8 @@ export interface TreeNodeData {
     /**
      * The row's trailing toggles (lock, eye): the caller's own controls. They stay hidden until
      * the row is hovered or focused; a control with `aria-pressed="true"`, `aria-checked="true"`
-     * or `data-pinned` stays visible.
+     * or `data-pinned` stays visible. A click on passive text here (nothing focusable) counts as a
+     * click on the row.
      */
     actions?: React.ReactNode;
     /**
@@ -52,7 +58,7 @@ export interface TreeNodeData {
     /**
      * The row's state in words -- "Running", "Failed: the graph has no edges" -- read by a
      * screen reader after the name (the row's `aria-describedby`) and never drawn. A row's
-     * accessible name is only its `name`, so anything a glyph or a tooltip says belongs here
+     * accessible name is only its `name` (or `label`), so anything a glyph or a tooltip says belongs here
      * too.
      */
     description?: string;

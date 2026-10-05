@@ -222,8 +222,7 @@ export function jobText(job, ctx = {}) {
     const lines = [`JOB ${job.id}`, `TARGET: ${TARGET_NOUN[job.kind]} ${job.target}`, `WHAT FOR: ${purpose}`];
     if (job.reason) lines.push(`WHY NOW: ${job.reason}`);
     const finish = FINISH[verdict ? "verdict" : job.kind] ?? FINISH_DEFAULT;
-    lines.push(`DONE WHEN: ${done}`, `TO FINISH: ${finish}`, ...earlier(job));
-    lines.push(...factLines(job, { refresh, verdict }));
+    lines.push(`DONE WHEN: ${done}`, `TO FINISH: ${finish}`, ...earlier(job), ...factLines(job, { refresh, verdict }));
     const policies = (ctx.policies ?? []).filter((p) => !p.endedAt && p.text);
     if (policies.length) lines.push("OWNER POLICIES:", ...policies.map((p) => `  - ${p.text}`));
     lines.push("RULES:", ...RULES.map((r) => `  - ${r}`));

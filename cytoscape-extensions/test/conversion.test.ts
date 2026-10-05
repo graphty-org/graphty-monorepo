@@ -402,6 +402,7 @@ describe("positions on import", () => {
         expect(fromGexf.$("#a").position()).toEqual({ x: 10, y: -20 });
         const written = await core(placed()).graphtyExport("cx2");
         expect(written).toContain('"x":10,"y":20');
+        expect(await core(placed()).graphtyExport("json")).toMatch(/"position":\{"x":10,"y":20\}/);
     });
 
     it("drops z, and leaves a node without a position (or with a non-finite one) unplaced", () => {

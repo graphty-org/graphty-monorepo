@@ -81,13 +81,6 @@ export interface ImportedElements {
 }
 
 /**
- * The formats whose positions graph-io keeps in Cytoscape's screen coordinates instead of negating y.
- * ponytail: graph-io's JSON importer and exporter do not negate the y of Cytoscape JSON, unlike its other
- * Cytoscape-family formats (CX, CX2, XGMML, CYS), whose positions it stores y-up; drop this set once graph-io does.
- */
-const SCREEN_Y_FORMATS: ReadonlySet<string> = new Set(["json"]);
-
-/**
  * Reads a graph file into Cytoscape element definitions.
  * @param input - the file as text, bytes, a stream or chunks
  * @param format - the format, or "auto" to sniff it
@@ -134,11 +127,9 @@ export async function importElements(
             }),
     );
     // graph-io stores positions with y growing upward; Cytoscape's y grows downward
-    if (!SCREEN_Y_FORMATS.has(r.format)) {
-        for (const el of elements) {
-            if (el.position !== undefined) {
-                el.position.y = flipY(el.position.y);
-            }
+    for (const el of elements) {
+        if (el.position !== undefined) {
+            el.position.y = flipY(el.position.y);
         }
     }
     const report =
@@ -198,7 +189,6 @@ export async function exportElements(
     const snapshot = elementsToSnapshot(eles, {
         directed,
         integerIds: INTEGER_ID_FORMATS.has(format),
-        screenY: SCREEN_Y_FORMATS.has(format),
     });
     const graphOptions = {
         sanitizeIds: "mangle" as const,

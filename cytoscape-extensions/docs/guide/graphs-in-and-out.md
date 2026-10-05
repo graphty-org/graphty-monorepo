@@ -137,8 +137,9 @@ two.
   warning and a new id in every format.
 - A compound parent (GraphML nested graph, DOT cluster) becomes `data.parent`.
 - Positions become node positions; nodes without one sit at the origin. CX, CX2 and XGMML put a
-  z coordinate in `data.z`. GEXF, GML, DOT and Pajek are y-up, so y is negated on import and on
-  export.
+  z coordinate in `data.z`. CX, CX2, XGMML and Cytoscape JSON keep Cytoscape's own coordinates, so
+  a node sits where Cytoscape drew it. GEXF, GML, DOT and Pajek are y-up, so y is negated on import
+  and on export.
 
 ## Direction and existing elements
 

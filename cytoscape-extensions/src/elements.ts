@@ -272,7 +272,6 @@ function columns(records: readonly Record<string, unknown>[]): Record<string, Co
  * @param eles - the collection
  * @param options - the direction and the id type
  * @param options.directed - write a directed graph (default false)
- * @param options.screenY - keep Cytoscape's y as it is instead of negating it (default false)
  * @param options.integerIds - when every node id is a non-negative integer written plainly ("0", "17"), give the
  * snapshot number ids, so a format that holds only integer ids (GML, CX2) writes them as they are (default false)
  * @returns the snapshot
@@ -282,7 +281,6 @@ export function elementsToSnapshot(
     options: {
         readonly directed?: boolean | undefined;
         readonly integerIds?: boolean | undefined;
-        readonly screenY?: boolean | undefined;
     } = {},
 ): GraphSnapshot {
     const nodes = eles.nodes();
@@ -304,7 +302,7 @@ export function elementsToSnapshot(
     nodes.forEach((n, i) => {
         const p = n.position();
         xy[2 * i] = p.x;
-        xy[2 * i + 1] = options.screenY === true ? p.y : flipY(p.y);
+        xy[2 * i + 1] = flipY(p.y);
     });
     const parents = nodes.map((n) => index.get(n.parent().first().id()) ?? null);
     const edgeColumns = columns(edges.map((e) => e.data() as Record<string, unknown>));

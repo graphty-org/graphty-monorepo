@@ -352,7 +352,7 @@ export function createGraphSession(options?: CreateGraphSessionOptions): GraphSe
 export interface CreateGraphSessionOptions {
     readonly acceleration?: AccelerationControllerLike;
     readonly config?: {
-        readonly data?: SessionDataConfig;
+        readonly data?: NonNullable<ProjectConfigPatch["data"]>;
         readonly acceleration?: {
             readonly policy?: AccelerationPolicy;
             readonly minNodes?: number;

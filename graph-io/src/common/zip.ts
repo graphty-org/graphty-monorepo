@@ -14,14 +14,23 @@
  * the length itself; stored entries (method 0) are checked against a CRC-32 table here. Every
  * other method, and encryption, is refused by name. Entry names are decoded by `decodeEntryName()`
  * (the one place bytes become text) and are matching keys only, never paths.
+ *
+ * `writeZip()` is the matching writer, for the Cytoscape session exporter: stored entries only,
+ * each with its CRC-32 and sizes in its local header (Java's `ZipInputStream`, which Cytoscape
+ * reads sessions with, refuses a stored entry that defers them to a data descriptor).
  */
+
+import { GraphFormatError } from "@graphty/graph-format";
 
 import { decodeEntryName, throwIfAborted } from "./input.js";
 
 /** Why a zip could not be read; the importer maps each kind to its own issue code. */
 type ZipErrorKind = "not-zip" | "corrupt" | "unsupported" | "too-large";
 
-/** A zip that cannot be read, or an entry that cannot be inflated. */
+/**
+ * A zip that cannot be read, or an entry that cannot be inflated.
+ * @category Plugin helpers
+ */
 export class ZipError extends Error {
     /** What went wrong. */
     readonly kind: ZipErrorKind;
@@ -38,7 +47,10 @@ export class ZipError extends Error {
     }
 }
 
-/** One entry of the central directory. */
+/**
+ * One entry of the central directory.
+ * @category Plugin helpers
+ */
 export interface ZipEntry {
     /** The name, decoded, as the central directory spells it. */
     readonly name: string;
@@ -58,7 +70,10 @@ export interface ZipEntry {
     readonly directory: boolean;
 }
 
-/** How one entry is read. */
+/**
+ * How one entry is read.
+ * @category Plugin helpers
+ */
 export interface ReadEntryOptions {
     /** The cancellation signal. */
     readonly signal?: AbortSignal | null | undefined;
@@ -70,7 +85,10 @@ export interface ReadEntryOptions {
     readonly maxRatio: number;
 }
 
-/** A per-entry size under which the ratio limit does not apply (tiny entries compress well). */
+/**
+ * A per-entry size under which the ratio limit does not apply (tiny entries compress well).
+ * @category Plugin helpers
+ */
 export const RATIO_FLOOR = 1024 * 1024;
 
 const EOCD_SIGNATURE = 0x06054b50;
@@ -86,6 +104,8 @@ const ZIP64_EOCD_SIZE = 56;
 const ZIP64_LOCATOR_SIZE = 20;
 const U16_MAX = 0xffff;
 const U32_MAX = 0xffffffff;
+/** General purpose bit 11: the name is UTF-8. */
+const UTF8_FLAG = 0x800;
 /** Bytes between two cancellation checks while a stored entry's CRC is computed. */
 const CRC_SLICE = 1024 * 1024;
 
@@ -108,6 +128,7 @@ const METHOD_NAMES: Readonly<Record<number, string>> = {
  * Whether bytes start with a local file header signature (`PK\x03\x04`).
  * @param bytes - the bytes
  * @returns true for the start of a zip
+ * @category Plugin helpers
  */
 export function startsLikeZip(bytes: Uint8Array): boolean {
     return bytes.byteLength >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 3 && bytes[3] === 4;
@@ -119,6 +140,7 @@ export function startsLikeZip(bytes: Uint8Array): boolean {
  * @returns the entries in directory order; ZipError "not-zip" when there is no end record and the
  * bytes do not start like a zip, "corrupt" for an end record or directory that does not fit,
  * "unsupported" for a split archive
+ * @category Plugin helpers
  */
 export function readZipDirectory(bytes: Uint8Array): ZipEntry[] {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -171,7 +193,11 @@ export function readZipDirectory(bytes: Uint8Array): ZipEntry[] {
         if (next > directoryEnd) {
             throw new ZipError("corrupt", `central directory entry ${i + 1} runs past the directory`);
         }
-        const name = decodeEntryName(bytes.subarray(at + CENTRAL_SIZE, at + CENTRAL_SIZE + nameLength));
+        const flags = view.getUint16(at + 8, true);
+        const name = decodeEntryName(
+            bytes.subarray(at + CENTRAL_SIZE, at + CENTRAL_SIZE + nameLength),
+            (flags & UTF8_FLAG) === 0,
+        );
         let compressedSize = view.getUint32(at + 20, true);
         let size = view.getUint32(at + 24, true);
         let localOffset = view.getUint32(at + 42, true);
@@ -186,7 +212,7 @@ export function readZipDirectory(bytes: Uint8Array): ZipEntry[] {
             Object.freeze({
                 name,
                 method: view.getUint16(at + 10, true),
-                flags: view.getUint16(at + 8, true),
+                flags,
                 crc32: view.getUint32(at + 16, true),
                 compressedSize,
                 size,
@@ -196,7 +222,39 @@ export function readZipDirectory(bytes: Uint8Array): ZipEntry[] {
         );
         at = next;
     }
+    if (at + 4 <= directoryEnd && view.getUint32(at, true) === CENTRAL_SIGNATURE) {
+        throw new ZipError(
+            "corrupt",
+            `the end record counts ${count} entries but the central directory holds more; entries would go unread`,
+        );
+    }
+    checkOverlap(entries, view);
     return entries;
+}
+
+/**
+ * Refuse entries whose local header and data overlap (several directory entries naming one local
+ * header is a known zip bomb: each inflates the same bytes again). An entry spans its local
+ * header, its local name and extra field, and its compressed data; a trailing data descriptor is
+ * not counted, since overlapping it inflates nothing twice. A damaged local header counts as a bare
+ * header here and is refused when the entry is read.
+ * @param entries - the entries
+ * @param view - the archive
+ */
+function checkOverlap(entries: readonly ZipEntry[], view: DataView): void {
+    const sorted = [...entries].sort((a, b) => a.localOffset - b.localOffset);
+    const end = (entry: ZipEntry): number => {
+        const at = entry.localOffset;
+        const intact = at + LOCAL_SIZE <= view.byteLength && view.getUint32(at, true) === LOCAL_SIGNATURE;
+        const lengths = intact ? view.getUint16(at + 26, true) + view.getUint16(at + 28, true) : 0;
+        return at + LOCAL_SIZE + lengths + entry.compressedSize;
+    };
+    for (let i = 1; i < sorted.length; i++) {
+        const before = sorted[i - 1];
+        if (sorted[i].localOffset < end(before)) {
+            throw new ZipError("corrupt", `the entries ${before.name} and ${sorted[i].name} overlap`);
+        }
+    }
 }
 
 /**
@@ -357,7 +415,18 @@ function entryData(bytes: Uint8Array, entry: ZipEntry): Uint8Array {
     if (at + LOCAL_SIZE > bytes.byteLength || view.getUint32(at, true) !== LOCAL_SIGNATURE) {
         throw new ZipError("corrupt", `${entry.name}: the local header is missing`);
     }
-    const start = at + LOCAL_SIZE + view.getUint16(at + 26, true) + view.getUint16(at + 28, true);
+    const nameLength = view.getUint16(at + 26, true);
+    const localName = decodeEntryName(
+        bytes.subarray(at + LOCAL_SIZE, Math.min(bytes.byteLength, at + LOCAL_SIZE + nameLength)),
+        (entry.flags & UTF8_FLAG) === 0,
+    );
+    if (localName !== entry.name) {
+        throw new ZipError(
+            "corrupt",
+            `${entry.name}: the local header names the entry ${JSON.stringify(localName)}, the central directory ${JSON.stringify(entry.name)}`,
+        );
+    }
+    const start = at + LOCAL_SIZE + nameLength + view.getUint16(at + 28, true);
     const end = start + entry.compressedSize;
     if (end > bytes.byteLength) {
         throw new ZipError("corrupt", `${entry.name}: the entry's data runs past the end of the archive (truncated?)`);
@@ -466,7 +535,100 @@ function crcUpdate(crc: number, bytes: Uint8Array): number {
  * The CRC-32 of bytes.
  * @param bytes - the bytes
  * @returns the checksum
+ * @category Plugin helpers
  */
 export function crc32(bytes: Uint8Array): number {
     return (crcUpdate(0xffffffff, bytes) ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * One entry for writeZip(): its name and its bytes.
+ * @category Plugin helpers
+ */
+export interface ZipWriteEntry {
+    /** The entry name (UTF-8, `/` separated). */
+    readonly name: string;
+    /** The data. */
+    readonly data: Uint8Array;
+}
+
+/** The DOS time and date written on every entry: 1980-01-01 00:00, so equal input gives equal bytes. */
+const DOS_DATE = (0 << 9) | (1 << 5) | 1;
+/** Version needed to extract a stored entry (1.0). */
+const STORED_VERSION = 10;
+
+/**
+ * Write a zip archive of stored (uncompressed) entries, one entry at a time: each entry's local
+ * header and data are yielded as soon as the entry is produced, then the central directory and
+ * the end record. Entries are not compressed (ponytail: deflate through `CompressionStream` when
+ * the archive size matters). Zip64 is not written: an entry or archive of 4 GiB or more, or more
+ * than 65,535 entries, is E_TOO_LARGE.
+ * @param entries - the entries, in archive order (may be produced lazily)
+ * @yields the archive bytes
+ * @returns nothing
+ */
+export function* writeZip(entries: Iterable<ZipWriteEntry>): Generator<Uint8Array, void, undefined> {
+    const encoder = new TextEncoder();
+    const central: Uint8Array[] = [];
+    let offset = 0;
+    let count = 0;
+    for (const entry of entries) {
+        const name = encoder.encode(entry.name);
+        const { data } = entry;
+        if (offset + LOCAL_SIZE + name.byteLength + data.byteLength >= U32_MAX || count === U16_MAX) {
+            throw new GraphFormatError("E_TOO_LARGE", "the archive needs zip64, which graph-io does not write", {
+                entry: entry.name,
+            });
+        }
+        const crc = crc32(data);
+        const local = new Uint8Array(LOCAL_SIZE + name.byteLength);
+        const lv = new DataView(local.buffer);
+        lv.setUint32(0, LOCAL_SIGNATURE, true);
+        lv.setUint16(4, STORED_VERSION, true);
+        lv.setUint16(6, UTF8_FLAG, true);
+        lv.setUint16(8, 0, true);
+        lv.setUint16(10, 0, true);
+        lv.setUint16(12, DOS_DATE, true);
+        lv.setUint32(14, crc, true);
+        lv.setUint32(18, data.byteLength, true);
+        lv.setUint32(22, data.byteLength, true);
+        lv.setUint16(26, name.byteLength, true);
+        lv.setUint16(28, 0, true);
+        local.set(name, LOCAL_SIZE);
+        const record = new Uint8Array(CENTRAL_SIZE + name.byteLength);
+        const cv = new DataView(record.buffer);
+        cv.setUint32(0, CENTRAL_SIGNATURE, true);
+        cv.setUint16(4, STORED_VERSION, true);
+        cv.setUint16(6, STORED_VERSION, true);
+        cv.setUint16(8, UTF8_FLAG, true);
+        cv.setUint16(10, 0, true);
+        cv.setUint16(12, 0, true);
+        cv.setUint16(14, DOS_DATE, true);
+        cv.setUint32(16, crc, true);
+        cv.setUint32(20, data.byteLength, true);
+        cv.setUint32(24, data.byteLength, true);
+        cv.setUint16(28, name.byteLength, true);
+        cv.setUint32(42, offset, true);
+        record.set(name, CENTRAL_SIZE);
+        central.push(record);
+        yield local;
+        if (data.byteLength > 0) {
+            yield data;
+        }
+        offset += local.byteLength + data.byteLength;
+        count++;
+    }
+    let size = 0;
+    for (const record of central) {
+        size += record.byteLength;
+        yield record;
+    }
+    const end = new Uint8Array(EOCD_SIZE);
+    const ev = new DataView(end.buffer);
+    ev.setUint32(0, EOCD_SIGNATURE, true);
+    ev.setUint16(8, count, true);
+    ev.setUint16(10, count, true);
+    ev.setUint32(12, size, true);
+    ev.setUint32(16, offset, true);
+    yield end;
 }

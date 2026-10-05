@@ -6,35 +6,68 @@
 
 import { type ColumnOriginInput } from "@graphty/graph-format";
 
-/** The format name. */
+/**
+ * The format name.
+ * @category Plugin helpers
+ */
 export const DOT_FORMAT = "dot";
 
-/** The origin recorded on every column the importer declares. */
+/**
+ * The origin recorded on every column the importer declares.
+ * @category Plugin helpers
+ */
 export const DOT_ORIGIN: ColumnOriginInput = Object.freeze({ format: DOT_FORMAT });
 
-/** The bool node column marking a cluster's container node. */
+/**
+ * The bool node column marking a cluster's container node.
+ * @category Plugin helpers
+ */
 export const CLUSTER_COLUMN = "graphty.cluster";
 
-/** The u32 node column (role parent, refersTo node) holding a member's cluster. */
+/**
+ * The u32 node column (role parent, refersTo node) holding a member's cluster.
+ * @category Plugin helpers
+ */
 export const PARENT_COLUMN = "graphty.parent";
 
-/** The string edge column (role sourcePort) holding an edge's tail port. */
+/**
+ * The string edge column (role sourcePort) holding an edge's tail port.
+ * @category Plugin helpers
+ */
 export const SOURCE_PORT_COLUMN = "graphty.sourcePort";
 
-/** The string edge column (role targetPort) holding an edge's head port. */
+/**
+ * The string edge column (role targetPort) holding an edge's head port.
+ * @category Plugin helpers
+ */
 export const TARGET_PORT_COLUMN = "graphty.targetPort";
 
-/** The attribute that is the display label (kept as text with role label). */
+/**
+ * The attribute that is the display label (kept as text with role label).
+ * @category Plugin helpers
+ */
 export const LABEL_ATTRIBUTE = "label";
 
-/** The node attribute holding a position, mapped to the position role column (design section 5.2). */
+/**
+ * The node attribute holding a position, mapped to the position role column (design section 5.2).
+ * @category Plugin helpers
+ */
 export const POS_ATTRIBUTE = "pos";
 
-/** The edge attribute cgraph uses as an edge's identity within its endpoints, mapped to the edge id role. */
+/**
+ * The edge attribute cgraph uses as an edge's identity within its endpoints, mapped to the edge id role.
+ * @category Plugin helpers
+ */
 export const KEY_ATTRIBUTE = "key";
 
-/** The node attribute a `!` suffix of `pos` sets (Graphviz's own spelling of a pinned position). */
+/**
+ * The node attribute a `!` suffix of `pos` sets (Graphviz's own spelling of a pinned position).
+ * @category Plugin helpers
+ */
 export const PIN_ATTRIBUTE = "pin";
 
-/** The key under meta.extra holding the format's graph flags (`{ strict: true }`). */
+/**
+ * The key under meta.extra holding the format's graph flags (`{ strict: true }`).
+ * @category Plugin helpers
+ */
 export const DOT_META_KEY = "dot";

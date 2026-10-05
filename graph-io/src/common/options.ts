@@ -1,5 +1,5 @@
 /**
- * Option normalisation for importers and exporters (design sections 8.4 and 8.5): every common
+ * Option normalization for importers and exporters (design sections 8.4 and 8.5): every common
  * option resolved to its documented default, enum values checked (E_UNSUPPORTED, the core's
  * convention for an option outside its set), and the per-format defaults (`ids`, `defaultDirected`,
  * `weightFrom`, `addMissingNodes`) supplied by the importer that calls resolveImportOptions().
@@ -16,9 +16,13 @@ import {
     SINK_OPTION_CODE,
 } from "./codes.js";
 import { canonicalEncoding } from "./input.js";
+import { plural } from "./plural.js";
 import { type ImportReportBuilder } from "./report.js";
 
-/** The defaults an importer supplies for the options whose default is per format (design section 8.4). */
+/**
+ * The defaults an importer supplies for the options whose default is per format.
+ * @category Plugin helpers
+ */
 export interface ImportFormatDefaults {
     /** "canonical" for text-cell formats, "keep" for JSON. */
     readonly ids: IdCoercion;
@@ -31,9 +35,9 @@ export interface ImportFormatDefaults {
 }
 
 /**
- * CommonImportOptions with every field present (design section 8.4 defaults applied).
- * Consumed by the per-format importers and exporters under src/formats.
+ * CommonImportOptions with every field present.
  * @public
+ * @category Plugin helpers
  */
 export interface ResolvedImportOptions {
     /** The id coercion rule. */
@@ -70,7 +74,10 @@ export interface ResolvedImportOptions {
     readonly encoding: string | null;
 }
 
-/** CommonExportOptions with every field present (design section 8.5 defaults applied). */
+/**
+ * CommonExportOptions with every field present.
+ * @category Plugin helpers
+ */
 export interface ResolvedExportOptions {
     /** "error" never renames a node; "mangle" rewrites and keeps the original. */
     readonly sanitizeIds: "error" | "mangle";
@@ -89,7 +96,10 @@ const LONG_MODES: ReadonlySet<string> = new Set(["f64", "string"]);
 const HYPEREDGE_POLICIES: ReadonlySet<string> = new Set(["error", "skip", "star", "clique"]);
 const SANITIZE_MODES: ReadonlySet<string> = new Set(["error", "mangle"]);
 
-/** The default error limit of design section 8.4. */
+/**
+ * The default error limit: errors tolerated before an import aborts.
+ * @category Reports and errors
+ */
 export const DEFAULT_ERROR_LIMIT = 100;
 
 export { SINK_OPTION_CODE };
@@ -98,17 +108,18 @@ export { SINK_OPTION_CODE };
 const SINK_OPTION_NAMES = ["addMissingNodes", "duplicateEdges", "selfLoops", "weightDtype"] as const;
 
 /**
- * Report every builder-policy option the caller explicitly requested that the sink does not use
- * (design section 8.4 precedence), one `W_SINK_OPTION` warning per option with the option name as
+ * Report every builder-policy option the caller explicitly requested that the sink does not use,
+ * one `W_SINK_OPTION` warning per option with the option name as
  * the element. Options left undefined are never reported: they are defaults, not requests. On the
  * registry's builder, which is seeded from the same options, nothing is ever reported.
  * @param sink - the sink the importer pushes into
  * @param options - the caller's raw options, possibly undefined
  * @param report - the report to record into
  * @param enforcesMissingNodes - true when the importer applies `addMissingNodes: false` itself (it
- * refuses unknown endpoints before the sink sees them), so that request is honoured on any sink and
+ * refuses unknown endpoints before the sink sees them), so that request is honored on any sink and
  * only `addMissingNodes: true` against a refusing sink is reported
  * @returns the number of warnings recorded
+ * @category Writing a format
  */
 export function reportSinkOptions(
     sink: GraphSink,
@@ -156,15 +167,28 @@ const IGNORABLE_OPTION_NAMES = [
     "hyperedges",
 ] as const;
 
+/** The defaults that are the same in every format (the others, such as `defaultDirected`, differ by format). */
+const FIXED_DEFAULTS: Readonly<Partial<Record<(typeof IGNORABLE_OPTION_NAMES)[number], unknown>>> = {
+    nodeIdFrom: "id",
+    duplicateEdges: "keep",
+    selfLoops: "keep",
+    onMixedDirection: "expand",
+    weightDtype: "f64",
+    long: "f64",
+    restoreMangledIds: true,
+    hyperedges: "skip",
+};
+
 /**
  * Report every common option the caller set to a non-default value that the format has no use
- * for (design section 8.4: "the importer reports every option it could not honour"): one
+ * for: one
  * `W_OPTION_IGNORED` warning (category `unsupported`) per option, the option name as the element.
  * The builder-policy options are reportSinkOptions()'s and are skipped here.
  * @param options - the caller's raw options, possibly undefined
  * @param report - the report to record into
  * @param used - the common option names the importer reads
  * @returns the number of warnings recorded
+ * @category Writing a format
  */
 export function reportUnusedOptions(
     options: CommonImportOptions | undefined,
@@ -180,7 +204,8 @@ export function reportUnusedOptions(
             continue;
         }
         const value: unknown = options[name];
-        if (value === undefined) {
+        if (value === undefined || value === FIXED_DEFAULTS[name]) {
+            // an option spelled out at its default changes nothing, whether or not the format reads it
             continue;
         }
         report.warning(
@@ -195,6 +220,29 @@ export function reportUnusedOptions(
 }
 
 /**
+ * Whether the caller chose a graph with `graphIndex` or `graphName`. An importer warns
+ * W_MULTIPLE_GRAPHS about the graphs it skipped only when it read the first by default.
+ * @param options - the caller's graphIndex / graphName
+ * @returns true when either option is set
+ * @category Writing a format
+ */
+export function graphChosen(options: GraphChoiceOptions | undefined): boolean {
+    return options?.graphIndex !== undefined || options?.graphName !== undefined;
+}
+
+/**
+ * The graphs of an input as an E_GRAPH_NOT_FOUND message lists them: their indexes and names, so the
+ * caller can choose without a second call.
+ * @param names - each graph's name, null for an unnamed graph
+ * @returns the text to append, starting with "; "
+ */
+function graphNamesText(names: readonly (string | null)[]): string {
+    const shown = names.slice(0, 10).map((n, i) => `${i} ${n === null ? "(unnamed)" : JSON.stringify(n)}`);
+    const more = names.length > shown.length ? `, and ${names.length - shown.length} more` : "";
+    return `; the file holds ${shown.join(", ")}${more}`;
+}
+
+/**
  * The graph an importer reads from an input that holds several: the one `graphIndex` or
  * `graphName` names, else the first. A choice that names no graph is E_GRAPH_NOT_FOUND, a name two
  * graphs share is E_AMBIGUOUS_GRAPH_NAME, and an input with no graph at all is E_NO_GRAPH, each
@@ -203,6 +251,7 @@ export function reportUnusedOptions(
  * @param options - the caller's graphIndex / graphName
  * @param report - the report a failure is recorded in
  * @returns the index of the graph to read; E_UNSUPPORTED for an option of the wrong type, or both
+ * @category Writing a format
  */
 export function chooseGraph(
     names: readonly (string | null)[],
@@ -250,7 +299,7 @@ export function chooseGraph(
         if (matches.length === 0) {
             return report.fail(
                 GRAPH_NOT_FOUND_CODE,
-                `graphName ${JSON.stringify(graphName)} names none of the ${names.length} graph(s)`,
+                `graphName ${JSON.stringify(graphName)} names none of the ${names.length} graph${plural(names.length)}${graphNamesText(names)}`,
                 { element: graphName },
                 { names: [...names] },
             );
@@ -259,17 +308,21 @@ export function chooseGraph(
     }
     const index = graphIndex ?? 0;
     if (index >= names.length) {
-        return report.fail(GRAPH_NOT_FOUND_CODE, `graphIndex ${index} is beyond the ${names.length} graph(s)`);
+        return report.fail(
+            GRAPH_NOT_FOUND_CODE,
+            `graphIndex ${index} is beyond the ${names.length} graph${plural(names.length)}${graphNamesText(names)}`,
+        );
     }
     return index;
 }
 
 /**
- * Apply the design section 8.4 defaults to an importer's common options and check every enum
+ * Apply the documented defaults to an importer's common options and check every enum
  * value. Format-specific options in the same object are ignored here.
  * @param options - the caller's options, possibly undefined
  * @param defaults - the importer's per-format defaults
  * @returns the resolved options; E_UNSUPPORTED for a value outside its set
+ * @category Writing a format
  */
 export function resolveImportOptions(
     options: CommonImportOptions | undefined,
@@ -297,9 +350,10 @@ export function resolveImportOptions(
 }
 
 /**
- * Apply the design section 8.5 defaults to an exporter's common options and check the enum values.
+ * Apply the documented defaults to an exporter's common options and check the enum values.
  * @param options - the caller's options, possibly undefined
  * @returns the resolved options; E_UNSUPPORTED for a value outside its set
+ * @category Writing a format
  */
 export function resolveExportOptions(options: CommonExportOptions | undefined): ResolvedExportOptions {
     const o: CommonExportOptions = options ?? {};
@@ -451,9 +505,50 @@ function encodingOption(value: unknown): string | null {
 }
 
 /**
+ * The options to pass to another importer that you hand text you already decoded with readText():
+ * the caller's options without `encoding` and `onProgress`, which that text no longer needs. Without
+ * this, the other importer would warn that `encoding` has no effect on text, and report progress a
+ * second time.
+ * @example
+ * ```ts
+ * const text = await readText(input, report, opts);
+ * report.include(await csvImporter.import(text, sink, forDecodedText(options)));
+ * ```
+ * @param options - the caller's import options
+ * @returns a copy without `encoding` and `onProgress`
+ * @category Writing a format
+ */
+export function forDecodedText<O extends CommonImportOptions>(options: O | undefined): O {
+    return { ...options, encoding: undefined, onProgress: undefined } as O;
+}
+
+/**
+ * The dialect names of the built-in formats with a `dialect` save option. One options object shared between formats
+ * can hold one format's dialect, and the other formats ignore it, as they ignore any option they do not have.
+ */
+export const FORMAT_DIALECTS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+    csv: Object.freeze(["gephi", "generic"]),
+    json: Object.freeze(["node-link", "d3", "jgf", "cytoscape", "graphology", "vis", "obographs"]),
+});
+
+/**
+ * Whether a `dialect` value names another format's dialect, which this format ignores rather than refuses.
+ * @param format - this format
+ * @param value - the caller's `dialect` option
+ * @returns true for another built-in format's dialect name
+ */
+export function otherFormatDialect(format: string, value: unknown): boolean {
+    return (
+        typeof value === "string" &&
+        Object.entries(FORMAT_DIALECTS).some(([f, names]) => f !== format && names.includes(value))
+    );
+}
+
+/**
  * A short description of an option value for an error message.
  * @param value - the value
  * @returns the JSON text of a primitive, or the type name otherwise
+ * @category Plugin helpers
  */
 export function describe(value: unknown): string {
     switch (typeof value) {

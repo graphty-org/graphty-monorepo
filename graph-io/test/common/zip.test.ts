@@ -46,6 +46,23 @@ async function rejected(promise: Promise<unknown>): Promise<ZipError> {
 }
 
 describe("zip reader", () => {
+    it("refuses an entry whose local header starts inside the previous entry's local name", () => {
+        const zip = makeZip([
+            { name: "a-long-name.txt", data: "alpha", method: 0 },
+            { name: "b.txt", data: "beta", method: 0 },
+        ]);
+        const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+        const centrals: number[] = [];
+        for (let at = 0; at + 4 <= zip.byteLength; at++) {
+            if (view.getUint32(at, true) === 0x02014b50) {
+                centrals.push(at);
+            }
+        }
+        // a's header (30 bytes) plus its data, without its 15-byte name: inside a's entry
+        view.setUint32(centrals[1] + 42, 30 + 5, true);
+        expect(zipError(() => readZipDirectory(zip)).message).toMatch(/overlap/);
+    });
+
     it("reads stored and deflated entries, with and without data descriptors", async () => {
         const zip = makeZip([
             { name: "a.txt", data: "alpha", method: 0 },

@@ -1,0 +1,4 @@
+network.gexf: gexf
+network.dot: dot
+network.tsv: csv
+network.xyz: no format writes .xyz files

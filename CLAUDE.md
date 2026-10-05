@@ -148,7 +148,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/algorithms` | **algorithms** | - |
 | `@graphty/layout` | **layout** | - |
 | `@graphty/graph-format` | **graph-format** | "format", "snapshot package" |
-| `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: gexf, graphml, gml, dot, pajek, csv, json, neo4j) | **graph-io** | "io", "importers" |
+| `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: json, graphml, gexf, csv, gml, dot, pajek, neo4j, xgmml, cx2, cx, obo, cys) | **graph-io** | "io", "importers" |
 | `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 
@@ -162,7 +162,7 @@ workarounds available to them and no way to know they are not alone.
 | Package | Location | Version | Description |
 |---------|----------|---------|-------------|
 | `@graphty/graph-format` | `graph-format/` | 1.1.2 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
-| `@graphty/graph-io` | `graph-io/` | 0.3.9 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
+| `@graphty/graph-io` | `graph-io/` | 0.3.20 | Importers and exporters for 13 formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) for the graph-format snapshot; subpath exports per format |
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |

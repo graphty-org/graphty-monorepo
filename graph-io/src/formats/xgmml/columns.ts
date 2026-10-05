@@ -76,6 +76,7 @@ const DTYPES: Readonly<Record<ScalarKind, ScalarDtype>> = {
 
 /**
  * Collects the attribute values of one table, then declares and writes the columns.
+ * @category Plugin helpers
  */
 export class ColumnSet {
     private readonly domain: Domain;
@@ -326,6 +327,15 @@ export class ColumnSet {
             return jsonCell(names.size > 1 ? recordOf(att) : children.map(jsonOfAtt));
         }
         let itemKind = elementKind(att.elementType);
+        if (itemKind === null && att.elementType !== null && att.elementType.trim().length > 0) {
+            this.report.warnOnce(
+                "unsupported",
+                XGMML_ISSUE.UNKNOWN_ATTR_TYPE,
+                `list element type "${att.elementType}" of "${name}" is not a Cytoscape type; the items are read by their own types`,
+                at,
+                `${XGMML_ISSUE.UNKNOWN_ATTR_TYPE}:${this.domain}:${name}:items`,
+            );
+        }
         if (itemKind === null) {
             const kinds = new Set<ScalarKind>();
             for (const child of children) {

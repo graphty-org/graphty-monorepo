@@ -38,7 +38,7 @@ import {
     takenIn,
     uniqueColumnName,
 } from "../../common/attributes.js";
-import { type DeclaredTypeSpec } from "../../common/declared-types.js";
+import { type DeclaredTypeSpec, overflowsToInfinity } from "../../common/declared-types.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
@@ -50,13 +50,16 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
 import {
     isWhitespace,
     localName,
+    sniffXmlText,
     tokenizeXml,
     xmlDeclaredEncoding,
+    XmlEmptyInputError,
     type XmlHandler,
     XmlSyntaxError,
 } from "../../common/xml.js";
@@ -85,9 +88,29 @@ import {
 import { XmlTreeBuilder } from "./tree.js";
 import { graphicsDecl, graphicsValues } from "./yfiles.js";
 
-/** The XML attributes the importer reads on `<graph>`, `<node>` and `<edge>`; any other is reported. */
+/** The XML attributes the importer reads on each element; any other is reported (once per element and name). */
 const GRAPH_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "edgedefault", "parse.nodes", "parse.edges"]);
 const NODE_ATTRIBUTES: ReadonlySet<string> = new Set(["id"]);
+const KEY_ATTRIBUTES: ReadonlySet<string> = new Set([
+    "id",
+    "for",
+    "attr.name",
+    "attr.type",
+    "name",
+    "type",
+    "yfiles.type",
+]);
+const DATA_ATTRIBUTES: ReadonlySet<string> = new Set(["key"]);
+const HYPEREDGE_ATTRIBUTES: ReadonlySet<string> = new Set(["id"]);
+const ENDPOINT_ATTRIBUTES: ReadonlySet<string> = new Set(["node", "type"]);
+const PORT_ATTRIBUTES: ReadonlySet<string> = new Set(["name"]);
+const NO_ATTRIBUTES: ReadonlySet<string> = new Set();
+
+/** Attributes the GraphML schema defines that the importer does not keep: reported as not kept, not as foreign. */
+const SCHEMA_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "port", "parse.order", "parse.nodeids", "parse.edgeids"]);
+
+/** Distinct unknown attribute names reported one by one per element kind; the rest are counted in one issue. */
+const MAX_UNKNOWN_ATTRIBUTE_NAMES = 16;
 const EDGE_ATTRIBUTES: ReadonlySet<string> = new Set([
     "id",
     "source",
@@ -97,12 +120,21 @@ const EDGE_ATTRIBUTES: ReadonlySet<string> = new Set([
     "targetport",
 ]);
 
-/** The format-specific options of the GraphML importer. */
-export interface GraphmlImportOptions {
+/**
+ * The format-specific options of the GraphML importer.
+ * @category Built-in formats
+ */
+export interface GraphmlImportOptions extends CommonImportOptions {
     /**
-     * How keys with a `yfiles.type` (yEd / yFiles graphics) are read: "json" (default) keeps the
-     * nested XML of each `<data>` as a json column with origin.namespace "yfiles"; "skip" reports
-     * them once and declares nothing.
+     * How yEd graphics (keys with a `yfiles.type`) are read. "json" keeps each one as a JSON
+     * attribute named after the key (for example, `d0`) that holds its XML as a tree, which the GraphML
+     * exporter writes back, and also reads the shapes it knows into plain columns beside it:
+     * `yfiles.position`, `yfiles.width`, `yfiles.height`, `yfiles.color`, `yfiles.borderColor`,
+     * `yfiles.borderWidth`, `yfiles.label` and `yfiles.shape` for nodes, and the line color, width
+     * and arrows for edges. The report's `lossy` list then holds W_GRAPHML_YFILES_JSON, because the
+     * XML comes back with the same structure but not byte for byte. "skip" leaves the graphics out,
+     * with a W_GRAPHML_YFILES_SKIPPED warning per key.
+     * @defaultValue "json"
      */
     yfiles?: "json" | "skip" | undefined;
 }
@@ -149,6 +181,10 @@ const enum Ctx {
     Data,
     Capture,
     Skip,
+    /** A `<port>` (ports nest; their names are collected for the edge port check). */
+    Port,
+    /** Inside a `<graph>` held by an `<edge>`: dropped, its nodes and edges counted as skipped. */
+    Dropped,
 }
 
 /** The element domains a key can be declared for. */
@@ -216,6 +252,8 @@ interface NodeState {
     restoredId: string | null;
     failed: boolean;
     readonly line: number;
+    /** The keys of the `<data>` read so far, for the duplicate check; null before the first. */
+    keys: Set<string> | null;
 }
 
 /** The `<edge>` being read. */
@@ -230,6 +268,13 @@ interface EdgeState {
     readonly pending: unknown[];
     failed: boolean;
     line: number;
+    /** The keys of the `<data>` read so far, for the duplicate check; null before the first. */
+    keys: Set<string> | null;
+    /** The weight key whose value was read, or null. */
+    weightKey: string | null;
+    /** The endpoint ids as written, for the nested-graph-id check. */
+    readonly sourceText: string | null;
+    readonly targetText: string | null;
 }
 
 /** One `<endpoint>` of a hyperedge. */
@@ -268,6 +313,12 @@ interface Where {
 interface GraphState {
     readonly directed: boolean;
     readonly parent: number;
+    /** The `parse.nodes` / `parse.edges` hints of a top-level graph, checked at its end; null when absent. */
+    readonly hints: { readonly nodes: number | null; readonly edges: number | null } | null;
+    /** The `<node>` / `<edge>` elements read directly in this graph. */
+    nodes: number;
+    edges: number;
+    readonly line: number;
 }
 
 /**
@@ -334,6 +385,10 @@ class GraphmlReader implements XmlHandler {
     private readonly declared = new IndexFlags();
 
     private readonly edgeIds = new Set<string>();
+    /** The keys `<data>` referenced before any `<key>` declared them (E_GRAPHML_UNKNOWN_KEY). */
+    private readonly unknownKeyIds = new Set<string>();
+    /** The ids of the edges waiting in {@link deferred}. */
+    private readonly deferredEdgeIds = new Set<string>();
 
     private elementsSinceCheck = 0;
 
@@ -360,6 +415,11 @@ class GraphmlReader implements XmlHandler {
     private descTarget: "graph" | "key" | null = null;
 
     private descText = "";
+
+    private descLine = 0;
+
+    /** The keys of the graph-level `<data>` read so far, for the duplicate check. */
+    private readonly graphKeys: { keys: Set<string> | null } = { keys: null };
 
     private description: string | null = null;
 
@@ -390,6 +450,34 @@ class GraphmlReader implements XmlHandler {
 
     private hubHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
+    /** The hub nodes of star-expanded hyperedges, so a later `<node>` of the same id is reported as a clash. */
+    private readonly hubs = new IndexFlags();
+
+    /** Edges and hyperedges whose endpoints were not declared yet under addMissingNodes: false, added at the end. */
+    private readonly deferred: (EdgeState | HyperedgeState)[] = [];
+
+    /** The ids of the `<graph>` elements read so far, for the endpoint-names-a-graph check. */
+    private readonly graphIds = new Set<string>();
+
+    /** How many top-level `<graph>` elements were opened. */
+    private topGraphs = 0;
+
+    /** The namespace of the `<graphml>` root (children in it are GraphML even when it is not GraphML's). */
+    private rootNs: string | null = GRAPHML_NAMESPACE;
+
+    /** Whether a graph-level `<desc>` was kept, so a second one is reported. */
+    private graphDescSeen = false;
+
+    /** Unknown attribute names reported per element kind, and how many more were not listed. */
+    private readonly unknownNames = new Map<string, Set<string>>();
+
+    private readonly unknownOverflow = new Map<string, number>();
+
+    /** The port names each node declares, and the ports edges reference, checked at the end. */
+    private readonly ports = new Map<NodeId, Set<string>>();
+
+    private readonly portRefs: [NodeId, string][] = [];
+
     /**
      * Create a reader for one import call.
      * @param sink - the sink
@@ -418,8 +506,9 @@ class GraphmlReader implements XmlHandler {
      * @param name - the element name
      * @param attrs - its attributes
      * @param line - the line
+     * @param ns - the element's namespace (null: an undeclared prefix)
      */
-    start(name: string, attrs: ReadonlyMap<string, string>, line: number): void {
+    start(name: string, attrs: ReadonlyMap<string, string>, line: number, ns: string | null = ""): void {
         const parent = this.ctx.length === 0 ? null : this.ctx[this.ctx.length - 1];
         switch (parent) {
             case Ctx.Capture:
@@ -433,10 +522,18 @@ class GraphmlReader implements XmlHandler {
             case Ctx.Default:
                 this.captureStart(name, attrs);
                 return;
+            case Ctx.Dropped:
+                this.dropStart(localName(name));
+                return;
             default:
                 break;
         }
         const local = localName(name);
+        if (parent !== null && ns !== GRAPHML_NAMESPACE && ns !== "" && ns !== this.rootNs) {
+            // a vendor element whose local name happens to be node, edge or data is not GraphML
+            this.unknownElement(name, line);
+            return;
+        }
         switch (parent) {
             case null:
                 if (local !== "graphml") {
@@ -444,6 +541,18 @@ class GraphmlReader implements XmlHandler {
                         line,
                     });
                 }
+                if (ns !== GRAPHML_NAMESPACE && ns !== "") {
+                    this.report.warning(
+                        "validation-error",
+                        GRAPHML_ISSUE.NAMESPACE,
+                        ns === null
+                            ? `the root <${name}> uses an undeclared prefix; read as GraphML`
+                            : `the root <${name}> is in the namespace ${JSON.stringify(ns)}, not ${GRAPHML_NAMESPACE}; read as GraphML`,
+                        { line, element: ns },
+                    );
+                }
+                this.rootNs = ns;
+                this.reportUnreadAttributes("graphml", attrs, NO_ATTRIBUTES, line);
                 this.readRoot(attrs);
                 this.ctx.push(Ctx.Graphml);
                 return;
@@ -451,7 +560,7 @@ class GraphmlReader implements XmlHandler {
                 this.startInGraphml(name, local, attrs, line);
                 return;
             case Ctx.Key:
-                this.startInKey(name, local, line);
+                this.startInKey(name, local, attrs, line);
                 return;
             case Ctx.Graph:
                 this.startInGraph(name, local, attrs, line);
@@ -464,6 +573,9 @@ class GraphmlReader implements XmlHandler {
                 return;
             case Ctx.Hyperedge:
                 this.startInHyperedge(name, local, attrs, line);
+                return;
+            case Ctx.Port:
+                this.startInPort(name, local, attrs, line);
                 return;
             default:
                 this.unknownElement(name, line);
@@ -483,6 +595,8 @@ class GraphmlReader implements XmlHandler {
                 return;
             case Ctx.Skip:
             case Ctx.Graphml:
+            case Ctx.Port:
+            case Ctx.Dropped:
             case undefined:
                 return;
             case Ctx.Desc:
@@ -507,7 +621,7 @@ class GraphmlReader implements XmlHandler {
                 this.finishHyperedge();
                 return;
             case Ctx.Graph:
-                this.graphs.pop();
+                this.finishGraph();
                 return;
             default: {
                 const value: never = ctx;
@@ -539,6 +653,7 @@ class GraphmlReader implements XmlHandler {
                 this.descText += text;
                 return;
             case Ctx.Skip:
+            case Ctx.Dropped:
                 return;
             default:
                 if (!isWhitespace(text)) {
@@ -558,6 +673,24 @@ class GraphmlReader implements XmlHandler {
     finish(): void {
         if (!this.graphSeen) {
             this.report.fail(GRAPHML_ISSUE.NO_GRAPH, "the document has no <graph> element");
+        }
+        // GraphML allows an edge before the nodes it joins: what waited for them is added now
+        for (const edge of this.deferred) {
+            if ("endpoints" in edge) {
+                this.expandHyperedge(edge);
+            } else {
+                this.addEdge(edge);
+            }
+        }
+        this.deferred.length = 0;
+        this.checkPorts();
+        for (const [kind, more] of this.unknownOverflow) {
+            this.report.warning(
+                "unsupported",
+                GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE,
+                `${more} more distinct attribute names on <${kind}> are not GraphML attributes and are not kept (not listed one by one)`,
+                { element: kind },
+            );
         }
         const meta: GraphmlMeta = { graphId: this.graphId, edgedefault: this.edgedefault, namespaces: this.namespaces };
         this.sink.setMeta({
@@ -601,7 +734,7 @@ class GraphmlReader implements XmlHandler {
     private startInGraphml(name: string, local: string, attrs: ReadonlyMap<string, string>, line: number): void {
         switch (local) {
             case "desc":
-                this.beginDesc("graph");
+                this.beginDesc("graph", line);
                 return;
             case "key":
                 this.beginKey(attrs, line);
@@ -621,14 +754,27 @@ class GraphmlReader implements XmlHandler {
      * A child of `<key>`.
      * @param name - the element name
      * @param local - its local name
+     * @param attrs - its attributes
      * @param line - the line
      */
-    private startInKey(name: string, local: string, line: number): void {
+    private startInKey(name: string, local: string, attrs: ReadonlyMap<string, string>, line: number): void {
         switch (local) {
             case "desc":
-                this.beginDesc("key");
+                this.beginDesc("key", line);
                 return;
             case "default":
+                this.reportUnreadAttributes("default", attrs, NO_ATTRIBUTES, line);
+                if (
+                    this.pendingKey !== null &&
+                    (this.pendingKey.defaultText !== null || this.pendingKey.defaultTree !== undefined)
+                ) {
+                    this.report.warning(
+                        "validation-error",
+                        GRAPHML_ISSUE.DUPLICATE_ATTRIBUTE,
+                        `key "${this.pendingKey.id ?? ""}" has a second <default>; the later one is kept`,
+                        { line, element: this.pendingKey.id },
+                    );
+                }
                 this.content.key = null;
                 this.content.pendingKey = this.pendingKey;
                 this.content.text = "";
@@ -649,22 +795,32 @@ class GraphmlReader implements XmlHandler {
      * @param line - the line
      */
     private startInGraph(name: string, local: string, attrs: ReadonlyMap<string, string>, line: number): void {
+        const first = this.graphs.length === 1 && this.topGraphs === 1;
         switch (local) {
             case "desc":
-                if (this.graphs.length === 1) {
-                    this.beginDesc("graph");
+                if (first) {
+                    this.beginDesc("graph", line);
                 } else {
+                    this.report.warnOnce(
+                        "unsupported",
+                        GRAPHML_ISSUE.DESC_DROPPED,
+                        `the <desc> of a ${this.graphs.length === 1 ? "second top-level" : "nested"} <graph> is not kept`,
+                        { line },
+                        `${GRAPHML_ISSUE.DESC_DROPPED}:graph`,
+                    );
                     this.ctx.push(Ctx.Skip);
                 }
                 return;
             case "data":
-                if (this.graphs.length === 1) {
+                if (first) {
                     this.beginData(attrs, line, "graph");
                 } else {
                     this.report.warnOnce(
                         "unsupported",
                         GRAPHML_ISSUE.NESTED_GRAPH_DATA,
-                        "data of a nested <graph> cannot be kept; only the top-level graph has attributes",
+                        this.graphs.length === 1
+                            ? "data of a second top-level <graph> cannot be kept; the graphs are merged and only the first one's attributes are kept"
+                            : "data of a nested <graph> cannot be kept; only the top-level graph has attributes",
                         { line },
                     );
                     this.ctx.push(Ctx.Skip);
@@ -723,11 +879,19 @@ class GraphmlReader implements XmlHandler {
                     "<port> declarations are not kept; sourceport / targetport edge attributes are",
                     { line },
                 );
-                this.ctx.push(Ctx.Skip);
+                this.beginPort(attrs, line);
                 return;
             case "graph": {
                 const node = this.nodes[this.nodes.length - 1];
                 this.materializeNode(node);
+                if (node.index === INVALID_INDEX) {
+                    this.report.error(
+                        "missing-value",
+                        GRAPHML_ISSUE.UNKNOWN_PARENT,
+                        "the nodes of this nested <graph> lose their parent: the node holding it was skipped; they are read as top-level nodes",
+                        { line },
+                    );
+                }
                 this.beginGraph(attrs, line, node.index);
                 return;
             }
@@ -768,8 +932,95 @@ class GraphmlReader implements XmlHandler {
             case "data":
                 this.beginData(attrs, line, "edge");
                 return;
+            case "graph":
+                this.report.warnOnce(
+                    "unsupported",
+                    GRAPHML_ISSUE.EDGE_GRAPH_DROPPED,
+                    "a <graph> inside an <edge> is not supported; it is dropped with the nodes and edges it holds (counted as skipped)",
+                    { line, element: attrs.get("id") ?? null },
+                );
+                this.ctx.push(Ctx.Dropped);
+                return;
             default:
                 this.unknownElement(name, line);
+        }
+    }
+
+    /**
+     * An element inside a dropped `<graph>` (one held by an edge): counted as skipped.
+     * @param local - its local name
+     */
+    private dropStart(local: string): void {
+        if (local === "node") {
+            this.report.counts.skippedNodes++;
+        } else if (local === "edge" || local === "hyperedge") {
+            this.report.counts.skippedEdges++;
+        }
+        this.ctx.push(local === "data" || local === "desc" ? Ctx.Skip : Ctx.Dropped);
+    }
+
+    /**
+     * Open a `<port>`: its name is kept for the edge port check, its content is skipped.
+     * @param attrs - its attributes
+     * @param line - the line
+     */
+    private beginPort(attrs: ReadonlyMap<string, string>, line: number): void {
+        this.reportUnreadAttributes("port", attrs, PORT_ATTRIBUTES, line);
+        const node = this.nodes[this.nodes.length - 1];
+        const name = attrs.get("name");
+        if (node.id !== null && name !== undefined) {
+            const id = node.restoredId ?? node.id;
+            let names = this.ports.get(id);
+            if (names === undefined) {
+                names = new Set();
+                this.ports.set(id, names);
+            }
+            names.add(name);
+        }
+        this.ctx.push(Ctx.Port);
+    }
+
+    /**
+     * A child of `<port>`: a nested port declares a name too; data and desc are skipped.
+     * @param name - the element name
+     * @param local - its local name
+     * @param attrs - its attributes
+     * @param line - the line
+     */
+    private startInPort(name: string, local: string, attrs: ReadonlyMap<string, string>, line: number): void {
+        switch (local) {
+            case "port":
+                this.beginPort(attrs, line);
+                return;
+            case "data":
+            case "desc":
+                this.ctx.push(Ctx.Skip);
+                return;
+            default:
+                this.unknownElement(name, line);
+        }
+    }
+
+    /**
+     * Report the `sourceport` / `targetport` values that name a port their node never declares
+     * (once, with the count), now that every node has been read.
+     */
+    private checkPorts(): void {
+        let dangling = 0;
+        let first: string | null = null;
+        for (const [node, port] of this.portRefs) {
+            if (this.ports.get(node)?.has(port) !== true) {
+                dangling++;
+                first ??= `${String(node)}:${port}`;
+            }
+        }
+        if (dangling > 0) {
+            this.report.warning(
+                "missing-value",
+                GRAPHML_ISSUE.DANGLING_REFERENCE,
+                `${dangling} edge port reference${plural(dangling)} ${agree(dangling, "names", "name")} a port their node does not declare (first: ${first ?? ""}); the values are kept`,
+                { element: first },
+            );
         }
     }
 
@@ -783,6 +1034,7 @@ class GraphmlReader implements XmlHandler {
     private startInHyperedge(name: string, local: string, attrs: ReadonlyMap<string, string>, line: number): void {
         switch (local) {
             case "endpoint":
+                this.reportUnreadAttributes("endpoint", attrs, ENDPOINT_ATTRIBUTES, line);
                 this.readEndpoint(attrs, line);
                 this.ctx.push(Ctx.Skip);
                 return;
@@ -796,6 +1048,13 @@ class GraphmlReader implements XmlHandler {
                 this.ctx.push(Ctx.Skip);
                 return;
             case "desc":
+                this.report.warnOnce(
+                    "unsupported",
+                    GRAPHML_ISSUE.DESC_DROPPED,
+                    "the <desc> of a hyperedge is not kept by the star / clique expansions",
+                    { line },
+                    `${GRAPHML_ISSUE.DESC_DROPPED}:hyperedge`,
+                );
                 this.ctx.push(Ctx.Skip);
                 return;
             default:
@@ -809,25 +1068,22 @@ class GraphmlReader implements XmlHandler {
      * @param line - the line
      */
     private unknownElement(name: string, line: number): void {
-        this.report.warnOnce(
-            "unsupported",
-            GRAPHML_ISSUE.UNKNOWN_ELEMENT,
-            `element <${name}> is not GraphML and was skipped`,
-            {
-                line,
-                element: name,
-            },
-        );
+        this.report.warnOnce("unsupported", GRAPHML_ISSUE.UNKNOWN_ELEMENT, unknownElementMessage(name), {
+            line,
+            element: name,
+        });
         this.ctx.push(Ctx.Skip);
     }
 
     /**
      * Open a `<desc>`.
      * @param target - what the text describes
+     * @param line - the line
      */
-    private beginDesc(target: "graph" | "key"): void {
+    private beginDesc(target: "graph" | "key", line: number): void {
         this.descTarget = target;
         this.descText = "";
+        this.descLine = line;
         this.ctx.push(Ctx.Desc);
     }
 
@@ -837,6 +1093,16 @@ class GraphmlReader implements XmlHandler {
         if (this.descTarget === "key" && this.pendingKey !== null) {
             this.pendingKey.desc = text;
         } else if (this.descTarget === "graph" && text.length > 0) {
+            if (this.graphDescSeen) {
+                // a <graphml> and a <graph> description: the graph has one description field
+                this.report.warning(
+                    "unsupported",
+                    GRAPHML_ISSUE.DESC_DROPPED,
+                    "a second graph-level <desc> replaces the first; the earlier text is not kept",
+                    { line: this.descLine },
+                );
+            }
+            this.graphDescSeen = true;
             this.description = text;
         }
         this.descTarget = null;
@@ -847,8 +1113,10 @@ class GraphmlReader implements XmlHandler {
 
     /**
      * Report, once per element kind and attribute name, an XML attribute the importer does not read:
-     * a GraphML `parse.*` hint as ignored, anything else as unknown. Namespace declarations and
-     * `xml:` / `xsi:` attributes are not data and pass silently.
+     * a GraphML `parse.*` hint as ignored, anything else as not kept. Namespace declarations and
+     * `xml:` / `xsi:` attributes are not data and pass silently. Beyond MAX_UNKNOWN_ATTRIBUTE_NAMES
+     * distinct names per element kind the rest are counted and reported once at the end, so a file
+     * with thousands of vendor attributes does not grow the report without bound.
      * @param kind - the element name
      * @param attrs - the element's attributes
      * @param known - the attributes the importer reads on that element
@@ -860,21 +1128,39 @@ class GraphmlReader implements XmlHandler {
         known: ReadonlySet<string>,
         line: number,
     ): void {
+        if (attrs.size === 0) {
+            return;
+        }
         for (const name of attrs.keys()) {
             if (known.has(name) || name === "xmlns" || /^(xmlns|xml|xsi):/.test(name)) {
                 continue;
             }
             const hint = name.startsWith("parse.");
             const code = hint ? GRAPHML_ISSUE.PARSE_HINT_IGNORED : GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE;
-            this.report.warnOnce(
-                "unsupported",
-                code,
-                hint
-                    ? `the <${kind}> parse hint ${name} is ignored`
-                    : `the <${kind}> attribute ${name} is not a GraphML attribute; it is not kept`,
-                { line, element: name },
-                `${code}:${kind}:${name}`,
-            );
+            let names = this.unknownNames.get(kind);
+            if (names === undefined) {
+                names = new Set();
+                this.unknownNames.set(kind, names);
+            }
+            if (names.has(name)) {
+                continue;
+            }
+            if (names.size >= MAX_UNKNOWN_ATTRIBUTE_NAMES && !hint) {
+                this.unknownOverflow.set(kind, (this.unknownOverflow.get(kind) ?? 0) + 1);
+            }
+            names.add(name);
+            if (names.size > MAX_UNKNOWN_ATTRIBUTE_NAMES && !hint) {
+                continue;
+            }
+            let message: string;
+            if (hint) {
+                message = `the <${kind}> parse hint ${name} is ignored`;
+            } else if (SCHEMA_ATTRIBUTES.has(name)) {
+                message = `the <${kind}> attribute ${name} is not kept`;
+            } else {
+                message = `the <${kind}> attribute ${name} is not a GraphML attribute; it is not kept`;
+            }
+            this.report.warning("unsupported", code, message, { line, element: name });
         }
     }
 
@@ -888,17 +1174,29 @@ class GraphmlReader implements XmlHandler {
     private beginGraph(attrs: ReadonlyMap<string, string>, line: number, parent: number): void {
         this.reportUnreadAttributes("graph", attrs, GRAPH_ATTRIBUTES, line);
         const top = this.graphs.length === 0;
+        if (top) {
+            this.topGraphs++;
+        }
+        const graphId = attrs.get("id");
+        if (graphId !== undefined && graphId.length > 0) {
+            this.graphIds.add(graphId);
+        }
         const edgedefault = attrs.get("edgedefault");
         let directed: boolean;
         if (edgedefault === "directed" || edgedefault === "undirected") {
             directed = edgedefault === "directed";
         } else if (edgedefault === undefined) {
             directed = top ? this.options.defaultDirected : this.graphs[this.graphs.length - 1].directed;
-            this.report.warning(
+            // once per kind: a file of thousands of nested graphs without edgedefault is one finding
+            const direction = directed ? "directed" : "undirected";
+            this.report.warnOnce(
                 "validation-error",
                 GRAPHML_ISSUE.EDGEDEFAULT_MISSING,
-                `<graph> has no edgedefault; read as ${directed ? "directed" : "undirected"}`,
+                top
+                    ? `<graph> has no edgedefault; read as ${direction}`
+                    : `a nested <graph> has no edgedefault; it takes its container's (${direction})`,
                 { line },
+                `${GRAPHML_ISSUE.EDGEDEFAULT_MISSING}:${top ? "top" : "nested"}`,
             );
         } else {
             directed = top ? this.options.defaultDirected : this.graphs[this.graphs.length - 1].directed;
@@ -909,6 +1207,7 @@ class GraphmlReader implements XmlHandler {
                 { line },
             );
         }
+        let hints: GraphState["hints"] = null;
         if (top && this.graphSeen) {
             this.report.warnOnce(
                 "unsupported",
@@ -916,6 +1215,17 @@ class GraphmlReader implements XmlHandler {
                 "the document holds more than one top-level <graph>; their nodes and edges are merged into one graph",
                 { line, element: attrs.get("id") ?? null },
             );
+            for (const name of ["parse.nodes", "parse.edges"]) {
+                if (attrs.has(name)) {
+                    this.report.warnOnce(
+                        "unsupported",
+                        GRAPHML_ISSUE.PARSE_HINT_IGNORED,
+                        `the ${name} hint of a second top-level <graph> is ignored`,
+                        { line, element: name },
+                        `${GRAPHML_ISSUE.PARSE_HINT_IGNORED}:second:${name}`,
+                    );
+                }
+            }
         } else if (top) {
             this.graphSeen = true;
             this.graphId = attrs.get("id") ?? null;
@@ -923,6 +1233,7 @@ class GraphmlReader implements XmlHandler {
             this.direction.setHeader(directed, { line });
             const nodes = this.hint(attrs.get("parse.nodes"), "parse.nodes", line);
             const edges = this.hint(attrs.get("parse.edges"), "parse.edges", line);
+            hints = nodes === null && edges === null ? null : { nodes, edges };
             if (nodes !== null || edges !== null) {
                 try {
                     this.sink.reserve(nodes ?? undefined, edges ?? undefined);
@@ -941,8 +1252,29 @@ class GraphmlReader implements XmlHandler {
                 }
             }
         }
-        this.graphs.push({ directed, parent });
+        this.graphs.push({ directed, parent, hints, nodes: 0, edges: 0, line });
         this.ctx.push(Ctx.Graph);
+    }
+
+    /** Close a `<graph>`: a top-level graph's count hints are checked against what it held. */
+    private finishGraph(): void {
+        const graph = this.graphs.pop();
+        if (graph?.hints === null || graph === undefined) {
+            return;
+        }
+        for (const [name, hint, found] of [
+            ["parse.nodes", graph.hints.nodes, graph.nodes],
+            ["parse.edges", graph.hints.edges, graph.edges],
+        ] as const) {
+            if (hint !== null && hint !== found) {
+                this.report.warning(
+                    "validation-error",
+                    GRAPHML_ISSUE.COUNT_MISMATCH,
+                    `<graph ${name}="${hint}"> but the graph holds ${found} ${name === "parse.nodes" ? "<node>" : "<edge>"} elements`,
+                    { line: graph.line, element: name },
+                );
+            }
+        }
     }
 
     /**
@@ -977,7 +1309,17 @@ class GraphmlReader implements XmlHandler {
      * @param line - the line
      */
     private beginKey(attrs: ReadonlyMap<string, string>, line: number): void {
+        // attr.list (a list extension of some writers) and yEd's yfiles.foldertype are reported here
+        this.reportUnreadAttributes("key", attrs, KEY_ATTRIBUTES, line);
         const id = attrs.get("id") ?? null;
+        if (id !== null && this.unknownKeyIds.delete(id)) {
+            this.report.warning(
+                "missing-value",
+                GRAPHML_ISSUE.KEY_DECLARED_LATE,
+                `key "${id}" is declared after data that uses it; those values were dropped (declare <key> before <graph>)`,
+                { line, element: id },
+            );
+        }
         const forText = attrs.get("for") ?? "all";
         let domains: readonly Domain[];
         switch (forText) {
@@ -1067,6 +1409,8 @@ class GraphmlReader implements XmlHandler {
                 continue;
             }
             if (domain === "edge" && !yfiles && isWeightField(name, this.options.weightFrom)) {
+                // networkx writes one weight key per value type (long and double): every key of
+                // that name is the weight; two of them on one edge are reported in finishData
                 weight = true;
                 this.weightOrigin ??= { id: key.id, title: key.attrName, type: key.attrType };
                 continue;
@@ -1245,8 +1589,12 @@ class GraphmlReader implements XmlHandler {
      * @param domain - the domain of the element holding it
      */
     private beginData(attrs: ReadonlyMap<string, string>, line: number, domain: Domain): void {
+        this.reportUnreadAttributes("data", attrs, DATA_ATTRIBUTES, line);
         const keyId = attrs.get("key");
         const { content } = this;
+        if (keyId !== undefined) {
+            this.checkDuplicateData(keyId, domain, line);
+        }
         content.key = null;
         content.pendingKey = null;
         content.domain = domain;
@@ -1261,6 +1609,7 @@ class GraphmlReader implements XmlHandler {
             const entries = this.keys.get(keyId);
             const key = entries?.find((entry) => entry.domains.includes(domain)) ?? entries?.[0];
             if (key === undefined) {
+                this.unknownKeyIds.add(keyId);
                 this.report.error(
                     "validation-error",
                     GRAPHML_ISSUE.UNKNOWN_KEY,
@@ -1279,6 +1628,36 @@ class GraphmlReader implements XmlHandler {
             }
         }
         this.ctx.push(Ctx.Data);
+    }
+
+    /**
+     * Report a second `<data>` of one key on one element; the later value is kept (it overwrites).
+     * @param keyId - the key
+     * @param domain - the domain of the element holding it
+     * @param line - the line
+     */
+    private checkDuplicateData(keyId: string, domain: Domain, line: number): void {
+        let holder: { keys: Set<string> | null } | null = null;
+        if (domain === "node") {
+            holder = this.nodes.at(-1) ?? null;
+        } else if (domain === "edge") {
+            holder = this.edge;
+        } else {
+            holder = this.graphKeys;
+        }
+        if (holder === null) {
+            return;
+        }
+        holder.keys ??= new Set();
+        if (holder.keys.has(keyId)) {
+            this.report.warning(
+                "validation-error",
+                GRAPHML_ISSUE.DUPLICATE_ATTRIBUTE,
+                `a second <data key="${keyId}"> on one ${domain}; the later value is kept`,
+                { line, element: keyId },
+            );
+        }
+        holder.keys.add(keyId);
     }
 
     /**
@@ -1337,9 +1716,18 @@ class GraphmlReader implements XmlHandler {
             case "node": {
                 const node = this.nodes[this.nodes.length - 1];
                 if (key.originalId) {
-                    if (typeof value === "string") {
-                        node.restoredId = value;
+                    if (typeof value !== "string" || node.index !== INVALID_INDEX) {
+                        this.report.warning(
+                            "validation-error",
+                            GRAPHML_ISSUE.ORIGINAL_ID_IGNORED,
+                            typeof value === "string"
+                                ? `the ${ORIGINAL_ID_ATTRIBUTE} value comes after the node's nested <graph>, which added the node under its written id; it is not restored`
+                                : `the ${ORIGINAL_ID_ATTRIBUTE} value holds elements, not text; it is not restored`,
+                            where,
+                        );
+                        return;
                     }
+                    node.restoredId = value;
                     return;
                 }
                 if (key.yfiles) {
@@ -1371,8 +1759,18 @@ class GraphmlReader implements XmlHandler {
                         );
                         return;
                     }
+                    if (edge.weightKey !== null && edge.weightKey !== key.id) {
+                        this.report.warning(
+                            "validation-error",
+                            GRAPHML_ISSUE.DUPLICATE_ATTRIBUTE,
+                            `the edge has values of two weight keys ("${edge.weightKey}" and "${key.id}"); the later one is kept`,
+                            where,
+                        );
+                    }
+                    edge.weightKey = key.id;
                     try {
-                        edge.weight = parseWeightText(value);
+                        edge.weight = parseWeightText(value, this.report);
+                        this.checkOverflow(value, edge.weight, key.name, where);
                     } catch (err) {
                         this.skipEdge(edge);
                         this.report.recordError(err, where);
@@ -1439,7 +1837,18 @@ class GraphmlReader implements XmlHandler {
      */
     private graphics(domain: "node" | "edge", key: KeyEntry, tree: unknown, where: Where): [ColumnHandle, unknown][] {
         const out: [ColumnHandle, unknown][] = [];
-        for (const [field, value] of graphicsValues(domain, tree)) {
+        const unmapped: string[] = [];
+        const values = graphicsValues(domain, tree, unmapped);
+        for (const field of unmapped) {
+            this.report.warnOnce(
+                "validation-error",
+                GRAPHML_ISSUE.YFILES_VALUE,
+                `a yFiles ${domain} ${field} that is not a number is not mapped to its yfiles column (the graphics tree is kept)`,
+                where,
+                `${GRAPHML_ISSUE.YFILES_VALUE}:${domain}:${field}`,
+            );
+        }
+        for (const [field, value] of values) {
             const id = `${domain}:${field}`;
             let handle = this.graphicsColumns.get(id);
             if (handle === undefined) {
@@ -1504,10 +1913,30 @@ class GraphmlReader implements XmlHandler {
                     { line: where.line, element: target.name },
                 );
             }
+            this.checkOverflow(value, parsed, target.name, where);
             return parsed;
         } catch (err) {
             this.report.recordError(err, where);
             return undefined;
+        }
+    }
+
+    /**
+     * Report (once per column) a finite number text too large for a double, stored as Infinity.
+     * @param text - the value text
+     * @param value - the parsed value
+     * @param column - the column name
+     * @param where - the location
+     */
+    private checkOverflow(text: string, value: unknown, column: string, where: Where): void {
+        if (typeof value === "number" && overflowsToInfinity(text)) {
+            this.report.warnOnce(
+                "precision",
+                PRECISION_CODE,
+                `values of "${column}" beyond the double range (${text.trim()}) are stored as Infinity`,
+                { line: where.line, element: column },
+                `${PRECISION_CODE}:overflow:${column}`,
+            );
         }
     }
 
@@ -1522,6 +1951,7 @@ class GraphmlReader implements XmlHandler {
     private beginNode(attrs: ReadonlyMap<string, string>, line: number): void {
         this.reportUnreadAttributes("node", attrs, NODE_ATTRIBUTES, line);
         const graph = this.graphs[this.graphs.length - 1];
+        graph.nodes++;
         const state: NodeState = {
             id: null,
             idText: null,
@@ -1531,6 +1961,7 @@ class GraphmlReader implements XmlHandler {
             restoredId: null,
             failed: false,
             line,
+            keys: null,
         };
         const idText = attrs.get("id");
         if (idText === undefined || idText.length === 0) {
@@ -1569,7 +2000,14 @@ class GraphmlReader implements XmlHandler {
         try {
             const existing = this.sink.indexOf(id);
             const index = this.sink.addNode(id);
-            if (existing !== INVALID_INDEX && this.declared.has(index)) {
+            if (existing !== INVALID_INDEX && this.hubs.has(index)) {
+                this.report.warning(
+                    "validation-error",
+                    GRAPHML_ISSUE.HUB_ID_CLASH,
+                    `node "${String(id)}" has the id of the hub a star-expanded hyperedge created earlier; the node is merged into the hub`,
+                    { line: node.line, element: String(id) },
+                );
+            } else if (existing !== INVALID_INDEX && this.declared.has(index)) {
                 this.report.warning(
                     "validation-error",
                     GRAPHML_ISSUE.DUPLICATE_NODE,
@@ -1644,10 +2082,15 @@ class GraphmlReader implements XmlHandler {
     private beginEdge(attrs: ReadonlyMap<string, string>, line: number): void {
         this.reportUnreadAttributes("edge", attrs, EDGE_ATTRIBUTES, line);
         const graph = this.graphs[this.graphs.length - 1];
+        graph.edges++;
+        const idText = attrs.get("id");
+        const sourceText = attrs.get("source");
+        const targetText = attrs.get("target");
         const edge: EdgeState = {
             source: null,
             target: null,
-            id: attrs.get("id") ?? null,
+            // an exporter that writes id="" for an edge without one: the same as no id
+            id: idText === undefined || idText.length === 0 ? null : idText,
             kind: graph.directed ? "directed" : "undirected",
             sourcePort: attrs.get("sourceport") ?? null,
             targetPort: attrs.get("targetport") ?? null,
@@ -1655,10 +2098,12 @@ class GraphmlReader implements XmlHandler {
             pending: [],
             failed: false,
             line,
+            keys: null,
+            weightKey: null,
+            sourceText: sourceText ?? null,
+            targetText: targetText ?? null,
         };
         const where = { line, element: edge.id };
-        const sourceText = attrs.get("source");
-        const targetText = attrs.get("target");
         if (sourceText === undefined || sourceText.length === 0) {
             this.skipEdge(edge);
             this.report.error("missing-value", GRAPHML_ISSUE.MISSING_ENDPOINT, "<edge> without a source", where);
@@ -1678,16 +2123,17 @@ class GraphmlReader implements XmlHandler {
         }
         const directedText = attrs.get("directed");
         if (directedText !== undefined) {
-            if (directedText === "true") {
+            // the schema types directed as xs:boolean: true, false, 1 or 0
+            if (directedText === "true" || directedText === "1") {
                 edge.kind = "directed";
-            } else if (directedText === "false") {
+            } else if (directedText === "false" || directedText === "0") {
                 edge.kind = "undirected";
             } else {
                 this.skipEdge(edge);
                 this.report.error(
                     "validation-error",
                     GRAPHML_ISSUE.INVALID_DIRECTED,
-                    `directed="${directedText}" is neither true nor false`,
+                    `directed="${directedText}" is neither true nor false (nor 1 or 0)`,
                     where,
                 );
             }
@@ -1709,6 +2155,31 @@ class GraphmlReader implements XmlHandler {
             this.skipEdge(edge);
             return;
         }
+        if (
+            (!this.options.addMissingNodes &&
+                (this.sink.indexOf(edge.source) === INVALID_INDEX ||
+                    this.sink.indexOf(edge.target) === INVALID_INDEX)) ||
+            (edge.id !== null && this.deferredEdgeIds.has(edge.id))
+        ) {
+            // GraphML allows nodes and edges in any order: wait for the end of the document. An
+            // edge reusing a waiting edge's id waits behind it, so the first one keeps the id.
+            if (edge.id !== null) {
+                this.deferredEdgeIds.add(edge.id);
+            }
+            this.deferred.push(edge);
+            return;
+        }
+        this.addEdge(edge);
+    }
+
+    /**
+     * Push an edge through the direction resolver and write its values.
+     * @param edge - the edge, its endpoints known
+     */
+    private addEdge(edge: EdgeState): void {
+        if (edge.source === null || edge.target === null) {
+            return;
+        }
         const element = edge.id ?? `${String(edge.source)} -> ${String(edge.target)}`;
         const where = { line: edge.line, element };
         try {
@@ -1716,6 +2187,8 @@ class GraphmlReader implements XmlHandler {
                 this.requireNode(edge.source);
                 this.requireNode(edge.target);
             }
+            this.checkGraphEndpoint(edge.source, edge.sourceText, where);
+            this.checkGraphEndpoint(edge.target, edge.targetText, where);
             if (edge.id !== null && this.edgeIds.has(edge.id)) {
                 throw new GraphFormatError("E_DUPLICATE_EDGE_ID", `edge id "${edge.id}" is used twice`, {
                     id: edge.id,
@@ -1732,9 +2205,11 @@ class GraphmlReader implements XmlHandler {
             }
             if (edge.sourcePort !== null) {
                 this.sink.setEdgeValue(this.portColumn("source"), e, edge.sourcePort);
+                this.portRefs.push([edge.source, edge.sourcePort]);
             }
             if (edge.targetPort !== null) {
                 this.sink.setEdgeValue(this.portColumn("target"), e, edge.targetPort);
+                this.portRefs.push([edge.target, edge.targetPort]);
             }
             const { pending } = edge;
             for (let i = 0; i < pending.length; i += 2) {
@@ -1754,6 +2229,24 @@ class GraphmlReader implements XmlHandler {
         if (!edge.failed) {
             edge.failed = true;
             this.report.counts.skippedEdges++;
+        }
+    }
+
+    /**
+     * Report an endpoint that names a nested `<graph>` rather than a node (a node of that id is
+     * then created under addMissingNodes).
+     * @param id - the endpoint id
+     * @param text - the endpoint as written, or null
+     * @param where - the edge's location
+     */
+    private checkGraphEndpoint(id: NodeId, text: string | null, where: Where): void {
+        if (text !== null && this.graphIds.has(text) && this.sink.indexOf(id) === INVALID_INDEX) {
+            this.report.warning(
+                "validation-error",
+                GRAPHML_ISSUE.GRAPH_ENDPOINT,
+                `edge endpoint "${text}" names a <graph>, not a node; a node "${text}" is created`,
+                where,
+            );
         }
     }
 
@@ -1826,6 +2319,7 @@ class GraphmlReader implements XmlHandler {
      * @param line - the line
      */
     private beginHyperedge(attrs: ReadonlyMap<string, string>, line: number): void {
+        this.reportUnreadAttributes("hyperedge", attrs, HYPEREDGE_ATTRIBUTES, line);
         const id = attrs.get("id") ?? null;
         const where = { line, element: id };
         switch (this.options.hyperedges) {
@@ -1908,12 +2402,52 @@ class GraphmlReader implements XmlHandler {
         if (hyperedge.failed) {
             return;
         }
+        if (hyperedge.endpoints.length === 0) {
+            this.skipEdge(hyperedge);
+            this.report.error(
+                "missing-value",
+                GRAPHML_ISSUE.HYPEREDGE_ENDPOINT,
+                "<hyperedge> without endpoints yields no edge",
+                { line: hyperedge.line, element: hyperedge.id },
+            );
+            return;
+        }
+        if (
+            !this.options.addMissingNodes &&
+            hyperedge.endpoints.some((endpoint) => this.sink.indexOf(endpoint.node) === INVALID_INDEX)
+        ) {
+            this.deferred.push(hyperedge);
+            return;
+        }
+        this.expandHyperedge(hyperedge);
+    }
+
+    /**
+     * Expand a hyperedge to a star or a clique; under addMissingNodes false every endpoint must be
+     * a declared node.
+     * @param hyperedge - the hyperedge, its endpoints read
+     */
+    private expandHyperedge(hyperedge: HyperedgeState): void {
         const where = { line: hyperedge.line, element: hyperedge.id };
         try {
+            for (const endpoint of hyperedge.endpoints) {
+                if (!this.options.addMissingNodes) {
+                    this.requireNode(endpoint.node);
+                }
+            }
+            for (const node of new Set(hyperedge.endpoints.map((endpoint) => endpoint.node))) {
+                this.countEndpoints(node, node);
+            }
             if (this.options.hyperedges === "star") {
                 this.expandStar(hyperedge, where);
-            } else {
-                this.expandClique(hyperedge, where);
+            } else if (this.expandClique(hyperedge, where) === 0) {
+                this.skipEdge(hyperedge);
+                this.report.error(
+                    "validation-error",
+                    GRAPHML_ISSUE.HYPEREDGE_ENDPOINT,
+                    "no two endpoints of this hyperedge can be joined (all in, all out, or only one); it yields no edge",
+                    where,
+                );
             }
         } catch (err) {
             this.skipEdge(hyperedge);
@@ -1936,6 +2470,7 @@ class GraphmlReader implements XmlHandler {
         }
         const hub = this.sink.addNode(hubId);
         this.declared.add(hub);
+        this.hubs.add(hub);
         this.report.counts.nodes++;
         if (this.hubHandle === INVALID_INDEX) {
             this.hubHandle = this.sink.declareNodeColumn({
@@ -1972,9 +2507,11 @@ class GraphmlReader implements XmlHandler {
      * joined undirected to every other endpoint; two endpoints of the same direction are not joined.
      * @param hyperedge - the hyperedge
      * @param where - the location for issues
+     * @returns the number of edge elements added
      */
-    private expandClique(hyperedge: HyperedgeState, where: Where): void {
+    private expandClique(hyperedge: HyperedgeState, where: Where): number {
         const { endpoints } = hyperedge;
+        let added = 0;
         for (let i = 0; i < endpoints.length; i++) {
             for (let j = i + 1; j < endpoints.length; j++) {
                 const a = endpoints[i];
@@ -1989,9 +2526,11 @@ class GraphmlReader implements XmlHandler {
                 } else {
                     continue;
                 }
+                added++;
                 this.report.counts.edges += this.sink.edgeCount - before;
             }
         }
+        return added;
     }
 
     // ------------------------------------------------------------------ options and ids
@@ -2099,12 +2638,13 @@ function resolveYfiles(options: GraphmlImportOptions | undefined): "json" | "ski
  *     or when the head does not start with markup
  */
 function sniffGraphml(head: Uint8Array): number {
-    const text = new TextDecoder("utf-8", { fatal: false }).decode(head.subarray(0, SNIFF_BYTES));
+    const text = sniffXmlText(head.subarray(0, SNIFF_BYTES));
     // Only a document that starts as markup: a JSON or CSV value may mention a `<graphml>` tag.
     if (!/^\uFEFF?\s*</.test(text)) {
         return 0;
     }
-    const root = text.indexOf("<graphml");
+    // the root may carry a namespace prefix (<g:graphml xmlns:g="...">)
+    const root = text.search(/<([\w.-]+:)?graphml[\s>/]/);
     if (root >= 0) {
         return text.includes(GRAPHML_NAMESPACE, root) ? 1 : 0.9;
     }
@@ -2130,8 +2670,14 @@ async function importGraphml(
     reportUnusedOptions(options, report, USED_OPTIONS);
     const reader = new GraphmlReader(sink, report, common, yfilesMode);
     try {
-        await tokenizeXml(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding }), reader);
+        await tokenizeXml(
+            textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding, xml: true }),
+            reader,
+        );
     } catch (err) {
+        if (err instanceof XmlEmptyInputError) {
+            report.fail(GRAPHML_ISSUE.EMPTY_INPUT, "the input is empty (no markup at all)", { line: err.line });
+        }
         if (err instanceof XmlSyntaxError) {
             report.fail(GRAPHML_ISSUE.XML_SYNTAX, err.message, { line: err.line });
         }
@@ -2142,11 +2688,45 @@ async function importGraphml(
     return report.finish();
 }
 
-/** The GraphML importer (design section 8.4). */
+/**
+ * The GraphML importer.
+ * @category Built-in formats
+ */
 export const graphmlImporter: GraphImporter<GraphmlImportOptions> = Object.freeze({
     format: FORMAT,
+    options: Object.freeze(["yfiles"]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
     sniff: sniffGraphml,
     import: importGraphml,
 });
+
+/** The elements GraphML defines, for telling a misplaced one from a foreign one. */
+const GRAPHML_ELEMENTS = new Set([
+    "graphml",
+    "key",
+    "default",
+    "graph",
+    "node",
+    "edge",
+    "hyperedge",
+    "endpoint",
+    "port",
+    "data",
+    "desc",
+    "locator",
+]);
+
+/**
+ * The message of an element skipped where it stands.
+ * @param name - the element name
+ * @returns a message that says where a GraphML element belongs, or that a foreign one is not GraphML
+ */
+function unknownElementMessage(name: string): string {
+    if (name === "key") {
+        return "element <key> is only allowed as a child of <graphml>, before the first <graph>; it was skipped";
+    }
+    return GRAPHML_ELEMENTS.has(name)
+        ? `element <${name}> is not allowed at this place in a GraphML file and was skipped`
+        : `element <${name}> is not GraphML and was skipped`;
+}

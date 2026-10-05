@@ -4814,8 +4814,7 @@
             "target": "108"
           }
         ]
-      },
-      "knownFailure": "Cytoscape position.z ignored (sources.md 8.4 Cytoscape)"
+      }
     },
     {
       "file": "cytoscape/flat-array.json",

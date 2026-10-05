@@ -24,6 +24,7 @@ import { formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { isCanonicalIntegerText } from "../../common/ids.js";
 import { joinListText } from "../../common/lists.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { formatTemporal, formatTimeValue, type TimeFormat } from "../../common/temporal.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
@@ -47,13 +48,22 @@ import {
     VIZ_NAMESPACE,
 } from "./schema.js";
 
-/** The format-specific options of the GEXF exporter. */
-export interface GexfExportOptions {
-    /** The GEXF version to write: "1.3" (default) or "1.2". */
+/**
+ * The format-specific options of the GEXF exporter.
+ * @category Built-in formats
+ */
+export interface GexfExportOptions extends CommonExportOptions {
+    /**
+     * The GEXF version to write.
+     * @defaultValue "1.3"
+     */
     version?: GexfVersion | undefined;
 }
 
-/** LossNote codes specific to the GEXF exporter, next to the shared LOSS codes. */
+/**
+ * LossNote codes specific to the GEXF exporter, next to the shared LOSS codes.
+ * @category Built-in formats
+ */
 export const GEXF_LOSS = Object.freeze({
     /** GEXF 1.2 has no parallel-edge `kind`; the kind column is dropped. */
     KIND_DROPPED: "W_GEXF_KIND_DROPPED",
@@ -63,25 +73,41 @@ export const GEXF_LOSS = Object.freeze({
     LIST_SEPARATOR: "W_LIST_SEPARATOR",
     /** A role column of a shape GEXF cannot map (a string `start`, a 2-component color); written as a plain attribute. */
     ROLE_SHAPE: "W_ROLE_SHAPE",
-    /** A temporal extension table without the element / start / end / value columns of design section 5.10. */
+    /** A temporal extension table without the element / start / end / value columns. */
     TEMPORAL_TABLE_SHAPE: "W_TEMPORAL_TABLE_SHAPE",
-    /** An attribute whose title the importer would rename on re-import (a reserved name). */
+    /** An attribute's name is one GEXF reserves, so a GEXF import would give it another name. */
     ATTRIBUTE_RENAMED: "W_ATTRIBUTE_RENAMED",
     /** A cell, default or option the declared type cannot express (skipped). */
     VALUE_UNWRITABLE: "W_VALUE_UNWRITABLE",
-    /** A declared type the target version lacks (1.2: date, dateTime, typed lists...); the canonical type is written. */
+    /**
+     * An attribute type that this GEXF version does not have (GEXF 1.2 has no date, dateTime or typed lists) is
+     * written as the nearest type it has.
+     */
     DECLARED_TYPE: "W_DECLARED_TYPE",
-    /** A node id whose text reads back as the other type under the canonical rule (design section 4.1): a non-integer number, a string of integer text. */
+    /**
+     * A node id that reads back as a different type: a number that is not an integer comes back as text, and text that
+     * looks like an integer ("42") comes back as a number, unless you read the file with `ids: "string"` or `ids:
+     * "keep"`.
+     */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /** A numeric edge id column: GEXF edge ids read back as strings. */
     EDGE_ID_TEXT: "W_GEXF_EDGE_ID_TEXT",
-    /** A viz role column (position, color, size, thickness) that is not f32; the importer reads viz values as f32. */
+    /**
+     * A visual attribute (position, color, size, thickness) is stored at more precision than GEXF keeps; it reads back
+     * as a 32-bit float.
+     */
     VIZ_DTYPE: "W_GEXF_VIZ_DTYPE",
-    /** A plain `weight` edge column reads back as THE weight (the importer's weightFrom default). */
+    /**
+     * An attribute named `weight` without the weight role reads back as the edge weight, because GEXF reads weights
+     * from `weight` by default.
+     */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
-    /** A dict column without declared options gains one from its dictionary on re-import. */
+    /**
+     * A text attribute stored as a dictionary, without a declared list of allowed values, reads back with its distinct
+     * values as that list.
+     */
     OPTIONS_GAINED: LOSS.OPTIONS_GAINED,
-    /** A string cell holding a character XML 1.0 forbids; export() throws E_COLUMN_TYPE. */
+    /** A text value holds a character XML 1.0 forbids (most control characters); the save fails with E_COLUMN_TYPE. */
     XML_ILLEGAL_CHAR: LOSS.XML_ILLEGAL_CHAR,
 });
 
@@ -247,7 +273,8 @@ function planExport(
             temporalText: true,
             positionDtype: "f32",
             roles: MAPPED_ROLES,
-            roleNames: ROLE_NAMES,
+            // GEXF 1.2 has no edge kind: the kind column is dropped (W_GEXF_KIND_DROPPED), not renamed
+            roleNames: version === "1.2" ? ROLE_NAMES_1_2 : ROLE_NAMES,
         }),
     ];
     const note = (code: string, message: string, column: string | null = null, count: number | null = null): void => {
@@ -264,7 +291,7 @@ function planExport(
     if (typeChanges > 0) {
         note(
             GEXF_LOSS.ID_TEXT_TYPE,
-            `${typeChanges} node id(s) change type when read back under ids: "canonical" (string ids that are integer text, non-integer numbers); the file's idtype is not honoured by the importer`,
+            `${typeChanges} node id${plural(typeChanges)} ${agree(typeChanges, "changes", "change")} type when read back under ids: "canonical" (string ids that are integer text, non-integer numbers); the file's idtype is not honored by the importer`,
             null,
             typeChanges,
         );
@@ -488,6 +515,11 @@ const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({
     parent: NODE_COLUMNS.parent,
     parents: NODE_COLUMNS.parents,
 });
+
+/** ROLE_NAMES without the edge kind, which GEXF 1.2 cannot write. */
+const ROLE_NAMES_1_2: Readonly<Record<string, string>> = Object.freeze(
+    Object.fromEntries(Object.entries(ROLE_NAMES).filter(([role]) => role !== "kind")),
+);
 
 /**
  * Find the role columns of a table; a role column of the wrong shape is noted and left to the
@@ -947,7 +979,7 @@ function collectAttributes(
         if (domain === "edge" && column !== null && column.meta.role === null && title === DEFAULT_WEIGHT_TITLE) {
             note(
                 GEXF_LOSS.WEIGHT_KEY_CLASH,
-                `edge column "${name}" is written as an attribute titled "${title}", which the importer reads as THE weight (weightFrom); it reads back as the weight, not as a column`,
+                `edge column "${name}" is written as an attribute titled "${title}", which the importer reads as the edge weight (weightFrom); it reads back as the weight, not as a column`,
                 name,
                 column.length - column.nullCount,
             );
@@ -1108,7 +1140,7 @@ function declaredTexts(
         if (count > 0) {
             note(
                 GEXF_LOSS.LIST_SEPARATOR,
-                `${domain} column "${name}": ${count} row(s) hold an item containing "|", the 1.2 list separator`,
+                `${domain} column "${name}": ${count} row${plural(count)} ${agree(count, "holds", "hold")} an item containing "|", the 1.2 list separator`,
                 name,
                 count,
             );
@@ -1730,9 +1762,13 @@ function graphExtraText(snapshot: GraphSnapshot, key: string): string | null {
     return typeof value === "string" ? value : null;
 }
 
-/** The GEXF exporter (design section 8.5); `capabilities` describes the default 1.3 output. */
+/**
+ * The GEXF exporter; `capabilities` describes the default 1.3 output.
+ * @category Built-in formats
+ */
 export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
     format: GEXF_FORMAT,
+    options: Object.freeze(["version"]),
     capabilities: CAPABILITIES_1_3,
     /**
      * Pre-flight: what export() would lose.
@@ -1763,5 +1799,8 @@ export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
     },
 });
 
-/** The capabilities of a 1.2 export, for callers that pass `version: "1.2"`. */
+/**
+ * The capabilities of a 1.2 export, for callers that pass `version: "1.2"`.
+ * @category Built-in formats
+ */
 export const GEXF_1_2_CAPABILITIES: ExportCapabilities = CAPABILITIES_1_2;

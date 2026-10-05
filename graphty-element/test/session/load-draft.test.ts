@@ -319,9 +319,20 @@ describe("session.data.prepare", () => {
         session.dispose();
     });
 
+    it("refuses an empty file as empty, not as unreadable", async () => {
+        const session = createGraphSession();
+        const source = { type: "csv", config: { file: new File([""], "empty.csv") } };
+        const error = await refusal(session.data.prepare(source).then((draft) => draft.report()));
+        assert.strictEqual(error?.code, "E_EMPTY_LOAD");
+        assert.strictEqual((await refusal(session.data.import(source)))?.code, "E_EMPTY_LOAD");
+        assertUntouched(session);
+        session.dispose();
+    });
+
     it("refuses a file with nothing readable with the code import refuses it with", async () => {
         const session = createGraphSession();
-        const source = { type: "graphml", config: { data: "<graphml" } };
+        // a well-formed file that holds no node and no edge (a cut-off file is a syntax error instead)
+        const source = { type: "graphml", config: { data: '<graphml><graph edgedefault="directed"/></graphml>' } };
         const draft = await session.data.prepare(source);
 
         assert.deepEqual(

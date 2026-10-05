@@ -1,0 +1,10 @@
+d3: 107 nodes, 352 edges
+first weight: 5
+{
+  "elements": {
+    "nodes": [
+      {
+        "data": {
+          "id": "Aemon",
+          "label": "Aemon"
+        }

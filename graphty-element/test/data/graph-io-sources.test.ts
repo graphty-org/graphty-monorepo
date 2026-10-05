@@ -480,12 +480,17 @@ describe("GML, DOT and Pajek read through graph-io", () => {
         );
     });
 
-    // GML is read as NetworkX reads it. These three loaded in the element's own 2.x reader and are
-    // refused now, each naming its line: none of them is GML that NetworkX, igraph or Gephi write.
+    test("GML keeps a string that runs onto the next line", async () => {
+        const { nodes } = await collect(new GMLDataSource({ data: 'graph [ node [ id 1 label "a\nb" ] ]' }));
+
+        assert.deepStrictEqual(nodes, [{ id: 1, label: "a\nb" }]);
+    });
+
+    // GML is read as NetworkX reads it. These two loaded in the element's own 2.x reader and are
+    // refused now, each naming its line: neither is GML that NetworkX, igraph or Gephi write.
     const refused: [string, string][] = [
         ["a bare-word id", "graph [ node [ id A ] node [ id B ] edge [ source A target B ] ]"],
         ["directed written as a word", "graph [ directed true node [ id 1 ] ]"],
-        ["a string that runs onto the next line", 'graph [ node [ id 1 label "a\nb" ] ]'],
     ];
     for (const [what, data] of refused) {
         test(`GML refuses ${what} with E_PARSE_FAILED naming the line`, async () => {

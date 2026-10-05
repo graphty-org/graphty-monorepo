@@ -446,6 +446,15 @@ describe("I3 near MAX_COUNT (design 11.3: E_TOO_LARGE at the add* call that cros
         expect(b.nodeBound).toBe(3);
     });
 
+    it("refuses an explicit id past the 2^24 entries one id map holds with E_TOO_LARGE, never a bare RangeError", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addAnonymousNodes(2 ** 24 + 1);
+        const mutations = b.mutationCount;
+        expect(() => b.addNode("x")).toThrow(expect.objectContaining({ code: "E_TOO_LARGE" }));
+        expect(b.nodeBound).toBe(2 ** 24 + 1);
+        expect(b.mutationCount).toBe(mutations);
+    });
+
     it("validate() rejects counts above MAX_COUNT and count relations that cannot hold, whatever the arrays say", () => {
         const s = createSnapshot(makeParts({ directed: true, edges: [[0, 1]] }));
         const fake = (overrides: Record<string, unknown>): GraphSnapshot => {

@@ -20,6 +20,7 @@ import { capabilities, checkCapabilities, LOSS, type SanitizedIds, sanitizeIds }
 import { formatDecimal, formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
@@ -36,48 +37,83 @@ import {
     SHAPES,
 } from "./syntax.js";
 
-/** The format-specific options of the Pajek exporter. */
-export interface PajekExportOptions {
+/**
+ * The format-specific options of the Pajek exporter.
+ * @category Built-in formats
+ */
+export interface PajekExportOptions extends CommonExportOptions {
     /**
-     * Write a `*Network <name>` header line (the .paj project-file convention) when the snapshot's
-     * meta.name is set; default false, since plain .net readers do not expect it.
+     * Write a `*Network <name>` line first, as Pajek project files (.paj) have. The name is the `name`
+     * option, else the graph's name (`snapshot.meta.name`); a graph with neither gets a bare
+     * `*Network` line. Plain .net readers do not expect the line. An explicit `false` wins over
+     * `name`: `{ networkHeader: false, name: "x" }` writes no line.
+     * @defaultValue false, or true when `name` is given
      */
     networkHeader?: boolean | undefined;
+    /**
+     * The network name written on the `*Network` line. Giving one writes the line, unless
+     * `networkHeader` is `false`. The default is the graph's name (`snapshot.meta.name`), which a
+     * Pajek, DOT, GML or GEXF import keeps; a graph read from CSV has none.
+     * @defaultValue the graph's name
+     */
+    name?: string | undefined;
 }
 
 /**
  * The LossNote codes of the Pajek exporter's check(): the Pajek-specific ones and, aliased, the
  * shared ones it records itself (`LOSS` holds the rest of the generic pre-flight's codes). A key
  * is the code without its severity and format prefixes.
+ * @category Built-in formats
  */
 export const PAJEK_LOSS = Object.freeze({
-    /** A label or text value holds a double quote or a line break; export() will throw E_UNSUPPORTED. */
+    /**
+     * A label or text value holds a double quote or a line break, which Pajek cannot write; the save fails with
+     * E_UNSUPPORTED.
+     */
     TEXT: "E_PAJEK_TEXT",
     /** A column whose name cannot be a parameter key (whitespace, a quote, numeric, a shape keyword); skipped. */
     KEY_DROPPED: "W_PAJEK_KEY_DROPPED",
-    /** A label role column that is not text; its values are written as text and re-import as string. */
+    /**
+     * The node label attribute holds numbers or other values that are not text; they are written as text and read back
+     * as text.
+     */
     LABEL_AS_TEXT: "W_PAJEK_LABEL_AS_TEXT",
-    /** A non-finite f64 value; written as Infinity / NaN text, which re-imports as string. */
+    /** NaN or an infinity is written as the text Infinity or NaN, which reads back as text. */
     NONFINITE_AS_TEXT: "W_PAJEK_NONFINITE_AS_TEXT",
     /** A mutual pair; written as one undirected edge, the mark lost. */
     MUTUAL_AS_UNDIRECTED: LOSS.MUTUAL_AS_UNDIRECTED,
     /** A start / end / timestamp role column; Pajek intervals are written from the spells role only. */
     TEMPORAL_DROPPED: LOSS.TEMPORAL,
-    /** A position column with a stride other than 2 or 3. */
+    /** A position with other than 2 or 3 coordinates is not written. */
     POSITION_STRIDE: "W_PAJEK_POSITION_STRIDE",
-    /** meta.extra.pajek.firstMode is not a count within 0..N; the two-mode header is not written. */
+    /**
+     * The graph's two-mode vertex count (`meta.extra.pajek.firstMode`) is not between 0 and the number of nodes, so
+     * the file is written as a one-mode network.
+     */
     FIRST_MODE_DROPPED: "W_PAJEK_FIRST_MODE_DROPPED",
-    /** A role column Pajek has no slot for (kind, ...) written as a plain parameter; the role is lost. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
-    /** A `shape` column with a value outside the shape keywords is written as a parameter (a string on re-import). */
+    /**
+     * A `shape` attribute whose value is not one of Pajek's shape names is written as a parameter, and reads back as a
+     * plain text attribute.
+     */
     SHAPE_AS_PARAMETER: "W_PAJEK_SHAPE_AS_PARAMETER",
     /** A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label. */
     LABEL_GAINED: "W_PAJEK_LABEL_GAINED",
-    /** A role-less node column named `label` reads back with the label role (its values become the vertex labels). */
+    /**
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
+     * reads back with that role.
+     */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
-    /** Under sanitizeIds "mangle": an original id whose text reads back as the other type under ids "canonical". */
+    /**
+     * With `sanitizeIds: "mangle"`: an original id that reads back as a different type, such as the text "7" as the
+     * number 7.
+     */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
-    /** Parameter text that looks like a number or a boolean reads back as one (parameters are untyped, design 5.1). */
+    /**
+     * A text value that reads back as a number or a boolean, because the format does not record that it was text (the
+     * text "42" reads back as the number 42).
+     */
     TEXT_INFERRED: LOSS.TEXT_INFERRED,
 });
 
@@ -307,7 +343,7 @@ function labelNotes(snapshot: GraphSnapshot, nodePlan: readonly PlannedColumn[],
         notes.push(
             note(
                 PAJEK_LOSS.LABEL_GAINED,
-                `${gained} vertex line(s) carry coordinates, a shape or parameters and need a label; the id text is written there and reads back as a label`,
+                `${gained} vertex line${plural(gained)} ${agree(gained, "carries", "carry")} coordinates, a shape or parameters and need a label; the id text is written there and reads back as a label`,
                 labels === null ? LABEL_COLUMN : labels.meta.name,
                 gained,
             ),
@@ -446,7 +482,7 @@ function checkCells(planned: readonly PlannedColumn[], domain: "node" | "edge", 
             notes.push(
                 note(
                     PAJEK_LOSS.TEXT,
-                    `${badText} value(s) of ${domain} column "${name}" hold a double quote or a line break; Pajek cannot write them`,
+                    `${badText} value${plural(badText)} of ${domain} column "${name}" hold a double quote or a line break; Pajek cannot write them`,
                     name,
                     badText,
                 ),
@@ -456,7 +492,7 @@ function checkCells(planned: readonly PlannedColumn[], domain: "node" | "edge", 
             notes.push(
                 note(
                     PAJEK_LOSS.TEXT_INFERRED,
-                    `${typed} value(s) of ${domain} column "${name}" look like numbers or booleans; Pajek parameters are untyped and they read back as such`,
+                    `${typed} value${plural(typed)} of ${domain} column "${name}" look like numbers or booleans; Pajek parameters are untyped and they read back as such`,
                     name,
                     typed,
                 ),
@@ -466,7 +502,7 @@ function checkCells(planned: readonly PlannedColumn[], domain: "node" | "edge", 
             notes.push(
                 note(
                     PAJEK_LOSS.NONFINITE_AS_TEXT,
-                    `${nonFinite} non-finite value(s) of ${domain} column "${name}" are written as text`,
+                    `${nonFinite} non-finite value${plural(nonFinite)} of ${domain} column "${name}" ${agree(nonFinite, "is", "are")} written as text`,
                     name,
                     nonFinite,
                 ),
@@ -596,13 +632,14 @@ function needsZ(column: Column): boolean {
  * @param snapshot - the snapshot
  * @param options - the resolved format options
  * @param options.networkHeader - whether the `*Network` line is written
+ * @param options.name - the name on that line, or null for a bare line
  * @param options.mangle - whether the original ids are written as `graphty_originalId` parameters
  * @yields lines with their terminator
  * @returns nothing
  */
 function* writeParts(
     snapshot: GraphSnapshot,
-    options: { networkHeader: boolean; mangle: boolean },
+    options: { networkHeader: boolean; name: string | null; mangle: boolean },
 ): Generator<string, void, undefined> {
     const ids = sanitizeIds(snapshot, CAPABILITIES.idCharset, options.mangle ? "mangle" : "error");
     const nodePlan = withoutReservedKey(plan(snapshot.nodes, "node", null), options.mangle);
@@ -622,8 +659,8 @@ function* writeParts(
         }
     }
 
-    if (options.networkHeader && snapshot.meta.name !== null) {
-        yield `*Network ${snapshot.meta.name}\n`;
+    if (options.networkHeader) {
+        yield options.name === null ? "*Network\n" : `*Network ${options.name}\n`;
     }
     const firstMode = firstModeOf(snapshot);
     yield firstMode !== null && !Number.isNaN(firstMode)
@@ -676,7 +713,7 @@ function checkIdTexts(nodeCount: number, ids: SanitizedIds, mangle: boolean, not
         notes.push(
             note(
                 PAJEK_LOSS.TEXT,
-                `${badText} node id(s) hold a double quote or a line break; Pajek cannot write them as labels or parameters`,
+                `${badText} node id${plural(badText)} ${agree(badText, "holds", "hold")} a double quote or a line break; Pajek cannot write them as labels or parameters`,
                 null,
                 badText,
             ),
@@ -686,7 +723,7 @@ function checkIdTexts(nodeCount: number, ids: SanitizedIds, mangle: boolean, not
         notes.push(
             note(
                 PAJEK_LOSS.ID_TEXT_TYPE,
-                `${typeChanged} original id(s) read back from ${ORIGINAL_ID_KEY} as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
+                `${typeChanged} original id${plural(typeChanged)} ${agree(typeChanged, "reads", "read")} back from ${ORIGINAL_ID_KEY} as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
                 null,
                 typeChanged,
             ),
@@ -874,11 +911,16 @@ function* writeLines(snapshot: GraphSnapshot, edgePlan: readonly PlannedColumn[]
 
 /**
  * Resolve the Pajek export options.
+ * @param snapshot - the graph, whose name is the default network name
  * @param options - the caller's options
  * @returns the resolved format options; the common options are checked by resolveExportOptions
  */
-function resolvePajekOptions(options: (PajekExportOptions & CommonExportOptions) | undefined): {
+function resolvePajekOptions(
+    snapshot: GraphSnapshot,
+    options: (PajekExportOptions & CommonExportOptions) | undefined,
+): {
     networkHeader: boolean;
+    name: string | null;
     mangle: boolean;
 } {
     const common = resolveExportOptions(options);
@@ -889,12 +931,27 @@ function resolvePajekOptions(options: (PajekExportOptions & CommonExportOptions)
             found: typeof value,
         });
     }
-    return { networkHeader: value ?? false, mangle: common.sanitizeIds === "mangle" };
+    const name = options?.name;
+    if (name !== undefined && (typeof name !== "string" || /[\r\n]/.test(name))) {
+        throw new GraphFormatError("E_UNSUPPORTED", "option name: not a one-line string", {
+            option: "name",
+            found: typeof name,
+        });
+    }
+    return {
+        networkHeader: value ?? name !== undefined,
+        name: name ?? snapshot.meta.name,
+        mangle: common.sanitizeIds === "mangle",
+    };
 }
 
-/** The Pajek NET exporter. */
+/**
+ * The Pajek NET exporter.
+ * @category Built-in formats
+ */
 export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
     format: "pajek",
+    options: Object.freeze(["name", "networkHeader"]),
     capabilities: CAPABILITIES,
 
     /**
@@ -905,7 +962,7 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
      */
     check(snapshot: GraphSnapshot, options?: PajekExportOptions & CommonExportOptions): readonly LossNote[] {
         const resolved = resolveExportOptions(options);
-        const { mangle } = resolvePajekOptions(options);
+        const { mangle } = resolvePajekOptions(snapshot, options);
         const notes: LossNote[] = [];
         const planned = plan(snapshot.nodes, "node", notes);
         const nodePlan = withoutReservedKey(planned, mangle);
@@ -980,7 +1037,7 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
             notes.push(
                 note(
                     PAJEK_LOSS.MUTUAL_AS_UNDIRECTED,
-                    `${folding.mutualCount} mutual pair(s) are written as undirected edges; the mutual mark is lost`,
+                    `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as undirected edges; the mutual mark is lost`,
                     snapshot.edges.byRole("mutual")?.meta.name ?? null,
                     folding.mutualCount,
                 ),
@@ -1004,7 +1061,7 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
      * @returns the chunks
      */
     export(snapshot: GraphSnapshot, options?: PajekExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        const resolved = resolvePajekOptions(options);
+        const resolved = resolvePajekOptions(snapshot, options);
         return encodeChunks(writeParts(snapshot, resolved));
     },
 
@@ -1015,7 +1072,7 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
      * @returns the document
      */
     exportToString(snapshot: GraphSnapshot, options?: PajekExportOptions & CommonExportOptions): Promise<string> {
-        const resolved = resolvePajekOptions(options);
+        const resolved = resolvePajekOptions(snapshot, options);
         return joinText(writeParts(snapshot, resolved));
     },
 });

@@ -1,0 +1,244 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`documentation examples > detection/rank runs 1`] = `[]`;
+
+exports[`documentation examples > detection/sniff runs 1`] = `[]`;
+
+exports[`documentation examples > extending/csv-defaults runs 1`] = `[]`;
+
+exports[`documentation examples > extending/csv-stamp runs 1`] = `[]`;
+
+exports[`documentation examples > extending/line-format runs 1`] = `[]`;
+
+exports[`documentation examples > extending/netscope runs 1`] = `[]`;
+
+exports[`documentation examples > extending/netscope-usage runs 1`] = `[]`;
+
+exports[`documentation examples > extending/numbers-format runs 1`] = `[]`;
+
+exports[`documentation examples > extending/numbers-usage runs 1`] = `[]`;
+
+exports[`documentation examples > extending/pairs-format runs 1`] = `[]`;
+
+exports[`documentation examples > extending/pairs-minimal runs 1`] = `[]`;
+
+exports[`documentation examples > extending/pairs-minimal-export runs 1`] = `[]`;
+
+exports[`documentation examples > extending/pairs-usage runs 1`] = `[]`;
+
+exports[`documentation examples > extending/sections-format runs 1`] = `[]`;
+
+exports[`documentation examples > extending/sections-usage runs 1`] = `[]`;
+
+exports[`documentation examples > extending/test-plugin runs 1`] = `[]`;
+
+exports[`documentation examples > extending/text-cells runs 1`] = `[]`;
+
+exports[`documentation examples > formats/csv runs 1`] = `
+[
+  "[wrote] edges.csv (9432 bytes)",
+  "[wrote] nodes.csv (1487 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/csv-adjacency runs 1`] = `[]`;
+
+exports[`documentation examples > formats/csv-decimal-comma runs 1`] = `[]`;
+
+exports[`documentation examples > formats/csv-two-files runs 1`] = `[]`;
+
+exports[`documentation examples > formats/cx runs 1`] = `
+[
+  "[wrote] got-copy.cx (35625 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/cx2 runs 1`] = `
+[
+  "[wrote] got-copy.cx2 (22158 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/cys runs 1`] = `
+[
+  "[wrote] got.cys (33449 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/dot runs 1`] = `
+[
+  "[wrote] teams-copy.gv (500 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/gexf runs 1`] = `
+[
+  "[wrote] got-1.2.gexf (27824 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/gexf-kind runs 1`] = `[]`;
+
+exports[`documentation examples > formats/gexf-viz runs 1`] = `[]`;
+
+exports[`documentation examples > formats/gml runs 1`] = `
+[
+  "[wrote] got-copy.gml (31748 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/graphml runs 1`] = `
+[
+  "[wrote] got.graphml (42777 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/json runs 1`] = `
+[
+  "[wrote] got.cyjs (63229 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/neo4j runs 1`] = `
+[
+  "[wrote] movies-nodes-out.csv (365 bytes)",
+  "[wrote] movies-rels-out.csv (242 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/neo4j-admin runs 1`] = `
+[
+  "[wrote] nodes-Movie.csv (155 bytes)",
+  "[wrote] nodes-Person.csv (210 bytes)",
+  "[wrote] relationships-Person-Movie.csv (153 bytes)",
+  "[wrote] relationships-Person-Person.csv (89 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/obo runs 1`] = `
+[
+  "[wrote] vehicles-copy.obo (297 bytes)",
+  "[wrote] vehicles.json (835 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/pajek runs 1`] = `
+[
+  "[wrote] got-mangled.net (6694 bytes)",
+]
+`;
+
+exports[`documentation examples > formats/xgmml runs 1`] = `
+[
+  "[wrote] network.xgmml (1613 bytes)",
+]
+`;
+
+exports[`documentation examples > loading/cancel runs 1`] = `[]`;
+
+exports[`documentation examples > loading/encoding runs 1`] = `[]`;
+
+exports[`documentation examples > loading/inputs runs 1`] = `[]`;
+
+exports[`documentation examples > loading/options runs 1`] = `[]`;
+
+exports[`documentation examples > loading/own-builder runs 1`] = `[]`;
+
+exports[`documentation examples > loading/react runs 1`] = `[]`;
+
+exports[`documentation examples > loading/several-graphs runs 1`] = `[]`;
+
+exports[`documentation examples > loading/small-bundle runs 1`] = `[]`;
+
+exports[`documentation examples > loading/typed-options runs 1`] = `[]`;
+
+exports[`documentation examples > loading/url-request runs 1`] = `[]`;
+
+exports[`documentation examples > quick-start/download runs 1`] = `
+[
+  "[confirm] 107 node ids are not integers, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back
+edge column "Edge Label" is written as "Edge_Label"
+edge column "Edge Label" has no set cell and is not written: GML writes cells, never declarations",
+  "[download] got.gml (text/x-gml, 31748 bytes)",
+]
+`;
+
+exports[`documentation examples > quick-start/load-file runs 1`] = `[]`;
+
+exports[`documentation examples > quick-start/load-url runs 1`] = `[]`;
+
+exports[`documentation examples > quick-start/notebook runs 1`] = `[]`;
+
+exports[`documentation examples > quick-start/readme runs 1`] = `
+[
+  "[wrote] got-network.gexf (27806 bytes)",
+]
+`;
+
+exports[`documentation examples > quick-start/save-node runs 1`] = `
+[
+  "[wrote] got-edges-out.csv (11096 bytes)",
+]
+`;
+
+exports[`documentation examples > quick-start/use-data runs 1`] = `[]`;
+
+exports[`documentation examples > reading/added-columns runs 1`] = `[]`;
+
+exports[`documentation examples > reading/attributes runs 1`] = `[]`;
+
+exports[`documentation examples > reading/degree runs 1`] = `[]`;
+
+exports[`documentation examples > reading/edges runs 1`] = `[]`;
+
+exports[`documentation examples > reading/exact-weights runs 1`] = `[]`;
+
+exports[`documentation examples > reading/name runs 1`] = `[]`;
+
+exports[`documentation examples > reading/rename runs 1`] = `[]`;
+
+exports[`documentation examples > report/errors runs 1`] = `[]`;
+
+exports[`documentation examples > report/issues runs 1`] = `[]`;
+
+exports[`documentation examples > report/pasted runs 1`] = `[]`;
+
+exports[`documentation examples > saving/check runs 1`] = `
+[
+  "[wrote] got.graphml (37906 bytes)",
+]
+`;
+
+exports[`documentation examples > saving/download-own runs 1`] = `
+[
+  "[download] edges.csv (text/csv, 9432 bytes)",
+]
+`;
+
+exports[`documentation examples > saving/mixed runs 1`] = `[]`;
+
+exports[`documentation examples > saving/options-error runs 1`] = `[]`;
+
+exports[`documentation examples > saving/pick-format runs 1`] = `
+[
+  "[wrote] network.dot (17473 bytes)",
+  "[wrote] network.gexf (27677 bytes)",
+  "[wrote] network.tsv (10733 bytes)",
+]
+`;
+
+exports[`documentation examples > saving/shared-options runs 1`] = `[]`;
+
+exports[`documentation examples > saving/stream runs 1`] = `
+[
+  "[wrote] got-copy.gexf (27806 bytes)",
+]
+`;
+
+exports[`documentation examples > saving/typed-options runs 1`] = `[]`;
+
+exports[`documentation examples > saving/upload runs 1`] = `
+[
+  "[upload] https://example.com/api/graphs",
+]
+`;

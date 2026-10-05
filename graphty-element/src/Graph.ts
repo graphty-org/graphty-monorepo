@@ -4229,10 +4229,24 @@ export class Graph implements GraphContext {
         await this.#suggestionsStacked;
         await this.operationQueue.waitForCompletion();
 
-        if (this.updateManager.frameIsStable) {
-            return;
+        if (!this.updateManager.frameIsStable) {
+            await this.untilFrameStableEvent(track);
         }
 
+        // The picture is final, but the label counts it drew are announced a few frames later
+        // (`graphty-label-change`); a page that shows them is not final until they are.
+        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        if (declutter instanceof LabelDeclutter) {
+            await declutter.whenPublished();
+        }
+    }
+
+    /**
+     * Wait for the `graph-frame-stable` event.
+     * @param track - Told the listener id, so the caller can remove it if it stops waiting.
+     * @returns Promise that resolves on the event, or at once when the frame became stable first.
+     */
+    private async untilFrameStableEvent(track: (id: symbol) => void): Promise<void> {
         await new Promise<void>((resolve) => {
             const id = this.eventManager.addListener("graph-frame-stable", () => {
                 this.eventManager.removeListener(id);
@@ -4259,6 +4273,10 @@ export class Graph implements GraphContext {
 
         if (queue.pending > 0 || queue.size > 0) {
             return `${String(queue.pending + queue.size)} queued operations have not finished`;
+        }
+
+        if (this.updateManager.frameIsStable) {
+            return "the node label counts have not been announced";
         }
 
         return this.updateManager.whyFrameIsNotStable();

@@ -278,6 +278,29 @@ describe("checks", () => {
         expect(pending.failingChecks).toEqual([]);
     });
 
+    it("a check run started before the PR was last marked ready is ignored", () => {
+        const ready = { timelineItems: { nodes: [{ createdAt: "2026-10-02T12:00:00Z" }] } };
+        const suite = (/** @type {number} */ id) => ({
+            checkSuite: { workflowRun: { databaseId: id, workflow: { name: "CI" } } },
+        });
+        // #1080: the draft run failed at once; the ready run is queued and has reported nothing.
+        const draftFail = run("All Checks Pass", "FAILURE", {
+            databaseId: 9,
+            startedAt: "2026-10-02T11:59:00Z",
+            ...suite(100),
+        });
+        const queued = polls([withChecks(node(ready), [draftFail])])["704"];
+        expect(queued.required["All Checks Pass"]).toBe("MISSING");
+        expect(queued.failingChecks).toEqual([]);
+        expect(stuck(queued)).toEqual(["checks pending"]);
+        // a failure that started after the ready time still counts
+        const lateFail = { ...draftFail, startedAt: "2026-10-02T12:01:00Z" };
+        const late = polls([withChecks(node(ready), [lateFail])])["704"];
+        expect(late.failingChecks).toEqual(["All Checks Pass"]);
+        // a PR never drafted has no ready event: the same failure counts as before
+        expect(polls([withChecks(node(), [draftFail])])["704"].failingChecks).toEqual(["All Checks Pass"]);
+    });
+
     it("the owner gate: the only failing required check failed at the visual step", () => {
         const n = failingGate();
         n.detail.failedSteps = ["Check visual changes were accepted"];

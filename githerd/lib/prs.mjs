@@ -121,7 +121,7 @@ function contextState(ctx) {
  */
 function readChecks(node, requiredChecks) {
     const commit = node.commits?.nodes?.[0]?.commit;
-    const contexts = commit?.statusCheckRollup?.contexts?.nodes ?? [];
+    const allContexts = commit?.statusCheckRollup?.contexts?.nodes ?? [];
     /** @type {Record<string, CheckState>} */
     const required = Object.fromEntries(requiredChecks.map((n) => [n, "MISSING"]));
     const failing = [];
@@ -130,6 +130,13 @@ function readChecks(node, requiredChecks) {
     // a draft, once it is marked ready) says nothing any more, even before the newer run reports
     // the same check. Of what is left, a name reported twice (a re-run) counts by its newest run, as
     // GitHub's own required-check rule does.
+    // A check run that started before the PR was last marked ready ran on the draft: it says nothing
+    // about the ready PR, even while the ready run is queued and has reported no check (#1080). A
+    // StatusContext has no start time and is kept.
+    const readyAt = node.timelineItems?.nodes?.[0]?.createdAt;
+    const contexts = readyAt
+        ? allContexts.filter((/** @type {any} */ c) => !(c.startedAt && c.startedAt < readyAt))
+        : allContexts;
     /** @type {Map<string, number>} */
     const latestRun = new Map();
     for (const ctx of contexts) {

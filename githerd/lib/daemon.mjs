@@ -226,6 +226,8 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
         labels(first: 20) { nodes { name } }
         closingIssuesReferences(first: 10) { nodes { number } }
         author { login }
+        timelineItems(last: 1, itemTypes: [READY_FOR_REVIEW_EVENT]) { nodes {
+          ... on ReadyForReviewEvent { createdAt } } }
         commits(last: 1) { nodes { commit {
           committedDate
           committer { email }

@@ -239,7 +239,14 @@ const config: KnipConfig = {
                 "eslint-rules/**/*.test.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts"],
-            ignore: ["dist/**", "coverage/**", "node_modules/**"],
+            ignore: [
+                "dist/**",
+                "coverage/**",
+                "node_modules/**",
+                // The tier 1 frame's stub of the Style tab's From data list: it has no importer
+                // until the Style tab package replaces it. Remove this line when that lands.
+                "src/workspace/style/FromDataList.tsx",
+            ],
             ignoreDependencies: [
                 // Loaded only under import.meta.env.DEV (src/main.tsx) and declared in the root
                 // package.json; `lint:knip:prod` runs --strict, which reads only this workspace's own

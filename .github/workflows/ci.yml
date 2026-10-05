@@ -535,7 +535,24 @@ jobs:
               run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
 
             - name: Run tests
+              id: tests
               run: ${{ matrix.test-command }}
+
+            # Every vitest run in CI writes test-results/junit-*.xml (vitest.shared.config.ts,
+            # ciJunitReporter). Upload them to Mergify Test Insights, which flags flaky tests -- detection
+            # only: quarantine is never switched on, so a failing test still fails this job (the step above
+            # has no continue-on-error, so nothing here can turn a red run green). always(), so failed runs
+            # are reported too; continue-on-error, so a Mergify outage or a missing MERGIFY_API_KEY (fork
+            # and Dependabot pull requests get no secrets) never fails the job or blocks a merge.
+            - name: Upload test results to Mergify Test Insights
+              if: always()
+              continue-on-error: true
+              uses: mergifyio/gha-mergify-ci@v26
+              with:
+                  token: ${{ secrets.MERGIFY_API_KEY }}
+                  report_path: test-results/junit-*.xml
+                  job_name: Test (${{ matrix.shard }})
+                  test_step_outcome: ${{ steps.tests.outcome }}
 
             - name: Upload blob report
               if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}

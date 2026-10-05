@@ -6,6 +6,8 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
+import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+
 /**
  * The Figma study (design/ui/figma), found by walking up from this package so it resolves from
  * the main checkout and from a worktree beneath it; FIGMA_STUDY_DIR overrides. Null when absent
@@ -90,6 +92,7 @@ const mouseUp: BrowserCommand<[]> = async (ctx) => {
 export default defineConfig({
     plugins: [react()],
     test: {
+        reporters: ["default", ...ciJunitReporter()],
         projects: [
             // Default project - runs in JSDOM
             {

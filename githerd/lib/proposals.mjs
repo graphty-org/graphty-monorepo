@@ -74,7 +74,8 @@ const OWN_MARK = "<!-- githerd";
  *   watched?: boolean, reason?: string, lastError?: string}} Proposal
  * @typedef {{gitHub: any, repo: string, login: string, now: Date,
  *   presentDays: (from: string) => number, isWorkerWrite?: (target: string, at: string) => boolean,
- *   ledger: (entry: object) => unknown}} Context `presentDays`: how many days on or after the day
+ *   ledger: (entry: object) => unknown, closed?: Set<string>}} Context `closed`: targets known closed
+ *   on GitHub this poll (`closedTargets`); `presentDays`: how many days on or after the day
  *   `from` (`YYYY-MM-DD`) the owner was present (section 11.3; `presentDays` of notify.mjs);
  *   `isWorkerWrite`: true when an owner-account event at that time on that target matches a
  *   worker's logged write (section 10.1)
@@ -217,8 +218,9 @@ export function proposalComment(p) {
 /**
  * Moves every open proposal one step: a confirmed one gets its comment, a commented one counts its
  * present days, reads the owner's comments for an objection, and is closed once its grace is over.
- * A target found closed meanwhile ends its proposal. A failure on one proposal is kept on it and
- * the others still move.
+ * A target found closed meanwhile ends its proposal, and so does one in `ctx.closed` (from
+ * `closedTargets`), unconfirmed ones included. A failure on one proposal is kept on it and the
+ * others still move.
  * @param {any} state the daemon state
  * @param {Context} ctx the client, the owner's login, the clock and presence
  * @returns {Promise<Proposal[]>} the proposals whose status changed
@@ -228,13 +230,19 @@ export async function advanceProposals(state, ctx) {
     for (const p of Object.values(state.proposals ?? {})) {
         if (!(p.kind in KINDS)) continue;
         if (p.status === "closed") await watchReopen(state, p, ctx);
-        if (TERMINAL.has(p.status) || p.status === "unconfirmed") continue;
+        if (TERMINAL.has(p.status)) continue;
         const before = p.status;
-        try {
-            await step(state, p, ctx);
-            delete p.lastError;
-        } catch (err) {
-            p.lastError = /** @type {Error} */ (err).message;
+        if (ctx.closed?.has(p.target)) {
+            Object.assign(p, { status: "ended", reason: "closed on GitHub" });
+        } else if (p.status === "unconfirmed") {
+            continue;
+        } else {
+            try {
+                await step(state, p, ctx);
+                delete p.lastError;
+            } catch (err) {
+                p.lastError = /** @type {Error} */ (err).message;
+            }
         }
         if (p.status !== before) {
             changed.push(p);
@@ -249,6 +257,43 @@ export async function advanceProposals(state, ctx) {
         }
     }
     return changed;
+}
+
+/**
+ * The targets of open proposals that are closed on GitHub, from what the poll already read: an
+ * issue whose record says closed, and a pull request missing from the open list, confirmed by one
+ * GraphQL query for all of them (a failed query confirms none). Nothing is written.
+ * @param {any} state the daemon state
+ * @param {{gitHub: any, repo: string, openPrs: Set<number>}} facts the client, `owner/name` and the
+ *   numbers on the poll's open pull request list
+ * @returns {Promise<Set<string>>} `issue:<n>` and `pr:<n>` targets
+ */
+export async function closedTargets(state, { gitHub, repo, openPrs }) {
+    const closed = new Set();
+    /** @type {number[]} */
+    const prs = [];
+    for (const p of Object.values(state.proposals ?? {})) {
+        if (!(p.kind in KINDS) || TERMINAL.has(p.status)) continue;
+        const [type, n] = p.target.split(":");
+        if (type === "issue" && state.issues?.byNumber?.[n]?.state === "closed") closed.add(p.target);
+        if (type === "pr" && !openPrs.has(Number(n))) prs.push(Number(n));
+    }
+    if (prs.length === 0) return closed;
+    const [owner, name] = repo.split("/");
+    const fields = prs.map((n) => `p${n}: pullRequest(number: ${n}) { state }`).join(" ");
+    try {
+        const data = await gitHub.graphql(
+            `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields} } }`,
+            { owner, name },
+        );
+        for (const n of prs) {
+            const st = data?.repository?.[`p${n}`]?.state;
+            if (st === "CLOSED" || st === "MERGED") closed.add(`pr:${n}`);
+        }
+    } catch {
+        // Unconfirmed this poll; the next poll asks again.
+    }
+    return closed;
 }
 
 /**

@@ -116,7 +116,7 @@ import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswer
 import { containerStart, identify } from "./proc.mjs";
 import { inferOwners, parseWorktrees, processTable, readPushLog, scanTranscripts } from "./owners.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
-import { advanceProposals, veto } from "./proposals.mjs";
+import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
 import { needsReleaseDryRun, patchId, releaseSectionChanged, touches, updatePrs, whyStuck } from "./prs.mjs";
 import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
 import { jobInUse, jobOrder, NEXT, SKIP } from "./queue.mjs";
@@ -1575,9 +1575,11 @@ export async function startDaemon({
         }
         await stacks(prList.repository.pullRequests.nodes, branch);
         if (state.trust.login) {
+            const openPrs = new Set(prList.repository.pullRequests.nodes.map((/** @type {any} */ n) => n.number));
             await advanceProposals(state, {
                 gitHub: gh,
                 repo: config.repo,
+                closed: await closedTargets(state, { gitHub: gh, repo: config.repo, openPrs }),
                 login: state.trust.login,
                 now: t,
                 presentDays: (/** @type {string} */ from) => presentDays(state, from),

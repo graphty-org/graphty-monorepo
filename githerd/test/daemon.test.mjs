@@ -1405,6 +1405,24 @@ describe("the poll loop", () => {
         expect(gh.writes()).toEqual([]);
     });
 
+    it("ends a proposal whose issue closed on GitHub on the next poll, and keeps one whose issue is open", async () => {
+        scene.issues = [
+            { number: 4, state: "closed", updated_at: "2026-10-01T00:00:00Z", title: "a", user: { login: "owner" } },
+            { number: 6, state: "open", updated_at: "2026-10-01T00:00:00Z", title: "b", user: { login: "owner" } },
+        ];
+        const daemon = await start();
+        daemon.state.proposals = {
+            "issue:4": { id: "issue:4", kind: "fixed", target: "issue:4", of: null, status: "unconfirmed" },
+            "issue:6": { id: "issue:6", kind: "fixed", target: "issue:6", of: null, status: "unconfirmed" },
+        };
+        await poll(daemon);
+        expect(daemon.state.proposals["issue:4"]).toMatchObject({ status: "ended", reason: "closed on GitHub" });
+        expect(daemon.state.proposals["issue:6"].status).toBe("unconfirmed");
+        expect(gh.writes()).toEqual([]);
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        expect(wouldDo.filter((e) => e.group === "proposals")).toEqual([]);
+    });
+
     it("retargets a stacked child whose base merged, once, as a would-do in dry-run", async () => {
         const child = { ...gatedPr(), number: 8, headRefName: "fix/y", headRefOid: C, baseRefName: "fix/x" };
         scene.prs = [child];

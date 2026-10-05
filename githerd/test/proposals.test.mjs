@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { createGitHub } from "../lib/github.mjs";
-import { advanceProposals, GRACE_DAYS, proposalComment, recordVerdict, veto } from "../lib/proposals.mjs";
+import {
+    advanceProposals,
+    closedTargets,
+    GRACE_DAYS,
+    proposalComment,
+    recordVerdict,
+    veto,
+} from "../lib/proposals.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
@@ -355,6 +362,38 @@ describe("advanceProposals: vetoes and objections", () => {
         await days(w, state, GRACE_DAYS.pr);
         expect(state.proposals["pr:11"].status).toBe("ended");
         expect(w.gh.writes()).toHaveLength(1);
+    });
+
+    it("a target known closed on GitHub ends its proposal, unconfirmed included; an open one stays", async () => {
+        const w = world("acting");
+        const state = {
+            issues: { since: null, byNumber: { 5: { state: "closed" }, 6: { state: "open" } } },
+        };
+        recordVerdict(state, { verdict: "fixed", number: 5, evidence: "done", session: "s1", at });
+        recordVerdict(state, { verdict: "fixed", number: 6, evidence: "done", session: "s1", at });
+        recordVerdict(state, { verdict: "not-needed-pr", number: 9, evidence: "done", session: "s1", at });
+        recordVerdict(state, { verdict: "not-needed-pr", number: 10, evidence: "done", session: "s1", at });
+        recordVerdict(state, { verdict: "not-needed-pr", number: 11, evidence: "done", session: "s1", at });
+        /** @type {string[]} */
+        const queries = [];
+        const gitHub = {
+            graphql: async (/** @type {string} */ q) => {
+                queries.push(q);
+                return { repository: { p9: { state: "MERGED" }, p10: { state: "OPEN" } } };
+            },
+        };
+        const closed = await closedTargets(state, { gitHub, repo: REPO, openPrs: new Set([11]) });
+        expect([...closed].sort()).toEqual(["issue:5", "pr:9"]);
+        expect(queries).toHaveLength(1);
+        expect(queries[0]).not.toContain("p11:");
+        await advanceProposals(state, w.ctx({ closed }));
+        expect(state.proposals["issue:5"]).toMatchObject({ status: "ended", reason: "closed on GitHub" });
+        expect(state.proposals["pr:9"]).toMatchObject({ status: "ended", reason: "closed on GitHub" });
+        for (const t of ["issue:6", "pr:10", "pr:11"]) expect(state.proposals[t].status).toBe("unconfirmed");
+        expect(w.ledger.filter((e) => e.kind === "proposal").map((e) => e.target)).toEqual(["issue:5", "pr:9"]);
+        expect(w.gh.calls).toEqual([]);
+        // An ended proposal leaves the board's open set: the next poll's closed set no longer names it.
+        expect([...(await closedTargets(state, { gitHub, repo: REPO, openPrs: new Set([11]) }))]).toEqual([]);
     });
 
     it("a failure stays on its proposal and the others still move", async () => {

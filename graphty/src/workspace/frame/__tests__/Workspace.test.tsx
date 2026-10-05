@@ -55,7 +55,7 @@ describe("the workspace frame", () => {
         renderWorkspace(OPEN);
 
         await userEvent.click(screen.getByRole("button", { name: "Data" }));
-        assert.isNotNull(screen.getByText("Data place"));
+        assert.isNotNull(screen.getByRole("region", { name: "Data place" }));
         assert.isNull(screen.queryByText("Graph place"));
 
         await userEvent.click(screen.getByRole("button", { name: "Graph" }));

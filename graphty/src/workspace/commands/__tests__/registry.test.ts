@@ -95,6 +95,23 @@ describe("the workspace command registry", () => {
         assert.throws(() => createRegistry([one, two]), /Inspected kind "node"/);
     });
 
+    it("registers each command id and inspected kind once across every package", () => {
+        const owners = new Map<string, string[]>();
+        const note = (name: string, owner: string): void => {
+            owners.set(name, [...(owners.get(name) ?? []), owner]);
+        };
+        for (const { owner, commands, inspectedKinds = [] } of REGISTRATIONS) {
+            for (const command of commands) {
+                note(`command ${command.id}`, owner);
+            }
+            for (const kind of inspectedKinds) {
+                note(`kind ${kind.kind}`, owner);
+            }
+        }
+        const twice = [...owners].filter(([, by]) => by.length > 1).map(([name, by]) => `${name}: ${by.join(", ")}`);
+        assert.deepEqual(twice, []);
+    });
+
     it("binds no key twice and no element key across every package", () => {
         assert.doesNotThrow(() => createRegistry(REGISTRATIONS));
     });

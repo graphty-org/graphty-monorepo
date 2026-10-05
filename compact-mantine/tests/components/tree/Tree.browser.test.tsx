@@ -68,6 +68,15 @@ describe("Tree: semantics", () => {
         expect(row("Leaf")).toHaveAttribute("aria-selected", "false");
     });
 
+    it("takes an accessible name and description apart from the visible name", async () => {
+        await renderThemed(
+            <Tree items={[{ id: "v", name: "value", label: "value, edge attribute", description: "Number, 25%" }]} />,
+        );
+        const item = row("value, edge attribute");
+        expect(item).toHaveAccessibleDescription("Number, 25%");
+        expect(item).toHaveTextContent("value");
+    });
+
     it("has one Tab stop, on the selected row", async () => {
         await renderThemed(
             <>
@@ -381,6 +390,14 @@ describe("Tree: pointer", () => {
         await userEvent.click(screen.getByRole("button", { name: "Lock" }));
         expect(onLock).toHaveBeenCalled();
         expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it("selects the row on a click on passive text in the trailing slot", async () => {
+        const onSelect = vi.fn();
+        const items: TreeNodeData[] = [{ id: "a", name: "A", actions: <span data-pinned="">25%</span> }];
+        await renderThemed(<Tree items={items} onSelect={onSelect} />);
+        await userEvent.click(screen.getByText("25%"));
+        expect(onSelect).toHaveBeenCalledWith(["a"], expect.anything());
     });
 
     it("reports a drop into a container through onMove, and moves nothing itself", async () => {

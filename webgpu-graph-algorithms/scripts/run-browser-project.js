@@ -48,6 +48,8 @@ const VITEST_ARGS = [
     "--project=browser",
     "--reporter=default",
     "--reporter=json",
+    // in CI also the JUnit report for Mergify Test Insights (its path comes from vitest.config.ts)
+    ...(process.env.CI ? ["--reporter=junit"] : []),
     `--outputFile=${RESULTS_FILE}`,
 ];
 

@@ -2,6 +2,7 @@ import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { ciJunitReporter } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
 
 /** The tests that mount the real graphty-element, unmocked. */
@@ -36,6 +37,7 @@ export default defineConfig({
         force: true,
     },
     test: {
+        reporters: ["default", ...ciJunitReporter()],
         globals: true,
         exclude: BASE_EXCLUDE,
         // The tests that mount the real graphty-element get a project of their own, run after

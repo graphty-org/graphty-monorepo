@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graph-io",
-    "version": "0.3.23",
+    "version": "0.3.24",
     "description": "Read and write 13 graph file formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) as @graphty/graph-format snapshots",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",

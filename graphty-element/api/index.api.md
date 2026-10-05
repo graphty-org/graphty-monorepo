@@ -7,6 +7,7 @@
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
 import { Camera } from '@babylonjs/core';
+import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
@@ -30,6 +31,7 @@ import { InstancedMesh } from '@babylonjs/core';
 import { LayoutResult } from '@graphty/layout';
 import { LitElement } from 'lit';
 import { LossNote } from '@graphty/graph-io';
+import { Matrix } from '@babylonjs/core';
 import { Mesh } from '@babylonjs/core';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -38,6 +40,7 @@ import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { Observer } from '@babylonjs/core';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
@@ -694,14 +697,25 @@ export class Edge {
     applySessionPaint(paint: EdgePaint): void;
     // (undocumented)
     arrowHeadText: RichTextLabel | null;
-    // (undocumented)
-    arrowMesh: AbstractMesh | null;
-    // (undocumented)
-    arrowTailMesh: AbstractMesh | null;
+    arrowMesh: ArrowCap | null;
+    arrowTailMesh: ArrowCap | null;
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     get data(): AdHocData;
     dispose(): void;
+    get drawnCaps(): {
+        end: "arrowHead" | "arrowTail";
+        name: string;
+        span: number;
+        visibility: number;
+    }[];
+    get drawnCentre(): Vector3;
+    get drawnLine(): {
+        name: string;
+        length: number;
+        visibility: number;
+        centre: Vector3;
+    } | null;
     // (undocumented)
     readonly dstId: NodeIdType;
     // (undocumented)
@@ -715,7 +729,6 @@ export class Edge {
     isSelected(): boolean;
     // (undocumented)
     label: RichTextLabel | null;
-    // (undocumented)
     mesh: AbstractMesh | PatternedLineMesh;
     // (undocumented)
     opts: EdgeOpts;
@@ -734,7 +747,6 @@ export class Edge {
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     update(): void;
-    static updateRays(g: Graph | GraphContext): void;
     updateStyle(): void;
 }
 
@@ -1578,9 +1590,6 @@ export class Graph implements GraphContext {
     }): Promise<{
         loadId: number;
     }>;
-    // (undocumented)
-    needRays: boolean;
-    needsRayUpdate(): boolean;
     get nodeLabelCounts(): NodeLabelCounts;
     on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
@@ -1744,7 +1753,6 @@ export interface GraphContext {
     getXRSessionManager?(): XRSessionManager | undefined;
     is2D(): boolean;
     isRunning(): boolean;
-    needsRayUpdate(): boolean;
     readonly onNodeLabelCounts?: Observable<NodeLabelCounts>;
     setRunning(running: boolean): void;
 }
@@ -2794,7 +2802,7 @@ export interface NeighborSort {
     readonly descending?: boolean;
 }
 
-// @public
+// @public (undocumented)
 class Node_2 {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
@@ -2829,6 +2837,7 @@ class Node_2 {
     // (undocumented)
     pinOnDrag: boolean;
     refreshSelectionOverlay(): void;
+    get roundRadius(): number | null;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
@@ -4237,6 +4246,7 @@ export class UpdateManager implements Manager {
     disableZoomToFit(): void;
     dispose(): void;
     enableZoomToFit(explicit?: boolean): void;
+    forceEdgeWalk(): void;
     get frameIsStable(): boolean;
     getRenderFrameCount(): number;
     init(): Promise<void>;

@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { normalizeConfig } from "../lib/config.mjs";
-import { countsAsBreaking, decideBreaking, touches, updatePrs, whyStuck } from "../lib/prs.mjs";
+import { captureFailures, countsAsBreaking, decideBreaking, touches, updatePrs, whyStuck } from "../lib/prs.mjs";
+import { ownerWaitingPrs, prWork } from "../lib/queue.mjs";
 import { fixture } from "./helpers/fake-gh.mjs";
 
 const config = normalizeConfig(JSON.parse(readFileSync(new URL("../../githerd.config.json", import.meta.url), "utf8")));
@@ -269,6 +270,40 @@ describe("checks", () => {
         const other = failingGate();
         other.detail.failedSteps = ["Run tests"];
         expect(polls([other])["704"].ownerGate).toBe(false);
+    });
+
+    it("a failed capture is broken, not waiting on the owner (the trial's #617 and #942)", () => {
+        const n = failingGate();
+        n.detail.failedSteps = ["Check visual changes were accepted"];
+        n.detail.gateAnnotations = [
+            "visual changes not accepted -- graphty-element: 1 failed, 3 changed (not accepted; a rejected item needs a code change, not another review)",
+        ];
+        const rec = polls([n])["704"];
+        expect(rec.ownerGate).toBe(false);
+        expect(rec.captureFailed).toHaveLength(1);
+        const state = { trust: { login: "apowers313" }, prs: { 704: rec } };
+        expect(ownerWaitingPrs(state, new Date("2026-10-03T00:00:00Z"))).toEqual([]);
+        expect(prWork("704", rec, state)).toMatch(
+            /^visual capture failed: visual changes not accepted -- graphty-element: 1 failed/,
+        );
+        // Kept for the same head while the gate stays red; gone once it passes.
+        expect(polls([n], [{ ...failingGate(), detail: undefined }])["704"].captureFailed).toHaveLength(1);
+        const green = withChecks(node(), [run("All Checks Pass", "SUCCESS"), run("Lint PR Title", "SUCCESS")]);
+        expect(polls([n], [green])["704"].captureFailed).toEqual([]);
+        // Changed images alone still wait on the owner.
+        n.detail.gateAnnotations = ["visual changes not accepted -- graphty-element: 3 changed (not accepted)"];
+        expect(polls([n])["704"].ownerGate).toBe(true);
+    });
+
+    it("reads every kind of failed capture from the gate's annotations", () => {
+        const lines = [
+            "visual changes not accepted -- layout: no capture results (the visual job failed or uploaded nothing); re-run it",
+            "visual changes not accepted -- graphty: the capture did not finish (40 of 120 items); re-run it",
+            "visual changes not accepted -- algorithms: results.json is invalid (items[0]); re-run the visual job",
+            "capture timed out after 30 minutes",
+            "visual changes not accepted -- graphty: 2 new (not accepted)",
+        ];
+        expect(captureFailures(lines)).toEqual(lines.slice(0, 4));
     });
 
     it("a reject block newer than the head sets ownerRejected", () => {

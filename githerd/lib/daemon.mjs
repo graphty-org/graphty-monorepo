@@ -984,11 +984,15 @@ export async function startDaemon({
             );
             if (failing.length === 1 && failing[0].databaseId) {
                 const job = failing[0].databaseId;
-                if (prev?.gateJob !== job || prev?.headSha !== node.headRefOid) {
+                // A record from before the capture check was read has no `captureFailed`: read it once.
+                if (prev?.gateJob !== job || prev?.headSha !== node.headRefOid || !prev?.captureFailed) {
                     const res = await github().get(`repos/${repo}/actions/jobs/${job}`);
                     detail.failedSteps = (res.body?.steps ?? [])
                         .filter((s) => s.conclusion === "failure")
                         .map((s) => s.name);
+                    // A failed capture shows only in the gate's annotations (prs.mjs captureFailures).
+                    const notes = await github().get(`repos/${repo}/check-runs/${job}/annotations?per_page=100`);
+                    detail.gateAnnotations = (notes.body ?? []).map((/** @type {any} */ a) => String(a.message ?? ""));
                 }
                 detail.gateJob = job;
                 if (config.ownerGate.rejectMarker) {

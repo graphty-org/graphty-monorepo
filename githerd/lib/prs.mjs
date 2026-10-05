@@ -9,6 +9,7 @@
  *   `truncated` when the list stopped at 250. Fetched in the poll that first sees a head.
  * - `files`: the paths the head changes (REST `pulls/{n}/files`).
  * - `failedSteps`: the names of the failed steps of the one failing required context.
+ * - `gateAnnotations`: that context's annotation messages, read with its failed steps.
  * - `comments`: `{body, createdAt}` of the comments since the head, for the reject marker.
  *
  * A value decided from detail is kept while the head stays the same; a new head without detail
@@ -20,7 +21,7 @@ import { execFileSync } from "node:child_process";
 /**
  * @typedef {import("./config.mjs").Config} Config
  * @typedef {{ messages: string[], truncated?: boolean }} CommitList
- * @typedef {{ commits?: CommitList, files?: string[], failedSteps?: string[],
+ * @typedef {{ commits?: CommitList, files?: string[], failedSteps?: string[], gateAnnotations?: string[],
  *   comments?: { body: string, createdAt: string }[] }} Detail
  * @typedef {"SUCCESS" | "FAILURE" | "PENDING" | "MISSING"} CheckState
  * @typedef {{
@@ -35,7 +36,7 @@ import { execFileSync } from "node:child_process";
  *   touchesProtected: boolean,
  *   autoMerge: boolean, mergeable: string | null, mergeState?: string | null, conflictSightings: number,
  *   required: Record<string, CheckState>, failingChecks: string[], failingStartedAt: string | null,
- *   ownerGate: boolean, ownerRejected: boolean, stackedOn: number | null,
+ *   ownerGate: boolean, captureFailed: string[], ownerRejected: boolean, stackedOn: number | null,
  *   lastActivityAt: string, mergeStatus?: MergeStatus | null, [key: string]: unknown,
  * }} PrRecord `mergeStatus` is the `githerd/merge` status last decided for the head
  */
@@ -192,6 +193,11 @@ function foldPr(node, prev, config, now) {
               ownerRejected: false,
           };
 
+    const gateRed = Object.values(checks.required).includes("FAILURE");
+    let captureFailed = [];
+    if (detail.gateAnnotations) captureFailed = captureFailures(detail.gateAnnotations);
+    else if (sameHead && gateRed) captureFailed = prev?.captureFailed ?? [];
+
     /** @type {PrRecord} */
     const rec = {
         ...prev,
@@ -218,7 +224,11 @@ function foldPr(node, prev, config, now) {
         required: checks.required,
         failingChecks: checks.failing,
         failingStartedAt: checks.startedAt,
-        ownerGate: ownerGateOf(config, checks.required, detail, sameHead && prev?.ownerGate === true),
+        captureFailed,
+        // A failed capture is broken, not owner-ready: the owner is never sent such a pull request.
+        ownerGate:
+            captureFailed.length === 0 &&
+            ownerGateOf(config, checks.required, detail, sameHead && prev?.ownerGate === true),
         ownerRejected: kept.ownerRejected,
         stackedOn: null,
         lastActivityAt: node.updatedAt,
@@ -246,6 +256,25 @@ function foldPr(node, prev, config, now) {
         rec.ownerRejected = detail.comments.some((c) => c.createdAt > since && marker.test(c.body));
     }
     return rec;
+}
+
+/** What the visual-review gate's annotations say when a capture failed rather than changed. */
+const CAPTURE_FAILED = [
+    /\b\d+ failed\b/,
+    /no capture results/,
+    /capture did not finish/,
+    /results\.json is invalid/,
+    /\btimed? ?out\b/i,
+];
+
+/**
+ * The gate annotations that report a failed capture (an item that failed to capture, a capture
+ * that timed out, did not finish or uploaded nothing).
+ * @param {string[]} annotations the failing gate check's annotation messages
+ * @returns {string[]} those that report a failed capture
+ */
+export function captureFailures(annotations) {
+    return annotations.filter((a) => CAPTURE_FAILED.some((re) => re.test(a)));
 }
 
 /**

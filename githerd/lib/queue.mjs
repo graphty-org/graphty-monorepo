@@ -128,6 +128,7 @@ export function prWork(number, rec, state) {
     if (ownerWait(number, rec, state)) return null;
     const failing = failingRequired(rec);
     if (rec.ownerRejected) return "owner rejected images";
+    if (rec.captureFailed?.length) return `visual capture failed: ${rec.captureFailed.join("; ")}`;
     if (failing.length && !rec.ownerGate) return `required check failing: ${failing.join(", ")}`;
     // GitHub's answer of this poll, read again every poll: it clears as soon as GitHub says so.
     const github = rec.mergeState ?? rec.mergeable ?? "CONFLICTING";

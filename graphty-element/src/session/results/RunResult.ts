@@ -81,6 +81,22 @@ export interface ResultElementValues<Id extends NodeId = NodeId> {
     readonly values: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * Numeric fields published as columns: row `i` of every column belongs to `ids[i]`, and every
+ * element carries every column.
+ *
+ * The form a run with one number per element hands over. A {@link ResultElementValues} entry is
+ * two objects per element, which costs more than the arithmetic of a cheap metric, and how much
+ * more depends on the garbage collector's state when the run starts: degree on 800,000 nodes took
+ * 27 to 87 ms from one process to the next, nearly all of it the objects.
+ */
+export interface ResultColumns<Id extends NodeId = NodeId> {
+    /** The elements' ids, exactly as the graph holds them. */
+    readonly ids: readonly Id[];
+    /** The fields, keyed by the shape's field names, each as long as `ids`. */
+    readonly columns: Readonly<Record<string, Float64Array>>;
+}
+
 /** One row of the `sizes` table a grouping result publishes, largest first. */
 interface ResultSizeRow {
     /** The group, or the level for a layered grouping. */
@@ -126,7 +142,7 @@ export interface RunResultInit {
     /** The graph-level fields the algorithm published, keyed by field name. */
     readonly graph?: Readonly<Record<string, unknown>>;
     /** What the run published per node, in the order a column reads them. */
-    readonly nodes?: readonly ResultElementValues[];
+    readonly nodes?: readonly ResultElementValues[] | ResultColumns;
     /** What the run published per edge, in the order a column reads them. */
     readonly edges?: readonly ResultElementValues<EdgeId>[];
     /** What qualifies the numbers. */
@@ -232,20 +248,12 @@ interface ElementTable {
  * @param entries - What the run published, or undefined when this half is empty.
  * @returns The table; its columns stay plain arrays until {@link sealTable}.
  */
-function buildTable(entries: readonly ResultElementValues[] | undefined): ElementTable {
-    const index = new OwnIndex();
-    const positions: number[] = [];
-    for (const entry of entries ?? []) {
-        let position = index.positions.get(entry.id);
-        if (position === undefined) {
-            position = index.ids.length;
-            index.positions.set(entry.id, position);
-            index.ids.push(entry.id);
-        }
-
-        positions.push(position);
+function buildTable(entries: readonly ResultElementValues[] | ResultColumns | undefined): ElementTable {
+    if (entries !== undefined && "columns" in entries) {
+        return columnTable(entries);
     }
 
+    const { index, positions } = indexIds((entries ?? []).map((entry) => entry.id));
     const table: ElementTable = { index, token: null, length: index.ids.length, columns: new Map() };
     (entries ?? []).forEach((entry, at) => {
         for (const [name, value] of Object.entries(entry.values)) {
@@ -254,6 +262,46 @@ function buildTable(entries: readonly ResultElementValues[] | undefined): Elemen
     });
 
     return table;
+}
+
+/**
+ * {@link buildTable} for a run that published columns. Each is copied, as an entry's values are.
+ * @param published - The ids and their columns.
+ * @returns The table, its columns already `Float64Array`s.
+ */
+function columnTable(published: ResultColumns): ElementTable {
+    const { ids, columns } = published;
+    const { index, positions } = indexIds(ids);
+    const table: ElementTable = { index, token: null, length: index.ids.length, columns: new Map() };
+    for (const [name, values] of Object.entries(columns)) {
+        const column = new Float64Array(table.length);
+        positions.forEach((position, at) => (column[position] = values[at]));
+        table.columns.set(name, column);
+    }
+
+    return table;
+}
+
+/**
+ * Give each id a position in a new index; an id seen before keeps the position it has.
+ * @param ids - The ids, in the order the run published them.
+ * @returns The index, and each published row's position in it.
+ */
+function indexIds(ids: readonly NodeId[]): { index: OwnIndex; positions: number[] } {
+    const index = new OwnIndex();
+    const positions: number[] = [];
+    for (const id of ids) {
+        let position = index.positions.get(id);
+        if (position === undefined) {
+            position = index.ids.length;
+            index.positions.set(id, position);
+            index.ids.push(id);
+        }
+
+        positions.push(position);
+    }
+
+    return { index, positions };
 }
 
 /**

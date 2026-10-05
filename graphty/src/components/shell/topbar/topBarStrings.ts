@@ -203,14 +203,11 @@ export function shareTitle(dataLoaded: boolean): string {
 }
 
 /**
- * The Compare toggle's title, which takes the disabled reason until data is loaded
- * and never renames itself when it is on. Spec 02 section 2.4.
- * @param dataLoaded - whether data is loaded.
- * @returns "Compare two views", or "Compare two views. Load data first".
+ * The Compare button's title. Compare is not built (issue #186), so the button is drawn
+ * disabled with this reason rather than as a toggle that does nothing (5.8). It needs
+ * graphty-element to compare two graphs and link two cameras first (issue #826).
  */
-export function compareTitle(dataLoaded: boolean): string {
-    return dataLoaded ? COMPARE_TITLE : `${COMPARE_TITLE}${LOAD_DATA_FIRST_SUFFIX}`;
-}
+export const COMPARE_NOT_BUILT_TITLE = `${COMPARE_TITLE}. Not built yet`;
 
 /**
  * The sidebars toggle's title -- the same string in every state, because a toggle never

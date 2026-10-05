@@ -1196,7 +1196,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     );
     const [feedbackOpen, setFeedbackOpen] = useState(false);
     const [viewsMenuOpen, setViewsMenuOpen] = useState(false);
-    const [compareActive, setCompareActive] = useState(false);
     const [inspectorPinned, setInspectorPinned] = useState(false);
     // Bumped by every dataset boundary, so the focus effect below runs after the
     // Empty tree is committed rather than against the tree that is leaving.
@@ -4785,7 +4784,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             drawerOpen: canvasLayout.drawerOpen,
             drawerHeight: canvasLayout.drawerHeight,
             drawerMaximised,
-            compareOpen: compareActive,
         },
         overlays: {
             minimap: canvasLayout.minimap,
@@ -4984,10 +4982,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     }}
                     onShare={() => {
                         openPanelAt("present");
-                    }}
-                    compareActive={compareActive}
-                    onToggleCompare={() => {
-                        setCompareActive((active) => !active);
                     }}
                     sidebarsShown={sidebarsShown}
                     onToggleSidebars={toggleSidebars}

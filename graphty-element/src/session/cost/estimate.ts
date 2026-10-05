@@ -494,16 +494,21 @@ interface OwnCostModel {
  * code 5x to 300x faster than the Map-based code the 2026-09-23 rates were fitted on.
  */
 const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
-    /* One pass over the snapshot's edge list counting each end, then one result object per node.
-       Measured on 2026-09-29 on random m = 5n graphs of 25,000 to 400,000 nodes: 3.6 to 4.1 ns per
-       element of n + m up to 100,000 nodes, then about 10 ns from 200,000 up, once the result
-       objects outgrow V8's young generation and every scavenge copies them. Pinned at 11 ns,
-       1 / (90 * the linear rate): about 3x over the small graphs and 1.1x over the large ones. The
-       linear rate was fitted to the object-graph route this used to take, and read about 280x over
-       the snapshot. */
+    /* One pass over the snapshot's edge list counting each end, then each node's id looked up and
+       its counts written into three Float64Array columns. Until 2026-10-04 it built two objects
+       per node instead, and their cost depended on the garbage collector's state, not on the graph:
+       5.5 to 7 ns per element of n + m when V8 pretenured them, 12.4 to 23 ns when it kept
+       scavenging them (which the directed snapshot's cached reverse view, or any other recent
+       allocation, could tip it into), so no rate fitted both and CI failed in both directions.
+       Measured on the columns on 2026-10-04, random m = 5n at 400,000 and 800,000 nodes, with and
+       without the reverse view cached, fresh and warm processes, between allocation-heavy
+       calibration probes: 4.6 to 8.1 ns, one mode. Pinned at 10 ns, 1 / (100 * the linear rate):
+       1.33x over the slowest run measured, and under 3x over CI's fastest reading of the object
+       path (3.8 ns), which the columns have no reason to beat. The linear rate was fitted to the
+       object-graph route this used to take, and read about 280x over the snapshot. */
     degree: {
         term: () => "n + m",
-        seconds: (nodes, edges, rates) => (nodes + edges) / (90 * rates.linearElementsPerSecond),
+        seconds: (nodes, edges, rates) => (nodes + edges) / (100 * rates.linearElementsPerSecond),
     },
     /* Power iteration over the snapshot, charged the whole bound: how many passes it takes nothing
        the estimate sees predicts (1 or 2 on a star, 11 on random m = 50n, 41 to 46 on random

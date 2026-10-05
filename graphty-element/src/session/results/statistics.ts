@@ -658,7 +658,7 @@ function logBandPlan(
  * @returns The bin count to use.
  * @throws A GraphtyError coded E_OPTION_RANGE when the request is outside the permitted range.
  */
-function resolveBinCount(bins: number | undefined): number {
+export function resolveBinCount(bins: number | undefined): number {
     if (bins === undefined) {
         return DEFAULT_HISTOGRAM_BINS;
     }

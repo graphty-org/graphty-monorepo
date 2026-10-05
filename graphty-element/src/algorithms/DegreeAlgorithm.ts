@@ -1,7 +1,6 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
-import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
@@ -69,24 +68,39 @@ export class DegreeAlgorithm extends MetricAlgorithm {
         const {
             value: { inDegree: inDegrees, outDegree: outDegrees },
         } = await run((dispatch, s) => dispatch.degrees(s));
-        const nodes: ResultElementValues[] = [];
+        /* Published as columns, not as an object per node: the objects cost more than the counting,
+           and how much more depended on the garbage collector's state when the run started (2.5 to
+           3x between processes at 800,000 nodes). */
+        const measured: NodeId[] = [];
+        const value = new Float64Array(nodeIds.length);
+        const inDegree = new Float64Array(nodeIds.length);
+        const outDegree = new Float64Array(nodeIds.length);
 
         await walkInChunks(nodeIds, context, "counting connections", (nodeId) => {
             const index = ids.indexOf(nodeId);
 
+            // A node the snapshot does not hold is left out, so it reads as unmeasured.
             if (index === INVALID_INDEX) {
-                nodes.push({ id: nodeId, values: {} });
-
                 return;
             }
 
-            const inDegree = inDegrees[index];
-            const outDegree = outDegrees[index];
-            nodes.push({ id: nodeId, values: { value: inDegree + outDegree, inDegree, outDegree } });
+            const row = measured.push(nodeId) - 1;
+            inDegree[row] = inDegrees[index];
+            outDegree[row] = outDegrees[index];
+            value[row] = inDegrees[index] + outDegrees[index];
         });
 
+        const rows = measured.length;
+
         return {
-            nodes,
+            nodes: {
+                ids: measured,
+                columns: {
+                    value: value.subarray(0, rows),
+                    inDegree: inDegree.subarray(0, rows),
+                    outDegree: outDegree.subarray(0, rows),
+                },
+            },
             // A count of edges, published as it was counted.
             normalization: "none",
             caveats: {

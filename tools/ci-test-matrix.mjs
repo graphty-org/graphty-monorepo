@@ -161,7 +161,7 @@ export const SHARDS = [
         shard: "graphty-element-default",
         package: "graphty-element",
         "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default --coverage && pnpm exec vitest run --project=bench --reporter=default",
+            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} --coverage && pnpm exec vitest run --project=bench --reporter=default ${CI:+--reporter=junit}",
         "needs-browser": false,
     },
     // graphty-element browser tests (5 shards)
@@ -171,8 +171,10 @@ export const SHARDS = [
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
         "test-command":
-            `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default --coverage` +
-            (n === 1 ? " && pnpm exec vitest run --project=browser-bench --reporter=default" : ""),
+            `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage` +
+            (n === 1
+                ? " && pnpm exec vitest run --project=browser-bench --reporter=default ${CI:+--reporter=junit}"
+                : ""),
         "needs-browser": true,
     })),
     // graphty-element storybook tests (4 shards)
@@ -186,7 +188,7 @@ export const SHARDS = [
     ...[1, 2, 3, 4].map((n) => ({
         shard: `graphty-element-storybook-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/4 --reporter=blob --reporter=default --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/4 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage`,
         "needs-browser": true,
     })),
 ];

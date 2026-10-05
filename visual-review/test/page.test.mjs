@@ -2158,6 +2158,22 @@ describe("review page: links and the frozen pass", () => {
         expect([...hash().keys()]).toEqual(["token"]);
     });
 
+    it("opens a target's first project with undecided items from a link that names no project", async () => {
+        const opened = hash().get("project");
+        const calls = [];
+        page.on("request", (req) => calls.push(new URL(req.url()).pathname));
+        const link = new URL(page.url());
+        link.hash = `token=${TOKEN}&target=123`;
+        await visit(link.href);
+        await page.locator(".component").first().waitFor();
+        expect(hash().get("project")).toBe(opened);
+        expect(calls.filter((u) => u.startsWith("/api/pr/"))).toEqual([`/api/pr/123/${opened}`]);
+        expect(await status()).toBe("");
+        link.hash = `token=${TOKEN}&target=999`;
+        await visit(link.href);
+        await expect.poll(status).toBe("999 is no longer listed: showing every target.");
+    });
+
     it("copies the link to the screen", async () => {
         await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin });
         // The header keeps Copy link from 1050 px; narrower, it is in the Options and More menus.
@@ -2817,3 +2833,22 @@ async function openStoryFromGrid(number) {
     await page.locator(".component").first().waitFor();
     await openStory(number);
 }
+
+describe("review page: the inbox", () => {
+    it("opens on what waits, counts it in the title, opens the first undecided image, and keeps the token", async () => {
+        await open((r) => ({ gh: twoPrs(r) }), { review: false });
+        const rows = page.locator(".inbox-row");
+        await expect.poll(() => rows.count()).toBe(2);
+        await expect.poll(() => page.title()).toBe("(2) Visual review");
+        expect(await page.locator(".inbox h2").textContent()).toBe("Ready for you (2)");
+        expect(await rows.first().textContent()).toMatch(/^#123 PR 123\d+ images, CI, just now$/);
+        const box = await rows.first().boundingBox();
+        expect(box.height).toBeGreaterThanOrEqual(44);
+        expect((await page.request.get(`${origin}/manifest.webmanifest`)).status()).toBe(200);
+        await rows.first().click();
+        await page.locator("#app.story-screen").waitFor();
+        // The notifier's link carries no token: a browser that used the page before still opens it.
+        await page.goto(`${origin}/`);
+        await expect.poll(() => page.locator(".inbox-row").count()).toBe(2);
+    });
+});

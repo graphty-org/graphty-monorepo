@@ -428,6 +428,17 @@ describe("verifyClaim", () => {
         });
     });
 
+    it("accepts an issue job's pull request that names the issue in its description, leaving it open", async () => {
+        const io = (/** @type {string} */ body) => fakeIo({ pull: async () => ({ state: "open", body }) });
+        const job = working("issue", "6");
+        expect(await verifyClaim(job, report({ pr: 7 }), view(state(), io("Refs #6: the disabled button")))).toEqual({
+            holds: true,
+        });
+        expect(await verifyClaim(job, report({ pr: 7 }), view(state(), io("Refs #60")))).toMatchObject({
+            missing: [expect.stringContaining("does not reference #6")],
+        });
+    });
+
     it("leaves a claim undecided while the poll is behind GitHub's head", async () => {
         const io = fakeIo({ remoteHead: async () => OTHER });
         expect(await verifyClaim(working("pr", "7"), report(), view(state(), io))).toBeNull();

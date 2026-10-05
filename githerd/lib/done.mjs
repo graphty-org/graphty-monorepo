@@ -128,6 +128,21 @@ async function headIsPushed(rec, pushed, io) {
 }
 
 /**
+ * Whether a pull request names an issue: a closing reference, or the issue's number in its
+ * description ("Refs #186"), so a pull request that does part of an issue, leaving it open, counts.
+ * @param {any} rec the polled record
+ * @param {number} number the pull request
+ * @param {number} issue the issue
+ * @param {View} view what the check reads
+ * @returns {Promise<boolean>} true when it does
+ */
+async function mentions(rec, number, issue, view) {
+    if ((rec.references ?? []).includes(issue)) return true;
+    const body = (await view.io.pull(number))?.body ?? "";
+    return new RegExp(`#${issue}(?!\\d)`).test(body);
+}
+
+/**
  * The done-condition of one pull request: base master, not draft, head is the pushed commit,
  * required checks green or waiting only on the owner, `githerd/merge` not failing a worker line.
  * @param {number} number the pull request
@@ -143,8 +158,10 @@ async function prAnswer(number, pushed, view, issue = null) {
     const gaps = [];
     if (rec.baseRef !== branch) gaps.push(`#${number} is based on ${rec.baseRef}, not ${branch}`);
     if (rec.draft) gaps.push(`#${number} is a draft`);
-    if (issue !== null && !(rec.references ?? []).includes(issue)) {
-        gaps.push(`#${number} does not reference #${issue}: add "Fixes #${issue}" to its description`);
+    if (issue !== null && !(await mentions(rec, number, issue, view))) {
+        gaps.push(
+            `#${number} does not reference #${issue}: add "Fixes #${issue}" to its description, or "Refs #${issue}" when it does part of the issue and the issue stays open`,
+        );
     }
     const head = await headIsPushed(rec, pushed, view.io);
     if (head === null) return null;

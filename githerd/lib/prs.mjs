@@ -126,14 +126,20 @@ function readChecks(node, requiredChecks) {
     const required = Object.fromEntries(requiredChecks.map((n) => [n, "MISSING"]));
     const failing = [];
     let startedAt = null;
+    // A name reported twice (a re-run, or the run made when a draft was marked ready) counts by its
+    // newest run, as GitHub's own required-check rule does.
+    /** @type {Map<string, any>} */
+    const newest = new Map();
     for (const ctx of contexts) {
         const name = ctx.__typename === "StatusContext" ? ctx.context : ctx.name;
+        const prev = newest.get(name);
+        if (!prev || (ctx.databaseId ?? 0) > (prev.databaseId ?? 0)) newest.set(name, ctx);
+    }
+    for (const [name, ctx] of newest) {
         const state = contextState(ctx);
-        if (state === "FAILURE" && !failing.includes(name)) failing.push(name);
+        if (state === "FAILURE") failing.push(name);
         if (!Object.hasOwn(required, name)) continue;
-        // A name reported twice (a re-run) takes the worst: failure, then pending, then success.
-        const order = ["MISSING", "SUCCESS", "PENDING", "FAILURE"];
-        if (order.indexOf(state) > order.indexOf(required[name])) required[name] = state;
+        required[name] = state;
         if (state === "FAILURE" && ctx.startedAt && (!startedAt || ctx.startedAt > startedAt)) {
             startedAt = ctx.startedAt;
         }

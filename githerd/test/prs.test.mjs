@@ -249,13 +249,21 @@ describe("checks", () => {
         expect(stuck(polls([withChecks(node(), [])])["704"])).toEqual(["checks pending"]);
     });
 
-    it("a re-run reported twice takes the worse answer", () => {
-        const n = withChecks(node(), [
-            run("All Checks Pass", "SUCCESS"),
-            run("All Checks Pass", "FAILURE"),
-            run("Lint PR Title", "SUCCESS"),
+    it("a name reported twice counts by its newest run, as GitHub's required-check rule does", () => {
+        const rerunFailed = withChecks(node(), [
+            run("All Checks Pass", "SUCCESS", { databaseId: 1 }),
+            run("All Checks Pass", "FAILURE", { databaseId: 2 }),
+            run("Lint PR Title", "SUCCESS", { databaseId: 3 }),
         ]);
-        expect(polls([n])["704"].required["All Checks Pass"]).toBe("FAILURE");
+        expect(polls([rerunFailed])["704"].required["All Checks Pass"]).toBe("FAILURE");
+        // #1060: the run made while it was a draft failed; the one made when it was marked ready runs.
+        const readied = withChecks(node(), [
+            run("All Checks Pass", "FAILURE", { databaseId: 9 }),
+            run("All Checks Pass", null, { databaseId: 12 }),
+        ]);
+        const rec = polls([readied])["704"];
+        expect(rec.required["All Checks Pass"]).toBe("PENDING");
+        expect(rec.failingChecks).toEqual([]);
     });
 
     it("the owner gate: the only failing required check failed at the visual step", () => {

@@ -159,6 +159,8 @@ describe("an absent week, through the whole daemon", () => {
             now: () => clock,
             env: { GITHERD_CONFIG: config, PATH: process.env.PATH, HOME: dir },
             stateDir: join(dir, ".githerd"),
+            // Owner inference would read this machine's whole process table on each of the 336 polls.
+            peers: { ownerFacts: async () => ({ pushLog: [], sessions: [], procs: [], worktrees: [] }) },
             autoPoll: false,
             workers: false,
             log: () => {},

@@ -16,9 +16,9 @@
  * it is neither offered nor asked about. Nor is a pull request with an inferred owner
  * (`state.prInferred`, owners.mjs): the session that last pushed it, or works in its worktree.
  *
- * The same messaging asks each owner session holding a job for its status (`statusStep`), asks the
- * owner of a broken pull request whether it is fixing it (`brokenOwned`), and invites idle sessions
- * to pull work (`inviteStep`).
+ * The same messaging asks each owner session holding a job for its status and whether it can take
+ * another job (`statusStep`), asks the owner of a broken pull request whether it is fixing it
+ * (`brokenOwned`), and invites sessions with room to pull work (`inviteStep`).
  */
 
 import { askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf, prWork } from "./queue.mjs";
@@ -124,6 +124,7 @@ function questionFor(state, job, acting) {
 export async function askStep(state, { now, acting, sessions, transport, sessionGone }) {
     state.asks ??= {};
     const lines = [...settleOwners(state, sessionGone), ...settleAsks(state, sessionGone)];
+    for (const session of Object.keys(state.capacity ?? {})) if (sessionGone(session)) delete state.capacity[session];
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
     let live = null;
     for (const job of Object.values(state.jobs ?? {})) {
@@ -169,9 +170,27 @@ function inviteText(job, reason) {
 }
 
 /**
- * Invites the idle Claude sessions in this repository to pull work (the owner's decision of
- * 2026-10-05): each queued job no worker slot took is announced once, to every session whose
- * registry status is `idle`. githerd's own workers are never among them (`liveSessions` leaves
+ * How many more jobs a session can take now: its last `capacity` answer to the status question
+ * (`state.capacity[session]`, recorded by githerd_expect), less the jobs it claimed since. Null
+ * when it never answered.
+ * @param {any} state the daemon state
+ * @param {string} session the session id
+ * @returns {number | null} the room left
+ */
+function room(state, session) {
+    const said = state.capacity?.[session];
+    if (!said) return null;
+    const claimed = Object.values(state.jobs ?? {}).filter(
+        (j) => j.claim?.session === session && j.claim.at >= said.at,
+    ).length;
+    return said.n - claimed;
+}
+
+/**
+ * Invites the Claude sessions in this repository that have room to pull work (the owner's
+ * decisions of 2026-10-05): each queued job no worker slot took is announced once, to every session
+ * whose registry status is `idle` or whose last capacity answer leaves room (`room`); a session that
+ * never answered is invited only while idle. githerd's own workers are never among them (`liveSessions` leaves
  * them out). A job is marked (`invitedAt`) only once a session was there to hear it, so a job
  * queued while every session is busy is announced when one goes idle. A session is invited only to
  * a job it could claim (`jobInUse` with that session, the rule githerd_next and githerd_claim
@@ -188,13 +207,13 @@ function inviteText(job, reason) {
 export async function inviteStep(state, { now, acting, sessions, transport, offered, config }) {
     const lines = [];
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when an invitation is due */
-    let idle = null;
+    let free = null;
     for (const { job: id, reason } of offered) {
         const job = state.jobs?.[id];
         if (job?.state !== "queued" || job.invitedAt) continue;
-        idle ??= sessions().filter((s) => s.status === "idle");
-        if (!idle.length) break;
-        const able = idle.filter((s) => !jobInUse(state, job, { config, now, session: s.sessionId }));
+        free ??= sessions().filter((s) => s.status === "idle" || (room(state, s.sessionId) ?? 0) > 0);
+        if (!free.length) break;
+        const able = free.filter((s) => !jobInUse(state, job, { config, now, session: s.sessionId }));
         if (!able.length) continue;
         const names = able.map((s) => s.name);
         job.invitedAt = now.toISOString();
@@ -221,6 +240,8 @@ function statusText(jobs, minutes) {
         jobs.map((j) => `- ${j.id} (${j.target})\n`).join("") +
         "Answer by calling githerd_expect once per listed job, with job set to its id, reason set to one line on " +
         "where it stands, and minutes set to how long until your current step ends. " +
+        "Can you take another job? Answer that with capacity set, in those githerd_expect calls, to how many further " +
+        "jobs this session can take now (0 if none); githerd invites a session with room to queued work even while it is busy. " +
         `A listed job still unanswered when githerd asks again in ${minutes} minutes goes back to the queue. ` +
         "Do the jobs' work in background subagents or workflows, so this conversation stays free to answer githerd."
     );

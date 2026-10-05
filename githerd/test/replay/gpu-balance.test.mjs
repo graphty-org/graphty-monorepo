@@ -176,6 +176,8 @@ describe("replay: the 10-02 GPU balance stretches through the whole daemon", () 
             now: () => new Date(t),
             env: { GITHERD_CONFIG: config, PATH: process.env.PATH, HOME: dir },
             stateDir: join(dir, ".githerd"),
+            // Owner inference would read this machine's whole process table on every poll.
+            peers: { ownerFacts: async () => ({ pushLog: [], sessions: [], procs: [], worktrees: [] }) },
             autoPoll: false,
             runs: false,
             log: () => {},

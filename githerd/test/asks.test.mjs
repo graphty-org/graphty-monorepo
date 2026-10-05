@@ -300,6 +300,47 @@ describe("inviting idle sessions to pull work", () => {
         expect(lines).toMatchObject([{ kind: "sessions-invited", job: "review-1082", sessions: ["graphty-14"] }]);
     });
 
+    it("invites a busy session while its last capacity answer leaves room, less the jobs it claimed since", async () => {
+        const state = queued("issue-5", "triage-new-1", "issue-6");
+        const f = fake();
+        // s2 is busy; it answered the status question with room for one more job.
+        state.capacity = { s2: { n: 1, at: NOW.toISOString() } };
+        await inviteStep(state, { ...f.opts(), offered: offered.slice(0, 1) });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s1.sock", "/s2.sock"]);
+
+        // It claims a job: no room left, so the next job reaches the idle session only.
+        state.jobs["triage-new-1"].claim = { session: "s2", at: NOW.toISOString() };
+        await inviteStep(state, { ...f.opts(), offered: [{ job: "issue-6", reason: "bug" }] });
+        expect(f.sent.slice(2).map(([socket]) => socket)).toEqual(["/s1.sock"]);
+
+        // It answers again with room: invited again.
+        state.capacity.s2 = { n: 1, at: new Date(NOW.getTime() + 60_000).toISOString() };
+        await inviteStep(state, { ...f.opts(), offered: [{ job: "triage-new-1", reason: "triage" }] });
+        expect(f.sent.slice(3).map(([socket]) => socket)).toEqual(["/s1.sock", "/s2.sock"]);
+    });
+
+    it("does not invite a busy session that answered capacity 0, nor one that never answered", async () => {
+        const state = queued("issue-5");
+        const f = fake();
+        const busy = () => SESSIONS.map((s) => ({ ...s, status: "busy" }));
+        state.capacity = { s1: { n: 0, at: NOW.toISOString() } };
+        expect(await inviteStep(state, { ...f.opts({ sessions: busy }), offered })).toEqual([]);
+        expect(f.sent).toEqual([]);
+        expect(state.jobs["issue-5"].invitedAt).toBeUndefined();
+        // An idle session is invited whatever it answered.
+        await inviteStep(state, { ...f.opts(), offered });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s1.sock"]);
+    });
+
+    it("forgets the capacity answer of a session that ended", async () => {
+        const state = {
+            jobs: {},
+            capacity: { s1: { n: 2, at: NOW.toISOString() }, s2: { n: 1, at: NOW.toISOString() } },
+        };
+        await askStep(state, fake().opts({ sessionGone: (/** @type {string} */ s) => s === "s1" }));
+        expect(Object.keys(state.capacity)).toEqual(["s2"]);
+    });
+
     it("does not mark a job invited while only a session that cannot claim it is idle", async () => {
         const state = ownReview();
         const f = fake();
@@ -335,6 +376,7 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(f.sent.map(([socket]) => socket)).toEqual(["/s1.sock"]);
         expect(f.sent[0][1]).toContain("status check on the jobs this session holds:\n- issue-186 (#186)\n");
         expect(f.sent[0][1]).toContain("calling githerd_expect once per listed job");
+        expect(f.sent[0][1]).toContain("Can you take another job? Answer that with capacity set");
         expect(f.sent[0][1]).toContain("background subagents or workflows");
         expect(lines).toEqual([
             expect.objectContaining({

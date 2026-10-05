@@ -1031,15 +1031,17 @@ section 6 of `design/githerd/githerd-design.md` (`githerd_status`, `githerd_next
 `githerd_ask_owner`, `githerd_record`, `githerd_mine`, `githerd_verdict`) through the server in
 `.mcp.json`. A master failure githerd cannot classify waits for a Claude session to judge it code
 or environment with `githerd_verdict` before anything is reverted. When a job waits with no free
-worker, githerd messages idle sessions once per job ("githerd has work queued ..."): if you are
-free, call `githerd_next` and claim a job; otherwise ignore it.
+worker, githerd messages each session with room once per job ("githerd has work queued ..."): if
+you are free, call `githerd_next` and claim a job; otherwise ignore it. A session has room while it
+is idle, or while the `capacity` it last gave in `githerd_expect` is above the jobs it claimed since.
 When a pull request's CI fails on a head another session pushed, githerd sends each live session in
 this repository a message asking whose it is. If it is yours, call `githerd_mine` with its number
 (or claim its job); otherwise ignore the message. With no answer in 10 minutes githerd offers it as
 a job.
 While your session holds a job, githerd asks it where the job stands every 15 minutes
 ("githerd: status check on <job> ..."). Answer with `githerd_expect`: the job, one line of status as
-`reason`, and the minutes until your current step ends. A question still unanswered when the next
+`reason`, and the minutes until your current step ends. The question also asks whether you can
+take another job: set `capacity` to how many more you can take now (0 if none). A question still unanswered when the next
 one is due puts the job back in the queue, and so does your session ending. So do the job's work in
 a background subagent or workflow, and keep the main conversation free to answer.
 Commands, the MCP server and the owner's one-time prerequisites are in `githerd/README.md`.

@@ -1724,6 +1724,33 @@ describe("inviting idle sessions to pull work", () => {
     });
 });
 
+describe("inviting a busy session that answered it has room", () => {
+    it("invites a busy session whose capacity answer leaves room, a would-do in dry-run", async () => {
+        const peers = {
+            sessions: () => [
+                { pid: 2, sessionId: "s2", name: "graphty-14", cwd: dir, socket: "/s2.sock", status: "busy" },
+            ],
+            transport: { send: async () => {} },
+        };
+        const daemon = await start({ peers });
+        await poll(daemon);
+        daemon.state.capacity = { s2: { n: 1, at: clock.toISOString() } };
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/feat"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["12:03", "12:06"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        const invites = (await readLedger(join(dir, ".githerd"))).filter(
+            (e) => e.kind === "would-do" && e.op?.startsWith("invite"),
+        );
+        expect(invites).toEqual([
+            expect.objectContaining({ group: "workers", op: "invite 1 idle session(s) to take verdict-ci-Build-" }),
+        ]);
+    });
+});
+
 describe("failure classes on master", () => {
     const RENTED = "machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand";
     const BALANCE = "Machine: Insufficient balance to run job. Current balance: $-2.0800. Minimum required: $0.05.";

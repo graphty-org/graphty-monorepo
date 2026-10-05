@@ -1376,7 +1376,11 @@ shows each limit with the measurement that applied at the last start.
   and claim a job; otherwise ignore this." Only jobs `githerd_next` would offer are announced. A job
   queued while no session is idle is announced when one goes idle. The `workers` group gates it: in
   dry-run each invitation is a `would-do` line. Each is ledgered (`sessions-invited`), and the board
-  shows the last one ("invited N idle sessions at HH:MM").
+  shows the last one ("invited N idle sessions at HH:MM"). A session that holds jobs is also
+  invited while busy when it has room: the status question asks "Can you take another job?", the
+  session answers with `capacity` in `githerd_expect`, githerd keeps the last answer
+  (`state.capacity[session]`), and the session has room while that answer is above the jobs it
+  claimed since. A session that never answered is invited only while idle.
 
   githerd's own heads are those `githerd_push` and the upkeep recorded (`state.pushedByGitherd`)
   and GitHub's own commits (committer `noreply@github.com`: update-branch, Mergify); they are never

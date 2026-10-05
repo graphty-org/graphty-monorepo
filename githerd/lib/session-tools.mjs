@@ -291,11 +291,15 @@ export function sessionToolSet(ctx) {
             return JSON.stringify({ ok: true, until: job.deadline });
         },
         githerd_expect: async (args, caller, client) => {
-            const job = heldJob(state, args.job, sessionOf(caller, client), client);
+            const session = sessionOf(caller, client);
+            const job = heldJob(state, args.job, session, client);
             const until = new Date(now.getTime() + args.minutes * 60_000).toISOString();
             job.expect = { until, reason: args.reason };
             // The reason is the holder's status too: it answers githerd's status question (asks.mjs).
             job.status = { at: now.toISOString(), text: args.reason };
+            // The session's room for more jobs, which inviteStep reads (asks.mjs).
+            if (args.capacity !== undefined && session)
+                (state.capacity ??= {})[session] = { n: args.capacity, at: now.toISOString() };
             await ctx.commit({ kind: "expect", job: job.id, until, reason: args.reason });
             return JSON.stringify({ ok: true, until });
         },

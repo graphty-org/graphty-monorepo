@@ -19,6 +19,7 @@ export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand }
 export { isAlgorithmRunCommand } from "./planning";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type {
+    ColumnHistogram,
     ColumnRole,
     CommandOutcome,
     CommandOutcomeMap,

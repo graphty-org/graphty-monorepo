@@ -266,7 +266,7 @@ function reply(id, body) {
 }
 
 /** The version of the tools' names and schemas; a changed schema is a new version. */
-export const TOOL_PROTOCOL = 1;
+export const TOOL_PROTOCOL = 2;
 
 /** How a refusal for a version mismatch ends: the caller is not charged for it (design 9.8). */
 const NOT_AN_ATTEMPT = "nothing was done and this call is not an attempt";
@@ -429,12 +429,18 @@ export const TOOLS = [
         description:
             "Report where your job stands: reason is one line of status, minutes how long until your current step ends " +
             "(up to 180; the watchdog does not recycle a githerd worker during it). This is the answer to githerd's " +
-            "status question; the board shows the line.",
-        inputSchema: object({ job: JOB, minutes: { type: "integer", minimum: 1, maximum: 180 }, reason: REASON }, [
-            "job",
-            "minutes",
-            "reason",
-        ]),
+            "status question; the board shows the line. capacity, optional, is how many further jobs this session can " +
+            "take now: while it is above 0 (less the jobs you claim after answering), githerd invites this session to " +
+            "queued work even when it is not idle; 0 stops that until you answer again.",
+        inputSchema: object(
+            {
+                job: JOB,
+                minutes: { type: "integer", minimum: 1, maximum: 180 },
+                reason: REASON,
+                capacity: { type: "integer", minimum: 0, maximum: 20 },
+            },
+            ["job", "minutes", "reason"],
+        ),
     },
     {
         name: "githerd_push",

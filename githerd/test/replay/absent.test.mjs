@@ -189,5 +189,7 @@ describe("an absent week, through the whole daemon", () => {
             if (!daemon.fenced) await daemon.shutdown();
             rmSync(dir, { recursive: true, force: true });
         }
-    });
+        // A week of polls through the real daemon is 4.6 s of work on an idle machine, too close to
+        // vitest's 5 s default to pass while other suites run.
+    }, 30_000);
 });

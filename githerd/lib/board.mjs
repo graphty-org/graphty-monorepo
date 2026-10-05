@@ -690,7 +690,8 @@ export function claimSnapshot(state, { worktrees = [], ownerSessions = [] }) {
  * - `independent`: the job is `working`.
  * - `join`: this job's target is added to the job named by `with`, whose holder gets the news, and
  *   this job is `cancelled` with a pointer to it.
- * - `wait`: the job is `blocked` on the job named by `with`, capped at 4 hours.
+ * - `wait`: the job is `blocked` on the job named by `with`, capped at 4 hours. `with` may name an
+ *   issue as "#736": its issue job, made `queued` when none is live, for an open issue by the owner.
  * @param {any} state the daemon state
  * @param {{job: string, snapshotVersion: number, overlap: {decision: "independent" | "join" | "wait",
  *   with?: string, reason: string}, related?: string[], plan: string}} args the tool arguments,
@@ -698,7 +699,8 @@ export function claimSnapshot(state, { worktrees = [], ownerSessions = [] }) {
  * @param {{session: string, window?: string | null}} caller the calling session
  * @param {{version: number}} snapshot the current snapshot (claimSnapshot)
  * @param {Date} now the current time
- * @returns {{ok: true, job: Job} | {ok: false, reason: string, snapshot?: any}} the answer
+ * @returns {{ok: true, job: Job, created?: string} | {ok: false, reason: string, snapshot?: any}}
+ *   the answer; `created` names an issue job a wait on "#N" made
  */
 export function claimJob(state, args, caller, snapshot, now) {
     const job = state.jobs?.[args.job];
@@ -710,8 +712,50 @@ export function claimJob(state, args, caller, snapshot, now) {
             snapshot,
         };
     }
-    const refused = claimRefusal(state, job, args, caller);
+    const issue = /^#(\d+)$/.exec(args.overlap.with ?? "")?.[1];
+    /** @type {Job | null} */
+    let made = null;
+    if (issue) {
+        const id = `issue-${issue}`;
+        const old = state.jobs[id];
+        // As syncJobs does: a done or cancelled job is made again, any other stays.
+        if (args.overlap.decision === "wait" && (!old || old.state === "done" || old.state === "cancelled")) {
+            const rec = state.issues?.byNumber?.[issue];
+            if (rec?.state !== "open" || !byOwner(state, rec.author)) {
+                return {
+                    ok: false,
+                    reason: `#${issue} is not an open issue by the owner; it cannot be waited on`,
+                    snapshot,
+                };
+            }
+            made = newJob(
+                {
+                    id,
+                    kind: "issue",
+                    target: `#${issue}`,
+                    reason: `${job.id} waits on it`,
+                    facts: {
+                        since: rec.createdAt ?? null,
+                        bug: (rec.labels ?? []).includes("bug"),
+                        labels: rec.labels ?? [],
+                        next: false,
+                        skip: false,
+                        storybook: false,
+                    },
+                },
+                now,
+            );
+        }
+        args = { ...args, overlap: { ...args.overlap, with: id } };
+    }
+    const refused = claimRefusal(
+        made ? { ...state, jobs: { ...state.jobs, [made.id]: made } } : state,
+        job,
+        args,
+        caller,
+    );
     if (refused) return { ok: false, reason: refused, snapshot };
+    if (made) state.jobs[made.id] = made;
 
     // An owner session takes a queued job by starting it itself.
     if (job.state === "queued") {
@@ -747,7 +791,7 @@ export function claimJob(state, args, caller, snapshot, now) {
     } else {
         move(job, "working", now);
     }
-    return { ok: true, job };
+    return made ? { ok: true, job, created: made.id } : { ok: true, job };
 }
 
 /**

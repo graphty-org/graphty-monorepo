@@ -243,7 +243,8 @@ export function sessionToolSet(ctx) {
             const result = board.claimJob(state, args, { session }, snapshot(ctx), now);
             if (!result.ok) return { text: JSON.stringify(result), isError: true };
             await ctx.commit({ kind: "job-claim", job: args.job, session, decision: args.overlap.decision });
-            return JSON.stringify({ ok: true, job: { id: result.job.id, state: result.job.state } });
+            const created = result.created ? { created: result.created } : {};
+            return JSON.stringify({ ok: true, job: { id: result.job.id, state: result.job.state }, ...created });
         },
         githerd_wait: async (args, caller, client) => {
             const session = sessionOf(caller, client);

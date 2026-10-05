@@ -381,6 +381,8 @@ export const TOOLS = [
         name: "githerd_claim",
         description:
             "Claim your job before any edit, with your overlap judgment against the snapshot from githerd_next. " +
+            'decision "wait" blocks your job on the job named in `with`, or on an issue written "#736": githerd makes ' +
+            "that issue's job when none exists (only for an open issue by the owner) and offers it next. " +
             "Refused when the snapshot is stale or the wait would make a cycle; the refusal carries a fresh snapshot.",
         inputSchema: object(
             {
@@ -389,7 +391,11 @@ export const TOOLS = [
                 overlap: object(
                     {
                         decision: { type: "string", enum: ["independent", "join", "wait"] },
-                        with: { type: "string", minLength: 1 },
+                        with: {
+                            type: "string",
+                            minLength: 1,
+                            description: 'a job id, or for "wait" an issue written "#736"',
+                        },
                         reason: { type: "string", minLength: 1, maxLength: 500 },
                     },
                     ["decision", "reason"],

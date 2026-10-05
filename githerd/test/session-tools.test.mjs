@@ -230,6 +230,71 @@ describe("sessionToolSet", () => {
         );
     });
 
+    it("waits on an issue with no job: makes its issue job, blocks on it, and offers it next", async () => {
+        const queued = newJob({ kind: "issue", target: "#713", id: "issue-713" }, NOW);
+        const issues = {
+            byNumber: {
+                736: { state: "open", author: "me", labels: ["bug"], createdAt: "2026-10-01T00:00:00Z" },
+                737: { state: "closed", author: "me", labels: [] },
+                738: { state: "open", author: "someone", labels: [] },
+            },
+        };
+        const { ctx } = setup({ jobs: { "issue-713": queued }, issues, trust: { login: "me" } });
+        const owner = { session: "o1" };
+        const next = JSON.parse((await call(ctx, "githerd_next", {}, owner)).text);
+        const claim = (/** @type {string} */ wth) => ({
+            job: "issue-713",
+            snapshotVersion: next.snapshot.version,
+            overlap: { decision: "wait", with: wth, reason: "the owner said #736 first" },
+            plan: "after #736",
+        });
+        for (const [wth, n] of [
+            ["#737", 737],
+            ["#738", 738],
+            ["#999", 999],
+        ]) {
+            const refused = await call(ctx, "githerd_claim", claim(String(wth)), owner);
+            expect(refused.isError).toBe(true);
+            expect(JSON.parse(refused.text).reason).toBe(
+                `#${n} is not an open issue by the owner; it cannot be waited on`,
+            );
+        }
+        expect(Object.keys(ctx.state.jobs)).toEqual(["issue-713"]);
+        expect(queued.state).toBe("queued");
+
+        const ok = JSON.parse((await call(ctx, "githerd_claim", claim("#736"), owner)).text);
+        expect(ok).toEqual({ ok: true, job: { id: "issue-713", state: "blocked" }, created: "issue-736" });
+        expect(queued.waitingFor).toMatchObject({ job: "issue-736" });
+        expect(ctx.state.jobs["issue-736"]).toMatchObject({
+            kind: "issue",
+            target: "#736",
+            state: "queued",
+            facts: { bug: true, labels: ["bug"] },
+        });
+        const after = JSON.parse((await call(ctx, "githerd_next", {}, { session: "o2" })).text);
+        expect(after.offered.map((/** @type {any} */ j) => j.id)).toEqual(["issue-736"]);
+    });
+
+    it("a wait on another job, by id or by its issue, still blocks on that job", async () => {
+        const mine = newJob({ kind: "issue", target: "#713", id: "issue-713" }, NOW);
+        const other = newJob({ kind: "issue", target: "#736", id: "issue-736" }, NOW);
+        move(other, "starting", NOW, { holder: { session: "w9" } });
+        for (const wth of ["issue-736", "#736"]) {
+            const fresh = structuredClone(mine);
+            const { ctx } = setup({ jobs: { "issue-713": fresh, "issue-736": other }, trust: { login: "me" } });
+            const next = JSON.parse((await call(ctx, "githerd_next", {}, { session: "o1" })).text);
+            const claim = {
+                job: "issue-713",
+                snapshotVersion: next.snapshot.version,
+                overlap: { decision: "wait", with: wth, reason: "base first" },
+                plan: "after it",
+            };
+            const ok = JSON.parse((await call(ctx, "githerd_claim", claim, { session: "o1" })).text);
+            expect(ok).toEqual({ ok: true, job: { id: "issue-713", state: "blocked" } });
+            expect(fresh.waitingFor).toMatchObject({ job: "issue-736" });
+        }
+    });
+
     it("never offers a pull request another session claimed, and lists it as in use with why", async () => {
         const pr = Object.assign(newJob({ kind: "pr", target: "#9", id: "pr-9" }, NOW), { pr: 9 });
         const title = Object.assign(newJob({ kind: "title", target: "#9", id: "title-9" }, NOW), { pr: 9 });

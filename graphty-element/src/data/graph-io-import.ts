@@ -295,6 +295,13 @@ export interface ImportedRecords {
  */
 class FirstValueBuilder extends GraphBuilder {
     private readonly written = new Map<number, Set<number>>();
+    /** How many times a node was added: a node table's rows read so far. */
+    added = 0;
+
+    override addNode(id: Parameters<GraphBuilder["addNode"]>[0]): number {
+        this.added++;
+        return super.addNode(id);
+    }
 
     override setNodeValue(column: ColumnHandle | string, index: number, value: unknown): void {
         const handle = typeof column === "string" ? this.nodeColumn(column) : column;
@@ -376,12 +383,15 @@ function recordsOf(snapshot: GraphSnapshot): { nodes: ImportedNode[]; edges: Imp
  * @param importer - the graph-io importer
  * @param input - the text to read
  * @param options - the importer's options
+ * @param rowsRead - Told the nodes added so far (a node table's rows) each time the importer
+ *     reports progress
  * @returns the records and the report
  */
 export async function importRecords<O>(
     importer: GraphImporter<O>,
     input: ImportInput,
     options: O & CommonImportOptions,
+    rowsRead?: (rows: number) => void,
 ): Promise<ImportedRecords> {
     const builderOptions = {
         directed: true,
@@ -394,7 +404,18 @@ export async function importRecords<O>(
 
     let report: ImportReport;
     try {
-        report = await importer.import(input, builder, options);
+        report = await importer.import(
+            input,
+            builder,
+            rowsRead === undefined
+                ? options
+                : {
+                      ...options,
+                      onProgress: () => {
+                          rowsRead(builder.added);
+                      },
+                  },
+        );
     } catch (error) {
         if (error instanceof ImportError) {
             return { nodes: [], edges: [], report: error.report, aborted: true };

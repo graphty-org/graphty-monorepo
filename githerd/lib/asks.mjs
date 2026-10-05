@@ -195,30 +195,46 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
 }
 
 /**
- * The status question for one job.
- * @param {any} job the job
+ * The status question for the jobs one session holds: one line per job.
+ * @param {any[]} jobs the jobs, each due an answer
  * @param {number} minutes how often githerd asks
  * @returns {string} the message
  */
-function statusText(job, minutes) {
+function statusText(jobs, minutes) {
     return (
-        `githerd: status check on ${job.id} (${job.target}), which this session holds. ` +
-        `Answer by calling githerd_expect with job ${job.id}, reason set to one line on where the job stands, ` +
-        "and minutes set to how long until your current step ends. " +
-        `If this is still unanswered when githerd asks again in ${minutes} minutes, the job goes back to the queue. ` +
-        "Do the job's work in a background subagent or workflow, so this conversation stays free to answer githerd."
+        "githerd: status check on the jobs this session holds:\n" +
+        jobs.map((j) => `- ${j.id} (${j.target})\n`).join("") +
+        "Answer by calling githerd_expect once per listed job, with job set to its id, reason set to one line on " +
+        "where it stands, and minutes set to how long until your current step ends. " +
+        `A listed job still unanswered when githerd asks again in ${minutes} minutes goes back to the queue. ` +
+        "Do the jobs' work in background subagents or workflows, so this conversation stays free to answer githerd."
     );
 }
 
 /** The states in which a holder works on its job; a `verifying` job is githerd's to settle. */
-const ASKED = new Set(["starting", "working", "waiting", "blocked", "parked"]);
+const ASKED = new Set(["starting", "working", "waiting"]);
 
 /**
- * Asks each owner session holding a job where that job stands (the owner's rule of 2026-10-05):
- * every `minutes` from the claim, one message through Claude Code's session messaging to that
- * session only. The session answers with `githerd_expect`, which records `job.status`. A question
- * the session heard and left unanswered until the next one is due releases the job to the queue;
- * nothing else here ends a claim, and elapsed time alone never does. A session githerd may not
+ * Whether the holder has nothing to do but wait on something githerd itself watches, so it is not
+ * asked: a `blocked` job (its blocker's end is settleWaits'), a `parked` one (the owner's answer),
+ * and a `waiting` one on checks, a lane, a release, a job or GitHub. A wait on the session's own
+ * local task is still asked about.
+ * @param {any} job the job
+ * @returns {boolean} githerd is the one watching
+ */
+function githerdWatches(job) {
+    return job.state === "blocked" || job.state === "parked" || (job.state === "waiting" && !job.waitingFor?.local);
+}
+
+/**
+ * Asks each owner session holding jobs where they stand (the owner's rule of 2026-10-05): every
+ * `minutes` from a job's claim, one message per session through Claude Code's session messaging,
+ * listing every job of that session that is due. The session answers with `githerd_expect` once
+ * per job, which records `job.status`. A job whose listed question the session heard and left
+ * unanswered until the next one is due goes back to the queue; jobs it answered are kept. Nothing
+ * else here ends a claim, and elapsed time alone never does. A job githerd itself is watching for
+ * (blocked, parked, or waiting on something but a local task) is not asked about, and any question
+ * it had pending is dropped, so it is never released for silence. A session githerd may not
  * message (`workers.sessions`) is not asked, so its silence is never held against it; nor is a
  * question nobody heard (dry-run, or a send that failed). githerd's own workers have the watchdog
  * instead.
@@ -231,11 +247,16 @@ const ASKED = new Set(["starting", "working", "waiting", "blocked", "parked"]);
  */
 export async function statusStep(state, { now, acting, sessions, transport, minutes }) {
     const lines = [];
-    /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
-    let live = null;
+    /** @type {Map<string, any[]>} the due jobs of each holding session */
+    const due = new Map();
     for (const job of Object.values(state.jobs ?? {})) {
         const session = job.holder?.session;
-        if (!ownerHeld(job) || job.kept || !session || !ASKED.has(job.state)) continue;
+        if (!ownerHeld(job) || job.kept || !session) continue;
+        if (githerdWatches(job)) {
+            job.statusAsk = null;
+            continue;
+        }
+        if (!ASKED.has(job.state)) continue;
         const ask = job.statusAsk;
         // A cadence, how often to ask: never a deadline on the work.
         const since = Date.parse(ask?.at ?? job.claim?.at ?? job.stateSince);
@@ -246,16 +267,23 @@ export async function statusStep(state, { now, acting, sessions, transport, minu
             lines.push({ kind: "claim-released", job: job.id, session, reason });
             continue;
         }
-        live ??= sessions();
+        due.set(session, [...(due.get(session) ?? []), job]);
+    }
+    if (!due.size) return lines;
+    const live = sessions();
+    for (const [session, jobs] of due) {
         const target = live.filter((s) => s.sessionId === session);
         if (!target.length) continue;
+        const ids = jobs.map((j) => j.id);
         if (!acting) {
-            const op = `ask ${target[0].name} for the status of ${job.id}`;
-            lines.push({ kind: "would-do", group: "workers", op, job: job.id });
+            const op = `ask ${target[0].name} for the status of ${ids.join(", ")}`;
+            lines.push({ kind: "would-do", group: "workers", op, jobs: ids });
         }
-        const out = acting ? await tellSessions(target, statusText(job, minutes), transport) : { sent: [], failed: [] };
-        job.statusAsk = { at: now.toISOString(), heard: out.sent.length > 0 };
-        lines.push({ kind: "status-asked", job: job.id, session: target[0].name, ...out });
+        const out = acting
+            ? await tellSessions(target, statusText(jobs, minutes), transport)
+            : { sent: [], failed: [] };
+        for (const job of jobs) job.statusAsk = { at: now.toISOString(), heard: out.sent.length > 0 };
+        lines.push({ kind: "status-asked", jobs: ids, session: target[0].name, ...out });
     }
     return lines;
 }

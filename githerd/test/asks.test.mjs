@@ -299,13 +299,13 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(await statusStep(state, opts(f, { now: at("12:14") }))).toEqual([]);
         const lines = await statusStep(state, opts(f, { now: at("12:15") }));
         expect(f.sent.map(([socket]) => socket)).toEqual(["/s1.sock"]);
-        expect(f.sent[0][1]).toContain("status check on issue-186 (#186)");
-        expect(f.sent[0][1]).toContain("calling githerd_expect with job issue-186");
-        expect(f.sent[0][1]).toContain("background subagent or workflow");
+        expect(f.sent[0][1]).toContain("status check on the jobs this session holds:\n- issue-186 (#186)\n");
+        expect(f.sent[0][1]).toContain("calling githerd_expect once per listed job");
+        expect(f.sent[0][1]).toContain("background subagents or workflows");
         expect(lines).toEqual([
             expect.objectContaining({
                 kind: "status-asked",
-                job: "issue-186",
+                jobs: ["issue-186"],
                 session: "graphty-13",
                 sent: ["graphty-13"],
             }),
@@ -321,7 +321,7 @@ describe("asking an owner session for the status of the job it holds", () => {
         await statusStep(answered, opts(f, { now: at("12:15") }));
         answered.jobs["issue-186"].status = { at: "2026-10-05T12:20:00.000Z", text: "tests running" };
         expect(await statusStep(answered, opts(f, { now: at("12:30") }))).toEqual([
-            expect.objectContaining({ kind: "status-asked", job: "issue-186" }),
+            expect.objectContaining({ kind: "status-asked", jobs: ["issue-186"] }),
         ]);
         expect(answered.jobs["issue-186"].state).toBe("working");
         expect(f.sent).toHaveLength(2);
@@ -361,6 +361,61 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(early.jobs["issue-186"].state).toBe("queued");
     });
 
+    it("never asks a blocked job, a parked one or one waiting on what githerd watches, and never releases it for silence", async () => {
+        const f = fake();
+        // Blocked from its claim (githerd_claim's "wait"), until its blocker ends.
+        const blocked = claimed();
+        const b = blocked.jobs["issue-186"];
+        Object.assign(b, { state: "starting" });
+        move(b, "blocked", new Date(CLAIMED_AT), { waitingFor: { job: "pr-5" } });
+        const parked = claimed();
+        move(parked.jobs["issue-186"], "parked", at("12:01"), { waitingFor: { owner: "item-1" } });
+        // Waiting on CI after a question it never answered: the pending question is dropped, not held against it.
+        const onChecks = claimed();
+        await statusStep(onChecks, opts(f, { now: at("12:15") }));
+        expect(f.sent).toHaveLength(1);
+        move(onChecks.jobs["issue-186"], "waiting", at("12:20"), { waitingFor: { checks: "abc" } });
+        for (const state of [blocked, parked, onChecks]) {
+            for (const hm of ["12:30", "12:45", "23:00"]) {
+                expect(await statusStep(state, opts(f, { now: at(hm) }))).toEqual([]);
+            }
+            expect(state.jobs["issue-186"].state).not.toBe("queued");
+            expect(state.jobs["issue-186"].statusAsk).toBeNull();
+        }
+        expect(f.sent).toHaveLength(1);
+
+        // A wait on the session's own local task is still asked about.
+        const local = claimed();
+        move(local.jobs["issue-186"], "waiting", at("12:01"), { waitingFor: { local: "b1" } });
+        await statusStep(local, opts(f, { now: at("12:15") }));
+        expect(f.sent).toHaveLength(2);
+    });
+
+    it("asks a session about all its due jobs in one message and releases only the one it left unanswered", async () => {
+        const f = fake();
+        const state = claimed();
+        const other = newJob({ kind: "pr", target: "#5", id: "pr-5" }, new Date(CLAIMED_AT));
+        move(other, "starting", new Date(CLAIMED_AT), { holder: { session: "s1", window: null, startedBy: "owner" } });
+        move(other, "working", new Date(CLAIMED_AT));
+        other.claim = { session: "s1", at: CLAIMED_AT };
+        state.jobs["pr-5"] = other;
+        const lines = await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(f.sent).toHaveLength(1);
+        expect(f.sent[0][1]).toContain("- issue-186 (#186)\n- pr-5 (#5)\n");
+        expect(lines).toEqual([expect.objectContaining({ kind: "status-asked", jobs: ["issue-186", "pr-5"] })]);
+
+        state.jobs["pr-5"].status = { at: "2026-10-05T12:20:00.000Z", text: "rebasing" };
+        const next = await statusStep(state, opts(f, { now: at("12:30") }));
+        expect(next).toEqual([
+            expect.objectContaining({ kind: "claim-released", job: "issue-186" }),
+            expect.objectContaining({ kind: "status-asked", jobs: ["pr-5"] }),
+        ]);
+        expect(state.jobs["issue-186"].state).toBe("queued");
+        expect(state.jobs["pr-5"].state).toBe("working");
+        expect(f.sent).toHaveLength(2);
+        expect(f.sent[1][1]).not.toContain("issue-186");
+    });
+
     it("leaves a worker's job, a verifying job and a kept job alone", async () => {
         const f = fake();
         const worker = claimed();
@@ -383,9 +438,9 @@ describe("asking an owner session for the status of the job it holds", () => {
                 kind: "would-do",
                 group: "workers",
                 op: "ask graphty-13 for the status of issue-186",
-                job: "issue-186",
+                jobs: ["issue-186"],
             },
-            { kind: "status-asked", job: "issue-186", session: "graphty-13", sent: [], failed: [] },
+            { kind: "status-asked", jobs: ["issue-186"], session: "graphty-13", sent: [], failed: [] },
         ]);
         await statusStep(state, opts(f, { now: at("12:30"), acting: false }));
         expect(state.jobs["issue-186"].state).toBe("working");

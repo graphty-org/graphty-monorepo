@@ -550,7 +550,7 @@ describe("HTTP endpoints", () => {
         later(15);
         await poll(daemon);
         expect(sent.map(([socket]) => socket)).toEqual(["/s1.sock"]);
-        expect(sent[0][1]).toContain("status check on issue-7");
+        expect(sent[0][1]).toContain("- issue-7 (#7)");
         await tool("githerd_expect", { job: "issue-7", minutes: 30, reason: "reproducing the bug" });
         later(15);
         await poll(daemon);

@@ -1161,6 +1161,156 @@ describe("the session proxy", () => {
     });
 });
 
+describe("tools that follow the daemon", () => {
+    /**
+     * A fake daemon at GITHERD_URL serving `defs()` as its tool list and echoing each call it gets.
+     * @param {() => any[]} defs its tool list, read at each `tools/list`
+     * @returns {Promise<{url: string, calls: any[], lists: () => number}>} its URL, the calls it
+     *   received and how many times its list was read
+     */
+    async function fakeDaemon(defs) {
+        /** @type {any[]} */
+        const received = [];
+        let lists = 0;
+        const server = createServer((req, res) => {
+            if (req.url === "/health") return res.end(JSON.stringify({ name: "githerd" }));
+            if (req.url === "/heartbeat") return res.end("{}");
+            let text = "";
+            req.on("data", (d) => (text += d));
+            req.on("end", () => {
+                const msg = JSON.parse(text);
+                if (msg.method === "tools/list") lists += 1;
+                if (msg.method === "tools/list")
+                    return res.end(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { tools: defs() } }));
+                received.push(msg.params);
+                const refused = msg.params.arguments.outcome === "bogus";
+                const content = [
+                    { type: "text", text: refused ? "daemon refuses bogus" : `ok ${msg.params.arguments.outcome}` },
+                ];
+                res.end(
+                    JSON.stringify({
+                        jsonrpc: "2.0",
+                        id: msg.id,
+                        result: { content, ...(refused ? { isError: true } : {}) },
+                    }),
+                );
+            });
+        }).listen(0, "127.0.0.1");
+        servers.push(server);
+        await new Promise((r) => server.once("listening", r));
+        const { port } = /** @type {import("node:net").AddressInfo} */ (server.address());
+        return { url: `http://127.0.0.1:${port}`, calls: received, lists: () => lists };
+    }
+
+    /**
+     * The built-in tools with one more `githerd_done` outcome.
+     * @param {string} extra the new outcome
+     * @returns {any[]} the tool list
+     */
+    function withOutcome(extra) {
+        const defs = structuredClone(TOOLS).map(({ name, description, inputSchema }) => ({
+            name,
+            description,
+            inputSchema,
+        }));
+        defs.find((t) => t.name === "githerd_done").inputSchema.properties.outcome.enum.push(extra);
+        return defs;
+    }
+
+    /**
+     * Starts the launcher in-process against `url`.
+     * @param {string | undefined} url the daemon, or undefined for none
+     * @param {number} [heartbeatMs] the heartbeat interval
+     * @returns {{input: PassThrough, written: any[], running: Promise<any>, reply: (id: number) => Promise<any>,
+     *   send: (msg: object) => void, notices: () => any[]}} the launcher
+     */
+    function launch(url, heartbeatMs = 60_000) {
+        /** @type {any[]} */
+        const written = [];
+        const input = new PassThrough();
+        const running = runLauncher({
+            input,
+            write: (l) => written.push(JSON.parse(l)),
+            cwd: root,
+            env: { ...env, GITHERD_URL: url ?? "http://127.0.0.1:1" },
+            pkgDir: "githerd",
+            heartbeatMs,
+            jitterMs: 0,
+            callWaitMs: url ? 5000 : 300,
+            log: () => {},
+        });
+        return {
+            input,
+            written,
+            running,
+            send: (msg) => input.write(`${JSON.stringify(msg)}\n`),
+            reply: (id) => until(() => written.find((m) => m.id === id), `reply ${id}`),
+            notices: () => written.filter((m) => m.method === "notifications/tools/list_changed"),
+        };
+    }
+
+    const done = (/** @type {number} */ id, /** @type {string} */ outcome) => ({
+        jsonrpc: "2.0",
+        id,
+        method: "tools/call",
+        params: { name: "githerd_done", arguments: { job: "issue-1", outcome, findings: "f", defects: [] } },
+    });
+
+    it("accepts an enum value the daemon gained without a restart, and passes the daemon's refusal through", async () => {
+        let defs = withOutcome("deferred");
+        const daemon = await fakeDaemon(() => defs);
+        const l = launch(daemon.url);
+        l.send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } });
+        expect((await l.reply(1)).result.capabilities.tools).toEqual({ listChanged: true });
+        defs = withOutcome("postponed");
+        l.send(done(2, "postponed"));
+        expect((await l.reply(2)).result.content[0].text).toBe("ok postponed");
+        l.send({ jsonrpc: "2.0", id: 3, method: "tools/list" });
+        const listed = (await l.reply(3)).result.tools.find((/** @type {any} */ t) => t.name === "githerd_done");
+        expect(listed.inputSchema.properties.outcome.enum).toContain("postponed");
+        // Valid locally, so it is forwarded, and the daemon's refusal is what comes back.
+        defs = withOutcome("bogus");
+        l.send(done(4, "bogus"));
+        expect((await l.reply(4)).result).toEqual({
+            content: [{ type: "text", text: "daemon refuses bogus" }],
+            isError: true,
+        });
+        // Refused by both: still the local refusal, never forwarded.
+        l.send(done(5, "nonsense"));
+        expect((await l.reply(5)).result.content[0].text).toMatch(/^invalid arguments: arguments\.outcome/);
+        expect(daemon.calls.map((c) => c.arguments.outcome)).toEqual(["postponed", "bogus"]);
+        l.input.end();
+        await l.running;
+    });
+
+    it("sends list_changed once when the daemon's tools change, and not otherwise", async () => {
+        let defs = TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
+        const daemon = await fakeDaemon(() => defs);
+        const l = launch(daemon.url, 50);
+        l.send({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
+        await l.reply(1);
+        // Several re-reads of the same list: no notice.
+        await until(() => daemon.lists() >= 3, "three re-reads");
+        expect(l.notices()).toHaveLength(0);
+        defs = withOutcome("postponed");
+        await until(() => l.notices().length === 1, "one list_changed");
+        const seen = daemon.lists();
+        await until(() => daemon.lists() >= seen + 3, "three more re-reads");
+        expect(l.notices()).toHaveLength(1);
+        l.input.end();
+        await l.running;
+    });
+
+    it("answers with the built-in list while no daemon answers", async () => {
+        const l = launch(undefined);
+        l.send({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+        expect((await l.reply(1)).result.tools.map((/** @type {any} */ t) => t.name)).toEqual(TOOLS.map((t) => t.name));
+        l.input.end();
+        await l.running;
+        expect(l.notices()).toHaveLength(0);
+    });
+});
+
 describe("pm2Command", () => {
     it("finds pm2 next to servherd", () => {
         expect(pm2Command(["npx", "-y", "servherd"], {})).toEqual(["npx", "-y", "-p", "servherd", "pm2"]);

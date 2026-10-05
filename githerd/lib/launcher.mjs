@@ -1,6 +1,6 @@
 /**
  * The launcher (design section 3.1): the stdio MCP server Claude Code starts from `.mcp.json`. It
- * answers `initialize` and `tools/list` at once with the thirteen tools of design section 6, finds or
+ * answers `initialize` and `tools/list` at once with the tools of design section 6 (the daemon's own list once it answers), finds or
  * starts the one daemon of the repository in the background (`ensureDaemon`), and forwards every
  * `tools/call` to that daemon over HTTP, after checking its arguments, with the session it serves
  * (`identifySession`) and the tool protocol in `params._meta.githerd`. stdout carries JSON-RPC lines only; anything else goes to stderr.
@@ -48,7 +48,7 @@ import { createInterface } from "node:readline";
 import { x as untar } from "tar";
 
 import { DEFAULTS, defaultBranch, repoRoot, resolveConfig } from "./config.mjs";
-import { createMcpServer, forwardingTools, identifySession } from "./mcp.mjs";
+import { createMcpServer, forwardingTools, identifySession, TOOLS } from "./mcp.mjs";
 import { createNotifier, lastTyped, lastTypedAt } from "./notify.mjs";
 import { identify, sameProcess } from "./proc.mjs";
 import {
@@ -63,6 +63,7 @@ import {
     writeGating,
     writeSelfUpdate,
 } from "./self-update.mjs";
+import { assertSupported, validate } from "./schema.mjs";
 import { defaultStateDir, readLiveness } from "./store.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 
@@ -1370,6 +1371,7 @@ export async function runLauncher({
             .then((r) => {
                 daemonUrl = r.url;
                 upgradeWaiting = r.action === "gating";
+                void refreshTools();
                 return r.url;
             })
             .catch((err) => {
@@ -1383,14 +1385,63 @@ export async function runLauncher({
     };
     const ensured = ensure().catch(() => {});
 
-    // The thirteen tools of design section 6, answered at once for `tools/list`. A call is checked
-    // against its schema here, then forwarded with this session's identity and the tool protocol.
+    // The tools of design section 6, answered at once for `tools/list`: the built-in `TOOLS` until
+    // the daemon answers, then the daemon's own list, so a daemon that gains an argument or a tool
+    // needs no reconnect. A call is checked against its schema here, then forwarded with this
+    // session's identity and the tool protocol.
     const home = env.HOME ?? homedir();
     const identity = () => ({ ...identifySession({ ppid, env, home, stateDir: ctx.stateDir }), cwd });
-    const tools = forwardingTools(forward, identity, (meta) =>
-        meta.session ? transcriptTyped(cwd, home, meta.session) : null,
-    );
-    const local = createMcpServer({ serverInfo, tools: () => tools });
+    const typedOf = (/** @type {import("./mcp.mjs").ClientMeta} */ meta) =>
+        meta.session ? transcriptTyped(cwd, home, meta.session) : null;
+    let tools = forwardingTools(forward, identity, typedOf);
+    let listed = definitionsKey(TOOLS);
+    let initialized = false;
+    const local = createMcpServer({ serverInfo, tools: () => tools, listChanged: true });
+
+    /**
+     * Re-reads the daemon's `tools/list`. When it differs from the list served, serves it and tells
+     * the client with `notifications/tools/list_changed`. A daemon that does not answer, or answers
+     * with a schema this validator cannot check, leaves the list as it was.
+     * @returns {Promise<void>} resolves when done; never rejects
+     */
+    async function refreshTools() {
+        const reply = /** @type {any} */ (await forward({ jsonrpc: "2.0", id: "tools", method: "tools/list" }));
+        const defs = reply?.result?.tools;
+        if (!Array.isArray(defs) || defs.length === 0) return;
+        const key = definitionsKey(defs);
+        if (key === listed) return;
+        try {
+            for (const d of defs) assertSupported(d.inputSchema, `tool ${d.name} inputSchema`);
+        } catch (err) {
+            log(`daemon tools refused: ${err.message}`);
+            return;
+        }
+        tools = forwardingTools(forward, identity, typedOf, defs);
+        listed = key;
+        if (initialized) write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/tools/list_changed" }));
+    }
+
+    /**
+     * Answers one stdin line. A `tools/call` the served schemas refuse first re-reads the daemon's
+     * list, so an argument the daemon gained since the last read goes through, and one it refuses
+     * comes back as its refusal.
+     * @param {string} line the line
+     */
+    async function handleLine(line) {
+        let msg;
+        try {
+            msg = JSON.parse(line);
+        } catch {
+            // the core answers the parse error
+        }
+        if (msg?.method === "initialize") initialized = true;
+        if (msg?.method === "tools/call") {
+            const tool = tools.find((t) => t.name === msg.params?.name);
+            if (!tool || "errors" in validate(tool.inputSchema, msg.params?.arguments ?? {})) await refreshTools();
+        }
+        const reply = await local.handle(line);
+        if (reply) write(JSON.stringify(reply));
+    }
 
     /**
      * Forwards one `tools/call`, waiting up to `callWaitMs` for the daemon.
@@ -1457,18 +1508,25 @@ export async function runLauncher({
                 }),
                 signal: AbortSignal.timeout(5000),
             });
+            await refreshTools();
         } catch {
             daemonUrl = null;
         }
     }, heartbeatMs);
     beat.unref();
 
-    await lines(input, async (line) => {
-        const reply = await local.handle(line);
-        if (reply) write(JSON.stringify(reply));
-    });
+    await lines(input, handleLine);
     clearInterval(beat);
     return { ensured };
+}
+
+/**
+ * What a tool list says to a client, as one comparable string.
+ * @param {{name: string, description: string, inputSchema: unknown}[]} defs the tools
+ * @returns {string} the key
+ */
+function definitionsKey(defs) {
+    return JSON.stringify(defs.map(({ name, description, inputSchema }) => [name, description, inputSchema]));
 }
 
 /**

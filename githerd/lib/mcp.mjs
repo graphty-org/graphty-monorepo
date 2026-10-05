@@ -77,10 +77,12 @@ export const INTERNAL_ERROR = -32603;
  *   refusals say they are a version mismatch, never an attempt (design 9.8)
  * @param {(context: any) => string} [options.banner] the active banners and faults; a non-empty
  *   one starts every `tools/call` result, refusals included
+ * @param {boolean} [options.listChanged] declares at initialize that this server sends
+ *   `notifications/tools/list_changed` when its tools change
  * @returns {{handle: (message: unknown, context?: any) => Promise<Response | null>}} `handle`
  *   takes a parsed message or its JSON text and resolves to the reply, or null when none is due
  */
-export function createMcpServer({ serverInfo, instructions, tools, protocols, banner }) {
+export function createMcpServer({ serverInfo, instructions, tools, protocols, banner, listChanged = false }) {
     /** @type {WeakSet<Tool>} */
     const checked = new WeakSet();
 
@@ -176,7 +178,7 @@ export function createMcpServer({ serverInfo, instructions, tools, protocols, ba
                 return reply(msg.id, {
                     result: {
                         protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
-                        capabilities: { tools: {} },
+                        capabilities: { tools: listChanged ? { listChanged: true } : {} },
                         serverInfo,
                         ...(instructions === undefined ? {} : { instructions }),
                     },
@@ -585,20 +587,24 @@ let forwardedId = 0;
  * @param {() => ClientMeta} client this session's metadata, read at each call
  * @param {(meta: ClientMeta) => {at: string, text: string} | null} [typedOf] the session's newest
  *   typed prompt, read only for `githerd_record`
+ * @param {{name: string, description: string, inputSchema: import("./schema.mjs").Schema}[]} [definitions]
+ *   the tools to forward: the daemon's `tools/list`, or the built-in `TOOLS` while none answers
  * @returns {Tool[]} the tools
  */
-export function forwardingTools(send, client, typedOf = () => null) {
-    return TOOLS.map((tool) => ({
-        ...tool,
+export function forwardingTools(send, client, typedOf = () => null, definitions = TOOLS) {
+    return definitions.map(({ name, description, inputSchema }) => ({
+        name,
+        description,
+        inputSchema,
         handler: async (args) => {
             forwardedId += 1;
             const meta = client();
-            const githerd = tool.name === "githerd_record" ? { ...meta, typed: typedOf(meta) } : meta;
+            const githerd = name === "githerd_record" ? { ...meta, typed: typedOf(meta) } : meta;
             const reply = await send({
                 jsonrpc: "2.0",
                 id: forwardedId,
                 method: "tools/call",
-                params: { name: tool.name, arguments: args, _meta: { githerd } },
+                params: { name, arguments: args, _meta: { githerd } },
             });
             if (reply?.error) throw new Error(`githerd daemon: ${reply.error.message}`);
             const text = (reply?.result?.content ?? [])

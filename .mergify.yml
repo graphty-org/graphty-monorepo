@@ -10,12 +10,17 @@
 #   breaking changes wait for the grouped major release;
 # - a pull request labeled "hold";
 # - a draft.
-# One check at a time, so Mergify checks each pull request in place on its own branch (see below).
+# Batches: up to 4 ready pull requests are tested together on a temporary draft pull request, which
+# runs the full suite on the combined tree ("Queue Checks Pass"). The batch grows with the backlog and
+# waits at most 5 minutes to fill. Two batches are checked at once. A failing batch is split and
+# retried in halves (bisection) until the culprit is found; nothing is retried as-is. The visual gate
+# accepts a batch: it passes only when every capture equals an image the owner approved on one of the
+# batch's pull requests (visual-review/trusted/gate.mjs, --queue-event).
 merge_queue:
-    max_parallel_checks: 1
+    max_parallel_checks: 2
 
-# A fix for a red master goes first: label it "priority:critical". It jumps the queue and, since the
-# queue checks one pull request at a time, interrupts the one being checked, which re-queues behind it.
+# A fix for a red master goes first: label it "priority:critical". It jumps the queue and interrupts
+# the batches being checked, which re-queue behind it.
 priority_rules:
     - name: fix for a red master
       conditions:
@@ -25,25 +30,23 @@ priority_rules:
 
 queue_rules:
     - name: default
-      # One pull request at a time, checked in place on its own branch: the visual-review gate is
-      # tied to the pull request's number, so a batch on a temporary branch would never pass it.
-      batch_size: 1
+      batch_size:
+          min: 1
+          max: 4
+      batch_max_wait_time: 5 min
+      max_checks_retries: 0
       update_method: merge
       merge_method: merge
       # Checked for as long as a pull request is queued: adding "hold" (or retitling it as a breaking
-      # change) takes an already-queued pull request out of the queue.
+      # change) takes an already-queued pull request out of the queue. A pull request enters only
+      # once its own CI passed; the ruleset's required checks (All Checks Pass, Lint PR Title) are
+      # added here by Mergify on its own.
       queue_conditions:
           - label!=hold
           - "-title~=^[a-z]+(\\([^)]*\\))?!:"
-      # No merge_conditions: Mergify checks a pull request in place only when the queue is
-      # single-step (merge_conditions empty or equal to queue_conditions). With them it tested a
-      # temporary draft pull request instead, whose title fails Lint PR Title and whose number the
-      # visual-review gate does not know. The ruleset's required checks (All Checks Pass, Lint PR
-      # Title) are added to the queue conditions by Mergify on its own.
-      # Do NOT add merge_conditions naming "Queue Checks Pass" (or batch_size above 1) before the
-      # visual-review gate accepts a batch's pull request numbers: in a queue run the gate's --pr is the
-      # queue draft's own number, which no review record names, so every batch that changes a baseline
-      # would fail and be ejected, even alone. tools/ci-workflows.test.mjs enforces it.
+      # The batch merges only when the full suite passed on the combined tree.
+      merge_conditions:
+          - check-success=Queue Checks Pass
 
 # Merge Protections' auto-merge puts a pull request into the queue once it matches these conditions;
 # the queue's own queue_conditions still gate it. (pull_request_rules would need Mergify's Workflow

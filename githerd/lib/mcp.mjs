@@ -476,13 +476,16 @@ export const TOOLS = [
     {
         name: "githerd_done",
         description:
-            "Report the end of an attempt: done, split, not-needed or failed, with findings and every defect you saw " +
+            "Report the end of an attempt: done, split, not-needed, deferred or failed, with findings and every defect you saw " +
             "(with its issue or commit when there is one; one with neither goes to the owner). " +
+            "deferred is for an issue job that cannot be acted on now (such as a proposal the owner declined): it needs " +
+            "a reason, closes nothing, and the issue is not offered again until it changes (a comment, an edit or a label). " +
             "githerd verifies the claim against GitHub before accepting it and says what is missing.",
         inputSchema: object(
             {
                 job: JOB,
-                outcome: { type: "string", enum: ["done", "split", "not-needed", "failed"] },
+                outcome: { type: "string", enum: ["done", "split", "not-needed", "deferred", "failed"] },
+                reason: { type: "string", minLength: 1 },
                 pr: NUMBER,
                 pushedHead: SHA,
                 findings: { type: "string", minLength: 1, maxLength: 4000 },

@@ -212,12 +212,15 @@ export function sessionToolSet(ctx) {
                         : "Continue your job; your news is above.");
                 return JSON.stringify({ job, snapshot: snap, news, load, instructions });
             }
-            // A job whose pull request another session works on is listed apart, with why (8.2).
+            // A job whose pull request another session works on is listed apart, with why (8.2); one
+            // this session works on itself is listed as yours.
             const queued = Object.values(state.jobs ?? {}).filter((/** @type {any} */ j) => j.state === "queued");
-            const inUse = queued
-                .map((/** @type {any} */ j) => ({ job: j.id, reason: jobInUse(state, j, ctx) }))
+            const held = queued
+                .map((/** @type {any} */ j) => ({ job: j.id, reason: jobInUse(state, j, { ...ctx, session }) }))
                 .filter((u) => u.reason);
-            const offered = queued.filter((/** @type {any} */ j) => !inUse.some((u) => u.job === j.id));
+            const yours = held.filter((u) => u.reason?.startsWith("yours:"));
+            const inUse = held.filter((u) => !yours.includes(u));
+            const offered = queued.filter((/** @type {any} */ j) => !held.some((u) => u.job === j.id));
             // What githerd told this session, such as a worker's push that overlaps its files (8.2).
             const record = session ? state.sessions?.[session] : null;
             const news = (record?.news ?? [])
@@ -228,6 +231,7 @@ export function sessionToolSet(ctx) {
                 job: null,
                 offered,
                 inUse,
+                yours,
                 snapshot: snap,
                 news,
                 load,
@@ -240,7 +244,7 @@ export function sessionToolSet(ctx) {
             if (client.job && client.job !== args.job) throw new Error(`this worker is started for job ${client.job}`);
             if (client.job && !startedFor(state.jobs?.[args.job], client)) throw new Error(STALE(args.job));
             const queued = state.jobs?.[args.job]?.state === "queued" ? state.jobs[args.job] : null;
-            const inUse = queued && jobInUse(state, queued, ctx);
+            const inUse = queued && jobInUse(state, queued, { ...ctx, session });
             if (inUse)
                 return {
                     text: JSON.stringify({ ok: false, reason: `${args.job} is in use: ${inUse}` }),

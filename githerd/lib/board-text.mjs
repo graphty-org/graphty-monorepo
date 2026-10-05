@@ -215,7 +215,9 @@ const RENDER = {
                   `  ${inv.acting ? "invited" : "would have invited"} ${inv.count} idle sessions at ${when(inv.at).slice(6)}`,
               ]
             : [];
-        if (!jobs.length) return ["JOBS: none", ...invited];
+        // Issues a session deferred, until their revision changes (done.mjs).
+        const deferred = Object.entries(v.state.deferred ?? {}).map(([n, d]) => `  deferred #${n} -- ${d.reason}`);
+        if (!jobs.length) return ["JOBS: none", ...invited, ...deferred];
         return [
             `JOBS (${jobs.length}):`,
             ...jobs.flatMap((j) => [
@@ -224,6 +226,7 @@ const RENDER = {
                 ...(j.status ? [`    status ${when(j.status.at)}: ${j.status.text}`] : []),
             ]),
             ...invited,
+            ...deferred,
         ];
     },
 

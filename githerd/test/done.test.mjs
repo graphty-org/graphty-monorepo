@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { doneIo, githerdDone, pollVerifying, verifyClaim } from "../lib/done.mjs";
+import { statusData, statusText } from "../lib/tools.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
 const NOW = new Date("2026-10-04T12:00:00Z");
@@ -753,6 +754,44 @@ describe("githerdDone", () => {
         const ok = await githerdDone(ctx, job, report({ outcome: "not-needed", evidence: "done in #12" }), "w1");
         expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
         expect(s.proposals["issue:9"]).toMatchObject({ kind: "not-needed", status: "unconfirmed", proposedBy: "w1" });
+    });
+
+    it("ends an issue job deferred with its reason, closing nothing, and remembers the issue's revision", async () => {
+        const s = state({ issues: { byNumber: { 9: { state: "open", updatedAt: "2026-10-03T00:00:00Z" } } } });
+        const job = (s.jobs["issue-9"] = working("issue", "9"));
+        const { ctx, commits } = setup(s);
+        const reason = "the owner declined the proposal; kept open as a record";
+        const ok = await githerdDone(ctx, job, report({ outcome: "deferred", reason }), "w1");
+        expect(ok.isError).toBeUndefined();
+        expect(JSON.parse(ok.text)).toEqual({
+            verified: true,
+            attempts: "accepted: issue-9 is deferred; #9 is not offered again until it changes",
+        });
+        expect(job).toMatchObject({ state: "cancelled", reason: `deferred: ${reason}`, holder: null });
+        expect(s.deferred).toEqual({
+            9: { reason, revision: "2026-10-03T00:00:00Z", job: "issue-9", session: "w1", at: NOW.toISOString() },
+        });
+        expect(s.proposals).toBeUndefined();
+        expect(commits).toEqual([{ kind: "done-report", job: "issue-9", outcome: "deferred", next: "cancelled" }]);
+        const board = statusText(statusData(s, { now: NOW, startedAt: NOW, config: {} }), NOW);
+        expect(board).toContain(`DEFERRED UNTIL THEY CHANGE (1): #9 ${reason}`);
+    });
+
+    it("refuses deferred for a job that is not an issue's, and without a reason", async () => {
+        const s = state();
+        const pr7 = (s.jobs["pr-7"] = working("pr", "7"));
+        const issue9 = (s.jobs["issue-9"] = working("issue", "9"));
+        const { ctx } = setup(s);
+        const notIssue = await githerdDone(ctx, pr7, report({ outcome: "deferred", reason: "later" }), "w1");
+        expect(notIssue.isError).toBe(true);
+        expect(JSON.parse(notIssue.text).missing).toEqual([
+            "deferred is for issue jobs; report a pr job done or failed",
+        ]);
+        const noReason = await githerdDone(ctx, issue9, report({ outcome: "deferred", reason: " " }), "w1");
+        expect(noReason.isError).toBe(true);
+        expect(JSON.parse(noReason.text).missing).toEqual(["reason: why the issue cannot be acted on now"]);
+        expect([pr7.state, issue9.state]).toEqual(["working", "working"]);
+        expect(s.deferred).toBeUndefined();
     });
 
     it("records a pull request's not-needed as a proposal, which holds it while the pull request is open", async () => {

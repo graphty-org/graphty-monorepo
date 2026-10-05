@@ -24,7 +24,8 @@
  *   issues; its session judges which issues the merges affect. The issues a merge mentions without
  *   closing are in its batch. No clock: merges count.
  * - `issue-<n>`: one queued issue job at a time, for the issue at the front of the ranked list;
- *   the next is made once that one leaves the queue, never one per backlog issue.
+ *   the next is made once that one leaves the queue, never one per backlog issue. An issue a session
+ *   deferred (`state.deferred`, done.mjs) is left out until its revision changes.
  * - `issue-reland-<n>`: a pull request a revert took out, once the revert left the queue of open
  *   pull requests.
  *
@@ -478,11 +479,19 @@ function issueJobs(state, config, now, add, cancel) {
         if (job.kind !== "issue" || job.facts?.scope === "reland") continue;
         if (state.issues?.byNumber?.[String(job.target).slice(1)]?.state === "closed") cancel(job, "the issue closed");
     }
+    // A deferral holds while the issue's revision is the one it was made at; a new comment, edit or
+    // label change ends it, and the issue's ended job no longer keeps it out.
+    const deferred = state.deferred ?? {};
+    for (const [n, d] of Object.entries(deferred)) {
+        if (state.issues?.byNumber?.[n]?.updatedAt === d.revision) continue;
+        delete deferred[n];
+        if (TERMINAL.includes(state.jobs[`issue-${n}`]?.state)) delete state.jobs[`issue-${n}`];
+    }
     const queued = Object.values(state.jobs).some((j) => j.kind === "issue" && j.state === "queued");
     if (queued) return;
     const priorities = config.labels?.priorities ?? [];
     const candidates = readyIssues(state, config, now)
-        .ranked.filter((r) => !state.jobs[`issue-${r.number}`])
+        .ranked.filter((r) => !state.jobs[`issue-${r.number}`] && !deferred[r.number])
         .map((r) => ({ ...r, order: orderPosition(state, r.number) }));
     // An open order comes before the ranked list (design 5.4); the sort is stable otherwise.
     candidates.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));

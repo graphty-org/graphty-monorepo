@@ -346,6 +346,65 @@ describe("sessionToolSet", () => {
         expect(board).toContain("[in use: claimed by session o1]");
     });
 
+    it("lists a job on a pull request the caller claimed itself as yours, not as in use", async () => {
+        const pr = Object.assign(newJob({ kind: "pr", target: "#9", id: "pr-9" }, NOW), { pr: 9 });
+        const title = Object.assign(newJob({ kind: "title", target: "#9", id: "title-9" }, NOW), { pr: 9 });
+        const { ctx } = setup({
+            jobs: { "pr-9": pr, "title-9": title },
+            prs: { 9: { author: "owner", stuck: [] } },
+            trust: { login: "owner" },
+            master: { lanes: {} },
+        });
+        const me = { session: "o1" };
+        const next = JSON.parse((await call(ctx, "githerd_next", {}, me)).text);
+        const claim = {
+            job: "pr-9",
+            snapshotVersion: next.snapshot.version,
+            overlap: { decision: "independent", reason: "alone" },
+            plan: "fix the check",
+        };
+        expect(JSON.parse((await call(ctx, "githerd_claim", claim, me)).text).ok).toBe(true);
+        const seen = JSON.parse((await call(ctx, "githerd_next", {}, me)).text);
+        expect(seen.yours).toEqual([{ job: "title-9", reason: "yours: you claimed pr-9" }]);
+        expect(seen.inUse).toEqual([]);
+        expect(seen.offered).toEqual([]);
+    });
+
+    it("never offers or hands a review to the session that wrote its pull request", async () => {
+        const maker = Object.assign(newJob({ kind: "issue", target: "#5", id: "issue-5" }, NOW), {
+            pr: 9,
+            sessions: ["o1"],
+        });
+        move(maker, "starting", NOW, { holder: { session: "o1", startedBy: "owner" } });
+        move(maker, "cancelled", NOW);
+        const review = newJob({ kind: "review", target: "#9", id: "review-9", facts: { pr: 9 } }, NOW);
+        const { ctx } = setup({
+            jobs: { "issue-5": maker, "review-9": review },
+            prs: { 9: { author: "owner", stuck: [] } },
+            trust: { login: "owner" },
+            master: { lanes: {} },
+        });
+        const author = { session: "o1" };
+        const mine = JSON.parse((await call(ctx, "githerd_next", {}, author)).text);
+        expect(mine.offered).toEqual([]);
+        expect(mine.inUse).toEqual([{ job: "review-9", reason: "you wrote this pull request" }]);
+        const claim = {
+            job: "review-9",
+            snapshotVersion: mine.snapshot.version,
+            overlap: { decision: "independent", reason: "alone" },
+            plan: "review it",
+        };
+        const refused = await call(ctx, "githerd_claim", claim, author);
+        expect(refused.isError).toBe(true);
+        expect(JSON.parse(refused.text).reason).toBe("review-9 is in use: you wrote this pull request");
+        expect(review.state).toBe("queued");
+
+        const other = { session: "o2" };
+        const theirs = JSON.parse((await call(ctx, "githerd_next", {}, other)).text);
+        expect(theirs.offered.map((/** @type {any} */ j) => j.id)).toEqual(["review-9"]);
+        expect(JSON.parse((await call(ctx, "githerd_claim", claim, other)).text).ok).toBe(true);
+    });
+
     it("declares a wait and a long step only for a job the caller holds", async () => {
         const job = heldJob("pr-7");
         const other = heldJob("pr-8");

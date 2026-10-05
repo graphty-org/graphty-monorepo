@@ -428,6 +428,21 @@ describe("syncJobs: issues", () => {
         expect(sync(state).cancelled).toEqual([{ job: "issue-2", reason: "the issue closed" }]);
     });
 
+    it("holds a deferred issue while its revision is unchanged, and offers it again once it changes", () => {
+        const state = base();
+        issue(state, 1, LABELED);
+        expect(sync(state).created).toEqual(["issue-1"]);
+        move(state.jobs["issue-1"], "cancelled", NOW, { reason: "deferred: declined" });
+        state.deferred = { 1: { reason: "declined", revision: "2026-10-03T00:00:00Z" } };
+        expect(sync(state).created).toEqual([]);
+        expect(state.deferred[1]).toBeDefined();
+        // The owner commented: a new revision ends the deferral.
+        state.issues.byNumber[1].updatedAt = "2026-10-04T09:00:00Z";
+        expect(sync(state).created).toEqual(["issue-1"]);
+        expect(state.deferred).toEqual({});
+        expect(state.jobs["issue-1"].state).toBe("queued");
+    });
+
     it("re-lands a pull request a revert took out, once the revert is no longer open", () => {
         const state = base();
         state.incidentActions = { reverts: { 718: 730 } };

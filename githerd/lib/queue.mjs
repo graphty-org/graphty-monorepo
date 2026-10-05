@@ -253,16 +253,18 @@ export const prOf = (job) => job.pr ?? job.facts?.pr ?? null;
  * a live session or being started.
  * @param {any} state the daemon state
  * @param {number | string} n the pull request
- * @param {{except?: string | null, review?: boolean}} [opts] the job asking (never in use by
- *   itself) and whether it is a review (only an owner session's claim hides a review)
+ * @param {{except?: string | null, review?: boolean, session?: string | null}} [opts] the job
+ *   asking (never in use by itself), whether it is a review (only an owner session's claim hides a
+ *   review) and the session asking (its own claim is reported as "yours")
  * @returns {string | null} the reason
  */
-export function jobOnPr(state, n, { except = null, review = false } = {}) {
+export function jobOnPr(state, n, { except = null, review = false, session: caller = null } = {}) {
     for (const j of Object.values(state.jobs ?? {})) {
         if (j.id === except || j.state === "queued" || TERMINAL.includes(j.state)) continue;
         if (String(prOf(j)) !== String(n) || (review && j.holder?.startedBy !== "owner")) continue;
         const session = j.holder?.session;
         if (!session) return `in flight as ${j.id}`;
+        if (session === caller) return `yours: you claimed ${j.id}`;
         return `claimed by session ${j.holder.name ?? state.sessions?.[session]?.name ?? session}`;
     }
     return null;
@@ -303,18 +305,22 @@ export function askFor(state, n) {
  *
  * 4. a live session holds an owner record for it (`state.prOwners`, asks.mjs): whatever its head.
  *
+ * A reason that names the asking session itself starts "yours:".
+ *
  * A head githerd or GitHub made is never in use for 2 and 3. A review is a second look at a
  * worker's patch while that worker waits, so only an owner session's claim hides it.
  * @param {any} state the daemon state
  * @param {number | string} n the pull request
- * @param {{config?: any, now: Date, except?: string | null, review?: boolean}} opts the config, the
- *   clock, the job asking (never in use by itself) and whether it is a review
+ * @param {{config?: any, now: Date, except?: string | null, review?: boolean, session?: string | null}} opts
+ *   the config, the clock, the job asking (never in use by itself), whether it is a review, and the
+ *   session asking
  * @returns {string | null} the reason
  */
-export function prInUse(state, n, { config, now, except = null, review = false }) {
-    const job = jobOnPr(state, n, { except, review });
+export function prInUse(state, n, { config, now, except = null, review = false, session = null }) {
+    const job = jobOnPr(state, n, { except, review, session });
     if (job) return job;
     const owned = state.prOwners?.[String(n)];
+    if (owned && session && owned.session === session) return "yours: you said it is yours";
     if (owned) return `session ${owned.name} owns it (${owned.by === "cli" ? "the owner said so" : "it said so"})`;
     const rec = state.prs?.[String(n)];
     if (!rec?.headSha || headIsGitherds(state, rec)) return null;
@@ -326,6 +332,7 @@ export function prInUse(state, n, { config, now, except = null, review = false }
         : `${head} conflicts with ${rec.baseRef ?? "its base"}`;
     const ask = askFor(state, n);
     if (!ask) return `${what}; githerd is asking the sessions in this repository whose it is`;
+    if (ask.owner && session && ask.owner.session === session) return "yours: you said you are working on it";
     if (ask.owner) return `session ${ask.owner.name} said it is working on it`;
     if (ask.dryRun) return `${what}; would ask the sessions in this repository whose it is; asks are dry-run`;
     const asked = ask.sessions?.length ?? 0;
@@ -336,15 +343,41 @@ export function prInUse(state, n, { config, now, except = null, review = false }
 }
 
 /**
- * Why a job is in use (its pull request is, by someone else), or null.
+ * The sessions that wrote pull request `n`: every session that claimed a job on it other than a
+ * review (the job that made it, and those that pushed to it), and the session that said it is its
+ * own (`state.prOwners`, or the answer to githerd's question).
+ * @param {any} state the daemon state
+ * @param {number | string} n the pull request
+ * @returns {Set<string>} the session ids
+ */
+export function prAuthors(state, n) {
+    const authors = new Set();
+    for (const j of Object.values(state.jobs ?? {})) {
+        if (j.kind !== "review" && String(prOf(j)) === String(n)) for (const s of j.sessions ?? []) authors.add(s);
+    }
+    for (const s of [state.prOwners?.[String(n)]?.session, askFor(state, n)?.owner?.session]) if (s) authors.add(s);
+    return authors;
+}
+
+/** Why a session may not review its own pull request. */
+export const SELF_REVIEW = "you wrote this pull request";
+
+/**
+ * Why a job is in use (its pull request is, by someone else), or null. With the asking session: a
+ * review of a pull request that session wrote is never its to take, and a reason naming that
+ * session itself starts "yours:".
  * @param {any} state the daemon state
  * @param {any} job the job
- * @param {{config?: any, now: Date}} opts the config and the clock
+ * @param {{config?: any, now: Date, session?: string | null}} opts the config, the clock and the
+ *   session asking
  * @returns {string | null} the reason
  */
 export function jobInUse(state, job, opts) {
     const n = prOf(job);
-    return n === null ? null : prInUse(state, n, { ...opts, except: job.id, review: job.kind === "review" });
+    if (n === null) return null;
+    const review = job.kind === "review";
+    if (review && opts.session && prAuthors(state, n).has(opts.session)) return SELF_REVIEW;
+    return prInUse(state, n, { ...opts, except: job.id, review });
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -7,7 +7,9 @@
  *
  * Every outcome must list each defect the worker saw. One that names an issue or a commit must name
  * one that exists on GitHub; one with neither (a defect in githerd itself, with no issue yet) is
- * recorded in the ledger and raised to the owner as a "worker reported defects" item. `failed` ends the attempt with the findings. `split` needs the filed children, `not-needed`
+ * recorded in the ledger and raised to the owner as a "worker reported defects" item. `failed` ends the attempt with the findings. `deferred` (issue jobs, with a
+ * reason) ends the job and closes nothing: githerd keeps the verdict with the issue's revision in
+ * `state.deferred`, and offers the issue again only once that revision changes. `split` needs the filed children, `not-needed`
  * goes through the propose, confirm and grace path of proposals.mjs, and `done` is checked per kind:
  *
  * - `pr` and `issue`: the pull request is based on master, not a draft, and its head on GitHub (the
@@ -468,6 +470,19 @@ async function notNeededAnswer(job, view) {
 }
 
 /**
+ * Whether a `deferred` report may end its job: an issue job, with the reason it cannot be acted on now.
+ * @param {any} job the job
+ * @param {any} report the report
+ * @returns {Answer} the answer
+ */
+function deferredAnswer(job, report) {
+    if (job.kind !== "issue")
+        return { missing: [`deferred is for issue jobs; report a ${job.kind} job done or failed`] };
+    if (!String(report.reason ?? "").trim()) return { missing: ["reason: why the issue cannot be acted on now"] };
+    return { holds: true };
+}
+
+/**
  * Checks a report against GitHub: the defects, then the outcome's done-condition. `failed` needs
  * only the defects.
  * @param {any} job the job
@@ -479,6 +494,7 @@ export async function verifyClaim(job, report, view) {
     const gaps = await defectGaps(report.defects, view.io);
     if (gaps.length) return { missing: gaps };
     if (report.outcome === "failed") return { holds: true };
+    if (report.outcome === "deferred") return deferredAnswer(job, report);
     if (report.outcome === "split") return splitAnswer(job, report, view);
     if (report.outcome === "not-needed") return notNeededAnswer(job, view);
     const pushed = report.pushedHead ?? job.pushedHead ?? null;
@@ -699,6 +715,20 @@ async function settleClaim(ctx, job, report, session) {
         afterSettle(ctx.state, job, holder, ended, now);
         await ctx.commit({ kind: "done-report", job: job.id, outcome: "failed", next: ended.action });
         return reply({ verified: true, attempts: attemptsText(job, ended) });
+    }
+    if (report.outcome === "deferred") {
+        if (!answer || !("holds" in answer)) return reply(toolAnswer(answer, { action: "working" }, error, job));
+        const n = String(numberOf(job.target));
+        const reason = String(report.reason).trim();
+        const revision = ctx.state.issues?.byNumber?.[n]?.updatedAt ?? null;
+        (ctx.state.deferred ??= {})[n] = { reason, revision, job: job.id, session, at: now.toISOString() };
+        board.move(job, "cancelled", now, { reason: `deferred: ${reason}` });
+        afterSettle(ctx.state, job, holder, null, now);
+        await ctx.commit({ kind: "done-report", job: job.id, outcome: "deferred", next: "cancelled" });
+        return reply({
+            verified: true,
+            attempts: `accepted: ${job.id} is deferred; #${n} is not offered again until it changes`,
+        });
     }
     board.move(job, "verifying", now);
     const after = board.verifyResult(job, answer, now);

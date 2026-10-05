@@ -76,7 +76,8 @@ const DONE = /** @type {Record<string, string>} */ ({
         "a pull request that references the issue, based on master and not a draft, whose head on GitHub is the commit you pushed, " +
         "has every required check green (or waits only on the owner), and githerd/merge is not pending for a reason you can fix. " +
         "Or the issue needs no change (outcome not-needed, with evidence; it is closed only after the owner had a chance to object), " +
-        "or it is split into new issues you filed (outcome split, with their numbers).",
+        "or it is split into new issues you filed (outcome split, with their numbers), " +
+        "or it cannot be acted on now, such as a proposal the owner declined (outcome deferred, with the reason; nothing is closed, and the issue comes back once it changes).",
     triage:
         "each issue in the batch has exactly one type, one priority (critical, high, medium, low) and one effort (high, medium, low) " +
         "label from the labels the repository already has, and a verdict: keep, duplicate (of which issue), obsolete or fixed (with evidence).",

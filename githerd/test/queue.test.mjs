@@ -170,4 +170,43 @@ describe("pull requests in use (owner decisions 2026-10-04 and 2026-10-05)", () 
         maker.holder.startedBy = "owner";
         expect(order(state).inUse).toEqual([{ job: "review-9", reason: "claimed by session w1" }]);
     });
+
+    it("never offers a review to a session that wrote its pull request, and offers it to another", () => {
+        const maker = Object.assign(newJob({ kind: "issue", target: "#3", id: "issue-3" }, NOW), {
+            pr: 9,
+            sessions: ["w1"],
+        });
+        move(maker, "starting", NOW, { holder: { session: "w1", startedBy: "githerd" } });
+        move(maker, "cancelled", NOW);
+        const fixer = Object.assign(newJob({ kind: "pr", target: "#9", id: "pr-9" }, NOW), { pr: 9, sessions: ["w2"] });
+        move(fixer, "starting", NOW, { holder: { session: "w2", startedBy: "githerd" } });
+        move(fixer, "cancelled", NOW);
+        const review = newJob({ kind: "review", target: "#9", id: "review-9", facts: { pr: 9 } }, NOW);
+        const state = /** @type {any} */ ({
+            jobs: { "issue-3": maker, "pr-9": fixer, "review-9": review },
+            prs: {},
+            prOwners: { 9: { session: "o3", name: "graphty-3", by: "tool" } },
+        });
+        const asking = (/** @type {string} */ session) =>
+            jobOrder(state.jobs, { inUse: (j) => jobInUse(state, j, { now: NOW, session }) });
+        // The maker, a session that pushed to it, and the session that said it is its own.
+        for (const author of ["w1", "w2", "o3"]) {
+            expect(asking(author).inUse).toEqual([{ job: "review-9", reason: "you wrote this pull request" }]);
+        }
+        delete state.prOwners;
+        expect(asking("o2").items.map((i) => i.job)).toEqual(["review-9"]);
+    });
+
+    it("names the asking session's own claim and answer as yours, never as another session's", () => {
+        const state = asked(pushed("FAILURE"), 30);
+        state.asks[9].owner = { session: "s1", name: "graphty-13", at: NOW.toISOString() };
+        const asking = (/** @type {string} */ session) =>
+            jobOrder(state.jobs, { inUse: (j) => jobInUse(state, j, { now: NOW, session }) }).inUse;
+        expect(asking("s1")).toEqual([{ job: "pr-9", reason: "yours: you said you are working on it" }]);
+        expect(asking("s2")).toEqual([{ job: "pr-9", reason: "session graphty-13 said it is working on it" }]);
+        const title = Object.assign(newJob({ kind: "title", target: "#9", id: "title-9" }, NOW), { pr: 9 });
+        move(title, "starting", NOW, { holder: { session: "s1", startedBy: "owner" } });
+        state.jobs["title-9"] = title;
+        expect(asking("s1")).toEqual([{ job: "pr-9", reason: "yours: you claimed title-9" }]);
+    });
 });

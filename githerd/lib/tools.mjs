@@ -213,6 +213,7 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
             inUse: order.inUse,
             inFlight,
             ownerWaiting: ownerWaitingPrs(state, now),
+            deferred: Object.entries(state.deferred ?? {}).map(([n, d]) => ({ issue: Number(n), reason: d.reason })),
             invited: state.invited ?? null,
         };
     }
@@ -380,12 +381,12 @@ function prLines(prs) {
  * @param {{items: {job: string, reason: string}[], skipped: {job: string, reason: string}[],
  *   inUse?: {job: string, reason: string}[],
  *   inFlight: {job: string, state: string, reason: string, status?: {at: string, text: string} | null}[],
- *   ownerWaiting: {target: string, reason: string}[],
+ *   ownerWaiting: {target: string, reason: string}[], deferred?: {issue: number, reason: string}[],
  *   invited?: {at: string, count: number, acting: boolean} | null}} queue the queue data, with the last
  *   invitation of idle sessions
  * @returns {string[]} the lines
  */
-function queueLines({ items, skipped, inUse = [], inFlight, ownerWaiting, invited = null }) {
+function queueLines({ items, skipped, inUse = [], inFlight, ownerWaiting, deferred = [], invited = null }) {
     const lines = [`QUEUE (${items.length})${items.length ? ":" : ": nothing to do"}`];
     for (const i of items) lines.push(`  ${i.job} -- ${i.reason}`);
     if (invited) {
@@ -407,6 +408,11 @@ function queueLines({ items, skipped, inUse = [], inFlight, ownerWaiting, invite
             (i) => `${i.target.replace("pr:", "#")} ${i.reason.replace("waiting on owner: ", "")}`,
         );
         lines.push(`PRS WAITING ON OWNER (${ownerWaiting.length}): ${list.join("; ")}`);
+    }
+    if (deferred.length) {
+        lines.push(
+            `DEFERRED UNTIL THEY CHANGE (${deferred.length}): ${deferred.map((d) => `#${d.issue} ${d.reason}`).join("; ")}`,
+        );
     }
     return lines;
 }

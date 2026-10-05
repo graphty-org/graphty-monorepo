@@ -1901,7 +1901,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 }
             },
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
+            setSource: (source) => dispatcher.dispatch({ op: "data.setSource", source }),
             declarations: () => dispatcher.state.attributes,
+            readers: () => ({ styles: dispatcher.state.styles, runs: dispatcher.state.runs }),
         },
         {
             revision: () => inputs.tick.value,
@@ -1909,6 +1911,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
             // And the query engine, below that.
             search: (text, request) => requireQuery(query).search(text, request),
+            textTest: (text, mode, target) => requireQuery(query).textTest(text, mode, target),
             // Read through calls: the runs are built below.
             run: (id: RunId) => runs.get(id),
             runIds: () => runs.list().map((run) => run.id),

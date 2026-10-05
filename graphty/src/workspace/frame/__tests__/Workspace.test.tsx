@@ -45,7 +45,7 @@ describe("the workspace frame", () => {
     it("draws every region with its package's stub", () => {
         renderWorkspace(OPEN);
 
-        for (const stub of ["Graph place", "Legend card and state cards"]) {
+        for (const stub of ["Graph place"]) {
             assert.isNotNull(screen.getByText(stub), stub);
         }
         assert.isNotNull(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));

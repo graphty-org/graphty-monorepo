@@ -27,6 +27,7 @@ import { isPairConfig } from "../data/CSVDataSource";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
+import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
@@ -1104,7 +1105,7 @@ export class SessionData implements SessionDataApi {
         const space = edgeSpaceOf(snapshot);
         const members = scope === undefined ? null : this.pages.resolve(scope);
         const count = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const end = touching === undefined ? INVALID_INDEX : snapshot.ids.indexOf(touching);
+        const end = touching === undefined ? INVALID_INDEX : rowOfEitherSpelling(snapshot, touching);
         const rows: number[] = [];
         // ponytail: `touching` scans every edge once per revision; read the undirected CSR if a
         // host pages the edges of many nodes per revision.
@@ -1841,4 +1842,16 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     return detect(undefined);
+}
+
+/**
+ * The row of a node named in either spelling of an integer id, so `touching: "34"` finds node `34`.
+ * @param snapshot - The snapshot.
+ * @param id - The node, as the caller wrote it.
+ * @returns The row, or INVALID_INDEX when the graph holds neither spelling.
+ */
+function rowOfEitherSpelling(snapshot: GraphSnapshot, id: NodeId): number {
+    const row = snapshot.ids.indexOf(id);
+    const other = row === INVALID_INDEX ? otherIdSpelling(id) : undefined;
+    return other === undefined ? row : snapshot.ids.indexOf(other);
 }

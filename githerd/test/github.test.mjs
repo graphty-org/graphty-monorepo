@@ -743,19 +743,20 @@ describe("read-back and next-poll confirmation", () => {
         );
         expect(board).toContain(`WRITE DID NOT STICK: POST statuses/${SHA} (statuses), sent twice, wrong since`);
 
-        // The next poll neither reads it again nor sends it a third time; the board shows it.
-        const calls = gh.calls.length;
+        // Later polls read it again but never send it a third time; age alone never drops it.
         await gitHub.confirm();
-        expect(gh.calls).toHaveLength(calls);
+        advance(30 * 24 * 3_600_000);
+        await gitHub.confirm();
+        expect(gh.writes()).toHaveLength(2);
         expect(ledger.filter((e) => e.kind === "write-mismatch")).toHaveLength(1);
         expect(writes.pending).toHaveLength(1);
 
-        // After 24 hours it leaves the board, with a ledger line.
-        advance(24 * 3_600_000);
+        // A read that shows it resolved (someone set the status) takes it off the board.
+        fake.statuses = [BODY];
         await gitHub.confirm();
-        expect(gh.calls).toHaveLength(calls);
+        expect(gh.writes()).toHaveLength(2);
         expect(writes.pending).toEqual([]);
-        expect(ledger.at(-1)).toMatchObject({ kind: "write-mismatch-expired", op: `POST statuses/${SHA}` });
+        expect(ledger.at(-1)).toMatchObject({ kind: "write-mismatch-resolved", op: `POST statuses/${SHA}` });
     });
 
     it("drops a write that held when sent and was changed since, without sending it again", async () => {

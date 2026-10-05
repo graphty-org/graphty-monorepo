@@ -10,7 +10,7 @@
  * that is sent is read back at once and again by the next poll (`confirm()`); only a write declared
  * `retry` (it sets a state, so a second send does no harm) is sent once more when it does not hold,
  * and a write that still does not hold stays in the persisted `writes` record marked as a mismatch,
- * for the board, for 24 hours (design 3.6). Every call is checked against the shared rate budget
+ * for the board, until a later read shows it resolved (design 3.6). Every call is checked against the shared rate budget
  * first. Every answer is counted by rate resource (`usage`), so status and the ledger show what
  * githerd itself costs.
  */
@@ -49,8 +49,6 @@ const SECONDARY_MAX_MS = 15 * 60_000;
 /** Counters the poll pace follows; search has its own small budget, paced by re-triage. */
 const PACED_RESOURCES = ["core", "graphql"];
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-/** How long a write that did not stick stays on the board. */
-const MISMATCH_KEPT_MS = 24 * 3_600_000;
 
 /**
  * @typedef {{status: number, headers: Record<string, string>, body: any}} Response
@@ -661,10 +659,12 @@ export function createGitHub({
      * @param {SentWrite} entry the write
      */
     async function confirmOne(entry) {
+        // A write that did not stick stays on the board until a later read shows it resolved
+        // (someone, or a later write, made it hold); never sent again, and never dropped on age.
         if (entry.mismatch) {
-            if (now() - Date.parse(entry.mismatch) < MISMATCH_KEPT_MS) return;
+            if ((await readBack(entry, false)) !== true) return;
             drop(entry);
-            await ledger({ kind: "write-mismatch-expired", op: entry.op, group: entry.group });
+            await ledger({ kind: "write-mismatch-resolved", op: entry.op, group: entry.group });
             return;
         }
         let ok = await readBack(entry, false);
@@ -780,7 +780,8 @@ export function createGitHub({
          * longer holds was changed by someone else since: logged as `write-overridden` and dropped,
          * never sent again. One that never held is sent once more when it is retryable and not yet
          * retried, and is a mismatch otherwise. A read that fails leaves the write for the poll
-         * after. A mismatch is not read again: it stays on the board for 24 hours, then expires.
+         * after. A mismatch is read again, never sent again: it stays on the board until a read
+         * shows it resolved.
          * @returns {Promise<void>}
          */
         async confirm() {

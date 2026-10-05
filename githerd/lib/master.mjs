@@ -18,7 +18,7 @@ const RED = new Set(["failure", "timed_out", "startup_failure"]);
 /**
  * @typedef {{id: number, run_attempt: number, head_sha: string, status: string,
  *   conclusion: string | null, updated_at?: string, workflow_id?: number, name?: string,
- *   head_branch?: string}} WorkflowRun
+ *   head_branch?: string, event?: string, created_at?: string}} WorkflowRun
  * @typedef {{sha: string, parents?: {sha: string}[],
  *   commit: {message: string, committer?: {date: string}, author?: {date: string}}}} Commit
  * @typedef {"green" | "red" | "neutral" | "running"} Outcome
@@ -26,7 +26,9 @@ const RED = new Set(["failure", "timed_out", "startup_failure"]);
  *   conclusion: string | null, verdict: "green" | "red" | "unknown", updatedAt: string | null,
  *   pendingRed: {runId: number, attempt: number, conclusion: string, sha: string, seenAt: string} | null,
  *   inFlight: Record<string, {sha: string, firstSeenAt: string, reportedAt?: string}>,
- *   shas: Record<string, Outcome>}} LaneRecord
+ *   shas: Record<string, Outcome>,
+ *   scheduled?: {runId: number, createdAt: string, conclusion: string | null, outcome: Outcome}}} LaneRecord
+ *   `scheduled` is the newest run a schedule or a dispatch started (the release train)
  * @typedef {{lane: string, runId: number, sha: string, firstSeenAt: string, minutes: number}} StuckRun
  * @typedef {{event: string, lane: string, runId: number, attempt?: number, sha: string,
  *   conclusion?: string, firstSeenAt?: string, minutes?: number}} LaneEvent
@@ -81,6 +83,7 @@ export function updateLane(name, saved, runs, config, now) {
     const lane = { ...prev, inFlight: {}, shas: { ...prev.shas } };
     const sorted = [...runs].sort(newestFirst);
     recordShas(lane, sorted);
+    recordScheduled(lane, prev, sorted, at);
     const events = trackInFlight(lane, prev, sorted, name, config.lanes[name], now);
 
     const done = sorted.find((r) => r.status === "completed");
@@ -109,6 +112,25 @@ function recordShas(lane, sorted) {
     }
     const keys = Object.keys(lane.shas);
     for (const k of keys.slice(0, Math.max(0, keys.length - SHA_MEMORY))) delete lane.shas[k];
+}
+
+/**
+ * Keeps the newest run a schedule or a dispatch started: the release train's runs, which push runs
+ * would soon push off the page the poll reads.
+ * @param {LaneRecord} lane the record being built
+ * @param {LaneRecord} prev the record from the last poll
+ * @param {WorkflowRun[]} sorted the runs, newest first
+ * @param {string} at the poll's time, ISO
+ */
+function recordScheduled(lane, prev, sorted, at) {
+    const r = sorted.find((x) => x.event === "schedule" || x.event === "workflow_dispatch");
+    if (!r || (prev.scheduled && prev.scheduled.runId > r.id)) return;
+    lane.scheduled = {
+        runId: r.id,
+        createdAt: r.created_at ?? at,
+        conclusion: r.conclusion,
+        outcome: r.status === "completed" ? classify(r.conclusion) : "running",
+    };
 }
 
 /**
@@ -317,13 +339,15 @@ export function findSuspects(commits, lastGreenSha, redSha) {
  * @param {Record<string, LaneRecord>} lanes the lane records; the lane named `release` is the
  *   release workflow
  * @param {{lanes: Record<string, {gating: string, maxMinutes: number | null}>,
- *   release: {commitPattern: string, stallHours: number} | null}} config the config
+ *   release: {commitPattern: string} | null}} config the config
  * @param {Commit[]} commits the branch's recent commits, head first
  * @param {number} now the current time
  * @returns {{lastRelease: {sha: string, at: string} | null, releaseEligibleSince: string | null,
  *   failed: boolean, stalled: boolean, stuckOnly: boolean}} `failed` while the release lane is red;
- *   `stalled` when eligible for longer than `release.stallHours`; `stuckOnly` when only a stuck lane
- *   run stands between the branch and eligibility
+ *   `stalled` while eligible when the release train's newest scheduled or dispatched run, started
+ *   after the last release, ended other than green (it never got going: cancelled, skipped, a
+ *   startup failure; a red one is `failed` already); `stuckOnly` when only a stuck lane run stands
+ *   between the branch and eligibility. Elapsed time alone never stalls a release
  */
 export function releaseState(saved, lanes, config, commits, now) {
     const failed = lanes.release?.verdict === "red";
@@ -347,8 +371,14 @@ export function releaseState(saved, lanes, config, commits, now) {
     const sameRelease = saved?.lastRelease?.sha === lastRelease?.sha;
     const releaseEligibleSince =
         green || stuckOnly ? (sameRelease && saved?.releaseEligibleSince) || new Date(now).toISOString() : null;
+    const train = lanes.release?.scheduled;
     const stalled =
-        releaseEligibleSince !== null && now - Date.parse(releaseEligibleSince) > config.release.stallHours * 3_600_000;
+        !failed &&
+        releaseEligibleSince !== null &&
+        train !== undefined &&
+        train.outcome !== "running" &&
+        train.outcome !== "green" &&
+        (!lastRelease?.at || Date.parse(train.createdAt) > Date.parse(lastRelease.at));
     return { lastRelease, releaseEligibleSince, failed, stalled, stuckOnly };
 }
 

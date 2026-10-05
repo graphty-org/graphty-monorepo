@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createGitHub } from "../lib/github.mjs";
-import { backoffSlot, createIncidentActions, laneNotProgressing } from "../lib/incident-actions.mjs";
+import { createIncidentActions, laneNotProgressing } from "../lib/incident-actions.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
@@ -158,15 +158,6 @@ function incident(
         excerpt: "row fr-10k 2.9x slower than its pinned best",
     };
 }
-
-describe("backoffSlot", () => {
-    it("is 0 for 30 minutes, 1 until 2 hours, then one more every 6 hours", () => {
-        const at = (ms) => backoffSlot(T0, T0 + ms);
-        expect([0, 29 * MIN, 30 * MIN, 119 * MIN, 2 * HOUR, 8 * HOUR - 1, 8 * HOUR, 14 * HOUR].map(at)).toEqual([
-            0, 0, 1, 1, 2, 2, 3, 4,
-        ]);
-    });
-});
 
 describe("laneNotProgressing", () => {
     it("names the longest-waiting job past its bound, and is null within every bound", () => {
@@ -476,39 +467,48 @@ describe("backoff: a lane parked for paid capacity", () => {
     const item = (over = {}) => ({
         lane: "gpu",
         openedAt: T0,
+        retry: true,
         run: { id: 5, attempt: 1 },
         running: false,
         notProgressing: false,
         ...over,
     });
 
-    it("over three days re-runs only at 30 min, 2 h and every 6 h after: the paid-lane budget is never exceeded", async () => {
-        const repo = fakeRepo({ runs: { 5: 1 } });
-        const { actions, set, ledger } = setup(repo);
-        const at = [];
-        for (let t = T0; t < T0 + 72 * HOUR; t += MIN) {
-            set(t);
-            const res = await actions.backoff(item({ run: { id: 5, attempt: repo.s.runs[5] } }));
-            if (res) at.push((t - T0) / MIN);
-        }
-        expect(at).toEqual([30, 120, 480, 840, 1200, 1560, 1920, 2280, 2640, 3000, 3360, 3720, 4080]);
-        expect(repo.gh.writes()).toHaveLength(backoffSlot(T0, T0 + 72 * HOUR - MIN));
-        expect(ledger.filter((e) => e.kind === "write-mismatch")).toEqual([]);
-    });
-
-    it("nothing while a run of the lane is in progress or no runner picks it up, and a missed slot is not made up", async () => {
+    it("never re-runs on elapsed time alone: three days of an unanswered item send nothing", async () => {
         const repo = fakeRepo({ runs: { 5: 1 } });
         const { actions, set } = setup(repo);
-        set(T0 + 31 * MIN);
+        for (let t = T0; t < T0 + 72 * HOUR; t += 10 * MIN) {
+            set(t);
+            expect(await actions.backoff(item({ retry: false }))).toBeNull();
+        }
+        expect(repo.gh.writes()).toEqual([]);
+    });
+
+    it("re-runs once for an item the owner answered, however soon, and never twice", async () => {
+        const repo = fakeRepo({ runs: { 5: 1 } });
+        const { actions, set, ledger } = setup(repo);
+        set(T0 + MIN);
+        expect(await actions.backoff(item())).toMatchObject({ performed: true });
+        set(T0 + 72 * HOUR);
+        expect(await actions.backoff(item({ run: { id: 5, attempt: 2 } }))).toBeNull();
+        expect(repo.gh.writes()).toHaveLength(1);
+        expect(ledger.filter((e) => e.kind === "write-mismatch")).toEqual([]);
+        // Answered again later: a new item, one more re-run.
+        expect(await actions.backoff(item({ openedAt: T0 + 72 * HOUR, run: { id: 5, attempt: 2 } }))).toMatchObject({
+            performed: true,
+        });
+    });
+
+    it("nothing while a run of the lane is in progress or no runner picks it up", async () => {
+        const repo = fakeRepo({ runs: { 5: 1 } });
+        const { actions } = setup(repo);
         expect(await actions.backoff(item({ running: true }))).toBeNull();
         expect(await actions.backoff(item({ notProgressing: true }))).toBeNull();
-        set(T0 + 9 * HOUR);
         expect(await actions.backoff(item())).toMatchObject({ performed: true });
-        expect(await actions.backoff(item({ run: { id: 5, attempt: 2 } }))).toBeNull();
         expect(repo.gh.writes()).toHaveLength(1);
     });
 
-    it("in dry-run records one would-do per slot and writes nothing", async () => {
+    it("in dry-run records one would-do per answered item and writes nothing", async () => {
         const repo = fakeRepo({ runs: { 5: 1 } });
         const { actions, set, ledger } = setup(repo, "dry-run");
         for (let t = T0; t < T0 + 3 * HOUR; t += MIN) {
@@ -516,7 +516,7 @@ describe("backoff: a lane parked for paid capacity", () => {
             await actions.backoff(item());
         }
         expect(repo.gh.writes()).toEqual([]);
-        expect(ledger.filter((e) => e.kind === "would-do").map((e) => e.slot)).toEqual([1, 2]);
+        expect(ledger.filter((e) => e.kind === "would-do").map((e) => e.situation)).toEqual(["paid-capacity-backoff"]);
     });
 });
 

@@ -1165,8 +1165,8 @@ export async function startDaemon({
      * re-run and the parent re-test and what their outcome calls for (an `intermittent` issue, or
      * the revert pull request of the one merge between green and red); and the CI re-run that
      * recreates a release's expired artifacts; and for each lane parked for paid capacity, its
-     * owner item and its backoff re-run (design 3.2). A failure is ledgered and tried again next
-     * reconcile.
+     * owner item and its re-run once the owner answers it (design 3.2). A failure is ledgered and
+     * tried again next reconcile.
      */
     async function incidentSteps() {
         const spent = (state.incidentActions ??= {});
@@ -1225,9 +1225,10 @@ export async function startDaemon({
     /**
      * The owner item of each gating lane parked for a class only the owner can clear (paid
      * capacity, a credential, the runner environment), ended once the lane is no longer red for
-     * it; and the backoff re-run of a lane parked for paid capacity, never while one of its runs is
-     * in flight or no runner picks its jobs up. None of them is a code incident: no revert, no
-     * intermittent issue, no merge hold.
+     * it; and the re-run of a lane parked for paid capacity once the owner answers its item (a
+     * top-up), never while one of its runs is in flight or no runner picks its jobs up. A new
+     * commit needs none: its push starts the lane's run by itself. None of them is a code
+     * incident: no revert, no intermittent issue, no merge hold.
      * ponytail: outside lanes are parked (no incident, no hold) and only ledgered; their re-run
      * after 15 minutes, and a worker job for an environment failure, come with the worker platform.
      * @param {ReturnType<typeof createIncidentActions>} actions the incident actions
@@ -1242,20 +1243,27 @@ export async function startDaemon({
                     endItem(state, id, "cleared", now());
                     continue;
                 }
-                raiseItem(
+                // The owner answering the item says the capacity is back: the item raised again
+                // after his answer carries the one re-run (design 3.2).
+                const before = state.ownerItems?.[id];
+                const answered = Boolean(before?.endedAt && before.endedBy !== "cleared");
+                const paid = cls === "paid-capacity";
+                const raised = raiseItem(
                     state,
                     {
                         id,
                         kind: cls,
-                        question: `${name} ${what} (${l.redReason}); merges continue and the release waits until it runs`,
+                        question: `${name} ${what} (${l.redReason}); merges continue and the release waits until it runs${paid ? "; answer this item once the balance is topped up and githerd re-runs the lane" : ""}`,
                         blocks: "release",
                     },
                     now(),
                 );
-                if (cls !== "paid-capacity") continue;
+                if (raised === "raised" && answered) state.ownerItems[id].retry = true;
+                if (!paid) continue;
                 await actions.backoff({
                     lane: name,
                     openedAt: Date.parse(state.ownerItems[id].raisedAt),
+                    retry: Boolean(state.ownerItems[id].retry),
                     run: { id: l.runId, attempt: l.attempt },
                     running: Object.keys(l.inFlight ?? {}).length > 0,
                     notProgressing: Boolean(l.notProgressing),
@@ -2088,7 +2096,7 @@ export async function startDaemon({
             derived({
                 key: `release-stalled:${rs.lastRelease?.sha ?? "none"}`,
                 kind: "release-stalled",
-                summary: `release-eligible since ${rs.releaseEligibleSince.slice(0, 16)} UTC with no new release`,
+                summary: `release train run ${m.lanes.release?.scheduled?.runId} ended ${m.lanes.release?.scheduled?.conclusion} with a release due since ${rs.releaseEligibleSince?.slice(0, 16)} UTC`,
                 clearWhen: "released",
             });
         }

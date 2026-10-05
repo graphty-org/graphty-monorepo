@@ -19,19 +19,19 @@ function fresh() {
  * Puts a claim on the board, as a session's earlier claim left it.
  * @param {any} state the state
  * @param {string} target the target
- * @param {number} ttl minutes from T0
  */
-function claim(state, target, ttl = 120) {
-    state.claims[target] = { target, holder: "githerd-100", expiresAt: at(ttl).toISOString() };
+function claim(state, target) {
+    state.claims[target] = { target, holder: "githerd-100" };
 }
 
 describe("expire and session liveness", () => {
-    it("ends a claim whose time ran out", () => {
+    it("keeps a claim while its holder lives, however old", () => {
         const state = fresh();
-        claim(state, "pr:1", 5);
-        heartbeat(state, { session: "githerd-100" }, at(4));
-        expect(expire(state, at(4), T0)).toEqual([]);
-        expect(expire(state, at(5), T0)).toEqual([{ target: "pr:1", holder: "githerd-100", reason: "expired" }]);
+        claim(state, "pr:1");
+        for (const m of [0, 600, 6000]) {
+            heartbeat(state, { session: "githerd-100" }, at(m));
+            expect(expire(state, at(m), T0)).toEqual([]);
+        }
     });
 
     it("lapses a dead session's claims and forgets the session", () => {

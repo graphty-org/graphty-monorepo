@@ -31,7 +31,6 @@ export const DEFAULTS = Object.freeze({
     labels: { types: [], priorities: [], efforts: [] },
     protectedPaths: DEFAULT_PROTECTED,
     actions: Object.fromEntries(ACTION_GROUPS.map((g) => [g, false])),
-    grace: { closeIssueDays: 7, closeIssueShownDays: 3, revertMinutes: 30 },
     // The worker sessions (design 8.1): the model, the routine slots, the urgent overflow, the
     // waiting sessions kept open, and the routine worker hours a day until the usage reading is
     // verified (urgent work is exempt); how long githerd waits for a live session to answer that
@@ -93,13 +92,12 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  * @typedef {{ workflow: string, gating: "required" | "if-run" | "watch", maxMinutes: number | null }} Lane
  * @typedef {{
  *   repo: string, mode: "paused" | "dry-run" | "acting", pollSeconds: number, servherdCommand: string[],
- *   lanes: Record<string, Lane>, release: { commitPattern: string, stallHours: number } | null,
+ *   lanes: Record<string, Lane>, release: { commitPattern: string } | null,
  *   requiredChecks: string[],
  *   ownerGate: { steps: string[], rejectMarker: string | null,
  *     reviewServer: { name: string, command: string[] } | null } | null,
  *   labels: { types: string[], priorities: string[], efforts: string[] },
  *   protectedPaths: string[], actions: Record<string, boolean>,
- *   grace: { closeIssueDays: number, closeIssueShownDays: number, revertMinutes: number },
  *   workers: { model: string, slots: number, urgent: number, waiting: number, hoursPerDay: number,
  *     askMinutes: number, statusMinutes: number, sessions: string[] | null },
  *   backlog: { agingDays: number },
@@ -338,20 +336,8 @@ export function normalizeConfig(input) {
 
     let release = null;
     if (raw.release !== undefined && raw.release !== null) {
-        onlyKeys(object(raw.release, "release"), ["commitPattern", "stallHours"], "release.");
-        release = {
-            commitPattern: regex(raw.release.commitPattern, "release.commitPattern"),
-            stallHours: number(raw.release.stallHours, "release.stallHours", { min: 1, max: 168, integer: false }),
-        };
-    }
-
-    const grace = numbers(raw.grace, DEFAULTS.grace, "grace", {
-        closeIssueDays: { min: 1, max: 90 },
-        closeIssueShownDays: { min: 1, max: 90 },
-        revertMinutes: { min: 1, max: 24 * 60 },
-    });
-    if (grace.closeIssueShownDays > grace.closeIssueDays) {
-        fail("grace.closeIssueShownDays cannot be more than grace.closeIssueDays");
+        onlyKeys(object(raw.release, "release"), ["commitPattern"], "release.");
+        release = { commitPattern: regex(raw.release.commitPattern, "release.commitPattern") };
     }
 
     const notifyRaw = raw.notify === undefined ? {} : object(raw.notify, "notify");
@@ -374,7 +360,6 @@ export function normalizeConfig(input) {
         labels: /** @type {any} */ (labels),
         protectedPaths: withDefaults(raw.protectedPaths, DEFAULT_PROTECTED, "protectedPaths"),
         actions,
-        grace,
         workers: workers(raw.workers),
         backlog: numbers(raw.backlog, DEFAULTS.backlog, "backlog", { agingDays: days }),
         notify: {

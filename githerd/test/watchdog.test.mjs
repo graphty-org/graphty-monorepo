@@ -131,13 +131,15 @@ describe("decide", () => {
         );
     });
 
-    it("leaves a steered job alone until it has been idle 2 hours", () => {
+    it("leaves a steered job alone while the owner is at its window, however long, and ends steering when he leaves", () => {
         const j = job();
         j.steeredAt = T0.toISOString();
-        expect(decide(j, look({ screen: { kind: "permission" } }), T0).action).toBe("none");
-        expect(decide(j, look({ registry: { status: "busy" } }), at(60)).action).toBe("none");
-        expect(decide(j, look(), at(119)).action).toBe("none");
-        expect(decide(j, look(), at(120)).action).toBe("steering-ended");
+        expect(decide(j, look({ screen: { kind: "permission" }, viewed: true }), T0).action).toBe("none");
+        expect(decide(j, look({ viewed: true }), at(24 * 60)).action).toBe("none");
+        expect(decide(j, look({ screen: { kind: "owner-text", text: "hi" } }), at(48 * 60)).action).toBe("none");
+        // Left, but the turn he asked for still runs.
+        expect(decide(j, look({ registry: { status: "busy" } }), at(48 * 60)).action).toBe("none");
+        expect(decide(j, look(), at(48 * 60)).action).toBe("steering-ended");
     });
 
     it("recycles an idle session after 3 compactions or 12 hours, waiting or working", () => {
@@ -474,14 +476,11 @@ describe("watchPass", () => {
         expect(j.holder).toBeNull();
     });
 
-    it("ends steering after two idle hours", async () => {
+    it("ends steering on the first pass that finds the window idle and unviewed", async () => {
         const j = await held("issue-28", { screen: "idle" });
         j.steeredAt = T0.toISOString();
         const state = { jobs: { [j.id]: j } };
-        await watchPass(state, T0, options());
-        expect((await watchPass(state, at(120), options())).ledger).toEqual([
-            { kind: "steering-ended", job: "issue-28" },
-        ]);
+        expect((await watchPass(state, T0, options())).ledger).toEqual([{ kind: "steering-ended", job: "issue-28" }]);
         expect(j.steeredAt).toBeNull();
     });
 

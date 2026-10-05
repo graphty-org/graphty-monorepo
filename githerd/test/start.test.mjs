@@ -282,17 +282,17 @@ describe("fillSlots", () => {
         expect(job).toMatchObject({ state: "working", holder: { pane: "%1" } });
     });
 
-    it("puts a faulted job back in the queue after 30 minutes", async () => {
+    it("puts a faulted job back in the queue when its commit moves, never on elapsed time", async () => {
         const state = stateWith({ kind: "issue", target: "#1", id: "issue-1" });
         const job = state.jobs["issue-1"];
         move(job, "starting", T0);
         move(job, "faulted", T0, { reason: "install exited 1" });
-        clock = new Date(T0.getTime() + 29 * 60_000);
+        clock = new Date(T0.getTime() + 30 * 24 * 3_600_000);
         await fillSlots(ctxOf(state, { mode: "dry-run" }));
-        expect(job.state).toBe("faulted");
-        clock = new Date(T0.getTime() + 30 * 60_000);
+        expect(job).toMatchObject({ state: "faulted", faultSha: GREEN });
+        state.master.greenSha = "b".repeat(40);
         await fillSlots(ctxOf(state, { mode: "dry-run" }));
-        expect(job).toMatchObject({ state: "queued", reason: "retry after: install exited 1" });
+        expect(job).toMatchObject({ state: "queued", reason: "retry at bbbbbbbb after: install exited 1" });
     });
 
     it("lifts a usage stop with one canary after the reset, and only the canary's next stop ends it", async () => {

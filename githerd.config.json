@@ -9,7 +9,7 @@
         "hosts": { "workflow": "hosts.yml", "gating": "if-run" },
         "release": { "workflow": "release.yml", "gating": "watch" }
     },
-    "release": { "commitPattern": "^chore\\(release\\): publish", "stallHours": 36 },
+    "release": { "commitPattern": "^chore\\(release\\): publish" },
     "requiredChecks": ["All Checks Pass", "Lint PR Title"],
     "ownerGate": {
         "steps": ["^Check visual changes were accepted$"],
@@ -38,7 +38,6 @@
         "proposals": false,
         "incidents": false
     },
-    "grace": { "closeIssueDays": 7, "closeIssueShownDays": 3, "revertMinutes": 30 },
     "workers": {
         "model": "claude-opus-5-5",
         "slots": 3,

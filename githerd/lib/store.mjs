@@ -22,9 +22,6 @@ import { sameProcess } from "./proc.mjs";
 /** The state schema this code reads and writes. */
 export const STATE_SCHEMA = 1;
 
-/** How long new runs are held after an empty-state start, so sessions can re-claim. */
-export const RUN_HOLD_MS = 10 * 60 * 1000;
-
 /** Three starts after an unclean exit within this window boot straight into fatal mode (design 9.2). */
 export const CRASH_LOOP = { starts: 3, withinMs: 10 * 60 * 1000 };
 
@@ -101,10 +98,10 @@ async function readStateFile(file) {
  * @property {string[]} errors why each unreadable file was rejected
  * @property {string[]} kept where each unreadable file was moved (`<name>.corrupt-<time>`), so the
  *   next save cannot overwrite it
- * @property {{emptyStart: true, at: string, holdRunsUntil: string} | null} recovery set on an
- *   empty-state or ledger-rebuilt start after a failure: open incidents and pending proposals are unknown, a red
- *   master gets a "githerd restarted" page instead of an incident page, proposals wait for a fresh
- *   veto query and a new grace period, and new runs wait until `holdRunsUntil`
+ * @property {{emptyStart: true, at: string} | null} recovery set on an empty-state or
+ *   ledger-rebuilt start after a failure: open incidents and pending proposals are unknown, a red
+ *   master gets a "githerd restarted" page instead of an incident page, and proposals wait for a
+ *   fresh veto query and a new grace period
  */
 
 /**
@@ -142,11 +139,7 @@ export async function loadState(dir, { now = () => new Date(), migrations = MIGR
     }
     const at = now();
     // Partial either way: a rebuilt state has no incidents, proposals or rate data.
-    const recovery = {
-        emptyStart: /** @type {const} */ (true),
-        at: at.toISOString(),
-        holdRunsUntil: new Date(at.getTime() + RUN_HOLD_MS).toISOString(),
-    };
+    const recovery = { emptyStart: /** @type {const} */ (true), at: at.toISOString() };
     const rebuilt = await replayLedger(dir);
     if (rebuilt) return { state: rebuilt, source: "ledger", readOnly: false, errors, kept: await keep(), recovery };
     const state = { schema: STATE_SCHEMA };

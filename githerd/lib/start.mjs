@@ -40,8 +40,6 @@ const PROBE_HOURS = [1, 3, 6];
 /** How long a `claude --version` answer and a signing probe are reused. */
 const CACHE_MS = 10 * 60_000;
 const HOUR = 3_600_000;
-/** How long a faulted job waits before it goes back to the queue (design 5.3). */
-const FAULT_RETRY_MS = 30 * 60_000;
 
 /**
  * @typedef {object} Platform what a start touches outside the state; tests replace it
@@ -447,17 +445,22 @@ export async function fillSlots(ctx) {
 }
 
 /**
- * Queues again each faulted job whose fault is 30 minutes old.
+ * Queues again each faulted job whose fault has cleared (design 5.3): the commit it would start
+ * from moved (master's green commit, or its pull request's head) since it faulted. A fault is a
+ * preparation that failed, a worktree never ready, or repeated session deaths, all at one commit;
+ * a new commit is the one event that can change that outcome. Elapsed time alone requeues nothing.
  * @param {any} state the daemon state
  * @param {Date} t the time
  */
 function retryFaulted(state, t) {
-    // ponytail: a fault clears by waiting 30 minutes; read the fault's cause (load, the platform)
-    // and requeue when it clears if a fixed wait proves too slow or too eager.
     for (const job of Object.values(state.jobs ?? {})) {
-        if (job.state === "faulted" && t.getTime() - Date.parse(job.stateSince) >= FAULT_RETRY_MS) {
-            board.move(job, "queued", t, { reason: `retry after: ${job.reason}` });
-        }
+        if (job.state !== "faulted") continue;
+        const sha = targetCommit(state, job)?.sha ?? null;
+        // A fault recorded without its commit (a deadline or a death) takes the one current now.
+        job.faultSha ??= sha;
+        if (!sha || sha === job.faultSha) continue;
+        job.faultSha = null;
+        board.move(job, "queued", t, { reason: `retry at ${sha.slice(0, 8)} after: ${job.reason}` });
     }
 }
 
@@ -527,6 +530,17 @@ function fits(job, room) {
  */
 function startCommit(state, job) {
     if (job.worktree && existsSync(job.worktree)) return { sha: job.base ?? "" };
+    return targetCommit(state, job);
+}
+
+/**
+ * The commit a job's work is at on GitHub, whatever worktree it has: its pull request's head for a
+ * `pr` or `review` job, else master's green commit.
+ * @param {any} state the daemon state
+ * @param {any} job the job
+ * @returns {{sha: string, ref?: string, branch?: string} | null} the commit, null when unknown
+ */
+function targetCommit(state, job) {
     let pr = null;
     if (job.kind === "pr") pr = job.pr;
     else if (job.kind === "review") pr = job.facts?.pr;
@@ -671,6 +685,7 @@ async function prepareWorktree(ctx, job, busy, code) {
     }
     if (prep.verdict === "faulted") {
         const result = board.fault(job, `${prep.step}: ${prep.reason}`, now(), { counted: !busy });
+        job.faultSha = at.sha;
         void ctx.ledger({ kind: "job-faulted", ...result, reason: prep.reason });
         return false;
     }

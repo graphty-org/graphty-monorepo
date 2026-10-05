@@ -1539,7 +1539,7 @@ describe("failure classes on master", () => {
             lanes: { ci: { workflow: "ci.yml", gating: "required" }, gpu: { workflow: "gpu.yml", gating: "required" } },
         });
 
-    it("parks a lane out of balance: an owner item and one backoff re-run per slot, no incident", async () => {
+    it("parks a lane out of balance: an owner item, a re-run only once the owner answers it, no incident", async () => {
         gpuConfig();
         scene.gpu = [{ ...run(200, A, "failure"), name: "GPU" }];
         scene.jobs = {
@@ -1555,23 +1555,36 @@ describe("failure classes on master", () => {
             ],
         };
         const daemon = await start();
-        for (const at of ["12:00", "12:03", "12:20", "12:36", "12:45"]) {
-            clock = new Date(`2026-10-02T${at}:00Z`);
+        const incidentWrites = async () =>
+            (await readLedger(join(dir, ".githerd")))
+                .filter((e) => e.group === "incidents")
+                .map((e) => [e.op, e.situation]);
+        for (const at of ["2026-10-02T12:00", "2026-10-02T12:03", "2026-10-02T14:36", "2026-10-03T12:45"]) {
+            clock = new Date(`${at}:00Z`);
             await poll(daemon);
         }
         expect(daemon.state.master.lanes.gpu).toMatchObject({ verdict: "red", redClass: "paid-capacity" });
         expect(daemon.state.incidents).toEqual({});
-        expect(daemon.state.ownerItems["paid-capacity:gpu"]).toMatchObject({ blocks: "release" });
-        expect(daemon.state.ownerItems["paid-capacity:gpu"].endedAt).toBeUndefined();
-        const would = (await readLedger(join(dir, ".githerd"))).filter((e) => e.group === "incidents");
-        expect(would.map((e) => [e.op, e.situation, e.slot])).toEqual([
-            ["POST actions/runs/200/rerun-failed-jobs", "paid-capacity-backoff", 1],
-        ]);
+        const item = daemon.state.ownerItems["paid-capacity:gpu"];
+        expect(item).toMatchObject({ blocks: "release" });
+        expect(item.endedAt).toBeUndefined();
+        expect(item.question).toContain("answer this item once the balance is topped up");
+        // A day of polls with the item unanswered re-runs nothing.
+        expect(await incidentWrites()).toEqual([]);
+
+        // The owner answers: the item is raised again, and its lane re-run once.
+        Object.assign(item, { endedAt: "2026-10-03T12:46:00.000Z", endedBy: "record" });
+        for (const at of ["12:48", "12:51"]) {
+            clock = new Date(`2026-10-03T${at}:00Z`);
+            await poll(daemon);
+        }
+        expect(daemon.state.ownerItems["paid-capacity:gpu"]).toMatchObject({ retry: true });
+        expect(await incidentWrites()).toEqual([["POST actions/runs/200/rerun-failed-jobs", "paid-capacity-backoff"]]);
         expect(gh.writes()).toEqual([]);
 
         // A green run ends the item by itself.
         scene.gpu = [{ ...run(201, A, "success"), name: "GPU" }, ...scene.gpu];
-        clock = new Date("2026-10-02T12:48:00Z");
+        clock = new Date("2026-10-03T12:54:00Z");
         await poll(daemon);
         expect(daemon.state.ownerItems["paid-capacity:gpu"]).toMatchObject({ endedBy: "cleared" });
     });

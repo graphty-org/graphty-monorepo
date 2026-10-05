@@ -118,7 +118,6 @@ describe("normalizeConfig", () => {
     it("lets reverts happen only through actions.incidents", () => {
         expect(with_({ actions: { incidents: true } }).actions.incidents).toBe(true);
         expect(() => with_({ revert: true })).toThrow(/revert is forbidden.*incident issue/);
-        expect(() => with_({ grace: { revertMinutes: 0 } })).toThrow(/grace\.revertMinutes/);
     });
 
     it.each([
@@ -128,8 +127,10 @@ describe("normalizeConfig", () => {
         [{ mode: "yolo" }, /mode must be/],
         [{ pollSeconds: 30 }, /pollSeconds must be an integer from 60 to 3600/],
         [{ actions: { statuses: "yes" } }, /actions\.statuses must be true or false/],
-        [{ release: { commitPattern: "(", stallHours: 6 } }, /not a valid regular expression/],
-        [{ grace: { closeIssueDays: 2, closeIssueShownDays: 3 } }, /closeIssueShownDays/],
+        [{ release: { commitPattern: "(" } }, /not a valid regular expression/],
+        // A release stalls on its train run's outcome, never after a number of hours.
+        [{ release: { commitPattern: "x", stallHours: 6 } }, /release\.stallHours is not a setting/],
+        [{ grace: { closeIssueDays: 7 } }, /grace is not a setting/],
         [{ digest: { weekday: "funday" } }, /digest\.weekday/],
         [{ digest: { hourUtc: 24 } }, /from 0 to 23/],
         [{ workers: { slots: 9 } }, /workers\.slots must be an integer from 0 to 8/],
@@ -163,7 +164,7 @@ describe("normalizeConfig", () => {
             }
         };
         walk(real, []);
-        expect(paths.length).toBeGreaterThan(10);
+        expect(paths.length).toBeGreaterThanOrEqual(10);
         for (const path of paths) {
             for (const bad of [1e9, -1]) {
                 const copy = structuredClone(real);

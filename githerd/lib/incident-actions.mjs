@@ -1,7 +1,7 @@
 /**
  * The daemon's own incident actions on GitHub, write group `incidents` (design sections 3.1, 3.2,
  * 3.10 and 4.5): the red-head re-run and the parent re-test, the revert pull request, the
- * `intermittent` issue, the backoff re-run of a paid lane out of balance, the CI re-run that
+ * `intermittent` issue, the re-run of a paid lane out of balance, the CI re-run that
  * recreates a release's expired artifacts, and the "lane not progressing" owner item. Every write
  * goes through the client's write gate, so while the group is not `acting` each one is a `would-do`
  * ledger line and nothing is sent.
@@ -14,10 +14,11 @@
  * would-do is ledgered once (`spent.wouldDo`), and the real write goes out once the group acts.
  *
  * - a job is re-run at most once per (head commit, failure key), whoever asks and why [PF 9.7];
- * - a lane out of balance is re-run once per backoff slot (30 minutes, 2 hours, then every 6 hours
- *   after its owner item opened), and never while one of its runs is in progress or no runner picks
- *   its jobs up. A balance-rejected job fails about 5 seconds after it is created and is not
- *   charged [PF 9.6];
+ * - a lane out of balance is re-run once when the owner answers its owner item (the balance is
+ *   topped up), never on elapsed time, and never while one of its runs is in progress or no runner
+ *   picks its jobs up. A new commit needs no re-run: its push starts the lane by itself, and a
+ *   silent top-up shows as that run going green. A balance-rejected job fails about 5 seconds
+ *   after it is created and is not charged [PF 9.6];
  * - the creates (the revert pull request, the `intermittent` issue) look on GitHub first for the
  *   one an earlier attempt made, so they are never made twice.
  */
@@ -29,10 +30,6 @@ import { expiredArtifacts } from "./release.mjs";
 const GROUP = "incidents";
 
 const MINUTE = 60_000;
-const HOUR = 60 * MINUTE;
-/** The first two backoff slots of a paid lane, then one every `BACKOFF_EVERY` (design 3.2). */
-const BACKOFF_FIRST = [30 * MINUTE, 2 * HOUR];
-const BACKOFF_EVERY = 6 * HOUR;
 /** Labels of a new `intermittent` issue: the repository's type, priority and effort rule. */
 const INTERMITTENT_LABELS = ["intermittent", "bug", "priority:high", "effort:medium"];
 const CRITICAL = "priority:critical";
@@ -56,8 +53,8 @@ const REVERT = `mutation RevertPullRequest($id: ID!, $title: String!, $body: Str
  *   reverts?: Record<string, number>,
  *   intermittent?: Record<string, number>,
  *   wouldDo?: Record<string, string>,
- * }} Spent the persisted record of what was already done: re-runs by `<sha> <key>`, the last
- *   backoff slot used per paid-lane item, revert pull requests by the reverted number, the
+ * }} Spent the persisted record of what was already done: re-runs by `<sha> <key>`, the run
+ *   re-run per answered paid-lane item, revert pull requests by the reverted number, the
  *   `intermittent` issue per `<sha> <key>`, and when each would-do of a group that did not act was
  *   ledgered
  * @typedef {{
@@ -70,25 +67,12 @@ const REVERT = `mutation RevertPullRequest($id: ID!, $title: String!, $body: Str
  *   reconcile already saw the key red (the first one posts the merge hold and reads the steps;
  *   design 4.5 steps 1 to 3), and a log excerpt for the issue
  * @typedef {{
- *   lane: string, openedAt: number, run: {id: number, attempt: number},
+ *   lane: string, openedAt: number, retry: boolean, run: {id: number, attempt: number},
  *   running: boolean, notProgressing: boolean,
- * }} PaidLane a lane parked for paid capacity: when its owner item opened, its newest red run,
- *   whether any of its runs is in progress, and whether a job sits queued past its pickup bound
+ * }} PaidLane a lane parked for paid capacity: when its owner item opened, whether that item was
+ *   raised again after the owner answered it, its newest red run, whether any of its runs is in
+ *   progress, and whether a job sits queued past its pickup bound
  */
-
-/**
- * The backoff slot a paid lane's item is in: 0 for its first 30 minutes, 1 until 2 hours, then one
- * more every 6 hours. One re-run is allowed per slot.
- * @param {number} openedAt when the item opened (ms)
- * @param {number} now the time (ms)
- * @returns {number} the slot
- */
-export function backoffSlot(openedAt, now) {
-    const age = now - openedAt;
-    if (age < BACKOFF_FIRST[0]) return 0;
-    if (age < BACKOFF_FIRST[1]) return 1;
-    return 2 + Math.floor((age - BACKOFF_FIRST[1]) / BACKOFF_EVERY);
-}
 
 /**
  * The owner item for a lane no runner picks up (design 3.10): a job queued past the worst pickup
@@ -414,23 +398,23 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
     }
 
     /**
-     * The backoff re-run of a lane parked for paid capacity (design 3.2): the failed jobs of its
-     * newest red run, once per backoff slot. Nothing while a run of the lane is in progress (the
-     * balance came back, or someone re-ran it) or while no runner picks its jobs up (design 3.10).
-     * A missed slot is not made up.
+     * The re-run of a lane parked for paid capacity (design 3.2): the failed jobs of its newest red
+     * run, once per owner item raised again after the owner answered it (he topped the balance
+     * up). Nothing before he answers, whatever the time, nothing while a run of the lane is in
+     * progress (the balance came back, or someone re-ran it), and nothing while no runner picks its
+     * jobs up (design 3.10).
      * @param {PaidLane} item the parked lane
      * @returns {Promise<import("./github.mjs").WriteResult | null>} the write, or null when none is due
      */
     async function backoff(item) {
         const id = `${item.lane} ${new Date(item.openedAt).toISOString()}`;
-        const slot = backoffSlot(item.openedAt, now());
-        if (item.running || item.notProgressing || slot <= (backoffs[id] ?? 0)) return null;
+        if (!item.retry || item.running || item.notProgressing || backoffs[id] !== undefined) return null;
         const next = item.run.attempt + 1;
-        return once(`backoff ${id} ${slot}`, backoffs, id, slot, () =>
+        return once(`backoff ${id}`, backoffs, id, item.run.id, () =>
             github.write("POST", `${r}actions/runs/${item.run.id}/rerun-failed-jobs`, undefined, {
                 group: GROUP,
                 check: { path: `${r}actions/runs/${item.run.id}/attempts/${next}`, expect: { run_attempt: next } },
-                fields: { situation: "paid-capacity-backoff", lane: item.lane, slot },
+                fields: { situation: "paid-capacity-backoff", lane: item.lane },
             }),
         );
     }

@@ -4,8 +4,6 @@ import { describe, expect, it } from "vitest";
 import {
     compareVersions,
     expiredArtifacts,
-    PENDING_MS,
-    PROPAGATION_MS,
     parseDryRun,
     parseTags,
     releasePending,
@@ -15,8 +13,6 @@ import {
 
 const fixture = (name) => readFileSync(new URL(`fixtures/release/${name}`, import.meta.url), "utf8");
 
-const T0 = Date.parse("2026-10-03T12:00:00Z");
-const MIN = 60_000;
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
 const SHA_OLD = "0".repeat(40);
@@ -53,7 +49,6 @@ const truth = (o) =>
         registry: PUBLISHED,
         onMaster: ON_MASTER,
         releaseRunning: false,
-        now: T0,
         ...o,
     });
 
@@ -152,27 +147,22 @@ describe("releaseTruth", () => {
             { project: "graph-format", version: "0.2.0", sha: SHA_A },
             { project: "@graphty/remote-logger", version: "2.0.1", sha: SHA_A },
         ];
-        const ended = T0 - 3 * MIN;
 
         it("reads the staged version from the recorded log", () => {
             expect(staged).toEqual(new Set(["@graphty/graph-format@0.2.0"]));
         });
 
-        it("waits, never pages, inside the propagation window", () => {
-            expect(truth({ tags, registry, staged, releaseEndedAt: ended })).toEqual({
+        it("waits, never pages, until npm serves the version", () => {
+            expect(truth({ tags, registry, staged })).toEqual({
                 incidents: [],
-                propagating: [{ name: "@graphty/graph-format", version: "0.2.0", until: ended + PROPAGATION_MS }],
+                propagating: [{ name: "@graphty/graph-format", version: "0.2.0" }],
             });
+            const served = { ...registry, "@graphty/graph-format": ["1.2.9", "0.2.0"] };
+            expect(truth({ tags, registry: served, staged })).toEqual({ incidents: [], propagating: [] });
         });
 
-        it("is a release incident once the window has passed", () => {
-            const { incidents, propagating } = truth({
-                tags,
-                registry,
-                staged,
-                releaseEndedAt: ended,
-                now: ended + PROPAGATION_MS,
-            });
+        it("a version npm never staged is an incident at once", () => {
+            const { incidents, propagating } = truth({ tags, registry });
             expect(propagating).toEqual([]);
             expect(incidents.map((i) => i.reason)).toEqual(["tagged but not on npm: @graphty/graph-format@0.2.0"]);
         });
@@ -219,35 +209,18 @@ describe("releasePending", () => {
         { dir: "graph-format", version: "1.3.1" },
         { dir: "graphty", version: "0.9.0" },
     ];
-    const pending = (o) =>
-        releasePending({ sha: SHA_A, bumps, packages: PACKAGES, registry: PUBLISHED, greenAt: T0, now: T0, ...o });
+    const pending = (o) => releasePending({ bumps, packages: PACKAGES, registry: PUBLISHED, ...o });
 
-    it("a quiet day: nothing would publish, no incident", () => {
-        expect(pending({ bumps: [], now: T0 + 10 * PENDING_MS })).toEqual({ waiting: [], incident: null });
+    it("a quiet day: nothing would publish", () => {
+        expect(pending({ bumps: [] })).toEqual([]);
     });
 
     it("a bump npm already serves is released", () => {
-        expect(pending({ registry: { "@graphty/graph-format": ["1.3.1"] }, now: T0 + PENDING_MS })).toEqual({
-            waiting: [],
-            incident: null,
-        });
+        expect(pending({ registry: { "@graphty/graph-format": ["1.3.1"] } })).toEqual([]);
     });
 
-    it("waits under two hours, private projects ignored", () => {
-        expect(pending({ now: T0 + PENDING_MS - 1 })).toEqual({
-            waiting: [{ name: "@graphty/graph-format", version: "1.3.1" }],
-            incident: null,
-        });
-    });
-
-    it("opens a release incident two hours after the lanes went green", () => {
-        expect(pending({ now: T0 + PENDING_MS }).incident).toEqual({
-            key: `release-pending:${SHA_A}`,
-            sha: SHA_A,
-            reason: "green 2 h and still not released: @graphty/graph-format@1.3.1",
-            missing: [{ name: "@graphty/graph-format", version: "1.3.1" }],
-            unlanded: false,
-        });
+    it("waits until npm serves the bump, never paging on time, private projects ignored", () => {
+        expect(pending()).toEqual([{ name: "@graphty/graph-format", version: "1.3.1" }]);
     });
 });
 

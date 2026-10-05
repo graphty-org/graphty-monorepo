@@ -87,6 +87,24 @@ describe("updateLane", () => {
         expect(events.map((e) => e.event)).toEqual(["lane-green"]);
     });
 
+    it("keeps the newest run a schedule or a dispatch started after push runs bury it", () => {
+        const sched = { ...run(5, "s1", "cancelled"), event: "schedule", created_at: "2026-10-02T14:00:00Z" };
+        const push = { ...run(6, "s2", "success"), event: "push" };
+        const first = updateLane("release", undefined, [push, sched], CONFIG, T0).lane;
+        expect(first.scheduled).toEqual({
+            runId: 5,
+            createdAt: "2026-10-02T14:00:00Z",
+            conclusion: "cancelled",
+            outcome: "neutral",
+        });
+        expect(updateLane("release", first, [push], CONFIG, T0).lane.scheduled?.runId).toBe(5);
+        const dispatch = { ...run(8, "s3", null), event: "workflow_dispatch", created_at: "2026-10-02T16:00:00Z" };
+        expect(updateLane("release", first, [dispatch, push], CONFIG, T0).lane.scheduled).toMatchObject({
+            runId: 8,
+            outcome: "running",
+        });
+    });
+
     it("picks the newest completed run, not the newest run", () => {
         const { lane } = polls("ci", [[run(12, "c", null), run(11, "b", "success"), run(10, "a", "failure")]]);
         expect(lane).toMatchObject({ runId: 11, sha: "b", verdict: "green" });
@@ -313,7 +331,16 @@ describe("releaseState", () => {
         });
     });
 
-    it("is eligible once a newer commit is green, and stalled after stallHours", () => {
+    const train = (conclusion, createdAt = "2026-10-02T14:00:00Z") => ({
+        release: {
+            verdict: "green",
+            shas: {},
+            inFlight: {},
+            scheduled: { runId: 7, createdAt, conclusion, outcome: conclusion === null ? "running" : conclusion },
+        },
+    });
+
+    it("is eligible once a newer commit is green, and never stalls on elapsed time alone", () => {
         const lanes = lanesOf({ c2: "green" }, { c2: "green" });
         const first = releaseState(saved, lanes, CONFIG, commits, T0);
         expect(first).toEqual({
@@ -323,32 +350,44 @@ describe("releaseState", () => {
             stalled: false,
             stuckOnly: false,
         });
-        const later = releaseState(first, lanes, CONFIG, commits, T0 + CONFIG.release.stallHours * 60 * MIN + 1);
-        expect(later).toMatchObject({ releaseEligibleSince: first.releaseEligibleSince, stalled: true });
-        // A new release commit restarts the clock.
+        const later = releaseState(first, lanes, CONFIG, commits, T0 + 30 * 24 * 60 * MIN);
+        expect(later).toMatchObject({ releaseEligibleSince: first.releaseEligibleSince, stalled: false });
+        // A new release commit ends eligibility.
         const released = [commit("r2", "c3", "chore(release): publish [skip ci]"), ...commits];
-        expect(
-            releaseState(first, lanes, CONFIG, released, T0 + (CONFIG.release.stallHours + 1) * 60 * MIN),
-        ).toMatchObject({
+        expect(releaseState(first, lanes, CONFIG, released, T0)).toMatchObject({
             lastRelease: { sha: "r2" },
             releaseEligibleSince: null,
             stalled: false,
         });
     });
 
-    it("counts a commit held only by a stuck lane run as eligible, and stalls on it", () => {
-        const lanes = lanesOf({ c2: "green" }, { c2: "running" });
-        lanes.gpu.inFlight = { 99: { sha: "c2", firstSeenAt: new Date(T0 - 241 * MIN).toISOString() } };
-        const first = releaseState(saved, lanes, CONFIG, commits, T0);
-        expect(first).toMatchObject({
-            stuckOnly: true,
-            releaseEligibleSince: "2026-10-02T15:00:00.000Z",
+    it("stalls when the release train's run since the last release ended without starting the release", () => {
+        const lanes = lanesOf({ c2: "green" }, { c2: "green" });
+        const at = (/** @type {any} */ l) => releaseState(saved, { ...lanes, ...l }, CONFIG, commits, T0).stalled;
+        expect(at(train("neutral"))).toBe(true);
+        // Running or green: the train is doing its job; a red one is a failed release instead.
+        expect(at(train(null))).toBe(false);
+        expect(at(train("green"))).toBe(false);
+        const red = train("red");
+        red.release.verdict = "red";
+        expect(releaseState(saved, { ...lanes, ...red }, CONFIG, commits, T0)).toMatchObject({
+            failed: true,
             stalled: false,
         });
-        expect(
-            releaseState(first, lanes, CONFIG, commits, T0 + (CONFIG.release.stallHours + 1) * 60 * MIN),
-        ).toMatchObject({
+        // A run from before the last release says nothing about this one.
+        expect(at(train("neutral", "2026-10-02T09:00:00Z"))).toBe(false);
+        // Not eligible: nothing to stall.
+        expect(releaseState(saved, { ...lanesOf({}, {}), ...train("neutral") }, CONFIG, commits, T0).stalled).toBe(
+            false,
+        );
+    });
+
+    it("counts a commit held only by a stuck lane run as eligible, and stalls on it", () => {
+        const lanes = { ...lanesOf({ c2: "green" }, { c2: "running" }), ...train("neutral") };
+        lanes.gpu.inFlight = { 99: { sha: "c2", firstSeenAt: new Date(T0 - 241 * MIN).toISOString() } };
+        expect(releaseState(saved, lanes, CONFIG, commits, T0)).toMatchObject({
             stuckOnly: true,
+            releaseEligibleSince: "2026-10-02T15:00:00.000Z",
             stalled: true,
         });
         // Not yet stuck: nothing is eligible.
@@ -356,6 +395,7 @@ describe("releaseState", () => {
         expect(releaseState(saved, lanes, CONFIG, commits, T0)).toMatchObject({
             stuckOnly: false,
             releaseEligibleSince: null,
+            stalled: false,
         });
     });
 

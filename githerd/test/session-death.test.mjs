@@ -220,7 +220,7 @@ describe("a worker killed mid-push", () => {
         expect(job.state).toBe("waiting");
         expect(job.holder).toBeNull();
         expect(job.pr).toBe(12);
-        expect(job.deaths).toEqual([{ at: t0.toISOString(), capture: "last screen" }]);
+        expect(job.deaths).toEqual([{ at: t0.toISOString(), capture: "last screen", attempt: 0 }]);
         const news = job.news.at(-1).text;
         expect(news).toContain(`PR #12 (open) exists for githerd/mid-push, remote head ${"a".repeat(40)}`);
         expect(news).toContain(`your push of ${head} to githerd/mid-push is still running`);
@@ -322,18 +322,19 @@ describe("recovery", () => {
         expect(job.pr).toBe(7);
     });
 
-    it("starts fresh after a second death within 30 minutes", async () => {
+    it("starts fresh after a second death within the same attempt, however far apart", async () => {
         const { job } = workingJob("twice");
         expect((await recover(job)).action).toBe("resume");
-        const r = await recover(job, { now: () => new Date(t0.getTime() + 10 * 60_000) });
+        const r = await recover(job, { now: () => new Date(t0.getTime() + 30 * 24 * 3_600_000) });
         expect(r).toMatchObject({ action: "fresh", session: null });
     });
 
-    it("resumes again when the deaths are more than 30 minutes apart", async () => {
+    it("resumes again when an attempt ended between the deaths, however close", async () => {
         const { job } = workingJob("apart");
         await recover(job);
+        job.attempts.push({ outcome: "failed" });
         job.holder = { session: "s-apart-2" };
-        const r = await recover(job, { now: () => new Date(t0.getTime() + 31 * 60_000) });
+        const r = await recover(job, { now: () => new Date(t0.getTime() + 60_000) });
         expect(r).toMatchObject({ action: "resume", session: "s-apart-2" });
     });
 

@@ -21,7 +21,8 @@
  * - no doorbell, Escape or recycle while a client views the window or the box holds the owner's
  *   unsent text; after 30 minutes of that, or at once when the session is due for recycling, the
  *   job continues in a new window and the old one is the owner's;
- * - a steered job is left alone; steering ends after 2 hours idle;
+ * - a steered job is left alone; steering ends once the owner has left the window (no client
+ *   views it and none of his text is in the box) and the session is idle;
  * - an idle session that compacted 3 times or lived 12 hours is recycled fresh.
  */
 
@@ -48,8 +49,6 @@ const RING_MS = 15 * MINUTE;
 const RINGS = 2;
 /** The owner's window or unsent text blocks the doorbell this long before the job moves on. */
 const BLOCKED_MS = 30 * MINUTE;
-/** A steered session idle this long is no longer steered (design 7.6). */
-const STEERED_IDLE_MS = 2 * HOUR;
 /** A session lives at most this long, and compacts at most this often, before it is recycled. */
 const LIFETIME_MS = 12 * HOUR;
 const COMPACTIONS = 3;
@@ -212,9 +211,10 @@ export function decide(job, look, now) {
     const { screen, registry } = look;
     const status = registry?.status;
     if (screen.kind === "usage-limit") return { action: "usage-limit" };
+    // Steering ends on the owner leaving: he detached or switched away, and the turn he asked for
+    // is over. Closing the window ends the session, which is the dead path above.
     if (job.steeredAt) {
-        const quiet = Math.min(since(w.progressAt), since(job.steeredAt));
-        return status === "idle" && quiet >= STEERED_IDLE_MS ? { action: "steering-ended" } : { action: "none" };
+        return status === "idle" && !ownerAt(look) ? { action: "steering-ended" } : { action: "none" };
     }
     const dialog = ["permission", "plan", "picker"].includes(screen.kind) || status === "waiting";
     if (dialog) return job.state === "working" ? { action: "park" } : { action: "none" };

@@ -7,7 +7,7 @@
  * worktree. GitHub is read again for the job's branch and its pull requests, and what it shows goes
  * into the job's news, so the next session starts from what is really there. Then the death is
  * counted: the job continues by resume when the self-test verified resume on the running Claude
- * Code version (platform facts 10.2), fresh after a second death within 30 minutes or when resume is
+ * Code version (platform facts 10.2), fresh after a second death within the same attempt or when resume is
  * unverified, and the third death faults it.
  */
 

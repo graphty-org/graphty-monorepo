@@ -20,7 +20,7 @@ const MINUTE = 60 * 1000;
 /**
  * @typedef {{session?: string, daemon?: boolean}} Caller
  * @typedef {{target: string, holder: string, holderName: string | null, purpose: string,
- *   claimedAt: string, expiresAt: string, renewedAt: string | null, fixPr: number | null}} Claim
+ *   claimedAt: string, renewedAt: string | null, fixPr: number | null}} Claim
  */
 
 /**
@@ -65,12 +65,10 @@ export function holderAlive(state, holder, now, startedAt) {
  * @param {Claim} claim the claim
  * @param {Date} now the current time
  * @param {Date} startedAt when this daemon started
- * @returns {"expired" | "holder-gone" | null} the reason
+ * @returns {"holder-gone" | null} the reason
  */
 function endReason(state, claim, now, startedAt) {
-    if (Date.parse(claim.expiresAt) <= now.getTime()) return "expired";
-    if (!holderAlive(state, claim.holder, now, startedAt)) return "holder-gone";
-    return null;
+    return holderAlive(state, claim.holder, now, startedAt) ? null : "holder-gone";
 }
 
 /**
@@ -90,7 +88,7 @@ export function heartbeat(state, { session, cwd, branch }, now) {
 }
 
 /**
- * Ends every claim whose time ran out or whose holder is gone, and forgets sessions that are gone.
+ * Ends every claim whose holder is gone, and forgets sessions that are gone.
  * @param {any} state the daemon state
  * @param {Date} now the current time
  * @param {Date} startedAt when this daemon started
@@ -234,8 +232,6 @@ const WORKING_MS = { incident: 2 * HOUR, other: 4 * HOUR };
 const START_MS = { worktree: 20 * MINUTE, registry: 60 * 1000, "first-call": 3 * MINUTE };
 /** Default wait bounds when the caller has no measured one: checks not started, a quiet local task. */
 const WAIT_MS = { checks: 10 * MINUTE, local: 20 * MINUTE, other: 20 * MINUTE };
-/** A second session death within this time starts the next session fresh instead of resuming. */
-const DEATH_FRESH_MS = 30 * MINUTE;
 /** Deaths and counted faults that end a job's chances. */
 const DEATHS_TO_FAULT = 3;
 const FAULTS_TO_FAIL = 3;
@@ -258,8 +254,11 @@ const VERIFY_POLLS = 2;
  * @property {string[]} pausedBy the pauses holding the clock, shown on the board
  * @property {any} holder the session holding it, or null
  * @property {any[]} attempts ended attempts
- * @property {{at: string, capture: string | null}[]} deaths session deaths
+ * @property {{at: string, capture: string | null, attempt?: number}[]} deaths session deaths, each
+ *   with the attempt it ended (the count of attempts ended before it)
  * @property {number} faults counted faults
+ * @property {string | null} [faultSha] the commit a `faulted` job faulted at; once its target
+ *   commit moves past it, the fault has cleared and the job is queued again (start.mjs)
  * @property {number} verifyFailures claimed dones that failed to verify in a row
  * @property {number} verifyPolls polls in `verifying` with no answer
  * @property {any} claim the claim of 8.2, or null
@@ -572,7 +571,8 @@ function urgent(job) {
 
 /**
  * Records that githerd could not start or keep a job (design 5.3): `faulted` until the fault
- * clears; the third counted fault fails it. Faults during a platform fault or above the load limit
+ * clears, which is when the commit it would start from moves (`retryFaulted` in start.mjs); the
+ * third counted fault fails it. Faults during a platform fault or above the load limit
  * are not counted.
  * @param {Job} job the job
  * @param {string} reason what failed
@@ -591,7 +591,7 @@ export function fault(job, reason, now, { counted = true } = {}) {
 /**
  * Records a session death (design 3.5). A death is not an attempt: the job keeps its state (a
  * waiting job stays waiting with no session) and continues by resume, or fresh after a second
- * death within 30 minutes; the third death faults it.
+ * death within the same attempt; the third death faults it.
  * @param {Job} job the job
  * @param {{capture?: string | null}} death the pane capture, if any
  * @param {Date} now the current time
@@ -599,10 +599,11 @@ export function fault(job, reason, now, { counted = true } = {}) {
  */
 export function death(job, { capture = null }, now) {
     const previous = job.deaths.at(-1);
-    job.deaths.push({ at: now.toISOString(), capture });
+    const attempt = job.attempts.length;
+    job.deaths.push({ at: now.toISOString(), capture, attempt });
     job.holder = null;
     if (job.deaths.length >= DEATHS_TO_FAULT) return fault(job, `${job.deaths.length} session deaths`, now);
-    job.fresh = Boolean(previous && now.getTime() - Date.parse(previous.at) < DEATH_FRESH_MS);
+    job.fresh = previous?.attempt === attempt;
     return { action: job.fresh ? "fresh" : "resume", job: job.id };
 }
 

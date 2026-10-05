@@ -298,7 +298,9 @@ const DAYS_KEPT = 60;
  * @typedef {ItemInput & {options: ItemOption[], target: string | null, blocks: "workers" | "release" | null,
  *   raisedAt: string, updatedAt: string, endedAt?: string, endedBy?: string, answer?: string,
  *   deferredAt?: string, paged?: {text: string, at: string, via: "page" | "digest" | "deferred"},
- *   github?: {text: string, performed: boolean, at: string, labeled?: boolean, unlabeled?: boolean}}} OwnerItem
+ *   github?: {text: string, performed: boolean, at: string, labeled?: boolean, unlabeled?: boolean},
+ *   retry?: boolean}} OwnerItem `retry` marks a parked lane's item raised again after the owner
+ *   answered it: its lane is re-run once (design 3.2)
  */
 
 /**

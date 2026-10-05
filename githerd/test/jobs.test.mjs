@@ -382,10 +382,14 @@ describe("budgets", () => {
         expect(tick(job, at(540))).toMatchObject({ action: "requeue" });
     });
 
-    it("a second death after 30 minutes resumes", () => {
+    it("a second death after an attempt ended resumes, and within one attempt starts fresh, whatever the time", () => {
         const job = jobIn(["starting", "working"]);
         death(job, {}, at(1));
-        expect(death(job, {}, at(40))).toMatchObject({ action: "resume" });
+        job.attempts.push({ outcome: "failed" });
+        expect(death(job, {}, at(2))).toMatchObject({ action: "resume" });
+        const other = jobIn(["starting", "working"]);
+        death(other, {}, at(1));
+        expect(death(other, {}, at(10_000))).toMatchObject({ action: "fresh" });
     });
 });
 

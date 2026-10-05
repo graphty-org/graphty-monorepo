@@ -29,7 +29,6 @@ import {
     recordStart,
     releaseLock,
     replayLedger,
-    RUN_HOLD_MS,
     saveState,
     spoolEvent,
     STATE_SCHEMA,
@@ -100,11 +99,7 @@ describe("state", () => {
         expect(r.state).toEqual({ schema: STATE_SCHEMA });
         expect(r.source).toBe("empty");
         expect(r.errors).toHaveLength(2);
-        expect(r.recovery).toEqual({
-            emptyStart: true,
-            at: NOW.toISOString(),
-            holdRunsUntil: new Date(NOW.getTime() + RUN_HOLD_MS).toISOString(),
-        });
+        expect(r.recovery).toEqual({ emptyStart: true, at: NOW.toISOString() });
         expect(readdirSync(dir).sort()).toEqual([
             "state.json.bak.corrupt-2026-10-02T15-00-00.000Z",
             "state.json.corrupt-2026-10-02T15-00-00.000Z",
@@ -239,11 +234,11 @@ describe("ledger replay", () => {
         writeFileSync(join(dir, "state.json"), "{");
         await appendLedger(dir, record("jobs", "j1", { state: "waiting" }), { now });
         const r = await loadState(dir, { now });
-        // Partial (no incidents, proposals or rate data), so new runs are held as after an empty start.
+        // Partial (no incidents, proposals or rate data): a recovery, as after an empty start.
         expect(r).toMatchObject({
             source: "ledger",
             state: { jobs: { j1: { state: "waiting" } } },
-            recovery: { emptyStart: true, holdRunsUntil: new Date(NOW.getTime() + RUN_HOLD_MS).toISOString() },
+            recovery: { emptyStart: true, at: NOW.toISOString() },
         });
         expect(r.kept).toEqual([join(dir, "state.json.corrupt-2026-10-02T15-00-00.000Z")]);
     });

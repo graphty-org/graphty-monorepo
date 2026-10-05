@@ -7,12 +7,6 @@
  * Times are epoch milliseconds.
  */
 
-/** How long a version npm answered 409 for may stay missing before it is an incident (design 3.1). */
-export const PROPAGATION_MS = 10 * 60_000;
-
-/** How long a releasable green commit may wait for npm before it is an incident (design 3.10). */
-export const PENDING_MS = 2 * 60 * 60_000;
-
 /**
  * @typedef {{project: string, dir: string, name: string}} Package one publishable workspace
  *   package: its nx project name (the tag prefix), its directory (the dry-run's manifest path)
@@ -22,7 +16,7 @@ export const PENDING_MS = 2 * 60 * 60_000;
  *   when npm answered 404
  * @typedef {{key: string, sha: string, reason: string,
  *   missing: {name: string, version: string}[], unlanded: boolean}} ReleaseIncident
- * @typedef {{name: string, version: string, until: number}} Propagating
+ * @typedef {{name: string, version: string}} Propagating
  */
 
 /**
@@ -83,24 +77,14 @@ export function stagedVersions(log) {
  *
  * Nothing is judged while a release job runs (it tags, publishes and lands in that order, so every
  * half-state is normal mid-job). A version npm answered 409 for is waited on, never paged, until
- * `PROPAGATION_MS` after the release run ended.
+ * npm serves it: the registry lookup that shows it ends the wait, never elapsed time.
  * @param {{packages: Package[], tags: Tag[], registry: Registry, onMaster: (sha: string) => boolean,
- *   releaseRunning: boolean, staged?: Set<string>, releaseEndedAt?: number | null, now: number}} input
- *   `onMaster` says whether a commit is on master's history; `staged` and `releaseEndedAt` come from
- *   the newest release run
+ *   releaseRunning: boolean, staged?: Set<string>}} input `onMaster` says whether a commit is on
+ *   master's history; `staged` comes from the newest release run's log
  * @returns {{incidents: ReleaseIncident[], propagating: Propagating[]}} incidents to open, and
  *   versions to look up again once a minute
  */
-export function releaseTruth({
-    packages,
-    tags,
-    registry,
-    onMaster,
-    releaseRunning,
-    staged = new Set(),
-    releaseEndedAt = null,
-    now,
-}) {
+export function releaseTruth({ packages, tags, registry, onMaster, releaseRunning, staged = new Set() }) {
     /** @type {Map<string, ReleaseIncident>} */
     const bySha = new Map();
     /** @type {Propagating[]} */
@@ -114,9 +98,8 @@ export function releaseTruth({
         const published = registry[pkg.name]?.includes(newest.version) ?? false;
         const landed = onMaster(newest.sha);
         if (published && landed) continue;
-        const until = (releaseEndedAt ?? 0) + PROPAGATION_MS;
-        if (!published && landed && staged.has(`${pkg.name}@${newest.version}`) && now < until) {
-            propagating.push({ name: pkg.name, version: newest.version, until });
+        if (!published && landed && staged.has(`${pkg.name}@${newest.version}`)) {
+            propagating.push({ name: pkg.name, version: newest.version });
             continue;
         }
         const incident = bySha.get(newest.sha) ?? {
@@ -171,32 +154,20 @@ export function parseDryRun(text) {
 
 /**
  * Release pending (design 4.3): the green commit's dry-run says what would publish. A bump npm
- * already serves is released; one it does not, `PENDING_MS` after the commit's lanes went green,
- * is a release incident. Bumps of private projects (absent from `packages`) never publish.
- * @param {{sha: string, bumps: {dir: string, version: string}[], packages: Package[],
- *   registry: Registry, greenAt: number, now: number}} input the green commit, its dry-run bumps,
- *   and when its last gating lane went green
- * @returns {{waiting: {name: string, version: string}[], incident: ReleaseIncident | null}}
- *   versions not on npm yet, and the incident once they have waited too long
+ * already serves is released; one it does not is waiting, until npm serves it. Waiting is never
+ * an incident by itself: a release that does not happen shows as a failed or stalled release
+ * train (master.mjs `releaseState`). Bumps of private projects (absent from `packages`) never
+ * publish.
+ * @param {{bumps: {dir: string, version: string}[], packages: Package[], registry: Registry}} input
+ *   the green commit's dry-run bumps, the packages and npm's answers
+ * @returns {{name: string, version: string}[]} the versions not on npm yet
  */
-export function releasePending({ sha, bumps, packages, registry, greenAt, now }) {
+export function releasePending({ bumps, packages, registry }) {
     const byDir = new Map(packages.map((p) => [p.dir, p]));
-    const waiting = bumps
+    return bumps
         .map((b) => ({ pkg: byDir.get(b.dir), version: b.version }))
         .filter((b) => b.pkg && !registry[b.pkg.name]?.includes(b.version))
         .map((b) => ({ name: /** @type {Package} */ (b.pkg).name, version: b.version }));
-    if (waiting.length === 0 || now - greenAt < PENDING_MS) return { waiting, incident: null };
-    const list = waiting.map((w) => `${w.name}@${w.version}`).join(", ");
-    return {
-        waiting,
-        incident: {
-            key: `release-pending:${sha}`,
-            sha,
-            reason: `green ${Math.floor((now - greenAt) / 3_600_000)} h and still not released: ${list}`,
-            missing: waiting,
-            unlanded: false,
-        },
-    };
 }
 
 /**

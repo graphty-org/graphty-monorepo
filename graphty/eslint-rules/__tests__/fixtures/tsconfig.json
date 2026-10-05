@@ -1,4 +1,15 @@
 {
     "extends": "../../../tsconfig.json",
+    "compilerOptions": {
+        // The element's published declarations, not its source. graphty's own tsconfig maps the
+        // element to source, which puts 180,000 lines of element, algorithms and layout
+        // TypeScript into the program, all of it type-checked to infer return types: the first
+        // case paid 7.7 s for it locally and 36 s on a CI runner. The .d.ts files carry the same
+        // public types and need no inference.
+        "paths": {
+            "@graphty/graphty-element": ["../../../../graphty-element/dist/index.d.ts"],
+            "@graphty/graphty-element/*": ["../../../../graphty-element/dist/*.d.ts"]
+        }
+    },
     "include": ["*.ts", "*.tsx"]
 }

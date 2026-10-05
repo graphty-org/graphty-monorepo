@@ -695,10 +695,14 @@ export function definePalette(definition: PaletteDefinition, options?: RegisterO
 export class Edge {
     constructor(graph: Graph | GraphContext, srcNodeId: NodeIdType, dstNodeId: NodeIdType, edgeId: number, paint: EdgePaint, data: AdHocData, opts?: EdgeOpts);
     applySessionPaint(paint: EdgePaint): void;
+    arrowCap: ArrowCap | null;
     // (undocumented)
     arrowHeadText: RichTextLabel | null;
-    arrowMesh: ArrowCap | null;
-    arrowTailMesh: ArrowCap | null;
+    // @deprecated
+    arrowMesh: AbstractMesh | null;
+    arrowTailCap: ArrowCap | null;
+    // @deprecated
+    arrowTailMesh: AbstractMesh | null;
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     get data(): AdHocData;
@@ -749,6 +753,8 @@ export class Edge {
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     update(): void;
+    // @deprecated
+    static updateRays(_g: Graph | GraphContext): void;
     updateStyle(): void;
 }
 
@@ -1592,6 +1598,10 @@ export class Graph implements GraphContext {
     }): Promise<{
         loadId: number;
     }>;
+    // @deprecated
+    needRays: boolean;
+    // @deprecated
+    needsRayUpdate(): boolean;
     get nodeLabelCounts(): NodeLabelCounts;
     on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
@@ -1755,6 +1765,8 @@ export interface GraphContext {
     getXRSessionManager?(): XRSessionManager | undefined;
     is2D(): boolean;
     isRunning(): boolean;
+    // @deprecated
+    needsRayUpdate(): boolean;
     readonly onNodeLabelCounts?: Observable<NodeLabelCounts>;
     setRunning(running: boolean): void;
 }

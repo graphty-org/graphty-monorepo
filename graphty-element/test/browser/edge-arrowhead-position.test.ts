@@ -148,12 +148,12 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(0, 0, 0);
         const dstPos = new Vector3(3, 0, 0);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         const distance = Vector3.Distance(expectedPos, actualPos);
         assert(
@@ -175,12 +175,12 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(0, 0, 0);
         const dstPos = new Vector3(0, 3, 0);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         const distance = Vector3.Distance(expectedPos, actualPos);
         assert(
@@ -202,12 +202,12 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(0, 0, 0);
         const dstPos = new Vector3(3, 3, 0);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         const distance = Vector3.Distance(expectedPos, actualPos);
         assert(
@@ -229,12 +229,12 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(3, 0, 0);
         const dstPos = new Vector3(0, 0, 0);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         const distance = Vector3.Distance(expectedPos, actualPos);
         assert(
@@ -256,12 +256,12 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(0, 3, 0);
         const dstPos = new Vector3(3, 0, 0);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         const distance = Vector3.Distance(expectedPos, actualPos);
         assert(
@@ -297,7 +297,7 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
             const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
             const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
             assert(edge, `Edge ${edgeId} should exist`);
-            assert(edge.arrowMesh, `Edge ${edgeId} should have arrow mesh`);
+            assert(edge.arrowCap, `Edge ${edgeId} should have arrow mesh`);
 
             const srcNode = pentagonNodes.find((n) => n.id === edgeDef.source);
             const dstNode = pentagonNodes.find((n) => n.id === edgeDef.target);
@@ -307,7 +307,7 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
             const srcPos = new Vector3(srcNode.x, srcNode.y, 0);
             const dstPos = new Vector3(dstNode.x, dstNode.y, 0);
             const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-            const actualPos = edge.arrowMesh.position;
+            const actualPos = edge.arrowCap.position;
 
             const distance = Vector3.Distance(expectedPos, actualPos);
             assert(
@@ -341,11 +341,11 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
             const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
             const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
             assert(edge, `Edge ${edgeId} should exist`);
-            assert(edge.arrowMesh, `Edge ${edgeId} should have arrow mesh`);
+            assert(edge.arrowCap, `Edge ${edgeId} should have arrow mesh`);
 
             assert(
-                Math.abs(edge.arrowMesh.position.z) < zTolerance,
-                `Edge ${edgeId}: Arrow Z position should be 0 in 2D mode, got ${edge.arrowMesh.position.z.toFixed(6)}`,
+                Math.abs(edge.arrowCap.position.z) < zTolerance,
+                `Edge ${edgeId}: Arrow Z position should be 0 in 2D mode, got ${edge.arrowCap.position.z.toFixed(6)}`,
             );
         }
     });
@@ -420,12 +420,12 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(0, 0, 0);
         const dstPos = new Vector3(3, 0, 0);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         const distance = Vector3.Distance(expectedPos, actualPos);
         assert(
@@ -447,12 +447,12 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(0, 0, 0);
         const dstPos = new Vector3(0, 3, 0);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         const distance = Vector3.Distance(expectedPos, actualPos);
         assert(
@@ -474,12 +474,12 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(0, 0, 0);
         const dstPos = new Vector3(0, 0, 3);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         const distance = Vector3.Distance(expectedPos, actualPos);
         assert(
@@ -501,12 +501,12 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(0, 0, 0);
         const dstPos = new Vector3(2, 2, 2);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         const distance = Vector3.Distance(expectedPos, actualPos);
         assert(
@@ -543,7 +543,7 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
             const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
             const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
             assert(edge, `Edge ${edgeId} should exist`);
-            assert(edge.arrowMesh, `Edge ${edgeId} should have arrow mesh`);
+            assert(edge.arrowCap, `Edge ${edgeId} should have arrow mesh`);
 
             const srcNode = tetraNodes.find((n) => n.id === edgeDef.source);
             const dstNode = tetraNodes.find((n) => n.id === edgeDef.target);
@@ -553,7 +553,7 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
             const srcPos = new Vector3(srcNode.x, srcNode.y, srcNode.z);
             const dstPos = new Vector3(dstNode.x, dstNode.y, dstNode.z);
             const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-            const actualPos = edge.arrowMesh.position;
+            const actualPos = edge.arrowCap.position;
 
             const distance = Vector3.Distance(expectedPos, actualPos);
             assert(
@@ -589,10 +589,10 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
             const edgeId = `${tc.src} -> ${tc.dst}`;
             const edge = edgeBetween(graph as Graph, tc.src, tc.dst);
             assert(edge, `Edge ${edgeId} should exist`);
-            assert(edge.arrowMesh, `Edge ${edgeId} should have arrow mesh`);
+            assert(edge.arrowCap, `Edge ${edgeId} should have arrow mesh`);
 
             const expectedPos = calculateExpectedArrowPosition(tc.srcPos, tc.dstPos);
-            const actualPos = edge.arrowMesh.position;
+            const actualPos = edge.arrowCap.position;
 
             const distance = Vector3.Distance(expectedPos, actualPos);
             assert(
@@ -643,7 +643,7 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
             const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
             const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
             assert(edge, `Edge ${edgeId} should exist`);
-            assert(edge.arrowMesh, `Edge ${edgeId} should have arrow mesh`);
+            assert(edge.arrowCap, `Edge ${edgeId} should have arrow mesh`);
 
             const srcNode = cubeNodes.find((n) => n.id === edgeDef.source);
             const dstNode = cubeNodes.find((n) => n.id === edgeDef.target);
@@ -653,7 +653,7 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
             const srcPos = new Vector3(srcNode.x, srcNode.y, srcNode.z);
             const dstPos = new Vector3(dstNode.x, dstNode.y, dstNode.z);
             const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-            const actualPos = edge.arrowMesh.position;
+            const actualPos = edge.arrowCap.position;
 
             const distance = Vector3.Distance(expectedPos, actualPos);
             assert(
@@ -735,12 +735,12 @@ describe("Arrow Position Edge Cases", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(0, 0, 0);
         const dstPos = new Vector3(shortDistance, 0, 0);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         const distance = Vector3.Distance(expectedPos, actualPos);
         assert(
@@ -764,12 +764,12 @@ describe("Arrow Position Edge Cases", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(0, 0, 0);
         const dstPos = new Vector3(longDistance, 0, 0);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         const distance = Vector3.Distance(expectedPos, actualPos);
         assert(
@@ -792,12 +792,12 @@ describe("Arrow Position Edge Cases", () => {
 
         const edge = edgeBetween(graph as Graph, "A", "B");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow mesh should exist");
+        assert(edge.arrowCap, "Arrow mesh should exist");
 
         const srcPos = new Vector3(0, 0, 0);
         const dstPos = new Vector3(0, 0, 3);
         const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowMesh.position;
+        const actualPos = edge.arrowCap.position;
 
         // For pure Z-axis edges, arrow should be at Z = 3 - NODE_RADIUS
         assert(

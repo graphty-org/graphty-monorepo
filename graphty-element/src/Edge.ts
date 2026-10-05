@@ -226,10 +226,22 @@ export class Edge {
      * enable or dispose. An `ArrowCap` -- a slot in `ArrowCapBatch` -- is what an edge holds instead,
      * and every question the renderer asks of a cap is answered off its batch.
      */
-    arrowMesh: ArrowCap | null = null;
+    arrowCap: ArrowCap | null = null;
 
     /** This edge's tail cap, the same way. */
-    arrowTailMesh: ArrowCap | null = null;
+    arrowTailCap: ArrowCap | null = null;
+
+    /**
+     * Never set by the element: an arrowhead is a slot in a shared batch now, not a mesh.
+     * @deprecated Use {@link Edge.arrowCap}. Will be removed in graphty-element 4.0.
+     */
+    arrowMesh: AbstractMesh | null = null;
+
+    /**
+     * Never set by the element: an arrow tail is a slot in a shared batch now, not a mesh.
+     * @deprecated Use {@link Edge.arrowTailCap}. Will be removed in graphty-element 4.0.
+     */
+    arrowTailMesh: AbstractMesh | null = null;
 
     /**
      * The batch this edge's line is drawn from, or null for a patterned line, whose elements are
@@ -465,8 +477,8 @@ export class Edge {
      */
     get drawnCaps(): { end: "arrowHead" | "arrowTail"; name: string; span: number; visibility: number }[] {
         const caps: { end: "arrowHead" | "arrowTail"; cap: ArrowCap | null }[] = [
-            { end: "arrowHead", cap: this.arrowMesh },
-            { end: "arrowTail", cap: this.arrowTailMesh },
+            { end: "arrowHead", cap: this.arrowCap },
+            { end: "arrowTail", cap: this.arrowTailCap },
         ];
 
         return caps.flatMap(({ end, cap }) =>
@@ -547,7 +559,7 @@ export class Edge {
         this.drawnStyle = style;
 
         // create arrow mesh if needed
-        this.arrowMesh = EdgeMesh.createArrowHead(
+        this.arrowCap = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
             paint.meshKey,
             {
@@ -561,7 +573,7 @@ export class Edge {
         );
 
         // create arrow tail mesh if needed
-        this.arrowTailMesh = EdgeMesh.createArrowHead(
+        this.arrowTailCap = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
             `${paint.meshKey}-tail`,
             {
@@ -672,18 +684,18 @@ export class Edge {
         }
 
         // Update arrow head caption position if exists
-        if (this.arrowHeadText && this.arrowMesh) {
+        if (this.arrowHeadText && this.arrowCap) {
             this.arrowHeadText.attachTo(
-                this.arrowMesh.position,
+                this.arrowCap.position,
                 this._arrowHeadTextAttachPosition,
                 this._arrowHeadTextOffset,
             );
         }
 
         // Update arrow tail caption position if exists
-        if (this.arrowTailText && this.arrowTailMesh) {
+        if (this.arrowTailText && this.arrowTailCap) {
             this.arrowTailText.attachTo(
-                this.arrowTailMesh.position,
+                this.arrowTailCap.position,
                 this._arrowTailTextAttachPosition,
                 this._arrowTailTextOffset,
             );
@@ -794,11 +806,11 @@ export class Edge {
         // owns the material: disposing an instance's material would dispose the material every
         // other cap in the batch draws with. The batch disposes it with its last instance
         // (FilledArrowRenderer.instanceOf).
-        if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
-            this.arrowMesh.dispose();
+        if (this.arrowCap && !this.arrowCap.isDisposed()) {
+            this.arrowCap.dispose();
         }
 
-        this.arrowMesh = EdgeMesh.createArrowHead(
+        this.arrowCap = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
             meshKey,
             {
@@ -812,11 +824,11 @@ export class Edge {
         );
 
         // recreate arrow tail mesh if needed
-        if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
-            this.arrowTailMesh.dispose();
+        if (this.arrowTailCap && !this.arrowTailCap.isDisposed()) {
+            this.arrowTailCap.dispose();
         }
 
-        this.arrowTailMesh = EdgeMesh.createArrowHead(
+        this.arrowTailCap = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
             `${meshKey}-tail`,
             {
@@ -951,7 +963,7 @@ export class Edge {
             rebuilt = true;
         }
 
-        const wantedHead = captionWanted(style.arrowHead?.text, this.arrowMesh);
+        const wantedHead = captionWanted(style.arrowHead?.text, this.arrowCap);
 
         if (rebuild || !isEqual(wantedHead, this.drawnArrowHeadText)) {
             this.arrowHeadText?.dispose();
@@ -968,7 +980,7 @@ export class Edge {
             rebuilt = true;
         }
 
-        const wantedTail = captionWanted(style.arrowTail?.text, this.arrowTailMesh);
+        const wantedTail = captionWanted(style.arrowTail?.text, this.arrowTailCap);
 
         if (rebuild || !isEqual(wantedTail, this.drawnArrowTailText)) {
             this.arrowTailText?.dispose();
@@ -1023,17 +1035,17 @@ export class Edge {
 
         this.releaseLine();
 
-        if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
-            this.arrowMesh.dispose();
+        if (this.arrowCap && !this.arrowCap.isDisposed()) {
+            this.arrowCap.dispose();
         }
 
-        this.arrowMesh = null;
+        this.arrowCap = null;
 
-        if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
-            this.arrowTailMesh.dispose();
+        if (this.arrowTailCap && !this.arrowTailCap.isDisposed()) {
+            this.arrowTailCap.dispose();
         }
 
-        this.arrowTailMesh = null;
+        this.arrowTailCap = null;
 
         this.label?.dispose();
         this.label = null;
@@ -1047,6 +1059,16 @@ export class Edge {
         this.drawnLabelStyle = undefined;
         this.drawnArrowHeadText = undefined;
         this.drawnArrowTailText = undefined;
+    }
+
+    /**
+     * Does nothing.
+     * @deprecated Each edge aims its own ray when it needs one, so there is no graph-wide ray
+     * update any more. Will be removed in graphty-element 4.0.
+     * @param _g - Ignored
+     */
+    static updateRays(_g: Graph | GraphContext): void {
+        // deliberately empty: kept so callers of the 3.x API still compile
     }
 
     /**
@@ -1148,8 +1170,8 @@ export class Edge {
         }
 
         if (!drawn) {
-            this.arrowMesh?.setDrawn(false);
-            this.arrowTailMesh?.setDrawn(false);
+            this.arrowCap?.setDrawn(false);
+            this.arrowTailCap?.setDrawn(false);
         }
 
         for (const text of [this.label, this.arrowHeadText, this.arrowTailText]) {
@@ -1227,12 +1249,12 @@ export class Edge {
      * @returns Edge line positions adjusted for arrow placement
      */
     transformArrowCap(): EdgeLine {
-        if (this.arrowMesh) {
+        if (this.arrowCap) {
             const { srcPoint, dstPoint, newEndPoint } = this.getInterceptPoints();
 
             // If we can't find intercept points, fall back to approximate positions
             if (!srcPoint || !dstPoint || !newEndPoint) {
-                return this.placeArrowFromCentres(this.arrowMesh);
+                return this.placeArrowFromCentres(this.arrowCap);
             }
 
             // Use common arrow geometry functions for positioning
@@ -1246,7 +1268,7 @@ export class Edge {
             // PHASE 4: Override scaleFactor for 2D arrows
             // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
             // so their scaleFactor should be 1.0, not 0.25
-            if (this.arrowMesh.is2D && geometry.scaleFactor !== undefined) {
+            if (this.arrowCap.is2D && geometry.scaleFactor !== undefined) {
                 geometry.scaleFactor = 1;
             }
 
@@ -1256,7 +1278,7 @@ export class Edge {
             const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
             this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
 
-            this.arrowMesh.place(arrowPosition, direction);
+            this.arrowCap.place(arrowPosition, direction);
 
             const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction);
 
@@ -1275,16 +1297,16 @@ export class Edge {
     /**
      * Place the arrow head from the node centres and bounding radii, for when the line's ends on
      * the node surfaces could not be found, and say where the line runs.
-     * @param arrowMesh - This edge's arrow head.
+     * @param arrowCap - This edge's arrow head.
      * @returns The line's ends, stopping short of the arrow head.
      */
-    private placeArrowFromCentres(arrowMesh: ArrowCap): EdgeLine {
+    private placeArrowFromCentres(arrowCap: ArrowCap): EdgeLine {
         const fallbackSrc = this.srcNode.mesh.position;
         const fallbackDst = this.dstNode.mesh.position;
 
         // Hide arrow if nodes are too close or at same position
         if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
-            arrowMesh.setDrawn(false);
+            arrowCap.setDrawn(false);
             return {
                 srcPoint: fallbackSrc,
                 dstPoint: fallbackDst,
@@ -1317,7 +1339,7 @@ export class Edge {
         // PHASE 4: Override scaleFactor for 2D arrows
         // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
         // so their scaleFactor should be 1.0, not 0.25
-        if (arrowMesh.is2D && geometry.scaleFactor !== undefined) {
+        if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
             geometry.scaleFactor = 1;
         }
 
@@ -1328,7 +1350,7 @@ export class Edge {
         const lineEndPoint = EdgeMesh.calculateLineEndpoint(dstSurfacePoint, direction, arrowLength, geometry);
         this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
 
-        arrowMesh.place(arrowPosition, direction);
+        arrowCap.place(arrowPosition, direction);
 
         return {
             srcPoint: srcSurfacePoint,
@@ -1345,8 +1367,8 @@ export class Edge {
      * @returns Where the line starts: past the tail, or the source surface with no tail.
      */
     private placeArrowTail(srcPoint: Vector3, dstPoint: Vector3, direction: Vector3): Vector3 {
-        const { arrowTailMesh } = this;
-        if (!arrowTailMesh) {
+        const { arrowTailCap } = this;
+        if (!arrowTailCap) {
             return srcPoint;
         }
 
@@ -1366,7 +1388,7 @@ export class Edge {
         const tailGeometry = EdgeMesh.getArrowGeometry(tailType);
 
         // PHASE 4: Override scaleFactor for 2D tail arrows
-        if (arrowTailMesh.is2D && tailGeometry.scaleFactor !== undefined) {
+        if (arrowTailCap.is2D && tailGeometry.scaleFactor !== undefined) {
             tailGeometry.scaleFactor = 1;
         }
 
@@ -1382,7 +1404,7 @@ export class Edge {
         // Tail points in opposite direction (away from source)
         const reversedDirection = direction.scale(-1);
 
-        arrowTailMesh.place(tailPosition, reversedDirection);
+        arrowTailCap.place(tailPosition, reversedDirection);
 
         // Adjust line start point to create gap for tail arrow
         return EdgeMesh.calculateLineEndpoint(
@@ -1500,7 +1522,7 @@ export class Edge {
         const geometry = EdgeMesh.getArrowGeometry(arrowType);
 
         // PHASE 4: Override scaleFactor for 2D arrows in line endpoint calculation
-        if (this.arrowMesh?.is2D && geometry.scaleFactor !== undefined) {
+        if (this.arrowCap?.is2D && geometry.scaleFactor !== undefined) {
             geometry.scaleFactor = 1;
         }
 

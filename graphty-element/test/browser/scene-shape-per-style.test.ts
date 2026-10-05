@@ -169,7 +169,7 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         );
 
         // The bound counts ONE cap shape, so check there is one, or it is the wrong bound.
-        const capMeshes = new Set(edges().map((edge) => edge.arrowMesh?.batchMesh));
+        const capMeshes = new Set(edges().map((edge) => edge.arrowCap?.batchMesh));
         assert.notInclude([...capMeshes], null, "every head is a slot in a batch");
         assert.equal(capMeshes.size, 1, "every head is a slot in the one cap batch");
     });
@@ -261,7 +261,7 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         // The head sits at the destination end, so move the destination.
         const edge = edges().find((candidate) => candidate.dstId === "n0");
         assert.isDefined(edge);
-        const cap = edge.arrowMesh;
+        const cap = edge.arrowCap;
         assert.isNotNull(cap);
         const capBatch = cap.batchMesh;
         assert.isNotNull(capBatch);
@@ -282,7 +282,7 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
         await frame();
 
-        const capBatch = edges()[0].arrowMesh?.batchMesh;
+        const capBatch = edges()[0].arrowCap?.batchMesh;
         assert.isDefined(capBatch);
         assert.isNotNull(capBatch);
         const uploads: string[] = [];

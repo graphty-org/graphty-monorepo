@@ -89,22 +89,22 @@ describe("an arrowhead is independent of the line it caps", () => {
     for (const mode of ["2d", "3d"] as const) {
         test(`${mode}: a thicker line draws the same arrowhead`, async () => {
             const [thin, thick] = await build(mode, [{ "edge.width": 2 }, { "edge.width": 16 }]);
-            assert(thin.arrowMesh && thick.arrowMesh, "both edges have arrowheads");
+            assert(thin.arrowCap && thick.arrowCap, "both edges have arrowheads");
 
-            assert.closeTo(arrowLength(thick.arrowMesh), arrowLength(thin.arrowMesh), 1e-6);
+            assert.closeTo(arrowLength(thick.arrowCap), arrowLength(thin.arrowCap), 1e-6);
         });
 
         test(`${mode}: a half-opacity line keeps a fully opaque arrowhead`, async () => {
             const [faded, plain] = await build(mode, [{ "edge.opacity": 0.5 }, {}]);
-            assert(faded.arrowMesh && plain.arrowMesh, "both edges have arrowheads");
-            assert.closeTo(faded.arrowMesh.visibility, 1, 1e-6);
-            assert.closeTo(faded.arrowMesh.visibility, plain.arrowMesh.visibility, 1e-6);
+            assert(faded.arrowCap && plain.arrowCap, "both edges have arrowheads");
+            assert.closeTo(faded.arrowCap.visibility, 1, 1e-6);
+            assert.closeTo(faded.arrowCap.visibility, plain.arrowCap.visibility, 1e-6);
         });
 
         test(`${mode}: an explicit arrowhead opacity is the arrowhead's opacity`, async () => {
             const [edge] = await build(mode, [{ "edge.opacity": 0.5, "edge.arrowHeadOpacity": 0.8 }]);
-            assert(edge.arrowMesh, "the edge has an arrowhead");
-            assert.closeTo(edge.arrowMesh.visibility, 0.8, 1e-6);
+            assert(edge.arrowCap, "the edge has an arrowhead");
+            assert.closeTo(edge.arrowCap.visibility, 0.8, 1e-6);
         });
     }
 });

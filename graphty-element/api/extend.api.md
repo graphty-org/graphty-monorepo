@@ -569,10 +569,14 @@ export type DrawingMode = "2d" | "3d";
 export class Edge {
     constructor(graph: Graph | GraphContext, srcNodeId: NodeIdType, dstNodeId: NodeIdType, edgeId: number, paint: EdgePaint, data: AdHocData, opts?: EdgeOpts);
     applySessionPaint(paint: EdgePaint): void;
+    arrowCap: ArrowCap | null;
     // (undocumented)
     arrowHeadText: RichTextLabel | null;
-    arrowMesh: ArrowCap | null;
-    arrowTailMesh: ArrowCap | null;
+    // @deprecated
+    arrowMesh: AbstractMesh | null;
+    arrowTailCap: ArrowCap | null;
+    // @deprecated
+    arrowTailMesh: AbstractMesh | null;
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     get data(): AdHocData;
@@ -623,6 +627,8 @@ export class Edge {
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     update(): void;
+    // @deprecated
+    static updateRays(_g: Graph | GraphContext): void;
     updateStyle(): void;
 }
 

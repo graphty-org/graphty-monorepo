@@ -221,7 +221,7 @@ describe("Edge Case Handling", () => {
         });
 
         test("arrow mesh respects zero opacity", () => {
-            const arrowMesh = EdgeMesh.createArrowHead(
+            const arrowCap = EdgeMesh.createArrowHead(
                 meshCache,
                 "zero-opacity-arrow",
                 {
@@ -234,8 +234,8 @@ describe("Edge Case Handling", () => {
                 scene,
             );
 
-            // arrowMesh cannot be null since type is "normal" (not "none")
-            assert.equal(arrowMesh?.visibility, 0.0, "Arrow mesh visibility should be 0.0");
+            // arrowCap cannot be null since type is "normal" (not "none")
+            assert.equal(arrowCap?.visibility, 0.0, "Arrow mesh visibility should be 0.0");
         });
     });
 
@@ -283,7 +283,7 @@ describe("Edge Case Handling", () => {
 
         arrowTypes.forEach((arrowType) => {
             test(`creates arrow mesh for self-loop with ${arrowType} type`, () => {
-                const arrowMesh = EdgeMesh.createArrowHead(
+                const arrowCap = EdgeMesh.createArrowHead(
                     meshCache,
                     `self-loop-${arrowType}`,
                     {
@@ -296,9 +296,9 @@ describe("Edge Case Handling", () => {
                     scene,
                 );
 
-                // arrowMesh cannot be null since arrowTypes don't include "none"
+                // arrowCap cannot be null since arrowTypes don't include "none"
                 assert.isFalse(
-                    arrowMesh ? isDisposed(arrowMesh) : false,
+                    arrowCap ? isDisposed(arrowCap) : false,
                     `${arrowType} arrow mesh should not be disposed`,
                 );
             });

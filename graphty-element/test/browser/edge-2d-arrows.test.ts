@@ -49,16 +49,16 @@ describe("Edge 2D Arrows Integration", () => {
         assert(edge, "Edge should exist in dataManager");
 
         // Verify arrow head exists
-        assert(edge.arrowMesh, "Arrow head should exist");
+        assert(edge.arrowCap, "Arrow head should exist");
 
         // Verify arrow head uses StandardMaterial
         assert(
-            edge.arrowMesh.batchMesh?.material instanceof StandardMaterial,
+            edge.arrowCap.batchMesh?.material instanceof StandardMaterial,
             "Arrow head should use StandardMaterial in 2D mode",
         );
 
         // Verify arrow head is marked as 2D
-        assert.strictEqual(edge.arrowMesh.is2D, true, "Arrow head should be marked as 2D");
+        assert.strictEqual(edge.arrowCap.is2D, true, "Arrow head should be marked as 2D");
 
         // Verify rotation to XY plane. The turn is no longer a property of a mesh: a cap is a
         // slot in a shared batch, and the quarter turn that lifts its geometry into the XY plane
@@ -77,7 +77,7 @@ describe("Edge 2D Arrows Integration", () => {
         edge.update();
 
         const turn = new Quaternion();
-        edge.arrowMesh.transform.decompose(undefined, turn, undefined);
+        edge.arrowCap.transform.decompose(undefined, turn, undefined);
         const euler = turn.toEulerAngles();
         assert.closeTo(euler.x, Math.PI / 2, 1e-6, "Arrow head should be rotated to XY plane");
 
@@ -89,9 +89,9 @@ describe("Edge 2D Arrows Integration", () => {
         // the shared carrier now. The two quarter turns summed to a half turn, which laid all
         // thirteen 2D cap shapes back down edge-on to the camera: placed, enabled, drawn, and
         // covering almost no pixels. Composed, the turn must still be the quarter turn above.
-        const { batchMesh } = edge.arrowMesh;
+        const { batchMesh } = edge.arrowCap;
         assert(batchMesh, "A 2D cap is drawn by a batch mesh");
-        const drawn = edge.arrowMesh.transform.multiply(batchMesh.computeWorldMatrix(true));
+        const drawn = edge.arrowCap.transform.multiply(batchMesh.computeWorldMatrix(true));
         const drawnTurn = new Quaternion();
         drawn.decompose(undefined, drawnTurn, undefined);
         assert.closeTo(
@@ -127,12 +127,12 @@ describe("Edge 2D Arrows Integration", () => {
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow head should exist");
+        assert(edge.arrowCap, "Arrow head should exist");
         assert(
-            edge.arrowMesh.batchMesh?.material instanceof StandardMaterial,
+            edge.arrowCap.batchMesh?.material instanceof StandardMaterial,
             "Normal arrow should use StandardMaterial in 2D mode",
         );
-        assert.strictEqual(edge.arrowMesh.is2D, true, "Arrow should be marked as 2D");
+        assert.strictEqual(edge.arrowCap.is2D, true, "Arrow should be marked as 2D");
 
         graph.dispose();
     });
@@ -159,12 +159,12 @@ describe("Edge 2D Arrows Integration", () => {
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow head should exist");
+        assert(edge.arrowCap, "Arrow head should exist");
         assert(
-            edge.arrowMesh.batchMesh?.material instanceof StandardMaterial,
+            edge.arrowCap.batchMesh?.material instanceof StandardMaterial,
             "Box arrow should use StandardMaterial in 2D mode",
         );
-        assert.strictEqual(edge.arrowMesh.is2D, true, "Arrow should be marked as 2D");
+        assert.strictEqual(edge.arrowCap.is2D, true, "Arrow should be marked as 2D");
 
         graph.dispose();
     });
@@ -191,12 +191,12 @@ describe("Edge 2D Arrows Integration", () => {
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow head should exist");
+        assert(edge.arrowCap, "Arrow head should exist");
         assert(
-            edge.arrowMesh.batchMesh?.material instanceof StandardMaterial,
+            edge.arrowCap.batchMesh?.material instanceof StandardMaterial,
             "Dot arrow should use StandardMaterial in 2D mode",
         );
-        assert.strictEqual(edge.arrowMesh.is2D, true, "Arrow should be marked as 2D");
+        assert.strictEqual(edge.arrowCap.is2D, true, "Arrow should be marked as 2D");
 
         graph.dispose();
     });
@@ -223,12 +223,12 @@ describe("Edge 2D Arrows Integration", () => {
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow head should exist");
+        assert(edge.arrowCap, "Arrow head should exist");
         assert(
-            edge.arrowMesh.batchMesh?.material instanceof StandardMaterial,
+            edge.arrowCap.batchMesh?.material instanceof StandardMaterial,
             "Vee arrow should use StandardMaterial in 2D mode",
         );
-        assert.strictEqual(edge.arrowMesh.is2D, true, "Arrow should be marked as 2D");
+        assert.strictEqual(edge.arrowCap.is2D, true, "Arrow should be marked as 2D");
 
         graph.dispose();
     });
@@ -255,12 +255,12 @@ describe("Edge 2D Arrows Integration", () => {
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow head should exist");
+        assert(edge.arrowCap, "Arrow head should exist");
         assert(
-            edge.arrowMesh.batchMesh?.material instanceof StandardMaterial,
+            edge.arrowCap.batchMesh?.material instanceof StandardMaterial,
             "Tee arrow should use StandardMaterial in 2D mode",
         );
-        assert.strictEqual(edge.arrowMesh.is2D, true, "Arrow should be marked as 2D");
+        assert.strictEqual(edge.arrowCap.is2D, true, "Arrow should be marked as 2D");
 
         graph.dispose();
     });
@@ -287,16 +287,16 @@ describe("Edge 2D Arrows Integration", () => {
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
-        assert(edge.arrowMesh, "Arrow head should exist");
+        assert(edge.arrowCap, "Arrow head should exist");
 
         // Verify arrow head does NOT use StandardMaterial in 3D mode
         assert(
-            !(edge.arrowMesh.batchMesh?.material instanceof StandardMaterial),
+            !(edge.arrowCap.batchMesh?.material instanceof StandardMaterial),
             "Arrow head should NOT use StandardMaterial in 3D mode",
         );
 
         // Verify arrow head is NOT marked as 2D
-        assert(!edge.arrowMesh.is2D, "Arrow head should NOT be marked as 2D in 3D mode");
+        assert(!edge.arrowCap.is2D, "Arrow head should NOT be marked as 2D in 3D mode");
 
         graph.dispose();
     });

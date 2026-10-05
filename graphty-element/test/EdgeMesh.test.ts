@@ -121,37 +121,37 @@ describe("EdgeMesh", () => {
 
     describe("Arrow Head", () => {
         test("creates arrow head with calculated dimensions", () => {
-            const arrowMesh = EdgeMesh.createArrowHead(
+            const arrowCap = EdgeMesh.createArrowHead(
                 meshCache,
                 "test-arrow",
                 { type: "normal", width: 0.5, color: "#FF0000" },
                 scene,
             );
 
-            assert.exists(arrowMesh);
-            assert.equal(arrowMesh.name, "filled-triangle-arrow");
+            assert.exists(arrowCap);
+            assert.equal(arrowCap.name, "filled-triangle-arrow");
         });
 
         test("returns null for 'none' type", () => {
-            const arrowMesh = EdgeMesh.createArrowHead(
+            const arrowCap = EdgeMesh.createArrowHead(
                 meshCache,
                 "test-no-arrow",
                 { type: "none", width: 0.5, color: "#FF0000" },
                 scene,
             );
 
-            assert.isNull(arrowMesh);
+            assert.isNull(arrowCap);
         });
 
         test("returns null when type is not specified", () => {
-            const arrowMesh = EdgeMesh.createArrowHead(
+            const arrowCap = EdgeMesh.createArrowHead(
                 meshCache,
                 "test-no-type",
                 { width: 0.5, color: "#FF0000" },
                 scene,
             );
 
-            assert.isNull(arrowMesh);
+            assert.isNull(arrowCap);
         });
 
         test("uses cache for arrow heads", () => {

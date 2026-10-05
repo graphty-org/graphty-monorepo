@@ -6,14 +6,16 @@
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { decide, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { strayChanges } from "./release-diff.mjs";
-import { skippedProjects } from "./visual-capture-plan.mjs";
+import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
 const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const job = (text, name) => {
@@ -164,6 +166,36 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
             "design/x.md",
         ]) {
             assert.deepEqual(skippedProjects({ ...base, changed: ["graph-io/src/index.ts", root] }), [], root);
+        }
+    });
+
+    it("still sees a root file a pull request moves into a package", () => {
+        const dir = mkdtempSync(join(tmpdir(), "visual-plan-"));
+        const git = (...args) => {
+            const r = spawnSync(
+                "git",
+                ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
+                {
+                    cwd: dir,
+                    encoding: "utf8",
+                },
+            );
+            assert.equal(r.status, 0, r.stderr);
+        };
+        try {
+            git("init", "-q", "-b", "main");
+            mkdirSync(join(dir, "graph-io"));
+            writeFileSync(join(dir, "root.json"), '{"a": 1, "b": 2, "c": 3}\n');
+            git("add", ".");
+            git("commit", "-q", "-m", "base");
+            git("checkout", "-q", "-b", "pr");
+            git("mv", "root.json", "graph-io/root.json");
+            git("commit", "-q", "-m", "move");
+            const changed = changedFiles("main", dir);
+            assert.deepEqual(changed.sort(), ["graph-io/root.json", "root.json"]);
+            assert.deepEqual(skippedProjects({ ...base, changed }), []);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
         }
     });
 

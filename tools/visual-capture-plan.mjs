@@ -13,7 +13,8 @@
  *   captures every project before anything merges, which is what makes trusting this pull
  *   request-controlled list acceptable
  * - the pull request does not carry the `dequeued` label: one ejected from the queue captures
- *   everything on its next run
+ *   everything on its next run. The label is read from the event payload, so it takes a new push
+ *   (not a re-run, which replays the old payload) to start that run
  * - every changed file is inside an nx project's directory: a root file (workflows, lockfile,
  *   visual-baselines/, visual-fonts/, root configs, docs) counts as affecting every project
  * - nx does not call the project affected
@@ -55,6 +56,23 @@ export function skippedProjects({ on, pullRequest, labels, visual, all, affected
     return visual.filter((p) => !hit.has(p));
 }
 
+/**
+ * The files a pull request changes: the diff nx affected uses, from the merge base with `base` to
+ * the checkout. Renames are listed as a delete and an add, so a root file moved into a package
+ * still counts as a root change.
+ * @param base the base ref
+ * @param cwd the repository
+ * @returns the changed paths
+ */
+export function changedFiles(base, cwd = process.cwd()) {
+    return execFileSync("git", ["diff", "--name-only", "--no-renames", "-z", `${base}...HEAD`], {
+        cwd,
+        encoding: "utf8",
+    })
+        .split("\0")
+        .filter(Boolean);
+}
+
 const isMain = (() => {
     try {
         return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
@@ -69,13 +87,7 @@ if (isMain) {
     const on = env.SKIP_UNAFFECTED_CAPTURES === "true";
     const pullRequest = env.PULL_REQUEST === "true";
     const config = JSON.parse(readFileSync(new URL("../visual-review.config.json", import.meta.url), "utf8"));
-    // The diff nx affected uses: from the merge base with the base branch to the checkout.
-    const changed =
-        on && pullRequest
-            ? execFileSync("git", ["diff", "--name-only", "-z", `origin/${env.BASE_REF}...HEAD`], { encoding: "utf8" })
-                  .split("\0")
-                  .filter(Boolean)
-            : [];
+    const changed = on && pullRequest ? changedFiles(`origin/${env.BASE_REF}`) : [];
     const skip = skippedProjects({
         on,
         pullRequest,

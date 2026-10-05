@@ -641,19 +641,25 @@ describe("session.data.prepare", () => {
     });
 
     it("refuses a file its parser cannot read as unreadable, not as empty (#928)", async () => {
-        for (const [type, data] of [
-            ["graphml", "<graphml"],
-            ["json", "{"],
-            ["gml", "graph ["],
-        ]) {
+        // The line where the parser knows it; JSON's parser does not say.
+        for (const [type, data, line] of [
+            ["graphml", "<graphml", 1],
+            ["json", "{", undefined],
+            ["gml", "graph [", 1],
+        ] as const) {
             const session = createGraphSession();
             const source = { type, config: { data } };
             const prepared = await refusal(session.data.prepare(source));
             const imported = await refusal(session.data.import(source));
 
-            assert.strictEqual(prepared?.code, "E_PARSE_FAILED", type);
-            assert.strictEqual(imported?.code, "E_PARSE_FAILED", type);
-            assert.strictEqual(prepared?.details?.format, type);
+            for (const error of [prepared, imported]) {
+                assert.strictEqual(error?.code, "E_PARSE_FAILED", type);
+                assert.strictEqual(error?.details?.format, type);
+                if (line !== undefined) {
+                    assert.strictEqual(error?.details?.line, line, type);
+                }
+            }
+
             assertUntouched(session);
             session.dispose();
         }

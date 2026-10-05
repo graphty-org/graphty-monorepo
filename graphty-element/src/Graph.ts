@@ -1,4 +1,4 @@
-// Force side-effect imports to not be tree-shaken
+// Force side-effect imports to not be tree-shaken (they register the built-ins)
 import "./data/index"; // register all internal data sources
 import "./layout/index"; // register all internal layouts
 import "./algorithms/index"; // register all internal algorithms

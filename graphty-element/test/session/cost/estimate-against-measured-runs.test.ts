@@ -447,18 +447,16 @@ interface Measured {
  */
 function measuredGraph(shape: Shape, nodes: number): Measured {
     const { src, dst } = shape(nodes);
-    const degrees = new Uint32Array(nodes);
-    for (let edge = 0; edge < src.length; edge++) {
-        degrees[src[edge]]++;
-        degrees[dst[edge]]++;
-    }
-
     const snapshot = fromEdgeArrays({ src, dst, nodeCount: nodes, directed: true });
 
+    // Read as the session's statistics read it: `degree()` and the transitivity build and cache the
+    // directed snapshot's reverse view, as they do on every graph the element loads. That view is
+    // part of the heap the algorithm then runs in, and it moves the degree row's time by 2x (see
+    // the degree model in estimate.ts), so a run measured without it is not the element's run.
     return {
         data: dataManagerOf(snapshot),
         edges: src.length,
-        maxDegree: degrees.reduce((most, degree) => Math.max(most, degree), 0),
+        maxDegree: snapshot.degree().reduce((most, degree) => Math.max(most, degree), 0),
         transitivity: sampledTransitivity(snapshot),
     };
 }

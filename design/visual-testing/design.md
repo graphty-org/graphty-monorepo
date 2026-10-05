@@ -996,9 +996,10 @@ Finish, and the API refuses every decision and Finish on it. A local capture rec
 (describe and diff hash); its fonts and graphics stack are not CI's, so a preview can never
 become a baseline.
 
-**Local previews of a pull request.** `local-previews.md` replaces the rule above for one case: a
-local capture of a pull request's merge tree with the pinned fonts can be reviewed and finished,
-and the unchanged gate passes it only when CI's capture matches. It also adds the pending-approvals
+**Local previews of a pull request.** `local-previews.md` replaces the rule above for one case
+(built 2026-10-04): a local capture of a pull request's merge tree with the pinned fonts
+(`tools/visual-preview.sh`) can be reviewed and finished, and the unchanged gate passes it only
+when CI's capture matches. It also adds the pending-approvals
 inbox and the quiet notifier.
 
 **How captures and baselines move.** CI uploads each capture as an artifact. The review server

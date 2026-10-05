@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../../data/sampleManifest";
@@ -4808,10 +4808,8 @@ describe("AppShell", () => {
         /**
          * Watches the session's pin verbs on the mounted host.
          *
-         * Pins go through `session.positions`, one undoable step each. The ids are recorded,
-         * because the id TYPE is the thing that decides whether the verb does anything -- the
-         * element looks a node up by exact key, so a printed "1" finds nothing on a graph keyed
-         * by the number 1.
+         * Pins go through `session.positions`, one undoable step each. The ids are recorded, so a
+         * board can see which spelling of a numeric id the shell hands over.
          * @param container - the render result's container.
          * @returns the ids pinned and unpinned, in call order.
          */
@@ -4860,17 +4858,16 @@ describe("AppShell", () => {
             return { ...calls, selected };
         }
 
-        it("hands the element the id it holds, not the id the inspector printed", async () => {
+        /* The element takes an integer id in either spelling, so the shell keeps one id per
+           node -- the one it prints -- and hands that over. */
+        it("hands the element the id the inspector printed, which the element pins", async () => {
             const { pinnedWith, selected } = await selectNumericNode();
 
             fireEvent.click(screen.getByTestId("inspector-actions-more"));
             fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
 
-            /* A printed "1" would name a key that is not there, and `session.positions.pin` skips
-               a node it does not hold, so the miss would be silent: the verb
-               would read as wired and fix no node at all. */
-            expect(pinnedWith).toEqual([selected]);
-            expect(typeof pinnedWith[0]).toBe("number");
+            assert.deepEqual(pinnedWith, [String(selected)]);
+            assert.include((await screen.findByTestId("node-pinned-badge")).textContent ?? "", "Pinned");
         });
 
         it("draws the Pinned badge once the element holds the pin, and releases it again", async () => {
@@ -4885,7 +4882,7 @@ describe("AppShell", () => {
 
             fireEvent.click(screen.getByTestId("node-unpin"));
 
-            expect(unpinnedWith).toEqual([selected]);
+            assert.deepEqual(unpinnedWith, [String(selected)]);
             await waitFor(() => {
                 expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
             });

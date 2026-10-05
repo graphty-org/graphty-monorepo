@@ -632,9 +632,6 @@ function describesDataset(source: Layer["source"]): boolean {
     return (source.by === "template" && source.templateId === SHELL_DEFAULTS_TEMPLATE_ID) || source.by === "run";
 }
 
-/** What the shell reports as pinned before the element is up to be asked. */
-const EMPTY_PINNED_NODES: ReadonlySet<string | number> = new Set<string | number>();
-
 /**
  * The event graphty-element publishes when a data source has finished loading.
  *
@@ -1067,25 +1064,17 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const [layoutConfig, setLayoutConfig] = useState<Record<string, unknown>>({});
     const [selectedNode, setSelectedNode] = useState<{
         readonly id: string;
-        /*
-         * The same node, as the ELEMENT spells its id. Kept beside the printed form because
-         * `session.positions.pinned` is a plain set of the ids the graph holds: on a graph whose
-         * ids are numbers, `pinned.has("34")` is false while node 34 is pinned. Every call on the
-         * element made from this state passes this field. Temporary: this is an element defect,
-         * tracked by https://github.com/graphty-org/graphty-monorepo/issues/1065, and goes once
-         * it is fixed.
-         */
-        readonly elementId: string | number;
         readonly attributes: Record<string, unknown> | null;
     } | null>(null);
     /*
      * Which nodes the element has pinned, as the inspector's Pinned badge and its Pin/Unpin verb
-     * read it. Re-read from the element rather than tracked here, because the element pins on
-     * drag as well (`pinOnDrag` is on by default) and a copy kept up to date only by this shell's
-     * own calls would say "Pin" over a node the reader has already fixed by dragging it. The two
-     * things that move it are this shell's own Pin verb and {@link NODE_DRAG_END_EVENT}.
+     * read it: the element's own set, re-read whenever pins move and never copied, because the
+     * element pins on drag as well (`pinOnDrag` is on by default) and only its set answers for
+     * the printed id of a node whose id is a number. Wrapped so every re-read renders, whether or
+     * not the element hands back a new set. The things that move pins are this shell's own Pin
+     * verb, an undo or redo, and {@link NODE_DRAG_END_EVENT}.
      */
-    const [pinnedNodes, setPinnedNodes] = useState<ReadonlySet<string | number>>(EMPTY_PINNED_NODES);
+    const [pins, setPins] = useState<{ readonly pinned: ReadonlySet<string | number> } | null>(null);
     const layerCounter = useRef(1);
     /* Why graphty-element refused the last new style layer, in its own words, or null. */
     const [styleRefusal, setStyleRefusal] = useState<string | null>(null);
@@ -1702,7 +1691,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const frame = frameRef.current;
 
         const onNodeDragEnd = (): void => {
-            setPinnedNodes(new Set(graphtyRef.current?.session?.positions.pinned ?? EMPTY_PINNED_NODES));
+            const positions = graphtyRef.current?.session?.positions;
+
+            setPins(positions === undefined ? null : { pinned: positions.pinned });
         };
 
         frame?.addEventListener(NODE_DRAG_END_EVENT, onNodeDragEnd);
@@ -2005,7 +1996,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             }
 
             if (slices.includes("pins")) {
-                setPinnedNodes(new Set(session.positions.pinned));
+                setPins({ pinned: session.positions.pinned });
             }
         });
         const unwatchStyle = session.on("style:changed", () => {
@@ -2571,7 +2562,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         setSelectedNode({
             id: String(detail.currentNodeId),
-            elementId: detail.currentNodeId,
             attributes: detail.currentNodeData,
         });
     }, []);
@@ -2654,7 +2644,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const read = (): void => {
             setCaseNoteCount(session.notes.list({ target: { graph: true } }).length);
             setSelectedNodeNotes(
-                selectedNode === null ? [] : session.notes.list({ target: { node: selectedNode.elementId } }),
+                selectedNode === null ? [] : session.notes.list({ target: { node: selectedNode.id } }),
             );
         };
 
@@ -3816,13 +3806,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * @returns one row per DISTINCT neighbour, in edge-record order.
      */
     const neighborsOf = useCallback(
-        (elementId: string | number): readonly NeighborRow[] => {
+        (nodeId: string): readonly NeighborRow[] => {
             const rows: NeighborRow[] = [];
             const seen = new Set<string>();
-            const nodeId = String(elementId);
             /* The element answers which edges touch the node; every edge of the node, and
                none of the rest of the graph. */
-            const edges = graphRecords?.data.edgePage({ touching: elementId, limit: Infinity }).records ?? [];
+            const edges = graphRecords?.data.edgePage({ touching: nodeId, limit: Infinity }).records ?? [];
 
             for (const edge of edges) {
                 const { source, target } = edgeEndpoints(edge);
@@ -3864,20 +3853,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * The set is re-read from the element afterwards rather than edited here. The element is
      * where a pin lives, and it is the only thing that knows about the pins this shell did not
      * make.
-     * @param elementId - the node, as the element spells its id.
+     * @param nodeId - the node.
      */
-    const togglePin = useCallback((elementId: string | number) => {
+    const togglePin = useCallback((nodeId: string) => {
         const positions = graphtyRef.current?.session?.positions;
 
         if (positions === undefined) {
             return;
         }
 
-        const change = positions.pinned.has(elementId) ? positions.unpin([elementId]) : positions.pin([elementId]);
+        const change = positions.pinned.has(nodeId) ? positions.unpin([nodeId]) : positions.pin([nodeId]);
 
         void change.then(
             () => {
-                setPinnedNodes(new Set(positions.pinned));
+                setPins({ pinned: positions.pinned });
             },
             (error: unknown) => {
                 console.error("[shell] the element refused the pin:", error);
@@ -4144,7 +4133,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
-        const neighbors = neighborsOf(selectedNode.elementId);
+        const neighbors = neighborsOf(selectedNode.id);
         const { attributes } = selectedNode;
 
         return {
@@ -4173,7 +4162,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     openDrawerOn("nodes");
                 },
                 onAddNote: (text: string) => {
-                    session?.notes.add({ text, targets: [{ node: selectedNode.elementId }] });
+                    session?.notes.add({ text, targets: [{ node: selectedNode.id }] });
                 },
                 // One undoable step in the element's history, so Undo brings the note back.
                 onDeleteNote: (noteId: string) => {
@@ -4192,13 +4181,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onSeeAllNeighbors: () => {
                     openDrawerOn("edges");
                 },
-                pinnedToCanvas: pinnedNodes.has(selectedNode.elementId),
+                pinnedToCanvas: pins?.pinned.has(selectedNode.id) === true,
                 onUnpinFromCanvas: () => {
-                    togglePin(selectedNode.elementId);
+                    togglePin(selectedNode.id);
                 },
                 onAction: (action) => {
                     if (action === "pinNode") {
-                        togglePin(selectedNode.elementId);
+                        togglePin(selectedNode.id);
                     }
                 },
             },
@@ -4220,7 +4209,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         openCaseNotes,
         openDrawerOn,
         openPanelAt,
-        pinnedNodes,
+        pins,
         removeResult,
         removeResultLayers,
         resolveLayerChannel,

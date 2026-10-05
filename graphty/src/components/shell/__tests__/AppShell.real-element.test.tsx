@@ -14,7 +14,7 @@ import "@graphty/graphty-element";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { SAMPLE_MANIFEST, type SampleRecord } from "../../../data/sampleManifest";
-import { fireEvent, render } from "../../../test/test-utils";
+import { fireEvent, render, screen, waitFor } from "../../../test/test-utils";
 import { AppShell } from "../AppShell";
 
 /** The element itself, by its own published type; the import above registers it. */
@@ -194,6 +194,53 @@ describe("AppShell with the real graphty-element", () => {
             const failure = await failureOf(expectSampleLoads(served));
 
             assert.include(failure.message, `the element rejected ${served.fileName}`);
+        },
+        LOAD_TEST_TIMEOUT_MS,
+    );
+});
+
+describe("the inspector's Pin verb on the real graphty-element", () => {
+    /* Karate's GML ids are integers, so the element holds node 34 under the number while the
+       shell prints and passes "34". The Pinned badge reads the element's own pinned set, which
+       is the only thing that answers for either spelling. */
+    it(
+        "pins a numeric node by its printed id and draws the Pinned badge",
+        async () => {
+            const karate = SAMPLE_MANIFEST.find((record) => record.id === "karate");
+
+            if (karate === undefined) {
+                throw new Error("the manifest has no karate sample");
+            }
+
+            const { container } = render(<AppShell initialShellWidth={1440} measureViewport={false} persist={false} />);
+            const element = container.querySelector<ElementUnderTest>("graphty-element");
+
+            if (element === null) {
+                throw new Error("the shell mounted no graphty-element");
+            }
+
+            const loaded = new Promise<void>((resolve) => {
+                element.addEventListener("data-loading-complete", () => {
+                    resolve();
+                });
+            });
+
+            fireEvent.click(container.querySelector<HTMLElement>(`[data-sample-row="karate"]`) ?? container);
+            await loaded;
+            await element.waitForStableFrame();
+
+            assert.isTrue(element.selectNode(34), "the element holds node 34");
+            fireEvent.click(await screen.findByTestId("inspector-actions-more"));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
+
+            assert.include((await screen.findByTestId("node-pinned-badge")).textContent ?? "", "Pinned");
+            assert.deepEqual([...element.session.positions.pinned], [34], "pinned under the id the graph holds");
+
+            fireEvent.click(screen.getByTestId("node-unpin"));
+            await waitFor(() => {
+                assert.isNull(screen.queryByTestId("node-pinned-badge"));
+            });
+            assert.strictEqual(element.session.positions.pinned.size, 0);
         },
         LOAD_TEST_TIMEOUT_MS,
     );

@@ -217,6 +217,17 @@ async function health() {
 }
 
 /**
+ * Starts the daemon and waits out its first loop tick. That tick gates the default branch's version
+ * when it differs from the daemon's own, with the real gates, holding the gate lock: a version
+ * pushed before it finished would be the daemon's to gate, not the test's. The next tick is
+ * `pollSeconds` (60) away, longer than any test.
+ */
+async function startDaemon() {
+    await ensureDaemon(context());
+    await until(async () => (await health()).nextPollAt, "the daemon's first loop tick");
+}
+
+/**
  * Writes the config the launcher and the daemon read through GITHERD_CONFIG.
  * @param {Record<string, unknown>} [overrides] fields to change
  */
@@ -662,7 +673,7 @@ describe("restarts and upgrades", () => {
     });
 
     it("upgrades to a new hash on the default branch only once its gates passed, by pointing current at it and restarting", async () => {
-        await ensureDaemon(context());
+        await startDaemon();
         const first = (await health()).pid;
         pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));
         const hash = git(root, "rev-parse", "origin/master:githerd");
@@ -687,7 +698,7 @@ describe("restarts and upgrades", () => {
     it("refuses a version that fails a gate, keeps the running one, pages once and never gates it again", async () => {
         const notifyLog = join(dir, "notify.log");
         writeConfig({ notify: { command: [process.execPath, FAKE_NOTIFY, notifyLog, "ok", "{status}", "{message}"] } });
-        await ensureDaemon(context());
+        await startDaemon();
         const first = await health();
         pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));
         const hash = git(root, "rev-parse", "origin/master:githerd");
@@ -715,7 +726,7 @@ describe("restarts and upgrades", () => {
     it("rolls back, loudly, a version that passed its gates but does not start", async () => {
         const notifyLog = join(dir, "notify.log");
         writeConfig({ notify: { command: [process.execPath, FAKE_NOTIFY, notifyLog, "ok", "{status}", "{message}"] } });
-        await ensureDaemon(context());
+        await startDaemon();
         const first = await health();
         pushPackage("broken daemon", (pkg) =>
             writeFileSync(join(pkg, "bin", "githerd-daemon.mjs"), "process.exit(1);\n"),
@@ -746,7 +757,7 @@ describe("restarts and upgrades", () => {
     });
 
     it("gates the successor of a daemon in fatal mode itself, and leaves the daemon down when it fails", async () => {
-        await ensureDaemon(context());
+        await startDaemon();
         pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));
         const hash = git(root, "rev-parse", "origin/master:githerd");
         const server = createServer((req, res) => {
@@ -831,7 +842,7 @@ describe("restarts and upgrades", () => {
         const listed = () => git(root, "worktree", "list", "--porcelain").includes("gate-trees");
 
         it("is stopped by its gater with no child process, gate worktree or verdict left", async () => {
-            await ensureDaemon(context());
+            await startDaemon();
             pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));
             const ctx = context();
             const target = await targetCode(ctx);
@@ -864,7 +875,7 @@ describe("restarts and upgrades", () => {
         });
 
         it("left by a gater that died is removed before the next gating, superseded trees too", async () => {
-            await ensureDaemon(context());
+            await startDaemon();
             pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));
             const ctx = context();
             const target = await targetCode(ctx);
@@ -913,7 +924,7 @@ describe("restarts and upgrades", () => {
     });
 
     it("never prunes the running version, however many newer copies were archived", async () => {
-        await ensureDaemon(context());
+        await startDaemon();
         const running = readlinkSync(join(stateDir(), "current"));
         for (let i = 0; i < 4; i++) {
             pushPackage(`version ${i}`, (pkg) =>

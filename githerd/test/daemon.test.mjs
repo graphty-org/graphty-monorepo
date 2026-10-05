@@ -365,6 +365,7 @@ describe("HTTP endpoints", () => {
                 "mode",
                 "startedAt",
                 "loopTickAt",
+                "nextPollAt",
                 "lastPollOkAt",
                 "lastPollError",
                 "githubDownSince",
@@ -381,6 +382,7 @@ describe("HTTP endpoints", () => {
             mode: "dry-run",
             startedAt: clock.toISOString(),
             loopTickAt: null,
+            nextPollAt: null,
             notifyBrokenSince: null,
             fatal: null,
         });

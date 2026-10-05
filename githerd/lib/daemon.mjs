@@ -2507,6 +2507,8 @@ export async function startDaemon({
         mode: mode(),
         startedAt,
         loopTickAt,
+        // Null until the first loop tick, its self-update check included, has finished.
+        nextPollAt,
         lastPollOkAt,
         lastPollError: lastPollError ?? configError,
         githubDownSince: state.github.downSince ?? null,

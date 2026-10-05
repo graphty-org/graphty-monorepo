@@ -1292,7 +1292,7 @@ function targetCard(t) {
         el(
             "p",
             { class: "badges" },
-            t.mergeMasterFirst ? el("span", { class: "badge warn" }, "merge master first") : null,
+            t.mergeMasterFirst ? el("span", { class: "badge" }, `behind ${branchName(t)}`) : null,
             t.mergeMasterFirst === true && t.pr !== null && !t.local && !busy
                 ? el(
                       "button",
@@ -1354,6 +1354,11 @@ function downloadText(t) {
     return `Downloading: ${d.done} of ${plural(d.total, "artifact")}${bytes}${s}`;
 }
 
+// What a local preview is, for its badge and Finish's sheet.
+const PREVIEW_NOTE =
+    "Captured on this computer from the pull request's head, before CI. Decide and Finish on it as on CI's " +
+    "capture: CI checks it, and anything CI draws differently comes back to you.";
+
 function projectRow(t, p) {
     const results = Object.entries(p.counts)
         .filter(([s]) => REVIEWABLE.includes(s))
@@ -1370,6 +1375,7 @@ function projectRow(t, p) {
             p.acceptable || t.local || p.downloading || p.problem
                 ? null
                 : el("span", { class: "badge" }, "Reject only here: accept on a pull request"),
+            p.preview ? [" ", el("span", { class: "badge", title: PREVIEW_NOTE }, "local preview, CI pending")] : null,
         ),
         el(
             "td",
@@ -3557,14 +3563,17 @@ function staleBanner() {
         return null;
     }
     const master = branchName(t);
+    const what = plural(newer.length, `newer ${state.project} baseline`);
     return el(
         "section",
         { class: "card stale", id: "stale" },
         el(
             "p",
             { class: "warning" },
-            `${master} has ${plural(newer.length, `newer ${state.project} baseline`)} since this capture; ` +
-                "this review is out of date. Finish refuses it until the branch has them.",
+            `${master} has ${what} since this capture. ` +
+                "Finish still records your decisions against this capture. When the pull request merges, CI " +
+                "compares it with these baselines again, and any image they change comes back to you. Update " +
+                `only when the pull request conflicts with ${master}.`,
         ),
         el(
             "details",
@@ -3691,6 +3700,12 @@ function sheet(t, f, prepared, notice) {
     }
     if (f.unloaded.length > 0) {
         lines.push(`Not loaded, so not reviewed: ${f.unloaded.join(", ")}.`);
+    }
+    if (f.previews?.length > 0) {
+        lines.push(
+            `${plural(f.previews.length, "project")} from a local capture (${f.previews.join(", ")}): ` +
+                "CI will check them, and anything CI draws differently comes back to you.",
+        );
     }
     return [
         el("h2", { id: "sheet-title" }, `Finish ${label}, every project:`),
@@ -4055,15 +4070,6 @@ function finishOutcome() {
     if (isUpdate(job)) {
         return updateOutcome(job, t, dismiss);
     }
-    // Finish refuses a capture older than the default branch's baselines: offer the update.
-    const stale =
-        t && /has newer .* baselines/.test(job.error ?? "")
-            ? el(
-                  "button",
-                  { type: "button", class: "primary", onclick: () => updateTarget(t) },
-                  `Update from ${branchName(t)}`,
-              )
-            : null;
     if (job.interrupted || job.error !== null) {
         return el(
             "section",
@@ -4077,7 +4083,7 @@ function finishOutcome() {
             ),
             el("pre", { class: "error" }, job.error),
             warnings,
-            el("p", { class: "offers" }, stale, dismiss),
+            el("p", { class: "offers" }, dismiss),
         );
     }
     const out = job.result;

@@ -28,7 +28,8 @@
 name: GPU
 on:
     push: { branches: [master] }
-    pull_request: { types: [labeled, synchronize] }
+    # A draft runs nothing (the job's condition): agents push drafts often and each run is a paid T4.
+    pull_request: { types: [labeled, synchronize, ready_for_review] }
     workflow_dispatch:
         inputs:
             # which machine serves the T4 job. The default is a machine.dev on-demand T4 (the Machine Provisioner app
@@ -62,6 +63,7 @@ jobs:
         if: >-
             (github.event_name != 'pull_request' ||
              (github.event.pull_request.head.repo.full_name == github.repository &&
+              !github.event.pull_request.draft &&
               contains(github.event.pull_request.labels.*.name, 'gpu')))
         runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand' }} # a dispatch may pick the hosted gpu-linux-t4 (see the input); every other event: machine.dev on-demand
         # The whole job runs in a container because the HOST cannot be moved off Ubuntu 22.04 and `webgpu` 0.6.x
@@ -79,9 +81,13 @@ jobs:
         # NVIDIA_DRIVER_CAPABILITIES=all is load-bearing: the toolkit's default (utility,compute) injects CUDA but
         # NOT the Vulkan ICD or the EGL vendor json, and without those Dawn has no adapter at all.
         # --ipc=host gives Chromium a real /dev/shm; the 64 MB default crashes the browser smoke.
+        # --privileged is load-bearing twice (owner decision, 2026-10-04): `nvidia-smi -lgc` needs it to lock the SM
+        # clock for the benchmarks (issue #703; without it the lock is refused, run 37228458287), and the core_pattern
+        # write of issue #273 needs a writable /proc/sys. The runner is a single-use machine.dev VM, so the wider
+        # container boundary exposes nothing another job shares.
         container:
             image: ubuntu:24.04
-            options: --gpus all --ipc=host
+            options: --gpus all --ipc=host --privileged
             env:
                 NVIDIA_VISIBLE_DEVICES: all
                 NVIDIA_DRIVER_CAPABILITIES: all
@@ -151,17 +157,15 @@ jobs:
             # A forked vitest worker that crashes must not spend minutes writing a multi-gigabyte core dump.
             # scripts/run-node-shard.js runs vitest under `ulimit -c 0`, but the kernel ignores RLIMIT_CORE when
             # core_pattern pipes to a program (core(5)); a plain file pattern makes the limit bind. core_pattern is
-            # global to the host, so this has to run on the host, never inside a job container. Issue #273.
-            # This job DOES run in a container (above), where /proc/sys is read-only, so the write cannot land
-            # here: the step records the host's pattern and warns instead of failing the lane. If it pipes, a
-            # crashing worker can again spend minutes in a core dump; moving the write needs a host-side hook.
-            - name: Write core dumps to a file so the shard's ulimit -c 0 holds (host only; warns in the container)
+            # global to the host; the job container is --privileged (above), so /proc/sys is writable from inside it
+            # and the write reaches the host's kernel. Issue #273.
+            - name: Write core dumps to a file so the shard's ulimit -c 0 holds
               run: |
                   echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)"
                   # read back: procps' sysctl prints "ignoring: Read-only file system" and still exits 0 (run 37140992259)
-                  sysctl -w kernel.core_pattern=core || true
+                  sysctl -w kernel.core_pattern=core
                   [ "$(cat /proc/sys/kernel/core_pattern)" = core ] \
-                    || echo "::warning::core_pattern is read-only inside the job container; issue #273's guard does not hold on this lane"
+                    || { echo "::error::kernel.core_pattern is still $(cat /proc/sys/kernel/core_pattern): the container is not privileged and issue #273's guard does not hold"; exit 1; }
             # Every node project goes through scripts/run-node-shard.js: it forwards every argument, exits with
             # vitest's own code, and on a non-zero exit or 90 seconds of silence prints the test files that started
             # but never reported, the process table and a Node diagnostic report per surviving process (G4-F14).
@@ -196,6 +200,10 @@ jobs:
                   }
             - if: steps.pw.outputs.cache-hit != 'true'
               run: pnpm exec playwright install chromium --with-deps # a fresh VM each job
+            # The cache holds the browser, not its system libraries, and the container starts bare every job: on a
+            # hit the step above is skipped and chrome-headless-shell cannot load libglib-2.0.so.0 (run 37211866080).
+            - if: steps.pw.outputs.cache-hit == 'true'
+              run: pnpm exec playwright install-deps chromium
             - name: Browser smoke on NVIDIA
               run: node scripts/run-browser-project.js # G0 decides whether this needs `xvfb-run -a` on the T4 image (design 12.2)
             - name: graphty-element's accelerated layout on NVIDIA (the element is the only consumer that drives the layout kernels end to end)
@@ -211,18 +219,17 @@ jobs:
             # gating targets of benchmarks/results/targets.json stay comparable -- with persistence mode on so the lock
             # survives the moments no process holds the device. nvidia-smi logs the clock, P-state and power draw
             # every 200 ms while the benchmarks run; the step after them reduces the log to each group's min and
-            # median (gpu-clocks.json), which bench-compare.js quotes beside a regression. A refused lock is a
-            # warning, not a failure: the clock record then shows what the governor did.
+            # median (gpu-clocks.json), which bench-compare.js quotes beside a regression. A refused lock FAILS the
+            # lane: benchmarks at the governor's clock are the x3.6 noise this lock exists to remove, so they must
+            # not run and be compared. The lock needs the container's --privileged (above).
             - name: Lock the SM clock at the card's maximum and start the clock log
               id: clocks
               run: |
                   max=$(nvidia-smi --query-gpu=clocks.max.sm --format=csv,noheader,nounits | head -1 | tr -d ' ')
                   sudo nvidia-smi -pm 1 || true
-                  if sudo nvidia-smi -lgc "$max,$max"; then
-                      echo "SM clock locked at $max MHz"
-                  else
-                      echo "::warning::nvidia-smi -lgc $max,$max was refused: the benchmarks run at the power governor's clock (issue #703)"
-                  fi
+                  sudo nvidia-smi -lgc "$max,$max" \
+                    || { echo "::error::nvidia-smi -lgc $max,$max was refused: is the job container still --privileged? (issue #703)"; exit 1; }
+                  echo "SM clock locked at $max MHz"
                   nohup nvidia-smi --query-gpu=timestamp,clocks.sm,clocks.max.sm,pstate,power.draw --format=csv -lms 200 > gpu-clocks.csv 2>&1 &
                   echo $! > gpu-clocks.pid
             - name: Benchmarks (tsx benchmarks/run.ts -> benchmarks/out/gpu-linux-t4.json; every line stamped with the local time nvidia-smi's log carries)

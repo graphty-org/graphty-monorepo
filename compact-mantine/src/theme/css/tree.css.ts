@@ -131,6 +131,47 @@ const css = `
 .cm-tree-row[data-dimmed] .cm-tree-icon { color: var(--cm-text-tertiary); }
 .cm-tree-row .cm-rename { flex: none; width: 176px; }
 
+/* The swatch between the glyph and the name, and the always-visible count before the toggles. */
+.cm-tree-swatch {
+    flex: none;
+    display: flex;
+    align-items: center;
+    margin-inline-start: 8px;
+}
+.cm-tree-count {
+    flex: none;
+    margin-inline: 4px;
+    color: var(--cm-text-secondary);
+    font-weight: 450;
+    font-variant-numeric: tabular-nums;
+}
+.cm-tree-row:not(:has(.cm-tree-actions)) .cm-tree-count { margin-inline-end: 8px; }
+/* A running row's progress line: 2px along the bottom of the row's pill. */
+.cm-tree-progress {
+    position: absolute;
+    bottom: 4px;
+    inset-inline-start: 12px;
+    inset-inline-end: 8px;
+    height: 2px;
+    overflow: hidden;
+    border-radius: 1px;
+    background: var(--cm-border);
+    pointer-events: none;
+}
+.cm-tree-progress-fill {
+    display: block;
+    height: 100%;
+    background: var(--cm-bg-brand);
+}
+.cm-tree-progress[data-indeterminate] .cm-tree-progress-fill {
+    width: 30%;
+    animation: cm-tree-progress 1.2s linear infinite;
+}
+@keyframes cm-tree-progress { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) {
+    .cm-tree-progress[data-indeterminate] .cm-tree-progress-fill { width: 100%; opacity: 0.5; animation: none; }
+}
+
 /* Lock / eye: 24 hit targets on a 20 pitch, ending 8 from the panel edge. Hidden until the row
    is hovered or focused; a toggle that is on stays visible. */
 .cm-tree-actions {
@@ -231,6 +272,39 @@ const css = `
     font-weight: 600;
 }
 .cm-page-divider { flex: 1 1 auto; height: 1px; background: var(--cm-border); }
+/* A row with its own menu: the cell, then the menu in a cell of its own at the trailing edge. */
+.cm-page-row { display: flex; align-items: center; }
+.cm-page-row > .cm-page-cell { flex: 1 1 auto; min-width: 0; }
+.cm-page-menu { flex: none; display: flex; align-items: center; padding-inline-end: 8px; }
+/* The trailing value, and the two-line row: name and value on the first line, then a second
+   11/16 line in the secondary (or danger) ink. */
+.cm-page-value {
+    flex: none;
+    margin-inline-start: auto;
+    padding-inline-start: 8px;
+    color: var(--cm-text-secondary);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+}
+.cm-page-cell[data-two-line] { height: auto; }
+.cm-page-cell[data-two-line] .cm-page-button {
+    flex-direction: column;
+    align-items: stretch;
+    height: auto;
+    padding-block: 4px;
+    line-height: 16px;
+}
+.cm-page-line { display: flex; align-items: center; min-width: 0; }
+.cm-page-description {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cm-text-secondary);
+    font-weight: 400;
+    letter-spacing: normal;
+}
+.cm-page-description[data-tone="danger"] { color: var(--cm-text-danger); }
 .cm-page-cell .cm-rename { width: 100%; }
 
 /* ---- Inline rename (10.3) ---------------------------------------------------------------- */
@@ -464,7 +538,8 @@ const css = `
     color: var(--cm-text);
     ${cmFont("body")}
 }
-.cm-dt .cm-dt-head { display: grid; position: sticky; top: 1px; z-index: 1; background: var(--cm-bg); }
+/* z-index 2: above the pinned body cells (z-index 1) that scroll under it. */
+.cm-dt .cm-dt-head { display: grid; position: sticky; top: 1px; z-index: 2; background: var(--cm-bg); }
 .cm-dt .cm-dt-row { display: flex; gap: 1px; }
 .cm-dt .cm-dt-cell {
     position: relative;
@@ -522,6 +597,22 @@ const css = `
     cursor: default;
 }
 .cm-dt .cm-dt-sort[data-align="end"] { justify-content: flex-end; }
+/* A header's type glyph, and its menu caret: at the trailing end, over the sort button, shown
+   on hover, on focus within the header and while its menu is open. */
+.cm-dt .cm-dt-header-icon { flex: none; display: inline-flex; align-items: center; color: var(--cm-icon-secondary); }
+.cm-dt .cm-dt-sort[data-with-menu],
+.cm-dt .cm-dt-cell.cm-dt-header[data-with-menu] { padding-inline-end: 32px; }
+.cm-dt .cm-dt-header-menu {
+    position: absolute;
+    inset-inline-end: 4px;
+    top: 50%;
+    z-index: 1;
+    transform: translateY(-50%);
+    opacity: 0;
+}
+.cm-dt .cm-dt-header:hover .cm-dt-header-menu,
+.cm-dt .cm-dt-header:focus-within .cm-dt-header-menu,
+.cm-dt .cm-dt-header-menu[aria-expanded="true"] { opacity: 1; }
 .cm-dt .cm-dt-sort-priority { flex: none; color: var(--cm-text-secondary); ${cmFont("caption")} }
 .cm-dt .cm-dt-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-dt-empty {

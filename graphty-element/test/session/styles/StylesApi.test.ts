@@ -1072,6 +1072,34 @@ describe("encode(), the one path an analysis layer takes", () => {
         );
     });
 
+    it("gives an edge width by a run the same default range (#915)", async () => {
+        const flow: EncodingRun = {
+            id: "flow",
+            label: "Flow",
+            algorithm: "flow",
+            params: {},
+            shape: "edge-metric",
+            fields: [field("value", "edge", "number", "flow")],
+        };
+        const { styles } = makeStyles({
+            runs: {
+                run: (ref: RunRef) => (ref === "flow" ? flow : RUN_SOURCE.run(ref)),
+                runIds: () => [...RUN_SOURCE.runIds(), "flow"],
+            },
+        });
+
+        assert.deepStrictEqual(styles.proposeEncoding({ run: "flow", channel: "edge.width" }), {
+            ok: true,
+            binding: { by: "results.flow.value", scale: "linear", range: [1, 3] },
+        });
+        const layer = await styles.encode({ run: "flow", channel: "edge.width" });
+        assert.deepStrictEqual(layer.encode?.["edge.width"], {
+            by: "results.flow.value",
+            scale: "linear",
+            range: [1, 3],
+        });
+    });
+
     it("says which runs there are when it does not hold the one it was given", async () => {
         const { styles } = makeStyles();
 

@@ -13,6 +13,7 @@ import type { AdHocData } from "../config";
 import { createEdgeCounter, edgeCounterOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
+import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
@@ -49,9 +50,6 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./StylePainter";
 
 /** The graph value a plugin algorithm's graph-level results are kept under. */
 const GRAPH_RESULTS = "graphResults";
-
-/** An id that is an integer written as text, and so has a second spelling worth retrying. */
-const INTEGER_ID = /^-?\d+$/;
 
 export type { AddEdgesOptions } from "../session/project/ingest";
 
@@ -1483,11 +1481,8 @@ export class DataManager implements Manager {
             return exact;
         }
 
-        if (typeof nodeId === "string") {
-            return INTEGER_ID.test(nodeId) ? this.nodes.get(Number.parseInt(nodeId, 10)) : undefined;
-        }
-
-        return Number.isInteger(nodeId) ? this.nodes.get(String(nodeId)) : undefined;
+        const other = otherIdSpelling(nodeId);
+        return other === undefined ? undefined : this.nodes.get(other);
     }
 
     /**

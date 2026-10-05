@@ -1,0 +1,47 @@
+# Alarms that work with the dev machine switched off (tools/githerd-watchdog.mjs):
+# - githerd's heartbeat issue (label githerd-heartbeat) older than 1 hour, stuck, fatal or missing: one
+#   comment on it mentioning the owner, repeated at most once a day, and a recovery note. Green until
+#   githerd's first write creates the issue.
+# - master CI red for more than 2 hours: one comment mentioning the owner on the open red-master issue
+#   (tools/master-guard.mjs opens it), or a new one.
+# The CI trigger checks often in busy hours even when GitHub runs the cron hours late. Dispatch with
+# label=githerd-heartbeat-test to hand-test the alarm on a scratch issue.
+name: githerd watchdog
+
+on:
+    schedule:
+        - cron: "13,43 * * * *"
+    workflow_run:
+        workflows: ["CI"]
+        types: [completed]
+        branches: [master]
+    workflow_dispatch:
+        inputs:
+            label:
+                description: Label of the heartbeat issue
+                default: githerd-heartbeat
+
+concurrency:
+    group: githerd-watchdog
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    issues: write
+    actions: read
+
+jobs:
+    watch:
+        name: Heartbeat and master-break clock
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+            - uses: actions/setup-node@v4
+              with: { node-version: 22.x }
+            - run: node tools/githerd-watchdog.mjs
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  LABEL: ${{ inputs.label }}

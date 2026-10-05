@@ -490,6 +490,7 @@ CI, and Mergify queues only ready pull requests.
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
 | `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, nightly, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); `release.yml` waits for it and requires it green when it ran |
 | `master-guard.yml` | After CI, GPU or Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; the next green master CI lifts the freeze. GPU or Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
+| `githerd-watchdog.yml` | Twice an hour, after CI on master, dispatch | Alarms the owner by an issue comment when githerd's heartbeat issue (label `githerd-heartbeat`, written by githerd every 15 minutes) is over an hour old, stuck, fatal or missing (green until githerd first writes it), and when master CI has been red for over 2 hours. Works with the dev machine off (`tools/githerd-watchdog.mjs`) |
 
 ### Dead Links
 

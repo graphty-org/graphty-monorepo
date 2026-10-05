@@ -1,3 +1,14 @@
+## 0.2.12 (2026-10-05)
+
+### 🩹 Fixes
+
+- **visual-review:** hold a pull request with a failed story out of the inbox ([d5d8e80df](https://github.com/graphty-org/graphty-monorepo/commit/d5d8e80df))
+- **visual-review:** open a target's first project from a link that names no project ([4dcc68437](https://github.com/graphty-org/graphty-monorepo/commit/4dcc68437))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.11 (2026-10-05)
 
 ### 🚀 Features

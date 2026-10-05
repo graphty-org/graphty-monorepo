@@ -319,6 +319,11 @@ commits made with a temporary `core.hooksPath` that skips pre-commit. Both call
 from there and never print them. The checked-in `.claude/settings.json` denies agents `Read` on
 `.env` files, their backups, `*.pem`, `*.key` and SSH keys; `.env.example` stays readable.
 
+After the scan, `.husky/pre-commit` runs `tools/format-staged.sh`: prettier on the staged files,
+staged again (it skips a file that also has unstaged changes, `visual-baselines/` and merge commits).
+`tools/prepush.sh` runs its source-only checks (formatting, links, the tool and config checks) before
+the build, and stops at the first failing check instead of running the rest.
+
 `tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
 copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns
 when a merge or pull changed the lockfile. Either way, run `pnpm install`.

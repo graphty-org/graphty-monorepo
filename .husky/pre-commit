@@ -1,4 +1,8 @@
 #!/bin/sh
 # Refuses a commit whose staged files hold something shaped like a credential.
 # A false positive: add its path to .secretlintignore. Last resort: git commit --no-verify
-./tools/scan-secrets.sh --cached
+./tools/scan-secrets.sh --cached || exit 1
+
+# Formats the staged files with prettier and stages them again (tools/format-staged.sh says what
+# it leaves alone).
+./tools/format-staged.sh

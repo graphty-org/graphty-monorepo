@@ -1,12 +1,15 @@
 // Tests of the CI shape: the test matrix's shard groups (tools/ci-test-matrix.mjs), the parts of
 // ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, the
 // release train (release.yml, tools/release-diff.mjs, deploy-pages.yml, .mergify.yml's release
-// rule), and the record tools/pr-status-broker.mjs writes for agents.
+// rule), the record tools/pr-status-broker.mjs writes for agents, and the local commit and push hooks
+// (.husky/pre-commit, tools/format-staged.sh, tools/prepush.sh).
 //
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
@@ -428,5 +431,85 @@ describe("pr-status-broker", () => {
         });
         assert.equal(b.state, null);
         assert.deepEqual(b.checks, {});
+    });
+});
+
+describe("the commit and push hooks", () => {
+    const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
+    const formatStaged = new URL("./format-staged.sh", import.meta.url).pathname;
+    // A throwaway repository, run without the GIT_* variables a hook inherits.
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+    const inRepo = (fn) => {
+        const dir = mkdtempSync(join(tmpdir(), "format-staged-"));
+        const git = (...args) => spawnSync("git", args, { cwd: dir, env, encoding: "utf8" });
+        try {
+            git("init", "-q");
+            fn(dir, git);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+    const staged = (git, f) => git("show", `:${f}`).stdout;
+
+    it("pre-commit scans for secrets, then formats the staged files", () => {
+        assert.match(
+            repoFile(".husky/pre-commit"),
+            /scan-secrets\.sh --cached \|\| exit 1\n[\s\S]*\.\/tools\/format-staged\.sh/,
+        );
+    });
+
+    it("formats fully staged files and leaves partial, baseline and binary files alone", () => {
+        inRepo((dir, git) => {
+            mkdirSync(join(dir, "visual-baselines"));
+            writeFileSync(join(dir, "a.ts"), "const  x = {a:1}\n");
+            writeFileSync(join(dir, "b.ts"), "const  y = {b:2}\n");
+            writeFileSync(join(dir, "visual-baselines/c.json"), '{"c":3}\n');
+            writeFileSync(join(dir, "d.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]));
+            git("add", ".");
+            writeFileSync(join(dir, "b.ts"), "const  y = {b:2}\nconst z = 3;\n");
+            const r = spawnSync(formatStaged, { cwd: dir, env, encoding: "utf8" });
+            assert.equal(r.status, 0, r.stderr);
+            assert.equal(staged(git, "a.ts"), "const x = { a: 1 };\n");
+            assert.equal(readFileSync(join(dir, "a.ts"), "utf8"), "const x = { a: 1 };\n");
+            assert.equal(staged(git, "b.ts"), "const  y = {b:2}\n");
+            assert.match(r.stdout, /not formatting b\.ts/);
+            assert.equal(staged(git, "visual-baselines/c.json"), '{"c":3}\n');
+            assert.equal(git("diff", "--quiet").status, 1, "only b.ts differs from the index");
+            assert.equal(git("diff", "--name-only").stdout, "b.ts\n");
+        });
+    });
+
+    it("formats nothing while a merge is being committed", () => {
+        inRepo((dir, git) => {
+            writeFileSync(join(dir, "a.ts"), "const  x = {a:1}\n");
+            git("add", ".");
+            writeFileSync(join(dir, ".git/MERGE_HEAD"), "0".repeat(40) + "\n");
+            assert.equal(spawnSync(formatStaged, { cwd: dir, env }).status, 0);
+            assert.equal(staged(git, "a.ts"), "const  x = {a:1}\n");
+        });
+    });
+
+    it("pre-push runs the source-only checks before the build and stops at the first failure", () => {
+        const prepush = repoFile("tools/prepush.sh");
+        const at = (s) => {
+            const i = prepush.indexOf(s);
+            assert.ok(i > 0, `${s} is in tools/prepush.sh`);
+            return i;
+        };
+        const build = at('run_step "Build"');
+        assert.ok(at("PROJECTS=$(") < build);
+        for (const step of ["Formatting (changed files)", "ESLint root config", "Legacy graph API use", "Links"]) {
+            assert.ok(
+                at(`run_step "${step}"`) < at("PROJECTS=$("),
+                `${step} runs before the affected list and the build`,
+            );
+        }
+        const runStep = prepush.slice(at("run_step() {"), prepush.indexOf("\n}\n", at("run_step() {")) + 3);
+        const r = spawnSync("bash", ["-c", `${runStep}\nrun_step one false\nrun_step two "echo SECOND"`], {
+            encoding: "utf8",
+        });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /stopped at the first failure: one/);
+        assert.doesNotMatch(r.stdout, /SECOND/);
     });
 });

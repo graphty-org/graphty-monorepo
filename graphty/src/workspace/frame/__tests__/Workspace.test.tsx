@@ -79,7 +79,10 @@ describe("the workspace frame", () => {
         unmount();
 
         renderWorkspace({ ...OPEN, dockOpen: true });
-        assert.isNotNull(within(screen.getByRole("region", { name: "Table" })).getByText("Table"));
+        // No element here, so no session: the dock lists nothing but can still be closed.
+        assert.isNotNull(
+            within(screen.getByRole("region", { name: "Table" })).getByRole("button", { name: "Close table" }),
+        );
     });
 
     it("lists built commands in the main menu and leaves stubs out", async () => {

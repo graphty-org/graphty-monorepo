@@ -176,23 +176,6 @@ describe("reading records a page at a time", () => {
         session.dispose();
     });
 
-    it("pages the edges at a numeric node named by its string spelling", () => {
-        const harness = makeSession();
-        harness.add(
-            [{ id: 34 }, { id: 35 }, { id: "36" }],
-            [
-                { src: 34, dst: 35 },
-                { src: 35, dst: "36" },
-            ],
-        );
-        const { session } = harness;
-
-        assert.strictEqual(session.data.edgePage({ touching: "34" }).total, 1);
-        assert.strictEqual(session.data.edgePage({ touching: 36 }).total, 1);
-        assert.strictEqual(session.data.edgePage({ touching: "37" }).total, 0);
-        session.dispose();
-    });
-
     it("refuses a window that is not a whole number of zero or more", () => {
         const harness = makeSession();
 

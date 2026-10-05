@@ -2829,14 +2829,13 @@ export class Graphty extends LitElement {
 
     /**
      * Pin or release the nodes that answer to these ids, in either spelling, as one step. An id
-     * nothing answers to is skipped, as it always has been; `session.positions.pin` is the verb
-     * that reports one.
+     * nothing answers to is skipped, as it always has been.
      * @param ids - One node id, or several.
      * @param pinned - Pin, or release.
      */
     #pin(ids: (string | number) | readonly (string | number)[], pinned: boolean): void {
-        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).flatMap(
-            (id) => this.#graph.getNode(id)?.id ?? [],
+        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).map(
+            (id) => this.#graph.getNode(id)?.id ?? id,
         );
         void dispatcherOf(this.#graph.getSession()).dispatchNow({ op: "positions.pin", ids: nodes, pinned });
     }

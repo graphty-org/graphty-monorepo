@@ -22,7 +22,6 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { NodeId } from "../../catalog/types";
-import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { type ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "../../data/positions";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { PositionEntry } from "../types";
@@ -401,41 +400,18 @@ export class Arrangement {
     }
 
     /**
-     * `positions.pin`: pin or release nodes, in the `pins` slice and in the lane's pin bytes. An
-     * id is looked up in either spelling of an integer, as `getNode` looks it up, so `"34"` pins
-     * node `34`.
+     * `positions.pin`: pin or release nodes, in the `pins` slice and in the lane's pin bytes. A
+     * node the graph does not hold is skipped, as the element's own `pin` always has.
      * @param ids - The nodes.
      * @param pinned - Pin, or release.
      * @param draft - The command's draft.
-     * @throws A `GraphtyError` with `E_BAD_COMMAND` naming every id the graph does not hold in
-     *     either spelling; nothing is pinned or released then.
      */
     pin(ids: readonly NodeId[], pinned: boolean, draft: Draft): void {
         const snapshot = this.source?.snapshot() ?? null;
         // A node an edge created has a row and no record of its own: it is in the graph too.
         const held = (id: NodeId): boolean =>
             this.state.graph.nodes.has(id) || (snapshot !== null && rowOf(snapshot, id, 0) !== INVALID_INDEX);
-        const resolved: NodeId[] = [];
-        const missing: NodeId[] = [];
-        for (const id of ids) {
-            const other = held(id) ? id : otherIdSpelling(id);
-            if (other !== undefined && held(other)) {
-                resolved.push(other);
-            } else {
-                missing.push(id);
-            }
-        }
-
-        if (missing.length > 0) {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `The graph holds no node ${missing.map((id) => JSON.stringify(id)).join(", ")} to ${pinned ? "pin" : "unpin"}.`,
-                source: "layout",
-                details: { ids: missing },
-            });
-        }
-
-        const changed = this.graph.setPinned(draft, resolved, pinned);
+        const changed = this.graph.setPinned(draft, ids.filter(held), pinned);
         // Written now as well as by the hook, so a getter and the engine have the pin as soon as
         // this returns; the hook writes it again from the slice.
         for (const id of changed) {

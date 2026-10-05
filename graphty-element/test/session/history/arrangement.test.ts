@@ -12,7 +12,6 @@ import { assert, describe, it } from "vitest";
 import type { FormatDescriptor } from "../../../src/catalog/types";
 import type { AdHocData } from "../../../src/config";
 import { type BaseDataSourceConfig, DataSource, type DataSourceChunk } from "../../../src/data/DataSource";
-import { GraphtyError } from "../../../src/errors/GraphtyError";
 import { dispatcherOf, laneOf } from "../../../src/session/GraphSession";
 import type { GraphSession } from "../../../src/session/types";
 import { makeSession } from "../helpers";
@@ -326,40 +325,6 @@ describe("the arrangement under undo and redo", () => {
 
         layout.step();
         assert.strictEqual(lane(session).n1, pinned);
-        session.dispose();
-    });
-
-    it("pins and releases a numeric node named by the string an id read from a URL is", async () => {
-        const session = await fixtureSession();
-        await session.data.addNodes([{ id: 34 }]);
-
-        await session.positions.pin(["34"]);
-        assert.isTrue(session.positions.pinned.has(34), "the node the graph holds is pinned, under its own id");
-        assert.isFalse(session.positions.pinned.has("34"));
-
-        await session.positions.unpin(["34"]);
-        assert.isFalse(session.positions.pinned.has(34));
-        session.dispose();
-    });
-
-    it("refuses ids the graph does not hold, names them, and pins none of the others", async () => {
-        const session = await fixtureSession();
-        const before = session.history.steps.length;
-
-        const error: unknown = await session.positions.pin(["n1", "nope", 99]).then(
-            () => assert.fail("pin should have rejected"),
-            (rejection: unknown) => rejection,
-        );
-
-        assert.instanceOf(error, GraphtyError);
-        assert.strictEqual(error.code, "E_BAD_COMMAND");
-        assert.deepEqual(error.details, { ids: ["nope", 99] });
-        assert.isFalse(session.positions.pinned.has("n1"), "nothing is pinned when one id misses");
-        assert.strictEqual(session.history.steps.length, before, "and no step is recorded");
-
-        const release: unknown = await session.positions.unpin(["nope"]).catch((rejection: unknown) => rejection);
-        assert.instanceOf(release, GraphtyError);
-        assert.strictEqual(release.code, "E_BAD_COMMAND");
         session.dispose();
     });
 

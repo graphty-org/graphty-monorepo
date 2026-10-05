@@ -1,0 +1,36 @@
+githerd board at 10-01 20:00 UTC
+MASTER: red on CI
+  CI: RED since 10-01 14:58 (run 36884782346 at 8837b040)
+    CI / Test (webgpu-graph-algorithms-node) / Run tests
+    CI / Test (visual-review) / Run tests
+  Coverage: green (run 36890575740 at b1cae4c2)
+  Deploy to GitHub Pages: green (run 36890575757 at b1cae4c2)
+  GPU: green (run 36884844727 at 0c0742f8)
+  Hosts: green (run 36877948142 at e889bc61)
+  Release: green (run 36896294443 at b1cae4c2)
+  Visual seed capture: green (run 36801499220 at a4702492)
+  green commit c768e903; CI-green commit 9dd57bd5
+RELEASE: npm has every tagged version
+INCIDENTS (2):
+  CI / Test (visual-review) / Run tests -- class code; step red-head re-run; queued 10 min
+  CI / Test (webgpu-graph-algorithms-node) / Run tests -- class code; step red-head re-run; working 0 s, end-attempt in 2 h 0 min, held by githerd:w1
+OWNER (1):
+  item-1 [paid capacity] top up the GPU runner balance, 1 h 0 min ago
+PULL REQUESTS:
+  #704 fix(layout): stop the drift -- line 2: held: CI is red on master and can affect this change
+  #705 -- safe to merge; waiting on Mergify's queue
+PUSH QUEUE: free, 0 waiting
+JOBS (1):
+  issue-737 queued 0 s -- next by priority
+SESSIONS (1):
+  worker 1 (job incident-1, window githerd:w1)
+ORDERS AND POLICIES: none
+LIMITS:
+  workers: 1 of 3 (load 2.1 of 24 cores)
+HEALTH:
+  alive written 5 s ago by pid 4242, version 0.1.0
+  progress: poll for 2 s
+  rate: 4210 of 5000 left
+  worker hours today 1.5; phone alerts working; hidden other-account items 0; Stop gates failed open 0
+  modes: statuses dry-run, upkeep dry-run, incidents dry-run, owner-items dry-run, proposals dry-run, workers dry-run
+  faults: 0

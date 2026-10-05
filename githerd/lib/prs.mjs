@@ -121,6 +121,50 @@ function contextState(ctx) {
 }
 
 /**
+ * The newest context of each name: a context of a workflow run that a newer run of the same
+ * workflow replaced is dropped, and of a name reported twice (a re-run) the newest counts.
+ * @param {any[]} contexts CheckRun and StatusContext nodes
+ * @returns {Map<string, any>} the newest context by name
+ */
+function newestContexts(contexts) {
+    /** @type {Map<string, number>} */
+    const latestRun = new Map();
+    for (const ctx of contexts) {
+        const run = ctx.checkSuite?.workflowRun;
+        if (!run) continue;
+        const name = run.workflow?.name ?? "";
+        latestRun.set(name, Math.max(latestRun.get(name) ?? 0, run.databaseId ?? 0));
+    }
+    /** @type {Map<string, any>} */
+    const newest = new Map();
+    for (const ctx of contexts) {
+        const run = ctx.checkSuite?.workflowRun;
+        if (run && (run.databaseId ?? 0) < (latestRun.get(run.workflow?.name ?? "") ?? 0)) continue;
+        const name = ctx.__typename === "StatusContext" ? ctx.context : ctx.name;
+        const prev = newest.get(name);
+        if (!prev || (ctx.databaseId ?? 0) > (prev.databaseId ?? 0)) newest.set(name, ctx);
+    }
+    return newest;
+}
+
+/**
+ * Notes one context in its workflow run's summary: a run is cancelled when a required check of it
+ * was cancelled, and open while a check of it failed or is pending.
+ * @param {Map<number, {workflow: string, cancelled: boolean, open: boolean}>} runs the runs, updated
+ * @param {any} ctx the context
+ * @param {CheckState} state its state
+ * @param {boolean} isRequired whether its name is a required check
+ */
+function noteRun(runs, ctx, state, isRequired) {
+    const wr = ctx.checkSuite?.workflowRun;
+    if (!wr?.databaseId) return;
+    const r = runs.get(wr.databaseId) ?? { workflow: wr.workflow?.name ?? "", cancelled: false, open: false };
+    if (state === "CANCELLED" && isRequired) r.cancelled = true;
+    if (state === "FAILURE" || state === "PENDING") r.open = true;
+    runs.set(wr.databaseId, r);
+}
+
+/**
  * The checks of a node's head commit.
  * @param {any} node a GraphQL pullRequest node
  * @param {string[]} requiredChecks the required context names
@@ -147,35 +191,12 @@ function readChecks(node, requiredChecks) {
     const contexts = readyAt
         ? allContexts.filter((/** @type {any} */ c) => !(c.startedAt && c.startedAt < readyAt))
         : allContexts;
-    /** @type {Map<string, number>} */
-    const latestRun = new Map();
-    for (const ctx of contexts) {
-        const run = ctx.checkSuite?.workflowRun;
-        if (!run) continue;
-        const name = run.workflow?.name ?? "";
-        latestRun.set(name, Math.max(latestRun.get(name) ?? 0, run.databaseId ?? 0));
-    }
-    /** @type {Map<string, any>} */
-    const newest = new Map();
-    for (const ctx of contexts) {
-        const run = ctx.checkSuite?.workflowRun;
-        if (run && (run.databaseId ?? 0) < (latestRun.get(run.workflow?.name ?? "") ?? 0)) continue;
-        const name = ctx.__typename === "StatusContext" ? ctx.context : ctx.name;
-        const prev = newest.get(name);
-        if (!prev || (ctx.databaseId ?? 0) > (prev.databaseId ?? 0)) newest.set(name, ctx);
-    }
     /** @type {Map<number, {workflow: string, cancelled: boolean, open: boolean}>} */
     const runs = new Map();
-    for (const [name, ctx] of newest) {
+    for (const [name, ctx] of newestContexts(contexts)) {
         const state = contextState(ctx);
         if (state === "FAILURE") failing.push(name);
-        const wr = ctx.checkSuite?.workflowRun;
-        if (wr?.databaseId) {
-            const r = runs.get(wr.databaseId) ?? { workflow: wr.workflow?.name ?? "", cancelled: false, open: false };
-            if (state === "CANCELLED" && Object.hasOwn(required, name)) r.cancelled = true;
-            if (state === "FAILURE" || state === "PENDING") r.open = true;
-            runs.set(wr.databaseId, r);
-        }
+        noteRun(runs, ctx, state, Object.hasOwn(required, name));
         if (!Object.hasOwn(required, name)) continue;
         required[name] = state;
         if (state === "FAILURE" && ctx.startedAt && (!startedAt || ctx.startedAt > startedAt)) {
@@ -411,6 +432,18 @@ function pullRequestReasons(rec, master) {
     }
     reasons.push(...failingReasons(rec, master));
     if (rec.autoMerge) reasons.push("native auto-merge armed: bypasses githerd/merge");
+    reasons.push(...cancelledReasons(rec));
+    if (Object.values(rec.required).some((v) => v === "PENDING" || v === "MISSING")) reasons.push("checks pending");
+    return reasons;
+}
+
+/**
+ * The reasons about cancelled required checks and githerd's re-runs of their runs.
+ * @param {PrRecord} rec the record
+ * @returns {string[]} the reasons
+ */
+function cancelledReasons(rec) {
+    const reasons = [];
     const cancelled = Object.keys(rec.required).filter((n) => rec.required[n] === "CANCELLED");
     if (cancelled.length) reasons.push(`required check cancelled, not failed: ${cancelled.join(", ")}`);
     for (const run of rec.cancelledRuns ?? []) {
@@ -418,7 +451,6 @@ function pullRequestReasons(rec, master) {
         if (run.rerun === "spent")
             reasons.push(`${run.workflow} run ${run.id} cancelled again after a re-run: not re-run again`);
     }
-    if (Object.values(rec.required).some((v) => v === "PENDING" || v === "MISSING")) reasons.push("checks pending");
     return reasons;
 }
 
@@ -718,7 +750,7 @@ export function isReleaseTrain(pr, pattern) {
     return (
         Boolean(pattern) &&
         pr.author === "github-actions" &&
-        /^release\/train-/.test(pr.headRef ?? "") &&
+        (pr.headRef ?? "").startsWith("release/train-") &&
         new RegExp(/** @type {string} */ (pattern)).test(pr.title)
     );
 }

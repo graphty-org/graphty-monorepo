@@ -298,8 +298,10 @@ export function sessionToolSet(ctx) {
             // The reason is the holder's status too: it answers githerd's status question (asks.mjs).
             job.status = { at: now.toISOString(), text: args.reason };
             // The session's room for more jobs, which inviteStep reads (asks.mjs).
-            if (args.capacity !== undefined && session)
-                (state.capacity ??= {})[session] = { n: args.capacity, at: now.toISOString() };
+            if (args.capacity !== undefined && session) {
+                state.capacity ??= {};
+                state.capacity[session] = { n: args.capacity, at: now.toISOString() };
+            }
             await ctx.commit({ kind: "expect", job: job.id, until, reason: args.reason });
             return JSON.stringify({ ok: true, until });
         },
@@ -363,7 +365,8 @@ export function sessionToolSet(ctx) {
             const at = now.toISOString();
             ask.owner = { session, name, at };
             // The durable record (asks.mjs): a new push keeps it, the session's end or the close drops it.
-            (state.prOwners ??= {})[String(args.pr)] = { session, name, at, by: "tool" };
+            state.prOwners ??= {};
+            state.prOwners[String(args.pr)] = { session, name, at, by: "tool" };
             await ctx.commit({ kind: "pr-mine", pr: args.pr, head: rec.headSha, session });
             return JSON.stringify({
                 ok: true,
@@ -459,13 +462,7 @@ async function rerun(ctx, job, args, session) {
         );
     }
     if (args.pr !== undefined && args.pr !== job.pr && askFor(ctx.state, args.pr)?.owner?.session !== session) {
-        const issue = job.kind === "issue" ? numberOf(job.target) : null;
-        const body = issue ? (await ctx.github.get(`repos/${repo}/pulls/${args.pr}`)).body?.body : null;
-        if (!issue || !namesIssue(rec, body, issue)) {
-            throw new Error(
-                `#${args.pr} is not ${job.id}'s pull request, one this session took, nor one naming its issue`,
-            );
-        }
+        await checkPartialPr(ctx, job, args.pr, rec);
     }
     const run = (await ctx.github.get(`repos/${repo}/actions/runs/${args.run}`)).body ?? {};
     if (run.head_sha !== head) throw new Error(`run ${args.run} is not on the head ${head.slice(0, 9)}`);
@@ -492,6 +489,22 @@ async function rerun(ctx, job, args, session) {
         },
     );
     return r.performed ? `re-run of ${failed.name} started` : `would re-run ${failed.name} (dry-run)`;
+}
+
+/**
+ * Throws unless pull request `pr` is one of an issue job's partial pull requests: an open one that
+ * names the job's issue.
+ * @param {SessionToolContext} ctx the context
+ * @param {any} job the caller's job
+ * @param {number} pr the pull request
+ * @param {any} rec its record
+ */
+async function checkPartialPr(ctx, job, pr, rec) {
+    const issue = job.kind === "issue" ? numberOf(job.target) : null;
+    const body = issue ? (await ctx.github.get(`repos/${ctx.config.repo}/pulls/${pr}`)).body?.body : null;
+    if (!issue || !namesIssue(rec, body, issue)) {
+        throw new Error(`#${pr} is not ${job.id}'s pull request, one this session took, nor one naming its issue`);
+    }
 }
 
 /**

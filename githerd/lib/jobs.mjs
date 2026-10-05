@@ -287,6 +287,15 @@ function prJobs(state, add, cancel) {
         // A queued job says what the pull request needs now, not what it needed when it was made.
         if (job.state === "queued") job.reason = need;
     }
+    cancelEndedPrJobs(state, cancel);
+}
+
+/**
+ * Cancels each `pr` and `title` job whose pull request closed or no longer needs a worker.
+ * @param {any} state the daemon state
+ * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
+ */
+function cancelEndedPrJobs(state, cancel) {
     for (const job of Object.values(state.jobs)) {
         if (job.kind !== "pr" && job.kind !== "title") continue;
         const rec = state.prs?.[String(job.pr)];
@@ -453,18 +462,14 @@ function refreshJob(state, passes, open, now, add) {
 }
 
 /**
- * The issue jobs: one queued at a time, for the issue at the front (an open order first, then the
- * ranked list); the re-land of every pull request a revert took out; and an issue job whose issue
- * closed is cancelled.
+ * The re-land job of every pull request a revert took out, once the revert left the open pull
+ * requests (merged, or closed by the owner).
  * @param {any} state the daemon state
- * @param {any} config the normalized config
  * @param {Date} now the clock
  * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
- * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
  */
-function issueJobs(state, config, now, add, cancel) {
+function relandJobs(state, now, add) {
     for (const [reverted, revertPr] of Object.entries(state.incidentActions?.reverts ?? {})) {
-        // Re-landed once the revert left the open pull requests (merged, or closed by the owner).
         if (state.prs?.[String(revertPr)] || state.jobs[`issue-reland-${reverted}`]) continue;
         add({
             id: `issue-reland-${reverted}`,
@@ -475,18 +480,42 @@ function issueJobs(state, config, now, add, cancel) {
             facts: { scope: "reland", since: now.toISOString(), revert: Number(revertPr) },
         });
     }
-    for (const job of Object.values(state.jobs)) {
-        if (job.kind !== "issue" || job.facts?.scope === "reland") continue;
-        if (state.issues?.byNumber?.[String(job.target).slice(1)]?.state === "closed") cancel(job, "the issue closed");
-    }
-    // A deferral holds while the issue's revision is the one it was made at; a new comment, edit or
-    // label change ends it, and the issue's ended job no longer keeps it out.
+}
+
+/**
+ * Ends the deferrals whose issue changed. A deferral holds while the issue's revision is the one it
+ * was made at; a new comment, edit or label change ends it, and the issue's ended job no longer
+ * keeps it out.
+ * @param {any} state the daemon state, changed in place
+ * @returns {Record<string, any>} the deferrals that hold, by issue
+ */
+function endChangedDeferrals(state) {
     const deferred = state.deferred ?? {};
     for (const [n, d] of Object.entries(deferred)) {
         if (state.issues?.byNumber?.[n]?.updatedAt === d.revision) continue;
         delete deferred[n];
         if (TERMINAL.includes(state.jobs[`issue-${n}`]?.state)) delete state.jobs[`issue-${n}`];
     }
+    return deferred;
+}
+
+/**
+ * The issue jobs: one queued at a time, for the issue at the front (an open order first, then the
+ * ranked list); the re-land of every pull request a revert took out; and an issue job whose issue
+ * closed is cancelled.
+ * @param {any} state the daemon state
+ * @param {any} config the normalized config
+ * @param {Date} now the clock
+ * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
+ * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
+ */
+function issueJobs(state, config, now, add, cancel) {
+    relandJobs(state, now, add);
+    for (const job of Object.values(state.jobs)) {
+        if (job.kind !== "issue" || job.facts?.scope === "reland") continue;
+        if (state.issues?.byNumber?.[String(job.target).slice(1)]?.state === "closed") cancel(job, "the issue closed");
+    }
+    const deferred = endChangedDeferrals(state);
     const queued = Object.values(state.jobs).some((j) => j.kind === "issue" && j.state === "queued");
     if (queued) return;
     const priorities = config.labels?.priorities ?? [];

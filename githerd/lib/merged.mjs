@@ -181,7 +181,9 @@ export function commitRefs(log, open) {
         const [sha, subject = ""] = line.split("\t");
         for (const m of subject.matchAll(/(?<![\w&/])#(\d+)\b/g)) {
             const n = Number(m[1]);
-            if (wanted.has(n) && !refs[n]?.includes(sha)) (refs[n] ??= []).push(sha);
+            if (!wanted.has(n) || refs[n]?.includes(sha)) continue;
+            refs[n] ??= [];
+            refs[n].push(sha);
         }
     }
     return refs;

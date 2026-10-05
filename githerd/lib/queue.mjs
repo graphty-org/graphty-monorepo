@@ -331,6 +331,19 @@ export function prInUse(state, n, { config, now, except = null, review = false, 
     const inferred = state.prInferred?.[String(n)];
     if (inferred && session && inferred.session === session) return `yours: ${inferred.evidence}`;
     if (inferred) return `session ${inferred.name} owns it (${inferred.evidence})`;
+    return brokenHeadInUse(state, n, { config, now, session });
+}
+
+/**
+ * Why pull request `n` is in use by its broken head (rule 3 of `prInUse`): CI running or failed on
+ * a head someone else pushed, or a conflict, while githerd asks whose it is.
+ * @param {any} state the daemon state
+ * @param {number | string} n the pull request
+ * @param {{config?: any, now: Date, session: string | null}} opts the config, the clock and the
+ *   session asking
+ * @returns {string | null} the reason
+ */
+function brokenHeadInUse(state, n, { config, now, session }) {
     const rec = state.prs?.[String(n)];
     if (!rec?.headSha || headIsGitherds(state, rec)) return null;
     const head = String(rec.headSha ?? "").slice(0, 7);
@@ -339,7 +352,18 @@ export function prInUse(state, n, { config, now, except = null, review = false, 
     const what = failingRequired(rec).length
         ? `CI failed on ${head}`
         : `${head} conflicts with ${rec.baseRef ?? "its base"}`;
-    const ask = askFor(state, n);
+    return askInUse(askFor(state, n), what, { config, now, session });
+}
+
+/**
+ * Why a broken pull request is in use by githerd's question of whose it is.
+ * @param {any} ask the question (`askFor`), or null when none was asked yet
+ * @param {string} what what is wrong with its head
+ * @param {{config?: any, now: Date, session: string | null}} opts the config, the clock and the
+ *   session asking
+ * @returns {string | null} the reason
+ */
+function askInUse(ask, what, { config, now, session }) {
     if (!ask) return `${what}; githerd is asking the sessions in this repository whose it is`;
     if (ask.owner && session && ask.owner.session === session) return "yours: you said you are working on it";
     if (ask.owner) return `session ${ask.owner.name} said it is working on it`;

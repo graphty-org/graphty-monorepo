@@ -410,9 +410,8 @@ function queueLines({ items, skipped, inUse = [], inFlight, ownerWaiting, deferr
         lines.push(`PRS WAITING ON OWNER (${ownerWaiting.length}): ${list.join("; ")}`);
     }
     if (deferred.length) {
-        lines.push(
-            `DEFERRED UNTIL THEY CHANGE (${deferred.length}): ${deferred.map((d) => `#${d.issue} ${d.reason}`).join("; ")}`,
-        );
+        const list = deferred.map((d) => `#${d.issue} ${d.reason}`);
+        lines.push(`DEFERRED UNTIL THEY CHANGE (${deferred.length}): ${list.join("; ")}`);
     }
     return lines;
 }

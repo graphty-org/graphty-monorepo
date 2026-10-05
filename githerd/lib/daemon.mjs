@@ -1247,33 +1247,44 @@ export async function startDaemon({
                     endItem(state, id, "cleared", now());
                     continue;
                 }
-                // The owner answering the item says the capacity is back: the item raised again
-                // after his answer carries the one re-run (design 3.2).
-                const before = state.ownerItems?.[id];
-                const answered = Boolean(before?.endedAt && before.endedBy !== "cleared");
-                const paid = cls === "paid-capacity";
-                const raised = raiseItem(
-                    state,
-                    {
-                        id,
-                        kind: cls,
-                        question: `${name} ${what} (${l.redReason}); merges continue and the release waits until it runs${paid ? "; answer this item once the balance is topped up and githerd re-runs the lane" : ""}`,
-                        blocks: "release",
-                    },
-                    now(),
-                );
-                if (raised === "raised" && answered) state.ownerItems[id].retry = true;
-                if (!paid) continue;
-                await actions.backoff({
-                    lane: name,
-                    openedAt: Date.parse(state.ownerItems[id].raisedAt),
-                    retry: Boolean(state.ownerItems[id].retry),
-                    run: { id: l.runId, attempt: l.attempt },
-                    running: Object.keys(l.inFlight ?? {}).length > 0,
-                    notProgressing: Boolean(l.notProgressing),
-                });
+                await parkLane(actions, { name, l, cls, what, id });
             }
         }
+    }
+
+    /**
+     * Raises the owner item of a gating lane parked for class `cls`, and for paid capacity backs
+     * off its re-run (`parkedLanes`).
+     * @param {ReturnType<typeof createIncidentActions>} actions the incident actions
+     * @param {{name: string, l: any, cls: string, what: string, id: string}} parked the lane's name
+     *   and record, the class, what the item says about it, and the item's id
+     */
+    async function parkLane(actions, { name, l, cls, what, id }) {
+        // The owner answering the item says the capacity is back: the item raised again
+        // after his answer carries the one re-run (design 3.2).
+        const before = state.ownerItems?.[id];
+        const answered = Boolean(before?.endedAt && before.endedBy !== "cleared");
+        const paid = cls === "paid-capacity";
+        const raised = raiseItem(
+            state,
+            {
+                id,
+                kind: cls,
+                question: `${name} ${what} (${l.redReason}); merges continue and the release waits until it runs${paid ? "; answer this item once the balance is topped up and githerd re-runs the lane" : ""}`,
+                blocks: "release",
+            },
+            now(),
+        );
+        if (raised === "raised" && answered) state.ownerItems[id].retry = true;
+        if (!paid) return;
+        await actions.backoff({
+            lane: name,
+            openedAt: Date.parse(state.ownerItems[id].raisedAt),
+            retry: Boolean(state.ownerItems[id].retry),
+            run: { id: l.runId, attempt: l.attempt },
+            running: Object.keys(l.inFlight ?? {}).length > 0,
+            notProgressing: Boolean(l.notProgressing),
+        });
     }
 
     /**
@@ -1887,7 +1898,7 @@ export async function startDaemon({
                 open
                     .map(([, i]) => i.createdAt)
                     .filter(Boolean)
-                    .sort()[0] ?? "1970-01-01T00:00:00Z";
+                    .sort((a, b) => a.localeCompare(b))[0] ?? "1970-01-01T00:00:00Z";
             const refs = await backfillRefs(gh, config.repo, since);
             state.merged.refs ??= {};
             for (const [n, list] of Object.entries(refs)) {
@@ -2263,32 +2274,9 @@ export async function startDaemon({
         const r = `repos/${config.repo}/actions/runs/`;
         for (const [n, rec] of Object.entries(prs)) {
             for (const cancelled of rec.cancelledRuns ?? []) {
-                const id = String(cancelled.id);
-                live.add(id);
+                live.add(String(cancelled.id));
                 try {
-                    const run = (await gh.get(`${r}${id}`)).body ?? {};
-                    if (run.status !== "completed") continue;
-                    if ((run.run_attempt ?? 1) > 1) {
-                        cancelled.rerun = "spent";
-                        continue;
-                    }
-                    const before = spent[id];
-                    if (before && (before.acting || !acting)) {
-                        if (before.acting) cancelled.rerun = "started";
-                        continue;
-                    }
-                    spent[id] = { at: iso, pr: Number(n), acting };
-                    try {
-                        const res = await gh.write("POST", `${r}${id}/rerun-failed-jobs`, undefined, {
-                            group: "worker-writes",
-                            check: { path: `${r}${id}/attempts/2`, expect: { run_attempt: 2 } },
-                            fields: { situation: "cancelled-run", pr: Number(n), workflow: cancelled.workflow },
-                        });
-                        if (res.performed) cancelled.rerun = "started";
-                    } catch (err) {
-                        if (notSent(err)) delete spent[id];
-                        throw err;
-                    }
+                    await rerunRun(gh, Number(n), cancelled, { spent, acting, runs: r, iso });
                 } catch (err) {
                     void ledger({ kind: "error", where: "cancelled-rerun", error: /** @type {Error} */ (err).message });
                 }
@@ -3405,3 +3393,40 @@ export async function startDaemon({
  * @property {(message: unknown, context?: any) => Promise<any>} [rpc] answers one JSON-RPC message
  * @property {() => Promise<void>} [flushNotifications] delivers queued pages
  */
+
+/**
+ * Re-runs one cancelled run of pull request `n` (`rerunCancelled`), unless it is still running,
+ * was re-run already, or its re-run was asked for already (or recorded as a would-do while the
+ * group does not act and still does not).
+ * @param {ReturnType<typeof createGitHub>} gh the client
+ * @param {number} n the pull request
+ * @param {any} cancelled the run, marked with `rerun`
+ * @param {{spent: Record<string, any>, acting: boolean, runs: string, iso: string}} opts the
+ *   re-runs asked for by run, whether `worker-writes` acts, the runs' API path and the poll's time
+ */
+async function rerunRun(gh, n, cancelled, { spent, acting, runs, iso }) {
+    const id = String(cancelled.id);
+    const run = (await gh.get(`${runs}${id}`)).body ?? {};
+    if (run.status !== "completed") return;
+    if ((run.run_attempt ?? 1) > 1) {
+        cancelled.rerun = "spent";
+        return;
+    }
+    const before = spent[id];
+    if (before && (before.acting || !acting)) {
+        if (before.acting) cancelled.rerun = "started";
+        return;
+    }
+    spent[id] = { at: iso, pr: n, acting };
+    try {
+        const res = await gh.write("POST", `${runs}${id}/rerun-failed-jobs`, undefined, {
+            group: "worker-writes",
+            check: { path: `${runs}${id}/attempts/2`, expect: { run_attempt: 2 } },
+            fields: { situation: "cancelled-run", pr: n, workflow: cancelled.workflow },
+        });
+        if (res.performed) cancelled.rerun = "started";
+    } catch (err) {
+        if (notSent(err)) delete spent[id];
+        throw err;
+    }
+}

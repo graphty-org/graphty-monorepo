@@ -705,31 +705,26 @@ async function settleClaim(ctx, job, report, session) {
     if (moved()) return movedReply();
     job.report = { ...report, at: now.toISOString(), session };
     await reportLoose(ctx, job, report.defects);
-    if (report.outcome === "failed") {
+    if (report.outcome === "failed" || report.outcome === "deferred") {
         if (!answer || !("holds" in answer)) return reply(toolAnswer(answer, { action: "working" }, error, job));
-        const ended = board.endAttempt(
-            job,
-            { outcome: "failed", findings: report.findings, theory: report.theory ?? "" },
-            now,
-        );
-        afterSettle(ctx.state, job, holder, ended, now);
-        await ctx.commit({ kind: "done-report", job: job.id, outcome: "failed", next: ended.action });
-        return reply({ verified: true, attempts: attemptsText(job, ended) });
+        if (report.outcome === "failed") return settleFailed(ctx, job, report, holder);
+        return settleDeferred(ctx, job, report, holder, session);
     }
-    if (report.outcome === "deferred") {
-        if (!answer || !("holds" in answer)) return reply(toolAnswer(answer, { action: "working" }, error, job));
-        const n = String(numberOf(job.target));
-        const reason = String(report.reason).trim();
-        const revision = ctx.state.issues?.byNumber?.[n]?.updatedAt ?? null;
-        (ctx.state.deferred ??= {})[n] = { reason, revision, job: job.id, session, at: now.toISOString() };
-        board.move(job, "cancelled", now, { reason: `deferred: ${reason}` });
-        afterSettle(ctx.state, job, holder, null, now);
-        await ctx.commit({ kind: "done-report", job: job.id, outcome: "deferred", next: "cancelled" });
-        return reply({
-            verified: true,
-            attempts: `accepted: ${job.id} is deferred; #${n} is not offered again until it changes`,
-        });
-    }
+    return settleVerified(ctx, job, report, { holder, answer, error, view });
+}
+
+/**
+ * Applies GitHub's answer to a `done` or `not-needed` report: the job moves to `verifying` and on
+ * to what the answer says.
+ * @param {{state: any, now: Date, commit: (entry: any) => Promise<void>}} ctx the request context
+ * @param {any} job the job
+ * @param {any} report the report
+ * @param {{holder: any, answer: any, error: any, view: any}} checked the job's holder when the claim
+ *   was made, GitHub's answer, the check's error and the view the check read
+ * @returns {Promise<{text: string, isError?: boolean}>} the tool result
+ */
+async function settleVerified(ctx, job, report, { holder, answer, error, view }) {
+    const { now } = ctx;
     board.move(job, "verifying", now);
     const after = board.verifyResult(job, answer, now);
     if (after?.action === "waiting") job.waitingFor.verify = true;
@@ -744,6 +739,52 @@ async function settleClaim(ctx, job, report, session) {
         error,
     });
     return reply(toolAnswer(answer, after, error, job));
+}
+
+/**
+ * Ends the attempt of a job whose `failed` report holds, with its findings.
+ * @param {{state: any, now: Date, commit: (entry: any) => Promise<void>}} ctx the request context
+ * @param {any} job the job
+ * @param {any} report the report
+ * @param {any} holder the job's holder when the claim was made
+ * @returns {Promise<{text: string, isError?: boolean}>} the tool result
+ */
+async function settleFailed(ctx, job, report, holder) {
+    const { now } = ctx;
+    const ended = board.endAttempt(
+        job,
+        { outcome: "failed", findings: report.findings, theory: report.theory ?? "" },
+        now,
+    );
+    afterSettle(ctx.state, job, holder, ended, now);
+    await ctx.commit({ kind: "done-report", job: job.id, outcome: "failed", next: ended.action });
+    return reply({ verified: true, attempts: attemptsText(job, ended) });
+}
+
+/**
+ * Cancels a job whose `deferred` report holds, and records the deferral, so its issue is not
+ * offered again until it changes.
+ * @param {{state: any, now: Date, commit: (entry: any) => Promise<void>}} ctx the request context
+ * @param {any} job the job
+ * @param {any} report the report
+ * @param {any} holder the job's holder when the claim was made
+ * @param {string | null} session the calling session
+ * @returns {Promise<{text: string, isError?: boolean}>} the tool result
+ */
+async function settleDeferred(ctx, job, report, holder, session) {
+    const { now } = ctx;
+    const n = String(numberOf(job.target));
+    const reason = String(report.reason).trim();
+    const revision = ctx.state.issues?.byNumber?.[n]?.updatedAt ?? null;
+    ctx.state.deferred ??= {};
+    ctx.state.deferred[n] = { reason, revision, job: job.id, session, at: now.toISOString() };
+    board.move(job, "cancelled", now, { reason: `deferred: ${reason}` });
+    afterSettle(ctx.state, job, holder, null, now);
+    await ctx.commit({ kind: "done-report", job: job.id, outcome: "deferred", next: "cancelled" });
+    return reply({
+        verified: true,
+        attempts: `accepted: ${job.id} is deferred; #${n} is not offered again until it changes`,
+    });
 }
 
 /**

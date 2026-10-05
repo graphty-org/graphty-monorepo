@@ -55,7 +55,7 @@ export function pushedBranches(cmd) {
     for (const m of cmd.matchAll(/\bgit\s+(?:-[Cc]\s+\S+\s+)*push\b([^;&|\n<>]*)/g)) {
         const words = m[1].trim().split(/\s+/);
         if (words.includes("--delete") || words.includes("-d")) continue;
-        const args = words.filter((a) => a && !a.startsWith("-")).map((a) => a.replace(/^["']|["']$/g, ""));
+        const args = words.filter((a) => a && !a.startsWith("-")).map((a) => a.replaceAll(/(?:^["'])|(?:["']$)/g, ""));
         for (const ref of args.slice(1)) {
             if (ref.startsWith(":")) continue;
             const dst = /** @type {string} */ (ref.replace(/^\+/, "").split(":").pop()).replace(/^refs\/heads\//, "");
@@ -79,20 +79,39 @@ function pushesIn(buf, pushes) {
             const start = buf.lastIndexOf(10, i) + 1;
             if (seen.has(start)) continue;
             seen.add(start);
-            const end = buf.indexOf(10, i);
-            let e;
-            try {
-                e = JSON.parse(buf.toString("utf8", start, end === -1 ? buf.length : end));
-            } catch {
-                continue;
-            }
-            if (e?.type !== "assistant" || typeof e.timestamp !== "string") continue;
-            for (const c of Array.isArray(e.message?.content) ? e.message.content : []) {
-                if (c?.type !== "tool_use" || c.name !== "Bash" || typeof c.input?.command !== "string") continue;
-                for (const b of pushedBranches(c.input.command)) {
-                    if (!pushes[b] || Date.parse(pushes[b]) < Date.parse(e.timestamp)) pushes[b] = e.timestamp;
-                }
-            }
+            recordPushes(parseLine(buf, start, i), pushes);
+        }
+    }
+}
+
+/**
+ * The JSON value of the line that starts at `start` and contains `i`, or null when it is torn.
+ * @param {Buffer} buf whole lines
+ * @param {number} start where the line starts
+ * @param {number} i a position in it
+ * @returns {any} the value
+ */
+function parseLine(buf, start, i) {
+    const end = buf.indexOf(10, i);
+    try {
+        return JSON.parse(buf.toString("utf8", start, end === -1 ? buf.length : end));
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Records the branches one transcript entry's Bash tool calls pushed, when it is an assistant
+ * message.
+ * @param {any} e the transcript entry
+ * @param {Record<string, string>} pushes the latest push time by branch, updated
+ */
+function recordPushes(e, pushes) {
+    if (e?.type !== "assistant" || typeof e.timestamp !== "string") return;
+    for (const c of Array.isArray(e.message?.content) ? e.message.content : []) {
+        if (c?.type !== "tool_use" || c.name !== "Bash" || typeof c.input?.command !== "string") continue;
+        for (const b of pushedBranches(c.input.command)) {
+            if (!pushes[b] || Date.parse(pushes[b]) < Date.parse(e.timestamp)) pushes[b] = e.timestamp;
         }
     }
 }
@@ -131,11 +150,31 @@ export async function scanTranscripts(scans, sessions, { root, projectsDir, budg
     const live = sessions.filter((s) => s.cwd && !s.cwd.startsWith(workers));
     const ids = new Set(live.map((s) => s.sessionId));
     for (const id of Object.keys(scans)) if (!ids.has(id)) delete scans[id];
-    /** @type {{scan: TranscriptScan, rel: string, path: string, size: number, mtime: number}[]} */
+    const todo = await grownTranscripts(scans, live, projectsDir);
+    todo.sort((a, b) => b.mtime - a.mtime);
+    for (const file of todo) {
+        if (budget <= 0) break;
+        budget = await readTranscript(file, budget);
+    }
+}
+
+/** @typedef {{scan: TranscriptScan, rel: string, path: string, size: number, mtime: number}} GrownFile */
+
+/**
+ * The transcript files of the live sessions that grew since they were last read. A file that
+ * shrank is read again from the start.
+ * @param {Record<string, TranscriptScan>} scans the scans by session, updated in place
+ * @param {Registered[]} live the live sessions to scan
+ * @param {string} projectsDir Claude Code's projects directory
+ * @returns {Promise<GrownFile[]>} the files
+ */
+async function grownTranscripts(scans, live, projectsDir) {
+    /** @type {GrownFile[]} */
     const todo = [];
     for (const s of live) {
-        const scan = (scans[s.sessionId] ??= { files: {}, pushes: {} });
-        const base = join(projectsDir, /** @type {string} */ (s.cwd).replace(/[^A-Za-z0-9]/g, "-"), s.sessionId);
+        scans[s.sessionId] ??= { files: {}, pushes: {} };
+        const scan = scans[s.sessionId];
+        const base = join(projectsDir, /** @type {string} */ (s.cwd).replaceAll(/[^A-Za-z0-9]/g, "-"), s.sessionId);
         for (const rel of await transcriptFiles(base)) {
             const path = rel ? join(base, rel) : `${base}.jsonl`;
             const st = await stat(path).catch(() => null);
@@ -144,35 +183,43 @@ export async function scanTranscripts(scans, sessions, { root, projectsDir, budg
             if (st.size > (scan.files[rel] ?? 0)) todo.push({ scan, rel, path, size: st.size, mtime: st.mtimeMs });
         }
     }
-    todo.sort((a, b) => b.mtime - a.mtime);
-    for (const { scan, rel, path, size } of todo) {
-        if (budget <= 0) break;
-        const fh = await open(path, "r").catch(() => null);
-        if (!fh) continue;
-        try {
-            let offset = scan.files[rel] ?? 0;
-            let carry = Buffer.alloc(0);
-            while (offset + carry.length < size && budget > 0) {
-                const want = Math.min(CHUNK, size - offset - carry.length, budget);
-                const chunk = Buffer.alloc(want);
-                const { bytesRead } = await fh.read(chunk, 0, want, offset + carry.length);
-                if (!bytesRead) break;
-                budget -= bytesRead;
-                const buf = Buffer.concat([carry, chunk.subarray(0, bytesRead)]);
-                const cut = buf.lastIndexOf(10) + 1;
-                pushesIn(buf.subarray(0, cut), scan.pushes);
-                offset += cut;
-                carry = buf.subarray(cut);
-                if (carry.length > MAX_LINE) {
-                    offset += carry.length;
-                    carry = Buffer.alloc(0);
-                }
+    return todo;
+}
+
+/**
+ * Reads what was appended to one transcript file, at most `budget` bytes, records its pushes, and
+ * moves its offset past the last whole line read (or past a line longer than `MAX_LINE`).
+ * @param {GrownFile} file the file
+ * @param {number} budget the bytes left to read this poll
+ * @returns {Promise<number>} the bytes left after it
+ */
+async function readTranscript({ scan, rel, path, size }, budget) {
+    const fh = await open(path, "r").catch(() => null);
+    if (!fh) return budget;
+    try {
+        let offset = scan.files[rel] ?? 0;
+        let carry = Buffer.alloc(0);
+        while (offset + carry.length < size && budget > 0) {
+            const want = Math.min(CHUNK, size - offset - carry.length, budget);
+            const chunk = Buffer.alloc(want);
+            const { bytesRead } = await fh.read(chunk, 0, want, offset + carry.length);
+            if (!bytesRead) break;
+            budget -= bytesRead;
+            const buf = Buffer.concat([carry, chunk.subarray(0, bytesRead)]);
+            const cut = buf.lastIndexOf(10) + 1;
+            pushesIn(buf.subarray(0, cut), scan.pushes);
+            offset += cut;
+            carry = buf.subarray(cut);
+            if (carry.length > MAX_LINE) {
+                offset += carry.length;
+                carry = Buffer.alloc(0);
             }
-            scan.files[rel] = offset;
-        } finally {
-            await fh.close();
         }
+        scan.files[rel] = offset;
+    } finally {
+        await fh.close();
     }
+    return budget;
 }
 
 /**
@@ -256,24 +303,7 @@ export function inferOwners(prs, { root, pushLog, sessions, procs, worktrees, tr
     /** @type {Map<string, PushLine>} */
     const lastPush = new Map();
     for (const p of pushLog) if (p.branch) lastPush.set(p.branch, p);
-    const children = new Map();
-    for (const p of procs) children.set(p.ppid, [...(children.get(p.ppid) ?? []), p]);
-    const cwdOf = new Map(procs.map((p) => [p.pid, p.cwd]));
-    /**
-     * The cwds of a session's process and every process under it.
-     * @param {number} pid the session's process
-     * @returns {string[]} the cwds
-     */
-    const cwds = (pid) => {
-        const out = [cwdOf.get(pid)];
-        for (const stack = [pid]; stack.length; ) {
-            for (const c of children.get(stack.pop()) ?? []) {
-                out.push(c.cwd);
-                stack.push(c.pid);
-            }
-        }
-        return /** @type {string[]} */ (out.filter(Boolean));
-    };
+    const cwds = cwdsUnder(procs);
     // The main checkout is everyone's, and githerd's own workers have their jobs.
     const ownWorktrees = worktrees.filter(
         (w) => w.dir !== root && !w.dir.startsWith(join(root, ".worktrees", "githerd-")),
@@ -284,38 +314,88 @@ export function inferOwners(prs, { root, pushLog, sessions, procs, worktrees, tr
     for (const [n, rec] of Object.entries(prs ?? {})) {
         if (!rec?.headRef) continue;
         const push = lastPush.get(rec.headRef);
-        const pusher = push?.sessionId ? live.get(push.sessionId) : undefined;
-        if (pusher && push) {
-            const sha = push.sha ? ` ${push.sha.slice(0, 7)}` : "";
-            const verb = push.exit === 0 ? "pushed" : "tried to push";
-            const at = push.at ? ` at ${push.at.slice(11, 16)} UTC` : "";
-            out[n] = { session: pusher.sessionId, name: pusher.name, evidence: `${verb}${sha}${at}` };
-            continue;
-        }
-        const since = push?.at ? Date.parse(push.at) : -Infinity;
-        let best = /** @type {{s: Registered, at: string} | undefined} */ (undefined);
-        for (const [id, scan] of Object.entries(transcripts)) {
-            const at = scan.pushes[rec.headRef];
-            const s = live.get(id);
-            if (!s || !at || Date.parse(at) < since) continue;
-            if (!best || Date.parse(at) > Date.parse(best.at)) best = { s, at };
-        }
-        if (best) {
-            const at = `${best.at.slice(0, 10)} ${best.at.slice(11, 16)} UTC`;
-            out[n] = {
-                session: best.s.sessionId,
-                name: best.s.name,
-                evidence: `pushed ${rec.headRef} (transcript, ${at})`,
-            };
-            continue;
-        }
-        for (const w of ownWorktrees.filter((x) => x.branch === rec.headRef)) {
-            const s = byPid.find((x) => cwds(x.pid).some((c) => c === w.dir || c.startsWith(w.dir + sep)));
-            if (s) {
-                out[n] = { session: s.sessionId, name: s.name, evidence: `working in ${relative(root, w.dir)}` };
-                break;
-            }
-        }
+        const owner =
+            pushLogOwner(push, live) ??
+            transcriptOwner(rec.headRef, push, transcripts, live) ??
+            worktreeOwner(rec.headRef, { root, ownWorktrees, byPid, cwds });
+        if (owner) out[n] = owner;
     }
     return out;
+}
+
+/**
+ * The cwds of a process and every process under it, from the process table.
+ * @param {Proc[]} procs the process table
+ * @returns {(pid: number) => string[]} the cwds of a process's tree
+ */
+function cwdsUnder(procs) {
+    const children = new Map();
+    for (const p of procs) children.set(p.ppid, [...(children.get(p.ppid) ?? []), p]);
+    const cwdOf = new Map(procs.map((p) => [p.pid, p.cwd]));
+    return (pid) => {
+        const out = [cwdOf.get(pid)];
+        for (const stack = [pid]; stack.length; ) {
+            for (const c of children.get(stack.pop()) ?? []) {
+                out.push(c.cwd);
+                stack.push(c.pid);
+            }
+        }
+        return /** @type {string[]} */ (out.filter(Boolean));
+    };
+}
+
+/**
+ * The owner by the push log: the live session that last pushed the branch.
+ * @param {PushLine | undefined} push the branch's last push
+ * @param {Map<string, Registered>} live the live sessions by id
+ * @returns {InferredOwner | null} the owner
+ */
+function pushLogOwner(push, live) {
+    const pusher = push?.sessionId ? live.get(push.sessionId) : undefined;
+    if (!pusher || !push) return null;
+    const sha = push.sha ? ` ${push.sha.slice(0, 7)}` : "";
+    const verb = push.exit === 0 ? "pushed" : "tried to push";
+    const at = push.at ? ` at ${push.at.slice(11, 16)} UTC` : "";
+    return { session: pusher.sessionId, name: pusher.name, evidence: `${verb}${sha}${at}` };
+}
+
+/**
+ * The owner by the transcripts: the live session whose transcript last pushed the branch, no
+ * earlier than the push log's last push of it.
+ * @param {string} branch the branch
+ * @param {PushLine | undefined} push the branch's last push in the push log
+ * @param {Record<string, TranscriptScan>} transcripts what the transcripts showed, by session
+ * @param {Map<string, Registered>} live the live sessions by id
+ * @returns {InferredOwner | null} the owner
+ */
+function transcriptOwner(branch, push, transcripts, live) {
+    const since = push?.at ? Date.parse(push.at) : -Infinity;
+    /** @type {{s: Registered, at: string} | undefined} */
+    let best;
+    for (const [id, scan] of Object.entries(transcripts)) {
+        const at = scan.pushes[branch];
+        const s = live.get(id);
+        if (!s || !at || Date.parse(at) < since) continue;
+        if (!best || Date.parse(at) > Date.parse(best.at)) best = { s, at };
+    }
+    if (!best) return null;
+    const at = `${best.at.slice(0, 10)} ${best.at.slice(11, 16)} UTC`;
+    return { session: best.s.sessionId, name: best.s.name, evidence: `pushed ${branch} (transcript, ${at})` };
+}
+
+/**
+ * The owner by worktree presence: the live session (lowest pid first) with a process in a worktree
+ * that has the branch checked out.
+ * @param {string} branch the branch
+ * @param {{root: string, ownWorktrees: {dir: string, branch: string}[], byPid: Registered[],
+ *   cwds: (pid: number) => string[]}} where the main checkout, the worktrees sessions may own, the
+ *   live sessions by pid and the cwds of a process's tree
+ * @returns {InferredOwner | null} the owner
+ */
+function worktreeOwner(branch, { root, ownWorktrees, byPid, cwds }) {
+    for (const w of ownWorktrees.filter((x) => x.branch === branch)) {
+        const s = byPid.find((x) => cwds(x.pid).some((c) => c === w.dir || c.startsWith(w.dir + sep)));
+        if (s) return { session: s.sessionId, name: s.name, evidence: `working in ${relative(root, w.dir)}` };
+    }
+    return null;
 }

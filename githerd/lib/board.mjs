@@ -741,37 +741,10 @@ export function claimJob(state, args, caller, snapshot, now) {
     /** @type {Job | null} */
     let made = null;
     if (issue) {
-        const id = `issue-${issue}`;
-        const old = state.jobs[id];
-        // As syncJobs does: a done or cancelled job is made again, any other stays.
-        if (args.overlap.decision === "wait" && (!old || old.state === "done" || old.state === "cancelled")) {
-            const rec = state.issues?.byNumber?.[issue];
-            if (rec?.state !== "open" || !byOwner(state, rec.author)) {
-                return {
-                    ok: false,
-                    reason: `#${issue} is not an open issue by the owner; it cannot be waited on`,
-                    snapshot,
-                };
-            }
-            made = newJob(
-                {
-                    id,
-                    kind: "issue",
-                    target: `#${issue}`,
-                    reason: `${job.id} waits on it`,
-                    facts: {
-                        since: rec.createdAt ?? null,
-                        bug: (rec.labels ?? []).includes("bug"),
-                        labels: rec.labels ?? [],
-                        next: false,
-                        skip: false,
-                        storybook: false,
-                    },
-                },
-                now,
-            );
-        }
-        args = { ...args, overlap: { ...args.overlap, with: id } };
+        const wait = issueToWaitOn(state, job, issue, args.overlap.decision, now);
+        if ("reason" in wait) return { ok: false, reason: wait.reason, snapshot };
+        made = wait.made;
+        args = { ...args, overlap: { ...args.overlap, with: wait.id } };
     }
     const refused = claimRefusal(
         made ? { ...state, jobs: { ...state.jobs, [made.id]: made } } : state,
@@ -798,17 +771,7 @@ export function claimJob(state, args, caller, snapshot, now) {
     if (!job.sessions.includes(caller.session)) job.sessions.push(caller.session);
     const other = state.jobs[args.overlap.with ?? ""];
     if (args.overlap.decision === "join") {
-        other.joined.push(job.target);
-        addNews(other, `job ${job.id} joined yours: ${job.target} is now part of it (${args.overlap.reason})`, now);
-        const holder = job.holder;
-        move(job, "cancelled", now, { cancelledBy: other.id, reason: `joined ${other.id}` });
-        // Design 8.2: the joining session ends; a window githerd opened is ended by the daemon.
-        if (holder?.pane) {
-            state.retiring = [
-                ...(state.retiring ?? []),
-                { job: job.id, holder, reason: `joined ${other.id}`, at: now.toISOString() },
-            ];
-        }
+        joinJob(state, job, other, args.overlap.reason, now);
     } else if (args.overlap.decision === "wait") {
         move(job, "blocked", now, {
             waitingFor: { job: other.id },
@@ -817,6 +780,71 @@ export function claimJob(state, args, caller, snapshot, now) {
         move(job, "working", now);
     }
     return made ? { ok: true, job, created: made.id } : { ok: true, job };
+}
+
+/**
+ * Joins a claimed job to another: its target is added to the other job, whose holder gets the
+ * news, and it is cancelled with a pointer to the other. A window githerd opened for its session is
+ * ended by the daemon (design 8.2).
+ * @param {any} state the daemon state
+ * @param {Job} job the claimed job
+ * @param {Job} other the job it joins
+ * @param {string} reason the claim's overlap reason
+ * @param {Date} now the current time
+ */
+function joinJob(state, job, other, reason, now) {
+    other.joined.push(job.target);
+    addNews(other, `job ${job.id} joined yours: ${job.target} is now part of it (${reason})`, now);
+    const holder = job.holder;
+    move(job, "cancelled", now, { cancelledBy: other.id, reason: `joined ${other.id}` });
+    // Design 8.2: the joining session ends; a window githerd opened is ended by the daemon.
+    if (holder?.pane) {
+        state.retiring = [
+            ...(state.retiring ?? []),
+            { job: job.id, holder, reason: `joined ${other.id}`, at: now.toISOString() },
+        ];
+    }
+}
+
+/**
+ * The issue job a claim names as "#N" in `with`, and the job to make for it: a `wait` on an issue
+ * whose job is absent, done or cancelled makes it again (as syncJobs does), for an open issue by
+ * the owner only; any other job stays.
+ * @param {any} state the daemon state
+ * @param {Job} job the claimed job
+ * @param {string} issue the issue's number
+ * @param {string} decision the claim's overlap decision
+ * @param {Date} now the current time
+ * @returns {{id: string, made: Job | null} | {reason: string}} the issue job's id and the job to
+ *   make, or why the issue cannot be waited on
+ */
+function issueToWaitOn(state, job, issue, decision, now) {
+    const id = `issue-${issue}`;
+    const old = state.jobs[id];
+    const remake = decision === "wait" && (!old || old.state === "done" || old.state === "cancelled");
+    if (!remake) return { id, made: null };
+    const rec = state.issues?.byNumber?.[issue];
+    if (rec?.state !== "open" || !byOwner(state, rec.author)) {
+        return { reason: `#${issue} is not an open issue by the owner; it cannot be waited on` };
+    }
+    const made = newJob(
+        {
+            id,
+            kind: "issue",
+            target: `#${issue}`,
+            reason: `${job.id} waits on it`,
+            facts: {
+                since: rec.createdAt ?? null,
+                bug: (rec.labels ?? []).includes("bug"),
+                labels: rec.labels ?? [],
+                next: false,
+                skip: false,
+                storybook: false,
+            },
+        },
+        now,
+    );
+    return { id, made };
 }
 
 /**

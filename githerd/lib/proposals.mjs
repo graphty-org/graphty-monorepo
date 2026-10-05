@@ -237,12 +237,7 @@ export async function advanceProposals(state, ctx) {
         } else if (p.status === "unconfirmed") {
             continue;
         } else {
-            try {
-                await step(state, p, ctx);
-                delete p.lastError;
-            } catch (err) {
-                p.lastError = /** @type {Error} */ (err).message;
-            }
+            await stepRecordingError(state, p, ctx);
         }
         if (p.status !== before) {
             changed.push(p);
@@ -257,6 +252,22 @@ export async function advanceProposals(state, ctx) {
         }
     }
     return changed;
+}
+
+/**
+ * Takes a proposal's next step, recording the error of a step that failed (`lastError`) for the
+ * next poll to retry.
+ * @param {any} state the daemon state
+ * @param {Proposal} p the proposal
+ * @param {Context} ctx the client, the owner's login, the clock and presence
+ */
+async function stepRecordingError(state, p, ctx) {
+    try {
+        await step(state, p, ctx);
+        delete p.lastError;
+    } catch (err) {
+        p.lastError = /** @type {Error} */ (err).message;
+    }
 }
 
 /**

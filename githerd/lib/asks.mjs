@@ -76,7 +76,9 @@ function settleAsks(state, sessionGone) {
 export function settleOwners(state, sessionGone) {
     const lines = [];
     for (const [n, rec] of Object.entries(state.prOwners ?? {})) {
-        const reason = state.prs && !state.prs[n] ? "closed" : sessionGone(rec.session) ? "session ended" : null;
+        let reason = null;
+        if (state.prs && !state.prs[n]) reason = "closed";
+        else if (sessionGone(rec.session)) reason = "session ended";
         if (!reason) continue;
         delete state.prOwners[n];
         lines.push({ kind: "pr-owner-dropped", pr: Number(n), session: rec.session, name: rec.name, reason });
@@ -302,32 +304,67 @@ function brokenOwned(state, { now, minutes, owners }, lines) {
     const due = new Map();
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
     let live = null;
-    for (const [n, rec] of Object.entries(state.prs ?? {})) {
-        // A session that says it is its own after the release owns it again.
-        if (state.prOwners?.[n]) delete state.prReleased[n];
-        const owner = state.prOwners?.[n] ?? state.prInferred?.[n];
-        const why = owner && state.prReleased[n] !== rec.headSha ? broken(state, n, rec) : null;
-        if (!why) {
-            delete state.brokenAsks[n];
-            continue;
-        }
-        const ask = state.brokenAsks[n];
-        const same = ask?.head === rec.headSha && ask.session === owner.session;
-        // A cadence, how often to ask: never a deadline on the work.
-        if (same && now.getTime() - Date.parse(ask.at) < minutes * MINUTE) continue;
+    const liveOwners = () => {
         live ??= owners();
-        const gone = !live.some((s) => s.sessionId === owner.session);
-        if (gone || (same && ask.heard && !brokenAnswered(state, n, ask))) {
-            const reason = gone ? "githerd cannot ask its owner" : `no answer to the question of ${ask.at}`;
-            state.prReleased[n] = rec.headSha;
-            delete state.brokenAsks[n];
-            if (state.prOwners?.[n]?.session === owner.session) delete state.prOwners[n];
-            lines.push({ kind: "pr-released", pr: Number(n), head: rec.headSha, session: owner.session, reason });
-            continue;
-        }
-        due.set(owner.session, [...(due.get(owner.session) ?? []), { n, why }]);
+        return live;
+    };
+    for (const [n, rec] of Object.entries(state.prs ?? {})) {
+        const ask = brokenAskDue(state, n, rec, { now, minutes, live: liveOwners }, lines);
+        if (ask) due.set(ask.session, [...(due.get(ask.session) ?? []), { n, why: ask.why }]);
     }
     return due;
+}
+
+/**
+ * The owner of broken pull request `n` and why it is broken, or null when it has no owner, is
+ * released at this head or is not broken (its pending question is then dropped).
+ * @param {any} state the daemon state, changed in place
+ * @param {string} n the pull request
+ * @param {any} rec its record
+ * @returns {{owner: any, why: string} | null} its owner and why
+ */
+function brokenOwner(state, n, rec) {
+    // A session that says it is its own after the release owns it again.
+    if (state.prOwners?.[n]) delete state.prReleased[n];
+    const owner = state.prOwners?.[n] ?? state.prInferred?.[n];
+    const why = owner && state.prReleased[n] !== rec.headSha ? broken(state, n, rec) : null;
+    if (!why) {
+        delete state.brokenAsks[n];
+        return null;
+    }
+    return { owner, why };
+}
+
+/**
+ * Whether the owner of pull request `n` is due the question "are you fixing it?": null when it is
+ * not broken, was asked within `minutes`, or is released here (its owner is gone, or heard the
+ * last question and left it unanswered).
+ * @param {any} state the daemon state, changed in place
+ * @param {string} n the pull request
+ * @param {any} rec its record
+ * @param {{now: Date, minutes: number, live: () => import("./peers.mjs").PeerSession[]}} opts the
+ *   clock, the cadence and every live session in this repository
+ * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
+ * @returns {{session: string, why: string} | null} the session to ask and why
+ */
+function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
+    const found = brokenOwner(state, n, rec);
+    if (!found) return null;
+    const { owner, why } = found;
+    const ask = state.brokenAsks[n];
+    const same = ask?.head === rec.headSha && ask.session === owner.session;
+    // A cadence, how often to ask: never a deadline on the work.
+    if (same && now.getTime() - Date.parse(ask.at) < minutes * MINUTE) return null;
+    const gone = !live().some((s) => s.sessionId === owner.session);
+    if (gone || (same && ask.heard && !brokenAnswered(state, n, ask))) {
+        const reason = gone ? "githerd cannot ask its owner" : `no answer to the question of ${ask.at}`;
+        state.prReleased[n] = rec.headSha;
+        delete state.brokenAsks[n];
+        if (state.prOwners?.[n]?.session === owner.session) delete state.prOwners[n];
+        lines.push({ kind: "pr-released", pr: Number(n), head: rec.headSha, session: owner.session, reason });
+        return null;
+    }
+    return { session: owner.session, why };
 }
 
 /**
@@ -379,7 +416,35 @@ function githerdWatches(job) {
  */
 export async function statusStep(state, { now, acting, sessions, transport, minutes, owners = sessions }) {
     const lines = [];
-    /** @type {Map<string, any[]>} the due jobs of each holding session */
+    const due = dueJobs(state, now, minutes, lines);
+    const prsDue = brokenOwned(state, { now, minutes, owners }, lines);
+    const live = due.size ? sessions() : [];
+    const everyone = prsDue.size ? owners() : [];
+    for (const session of new Set([...due.keys(), ...prsDue.keys()])) {
+        const jobTarget = live.filter((s) => s.sessionId === session);
+        const asked = {
+            session,
+            jobs: jobTarget.length ? (due.get(session) ?? []) : [],
+            prs: prsDue.get(session) ?? [],
+            target: jobTarget.length ? jobTarget : everyone.filter((s) => s.sessionId === session),
+        };
+        await askSession(state, asked, { now, acting, transport, minutes }, lines);
+    }
+    return lines;
+}
+
+/**
+ * The owner-held jobs due the status question, by holding session. A job whose last question was
+ * heard and left unanswered goes back to the queue instead (a `claim-released` line); a job
+ * githerd itself watches has its pending question dropped.
+ * @param {any} state the daemon state, changed in place
+ * @param {Date} now the clock
+ * @param {number} minutes how often to ask
+ * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
+ * @returns {Map<string, any[]>} the due jobs of each holding session
+ */
+function dueJobs(state, now, minutes, lines) {
+    /** @type {Map<string, any[]>} */
     const due = new Map();
     for (const job of Object.values(state.jobs ?? {})) {
         const session = job.holder?.session;
@@ -391,9 +456,9 @@ export async function statusStep(state, { now, acting, sessions, transport, minu
         if (!ASKED.has(job.state)) continue;
         const ask = job.statusAsk;
         // A cadence, how often to ask: never a deadline on the work.
-        const since = Date.parse(ask?.at ?? job.claim?.at ?? job.stateSince);
-        if (now.getTime() - since < minutes * MINUTE) continue;
-        if (ask?.heard && !(job.status?.at >= ask.at)) {
+        if (now.getTime() - askedSince(job) < minutes * MINUTE) continue;
+        const answered = job.status?.at >= ask?.at;
+        if (ask?.heard && !answered) {
             const reason = `no answer to the status question of ${ask.at}`;
             releaseOwnerJob(job, reason, now);
             lines.push({ kind: "claim-released", job: job.id, session, reason });
@@ -401,37 +466,49 @@ export async function statusStep(state, { now, acting, sessions, transport, minu
         }
         due.set(session, [...(due.get(session) ?? []), job]);
     }
-    const prsDue = brokenOwned(state, { now, minutes, owners }, lines);
-    if (!due.size && !prsDue.size) return lines;
-    const live = due.size ? sessions() : [];
-    const everyone = prsDue.size ? owners() : [];
-    for (const session of new Set([...due.keys(), ...prsDue.keys()])) {
-        const jobTarget = live.filter((s) => s.sessionId === session);
-        const jobs = jobTarget.length ? (due.get(session) ?? []) : [];
-        const prs = prsDue.get(session) ?? [];
-        const target = jobTarget.length ? jobTarget : everyone.filter((s) => s.sessionId === session);
-        if (!target.length || (!jobs.length && !prs.length)) continue;
-        const ids = jobs.map((j) => j.id);
-        const nums = prs.map((p) => Number(p.n));
-        if (!acting) {
-            const what = [...(ids.length ? [`the status of ${ids.join(", ")}`] : []), ...nums.map((p) => `#${p}`)];
-            const op = `ask ${target[0].name} for ${what.join(", ")}`;
-            lines.push({ kind: "would-do", group: "workers", op, jobs: ids });
-        }
-        const text = [...(jobs.length ? [statusText(jobs, minutes)] : []), ...prs.map(brokenText)].join("\n");
-        const out = acting ? await tellSessions(target, text, transport) : { sent: [], failed: [] };
-        const ask = { at: now.toISOString(), heard: out.sent.length > 0 };
-        for (const job of jobs) job.statusAsk = { ...ask };
-        for (const p of prs) state.brokenAsks[p.n] = { head: state.prs[p.n].headSha, session, ...ask };
-        lines.push({
-            kind: "status-asked",
-            jobs: ids,
-            ...(nums.length ? { prs: nums } : {}),
-            session: target[0].name,
-            ...out,
-        });
+    return due;
+}
+
+/**
+ * When the status question's cadence for a job started: its last question, else its claim, else
+ * its current state.
+ * @param {any} job the job
+ * @returns {number} the time, in ms
+ */
+const askedSince = (job) => Date.parse(job.statusAsk?.at ?? job.claim?.at ?? job.stateSince);
+
+/**
+ * Sends one session the status question for its due jobs and the broken pull requests it owns (a
+ * would-do line in dry-run), and records the question on each.
+ * @param {any} state the daemon state, changed in place
+ * @param {{session: string, jobs: any[], prs: {n: string, why: string}[],
+ *   target: import("./peers.mjs").PeerSession[]}} asked the session, what to ask it about, and its
+ *   live entries
+ * @param {{now: Date, acting: boolean, transport: import("./peers.mjs").Transport, minutes: number}} opts
+ *   the clock, whether the `workers` write group acts, the transport and how often to ask
+ * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
+ */
+async function askSession(state, { session, jobs, prs, target }, { now, acting, transport, minutes }, lines) {
+    if (!target.length || (!jobs.length && !prs.length)) return;
+    const ids = jobs.map((j) => j.id);
+    const nums = prs.map((p) => Number(p.n));
+    if (!acting) {
+        const what = [...(ids.length ? [`the status of ${ids.join(", ")}`] : []), ...nums.map((p) => `#${p}`)];
+        const op = `ask ${target[0].name} for ${what.join(", ")}`;
+        lines.push({ kind: "would-do", group: "workers", op, jobs: ids });
     }
-    return lines;
+    const text = [...(jobs.length ? [statusText(jobs, minutes)] : []), ...prs.map(brokenText)].join("\n");
+    const out = acting ? await tellSessions(target, text, transport) : { sent: [], failed: [] };
+    const ask = { at: now.toISOString(), heard: out.sent.length > 0 };
+    for (const job of jobs) job.statusAsk = { ...ask };
+    for (const p of prs) state.brokenAsks[p.n] = { head: state.prs[p.n].headSha, session, ...ask };
+    lines.push({
+        kind: "status-asked",
+        jobs: ids,
+        ...(nums.length ? { prs: nums } : {}),
+        session: target[0].name,
+        ...out,
+    });
 }
 
 /**

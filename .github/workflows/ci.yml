@@ -481,6 +481,8 @@ jobs:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
             - name: Install Playwright browsers
               if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
               run: pnpm exec playwright install chromium --with-deps
@@ -1094,6 +1096,8 @@ jobs:
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
 
             # With the browser cached this installs only the system libraries Chromium needs.
             - name: Install Chromium

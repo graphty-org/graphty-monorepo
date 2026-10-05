@@ -11,7 +11,7 @@ import {
 } from "../../constants";
 import { ShellProvider } from "../../ShellContext";
 import type { CanvasDockState, CanvasOverlayVisibility, ShellStateAxis } from "../../types";
-import { CanvasRegion,type CanvasRegionOwnProps } from "../CanvasRegion";
+import { CanvasRegion, type CanvasRegionOwnProps } from "../CanvasRegion";
 import type { LegendChannel } from "../Legend";
 
 class MockGraphtyElement extends HTMLElement {
@@ -64,11 +64,7 @@ function renderCanvas(
     overrides: Partial<CanvasRegionOwnProps> = {},
     options: { shellWidth?: number; canvasWidth?: number; canvasHeight?: number } = {},
 ): ReturnType<typeof render> {
-    const {
-        canvasHeight = 600,
-        canvasWidth = 800,
-        shellWidth = 1440,
-    } = options;
+    const { canvasHeight = 600, canvasWidth = 800, shellWidth = 1440 } = options;
     const stateAxis: ShellStateAxis = overrides.stateAxis ?? "loaded";
 
     return render(
@@ -172,7 +168,10 @@ describe("CanvasRegion", () => {
 
     describe("docks against overlays", () => {
         it("does not shorten the graph rect for an overlay", () => {
-            const { container } = renderCanvas({ overlays: { ...ALL_OVERLAYS, timeSlider: true }, timeSlider: TIME_SLIDER });
+            const { container } = renderCanvas({
+                overlays: { ...ALL_OVERLAYS, timeSlider: true },
+                timeSlider: TIME_SLIDER,
+            });
             const host = canvasOf(container).querySelector("[data-canvas-graph='true']") as HTMLElement;
 
             expect(host.style.bottom).toBe("0px");
@@ -303,9 +302,7 @@ describe("CanvasRegion", () => {
         const INSPECTOR = 280;
         const ROW = 1160;
 
-        function renderDockedRow(
-            overrides: Partial<CanvasRegionOwnProps> = {},
-        ): ReturnType<typeof render> {
+        function renderDockedRow(overrides: Partial<CanvasRegionOwnProps> = {}): ReturnType<typeof render> {
             return render(
                 <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
                     <div style={{ width: ROW, height: 600, display: "flex", flexDirection: "row" }}>
@@ -339,9 +336,7 @@ describe("CanvasRegion", () => {
         it("gives the canvas element exactly the strip the two docked sidebars leave", () => {
             const { container } = renderDockedRow();
 
-            expect(Math.round(boxOf(container, "[data-shell-region='canvas']").width)).toBe(
-                ROW - PANEL - INSPECTOR,
-            );
+            expect(Math.round(boxOf(container, "[data-shell-region='canvas']").width)).toBe(ROW - PANEL - INSPECTOR);
         });
 
         it("stops the data table drawer at both live canvas edges, covering neither sidebar", async () => {

@@ -127,7 +127,12 @@ describe("TopBar", () => {
 
             const names = screen.getAllByRole("button").map((button) => button.getAttribute("aria-label"));
 
-            expect(names.slice(4)).toEqual(["Export", "Share this view", "Compare two views. Not built yet", "Toggle sidebars"]);
+            expect(names.slice(4)).toEqual([
+                "Export",
+                "Share this view",
+                "Compare two views. Not built yet",
+                "Toggle sidebars",
+            ]);
         });
 
         it("opens Export onto exactly two rows", async () => {

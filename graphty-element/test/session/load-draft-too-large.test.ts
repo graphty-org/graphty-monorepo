@@ -49,6 +49,23 @@ describe("E_TOO_LARGE on a load", () => {
         session.dispose();
     });
 
+    it("ends the load's progress with the refusal's code and details (#902)", async () => {
+        const session = createGraphSession();
+        const ends: unknown[] = [];
+        session.on("progress:changed", (change) => {
+            if (change.phase === "end") {
+                ends.push(change.error);
+            }
+        });
+
+        await refusal(session.data.import({ type: "json", config: { data: FOUR } }));
+
+        assert.deepEqual(ends, [
+            { code: "E_TOO_LARGE", details: { limit: 3, count: 4, of: "nodes", graph: { nodes: 0, edges: 0 } } },
+        ]);
+        session.dispose();
+    });
+
     it("counts a merge against the nodes already in the graph", async () => {
         const session = createGraphSession();
         await session.data.import({

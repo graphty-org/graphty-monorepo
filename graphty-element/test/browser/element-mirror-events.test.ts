@@ -18,6 +18,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import type { ProgressChange } from "../../src/session";
 
 /** How long the element needs to connect and finish its first update. */
 const ELEMENT_READY_MS = 300;
@@ -106,15 +107,21 @@ describe("the element's own mirrors on the DOM", () => {
 
     test("graphty-progress-change arrives for a load, ends, and survives a structured clone", async () => {
         const element = await mountWithGraph();
-        const seen: { task: string; phase: string }[] = [];
+        const seen: ProgressChange[] = [];
         element.addEventListener("graphty-progress-change", (event) => {
-            seen.push((event as CustomEvent<{ task: string; phase: string }>).detail);
+            seen.push(event.detail);
         });
 
         await element.session.data.import({ type: "json", config: { data: GRAPH } });
 
         assert.isTrue(seen.length > 0 && seen.every((change) => change.task === "load"), "the load told the DOM");
         assert.strictEqual(seen.at(-1)?.phase, "end", "the last event says the load ended");
+        assert.deepInclude(
+            seen[0],
+            { phase: "progress", completed: 0 },
+            "the first event says the load began, never held back",
+        );
+        assert.deepInclude(seen.at(-1), { outcome: "succeeded" }, "and how it ended");
         assert.doesNotThrow(() => structuredClone(seen), "the detail carries plain values");
     });
 

@@ -126,6 +126,8 @@ export interface DataImportCommand {
     readonly held?: HeldRows;
     /** An edge naming a node no node record holds: made (the default), or left out. */
     readonly unmatched?: "add" | "leave-out";
+    /** A node record repeating an id an earlier one gave; see `LoadChoices.duplicateIds`. */
+    readonly duplicateIds?: "first" | "merge" | "refuse";
     /**
      * Count the load instead of refusing it: a limit it passes is recorded in the report, and
      * the graph `present` describes counts as already there. Only a draft's scratch session sends it.

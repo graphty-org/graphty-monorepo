@@ -18,7 +18,8 @@ describe("CSVDataSource paired files", () => {
             }
         } catch (error) {
             errorThrown = true;
-            assert.include((error as Error).message, "parsePairedFiles requires both node and edge sources");
+            assert.strictEqual((error as { code?: string }).code, "E_BAD_COMMAND");
+            assert.strictEqual((error as { details?: { reason?: string } }).details?.reason, "missing-half");
         }
 
         assert.isTrue(errorThrown, "Should have thrown validation error");
@@ -39,7 +40,8 @@ describe("CSVDataSource paired files", () => {
             }
         } catch (error) {
             errorThrown = true;
-            assert.include((error as Error).message, "parsePairedFiles requires both node and edge sources");
+            assert.strictEqual((error as { code?: string }).code, "E_BAD_COMMAND");
+            assert.strictEqual((error as { details?: { reason?: string } }).details?.reason, "missing-half");
         }
 
         assert.isTrue(errorThrown, "Should have thrown validation error");
@@ -63,7 +65,8 @@ describe("CSVDataSource paired files", () => {
             }
         } catch (error) {
             errorThrown = true;
-            assert.include((error as Error).message, "parsePairedFiles requires both node and edge sources");
+            assert.strictEqual((error as { code?: string }).code, "E_BAD_COMMAND");
+            assert.strictEqual((error as { details?: { reason?: string } }).details?.reason, "missing-half");
         }
 
         assert.isTrue(errorThrown, "Should have thrown validation error");

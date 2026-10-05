@@ -900,6 +900,25 @@ export interface LoadDraft {
     /** The element's own reading: every table, with every role it found written out. */
     readonly mapping: LoadMappingRead;
     /**
+     * Every table's roles as a load with these choices reads them: the reader's mapping over the
+     * element's own reading, in the full form `mapping` has. After a table's `rowsAre` changes,
+     * this is where the key, the endpoints and the rest the element now reads are found.
+     * @param choices - The same choices `load` takes.
+     * @returns The roles.
+     * @throws `E_BAD_COMMAND` or `E_UNKNOWN_ATTRIBUTE` for a mapping the draft cannot carry out.
+     */
+    resolve(choices?: LoadChoices): LoadMappingRead;
+    /**
+     * The roles each table needs and does not have under a set of choices, for a per-table
+     * "ready" check: `LOAD_ROLES[rowsAre].requires` less the roles the choices and the element's
+     * own reading set. An edge table needs `source` and `target`; a node table needs nothing.
+     * `report` and `load` refuse a table the reader maps that is not ready with
+     * `E_EDGE_ENDPOINTS_UNRESOLVED`, whose `details.table` and `details.missing` say the same.
+     * @param choices - The same choices `load` takes.
+     * @returns By table id, the required roles left unset; an empty list means the table is ready.
+     */
+    missing(choices?: LoadChoices): Readonly<Record<string, readonly ColumnRole[]>>;
+    /**
      * What `load(choices)` would do to the graph as it is now, computed from the held rows with
      * no I/O. A load past the element's limit is reported in `tooLarge` rather than thrown.
      * @param choices - The same choices `load` takes.
@@ -938,6 +957,19 @@ export interface DraftTable {
     readonly fixed: boolean;
     /** Its columns, in the order the file has them, computed over every row. */
     readonly columns: readonly DraftColumn[];
+    /**
+     * A column that could be the table's edge weight, offered rather than applied: present when
+     * the element's own reading of the table as edges finds no weight, naming the first column
+     * that holds a number on every row and has no other role. Naming it as the `weight` role in
+     * a mapping applies it. Absent for a table whose format sets its roles.
+     */
+    readonly weightCandidate?: string;
+    /**
+     * How a CSV table's file was split into columns: the separator (`","`, `";"`, `"\t"` or `"|"`)
+     * and whether the element detected it (`true`) or the source's `delimiter` option named it.
+     * Absent for any other format.
+     */
+    readonly delimiter?: { readonly value: string; readonly detected: boolean };
 }
 
 /** One column of a draft table, described as `data.attributes()` describes it after a load. */
@@ -969,12 +1001,27 @@ export interface DraftRowOptions {
     readonly offset?: number;
     /** The most rows; `Infinity` reads to the end. Default 100. */
     readonly limit?: number;
+    /** Which rows to read; every row when absent. */
+    readonly only?: DraftRowFilter;
     /**
-     * `"unmatched"`: edge rows naming a node no node row (nor, for a merge, the graph) holds.
-     * `"rejected"`: rows whose key or endpoints cannot be a node id. Read with the draft's own mapping.
+     * The choices the rows are read under: the same `LoadChoices` `report` and `load` take, so
+     * the rows listed are the rows that report counted. Absent reads with the draft's own
+     * mapping, replacing the graph -- never with the choices an earlier `report` was given.
      */
-    readonly only?: "unmatched" | "rejected";
+    readonly choices?: LoadChoices;
 }
+
+/**
+ * Which rows of a draft table `LoadDraft.rows` reads, under the choices it is given.
+ *
+ * - `"unmatched"`: edge rows naming a node no node row (nor, for a merge, the graph) holds.
+ * - `"rejected"`: rows whose key or endpoints cannot be a node id.
+ * - `"loaded"`: the rows the load makes into nodes or edges: every row not rejected, less the
+ *   unmatched edge rows when `unmatched` is `"leave-out"`.
+ *
+ * OPEN UNION: later releases may add filters.
+ */
+export type DraftRowFilter = "unmatched" | "rejected" | "loaded";
 
 /**
  * The column roles of one table. Every value is a column name exactly as `DraftColumn.name`
@@ -1030,6 +1077,17 @@ export interface LoadChoices extends ImportOptions {
      * drops the edge.
      */
     readonly unmatched?: "add" | "leave-out";
+    /**
+     * A node row repeating an id an earlier node row of the same load gave: `"first"` (the
+     * default) keeps the first row's node and leaves the later row out; `"merge"` also writes
+     * the later row's values onto that node, later rows winning; `"refuse"` refuses the load with
+     * `E_DUPLICATE_ID` (`details.id`). Every case is counted in `LoadReport.duplicates`, which a
+     * `report()` fills under `"refuse"` instead of refusing. A row with no usable id is never a
+     * duplicate: it is rejected and counted in `counts.rejected`.
+     *
+     * OPEN UNION: later releases may add policies.
+     */
+    readonly duplicateIds?: "first" | "merge" | "refuse";
     /** Writes `data.directed` in the same step. */
     readonly directed?: boolean | "auto";
 }

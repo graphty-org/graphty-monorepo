@@ -100,9 +100,13 @@ function fieldNames(
         }
         const id = c.meta.origin?.id ?? null;
         const base = id === null ? from : `${from}#${id}`;
-        let to = id !== null && !taken.has(base) ? base : undefined;
-        for (let n = 2; to === undefined; n++) {
-            to = taken.has(`${base}#${n}`) ? undefined : `${base}#${n}`;
+        let to = base;
+        if (id === null || taken.has(base)) {
+            let n = 2;
+            while (taken.has(`${base}#${n}`)) {
+                n++;
+            }
+            to = `${base}#${n}`;
         }
         taken.add(to);
         out.set(c, to);
@@ -191,20 +195,40 @@ function edgeElements(
         if (weightColumn === undefined && !named && snapshot.weights !== null) {
             data.weight = snapshot.weights[snapshot.edgeToArc[e]];
         }
-        const id = edgeIds?.isSet(e) === true ? String(edgeIds.value(e)) : undefined;
+        const id =
+            edgeIds?.isSet(e) === true
+                ? claimEdgeId(String(edgeIds.value(e)), nodeIds, usedEdgeIds, onIdDropped)
+                : undefined;
         if (id !== undefined) {
-            if (nodeIds.has(id) || usedEdgeIds.has(id)) {
-                onIdDropped?.(id, nodeIds.has(id) ? "node" : "edge");
-            } else {
-                usedEdgeIds.add(id);
-                data.id = id;
-            }
+            data.id = id;
         }
         data.source = ids[snapshot.edgeSource(e)];
         data.target = ids[snapshot.edgeTarget(e)];
         out.push({ group: "edges", data: data as ElementDefinition["data"] });
     }
     return out;
+}
+
+/**
+ * An edge's own id, unless a node or an earlier edge already has it.
+ * @param id - the edge's id in the snapshot
+ * @param nodeIds - every node id
+ * @param usedEdgeIds - the edge ids handed out so far; the id is added when it is kept
+ * @param onIdDropped - told when the id is dropped, and what has it
+ * @returns the id, or undefined when it is dropped
+ */
+function claimEdgeId(
+    id: string,
+    nodeIds: ReadonlySet<string>,
+    usedEdgeIds: Set<string>,
+    onIdDropped: ((id: string, takenBy: "node" | "edge") => void) | undefined,
+): string | undefined {
+    if (nodeIds.has(id) || usedEdgeIds.has(id)) {
+        onIdDropped?.(id, nodeIds.has(id) ? "node" : "edge");
+        return undefined;
+    }
+    usedEdgeIds.add(id);
+    return id;
 }
 
 /**

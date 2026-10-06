@@ -72,13 +72,14 @@ const SIMULATION_TYPES: Readonly<Record<string, string>> = {
 // ("legacy") and say "snapshot" for the graph a function reads. A Cytoscape user has neither, so those remarks are
 // dropped and the wording adjusted here. The site is written in American English, so the few British spellings in
 // those comments are changed too.
-const FOR_CYTOSCAPE_READERS: readonly (readonly [RegExp, string])[] = [
+const FOR_CYTOSCAPE_READERS: readonly (readonly [RegExp, string | ((match: string) => string)])[] = [
     [/ The legacy [^.]*\./g, ""],
     [
         /,? (?:as (?:in )?|which is what )?the legacy (?:`\w+`|functions?)(?: does| rule)?(?: when normalization is switched OFF)?/g,
         "",
     ],
-    [/ ?\([^)]*\blegacy\b[^)]*\)/g, ""],
+    // one parenthesis at a time, then a test for the word, so the pattern cannot backtrack
+    [/ ?\([^)]*\)/g, (m: string): string => (/\blegacy\b/.test(m) ? "" : m)],
     [/the legacy id-keyed record/g, "a record keyed by node id"],
     // the layouts read a string as a node data field (src/layouts.ts nodeFields); a Cytoscape graph has no role columns
     [/the name of a numeric node column/g, "the name of a numeric node data field"],
@@ -583,7 +584,7 @@ const MEMBER_DOCS: Readonly<Record<string, string>> = {
 function cell(s: string): string {
     let out = s.replaceAll(/\s+/g, " ");
     for (const [from, to] of FOR_CYTOSCAPE_READERS) {
-        out = out.replaceAll(from, to);
+        out = typeof to === "string" ? out.replaceAll(from, to) : out.replaceAll(from, to);
     }
     return out
         .replaceAll(/ ?\((?:see )?design [^)]*\)/gi, "")
@@ -707,9 +708,16 @@ function defaultCell(d: string, type: string): string {
     if (quoted) {
         return d;
     }
-    const value = /^(?:-?[\d.,]+(?:e-?\d+)?|true|false|null|"[^"]*"|\d+ \/ \d+|ceil\(sqrt\(n\)\)|tolerance \/ 10)$/;
-    return value.test(bare) ? `\`${bare}\`` : bare;
+    const value =
+        LITERAL_DEFAULTS.has(bare) ||
+        /^-?[\d.,]+(?:e-?\d+)?$/.test(bare) ||
+        /^"[^"]*"$/.test(bare) ||
+        /^\d+ \/ \d+$/.test(bare);
+    return value ? `\`${bare}\`` : bare;
 }
+
+/** The Default cells, other than numbers, quoted strings and ratios, that are code. */
+const LITERAL_DEFAULTS: ReadonlySet<string> = new Set(["true", "false", "null", "ceil(sqrt(n))", "tolerance / 10"]);
 
 /**
  * A Meaning cell without the sentence or clause that only restates the Default column ("; default 0.85.",
@@ -719,8 +727,9 @@ function defaultCell(d: string, type: string): string {
  */
 function withoutDefault(doc: string): string {
     const trimmed = doc
-        .replaceAll(/;\s*default\s+(?:[^;.]|\.(?=\S))*\.(?=\s|$)/gi, ".")
-        .replaceAll(/,\s*default\s+(?:[^;.,]|\.(?=\S))*(?=\.(?:\s|$))/gi, "")
+        // linear: the two branches of each group never match the same character (and the text is our own doc comments)
+        .replaceAll(/;\s*default\s+(?:[^;.]|\.(?=\S))*\.(?=\s|$)/gi, ".") // NOSONAR(typescript:S5852): disjoint branches, trusted input
+        .replaceAll(/,\s*default\s+(?:[^;.,]|\.(?=\S))*(?=\.(?:\s|$))/gi, "") // NOSONAR(typescript:S5852): disjoint branches, trusted input
         .replaceAll(/ \(default [^)]+\)/gi, "");
     return trimmed
         .split(/(?<=\.)\s+(?=[A-Z`"])/)
@@ -829,7 +838,7 @@ class Source {
                 // look the alias up
                 const literals =
                     t.isUnion() && t.types.every((m) => m.isStringLiteral())
-                        ? t.types.map((m) => JSON.stringify((m as ts.StringLiteralType).value)).join(" | ")
+                        ? t.types.map((m) => JSON.stringify(m.value)).join(" | ")
                         : undefined;
                 return {
                     name: p.name,
@@ -994,12 +1003,6 @@ function algorithms(src: Source): string[] {
         const param = src.param(fn, 0);
         const own = param === undefined ? [] : src.options(param).filter((o) => !COMMON_ALGORITHM.has(o.name));
         const returns = resultType(src, fn.getCallSignatures()[0].getReturnType(), new Set(index.keys()));
-        const twin = `${name}Async`;
-        const gpu = ASYNC_ALGORITHM_NAMES.includes(twin)
-            ? ` Async twin, which can run on the GPU: \`${twin}\`.`
-            : " No Async twin: it runs on the CPU only.";
-        const weights = UNWEIGHTED.has(key) ? " Reads no edge weights." : " Reads edge weights from `weight`.";
-        const field = NO_FIELD.has(key) ? " Takes no `field`." : "";
         const purpose = PURPOSE[name];
         if (purpose === undefined) {
             throw new Error(`PURPOSE has no sentence for ${name}: add one`);
@@ -1010,7 +1013,7 @@ function algorithms(src: Source): string[] {
             "",
             purpose,
             "",
-            `Returns \`${readable(returns)}\`.${weights}${field}${gpu}`,
+            `Returns \`${readable(returns)}\`.${algorithmTraits(name, key)}`,
             "",
             ...(note === undefined ? [] : [note, ""]),
             ...(own.length === 0
@@ -1019,6 +1022,22 @@ function algorithms(src: Source): string[] {
         );
     }
     return out;
+}
+
+/**
+ * The sentences after an algorithm's Returns line: whether it reads weights, takes a field, and has an Async twin.
+ * @param name - the method name
+ * @param key - the algorithm's key (the name without "graphty")
+ * @returns the sentences, each with a leading space
+ */
+function algorithmTraits(name: string, key: string): string {
+    const twin = `${name}Async`;
+    const gpu = ASYNC_ALGORITHM_NAMES.includes(twin)
+        ? ` Async twin, which can run on the GPU: \`${twin}\`.`
+        : " No Async twin: it runs on the CPU only.";
+    const weights = UNWEIGHTED.has(key) ? " Reads no edge weights." : " Reads edge weights from `weight`.";
+    const field = NO_FIELD.has(key) ? " Takes no `field`." : "";
+    return `${weights}${field}${gpu}`;
 }
 
 /**
@@ -1261,7 +1280,7 @@ function generators(src: Source): string[] {
         const also = opts
             .filter((o) => sharedNames.has(o.name))
             .map((o) => `\`${o.name}\``)
-            .sort();
+            .sort(byCodeUnit);
         const takes = also.length === 0 ? "" : ` Also takes ${also.join(" and ")}.`;
         out.push(
             `### \`${name}\``,

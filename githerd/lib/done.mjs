@@ -38,6 +38,7 @@ import * as board from "./board.mjs";
 import { updateBranchCommand } from "./prs.mjs";
 import { raiseItem } from "./notify.mjs";
 import { recordVerdict } from "./proposals.mjs";
+import { masterRefs } from "./queue.mjs";
 import { run } from "./worktrees.mjs";
 
 /** `githerd/merge` decision lines a worker can fix itself: the `!` title, an unknown package, the issue revision. */
@@ -637,6 +638,9 @@ function recordVerdicts(job, report, view, now) {
     }
     const refused = [];
     for (const v of verdicts) {
+        // A `keep` weighed the references on master and left the issue open: they ask for no verify.
+        const issue = v.verdict === "keep" ? view.state.issues?.byNumber?.[v.number] : null;
+        if (issue) issue.judgedRefs = [...(issue.judgedRefs ?? []), ...masterRefs(view.state, v.number)];
         const r = recordVerdict(view.state, { ...v, session, at });
         if (r.refused) refused.push(`#${v.number}: ${r.refused}`);
     }

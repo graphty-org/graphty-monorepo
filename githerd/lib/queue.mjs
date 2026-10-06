@@ -221,13 +221,18 @@ function effortRank(effort) {
 
 /**
  * The commits and merged pull requests on master that name an issue: its fix may already be there.
+ * One a triage verdict of `keep` already weighed (`judgedRefs`, done.mjs) is no longer news: a
+ * session read it and left the issue open, so only a later reference asks for a verify.
  * @param {any} state the daemon state
  * @param {number} number the issue
  * @returns {string[]} the references, empty when none
  */
-export const masterRefs = (state, number) => [
-    ...new Set([...(state.merged?.commitRefs?.[number] ?? []), ...(state.merged?.refs?.[number] ?? [])]),
-];
+export function masterRefs(state, number) {
+    const judged = state.issues?.byNumber?.[number]?.judgedRefs ?? [];
+    return [
+        ...new Set([...(state.merged?.commitRefs?.[number] ?? []), ...(state.merged?.refs?.[number] ?? [])]),
+    ].filter((r) => !judged.includes(r));
+}
 
 /**
  * The issue types githerd offers, in tier order: `backlog.issueTypes`.

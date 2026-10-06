@@ -11,7 +11,7 @@ MERGED SINCE THE LAST REFRESH:
   #761 feat: big (merge bbbbbbbbbbbb) (more files than listed)
       a.ts
       b.ts
-MUST JUDGE (a merge mentions them without closing them): #5
+MUST JUDGE (a merge or a commit on master names them without closing them): #5
 OPEN ISSUES:
   #5 force layout drifts
   #9 docs typo

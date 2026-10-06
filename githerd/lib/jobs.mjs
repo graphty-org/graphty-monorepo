@@ -495,8 +495,8 @@ function schedulePasses(state, passes, open, merges) {
 /**
  * The refresh job at the front of the triage queue (design 5.1): the merges since the last refresh,
  * with their changed files, and every open issue they do not close. The issues a merge mentions
- * without closing must each get a verdict; for the rest, the session decides which the merges
- * affect.
+ * without closing, and those a reference on master no verdict weighed yet names, must each get a
+ * verdict; for the rest, the session decides which the merges affect.
  * @param {any} state the daemon state
  * @param {any} passes `state.triagePasses`
  * @param {{number: number, title: string}[]} open the owner's open issues
@@ -508,7 +508,9 @@ function refreshJob(state, passes, open, now, add) {
     const closed = new Set(state.merged?.closed ?? []);
     const issues = open.filter((i) => !closed.has(i.number));
     const listed = new Set(issues.map((i) => i.number));
-    const batch = [...new Set(merged.flatMap((/** @type {any} */ pr) => pr.mentions ?? []))]
+    // A commit on master that names an issue reaches it through no merge's mentions: judge it too.
+    const named = issues.filter((i) => masterRefs(state, i.number).length).map((i) => i.number);
+    const batch = [...new Set([...merged.flatMap((/** @type {any} */ pr) => pr.mentions ?? []), ...named])]
         .filter((n) => listed.has(Number(n)))
         .sort((a, b) => Number(a) - Number(b));
     if (!issues.length) return;

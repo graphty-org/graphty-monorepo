@@ -1,16 +1,19 @@
 // Tests of the CI shape: the test matrix's shard groups (tools/ci-test-matrix.mjs), the parts of
 // ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, the
 // release train (release.yml, tools/release-diff.mjs, deploy-pages.yml, .mergify.yml's release
-// rule), and the record tools/pr-status-broker.mjs writes for agents.
+// rule), the record tools/pr-status-broker.mjs writes for agents, and the local commit and push hooks
+// (.husky/pre-commit, tools/format-staged.sh, tools/prepush.sh).
 //
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
-import { decide, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
+import { decide, fileIssue, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { strayChanges } from "./release-diff.mjs";
 
@@ -84,6 +87,21 @@ describe("ci.yml", () => {
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
 
+    it("never lets a draft run cancel a ready run, and never cancels a push to master (#1108)", () => {
+        // `opened` (draft: true) and `ready_for_review` (draft: false) fire a second apart. Sharing one
+        // group, whichever was queued second cancelled the other, which could leave only the draft's
+        // "draft: CI not run". A plain draft -- exactly the drafts the build job skips -- gets its own
+        // group; the merge queue's drafts are real runs and stay with the ready runs.
+        const block = ci.match(/^concurrency:\n((?: {4}.*\n)+)/m);
+        assert.ok(block, "ci.yml has a workflow-level concurrency block");
+        assert.equal(
+            block[1],
+            "    group: ci-${{ github.event.pull_request.number || github.sha }}-" +
+                `\${{ github.event.pull_request.draft && !(${QUEUE}) && 'draft' || 'run' }}\n` +
+                "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+        );
+    });
+
     it("fails, never skips, the summary checks on a draft", () => {
         // A skipped required check counts as passing, and the draft run's check stays on the head SHA
         // after "gh pr ready" until the new run reports.
@@ -117,6 +135,15 @@ describe("ci.yml", () => {
             /if: contains\(fromJSON\(needs.build.outputs.affected\), 'graphty-element'\)/,
         );
         assert.match(job(ci, "all-checks"), /\n\s+cost-accuracy,\n/);
+    });
+
+    it("runs no security audit on pull requests or merge-queue runs", () => {
+        // advisories land against code a pull request did not change; the release train audits instead
+        assert.doesNotMatch(ci, /pnpm audit/);
+        const review = workflow("dependency-review.yml");
+        assert.match(review, /paths:\n\s+- "pnpm-lock.yaml"/);
+        assert.match(review, /if: \$\{\{ !startsWith\(github.head_ref, 'mergify\/merge-queue\/'\) \}\}/);
+        assert.match(review, /fail-on-severity: high/);
     });
 
     it("keeps the benchmarks advisory", () => {
@@ -293,6 +320,80 @@ describe("master-guard", () => {
         assert.equal(mergedPr("chore(release): publish"), null);
     });
 
+    // A fake repository: open issues, and every write the guard makes. `racer` is an issue another run opens
+    // between this run's lookup and its own create.
+    const repo = (open, racer) => {
+        const writes = [];
+        let next = 2000;
+        const gh = async (path, init = {}) => {
+            const method = init.method ?? "GET";
+            const body = init.body ? JSON.parse(init.body) : undefined;
+            if (method === "GET" && path.startsWith("/issues?")) {
+                assert.match(path, /state=open&labels=priority:critical/);
+                return open.filter((i) => i.state !== "closed");
+            }
+            writes.push([method, path, body]);
+            if (method === "POST" && path === "/issues") {
+                if (racer) {
+                    open.push(racer);
+                }
+                const created = { number: next++, title: body.title };
+                open.push(created);
+                return created;
+            }
+            if (method === "PATCH") {
+                open.find((i) => `/issues/${i.number}` === path).state = body.state;
+            }
+            return {};
+        };
+        return { gh, writes };
+    };
+    const red = (sha) => ({
+        prefix: FREEZE_PREFIX,
+        title: `${FREEZE_PREFIX}${sha}`,
+        labels: ["bug"],
+        body: `body ${sha}`,
+        comment: `also ${sha}`,
+    });
+
+    it("adds a red commit to the red-master issue already open instead of opening another", async () => {
+        const { gh, writes } = repo([
+            { number: 7, title: "Something else" },
+            { number: 9, title: "Fix the thing", pull_request: {} },
+            { number: 1124, title: `${FREEZE_PREFIX}7edecd1` },
+        ]);
+        assert.equal(await fileIssue(gh, red("056ee80")), 1124);
+        assert.deepEqual(writes, [["POST", "/issues/1124/comments", { body: "also 056ee80" }]]);
+    });
+
+    it("opens an issue when none is open", async () => {
+        const { gh, writes } = repo([{ number: 7, title: "GPU lane red on master" }]);
+        assert.equal(await fileIssue(gh, red("7edecd1")), 2000);
+        assert.deepEqual(writes, [
+            ["POST", "/issues", { title: `${FREEZE_PREFIX}7edecd1`, labels: ["bug"], body: "body 7edecd1" }],
+        ]);
+    });
+
+    it("closes its own issue as a duplicate when a racing run opened one first", async () => {
+        const { gh, writes } = repo([], { number: 1128, title: `${FREEZE_PREFIX}056ee80` });
+        assert.equal(await fileIssue(gh, red("df92205")), 1128);
+        assert.deepEqual(writes.slice(1), [
+            ["POST", "/issues/2000/comments", { body: "Duplicate of #1128." }],
+            ["PATCH", "/issues/2000", { state: "closed", state_reason: "not_planned" }],
+            ["POST", "/issues/1128/comments", { body: "also df92205" }],
+        ]);
+    });
+
+    it("keeps its issue when the racing run's issue is the newer one", async () => {
+        const { gh, writes } = repo([], { number: 3000, title: `${FREEZE_PREFIX}056ee80` });
+        assert.equal(await fileIssue(gh, red("df92205")), 2000);
+        assert.equal(writes.length, 1);
+    });
+
+    it("runs unqueued, since a concurrency group would cancel a pending red run", () => {
+        assert.doesNotMatch(workflow("master-guard.yml"), /^\s*concurrency:/m);
+    });
+
     it("titles a revert so Lint PR Title passes it", () => {
         const lint = (title) =>
             spawnSync("pnpm", ["exec", "commitlint"], { input: `${title}\n`, encoding: "utf8" }).status;
@@ -324,6 +425,17 @@ describe("release.yml", () => {
         assert.match(train, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
         // the train is put first by .mergify.yml's "release train" priority rule, not a label
         assert.doesNotMatch(train, /--label/);
+    });
+
+    it("audits the released commit's dependencies before it opens the release pull request", () => {
+        const audit = train.indexOf("run: pnpm audit --prod --audit-level=high");
+        assert.ok(audit > train.indexOf("pnpm install --frozen-lockfile"), "after install");
+        assert.ok(audit < train.indexOf("nx release --skip-publish"), "before versioning");
+        assert.ok(audit < train.indexOf("name: Keep the builds for the publish job"), "before the 30-day artifact");
+        assert.ok(audit < train.indexOf("gh pr create"), "before the release pull request");
+        const step = train.slice(train.lastIndexOf("- name:", audit), audit);
+        assert.match(step, /if: \$\{\{ steps.lanes.outputs.release == 'true' \}\}/, "runs whenever a release is cut");
+        assert.doesNotMatch(step, /continue-on-error/, "a high advisory blocks the release");
     });
 
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {
@@ -440,5 +552,109 @@ describe("pr-status-broker", () => {
         });
         assert.equal(b.state, null);
         assert.deepEqual(b.checks, {});
+    });
+});
+
+describe("the commit and push hooks", () => {
+    const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
+    const formatStaged = new URL("./format-staged.sh", import.meta.url).pathname;
+    // A throwaway repository, run without the GIT_* variables a hook inherits.
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+    const inRepo = (fn) => {
+        const dir = mkdtempSync(join(tmpdir(), "format-staged-"));
+        const git = (...args) => spawnSync("git", args, { cwd: dir, env, encoding: "utf8" });
+        try {
+            git("init", "-q");
+            fn(dir, git);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+    const staged = (git, f) => git("show", `:${f}`).stdout;
+
+    it("pre-commit scans for secrets, then formats the staged files", () => {
+        assert.match(
+            repoFile(".husky/pre-commit"),
+            /scan-secrets\.sh --cached \|\| exit 1\n[\s\S]*\.\/tools\/format-staged\.sh/,
+        );
+    });
+
+    it("commit-changes.sh runs the same pre-commit hook as a plain commit", () => {
+        assert.match(repoFile("tools/commit-changes.sh"), /cp \.husky\/pre-commit \.husky\/commit-msg "\$HOOKS_DIR\/"/);
+    });
+
+    it("formats fully staged files and leaves partial, baseline and binary files alone", () => {
+        inRepo((dir, git) => {
+            mkdirSync(join(dir, "visual-baselines"));
+            writeFileSync(join(dir, "a.ts"), "const  x = {a:1}\n");
+            writeFileSync(join(dir, "b.ts"), "const  y = {b:2}\n");
+            writeFileSync(join(dir, "visual-baselines/c.json"), '{"c":3}\n');
+            writeFileSync(join(dir, "d.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]));
+            git("add", ".");
+            writeFileSync(join(dir, "b.ts"), "const  y = {b:2}\nconst z = 3;\n");
+            const r = spawnSync(formatStaged, { cwd: dir, env, encoding: "utf8" });
+            assert.equal(r.status, 0, r.stderr);
+            assert.equal(staged(git, "a.ts"), "const x = { a: 1 };\n");
+            assert.equal(readFileSync(join(dir, "a.ts"), "utf8"), "const x = { a: 1 };\n");
+            assert.equal(staged(git, "b.ts"), "const  y = {b:2}\n");
+            assert.match(r.stdout, /not formatting b\.ts/);
+            assert.equal(staged(git, "visual-baselines/c.json"), '{"c":3}\n');
+            // Byte-identical on disk, and (the diff check below) in the index.
+            assert.deepEqual(readFileSync(join(dir, "d.png")), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]));
+            assert.equal(git("diff", "--quiet").status, 1, "only b.ts differs from the index");
+            assert.equal(git("diff", "--name-only").stdout, "b.ts\n");
+        });
+    });
+
+    it("a pathspec commit (git commit <file>) leaves the real index formatted too", () => {
+        inRepo((dir, git) => {
+            git("config", "user.email", "t@t");
+            git("config", "user.name", "t");
+            git("config", "commit.gpgsign", "false");
+            writeFileSync(join(dir, ".git/hooks/pre-commit"), `#!/bin/sh\nexec ${formatStaged}\n`, { mode: 0o755 });
+            writeFileSync(join(dir, "a.ts"), "const a = 1;\n");
+            git("add", "a.ts");
+            assert.equal(git("commit", "-qm", "init").status, 0);
+            writeFileSync(join(dir, "a.ts"), "const  b = {b:2}\n");
+            const r = git("commit", "-qm", "only", "a.ts");
+            assert.equal(r.status, 0, r.stderr);
+            assert.equal(git("show", "HEAD:a.ts").stdout, "const b = { b: 2 };\n");
+            assert.equal(staged(git, "a.ts"), "const b = { b: 2 };\n");
+            assert.equal(git("status", "--short").stdout, "");
+        });
+    });
+
+    it("formats nothing while a merge is being committed", () => {
+        inRepo((dir, git) => {
+            writeFileSync(join(dir, "a.ts"), "const  x = {a:1}\n");
+            git("add", ".");
+            writeFileSync(join(dir, ".git/MERGE_HEAD"), "0".repeat(40) + "\n");
+            assert.equal(spawnSync(formatStaged, { cwd: dir, env }).status, 0);
+            assert.equal(staged(git, "a.ts"), "const  x = {a:1}\n");
+        });
+    });
+
+    it("pre-push runs the source-only checks before the build and stops at the first failure", () => {
+        const prepush = repoFile("tools/prepush.sh");
+        const at = (s) => {
+            const i = prepush.indexOf(s);
+            assert.ok(i > 0, `${s} is in tools/prepush.sh`);
+            return i;
+        };
+        const build = at('run_step "Build"');
+        assert.ok(at("PROJECTS=$(") < build);
+        for (const step of ["Formatting (changed files)", "ESLint root config", "Legacy graph API use", "Links"]) {
+            assert.ok(
+                at(`run_step "${step}"`) < at("PROJECTS=$("),
+                `${step} runs before the affected list and the build`,
+            );
+        }
+        const runStep = prepush.slice(at("run_step() {"), prepush.indexOf("\n}\n", at("run_step() {")) + 3);
+        const r = spawnSync("bash", ["-c", `${runStep}\nrun_step one false\nrun_step two "echo SECOND"`], {
+            encoding: "utf8",
+        });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /stopped at the first failure: one/);
+        assert.doesNotMatch(r.stdout, /SECOND/);
     });
 });

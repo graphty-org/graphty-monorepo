@@ -1321,6 +1321,15 @@ export const EdgeStyle: z.ZodObject<{
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
 
 // @public
+export type ElementAtResult = {
+    readonly kind: "node";
+    readonly id: NodeId;
+} | {
+    readonly kind: "edge";
+    readonly id: EdgeId;
+};
+
+// @public
 export interface EncodingSuggestion {
     readonly as: "encoding";
     readonly channels: readonly Channel[];
@@ -1511,6 +1520,10 @@ export class Graph implements GraphContext {
     dispose(): void;
     // (undocumented)
     element: Element;
+    elementAt(point: {
+        x: number;
+        y: number;
+    }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
     // (undocumented)
     enableDetailedProfiling?: boolean;
@@ -1924,6 +1937,10 @@ export class Graphty extends LitElement {
     set edgeSrcIdPath(value: string | undefined);
     get edgeWeightPath(): string | undefined;
     set edgeWeightPath(value: string | undefined);
+    elementAt(point: {
+        x: number;
+        y: number;
+    }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
     get enableDetailedProfiling(): boolean | undefined;
     set enableDetailedProfiling(value: boolean | undefined);

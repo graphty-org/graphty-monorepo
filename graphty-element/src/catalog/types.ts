@@ -50,6 +50,16 @@ export type NodeId = string | number;
 /** The identity of an edge. */
 export type EdgeId = string;
 
+/**
+ * What `element.elementAt(point)` finds under a point: a node or an edge, by id.
+ *
+ * Only nodes are found today. The edge case is declared so code that switches on `kind` already
+ * handles it, and edges can be returned later without a breaking change.
+ */
+export type ElementAtResult =
+    | { readonly kind: "node"; readonly id: NodeId }
+    | { readonly kind: "edge"; readonly id: EdgeId };
+
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
 

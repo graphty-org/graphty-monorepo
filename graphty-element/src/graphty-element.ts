@@ -9,7 +9,7 @@ import {
     isAccelerationPolicy,
 } from "./acceleration";
 import { layoutIdForEngine } from "./catalog/layouts";
-import type { AlgorithmKey, FormatId, Scope, ScopeInput } from "./catalog/types";
+import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
@@ -3497,6 +3497,36 @@ export class Graphty extends LitElement {
      */
     screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
         return this.#graph.screenToWorld(screenPos);
+    }
+
+    /**
+     * The node under a point on the element: the node a click at that point would select.
+     * @remarks
+     * The point is in CSS pixels from the element's top-left corner, as `worldToScreen` returns.
+     * For a pointer event, that is `event.clientX - rect.left` and `event.clientY - rect.top`
+     * with `rect = element.getBoundingClientRect()`. A point on empty canvas gives `null`.
+     *
+     * Only nodes are found today: a point on an edge gives what is behind it, usually `null`.
+     * The result's `kind` already allows `"edge"`, so handle it; edges will be returned there
+     * once they can be clicked.
+     * @param point - The point, in CSS pixels from the element's top-left corner.
+     * @param point.x - X coordinate
+     * @param point.y - Y coordinate
+     * @returns `{ kind: "node", id }`, or `null` when no node is there.
+     * @since 3.15.0
+     * @example
+     * ```typescript
+     * element.addEventListener("contextmenu", (e) => {
+     *   const rect = element.getBoundingClientRect();
+     *   const hit = element.elementAt({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+     *   if (hit?.kind === "node") {
+     *     console.log("right-clicked node", hit.id);
+     *   }
+     * });
+     * ```
+     */
+    elementAt(point: { x: number; y: number }): ElementAtResult | null {
+        return this.#graph.elementAt(point);
     }
 
     // ============================================================================

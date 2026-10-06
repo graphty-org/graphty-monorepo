@@ -197,7 +197,7 @@ const TRUE_TEXTS: ReadonlySet<string> = new Set(["true", "yes", "1"]);
  * Written so each digit has exactly one way to match; `[0-9]*\.?[0-9]+` took quadratic time on a
  * long run of digits.
  */
-const POINT_NUMBER = String.raw`[-+]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?`;
+const POINT_NUMBER = String.raw`[-+]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][-+]?\d+)?`;
 /** A point "x,y[,z][!]". The `!` and its trailing space are one optional group, so spaces cannot split two ways. */
 const POINT_TEXT = new RegExp(
     String.raw`^\s*(${POINT_NUMBER})\s*,\s*(${POINT_NUMBER})(?:\s*,\s*(${POINT_NUMBER}))?\s*(?:(!)\s*)?$`,

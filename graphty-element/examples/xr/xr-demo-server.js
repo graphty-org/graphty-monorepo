@@ -164,7 +164,7 @@ const server = https.createServer(options, (req, res) => {
     // Handle recent logs endpoint - returns last N logs across all sessions
     if (req.url.startsWith("/logs/recent") && req.method === "GET") {
         const urlParams = new URL(req.url, `https://${HOST}:${PORT}`);
-        const count = parseInt(urlParams.searchParams.get("n") || "50", 10);
+        const count = Number.parseInt(urlParams.searchParams.get("n") || "50", 10);
         const errorsOnly = urlParams.searchParams.get("errors") === "true";
 
         // Collect all logs with session info

@@ -564,6 +564,7 @@ function pullRequestReasons(rec, master) {
     if (rec.draft) reasons.push("draft");
     if (rec.mergeStatus?.state === "failure") reasons.push(rec.mergeStatus.description);
     if (rec.conflictSightings >= 2) reasons.push("conflicting");
+    if (rec.labels?.includes(DEQUEUED)) reasons.push(`dequeued by the merge queue: ${dequeuedWhy(rec)}`);
     if (rec.ownerRejected) reasons.push("owner rejected images: fix needed");
     else if (rec.ownerGate) reasons.push("waiting on owner: visual review");
     if (countsAsBreaking(rec)) reasons.push("breaking: held for a grouped major");
@@ -576,6 +577,30 @@ function pullRequestReasons(rec, master) {
     reasons.push(...cancelledReasons(rec));
     if (Object.values(rec.required).some((v) => v === "PENDING" || v === "MISSING")) reasons.push("checks pending");
     return reasons;
+}
+
+/** The label Mergify puts on a pull request it took out of its queue. */
+export const DEQUEUED = "dequeued";
+
+/**
+ * Whether a pull request's own required checks all passed and it has no conflict with its base.
+ * @param {PrRecord} rec the record
+ * @returns {boolean} true when nothing of its own holds it
+ */
+export function greenAndClean(rec) {
+    const states = Object.values(rec.required ?? {});
+    return states.length > 0 && states.every((v) => v === "SUCCESS") && rec.mergeable === "MERGEABLE";
+}
+
+/**
+ * Why the merge queue's dequeue still holds a pull request, from what githerd reads of it.
+ * @param {PrRecord} rec the record, labelled `dequeued`
+ * @returns {string} the reason
+ */
+function dequeuedWhy(rec) {
+    if (rec.ownerGate) return "the visual gate";
+    if (greenAndClean(rec)) return "its queue run failed, githerd updates the branch to requeue it";
+    return "its own checks or a conflict hold it";
 }
 
 /**

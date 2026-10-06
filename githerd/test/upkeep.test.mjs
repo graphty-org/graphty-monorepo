@@ -608,6 +608,34 @@ describe("updateDequeued", () => {
         expect(fake.writes()).toHaveLength(1);
     });
 
+    it("brings back a dequeued pull request whose own checks are green and which has no conflict, once per dequeue", async () => {
+        const { heads, tip } = setup();
+        const fake = fakeGitHub();
+        const ctx = context(fake, "acting");
+        const green = { ownerGate: false, required: { "All Checks Pass": "SUCCESS" }, mergeable: "MERGEABLE" };
+        const recs = () => {
+            const r = prs(heads);
+            Object.assign(r[7], green);
+            Object.assign(r[8], green, { labels: ["dequeued"], mergeable: "CONFLICTING" });
+            Object.assign(r[9], { labels: ["dequeued"], draft: false, ownerGate: false });
+            return r;
+        };
+        const done = {};
+        expect(await updateDequeued(ctx, { prs: recs(), done, tip })).toEqual([
+            { pr: 7, result: { path: "update-branch", result: "updated" } },
+        ]);
+        // Its new head goes green while still labelled: the same dequeue, so nothing more.
+        const later = recs();
+        later[7].headSha = "f".repeat(40);
+        expect(await updateDequeued(ctx, { prs: later, done, tip })).toEqual([]);
+        // Requeued (label gone), then dequeued again: a new event.
+        const requeued = recs();
+        requeued[7].labels = [];
+        await updateDequeued(ctx, { prs: requeued, done, tip });
+        expect(done).toEqual({});
+        expect(fake.writes()).toHaveLength(1);
+    });
+
     it("records a would-do and writes nothing in dry-run", async () => {
         const { heads, tip } = setup();
         const fake = fakeGitHub();

@@ -23,7 +23,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-import { isReleaseTrain, stackSteps } from "./prs.mjs";
+import { DEQUEUED, greenAndClean, isReleaseTrain, stackSteps } from "./prs.mjs";
 import { run } from "./worktrees.mjs";
 
 const GROUP = "upkeep";
@@ -441,31 +441,39 @@ async function updateOnce(ctx, { n, rec, tip, line, reason, skipped }) {
     }
 }
 
-/** The label Mergify puts on a pull request it took out of its queue. */
-const DEQUEUED = "dequeued";
-
 /**
- * Pull requests Mergify dequeued on the visual gate get a fresh run. When the queue's draft fails
- * the owner's visual review, Mergify labels the pull request `dequeued`, and its own `All Checks
- * Pass` fails only in the owner gate's steps (`rec.ownerGate`). Only a new `pull_request` run,
- * whose payload carries the label, captures every Storybook for the owner; a re-run replays the
- * old payload without it and skips the captures. So githerd updates the branch from master, once
- * per head (`done[<pr>]` = the head it updated), with the skips of `recoverInherited`.
+ * Pull requests Mergify dequeued get a fresh run. When the queue's draft fails, Mergify labels the
+ * pull request `dequeued` and requeues it on its next update. Two cases are brought back by
+ * updating the branch from master (with the skips of `recoverInherited`):
+ *
+ * - the visual gate: its own `All Checks Pass` fails only in the owner gate's steps
+ *   (`rec.ownerGate`). Only a new `pull_request` run, whose payload carries the label, captures
+ *   every Storybook for the owner; a re-run replays the old payload without it. Once per head.
+ * - its own checks are green and it has no conflict: the queue's batch failed on something that is
+ *   not this pull request's (a stale base, a batch-mate). Once per dequeue: `done[<pr>]` holds until
+ *   the label is removed. This never waits on master, so a red master's own fix is brought back too.
+ *
+ * `done[<pr>]` is the head githerd updated from, dropped when the pull request closes or loses the
+ * label.
  * @param {Context} ctx the context
  * @param {{prs: Record<string, any>, done: Record<string, string>, tip: string,
  *   releasePattern?: string | null}} poll this poll's records; the heads already handled, changed
  *   in place; master's head; the config's release commit pattern
  * @returns {Promise<{pr: number, skipped?: string, result?: UpdateResult, error?: string}[]>} what
- *   was done for each dequeued pull request at a new head
+ *   was done for each dequeued pull request brought back
  */
 export async function updateDequeued(ctx, { prs, done, tip, releasePattern = null }) {
-    for (const n of Object.keys(done)) if (!prs[n]) delete done[n];
+    for (const n of Object.keys(done)) if (!prs[n]?.labels?.includes(DEQUEUED)) delete done[n];
     const out = [];
     for (const [n, rec] of Object.entries(prs)) {
-        if (!rec.labels?.includes(DEQUEUED) || !rec.ownerGate || done[n] === rec.headSha) continue;
+        if (!rec.labels?.includes(DEQUEUED)) continue;
+        const due = rec.ownerGate ? done[n] !== rec.headSha : !(n in done) && greenAndClean(rec);
+        if (!due) continue;
         done[n] = rec.headSha;
         const line = { kind: "dequeued-update", target: `pr:${n}`, head: rec.headSha };
-        const reason = "dequeued on the visual gate: a new run captures for the owner";
+        const reason = rec.ownerGate
+            ? "dequeued on the visual gate: a new run captures for the owner"
+            : "dequeued with its own checks green: an update requeues it";
         out.push(await updateOnce(ctx, { n, rec, tip, line, reason, skipped: cannotUpdate(rec, releasePattern) }));
     }
     return out;

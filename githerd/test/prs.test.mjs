@@ -487,6 +487,16 @@ describe("whyStuck", () => {
         expect(stuck(armed)).toEqual(["native auto-merge armed: bypasses githerd/merge"]);
     });
 
+    it("a pull request the merge queue dequeued is never unblocked, and says why", () => {
+        const rec = polls([node()])["704"];
+        rec.labels = ["dequeued"];
+        expect(stuck(rec)).toEqual([
+            "dequeued by the merge queue: its queue run failed, githerd updates the branch to requeue it",
+        ]);
+        rec.ownerGate = true;
+        expect(stuck(rec)).toContain("dequeued by the merge queue: the visual gate");
+    });
+
     it("claimed by a live claim", () => {
         const rec = polls([node()])["704"];
         const claims = { "pr:704": { holder: "githerd-1", holderName: "graphty-monorepo-bc" } };

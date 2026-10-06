@@ -85,9 +85,10 @@ interface MutableCluster {
  * GRSBM over a snapshot: recursive spectral bisection. Each cluster's Laplacian (over the arcs
  * between its members, self-loops left out) gives an approximate Fiedler vector; members are sorted
  * by it and cut at the point between 20% and 80% that maximises modularity; the split is kept when
- * modularity drops by no more than 0.01. The arithmetic and the random draws are the legacy
- * `grsbm`'s, so with `weighted: false` the result equals legacy's exactly on a graph without
- * self-loops; the port draws from its own generator instead of replacing `Math.random`.
+ * modularity drops by no more than 0.01. The cut and the modularity arithmetic are the legacy
+ * `grsbm`'s; the bisection vector is not, because legacy's iteration converged to the eigenvector
+ * of the Laplacian's largest eigenvalue rather than the Fiedler vector. The port draws from its own
+ * generator instead of replacing `Math.random`.
  *
  * Modularity uses `weightedDegree()` (a self-loop counts twice) against `totalWeight()`, or
  * `degree()` against the edge count when unweighted. Like legacy's, a split's modularity sums only
@@ -284,10 +285,12 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
 }
 
 /**
- * Legacy's approximate Fiedler vector of a cluster's Laplacian: a seeded random start orthogonal to
- * the all-ones vector, then repeated multiplication by -L, re-centred and normalised, until it stops
- * moving. Each row is summed in member order, the order legacy's dense matrix product uses, so the
- * vector matches legacy's to the last bit.
+ * The approximate Fiedler vector of a cluster's Laplacian L: a seeded random start orthogonal to
+ * the all-ones vector, then repeated multiplication by (c I - L), re-centred and normalised, until
+ * it stops moving. c is twice the largest weighted degree in the cluster, an upper bound on L's
+ * largest eigenvalue, so every eigenvalue c - lambda of (c I - L) is non-negative and the largest
+ * left after re-centring, c - lambda_2, belongs to the Fiedler vector. (Legacy multiplied by -L,
+ * which converges to the eigenvector of L's LARGEST eigenvalue instead.)
  * @param members - The cluster's node indices
  * @param position - Scratch, -1 everywhere on entry and exit
  * @param s - The snapshot
@@ -315,6 +318,7 @@ function fiedlerVector(
     const cols: number[] = [];
     const vals: number[] = [];
     const row = new Map<number, number>();
+    let maxDegree = 0;
     for (let p = 0; p < size; p++) {
         const u = members[p];
         row.clear();
@@ -328,6 +332,7 @@ function fiedlerVector(
             }
         }
         row.set(p, diagonal);
+        maxDegree = Math.max(maxDegree, diagonal);
         for (const q of [...row.keys()].sort((a, b) => a - b)) {
             cols.push(q);
             vals.push(row.get(q) ?? 0);
@@ -366,6 +371,7 @@ function fiedlerVector(
             vector[p] /= start;
         }
     }
+    const shift = 2 * maxDegree;
     for (let iteration = 0; iteration < maxIterations; iteration++) {
         const next = new Float64Array(size);
         for (let p = 0; p < size; p++) {
@@ -373,7 +379,7 @@ function fiedlerVector(
             for (let k = rowStart[p]; k < rowStart[p + 1]; k++) {
                 sum += vals[k] * vector[cols[k]];
             }
-            next[p] = -sum;
+            next[p] = shift * vector[p] - sum;
         }
         recentre(next);
         const length = norm(next);

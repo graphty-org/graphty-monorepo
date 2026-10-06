@@ -2055,8 +2055,12 @@ describe("AppShell", () => {
             const fake = installGraph(container, []);
             const apply = vi.fn(() => (refuse === undefined ? Promise.resolve({}) : Promise.reject(new Error(refuse))));
             const clear = vi.fn();
+            // What the inspector's Multiple surface reads when more than one element is selected.
+            const statistics = vi.fn(() =>
+                Promise.resolve({ nodes: 0, edges: 0, inducedEdges: 0, cutEdges: 0, attributes: [] }),
+            );
 
-            Object.assign(fake.session, { selection: { apply, clear } });
+            Object.assign(fake.session, { selection: { apply, clear, statistics } });
 
             return { container, apply, clear };
         }

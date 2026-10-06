@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
-import { decide, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
+import { decide, fileIssue, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { strayChanges } from "./release-diff.mjs";
 
@@ -318,6 +318,80 @@ describe("master-guard", () => {
         assert.equal(frozenSha("release freeze"), null);
         assert.equal(mergedPr("Merge pull request #1011 from graphty-org/x\n\nbody"), 1011);
         assert.equal(mergedPr("chore(release): publish"), null);
+    });
+
+    // A fake repository: open issues, and every write the guard makes. `racer` is an issue another run opens
+    // between this run's lookup and its own create.
+    const repo = (open, racer) => {
+        const writes = [];
+        let next = 2000;
+        const gh = async (path, init = {}) => {
+            const method = init.method ?? "GET";
+            const body = init.body ? JSON.parse(init.body) : undefined;
+            if (method === "GET" && path.startsWith("/issues?")) {
+                assert.match(path, /state=open&labels=priority:critical/);
+                return open.filter((i) => i.state !== "closed");
+            }
+            writes.push([method, path, body]);
+            if (method === "POST" && path === "/issues") {
+                if (racer) {
+                    open.push(racer);
+                }
+                const created = { number: next++, title: body.title };
+                open.push(created);
+                return created;
+            }
+            if (method === "PATCH") {
+                open.find((i) => `/issues/${i.number}` === path).state = body.state;
+            }
+            return {};
+        };
+        return { gh, writes };
+    };
+    const red = (sha) => ({
+        prefix: FREEZE_PREFIX,
+        title: `${FREEZE_PREFIX}${sha}`,
+        labels: ["bug"],
+        body: `body ${sha}`,
+        comment: `also ${sha}`,
+    });
+
+    it("adds a red commit to the red-master issue already open instead of opening another", async () => {
+        const { gh, writes } = repo([
+            { number: 7, title: "Something else" },
+            { number: 9, title: "Fix the thing", pull_request: {} },
+            { number: 1124, title: `${FREEZE_PREFIX}7edecd1` },
+        ]);
+        assert.equal(await fileIssue(gh, red("056ee80")), 1124);
+        assert.deepEqual(writes, [["POST", "/issues/1124/comments", { body: "also 056ee80" }]]);
+    });
+
+    it("opens an issue when none is open", async () => {
+        const { gh, writes } = repo([{ number: 7, title: "GPU lane red on master" }]);
+        assert.equal(await fileIssue(gh, red("7edecd1")), 2000);
+        assert.deepEqual(writes, [
+            ["POST", "/issues", { title: `${FREEZE_PREFIX}7edecd1`, labels: ["bug"], body: "body 7edecd1" }],
+        ]);
+    });
+
+    it("closes its own issue as a duplicate when a racing run opened one first", async () => {
+        const { gh, writes } = repo([], { number: 1128, title: `${FREEZE_PREFIX}056ee80` });
+        assert.equal(await fileIssue(gh, red("df92205")), 1128);
+        assert.deepEqual(writes.slice(1), [
+            ["POST", "/issues/2000/comments", { body: "Duplicate of #1128." }],
+            ["PATCH", "/issues/2000", { state: "closed", state_reason: "not_planned" }],
+            ["POST", "/issues/1128/comments", { body: "also df92205" }],
+        ]);
+    });
+
+    it("keeps its issue when the racing run's issue is the newer one", async () => {
+        const { gh, writes } = repo([], { number: 3000, title: `${FREEZE_PREFIX}056ee80` });
+        assert.equal(await fileIssue(gh, red("df92205")), 2000);
+        assert.equal(writes.length, 1);
+    });
+
+    it("runs unqueued, since a concurrency group would cancel a pending red run", () => {
+        assert.doesNotMatch(workflow("master-guard.yml"), /^\s*concurrency:/m);
     });
 
     it("titles a revert so Lint PR Title passes it", () => {

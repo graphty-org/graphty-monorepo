@@ -401,18 +401,31 @@ describe("owner items on GitHub", () => {
         expect(state.ownerItems[VISUAL.id].endedAt).toBeUndefined();
     });
 
-    it("keeps reading a posted item after its post, not after it was raised", async () => {
+    it("counts an answer made before githerd's post once the group starts acting, but not one before the ask", async () => {
         const { gh, comments } = fakeRepo();
         const { api } = client(gh, "acting");
         const state = /** @type {any} */ ({});
         raiseItem(state, VISUAL, at(0));
-        await postItems({ api, repo: REPO, state, acting: true, now: at(0) });
-        state.ownerItems[VISUAL.id].github.at = at(2 * MIN).toISOString();
-        // after the item was raised but before its post: not an answer
-        comments[412].push({ user: { login: LOGIN }, created_at: at(MIN).toISOString(), body: "early" });
-        expect(await readAnswers({ api, repo: REPO, state, login: LOGIN, now: at(3 * MIN) })).toEqual([]);
-        comments[412].push({ user: { login: LOGIN }, created_at: at(3 * MIN).toISOString(), body: "fine" });
-        expect(await readAnswers({ api, repo: REPO, state, login: LOGIN, now: at(4 * MIN) })).toEqual([VISUAL.id]);
+        // in dry-run: a would-do post only
+        await postItems({ api: client(gh, "dry-run").api, repo: REPO, state, acting: false, now: at(0) });
+        comments[412] = [
+            { user: { login: LOGIN }, created_at: at(-MIN).toISOString(), body: "before the ask" },
+            { user: { login: LOGIN }, created_at: at(MIN).toISOString(), body: "option A" },
+        ];
+        // the group starts acting: the post lands after the owner already answered
+        await postItems({ api, repo: REPO, state, acting: true, now: at(2 * MIN) });
+        expect(state.ownerItems[VISUAL.id].github).toMatchObject({ performed: true, at: at(2 * MIN).toISOString() });
+        expect(await readAnswers({ api, repo: REPO, state, login: LOGIN, now: at(3 * MIN) })).toEqual([VISUAL.id]);
+        expect(state.ownerItems[VISUAL.id]).toMatchObject({ endedBy: "comment", answer: "option A" });
+
+        // a comment made before the item's current text was asked does not answer it
+        const s2 = /** @type {any} */ ({});
+        raiseItem(s2, DOOR, at(0));
+        raiseItem(s2, { ...DOOR, question: "Rename the package now?" }, at(2 * MIN));
+        await postItems({ api, repo: REPO, state: s2, acting: true, now: at(2 * MIN) });
+        comments[9] = [{ user: { login: LOGIN }, created_at: at(MIN).toISOString(), body: "no" }];
+        await postItems({ api, repo: REPO, state: s2, acting: true, now: at(2 * MIN) });
+        expect(await readAnswers({ api, repo: REPO, state: s2, login: LOGIN, now: at(3 * MIN) })).toEqual([]);
     });
 
     it("leaves an item open when the read fails", async () => {

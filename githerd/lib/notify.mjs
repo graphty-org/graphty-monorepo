@@ -665,12 +665,14 @@ async function unlabel(item, others, remove) {
 }
 
 /**
- * Ends open items the owner answered on GitHub: a comment by him after the item's post that is
- * not one of githerd's own (its text kept as the item's `answer`), or the `needs-decision` label
- * gone. A comment that says "not yet" keeps the item open with no new page (`deferItem`). An item whose post was
- * performed is read with a conditional GET, free when nothing changed. An item with no post of its
- * own (the `owner-items` group did not act) is answered by his comment after the item was raised,
- * read for all such items in one GraphQL query; its label is not read, since none was put on. Every answer also
+ * Ends open items the owner answered on GitHub: a comment by him after the item's current text was
+ * raised (`askedSince`) that is not one of githerd's own (its text kept as the item's `answer`), or
+ * the `needs-decision` label gone. Not after githerd's post: the owner sees an item on a page or in
+ * a session first, and the post can come long after (the `owner-items` group switched to acting
+ * after he answered). A comment that says "not yet" keeps the item open with no new page
+ * (`deferItem`). An item whose post was performed is read with a conditional GET, free when nothing
+ * changed. An item with no post of its own (the `owner-items` group did not act) is read for all
+ * such items in one GraphQL query; its label is not read, since none was put on. Every answer also
  * counts as presence. A comment or a label removal a Claude session made with the owner's account
  * (`isSessionWrite`, session-writes.mjs) is not his answer: the comment is skipped, and the label
  * is put back.
@@ -701,14 +703,23 @@ export async function readAnswers({ api, repo, state, login, now, isSessionWrite
     try {
         const byNumber = await targetComments(api, repo, unposted);
         for (const item of unposted) {
-            const since = item.deferredAt ?? item.raisedAt;
             const comments = byNumber.get(/** @type {number} */ (targetNumber(item.target))) ?? [];
-            if (commentAnswer(ctx, item, comments, since)) ended.push(item.id);
+            if (commentAnswer(ctx, item, comments, askedSince(item))) ended.push(item.id);
         }
     } catch {
         // unknown is not an answer; the next poll reads again
     }
     return ended;
+}
+
+/**
+ * When the owner was last asked an item: its current text's raise time, or a later "not yet".
+ * @param {OwnerItem} item the item
+ * @returns {string} ISO time after which his comment answers it
+ */
+function askedSince(item) {
+    const asked = item.updatedAt ?? item.raisedAt;
+    return item.deferredAt && Date.parse(item.deferredAt) > Date.parse(asked) ? item.deferredAt : asked;
 }
 
 /**
@@ -780,7 +791,7 @@ function commentAnswer({ state, login, now, isSessionWrite }, item, comments, si
  * @returns {Promise<boolean>} whether the item ended
  */
 async function readItemAnswer({ api, state, login, now, isSessionWrite }, item, base) {
-    const since = item.deferredAt && item.deferredAt > item.github.at ? item.deferredAt : item.github.at;
+    const since = askedSince(item);
     const comments = (await api.get(`${base}/comments?since=${since}&per_page=100`)).body ?? [];
     const said = commentAnswer({ state, login, now, isSessionWrite }, item, comments, since);
     if (said !== null) return said;

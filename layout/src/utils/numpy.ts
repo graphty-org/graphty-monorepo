@@ -6,26 +6,22 @@
 export const np = {
     zeros: function (shape: number | number[]): number[] | number[][] {
         if (typeof shape === "number") {
-            return Array(shape).fill(0) as number[];
+            return new Array(shape).fill(0) as number[];
         }
         if (shape.length === 1) {
-            return Array(shape[0]).fill(0) as number[];
+            return new Array(shape[0]).fill(0) as number[];
         }
-        return Array(shape[0])
-            .fill(0)
-            .map(() => this.zeros(shape.slice(1))) as number[][];
+        return new Array(shape[0]).fill(0).map(() => this.zeros(shape.slice(1))) as number[][];
     },
 
     ones: function (shape: number | number[]): number[] | number[][] {
         if (typeof shape === "number") {
-            return Array(shape).fill(1) as number[];
+            return new Array(shape).fill(1) as number[];
         }
         if (shape.length === 1) {
-            return Array(shape[0]).fill(1) as number[];
+            return new Array(shape[0]).fill(1) as number[];
         }
-        return Array(shape[0])
-            .fill(1)
-            .map(() => this.ones(shape.slice(1))) as number[][];
+        return new Array(shape[0]).fill(1).map(() => this.ones(shape.slice(1))) as number[][];
     },
 
     linspace: function (start: number, stop: number, num: number): number[] {
@@ -81,9 +77,9 @@ export const np = {
             return (b as number[]).map((val) => a + val);
         }
         if (!Array.isArray(b)) {
-            return (a).map((val) => val + b);
+            return a.map((val) => val + b);
         }
-        return (a).map((val, i) => val + (b)[i]);
+        return a.map((val, i) => val + b[i]);
     },
 
     subtract: function (a: number | number[], b: number | number[]): number | number[] {
@@ -94,19 +90,23 @@ export const np = {
             return (b as number[]).map((val) => a - val);
         }
         if (!Array.isArray(b)) {
-            return (a).map((val) => val - b);
+            return a.map((val) => val - b);
         }
-        return (a).map((val, i) => val - (b)[i]);
+        return a.map((val, i) => val - b[i]);
     },
 
     max: function (arr: number | number[]): number {
-        if (!Array.isArray(arr)) {return arr;}
-        return Math.max(...((arr).flat(Infinity)));
+        if (!Array.isArray(arr)) {
+            return arr;
+        }
+        return Math.max(...arr.flat(Infinity));
     },
 
     min: function (arr: number | number[]): number {
-        if (!Array.isArray(arr)) {return arr;}
-        return Math.min(...((arr).flat(Infinity)));
+        if (!Array.isArray(arr)) {
+            return arr;
+        }
+        return Math.min(...arr.flat(Infinity));
     },
 
     norm: function (arr: number[]): number {

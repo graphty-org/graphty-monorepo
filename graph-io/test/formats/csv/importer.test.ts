@@ -101,7 +101,7 @@ function column(s: GraphSnapshot, table: "nodes" | "edges", name: string): unkno
 describe("csvImporter: the corpus", () => {
     for (const entry of corpusFiles("csv")) {
         it(`imports ${entry.path} with the manifest's counts`, async () => {
-            const { snapshot, report } = await load(readCorpusBytes("csv", entry.path), entry.options as Options);
+            const { snapshot, report } = await load(readCorpusBytes("csv", entry.path), entry.options);
             expect(snapshot.nodeCount).toBe(entry.expectedNodes);
             // the manifest counts source rows; an expanded undirected row of a mixed file is two logical edges
             expect(snapshot.edgeCount - report.counts.expandedMixed).toBe(entry.expectedEdges);
@@ -114,9 +114,9 @@ describe("csvImporter: the corpus", () => {
 
         it(`imports ${entry.path} identically from every input shape`, async () => {
             const bytes = readCorpusBytes("csv", entry.path);
-            const reference = await load(bytes, entry.options as Options);
+            const reference = await load(bytes, entry.options);
             for (const shape of inputShapes(bytes)) {
-                const { snapshot } = await load(shape.make(), entry.options as Options);
+                const { snapshot } = await load(shape.make(), entry.options);
                 expect(snapshot.ids.toArray(), shape.name).toEqual(reference.snapshot.ids.toArray());
                 expect(edgesOf(snapshot), shape.name).toEqual(edgesOf(reference.snapshot));
                 expect(weightsOf(snapshot), shape.name).toEqual(weightsOf(reference.snapshot));
@@ -1152,7 +1152,7 @@ describe("csvImporter: decimal", () => {
         await expect(importGraph("a,b\n", { format: "csv", decimal: ",", delimiter: "," })).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
         });
-        await expect(importGraph("a,b\n", { format: "csv", decimal: "x" as "," })).rejects.toMatchObject({
+        await expect(importGraph("a,b\n", { format: "csv", decimal: "x" })).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
         });
     });

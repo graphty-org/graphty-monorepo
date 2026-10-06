@@ -18,7 +18,7 @@
 import { InstancedMesh, NullEngine, type Scene as BabylonScene, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
-import type { AdHocData, EdgeStyleConfig, NodeStyleConfig } from "../src/config";
+import type { EdgeStyleConfig, NodeStyleConfig } from "../src/config";
 import { Edge } from "../src/Edge";
 import { SimpleLayoutEngine } from "../src/layout/LayoutEngine";
 import { DataManager, dataManagerInternals } from "../src/managers/DataManager";
@@ -167,7 +167,7 @@ function edgePaintOf(style: EdgeStyleConfig): EdgePaint {
  * @returns The created node
  */
 function addNode(harness: Harness, id: string, style: NodeStyleConfig): Node {
-    const node = new Node(harness.context, id, nodePaintOf(style), { id } as unknown as AdHocData);
+    const node = new Node(harness.context, id, nodePaintOf(style), { id });
     dataManagerInternals.adoptNode(harness.dataManager, node);
     harness.dataManager.nodeCache.set(id, node);
     harness.layoutEngine.addNode(node);
@@ -183,7 +183,7 @@ function addNode(harness: Harness, id: string, style: NodeStyleConfig): Node {
  * @returns The created edge
  */
 function addEdge(harness: Harness, style: EdgeStyleConfig): Edge {
-    const edge = new Edge(harness.context, "src", "dst", 0, edgePaintOf(style), {} as unknown as AdHocData);
+    const edge = new Edge(harness.context, "src", "dst", 0, edgePaintOf(style), {});
     dataManagerInternals.adoptEdge(harness.dataManager, edge);
     harness.layoutEngine.addEdge(edge);
     edge.update();

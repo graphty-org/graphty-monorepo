@@ -55,7 +55,7 @@ export function FindBox(): React.JSX.Element {
     const version = useSessionVersion(session);
 
     const found: FindResult | null = useMemo(() => {
-        void version; // NOSONAR(S3735): reads the change count so the memo runs again on each session change
+        const _changeCount = version; // NOSONAR(S1481): reads the change count so the memo runs again on each session change
         return session === null || text.trim() === "" ? null : session.find(text, { limit: LIMIT });
     }, [session, text, version]);
     const options: Option[] = found

@@ -1649,7 +1649,7 @@ export class OptionValidationError extends Error {
 // @public
 export type OptionValuesOf<O extends OptionsShorthand> = {
     readonly [K in keyof O]: O[K] extends number | string | boolean | {
-        readonly default: NonNullable<unknown>;
+        readonly default: object | string | number | boolean | bigint | symbol;
     } ? ShorthandValue<O[K]> : ShorthandValue<O[K]> | undefined;
 };
 

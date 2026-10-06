@@ -17,7 +17,7 @@ export const logsStatusInputSchema = z.object({});
 /**
  * Input type for the logs_status handler.
  */
-export type LogsStatusInput = z.infer<typeof logsStatusInputSchema>;
+export type LogsStatusInput = Record<string, never>;
 
 /**
  * Output type for the logs_status handler.

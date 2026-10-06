@@ -42,41 +42,58 @@ export function jobNames(text) {
     /** @type {Record<string, string>} */
     const names = {};
     const lines = text.split("\n");
-    const start = lines.findIndex((l) => /^jobs:\s*$/.test(l));
+    const start = lines.findIndex((l) => l.trimEnd() === "jobs:");
     if (start === -1) return names;
-    let indent = -1;
-    let job = null;
-    let child = -1;
+    /** @type {{indent: number, job: string | null, child: number}} */
+    const at = { indent: -1, job: null, child: -1 };
     for (const line of lines.slice(start + 1)) {
-        if (/^\S/.test(line)) break;
-        if (!line.trim() || line.trim().startsWith("#")) continue;
-        const depth = line.length - line.trimStart().length;
-        const key = /^\s*([\w-]+):\s*$/.exec(line);
-        if (key && (indent === -1 || depth === indent)) {
-            indent = depth;
-            job = key[1];
-            child = -1;
-            names[job] = `^${escape(job)}$`;
-            continue;
-        }
-        if (job === null) continue;
-        if (child === -1) child = depth;
-        const name = /^\s*name:\s*(.+?)\s*$/.exec(line);
-        if (name && depth === child) names[job] = pattern(name[1].replace(/^(["'])(.*)\1$/, "$2"));
+        if (line !== "" && line.trimStart() === line) break;
+        const t = line.trim();
+        if (t && !t.startsWith("#")) readJobLine(names, at, line.length - line.trimStart().length, t);
     }
     return names;
 }
 
 /**
- * A RegExp source matching a job name, its expressions as any text.
+ * Reads one line under `jobs:` (`jobNames`): a job key at the jobs' depth starts a job, and a
+ * `name:` at its first child depth names it.
+ * @param {Record<string, string>} names the patterns so far, updated
+ * @param {{indent: number, job: string | null, child: number}} at where the reading is, updated
+ * @param {number} depth the line's indentation
+ * @param {string} t the line, trimmed
+ */
+function readJobLine(names, at, depth, t) {
+    const key = t.endsWith(":") && /^[\w-]+$/.test(t.slice(0, -1)) ? t.slice(0, -1) : null;
+    if (key && (at.indent === -1 || depth === at.indent)) {
+        Object.assign(at, { indent: depth, job: key, child: -1 });
+        names[key] = `^${escape(key)}$`;
+        return;
+    }
+    if (at.job === null) return;
+    if (at.child === -1) at.child = depth;
+    if (depth !== at.child || !t.startsWith("name:")) return;
+    let name = t.slice("name:".length).trim();
+    const quote = name[0];
+    if ((quote === '"' || quote === "'") && name.length > 1 && name.endsWith(quote)) name = name.slice(1, -1);
+    names[at.job] = pattern(name);
+}
+
+/**
+ * A RegExp source matching a job name, its `${{ }}` expressions as any text.
  * @param {string} name the `name:` value
  * @returns {string} the source
  */
 function pattern(name) {
-    return `^${name
-        .split(/\$\{\{.*?\}\}/)
-        .map(escape)
-        .join(".+")}$`;
+    const parts = [];
+    let rest = name;
+    for (let open = rest.indexOf("${{"); open !== -1; open = rest.indexOf("${{")) {
+        const close = rest.indexOf("}}", open);
+        if (close === -1) break;
+        parts.push(escape(rest.slice(0, open)));
+        rest = rest.slice(close + 2);
+    }
+    parts.push(escape(rest));
+    return `^${parts.join(".+")}$`;
 }
 
 /**

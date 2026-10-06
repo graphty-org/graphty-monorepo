@@ -307,21 +307,23 @@ function warnAdvisory(rec, advisory, today) {
         return entries !== null;
     };
     rec.failingChecks = rec.failingChecks.filter((name) => !warns({ job: name }));
-    let own = rec.underlying ?? null;
-    if (own) {
-        const failures = own.failures.filter((f) => !warns(f));
-        if (failures.length < own.failures.length) {
-            own = { ...own, failures };
-            if (!failures.length) {
-                for (const [name, state] of Object.entries(rec.required)) {
-                    if (state === "FAILURE" && isSummaryJob(name)) rec.required[name] = "SUCCESS";
-                }
-                rec.failingChecks = rec.failingChecks.filter((name) => !isSummaryJob(name));
-            }
-        }
-    }
+    const read = rec.underlying ?? null;
+    const failures = read?.failures.filter((f) => !warns(f)) ?? [];
     rec.advisory = [...warned.values()].map(advisoryWords);
-    return own;
+    if (!read || failures.length === read.failures.length) return read;
+    if (!failures.length) passSummaries(rec);
+    return { ...read, failures };
+}
+
+/**
+ * Counts a pull request's failing summary checks as passed: every job they failed on is advisory.
+ * @param {PrRecord} rec the record, changed in place
+ */
+function passSummaries(rec) {
+    for (const [name, state] of Object.entries(rec.required)) {
+        if (state === "FAILURE" && isSummaryJob(name)) rec.required[name] = "SUCCESS";
+    }
+    rec.failingChecks = rec.failingChecks.filter((name) => !isSummaryJob(name));
 }
 
 /**

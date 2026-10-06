@@ -78,7 +78,7 @@ function verdictLines(f) {
  */
 function batchLine(prs) {
     return (
-        `BATCH COMMIT: the red commit merged ${prs.map((n) => `#${n}`).join(", ")} as one Mergify batch. ` +
+        `BATCH COMMIT: the red commit merged ${prs.map((n) => "#" + n).join(", ")} as one Mergify batch. ` +
         'Its tree is exactly what "Queue Checks Pass" passed, so first check what runs only on master (the benchmarks and the other push-only jobs and steps) ' +
         "and the known flaky tests (the FLAKY TESTS section of githerd_status) before blaming any one pull request in the batch."
     );
@@ -162,6 +162,21 @@ function promotePurpose(f) {
         "tools/ci-workflows.test.mjs must pass." +
         refs
     );
+}
+
+/**
+ * What a job is for, in one line: its kind's, or a refresh's, a verdict's, a fix to verify or a
+ * promotion.
+ * @param {any} job the job
+ * @param {{refresh: boolean, verdict: boolean}} kind whether it is a refresh triage or a verdict job
+ * @returns {string} the purpose
+ */
+function purposeOf(job, { refresh, verdict }) {
+    if (verdict) return VERDICT_PURPOSE;
+    if (refresh) return REFRESH_PURPOSE;
+    if (job.kind === "issue" && job.facts?.scope === "promote") return promotePurpose(job.facts);
+    if (job.kind === "issue" && job.facts?.references?.length) return verifyPurpose(job);
+    return PURPOSE[job.kind];
 }
 
 /** How to report the end, by kind. */
@@ -293,10 +308,7 @@ export function jobText(job, ctx = {}) {
     else if (job.kind === "incident") done = INCIDENT_DONE[job.facts?.scope ?? "master"];
     if (!done) throw new Error(`no done-condition for incident scope ${job.facts?.scope}`);
     const verdict = job.kind === "incident" && job.facts?.scope === "verdict";
-    let purpose = refresh ? REFRESH_PURPOSE : PURPOSE[job.kind];
-    if (verdict) purpose = VERDICT_PURPOSE;
-    if (job.kind === "issue" && job.facts?.references?.length) purpose = verifyPurpose(job);
-    if (job.kind === "issue" && job.facts?.scope === "promote") purpose = promotePurpose(job.facts);
+    const purpose = purposeOf(job, { refresh, verdict });
     const lines = [`JOB ${job.id}`, `TARGET: ${TARGET_NOUN[job.kind]} ${job.target}`, `WHAT FOR: ${purpose}`];
     if (job.reason) lines.push(`WHY NOW: ${job.reason}`);
     const finish = FINISH[verdict ? "verdict" : job.kind] ?? FINISH_DEFAULT;

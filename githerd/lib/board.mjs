@@ -163,7 +163,7 @@ const WATCHDOG_MARK = /<!-- (?:watchdog|master-clock):/;
  * @param {unknown} body the comment body
  * @returns {boolean} true for a watchdog comment
  */
-export const isWatchdogComment = (body) => WATCHDOG_MARK.test(String(body ?? ""));
+export const isWatchdogComment = (body) => typeof body === "string" && WATCHDOG_MARK.test(body);
 
 // ---------------------------------------------------------------------------------------------
 // Job records (design sections 5.1 to 5.3, 8.2 and 9.5): kinds, states and their exits,

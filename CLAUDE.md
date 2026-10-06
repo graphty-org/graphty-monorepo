@@ -1040,7 +1040,7 @@ this repository a message asking whose it is. If it is yours, call `githerd_mine
 a job.
 While your session holds a job, githerd asks it where the job stands every 15 minutes
 ("githerd: status check on <job> ..."). Answer with `githerd_expect`: the job, one line of status as
-`reason`, and the minutes until your current step ends. The question also asks whether you can
+`reason`. The question also asks whether you can
 take another job: set `capacity` to how many more you can take now (0 if none). A question still unanswered when the next
 one is due puts the job back in the queue, and so does your session ending. So do the job's work in
 a background subagent or workflow, and keep the main conversation free to answer.

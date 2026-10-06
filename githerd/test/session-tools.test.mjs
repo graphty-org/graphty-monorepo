@@ -430,6 +430,21 @@ describe("sessionToolSet", () => {
         expect(ctx.state.capacity.w1.n).toBe(1);
     });
 
+    it("records a status answer without minutes and leaves a declared long step open", async () => {
+        const job = heldJob("pr-7");
+        const { ctx } = setup({ jobs: { "pr-7": job } });
+        expect((await call(ctx, "githerd_expect", { job: "pr-7", reason: "reviewing", capacity: 1 })).text).toBe(
+            JSON.stringify({ ok: true }),
+        );
+        expect(job.status).toEqual({ at: "2026-10-04T12:00:00.000Z", text: "reviewing" });
+        expect(ctx.state.capacity).toEqual({ w1: { n: 1, at: "2026-10-04T12:00:00.000Z" } });
+        expect(job.expect ?? null).toBeNull();
+        await call(ctx, "githerd_expect", { job: "pr-7", minutes: 30, reason: "build" });
+        await call(ctx, "githerd_expect", { job: "pr-7", reason: "still building" });
+        expect(job.expect).toEqual({ until: "2026-10-04T12:30:00.000Z", reason: "build" });
+        expect(job.status.text).toBe("still building");
+    });
+
     it("declares a wait and a long step only for a job the caller holds", async () => {
         const job = heldJob("pr-7");
         const other = heldJob("pr-8");

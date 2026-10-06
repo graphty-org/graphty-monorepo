@@ -1010,10 +1010,13 @@ githerd_wait: { job: string, for: "checks"|"lane"|"release"|"job"|"local",
 // -> { ok: true, until } | { ok: false, reason }            // refused if already settled
 
 // 5. Report where the job stands: `reason` is one line of status, recorded as the job's status
-//    {at, text} and shown on the board and in githerd_status; `minutes` is how long until the
-//    current step ends (up to 3 hours), during which the watchdog does not recycle a worker.
-//    It is the answer to githerd's status question to an owner session (8.2).
-githerd_expect: { job: string, minutes: integer /*1..180*/, reason: string /*<=300*/ }
+//    {at, text} and shown on the board and in githerd_status. It is the answer to githerd's
+//    status question to an owner session (8.2), which asks only for `reason` and `capacity`.
+//    `minutes`, optional and not part of that answer, is set only by a worker before a step
+//    longer than 20 minutes with no output: the step's length (up to 3 hours), during which the
+//    watchdog counts the worker as progressing. A call without it leaves any open window as is.
+githerd_expect: { job: string, reason: string /*<=300*/, minutes?: integer /*1..180*/,
+                  capacity?: integer /*0..20*/ }
 
 // 6. Push the job's branch through the daemon's queue and the pre-push gate.
 githerd_push: { job: string, branch: string, expectHead: string /*40 hex, the local HEAD*/ }
@@ -1332,7 +1335,7 @@ shows each limit with the measurement that applied at the last start.
   from the claim, githerd messages the holding session, through the session messaging below and
   only when `workers.sessions` allows it: "githerd: status check on <job> (<target>), which this
   session holds. Answer by calling githerd_expect with job <job>, reason set to one line on where
-  the job stands, and minutes set to how long until your current step ends. If this is still
+  the job stands. If this is still
   unanswered when githerd asks again in 15 minutes, the job goes back to the queue. Do the job's
   work in a background subagent or workflow, so this conversation stays free to answer githerd."
   The answer is recorded on the job as `{at, text}` and shown on the board and in `githerd_status`.

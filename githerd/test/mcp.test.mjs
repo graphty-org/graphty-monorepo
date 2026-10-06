@@ -376,6 +376,7 @@ describe("the thirteen tools", () => {
             "arguments.overlap.reason: longer than 500 characters",
         ]);
         expect(violations("githerd_claim", { job: JOB })).toHaveLength(3);
+        expect(violations("githerd_expect", { job: JOB, reason: "reviewing" })).toEqual([]);
         expect(violations("githerd_expect", { ...VALID.githerd_expect, minutes: 181 })).toEqual([
             "arguments.minutes: greater than 180",
         ]);

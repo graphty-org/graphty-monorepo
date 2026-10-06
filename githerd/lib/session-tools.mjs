@@ -294,8 +294,10 @@ export function sessionToolSet(ctx) {
         githerd_expect: async (args, caller, client) => {
             const session = sessionOf(caller, client);
             const job = heldJob(state, args.job, session, client);
-            const until = new Date(now.getTime() + args.minutes * 60_000).toISOString();
-            job.expect = { until, reason: args.reason };
+            // Only a worker's long step sends minutes: an open window counts as progress to the
+            // watchdog (watchdog.mjs). A status answer without it leaves any window as it was.
+            const until = args.minutes ? new Date(now.getTime() + args.minutes * 60_000).toISOString() : null;
+            if (until) job.expect = { until, reason: args.reason };
             // The reason is the holder's status too: it answers githerd's status question (asks.mjs).
             job.status = { at: now.toISOString(), text: args.reason };
             // The session's room for more jobs, which inviteStep reads (asks.mjs).
@@ -304,7 +306,7 @@ export function sessionToolSet(ctx) {
                 state.capacity[session] = { n: args.capacity, at: now.toISOString() };
             }
             await ctx.commit({ kind: "expect", job: job.id, until, reason: args.reason });
-            return JSON.stringify({ ok: true, until });
+            return JSON.stringify(until ? { ok: true, until } : { ok: true });
         },
         githerd_push: async (args, caller, client) => {
             if (!ctx.push) throw new Error("githerd cannot push now: no valid config or it is in fatal mode");

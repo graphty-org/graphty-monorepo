@@ -377,6 +377,7 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(f.sent[0][1]).toContain("status check on the jobs this session holds:\n- issue-186 (#186)\n");
         expect(f.sent[0][1]).toContain("calling githerd_expect once per listed job");
         expect(f.sent[0][1]).toContain("Can you take another job? Answer that with capacity set");
+        expect(f.sent[0][1]).not.toMatch(/minutes set|how long until/);
         expect(f.sent[0][1]).toContain("background subagents or workflows");
         expect(lines).toEqual([
             expect.objectContaining({

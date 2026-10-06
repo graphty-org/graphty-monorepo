@@ -427,9 +427,11 @@ export const TOOLS = [
     {
         name: "githerd_expect",
         description:
-            "Report where your job stands: reason is one line of status, minutes how long until your current step ends " +
-            "(up to 180; the watchdog does not recycle a githerd worker during it). This is the answer to githerd's " +
-            "status question; the board shows the line. capacity, optional, is how many further jobs this session can " +
+            "Report where your job stands: reason is one line of status. This is the answer to githerd's status " +
+            "question; the board shows the line. minutes, optional, is not part of that answer and githerd does not " +
+            "use it for anything else: only a githerd worker about to run a step longer than 20 minutes with no " +
+            "output sets it, to the step's length (up to 180), so the watchdog does not interrupt it during the step. " +
+            "capacity, optional, is how many further jobs this session can " +
             "take now: while it is above 0 (less the jobs you claim after answering), githerd invites this session to " +
             "queued work even when it is not idle; 0 stops that until you answer again.",
         inputSchema: object(
@@ -439,7 +441,7 @@ export const TOOLS = [
                 reason: REASON,
                 capacity: { type: "integer", minimum: 0, maximum: 20 },
             },
-            ["job", "minutes", "reason"],
+            ["job", "reason"],
         ),
     },
     {

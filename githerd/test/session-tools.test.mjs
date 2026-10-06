@@ -366,9 +366,44 @@ describe("sessionToolSet", () => {
         };
         const refused = await call(ctx, "githerd_claim", claim, { session: "o1" });
         expect(refused.isError).toBe(true);
-        expect(JSON.parse(refused.text).reason).toBe("you hold 3 active jobs; finish or report one first");
+        expect(JSON.parse(refused.text).reason).toBe(
+            "you hold 3 active jobs; finish or report one first. " +
+                "Jobs that are only waiting to push or for CI do not count toward your capacity.",
+        );
         // Its local-task wait ends in a wait on CI: two active jobs, room for one more.
         jobs["issue-7"].waitingFor = { checks: HEAD };
+        expect(JSON.parse((await call(ctx, "githerd_claim", claim, { session: "o1" })).text).ok).toBe(true);
+    });
+
+    it("lets a session holding two working jobs and one waiting for CI claim a third", async () => {
+        /** @type {Record<string, any>} */
+        const jobs = { "issue-5": newJob({ kind: "issue", target: "#5", id: "issue-5" }, NOW) };
+        for (const n of [1, 2, 3]) {
+            jobs[`issue-${n}`] = {
+                ...newJob({ kind: "issue", target: `#${n}`, id: `issue-${n}` }, NOW),
+                state: "working",
+                holder: { session: "o1" },
+            };
+        }
+        // issue-3's pull request is open and CI runs: the summary check is not reported until its jobs end.
+        const prs = {
+            30: {
+                headRef: "fix/three",
+                references: [3],
+                required: { "All Checks Pass": "MISSING", "Lint PR Title": "SUCCESS" },
+            },
+        };
+        const { ctx } = setup(
+            { jobs, prs, trust: { login: "me" } },
+            { config: { repo: REPO, workers: { maxActive: 3 } } },
+        );
+        const next = JSON.parse((await call(ctx, "githerd_next", {}, { session: "o1" })).text);
+        const claim = {
+            job: "issue-5",
+            snapshotVersion: next.snapshot.version,
+            overlap: { decision: "independent", reason: "alone" },
+            plan: "fix it",
+        };
         expect(JSON.parse((await call(ctx, "githerd_claim", claim, { session: "o1" })).text).ok).toBe(true);
     });
 

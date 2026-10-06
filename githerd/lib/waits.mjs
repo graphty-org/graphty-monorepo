@@ -12,7 +12,8 @@
  * worktree. A job with no branch yet (an issue whose pull request is not open) waits to push when a
  * ticket of its holding session matches no other job and the session's last status for the job
  * says it is pushing; neither fact alone is enough. A job waits for CI when its pull request's
- * required checks are pending and none failed.
+ * required checks are not all reported yet and none failed: a check pending, or missing because it
+ * has not started (a summary check such as All Checks Pass appears only when the jobs it needs end).
  */
 
 import { pushedBranches } from "./owners.mjs";
@@ -78,7 +79,8 @@ export function jobWaits(state) {
             out.set(job.id, "push");
         } else if (rec) {
             const checks = Object.values(rec.required ?? {});
-            if (checks.includes("PENDING") && !checks.includes("FAILURE")) out.set(job.id, "ci");
+            const unsettled = checks.some((c) => c === "PENDING" || c === "MISSING");
+            if (unsettled && !checks.includes("FAILURE")) out.set(job.id, "ci");
         } else if (!job.worktree) {
             branchless.push(job);
         }

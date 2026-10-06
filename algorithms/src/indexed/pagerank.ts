@@ -10,9 +10,9 @@ export interface PageRankOptions {
     /** Iteration cap; default 100. */
     readonly maxIterations?: number | undefined;
     /**
-     * Per-node convergence tolerance; default 1e-6. The run stops at the first iteration whose summed (L1) change
-     * over all nodes is below `nodeCount * tolerance`, the rule every power iteration here and in
-     * `@graphty/webgpu-graph-algorithms` follows.
+     * Convergence tolerance; default 1e-6. The run stops at the first iteration whose summed (L1) change over all
+     * nodes is below `tolerance`. The scores sum to 1, so that is a change of `tolerance` relative to the whole
+     * vector, the rule HITS and `@graphty/webgpu-graph-algorithms` follow too.
      */
     readonly tolerance?: number | undefined;
     /** Weight each link by its arc weight when the snapshot has weights; default true. `false` ignores them. */
@@ -20,8 +20,8 @@ export interface PageRankOptions {
     /** Starting rank per node index, normalised to sum 1 (when the sum is positive); default uniform. */
     readonly initialRanks?: F32 | F64 | undefined;
     /**
-     * How the per-iteration change is measured: `"l1"` (default) sums it over all nodes and compares the sum
-     * with `nodeCount * tolerance`; `"max"` compares the largest single-node change with `tolerance`.
+     * How the per-iteration change is measured: `"l1"` (default) sums it over all nodes; `"max"` takes the largest
+     * single-node change. Either is compared with `tolerance`.
      */
     readonly convergenceNorm?: "l1" | "max" | undefined;
 }
@@ -129,7 +129,7 @@ function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResul
             delta = useMax ? Math.max(delta, change) : delta + change;
         }
         [rank, next] = [next, rank];
-        converged = useMax ? delta < tol : delta < n * tol;
+        converged = delta < tol;
     }
     return { scores: rank, iterations: it, converged };
 }

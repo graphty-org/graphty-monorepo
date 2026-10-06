@@ -12,7 +12,8 @@ export interface KatzOptions {
     readonly maxIterations?: number | undefined;
     /**
      * Per-node convergence tolerance; default 1e-6. The run stops at the first iteration whose summed (L1) change
-     * over all nodes is below `nodeCount * tolerance`.
+     * over all nodes is below `nodeCount * tolerance`. Every score is at least `beta`, so with the default `beta` of
+     * 1 that is a change of at most `tolerance` relative to the whole vector.
      */
     readonly tolerance?: number | undefined;
     /** Rescale the scores to [0, 1] by min-max, as the legacy function does; default true. */

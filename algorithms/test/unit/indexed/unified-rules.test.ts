@@ -1,7 +1,7 @@
 /**
  * The rules every algorithm shares, whichever package or device runs it: edge weights are read when the graph has
- * them and `weighted: false` turns them off, and every power iteration stops at the first pass whose summed (L1)
- * change is below `nodeCount * tolerance`.
+ * them and `weighted: false` turns them off, and a power iteration stops at the first pass whose summed (L1)
+ * change is below `tolerance` relative to the vector (PageRank, HITS) or `nodeCount * tolerance` (Katz).
  */
 
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
@@ -239,12 +239,31 @@ describe("one convergence rule", () => {
     const n = s.nodeCount;
     const tolerance = 1e-4;
 
-    /** The first pass whose L1 change is below `n * tolerance`, from the iterates the run itself produces. */
-    function expectedStop(iterate: (passes: number) => ArrayLike<number>, start: ArrayLike<number>): number {
+    /** Summed size of a vector. */
+    function size(x: ArrayLike<number>): number {
+        let total = 0;
+        for (let i = 0; i < x.length; i++) {
+            total += Math.abs(x[i]);
+        }
+        return total;
+    }
+
+    /**
+     * The first pass whose L1 change is below `limit(current)`, from the iterates the run itself produces.
+     * @param iterate - The run cut off after a number of passes
+     * @param start - The iterate before the first pass
+     * @param limit - The threshold the change of a pass is held to
+     * @returns The pass
+     */
+    function expectedStop(
+        iterate: (passes: number) => ArrayLike<number>,
+        start: ArrayLike<number>,
+        limit: (current: ArrayLike<number>) => number,
+    ): number {
         let previous = start;
-        for (let pass = 1; pass <= 100; pass++) {
+        for (let pass = 1; pass <= 200; pass++) {
             const current = iterate(pass);
-            if (l1(current, previous) < n * tolerance) {
+            if (l1(current, previous) < limit(current)) {
                 return pass;
             }
             previous = current;
@@ -252,31 +271,81 @@ describe("one convergence rule", () => {
         throw new Error("did not stop");
     }
 
-    it("stops PageRank, Katz and HITS at the first pass whose L1 change is below nodeCount * tolerance", () => {
+    it("stops PageRank and HITS at the first pass whose L1 change is below tolerance times the vector's size", () => {
+        // PageRank's scores sum to 1, so its limit is the tolerance itself.
         const pr = (passes: number): ArrayLike<number> => pageRank(s, { maxIterations: passes, tolerance: 0 }).scores;
-        expect(pageRank(s, { tolerance }).iterations).toBe(expectedStop(pr, new Float64Array(n).fill(1 / n)));
+        expect(pageRank(s, { tolerance }).iterations).toBe(
+            expectedStop(pr, new Float64Array(n).fill(1 / n), () => tolerance),
+        );
 
-        const katz = (passes: number): ArrayLike<number> =>
-            katzCentrality(s, { maxIterations: passes, tolerance: 0, normalized: false }).scores;
-        expect(katzCentrality(s, { tolerance }).iterations).toBe(expectedStop(katz, new Float64Array(n).fill(1)));
-
-        // HITS measures the change of both vectors together.
+        // HITS measures the change of both vectors together, against their summed size.
         const both = (passes: number): ArrayLike<number> => {
             const r = hits(s, { maxIterations: passes, tolerance: 0 });
             return [...r.hubs, ...r.authorities];
         };
         const start = new Float64Array(2 * n).fill(1 / Math.sqrt(n));
-        let previous: ArrayLike<number> = start;
-        let stop = 0;
-        for (let pass = 1; pass <= 100 && stop === 0; pass++) {
-            const current = both(pass);
-            if (l1(current, previous) < n * tolerance) {
-                stop = pass;
-            }
-            previous = current;
-        }
-        expect(hits(s, { tolerance }).iterations).toBe(stop);
+        expect(hits(s, { tolerance }).iterations).toBe(expectedStop(both, start, (x) => tolerance * size(x)));
     });
+
+    it("stops Katz at the first pass whose L1 change is below nodeCount * tolerance", () => {
+        // Every Katz score is at least beta (1 by default), so the vector's size is at least nodeCount.
+        const katz = (passes: number): ArrayLike<number> =>
+            katzCentrality(s, { maxIterations: passes, tolerance: 0, normalized: false }).scores;
+        expect(katzCentrality(s, { tolerance }).iterations).toBe(
+            expectedStop(katz, new Float64Array(n).fill(1), () => n * tolerance),
+        );
+    });
+});
+
+describe("the convergence rule holds the error to the tolerance on a large graph", () => {
+    // 100,000 nodes and about 500,000 random arcs from a fixed seed (mulberry32).
+    const n = 100_000;
+    let state = 12_345;
+    const random = (): number => {
+        state = (state + 0x6d2b79f5) >>> 0;
+        let t = Math.imul(state ^ (state >>> 15), state | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+    };
+    const src: number[] = [];
+    const dst: number[] = [];
+    for (let arc = 0; arc < 5 * n; arc++) {
+        const u = Math.floor(random() * n);
+        const v = Math.floor(random() * n);
+        if (u !== v) {
+            src.push(u);
+            dst.push(v);
+        }
+    }
+    const s = fromEdgeArrays({ src: Uint32Array.from(src), dst: Uint32Array.from(dst), nodeCount: n, directed: true });
+
+    /** Summed difference from a reference, relative to the reference's summed size. */
+    function relativeError(x: ArrayLike<number>, reference: ArrayLike<number>): number {
+        let size = 0;
+        for (let i = 0; i < reference.length; i++) {
+            size += Math.abs(reference[i]);
+        }
+        return l1(x, reference) / size;
+    }
+
+    // With nodeCount * tolerance as the limit, PageRank stopped after 3 passes here with a summed error of 2.7e-2,
+    // and HITS after 22 with 4.8e-4.
+    it("PageRank at the default tolerance lands within a small summed error of a fully converged run", () => {
+        const reference = pageRank(s, { convergenceNorm: "max", tolerance: 1e-15, maxIterations: 1000 });
+        expect(reference.converged).toBe(true);
+        const r = pageRank(s);
+        expect(r.converged).toBe(true);
+        expect(relativeError(r.scores, reference.scores)).toBeLessThan(1e-5);
+    }, 30_000);
+
+    it("HITS at the default tolerance lands within a small summed error of a fully converged run", () => {
+        const reference = hits(s, { tolerance: 1e-14, maxIterations: 5000 });
+        expect(reference.converged).toBe(true);
+        const r = hits(s);
+        expect(r.converged).toBe(true);
+        expect(relativeError(r.hubs, reference.hubs)).toBeLessThan(1e-4);
+        expect(relativeError(r.authorities, reference.authorities)).toBeLessThan(1e-4);
+    }, 30_000);
 });
 
 describe("the dispatcher follows the same rules", () => {

@@ -7,8 +7,8 @@ export interface HitsOptions {
     /** Iteration cap; default 100. */
     readonly maxIterations?: number | undefined;
     /**
-     * Per-node convergence tolerance; default 1e-6. The run stops at the first iteration whose summed (L1) change
-     * over both vectors is below `nodeCount * tolerance`.
+     * Convergence tolerance; default 1e-6. The run stops at the first iteration whose summed (L1) change over both
+     * vectors is below `tolerance` times their summed size, a change of `tolerance` relative to the vectors.
      */
     readonly tolerance?: number | undefined;
     /**
@@ -29,7 +29,7 @@ export interface HitsResult {
     readonly authorities: F64;
     /** Iterations actually run. */
     readonly iterations: number;
-    /** Whether the summed change fell below `nodeCount * tolerance`. */
+    /** Whether the summed change fell below `tolerance` times the vectors' summed size. */
     readonly converged: boolean;
 }
 
@@ -110,12 +110,14 @@ export function hits(s: GraphSnapshot, o: HitsOptions = {}): HitsResult {
         l2Normalize(nextAuthorities);
         l2Normalize(nextHubs);
         let change = 0;
+        let size = 0;
         for (let v = 0; v < n; v++) {
             change += Math.abs(nextHubs[v] - hubs[v]) + Math.abs(nextAuthorities[v] - authorities[v]);
+            size += Math.abs(nextHubs[v]) + Math.abs(nextAuthorities[v]);
         }
         [hubs, nextHubs] = [nextHubs, hubs];
         [authorities, nextAuthorities] = [nextAuthorities, authorities];
-        converged = change < n * tol;
+        converged = change < tol * size;
     }
     if (o.normalized === false) {
         maxNormalize(hubs);

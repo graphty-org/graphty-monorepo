@@ -5,6 +5,7 @@
  * sizes, bitwise repeatability, the run options and G7's leak clause (ONE mapAsync per batch of 8).
  */
 
+import { pageRank as cpuPageRank } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
@@ -129,6 +130,18 @@ describe("pageRank / personalizedPageRank (GPU, spec 8.2 / 9.7)", () => {
             ctx.release(snapshot);
         });
     }
+
+    it("the CPU pageRank of @graphty/algorithms stops at exactly the oracle's iteration on every fixture, so both packages share one stopping rule", () => {
+        for (const name of FIXTURE_NAMES) {
+            const { snapshot } = fixture(name, gpuScale());
+            const cpu = cpuPageRank(snapshot);
+            const expected = pageRankOracle(snapshot, OPTS);
+            expect({ iterations: cpu.iterations, converged: cpu.converged }, name).toEqual({
+                iterations: expected.iterations,
+                converged: expected.converged,
+            });
+        }
+    });
 
     it("converged is identical to the oracle's and iterations within +-1 on every fixture", async (t) => {
         const ctx = await context(t);

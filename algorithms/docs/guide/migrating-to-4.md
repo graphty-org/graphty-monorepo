@@ -25,12 +25,19 @@ still counts hops, as NetworkX's default does.
 
 ## One stopping rule for every power iteration
 
-`pageRank`, `personalizedPageRank`, `katzCentrality`, `hits` and `eigenvectorCentrality` stop at the first iteration
-whose summed change over all nodes is below `nodeCount * tolerance`, the rule NetworkX and
-`@graphty/webgpu-graph-algorithms` use. In 3.x PageRank compared the summed change with `tolerance` alone, and Katz
-and HITS compared the largest single-node change with it. At the same options the runs now stop at the same
-iteration on the CPU and the GPU. `pageRank`'s `convergenceNorm: "max"` still compares the largest single-node change
-with `tolerance`.
+Every power iteration stops at the first iteration whose summed change over all nodes is below the tolerance,
+measured on the scale of its own vector:
+
+- `pageRank` and `personalizedPageRank` stop when the summed change is below `tolerance`. Their scores sum to 1, so
+  that is a change of `tolerance` relative to the whole vector. This is the 3.x rule, unchanged.
+- `hits` stops when the summed change of both vectors is below `tolerance` times their summed size. In 3.x it compared
+  the largest single-node change with `tolerance`.
+- `katzCentrality` and `eigenvectorCentrality` stop when the summed change is below `nodeCount * tolerance`. Every Katz
+  score is at least `beta`. In 3.x Katz compared the largest single-node change with `tolerance`.
+
+`@graphty/webgpu-graph-algorithms` follows the same rules, so at the same options a run stops at the same iteration on
+the CPU and the GPU, up to f32 rounding. `pageRank`'s `convergenceNorm: "max"` still compares the largest single-node
+change with `tolerance`.
 
 ## Closeness: `normalized` is now `normalization`
 

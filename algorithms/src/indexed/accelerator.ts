@@ -291,7 +291,7 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * `pageRank` and `personalizedPageRank` run the CPU port when `initialRanks` or
  * `convergenceNorm: "max"` is set: the accelerator members take neither. The accelerator is
  * handed `{ dampingFactor, maxIterations, tolerance, weighted }`. Both paths stop at the first
- * iteration whose L1 change is below `tolerance * n`, as networkx does.
+ * iteration whose L1 change is below `tolerance`.
  * `personalizedPageRank` also runs the CPU port when the personalization is all zero (the port
  * then answers plain PageRank, as the legacy function does for no personal nodes) or when a node
  * is dangling: the port spreads dangling mass as legacy does, `d * dangling / n` scaled by the

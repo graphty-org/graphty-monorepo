@@ -3,7 +3,7 @@
  * out-weight normaliser folded into `xNorm` by `pr-scale`, the dangling mass and the L1 delta folded by
  * `pr-finalize` into the header at `partials[0]`, and `spmv-pull` writing the next iterate. Iterations run in
  * batches of PR_BATCH per submit, ONE readback per batch (the header and the iterate together), and the device
- * records `firstConverged` the first time the delta falls below `tolerance * n`, so the reported `iterations` is the
+ * records `firstConverged` the first time the delta falls below `tolerance`, so the reported `iterations` is the
  * first converged iteration and not the batch boundary (spec 9.7).
  *
  * PLAN DECISION PD-7: the ping-pong is TWO buffers (`rankA`, `rankB`) alternated through two cached bind groups;
@@ -225,7 +225,7 @@ async function run(
                     groups,
                     iteration: iterationsRun + i + 1,
                     trackConvergence: 1,
-                    convergeThreshold: tolerance * n,
+                    convergeThreshold: tolerance,
                 });
                 const other = 1 - cur;
                 if (i === k) {

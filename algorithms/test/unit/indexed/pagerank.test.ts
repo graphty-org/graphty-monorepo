@@ -186,13 +186,12 @@ describe("indexed.pageRank against legacy, with the legacy stopping rule", () =>
         });
     }
 
-    it("the default L1 rule stops no later than the legacy rule", () => {
-        // The summed change is at most n times the largest one, so it is below n * tolerance whenever the largest
-        // is below tolerance.
+    it("the default L1 rule stops no earlier than the legacy rule", () => {
+        // The summed change is at least the largest one, so it is below tolerance only once the largest is.
         const { graph } = directedFixtures()[2];
         const s = checksummedSnapshot(graph);
         // legacy: no other options
-        expect(pageRank(s, { weighted: false }).iterations).toBeLessThanOrEqual(
+        expect(pageRank(s, { weighted: false }).iterations).toBeGreaterThanOrEqual(
             (legacyResult() as PageRankResult).iterations,
         );
     });

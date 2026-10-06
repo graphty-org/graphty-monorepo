@@ -511,7 +511,7 @@ ctx.release(s); // when the graph goes away; ctx.dispose() at the end of the pro
 | --------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
 | `dampingFactor` | `0.85`  | the probability of following an arc; the rest teleports                                                              |
 | `maxIterations` | `100`   | an integer >= 1; anything else is `E_INVALID_ARGUMENT`                                                               |
-| `tolerance`     | `1e-6`  | converged when the L1 change of the whole vector falls below `tolerance * nodeCount` (NetworkX's rule)               |
+| `tolerance`     | `1e-6`  | converged when the L1 change of the whole vector, which sums to 1, falls below `tolerance`                           |
 | `weighted`      | `true`  | arc weights are the transition mass; `false` weighs every arc 1. A snapshot with no weights is unweighted either way |
 
 `GpuPageRankResult` comes back: `scores` (one f32 per node, summing to 1 up to f32 rounding), `iterations`
@@ -566,8 +566,8 @@ console.log(r.hubs, r.authorities); // [0.5, 0.5] and [0.5, 0.5]
 ctx.release(cycle);
 ```
 
-The options are `maxIterations` (`100`), `tolerance` (`1e-6`) and `weighted` (`true`), with PageRank's
-meanings. `GpuHitsResult` carries `hubs` and `authorities` (both f32, index-aligned, each summing to 1),
+The options are `maxIterations` (`100`), `tolerance` (`1e-6`) and `weighted` (`true`). A chain converges when
+the L1 change of its iterate falls below `tolerance` times that iterate's L1 norm. `GpuHitsResult` carries `hubs` and `authorities` (both f32, index-aligned, each summing to 1),
 `iterations` (the larger of the two chains'), `converged` (both chains) and `precision`. `dest` receives the
 hubs; the authorities always come back in a fresh array.
 
@@ -587,8 +587,8 @@ const r = await eigenvectorCentrality(ctx, s, { maxIterations: 100, tolerance: 1
 console.log(r.scores, r.converged); // f32, index-aligned, L2 norm 1
 ```
 
-The options are `maxIterations` (`100`), `tolerance` (`1e-6`) and `weighted` (`true`); convergence is
-PageRank's L1 rule, a delta below `tolerance * nodeCount`. It returns `GpuScoresResult` -- `scores`,
+The options are `maxIterations` (`100`), `tolerance` (`1e-6`) and `weighted` (`true`); convergence is an L1
+delta below `tolerance * nodeCount`. It returns `GpuScoresResult` -- `scores`,
 `iterations`, `converged`, `precision` -- which is PageRank's result without `danglingMass`.
 
 Directed or undirected both work. When a graph's components have different spectral radii the power iteration
@@ -614,7 +614,7 @@ console.log(r.scores); // f32, index-aligned, L2-normalised
 | `alpha`         | `0.1`   | the attenuation per step. Convergence needs it below the reciprocal of the largest eigenvalue; the package checks only that it is finite |
 | `beta`          | `1`     | the constant every node is given each iteration                                                                                          |
 | `maxIterations` | `100`   | as above                                                                                                                                 |
-| `tolerance`     | `1e-6`  | as above                                                                                                                                 |
+| `tolerance`     | `1e-6`  | converged when the L1 change falls below `tolerance * nodeCount`; every score is at least `beta`                                         |
 | `weighted`      | `true`  | as above                                                                                                                                 |
 
 A non-finite `alpha` or `beta` is `E_INVALID_ARGUMENT`. The result is `GpuScoresResult`, L2-normalised on the

@@ -319,7 +319,7 @@ export const SPMV_PARAMS: UniformBlock = UniformBlock.define("SpmvParams", [
     ["start", "u32"],
 ]);
 
-/** `PrParams` (uniform, 32 B; spec 8.2): `n` @0, `groups` @4 (the per-workgroup partial count the finalize folds), `iteration` @8 (1-based), `trackConvergence` @12 (1 records firstConverged), `convergeThreshold` @16 (`tolerance * n`, the design's `delta < tol * n`), `pad0` @20, `pad1` @24, `pad2` @28. */
+/** `PrParams` (uniform, 32 B; spec 8.2): `n` @0, `groups` @4 (the per-workgroup partial count the finalize folds), `iteration` @8 (1-based), `trackConvergence` @12 (1 records firstConverged), `convergeThreshold` @16 (`tolerance` for PageRank and HITS, where HITS's pr-finalize scales it by the folded L1 norm; `tolerance * n` for eigenvector and Katz), `pad0` @20, `pad1` @24, `pad2` @28. */
 export const PR_PARAMS: UniformBlock = UniformBlock.define("PrParams", [
     ["n", "u32"],
     ["groups", "u32"],

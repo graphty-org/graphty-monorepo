@@ -7,7 +7,8 @@
  * device runs it: two chains that alternate the reverse and the forward pull, one seeded as hubs and one as
  * authorities. The oracle runs exactly `maxIterations` iterations, as the device runs a whole batch, and records
  * the first iteration i whose L1 delta sum |x(i) - x(i-p)| (p = 1, or 2 for an alternating chain, whose previous
- * iterate of the same kind is two back) fell below n * tolerance, iteration maxIterations included: the device
+ * iterate of the same kind is two back) fell below tolerance times the iterate's L1 norm for HITS and n * tolerance
+ * for the other two, iteration maxIterations included: the device
  * records that delta one iteration late (PD-9: `pr-scale` at iteration i + 1 compares x(i) with the iterate it is
  * about to overwrite), so after the last pull it runs one more scale and finalize, without a pull, to measure it. The final
  * vector is normalised ONCE at the end (sum for HITS, L2 for eigenvector and Katz). The reverse adjacency is walked
@@ -148,7 +149,9 @@ function iterate(
         }
         recent.shift();
         recent.push(next);
-        if (first === 0 && err < n * options.tolerance) {
+        // sum-normalised (HITS): relative to the iterate's L1 norm; otherwise per node
+        const limit = recurrence.norm === "sum" ? options.tolerance * normOf(next, "sum") : n * options.tolerance;
+        if (first === 0 && err < limit) {
             first = iteration;
         }
     }
@@ -226,5 +229,10 @@ export function katzOracle(
     s: GraphSnapshot,
     options: SpectralOracleOptions & { readonly alpha: number; readonly beta: number },
 ): SpectralOracleResult {
-    return run([reverseOf(s, options.weighted)], { norm: null, alpha: options.alpha, beta: options.beta }, "l2", options);
+    return run(
+        [reverseOf(s, options.weighted)],
+        { norm: null, alpha: options.alpha, beta: options.beta },
+        "l2",
+        options,
+    );
 }

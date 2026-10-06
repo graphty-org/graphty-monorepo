@@ -10,8 +10,7 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { useBrandPalettes } from "../../docs/examples/simple-tier/palette/use-brand-palettes";
-import { type Graphty } from "../../src/graphty-element";
-import { assertDrawnColour, assertGraphLoaded, drawn } from "../assertions";
+import { assertDrawnColour, assertGraphLoaded, drawn, renderedElement } from "../assertions";
 import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "../helpers";
 
 /** Three teams of four, three and two people, joined in a chain. */
@@ -53,7 +52,7 @@ export const BrandPalettes: Story = {
     play: async ({ canvasElement }) => {
         await import("../../docs/examples/simple-tier/palette/brand-palettes");
         await waitForGraphSettled(canvasElement);
-        const element = canvasElement.querySelector("graphty-element") as Graphty;
+        const element = await renderedElement(canvasElement, "BrandPalettes: no <graphty-element> rendered");
 
         useBrandPalettes(element);
         await element.session.styles.add({

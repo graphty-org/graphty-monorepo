@@ -1,0 +1,124 @@
+/* The start screen (tier1-design.md section 2.11). Colors come only from compact-mantine's --cm-*
+   tokens. */
+
+.ws-start {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: var(--cm-bg);
+    color: var(--cm-text);
+}
+
+.ws-start-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 8px 0 16px;
+    border-bottom: 1px solid var(--cm-border);
+}
+
+.ws-start-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ws-start-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+}
+
+.ws-start-grow {
+    flex: 1;
+}
+
+.ws-start-cols {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 32px;
+    max-width: 1080px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 32px 24px;
+}
+
+.ws-start-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.ws-start-h {
+    margin-bottom: 4px;
+    color: var(--cm-text-secondary);
+}
+
+.ws-start-door-inner {
+    width: 100%;
+    justify-content: flex-start;
+}
+
+.ws-start-door-label {
+    flex: 1;
+    text-align: start;
+}
+
+.ws-start-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 12px;
+}
+
+.ws-start-sample {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    border-radius: 5px;
+}
+
+.ws-start-sample:hover {
+    background: var(--cm-bg-hover);
+}
+
+.ws-start-sample-name {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ws-start-foot {
+    max-width: 1080px;
+    width: 100%;
+    margin: auto auto 0;
+    padding: 0 24px 24px;
+}
+
+.ws-start-card {
+    max-width: 640px;
+}
+
+.ws-start-drop {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--cm-bg) 80%, transparent);
+    pointer-events: none;
+}
+
+@media (max-width: 720px) {
+    .ws-start-cols {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

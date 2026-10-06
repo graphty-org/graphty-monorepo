@@ -1,7 +1,7 @@
 /**
  * @file `session.catalog` against the published catalogue type.
  *
- * `CatalogApi` names six methods nothing implements; they are deprecated and listed in
+ * `CatalogApi` names methods nothing implements; they are deprecated and listed in
  * `DeprecatedCatalogMethod`. What a session hands out must be exactly the rest -- no method the
  * type promises and the object lacks, and no method the object has that the type does not name.
  * The type assertions are checked by `tsc`, the key assertion by running.
@@ -21,6 +21,7 @@ const IMPLEMENTED = [
     "layouts",
     "logSinks",
     "metrics",
+    "optionsFor",
     "palettes",
     "scales",
 ] as const satisfies readonly (keyof SessionCatalogApi)[];
@@ -32,8 +33,18 @@ describe("session.catalog", () => {
         expectTypeOf<(typeof IMPLEMENTED)[number]>().toEqualTypeOf<keyof SessionCatalogApi>();
     });
 
+    it("offers optionsFor exactly as the published catalogue type declares it", () => {
+        expectTypeOf<GraphSession["catalog"]["optionsFor"]>().toEqualTypeOf<CatalogApi["optionsFor"]>();
+        expectTypeOf<GraphSession["catalog"]>().toMatchTypeOf<Pick<CatalogApi, "optionsFor">>();
+    });
+
     it("carries every method its type names, and nothing else", () => {
-        const catalog = createSessionCatalog({ algorithms: () => [], estimate: () => ({}) as never, runs: () => [] });
+        const catalog = createSessionCatalog({
+            algorithms: () => [],
+            estimate: () => ({}) as never,
+            runs: () => [],
+            resolve: () => ({}) as never,
+        });
 
         assert.sameMembers(Object.keys(catalog), [...IMPLEMENTED]);
         for (const name of IMPLEMENTED) {

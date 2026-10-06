@@ -124,4 +124,9 @@ describe("secretValues", () => {
         expect(secretValues(join(root, "missing"), {})).toEqual({});
         rmSync(root, { recursive: true, force: true });
     });
+
+    it("leaves out a project key, which is a public name, not a secret", () => {
+        const env = { SONAR_PROJECT_KEY: "graphty-org_graphty-monorepo", API_KEY: "key_value_123" };
+        expect(secretValues(join(tmpdir(), "githerd-no-such-dir"), env)).toEqual({ API_KEY: "key_value_123" });
+    });
 });

@@ -35,8 +35,12 @@ const ATTRIBUTION_PATTERNS = [
     ['"Generated with" line', /Generated with/],
 ];
 
-/** Environment variables whose values are secrets: the name contains one of these words. */
-const SECRET_NAME = /TOKEN|KEY|SECRET|COOKIE|PASSWORD/i;
+/**
+ * Environment variables whose values are secrets: the name contains one of these words, unless it
+ * names a public identifier (SONAR_PROJECT_KEY is the project's name on the SonarQube server and
+ * appears in every link to it, so treating it as a secret refused ordinary issue text).
+ */
+const SECRET_NAME = /^(?!.*PROJECT_KEY$).*(?:TOKEN|KEY|SECRET|COOKIE|PASSWORD)/i;
 
 // ponytail: values shorter than this are not credentials ("1", "true") and would match nearly any
 // text; raise it if a real secret that short ever appears.

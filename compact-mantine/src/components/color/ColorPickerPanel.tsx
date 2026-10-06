@@ -85,7 +85,10 @@ export interface ColorPickerPanelProps {
      * Reports `#RRGGBBAA` (upper case) when `withAlpha`, `#RRGGBB` otherwise.
      */
     onChange: (value: string) => void;
-    /** Called once when a drag in the field or a slider settles, with the settled color. */
+    /**
+     * Called once per finished edit, with the settled color: when a drag in the field or a slider
+     * settles, and once for each arrow key, typed commit, swatch or eyedropper pick.
+     */
     onChangeEnd?: (value: string) => void;
     /**
      * Offer opacity: the opacity slider and box.
@@ -254,7 +257,7 @@ function GradientGlyph(): React.JSX.Element {
  * @param props - Component props
  * @param props.value - the value
  * @param props.onChange - called on every change
- * @param props.onChangeEnd - called when a drag or step settles
+ * @param props.onChangeEnd - called once per finished edit: a settled drag, a step, a commit or a pick
  * @param props.withAlpha - offer opacity
  * @param props.swatches - the swatch set
  * @param props.defaultFormat - the value row's first format
@@ -316,8 +319,13 @@ export function ColorPickerPanel({
         onChange(report(toHexa(clamped)));
     };
 
+    const settle = (): void => {
+        onChangeEnd?.(report(toHexa(hsvaRef.current)));
+    };
+
     /**
-     * Report an exact color string (a swatch or the eyedropper), not rounded through HSV.
+     * Report an exact color string (a swatch or the eyedropper), not rounded through HSV. Either
+     * is a whole edit in one step, so it settles too.
      * @param color - a hex or hexa color
      */
     const emitExact = (color: string): void => {
@@ -328,11 +336,9 @@ export function ColorPickerPanel({
         const parsed = parseColor(withAlpha ? hexa : hexa.slice(0, 7));
         setHsva(parsed);
         hsvaRef.current = parsed;
-        onChange(report(withAlpha ? hexa : `${hexa.slice(0, 7)}FF`));
-    };
-
-    const settle = (): void => {
-        onChangeEnd?.(report(toHexa(hsvaRef.current)));
+        const exact = report(withAlpha ? hexa : `${hexa.slice(0, 7)}FF`);
+        onChange(exact);
+        onChangeEnd?.(exact);
     };
 
     const { ref: fieldRef } = useMove<HTMLDivElement>(

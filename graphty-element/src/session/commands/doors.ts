@@ -568,6 +568,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             session: READ,
             nodeLabelCounts: READ,
+            labelOf: READ,
             setDefaultPalettes: PALETTE_DEFAULTS,
             run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
@@ -788,6 +789,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             rendererStatus: READ,
             eventManager: READ,
             nodeLabelCounts: READ,
+            labelOf: READ,
             onNodeLabelCounts: READ,
             shutdown: LIFECYCLE,
             runAlgorithmsFromTemplate: {

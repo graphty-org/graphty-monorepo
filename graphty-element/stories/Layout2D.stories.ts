@@ -14,6 +14,7 @@ import {
     type Drawn,
     drawn,
 } from "./assertions";
+import { data3Url, data5Url } from "./datasets";
 import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
 
 /**
@@ -217,7 +218,7 @@ const meta: Meta = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
     },
 };
@@ -289,7 +290,7 @@ export const Shell: Story = {
         shellScale: 1,
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data5.json",
+            data: data5Url,
         },
     },
     parameters: {

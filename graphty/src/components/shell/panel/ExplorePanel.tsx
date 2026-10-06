@@ -4,6 +4,7 @@ import { ActionIcon, Box, Menu, Pill, Switch } from "@mantine/core";
 import React, { useState } from "react";
 
 import { keyChipFor } from "../bindings";
+import { type InspectorNote, NoteRows } from "../inspector/InspectorNotes";
 import { COMING_GROUP_SENTENCE, ComingTag, PanelRows, PanelSection, SectionAddButton } from "./PanelSection";
 
 /**
@@ -170,8 +171,17 @@ export interface ExplorePanelProps {
     readonly onSaveSet?: () => void;
     /** Saves the current view as a bookmark. */
     readonly onSaveView?: () => void;
-    /** Adds a note to the selection. */
+    /** Adds a note to the selection: what the N key does. */
     readonly onAddNote?: () => void;
+    /**
+     * The case notes -- graphty-element's notes about the whole graph -- newest first.
+     * Listed in the Notes section once `onAddCaseNote` is supplied.
+     */
+    readonly caseNotes?: readonly InspectorNote[];
+    /** Writes a case note. Without it the Notes section is drawn empty. */
+    readonly onAddCaseNote?: (text: string) => void;
+    /** Deletes a case note. */
+    readonly onDeleteCaseNote?: (noteId: string) => void;
 }
 
 /**
@@ -208,6 +218,9 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
         onSaveSet,
         onSaveView,
         onAddNote,
+        caseNotes = [],
+        onAddCaseNote,
+        onDeleteCaseNote,
     } = props;
 
     /*
@@ -444,13 +457,7 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
                 sectionId="explore.filterBuilder"
                 label="Filter builder"
                 empty
-                actions={
-                    <SectionAddButton
-                        tooltip="Add a rule"
-                        label="Add a rule"
-                        onClick={onAddFilterRule}
-                    />
-                }
+                actions={<SectionAddButton tooltip="Add a rule" label="Add a rule" onClick={onAddFilterRule} />}
             />
 
             <PanelSection
@@ -535,7 +542,7 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
             <PanelSection
                 sectionId="explore.notes"
                 label="Notes"
-                empty
+                empty={onAddCaseNote === undefined}
                 actions={
                     <SectionAddButton
                         tooltip={hasSelection ? noteTooltip : `${noteTooltip}. Select something first`}
@@ -544,7 +551,18 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
                         onClick={onAddNote}
                     />
                 }
-            />
+            >
+                {onAddCaseNote !== undefined && (
+                    <NoteRows
+                        inputTestId="explore-note-input"
+                        notes={caseNotes}
+                        onAddNote={onAddCaseNote}
+                        onDeleteNote={(noteId) => {
+                            onDeleteCaseNote?.(noteId);
+                        }}
+                    />
+                )}
+            </PanelSection>
         </>
     );
 }

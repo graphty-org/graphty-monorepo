@@ -20,7 +20,7 @@ import type { LayerSpec, SetId } from "../src/catalog/types";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
 import { type Graphty } from "../src/graphty-element";
-import { assertDrawnColour, assertGraphLoaded, assertNodesShown, drawn, holds } from "./assertions";
+import { assertDrawnColour, assertGraphLoaded, assertNodesShown, drawn, holds, renderedElement } from "./assertions";
 import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Eight nodes on a ring, each with a score. */
@@ -102,7 +102,7 @@ type Story = StoryObj;
 async function settled(canvasElement: HTMLElement): Promise<Graphty> {
     await waitForGraphSettled(canvasElement);
 
-    return canvasElement.querySelector("graphty-element") as Graphty;
+    return renderedElement(canvasElement, "Sets: no <graphty-element> rendered");
 }
 
 /**

@@ -658,6 +658,26 @@ describe("apt in the workflows", () => {
     });
 });
 
+describe("actions/cache in the workflows", () => {
+    it("never keys a cache on the commit and never caches .nx/cache", () => {
+        // The Nx cache never hit (release commits change every package.json, and nx.json sharedGlobals
+        // includes .github/workflows/**) and its key held github.sha, so every run saved a new 600 MB entry
+        // into the 10 GB Actions cache and pushed the Git LFS baseline caches toward eviction.
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        let checked = 0;
+        for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {
+            const code = readFileSync(new URL(file, dir), "utf8").replace(/^\s*#.*$/gm, "");
+            for (const step of code.split(/\n\s+- (?=name:|uses:)/)) {
+                if (step.includes(".nx/cache")) assert.fail(`${file}: a step caches .nx/cache`);
+                if (!/actions\/cache(\/\w+)?@/.test(step)) continue;
+                assert.doesNotMatch(step, /github\.sha/, `${file}: a cache key holds github.sha`);
+                checked++;
+            }
+        }
+        assert.ok(checked >= 4, `found the cache steps (${checked})`);
+    });
+});
+
 describe("Playwright's system packages", () => {
     // apt ran on every browser job (15 s median, 30 s mean); now the .deb files apt chose are cached per
     // runner image and Playwright version, and a hit runs only dpkg. Covers the test job and the visual
@@ -1076,6 +1096,10 @@ describe("release.yml", () => {
         assert.match(train, /^\s+- author=github-actions\[bot\]$/m);
         assert.match(train, /^\s+priority: high$/m);
         assert.match(train, /^\s+allow_checks_interruption: false$/m);
+        const next = rules.slice(rules.indexOf("- name: next in line"));
+        assert.ok(rules.indexOf("- name: next in line") > rules.indexOf("- name: fix for a red master"));
+        assert.match(next, /^\s+- label=queue:next$/m);
+        assert.match(next, /^\s+priority: medium$/m);
     });
 
     it("deploys graphty.app from every green CI run of a push to master", () => {

@@ -22,13 +22,14 @@ await graph.runAlgorithm("graphty", "degree");
 
 Measure node importance:
 
-| Algorithm     | Description                             |
-| ------------- | --------------------------------------- |
-| `degree`      | Number of connections                   |
-| `betweenness` | How often a node is on shortest paths   |
-| `closeness`   | Average distance to all other nodes     |
-| `pagerank`    | Influence based on incoming links       |
-| `eigenvector` | Influence from well-connected neighbors |
+| Algorithm          | Description                                           |
+| ------------------ | ----------------------------------------------------- |
+| `degree`           | Number of connections                                 |
+| `betweenness`      | How often a node is on shortest paths                 |
+| `edge-betweenness` | How often an edge is on shortest paths (scores edges) |
+| `closeness`        | Average distance to all other nodes                   |
+| `pagerank`         | Influence based on incoming links                     |
+| `eigenvector`      | Influence from well-connected neighbors               |
 
 ```typescript
 await graph.runAlgorithm("graphty", "degree");
@@ -61,11 +62,13 @@ await graph.runAlgorithm("graphty", "closeness", { algorithmOptions: { k: 100 } 
 
 Find clusters of related nodes:
 
-| Algorithm           | Description                    |
-| ------------------- | ------------------------------ |
-| `louvain`           | Fast community detection       |
-| `label-propagation` | Iterative community assignment |
-| `modularity`        | Optimize modularity score      |
+| Algorithm                 | Description                                                          |
+| ------------------------- | -------------------------------------------------------------------- |
+| `louvain`                 | Fast community detection                                             |
+| `label-propagation`       | Iterative community assignment                                       |
+| `markov-clustering`       | Clusters where flow gets trapped; `inflation` sets their size        |
+| `spectral-clustering`     | A chosen number of `clusters`, from the graph's eigenvectors         |
+| `hierarchical-clustering` | Merges the closest clusters, by steps apart, until `clusters` remain |
 
 ```typescript
 await graph.runAlgorithm("graphty", "louvain");
@@ -200,18 +203,28 @@ await graph.runAlgorithm("graphty", "bfs", { startNode: "node1" });
 
 Find optimal paths between nodes:
 
-| Algorithm        | Description                 |
-| ---------------- | --------------------------- |
-| `dijkstra`       | Shortest path (weighted)    |
-| `bellman-ford`   | Handles negative weights    |
-| `a-star`         | Heuristic-based pathfinding |
-| `floyd-warshall` | Distance between every pair |
+| Algorithm        | Description                               |
+| ---------------- | ----------------------------------------- |
+| `dijkstra`       | Shortest path (weighted)                  |
+| `bellman-ford`   | Handles negative weights                  |
+| `astar`          | A route, optionally steered by the layout |
+| `floyd-warshall` | Distance between every pair               |
 
 ```typescript
 await graph.runAlgorithm("graphty", "dijkstra", {
     source: "node1",
     target: "node5",
 });
+```
+
+`astar` takes the same `source` and `target` as `dijkstra`, and a `heuristic`. The default,
+`"none"`, estimates nothing, so the route is exactly the one `dijkstra` finds. `"layout-distance"`
+steers the search by the straight-line distance between the nodes' current positions. That is
+faster on a laid-out graph, but the route is the cheapest only when every edge weighs at least the
+distance it spans; the result says so with `caveats.exact: false`.
+
+```typescript
+await element.run("astar", { source: "node1", target: "node5", heuristic: "layout-distance" });
 ```
 
 `floyd-warshall` measures every pair of nodes, so it holds a matrix of n x n distances. It refuses

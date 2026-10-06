@@ -773,6 +773,9 @@ importers:
       '@types/lodash':
         specifier: ^4.17.19
         version: 4.17.21
+      '@types/react':
+        specifier: ^19.1.8
+        version: 19.2.7
       '@types/toposort':
         specifier: ^2.0.7
         version: 2.0.7

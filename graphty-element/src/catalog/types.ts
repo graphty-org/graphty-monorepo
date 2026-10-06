@@ -127,6 +127,11 @@ export const KNOWN_ALGORITHMS = [
     "prim",
     "bipartite-matching",
     "link-prediction",
+    "markov-clustering",
+    "spectral-clustering",
+    "hierarchical-clustering",
+    "astar",
+    "edge-betweenness",
 ] as const;
 
 /**

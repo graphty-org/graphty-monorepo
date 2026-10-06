@@ -59,8 +59,9 @@ export interface FruchtermanReingoldOptions extends CommonLayoutOptions, Simulat
      * The cooling schedule (default "linear"). "linear": the temperature falls from 0.1 to 0 over `iterations`
      * steps, so the run always lasts the whole budget. "adaptive": Yifan Hu's step control -- the temperature grows
      * by 1 / 0.9 after five consecutive iterations whose total force energy fell and shrinks by 0.9 whenever it
-     * rose, so the run settles on its own, usually in a few hundred iterations whatever the graph size; `iterations`
-     * is then only a cap. GPU simulations only; the CPU simulation ignores it.
+     * rose (or stayed equal), so the run settles on its own, usually in a few hundred iterations whatever the graph
+     * size; `iterations` is then only a cap, 10,000 when not given, and reheat() restarts the controller at 0.1. The
+     * CPU and the GPU simulations run the same rule with the same constants.
      */
     readonly cooling?: "linear" | "adaptive" | undefined;
     /** A node mask (the bool-column bit layout) or the name of a bool node column with role "fixed". */

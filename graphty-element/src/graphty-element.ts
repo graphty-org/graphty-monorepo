@@ -16,7 +16,7 @@ import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, type NodeEventDetail, nodeEventDetail } from "./events";
 import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
-import type { NodeLabelCounts } from "./managers/LabelDeclutter";
+import type { NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -1544,6 +1544,27 @@ export class Graphty extends LitElement {
      */
     get nodeLabelCounts(): NodeLabelCounts {
         return this.#graph.nodeLabelCounts;
+    }
+
+    /**
+     * A node's label as it is drawn: the words on screen, and whether the label is shown at all.
+     *
+     * `text` is what the reader sees, after the label was bound to the node's data and its markup
+     * (`<bold>`, `<color='...'>`) was applied. `drawn` is false when the label is not on screen:
+     * its node is hidden, or `layoutBehavior.labels.declutter` hid it to avoid an overlap. A
+     * label outside the current view still reads `drawn: true`. Reads the last drawn frame and
+     * never forces one, so wait for {@link Graphty.waitForStableFrame} first.
+     * @param nodeId - The node's id.
+     * @returns The label, or undefined when there is no such node or it has no label.
+     * @since 3.15.0
+     * @example
+     * ```typescript
+     * await element.waitForStableFrame();
+     * const label = element.labelOf("Valjean"); // { text: "Valjean", drawn: true }
+     * ```
+     */
+    labelOf(nodeId: string | number): NodeLabel | undefined {
+        return this.#graph.labelOf(nodeId);
     }
 
     /**

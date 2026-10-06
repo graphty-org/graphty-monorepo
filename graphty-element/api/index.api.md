@@ -1576,6 +1576,7 @@ export class Graph implements GraphContext {
     isRunning(): boolean;
     isVoiceActive(): boolean;
     isVRSupported(): Promise<boolean>;
+    labelOf(nodeId: string | number): NodeLabel | undefined;
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -1976,6 +1977,7 @@ export class Graphty extends LitElement {
     isVRSupported(): Promise<boolean>;
     get labelDeclutter(): boolean;
     set labelDeclutter(value: boolean);
+    labelOf(nodeId: string | number): NodeLabel | undefined;
     get layout(): string | undefined;
     set layout(value: string | undefined);
     // @deprecated
@@ -2968,6 +2970,12 @@ export type NodeId = string | number;
 
 // @public (undocumented)
 export type NodeIdType = string | number;
+
+// @public
+export interface NodeLabel {
+    readonly drawn: boolean;
+    readonly text: string;
+}
 
 // @public
 export interface NodeLabelCounts {

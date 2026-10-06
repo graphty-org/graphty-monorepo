@@ -29,6 +29,25 @@ export interface NodeLabelCounts {
     readonly hiddenByOverlap: number;
 }
 
+/**
+ * One node's label as the element draws it.
+ * @since 3.15.0
+ */
+export interface NodeLabel {
+    /**
+     * The words drawn, after the label's text was bound to the node's data and its markup
+     * (`<bold>`, `<color='...'>`) was applied: markup tags are not part of it. Lines are joined
+     * with `"\n"`.
+     */
+    readonly text: string;
+    /**
+     * False when the label is not drawn: its node is hidden (a filter or the time window), or
+     * `layoutBehavior.labels.declutter` hid it because it would overlap a label it kept. A label
+     * outside the current view still reads true, as it does in {@link NodeLabelCounts}.
+     */
+    readonly drawn: boolean;
+}
+
 /** The counts before any label is drawn. */
 export const NO_NODE_LABELS: NodeLabelCounts = Object.freeze({ labeled: 0, nodeHidden: 0, hiddenByOverlap: 0 });
 

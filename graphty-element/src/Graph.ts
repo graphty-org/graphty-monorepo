@@ -106,7 +106,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
-import { LabelDeclutter, NO_NODE_LABELS, type NodeLabelCounts } from "./managers/LabelDeclutter";
+import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
@@ -1682,6 +1682,29 @@ export class Graph implements GraphContext {
     get nodeLabelCounts(): NodeLabelCounts {
         const declutter: unknown = this.scene.metadata?.labelDeclutter;
         return declutter instanceof LabelDeclutter ? declutter.counts : NO_NODE_LABELS;
+    }
+
+    /**
+     * One node's label as the last frame drew it: its words and whether it is on screen.
+     *
+     * READ FROM THE LABEL ITSELF, never worked out again: the text is the runs the label renderer
+     * parsed and paints, and `drawn` is the two switches that take a label off screen -- the
+     * visibility mask's `setEnabled` and the declutter pass's `isVisible`. So this can never say
+     * something the picture does not show.
+     * @param nodeId - The node.
+     * @returns The label, or undefined when there is no such node or it draws no label.
+     */
+    labelOf(nodeId: string | number): NodeLabel | undefined {
+        const label = this.dataManager.getNode(nodeId)?.label;
+        const mesh = label?.labelMesh;
+        if (!label || !mesh || mesh.isDisposed()) {
+            return undefined;
+        }
+
+        return {
+            text: label.textRuns.map((line) => line.map((run) => run.text).join("")).join("\n"),
+            drawn: mesh.isEnabled() && mesh.isVisible,
+        };
     }
 
     /**

@@ -4,6 +4,7 @@
  */
 import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
+import { page } from "vitest/browser";
 
 import { render, screen, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
@@ -31,11 +32,43 @@ describe("the Export dialog", () => {
 
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Image" }));
-        assert.isNotNull(within(dialog).getByText("The legend is not in the image"));
+        // The image carries the legend card, so there is no note saying it does not.
+        assert.isNull(within(dialog).queryByText("The legend is not in the image"));
 
-        await userEvent.click(within(dialog).getByText("Data"));
+        await userEvent.click(within(dialog).getByRole("tab", { name: "Data" }));
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
         assert.isNull(within(dialog).queryByRole("heading", { name: "Image" }));
+    });
+
+    it("names its two kinds as tabs, each with its own panel", async () => {
+        render(<Workspace initialState={{ ...OPEN, dialog: "export" }} />);
+
+        const dialog = await screen.findByRole("dialog", { name: "Export" });
+        const kinds = within(dialog).getByRole("tablist", { name: "What to export" });
+        const tabs = within(kinds).getAllByRole("tab");
+        assert.deepEqual(
+            tabs.map((tab) => tab.textContent),
+            ["Image", "Data"],
+        );
+        assert.strictEqual(tabs[0].getAttribute("aria-selected"), "true");
+        const panel = within(dialog).getByRole("tabpanel");
+        assert.strictEqual(panel.getAttribute("aria-labelledby"), tabs[0].id);
+    });
+
+    it("blocks the page behind it: the rail beside the dialog cannot be clicked", async () => {
+        // Wide enough that the dialog does not cover the rail itself.
+        await page.viewport(1366, 768);
+        render(<Workspace initialState={{ ...OPEN, dialog: "export" }} />);
+
+        await screen.findByRole("dialog", { name: "Export" });
+        const rail = screen
+            .getAllByRole("button", { name: "Data", hidden: true })
+            .find((b) => !b.closest('[role="dialog"]'));
+        assert.isDefined(rail);
+        const box = rail.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        assert.isNotNull(hit);
+        assert.isFalse(rail.contains(hit), "the pointer reaches the rail behind the dialog");
     });
 
     it("keeps Export... closed while the graph is still loading", async () => {

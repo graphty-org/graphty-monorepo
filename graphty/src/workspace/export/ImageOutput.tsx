@@ -1,6 +1,6 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { ScreenshotErrorCode } from "@graphty/graphty-element";
-import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
+import { Alert, Button, Input, Loader, Select, Tabs, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -205,7 +205,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
 
     return (
         <>
-            <div className="ws-export-main">
+            <Tabs.Panel value="image" className="ws-export-main">
                 <div>
                     <Text fw={550} size="md" role="heading" aria-level={3}>
                         Image
@@ -300,7 +300,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                         <img src={preview.url} alt={`Preview of ${name}`} />
                     )}
                 </div>
-            </div>
+            </Tabs.Panel>
             <ModalFooter className="ws-export-footer">
                 <Text size="sm" c="dimmed" className="ws-export-note">
                     {busy ? (

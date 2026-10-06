@@ -264,7 +264,6 @@ const css = `
     --modal-size-md: 480px;
     --modal-size-lg: 760px;
 }
-.cm-modal-overlay { background: var(--cm-modal-backdrop); }
 .cm-modal-content {
     background-color: var(--cm-bg);
     color: var(--cm-text);

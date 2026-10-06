@@ -145,7 +145,11 @@ export const overlayComponentExtensions: MantineThemeComponents = {
     Modal: Modal.extend({
         defaultProps: {
             centered: true,
-            withOverlay: false,
+            // The overlay is always there, so the page behind cannot be clicked while the dialog
+            // is open (a click on it closes the dialog), but it is transparent: Figma's dialogs
+            // draw no backdrop. `overlayProps={{ backgroundOpacity: 0.5 }}` draws one.
+            withOverlay: true,
+            overlayProps: { backgroundOpacity: 0 },
             transitionProps: NO_TRANSITION,
             // Mantine's close button is an icon with no text and no label, so it has no
             // accessible name (axe: button-name). A caller's own closeButtonProps still win.

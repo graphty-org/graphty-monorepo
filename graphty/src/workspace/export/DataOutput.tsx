@@ -1,6 +1,6 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { ExportResult } from "@graphty/graphty-element";
-import { Alert, Button, Input, Select, Text } from "@mantine/core";
+import { Alert, Button, Input, Select, Tabs, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -131,7 +131,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
 
     return (
         <>
-            <div className="ws-export-main">
+            <Tabs.Panel value="data" className="ws-export-main">
                 <div>
                     <Text fw={550} size="md" role="heading" aria-level={3}>
                         Data
@@ -191,7 +191,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 >
                     {preview?.lines ?? "Writing the preview..."}
                 </pre>
-            </div>
+            </Tabs.Panel>
             <ModalFooter className="ws-export-footer">
                 <Text size="sm" c="dimmed" className="ws-export-note">
                     {SAVED_LOCALLY}

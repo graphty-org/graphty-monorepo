@@ -965,7 +965,7 @@ page has the migrations.
     32 tall with an 11px name; `DataTable` rows and header are 40; `FieldRow` puts captions above
     by default (`labelPosition="inline"` restores beside).
 15. **Display and overlays.** `Badge` defaults to the outlined look, `Kbd` is a dark key cap in
-    both schemes, `Modal` has no backdrop by default, `Loader` at `sm` is 16px, and
+    both schemes, `Modal` blocks the page behind a transparent overlay by default, `Loader` at `sm` is 16px, and
     `PopoutButton` defaults to `sm` and shows its open state as the ghost button's
     `aria-expanded` look.
 16. **Mantine's `ColorInput` and `ColorPicker` are no longer themed.** They render as plain

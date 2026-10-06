@@ -1,19 +1,12 @@
 import "./export.css";
 
-import { PageList } from "@graphty/compact-mantine";
-import { Modal } from "@mantine/core";
+import { Modal, Tabs } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type DataChoices, DEFAULT_IMAGE, type ImageChoices } from "./choices";
 import { DataOutput } from "./DataOutput";
 import { ImageOutput } from "./ImageOutput";
-
-/** The outputs, in the list's order (tier 1: Image and Data). */
-const OUTPUTS = [
-    { id: "image", name: "Image" },
-    { id: "data", name: "Data" },
-];
 
 /**
  * The one Export dialog (tier1-design.md section T13): Image (a picture of the drawing, through
@@ -52,22 +45,26 @@ export function ExportDialog(): React.JSX.Element {
 
     return (
         <Modal opened={opened} onClose={close} title="Export" size={760} classNames={{ body: "ws-export-body" }}>
-            <div className="ws-export-list">
-                <PageList
-                    items={OUTPUTS}
-                    current={output}
-                    label="What to export"
-                    onCurrentChange={(id) => {
-                        setOutput(id === "data" ? "data" : "image");
-                    }}
-                />
-            </div>
-            {opened && output === "image" ? (
-                <ImageOutput choices={image} onChange={setImage} onCancel={close} onDone={done} />
-            ) : null}
-            {opened && output === "data" ? (
-                <DataOutput choices={data} onChange={setData} onCancel={close} onDone={done} />
-            ) : null}
+            {/* Tabs, so each kind of export is heard by its own name; each output is its own panel. */}
+            <Tabs
+                className="ws-export-tabs"
+                orientation="vertical"
+                value={output}
+                onChange={(id) => {
+                    setOutput(id === "data" ? "data" : "image");
+                }}
+            >
+                <Tabs.List className="ws-export-list" aria-label="What to export">
+                    <Tabs.Tab value="image">Image</Tabs.Tab>
+                    <Tabs.Tab value="data">Data</Tabs.Tab>
+                </Tabs.List>
+                {opened && output === "image" ? (
+                    <ImageOutput choices={image} onChange={setImage} onCancel={close} onDone={done} />
+                ) : null}
+                {opened && output === "data" ? (
+                    <DataOutput choices={data} onChange={setData} onCancel={close} onDone={done} />
+                ) : null}
+            </Tabs>
         </Modal>
     );
 }

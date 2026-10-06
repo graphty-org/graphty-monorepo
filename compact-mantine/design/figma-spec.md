@@ -1114,8 +1114,8 @@ body text 11/16 450 `--cm-text-secondary`.
 ac/dialog-accessibility-settings, hm/comment-delete-confirm-dialog)
 
 - Frame 480 wide default (`size`: sm 320, md 480, lg 760), `--cm-bg`, radius 13,
-  `--cm-elevation-500`, centered. Overlay: none by default (`withOverlay` false), `--cm-modal-backdrop`
-  when the caller asks.
+  `--cm-elevation-500`, centered. Overlay: transparent by default, so the page behind is blocked
+  but not dimmed; a caller dims it with `overlayProps={{ backgroundOpacity: 0.5 }}` (`--cm-modal-backdrop`).
 - Header 40 (41 with its 1px bottom border `inset 0 -1px 0 var(--cm-border)`), padding
   `0 32px 0 16px`, title 11/16 550 at x+16, Close 24 ghost at the end.
 - Body padding 16. Footer (a NEW `ModalFooter` helper or documented markup): 40 tall,

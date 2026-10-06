@@ -86,3 +86,8 @@
     margin: 0;
     padding-inline-start: 16px;
 }
+
+/* The tabs' root only provides context: the list and the panels sit in the body's grid. */
+.ws-export-body .ws-export-tabs[data-orientation] {
+    display: contents;
+}

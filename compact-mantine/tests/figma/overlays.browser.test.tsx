@@ -929,8 +929,10 @@ describe.skipIf(!available)("8.5 modal", () => {
             const buttons = bottom.querySelectorAll("button");
             expect(box(buttons[1]).left - box(buttons[0]).right).toBeCloseTo(8, 0);
             expect(box(bottom).right - box(buttons[1]).right).toBeCloseTo(8, 0);
-            // centered, no backdrop by default, focus in the first field
-            expect(document.querySelector(".mantine-Modal-overlay")).toBeNull();
+            // centered, a transparent overlay that blocks the page by default, focus in the first field
+            const overlay = document.querySelector(".mantine-Modal-overlay");
+            expect(overlay).not.toBeNull();
+            expect(getComputedStyle(overlay as Element).backgroundColor).toBe("rgba(0, 0, 0, 0)");
             await waitFor(() => (document.activeElement?.getAttribute("aria-label") === "Title" ? true : null));
         });
     }

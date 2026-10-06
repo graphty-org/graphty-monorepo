@@ -10,7 +10,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { Edge } from "../../src/Edge";
-import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { DEFAULT_LAYOUT_SEED, layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { RandomLayout } from "../../src/layout/RandomLayoutEngine";
 import type { Node } from "../../src/Node";
@@ -77,6 +77,11 @@ describe("seeded placement", () => {
     it("gives the ngraph layout the same picture for the same seed", () => {
         assert.deepEqual(runNGraph({ seed: 1 }), runNGraph({ seed: 1 }));
         assert.deepEqual(runNGraph({ seed: 7, dim: 2 }), runNGraph({ seed: 7, dim: 2 }));
+    });
+
+    it("seeds the ngraph layout by default, and leaves it to ngraph only for an explicit null", () => {
+        assert.deepEqual(runNGraph({}), runNGraph({ seed: DEFAULT_LAYOUT_SEED }));
+        assert.notDeepEqual(runNGraph({}), runNGraph({ seed: null }));
     });
 
     it("keeps a seeded 2D ngraph layout flat", () => {

@@ -18,12 +18,13 @@
  * graph's own controller and the graph's own error channel.
  */
 import { type F32, maskTest } from "@graphty/graph-format";
+import type { SpringElectricalOptions } from "@graphty/layout";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { type GraphtyError, isGraphtyError } from "../../src/errors";
 import type { GraphErrorEvent } from "../../src/events";
 import { Graph } from "../../src/Graph";
-import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { DEFAULT_LAYOUT_SEED, layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { createFakeAccelerator, type FakeAccelerator, type FakeSimulation } from "../../src/testing/fakeAccelerator";
@@ -1130,6 +1131,11 @@ describe("the default force arrangement, which has two drivers", () => {
         assert.isTrue(accelerated.isAccelerated);
         assert.strictEqual(accelerated.type, "ngraph", "and the element still reports the layout that was asked for");
         assert.strictEqual(fake.calls.springElectrical, 1, "one simulation, built on the accelerator");
+        assert.strictEqual(
+            (fake.simulations[0].options as SpringElectricalOptions).seed,
+            DEFAULT_LAYOUT_SEED,
+            "seeded as the processor driver is, so one file draws the same way each time",
+        );
 
         graph.acceleration.setAccelerator(null);
 

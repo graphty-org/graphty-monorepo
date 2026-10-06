@@ -140,7 +140,11 @@ describe("optionsFromZod", () => {
                 const weighted = byName(optionsFromZod(schemaOf(engine)), "weighted");
 
                 assert.strictEqual(weighted.type, "boolean", `${engine.type}: weights are on or off`);
-                assert.strictEqual(weighted.default, true, `${engine.type}: a weighted graph is arranged by its weights`);
+                assert.strictEqual(
+                    weighted.default,
+                    true,
+                    `${engine.type}: a weighted graph is arranged by its weights`,
+                );
                 assert.isNotTrue(weighted.advanced, `${engine.type}: a reader should not have to go looking for it`);
             }
         });
@@ -148,7 +152,7 @@ describe("optionsFromZod", () => {
         it("keeps a nullable positive integer an integer", () => {
             const seed = byName(optionsFromZod(schemaOf(NGraphEngine)), "seed");
 
-            assert.deepInclude(seed, { type: "integer", min: 0, default: null });
+            assert.deepInclude(seed, { type: "integer", min: 0, default: 1 });
         });
 
         it("reports no range for an integer whose only bound is the safe-integer limit", () => {

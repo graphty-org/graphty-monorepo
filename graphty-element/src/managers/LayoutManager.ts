@@ -17,7 +17,7 @@ import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
-import { LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
+import { DEFAULT_LAYOUT_SEED, LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import {
     SIMULATION_CAPABILITY,
@@ -304,6 +304,25 @@ function resolveLayoutOptions(
     }
 
     return resolveOptionValues(descriptor.options, passed as Record<string, unknown>, { kind: "layout", id: type });
+}
+
+/**
+ * The options with the element's default seed filled in, for the default force arrangement.
+ *
+ * ONE FILE DRAWS THE SAME WAY EACH TIME IT IS LOADED (issue #801). Filled in here rather than left
+ * to ngraph's own default, because the arrangement has two drivers and the accelerated one reads
+ * spring-electrical's options, whose seed is unset; and because a seeded layout is the one that
+ * starts over when data arrives in pieces (see `restartsForNewData`), which is what makes the
+ * picture independent of how the writes were timed. A seed the consumer passes, null included,
+ * is kept.
+ * @param type - The engine name.
+ * @param options - The options the consumer passed, resolved.
+ * @returns The options, seeded.
+ */
+function withDefaultSeed(type: string, options: Record<string, unknown>): Record<string, unknown> {
+    return type === FORCE_CPU_ENGINE && options.seed === undefined
+        ? { ...options, seed: DEFAULT_LAYOUT_SEED }
+        : options;
 }
 
 /**
@@ -1041,7 +1060,7 @@ export class LayoutManager implements Manager {
         // The CONSUMER'S options are checked on their own, before the element adds anything: the
         // dimension options below are the element's to add and are not the layout's to declare,
         // so validating after the merge would refuse the element's own key.
-        const callerOpts = resolveLayoutOptions(type, engineClass.descriptor, opts);
+        const callerOpts = withDefaultSeed(type, resolveLayoutOptions(type, engineClass.descriptor, opts));
         const layoutOpts: Record<string, unknown> = { ...callerOpts };
 
         // The layout's dimension options follow the graph's 2D/3D mode unless the caller set them.

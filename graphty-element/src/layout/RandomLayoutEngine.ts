@@ -3,15 +3,8 @@ import { random } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { DEFAULT_LAYOUT_SEED as DEFAULT_SEED, layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
-
-/**
- * The seed used when none is given. The element recommends this layout for large graphs as "the
- * same every time", and a consumer applies it by name alone, so the default must be fixed rather
- * than drawn from `Math.random()` on every load.
- */
-const DEFAULT_SEED = 1;
 
 /**
  * Zod-based options schema for Random Layout

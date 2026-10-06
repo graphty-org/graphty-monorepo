@@ -37,11 +37,7 @@ function record(id: string): SampleRecord {
 
 describe("SAMPLE_MANIFEST", () => {
     it("ships exactly the three records that have real data, in the drawn order", () => {
-        expect(SAMPLE_MANIFEST.map((entry) => entry.id)).toEqual([
-            "karate",
-            "cat-social-network",
-            "college-football",
-        ]);
+        expect(SAMPLE_MANIFEST.map((entry) => entry.id)).toEqual(["karate", "cat-social-network", "college-football"]);
     });
 
     it("sets no Large badge and no byte size on any row", () => {

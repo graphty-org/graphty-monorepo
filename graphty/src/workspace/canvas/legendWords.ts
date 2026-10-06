@@ -10,8 +10,9 @@
  * out from the swatches.
  */
 
+import type { ScreenshotLegendSection } from "@graphty/graphty-element";
 import type { Channel } from "@graphty/graphty-element/catalog";
-import type { LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
+import type { GraphSession, LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
 
 /** The property word each channel a legend shows goes by ("Color: PageRank"). */
 const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
@@ -83,4 +84,46 @@ export function paintWords(swatch: LegendSwatch): string | null {
  */
 export function overflowLine(hidden: number): string {
     return `${String(hidden)} more`;
+}
+
+/**
+ * The legend card as the key an exported image carries: the same sections, top first, in the same
+ * words -- a ramp for a sequential or diverging block (a size wedge for a size), a row per value
+ * otherwise, with its count or what it paints, and the overflow line.
+ * @param blocks - the blocks `styles.legend()` returned, bottom layer first.
+ * @param rowName - the name of the row that paints a block.
+ * @returns the sections, for `captureScreenshot({ legend })`.
+ */
+export function imageLegend(
+    blocks: readonly LegendBlock[],
+    rowName: (block: LegendBlock) => string,
+): ScreenshotLegendSection[] {
+    return [...blocks].reverse().map((block) => {
+        const title = sectionTitle(block, rowName(block));
+        if (block.kind === "sequential" || block.kind === "diverging") {
+            const colors = block.swatches.flatMap((swatch) => (swatch.color === undefined ? [] : [swatch.color]));
+            const ramp = { min: block.swatches.at(0)?.label ?? "", max: block.swatches.at(-1)?.label ?? "" };
+            return { title, ramp: isSizeBlock(block) ? ramp : { ...ramp, colors } };
+        }
+        const rows = block.swatches.map((swatch) => {
+            const value = paintWords(swatch) ?? swatch.count?.toLocaleString();
+            return {
+                label: swatchName(swatch),
+                ...(swatch.color === undefined ? {} : { color: swatch.color }),
+                ...(value === undefined ? {} : { value }),
+            };
+        });
+        return { title, rows, ...(block.overflow === undefined ? {} : { note: overflowLine(block.overflow.hidden) }) };
+    });
+}
+
+/**
+ * The name of the row that paints a block: its run's name, else its layer's.
+ * @param session - the session.
+ * @param block - the block.
+ * @returns the name.
+ */
+export function rowName(session: GraphSession, block: LegendBlock): string {
+    const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
+    return run?.label ?? session.styles.get(block.layerId)?.name ?? block.layerId;
 }

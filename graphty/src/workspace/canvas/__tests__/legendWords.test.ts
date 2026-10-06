@@ -1,7 +1,7 @@
 import type { LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { overflowLine, paintWords, sectionTitle, swatchName } from "../legendWords";
+import { imageLegend, overflowLine, paintWords, sectionTitle, swatchName } from "../legendWords";
 
 /**
  * A legend block with only what these tests read.
@@ -46,5 +46,44 @@ describe("the legend card's words", () => {
 
     it("says how many rows did not fit", () => {
         assert.equal(overflowLine(28), "28 more");
+    });
+
+    it("gives the exported image the card's sections, top first, in the card's words", () => {
+        const blocks = [
+            block({
+                layerId: "below",
+                swatches: [swatch({ label: "0.01", color: "#ffffff" }), swatch({ label: "0.09", color: "#000080" })],
+            }),
+            block({
+                layerId: "size",
+                channel: "node.size",
+                swatches: [swatch({ label: "1" }), swatch({ label: "36" })],
+            }),
+            block({
+                layerId: "above",
+                kind: "categorical",
+                swatches: [
+                    swatch({ label: "1", color: "#4e79a7", count: 1200 }),
+                    swatch({ label: "x", role: "other", color: "#cccccc", count: 4 }),
+                ],
+                overflow: { hidden: 28 },
+            } as Partial<LegendBlock>),
+        ];
+        const names: Record<string, string> = { below: "PageRank", size: "Degree", above: "Louvain" };
+        assert.deepEqual(
+            imageLegend(blocks, (b) => names[b.layerId]),
+            [
+                {
+                    title: "Color: Louvain",
+                    rows: [
+                        { label: "1", color: "#4e79a7", value: (1200).toLocaleString() },
+                        { label: "Other", color: "#cccccc", value: "4" },
+                    ],
+                    note: "28 more",
+                },
+                { title: "Size: Degree", ramp: { min: "1", max: "36" } },
+                { title: "Color: PageRank", ramp: { min: "0.01", max: "0.09", colors: ["#ffffff", "#000080"] } },
+            ],
+        );
     });
 });

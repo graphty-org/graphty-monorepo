@@ -303,6 +303,7 @@ export type {
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,
 } from "./src/screenshot/types";

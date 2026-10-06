@@ -67,6 +67,15 @@ export interface ScreenshotOptions {
         waitForSettle?: boolean;
         waitForOperations?: boolean;
     };
+    /**
+     * A key drawn into the image at its top left, sized as it would be on the canvas. The element
+     * draws exactly what is passed -- every word is the caller's -- so a consumer builds the
+     * sections from the same `session.styles.legend()` blocks it shows on screen. Absent or empty,
+     * the image has no key.
+     * @example
+     * legend: [{ title: "Color: Louvain", rows: [{ label: "1", color: "#4e79a7", value: "17" }] }]
+     */
+    legend?: readonly ScreenshotLegendSection[];
 
     // -------------------------------------------------------------------------
     // Future Features (Not Yet Implemented)
@@ -92,6 +101,18 @@ export interface ScreenshotOptions {
      * @deprecated Not yet implemented - Phase 3+ feature
      */
     // metadata?: Record<string, string>;
+}
+
+/** One section of the key a capture draws (`ScreenshotOptions.legend`), in the caller's words. */
+export interface ScreenshotLegendSection {
+    /** The section's heading. */
+    title: string;
+    /** A line per value: its words, an optional color chip, and an optional value at the right. */
+    rows?: readonly { label: string; color?: string; value?: string }[];
+    /** A continuous scale from `min` to `max`: a bar painted with `colors`, or a size wedge without them. */
+    ramp?: { min: string; max: string; colors?: readonly string[] };
+    /** A line under the section, such as how many values were left out. */
+    note?: string;
 }
 
 export interface ScreenshotResult {

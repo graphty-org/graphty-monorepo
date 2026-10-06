@@ -4047,6 +4047,22 @@ export enum ScreenshotErrorCode {
     VIDEO_CAPTURE_FAILED = "VIDEO_CAPTURE_FAILED"
 }
 
+// @public
+export interface ScreenshotLegendSection {
+    note?: string;
+    ramp?: {
+        min: string;
+        max: string;
+        colors?: readonly string[];
+    };
+    rows?: readonly {
+        label: string;
+        color?: string;
+        value?: string;
+    }[];
+    title: string;
+}
+
 // @public (undocumented)
 export interface ScreenshotOptions {
     // (undocumented)
@@ -4066,6 +4082,7 @@ export interface ScreenshotOptions {
     format?: "png" | "jpeg" | "webp";
     // (undocumented)
     height?: number;
+    legend?: readonly ScreenshotLegendSection[];
     // (undocumented)
     multiplier?: number;
     // (undocumented)

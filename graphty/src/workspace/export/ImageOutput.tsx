@@ -1,8 +1,10 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ScreenshotErrorCode } from "@graphty/graphty-element";
+import type { ScreenshotErrorCode, ScreenshotLegendSection } from "@graphty/graphty-element";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { Alert, Button, Input, Loader, Select, Tabs, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { imageLegend, rowName } from "../canvas/legendWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     backgroundRefusal,
@@ -32,6 +34,19 @@ const VIEW_LABELS: Readonly<Record<string, string>> = {
 };
 
 const SIZES: readonly ImageSize[] = ["1x", "2x", "4x", "400x300"];
+
+/**
+ * The key an image carries: the legend card's sections exactly when the canvas shows the card --
+ * one switch, the same words.
+ * @param session - the session, or null.
+ * @param legendShown - whether the canvas shows the legend card.
+ * @returns the sections; none when the card is hidden.
+ */
+function imageKey(session: GraphSession | null, legendShown: boolean): ScreenshotLegendSection[] {
+    return legendShown && session !== null
+        ? imageLegend(session.styles.legend(), (block) => rowName(session, block))
+        : [];
+}
 
 /** Props for ImageOutput. */
 interface ImageOutputProps {
@@ -83,7 +98,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
         let url: string | null = null;
         const options = screenshotOptions({ ...choices, size: "1x" }, { blob: true });
         element
-            .captureScreenshot({ ...options, timing: { waitForSettle: false } })
+            .captureScreenshot({ ...options, legend: imageKey(session, legendShown), timing: { waitForSettle: false } })
             .then((result) => {
                 if (!live) {
                     return;
@@ -103,7 +118,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 URL.revokeObjectURL(url);
             }
         };
-    }, [element, choices]);
+    }, [element, choices, session, legendShown]);
 
     // The sizes the element refuses for this format, each with its reason.
     useEffect(() => {
@@ -144,6 +159,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
         try {
             const result = await element.captureScreenshot({
                 ...screenshotOptions(choices, { [destination]: true }, name),
+                legend: imageKey(session, legendShown),
                 timing: { waitForSettle },
             });
             if (destination === "clipboard" && result.clipboardStatus !== "success") {
@@ -192,12 +208,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                     </Alert>
                 );
             default:
-                // graphty-element does not draw the legend into a capture yet (issue #133).
-                return legendShown ? (
-                    <Alert color="gray" title="The legend is not in the image" role="note">
-                        The legend card on the canvas is not drawn into exported images yet.
-                    </Alert>
-                ) : null;
+                return null;
         }
     })();
 

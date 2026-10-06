@@ -12,6 +12,7 @@ import { type Graph, operationQueueOf } from "../Graph.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
 import { calculateDimensions } from "./dimensions.js";
+import { drawLegend } from "./drawLegend.js";
 import { resolvePreset } from "./presets.js";
 import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
 import { enableTransparentBackground, restoreBackground } from "./transparency.js";
@@ -219,7 +220,7 @@ export class ScreenshotCapture {
                 const captureHeight = enhancementState?.supersampledHeight ?? dimensions.height;
 
                 // Start capturing the blob (this promise will be shared)
-                const blobPromise = this.captureBlob(
+                const captured = this.captureBlob(
                     format,
                     quality,
                     captureWidth,
@@ -228,6 +229,11 @@ export class ScreenshotCapture {
                     dimensions.width,
                     dimensions.height,
                 );
+                // The key goes on after any downscale, sized as on the canvas: output pixels per CSS pixel.
+                const legend = finalOptions.legend ?? [];
+                const scale = dimensions.width / (this.canvas.clientWidth || this.canvas.width);
+                const blobPromise =
+                    legend.length === 0 ? captured : captured.then((blob) => drawLegend(blob, legend, scale, quality));
 
                 // If clipboard is requested, start clipboard write immediately (before blob is ready)
                 // This preserves the user gesture context

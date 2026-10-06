@@ -1,24 +1,30 @@
 /**
- * The Notes section the node and edge inspectors share: a note input, then one row per note,
- * newest first, each with a Delete control.
+ * The Notes section the node and edge inspectors share: a note input, then one row per open note,
+ * newest first, each with a Done box and a Delete control, then the done notes folded under
+ * "N done".
  *
  * Presentation only. The notes themselves live in graphty-element's `session.notes`; the caller
  * reads them from there and hands the save and delete back to it, so undo, saving and loading
- * are the element's.
- *
- * graphty-element's notes carry no done state, so there is no Done box here.
+ * are the element's. Whether a note is done is the element's `done` field too.
  */
 
-import { ActionRow, ControlSection, PANEL_GRID, UiGlyph } from "@graphty/compact-mantine";
+import {
+    ActionRow,
+    ControlSection,
+    PANEL_GRID,
+    PANEL_INK,
+    UiGlyph,
+    useNumberFormatter,
+} from "@graphty/compact-mantine";
 import type { Note } from "@graphty/graphty-element/session";
-import { ActionIcon, Box, Textarea } from "@mantine/core";
+import { ActionIcon, Box, Checkbox, Textarea, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
 
 import { keyChipFor } from "../bindings";
 import { useInspectorSection } from "./sections";
 
 /** One note, as the inspector draws it: the fields of graphty-element's own record it reads. */
-export type InspectorNote = Pick<Note, "id" | "time" | "text" | "author">;
+export type InspectorNote = Pick<Note, "id" | "time" | "text" | "author" | "done">;
 
 const RELATIVE_UNITS: readonly [Intl.RelativeTimeFormatUnit, number][] = [
     ["year", 365 * 24 * 3600],
@@ -61,6 +67,8 @@ interface InspectorNotesProps {
     readonly onAddNote: (text: string) => void;
     /** Deletes a note. */
     readonly onDeleteNote: (noteId: string) => void;
+    /** Marks a note done, or not done. */
+    readonly onSetNoteDone: (noteId: string, done: boolean) => void;
 }
 
 /**
@@ -69,10 +77,52 @@ interface InspectorNotesProps {
  * @returns the section.
  */
 export function InspectorNotes(props: InspectorNotesProps): React.JSX.Element {
-    const { sectionId, defaultOpen, inputTestId, notes, onAddNote, onDeleteNote } = props;
+    const { sectionId, defaultOpen, inputTestId, notes, onAddNote, onDeleteNote, onSetNoteDone } = props;
     const section = useInspectorSection(sectionId, defaultOpen);
     const [draft, setDraft] = useState("");
+    const [showDone, setShowDone] = useState(false);
+    const formatter = useNumberFormatter();
     const addNoteChip = keyChipFor("addNote");
+    const openNotes = notes.filter((note) => note.done === undefined);
+    const doneNotes = notes.filter((note) => note.done !== undefined);
+
+    const noteRow = (note: InspectorNote): React.JSX.Element => {
+        const who = note.author === undefined ? "" : `${note.author}, `;
+
+        return (
+            <ActionRow
+                key={note.id}
+                // The relative time is drawn and the full timestamp is the
+                // row's title, which is what 5.4 asks of a note row.
+                state={`${who}${relativeTimeOf(note.time)}: ${note.text}`}
+                stateTitle={`${who}${new Date(note.time).toLocaleString()}: ${note.text}`}
+                residentActions={
+                    <Checkbox
+                        size="xs"
+                        aria-label={`Done: ${note.text}`}
+                        checked={note.done !== undefined}
+                        onChange={(event) => {
+                            onSetNoteDone(note.id, event.currentTarget.checked);
+                        }}
+                    />
+                }
+                actions={
+                    <ActionIcon
+                        type="button"
+                        variant="subtle"
+                        color="gray"
+                        size={PANEL_GRID.TRAIL}
+                        aria-label={`Delete note: ${note.text}`}
+                        onClick={() => {
+                            onDeleteNote(note.id);
+                        }}
+                    >
+                        <UiGlyph name="close" size={PANEL_GRID.CHEVRON} />
+                    </ActionIcon>
+                }
+            />
+        );
+    };
 
     return (
         <ControlSection label="Notes" opened={section.opened} onOpenChange={section.onOpenChange}>
@@ -108,33 +158,29 @@ export function InspectorNotes(props: InspectorNotesProps): React.JSX.Element {
                 />
             </Box>
 
-            {notes.map((note) => {
-                const who = note.author === undefined ? "" : `${note.author}, `;
+            {openNotes.map(noteRow)}
 
-                return (
-                    <ActionRow
-                        key={note.id}
-                        // The relative time is drawn and the full timestamp is the
-                        // row's title, which is what 5.4 asks of a note row.
-                        state={`${who}${relativeTimeOf(note.time)}: ${note.text}`}
-                        stateTitle={`${who}${new Date(note.time).toLocaleString()}: ${note.text}`}
-                        actions={
-                            <ActionIcon
-                                type="button"
-                                variant="subtle"
-                                color="gray"
-                                size={PANEL_GRID.TRAIL}
-                                aria-label={`Delete note: ${note.text}`}
-                                onClick={() => {
-                                    onDeleteNote(note.id);
-                                }}
-                            >
-                                <UiGlyph name="close" size={PANEL_GRID.CHEVRON} />
-                            </ActionIcon>
-                        }
-                    />
-                );
-            })}
+            {doneNotes.length > 0 && (
+                <Box>
+                    <UnstyledButton
+                        type="button"
+                        aria-expanded={showDone}
+                        data-testid={`${inputTestId}-done`}
+                        onClick={() => {
+                            setShowDone(!showDone);
+                        }}
+                        style={{
+                            height: PANEL_GRID.CONTROL_HEIGHT,
+                            color: PANEL_INK.CHROME,
+                            fontSize: "var(--mantine-font-size-sm)",
+                        }}
+                    >
+                        {`${formatter.format(doneNotes.length)} done`}
+                    </UnstyledButton>
+
+                    {showDone && doneNotes.map(noteRow)}
+                </Box>
+            )}
         </ControlSection>
     );
 }

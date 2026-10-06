@@ -4245,6 +4245,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onDeleteNote: (noteId: string) => {
                     session?.notes.remove(noteId);
                 },
+                // Done is graphty-element's own note field: one undoable step, like any edit.
+                onSetNoteDone: (noteId: string, done: boolean) => {
+                    session?.notes.update(noteId, { done });
+                },
                 onSelectNeighbor: (nodeId: string) => {
                     graphSelectNode(graphtyRef.current?.element ?? null, nodeId);
                 },

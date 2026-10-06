@@ -46,6 +46,7 @@ const defaultProps: NodeInspectorProps = {
     onShowAllAttributes: vi.fn(),
     onAddNote: vi.fn(),
     onDeleteNote: vi.fn(),
+    onSetNoteDone: vi.fn(),
     onSelectNeighbor: vi.fn(),
     onNoteRelationship: vi.fn(),
     onShowNeighborsInTable: vi.fn(),
@@ -188,11 +189,50 @@ describe("NodeInspector", () => {
             expect(screen.getAllByText("Adam, 2 days ago: Recent").length).toBeGreaterThan(0);
         });
 
-        /* graphty-element's notes carry no done state, so the inspector offers no Done box. */
-        it("offers no Done checkbox", () => {
-            renderNode();
+        it("marks an open note done through its Done box", () => {
+            const onSetNoteDone = vi.fn();
+            renderNode({ onSetNoteDone });
 
-            expect(screen.queryByRole("checkbox", { name: /^Done:/ })).not.toBeInTheDocument();
+            const box = screen.getByRole("checkbox", { name: "Done: Checked" });
+
+            expect(box).not.toBeChecked();
+            fireEvent.click(box);
+
+            expect(onSetNoteDone).toHaveBeenCalledWith("n2", true);
+            expect(screen.queryByTestId("node-note-input-done")).not.toBeInTheDocument();
+        });
+
+        it("folds done notes under N done, and unmarks one from there", () => {
+            const onSetNoteDone = vi.fn();
+            renderNode({
+                onSetNoteDone,
+                notes: [
+                    { id: "n1", time: "2026-09-02T10:14:00.000Z", text: "Open one" },
+                    { id: "n2", time: "2026-08-28T09:02:00.000Z", text: "Closed", done: "2026-08-29T09:00:00.000Z" },
+                    {
+                        id: "n3",
+                        time: "2026-08-27T09:02:00.000Z",
+                        text: "Also closed",
+                        done: "2026-08-29T09:00:00.000Z",
+                    },
+                ],
+            });
+
+            const fold = screen.getByTestId("node-note-input-done");
+
+            expect(fold).toHaveTextContent("2 done");
+            expect(fold).toHaveAttribute("aria-expanded", "false");
+            expect(screen.getByRole("checkbox", { name: "Done: Open one" })).toBeInTheDocument();
+            expect(screen.queryByRole("checkbox", { name: "Done: Closed" })).not.toBeInTheDocument();
+
+            fireEvent.click(fold);
+
+            expect(fold).toHaveAttribute("aria-expanded", "true");
+            const box = screen.getByRole("checkbox", { name: "Done: Closed" });
+            expect(box).toBeChecked();
+            fireEvent.click(box);
+
+            expect(onSetNoteDone).toHaveBeenCalledWith("n2", false);
         });
     });
 

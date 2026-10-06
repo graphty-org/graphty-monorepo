@@ -225,6 +225,11 @@ graphs named:
 - **Seeded `grsbm` and `syncClustering`.** Both draw from mulberry32 in every release after 3.1.2. 2.x and 3.0.0
   through 3.1.2 drew from a linear congruential generator whose float64 product lost its low bits above 2^53 and which could return exactly 1, so
   the same `seed` now gives other bisections, clusters and embeddings.
+- **`grsbm` bisects along the Fiedler vector.** 2.x, and 3.x before the fix for issue #975, sorted each cluster by
+  the eigenvector of its Laplacian's largest eigenvalue, so its splits were close to random. Each split now follows
+  the Fiedler vector (the smallest nonzero eigenvalue's): a two-block planted partition splits exactly along its
+  blocks, and Zachary's karate club scores modularity 0.40 where it scored 0.04. The clusters, `spectralValues` and
+  modularity scores differ from 2.x's on almost every graph.
 - **Flow and cuts.** `maxFlow` reports the net flow of two opposite edges on the edge it runs along, each within its
   capacity; `minSTCut` reports cut edges on graphs with numeric ids (2.x reported none); `stoerWagner` adds the weights
   of two opposite directed edges; `kargerMinCut` is seeded, so one graph gives one result, and on a graph of three or

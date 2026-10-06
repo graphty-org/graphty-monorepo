@@ -7,6 +7,8 @@
  * Times are epoch milliseconds.
  */
 
+import { isReleaseTrain } from "./prs.mjs";
+
 /**
  * @typedef {{project: string, dir: string, name: string}} Package one publishable workspace
  *   package: its nx project name (the tag prefix), its directory (the dry-run's manifest path)
@@ -184,4 +186,32 @@ export function expiredArtifacts(annotations) {
         if (a.annotation_level === "notice" && m) return { sha: m[1], ciRunId: Number(m[2]) };
     }
     return null;
+}
+
+/**
+ * The release train's pull request is stuck (design 4.3): GitHub saw it conflicting with master on
+ * two polls in a row, or a required check of it failed (a cancelled one is no verdict). While it is
+ * open no new train runs, githerd never edits a release branch, and only the owner may start an ad
+ * hoc release, so each is an escalation for the owner, held while the condition holds.
+ * @param {Record<string, any>} prs the open pull requests' records (`state.prs`)
+ * @param {string | null | undefined} pattern the config's `release.commitPattern`
+ * @returns {{key: string, kind: string, summary: string, clearWhen: string}[]} one per stuck train
+ */
+export function trainStuck(prs, pattern) {
+    const out = [];
+    for (const [n, pr] of Object.entries(prs ?? {})) {
+        if (!isReleaseTrain(pr, pattern)) continue;
+        const failed = Object.keys(pr.required ?? {}).filter((c) => pr.required[c] === "FAILURE");
+        let why = null;
+        if ((pr.conflictSightings ?? 0) >= 2) why = "conflicts with master";
+        else if (failed.length) why = `failed required checks (${failed.join(", ")})`;
+        if (!why) continue;
+        out.push({
+            key: `release-train-stuck:${n}`,
+            kind: "release-train-stuck",
+            summary: `release train #${n} ${why}, so no release goes out and no new train runs; close #${n} and start an ad hoc release (gh workflow run release.yml --ref master), or let release.yml replace it`,
+            clearWhen: "train-unstuck",
+        });
+    }
+    return out;
 }

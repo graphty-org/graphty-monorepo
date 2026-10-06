@@ -9,6 +9,7 @@ import {
     releasePending,
     releaseTruth,
     stagedVersions,
+    trainStuck,
 } from "../lib/release.mjs";
 
 const fixture = (name) => readFileSync(new URL(`fixtures/release/${name}`, import.meta.url), "utf8");
@@ -255,5 +256,45 @@ describe("expiredArtifacts", () => {
                 },
             ]),
         ).toBeNull();
+    });
+});
+
+describe("trainStuck", () => {
+    const PATTERN = "^chore\\(release\\): publish";
+    const train = (o) => ({
+        author: "github-actions",
+        headRef: "release/train-123",
+        title: "chore(release): publish",
+        conflictSightings: 0,
+        required: { "All Checks Pass": "PENDING" },
+        ...o,
+    });
+    const stuck = (pr) => trainStuck({ 1092: pr }, PATTERN);
+
+    it("a train GitHub saw conflicting on two polls is stuck, with what fixes it", () => {
+        expect(stuck(train({ conflictSightings: 1 }))).toEqual([]);
+        expect(stuck(train({ conflictSightings: 2 }))).toEqual([
+            {
+                key: "release-train-stuck:1092",
+                kind: "release-train-stuck",
+                summary:
+                    "release train #1092 conflicts with master, so no release goes out and no new train runs; close #1092 and start an ad hoc release (gh workflow run release.yml --ref master), or let release.yml replace it",
+                clearWhen: "train-unstuck",
+            },
+        ]);
+    });
+
+    it("a failed required check is stuck; a cancelled one is no verdict", () => {
+        expect(stuck(train({ required: { "All Checks Pass": "FAILURE" } }))[0].summary).toMatch(
+            /^release train #1092 failed required checks \(All Checks Pass\), /,
+        );
+        expect(stuck(train({ required: { "All Checks Pass": "CANCELLED" } }))).toEqual([]);
+    });
+
+    it("a merely queued train, or a pull request that is not the train, is not stuck", () => {
+        expect(stuck(train({}))).toEqual([]);
+        expect(stuck(train({ author: "owner", conflictSightings: 2 }))).toEqual([]);
+        expect(stuck(train({ headRef: "fix/x", conflictSightings: 2 }))).toEqual([]);
+        expect(trainStuck({ 1092: train({ conflictSightings: 2 }) }, null)).toEqual([]);
     });
 });

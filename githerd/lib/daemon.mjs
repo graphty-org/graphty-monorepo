@@ -119,6 +119,7 @@ import { containerStart, identify } from "./proc.mjs";
 import { inferOwners, parseWorktrees, processTable, readPushLog, scanTranscripts } from "./owners.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
+import { trainStuck } from "./release.mjs";
 import {
     needsReleaseDryRun,
     patchId,
@@ -208,9 +209,11 @@ const PARKED_ITEMS = /** @type {Record<string, string>} */ ({
     environment: "still fails, and Claude judged it the environment, not the code",
 });
 /** Escalation kinds that are owner items, and what each blocks (design 11.3). */
-const ITEM_KINDS = /** @type {Record<string, "workers" | null>} */ ({
+const ITEM_KINDS = /** @type {Record<string, "workers" | "release" | null>} */ ({
     decision: null,
     credential: "workers",
+    // Only the owner may start an ad hoc release, so a stuck train is his, never a worker's.
+    "release-train-stuck": "release",
     approval: null,
     "visual-review": null,
 });
@@ -1618,6 +1621,7 @@ export async function startDaemon({
         await incidentSteps();
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);
         if (pace.level === "normal") await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
+        checkTrain(derived);
         // Holds post at every rate tier; the client's budget refuses a success below its floor.
         // The merge gate reads each githerd-made pull request's patch id (decision line 6).
         await linkJobPrs(branch, t);
@@ -2253,6 +2257,15 @@ export async function startDaemon({
             .filter(([, p]) => board.byOwner(state, p.author) && (p.ownerLabels ?? []).includes(CRITICAL))
             .map(([n]) => Number(n));
         return [...new Set([...jobs, ...reverts, ...critical].filter((n) => n > 0))];
+    }
+
+    /**
+     * Raises a stuck release train pull request for the owner (`trainStuck`), from the records of
+     * the last pull request read, so a GitHub back-off keeps it raised.
+     * @param {(args: any) => void} derived raises an escalation that clears when it stops holding
+     */
+    function checkTrain(derived) {
+        for (const stuck of trainStuck(state.prs, config.release?.commitPattern)) derived(stuck);
     }
 
     /**

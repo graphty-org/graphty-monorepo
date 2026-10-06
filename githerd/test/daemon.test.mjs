@@ -1575,6 +1575,46 @@ describe("the poll loop", () => {
         expect(gh.writes()).toEqual([]);
     });
 
+    it("raises a stuck release train for the owner after two conflicting polls, and clears it when the train closes", async () => {
+        writeConfig({ release: { commitPattern: "^chore\\(release\\): publish" } });
+        const trainPr = {
+            ...gatedPr(),
+            number: 1092,
+            title: "chore(release): publish",
+            headRefName: "release/train-555",
+            author: { login: "github-actions" },
+            labels: { nodes: [{ name: "priority:critical" }] },
+            mergeable: "CONFLICTING",
+        };
+        // The owner's own conflicting pull request is a worker's job, never a stuck train.
+        scene.prs = [trainPr, { ...gatedPr(), mergeable: "CONFLICTING" }];
+        const daemon = await start();
+        const key = "release-train-stuck:1092";
+        await poll(daemon);
+        expect(daemon.state.escalations?.[key]).toBeUndefined();
+
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect(Object.keys(daemon.state.escalations).filter((k) => k.startsWith("release-train-stuck"))).toEqual([key]);
+        expect(daemon.state.ownerItems[`escalation:${key}`]).toMatchObject({
+            kind: "release-train-stuck",
+            blocks: "release",
+            question: expect.stringContaining("close #1092 and start an ad hoc release"),
+        });
+        expect(pages().filter((p) => p.message.includes("release train #1092"))).toHaveLength(1);
+        expect(Object.values(daemon.state.jobs ?? {}).filter((j) => String(j.target).includes("1092"))).toEqual([]);
+
+        clock = new Date("2026-10-02T12:06:00Z");
+        scene.prs = [];
+        await poll(daemon);
+        expect(daemon.state.escalations[key].resolvedAt).toBeTruthy();
+        // Owner items follow the escalations at the next poll.
+        clock = new Date("2026-10-02T12:09:00Z");
+        await poll(daemon);
+        expect(daemon.state.ownerItems[`escalation:${key}`]).toMatchObject({ endedBy: "cleared" });
+        expect(gh.writes()).toEqual([]);
+    });
+
     it("re-runs the CI run whose expired artifacts made a release skip, once, as a would-do in dry-run", async () => {
         writeConfig({
             lanes: {

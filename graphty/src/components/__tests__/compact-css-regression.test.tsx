@@ -748,7 +748,7 @@ describe("Compact CSS Regression Tests", () => {
             it("has correct compact height (16px)", () => {
                 render(
                     <ThemeWrapper>
-                        <Badge size={"compact" as never}>Test</Badge>
+                        <Badge size={"compact"}>Test</Badge>
                     </ThemeWrapper>,
                 );
                 const badge = getElement(".mantine-Badge-root");
@@ -759,7 +759,7 @@ describe("Compact CSS Regression Tests", () => {
             it("has correct compact font size (11px)", () => {
                 render(
                     <ThemeWrapper>
-                        <Badge size={"compact" as never}>Test</Badge>
+                        <Badge size={"compact"}>Test</Badge>
                     </ThemeWrapper>,
                 );
                 const badge = getElement(".mantine-Badge-root");
@@ -770,7 +770,7 @@ describe("Compact CSS Regression Tests", () => {
             it("has correct compact padding (0px 4px)", () => {
                 render(
                     <ThemeWrapper>
-                        <Badge size={"compact" as never}>Test</Badge>
+                        <Badge size={"compact"}>Test</Badge>
                     </ThemeWrapper>,
                 );
                 const badge = getElement(".mantine-Badge-root");
@@ -830,7 +830,7 @@ describe("Compact CSS Regression Tests", () => {
         it("Badge has pill-shaped border-radius (5px)", () => {
             render(
                 <ThemeWrapper>
-                    <Badge size={"compact" as never}>Test</Badge>
+                    <Badge size={"compact"}>Test</Badge>
                 </ThemeWrapper>,
             );
             const badge = getElement(".mantine-Badge-root");

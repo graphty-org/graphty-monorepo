@@ -68,7 +68,10 @@ function builtInSuggestion(
         return undefined;
     }
 
-    const text = typeof value === "object" ? JSON.stringify(value) : String(value as string | number | boolean);
+    const text =
+        typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+            ? String(value)
+            : JSON.stringify(value);
 
     return {
         id: `${plainId(descriptor.key)}_${word}_${idPart(text)}`,

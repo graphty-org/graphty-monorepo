@@ -1514,7 +1514,7 @@ export function exportNeo4jFiles(
     try {
         return Promise.resolve(plan(snapshot, options).files());
     } catch (err) {
-        return Promise.reject(err as Error);
+        return Promise.reject(err);
     }
 }
 

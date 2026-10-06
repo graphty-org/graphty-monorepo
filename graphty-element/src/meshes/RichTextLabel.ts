@@ -36,15 +36,7 @@ export type BadgeType =
     | "dot"
     | undefined;
 export type AttachPosition =
-    | "top"
-    | "bottom"
-    | "left"
-    | "right"
-    | "center"
-    | "top-left"
-    | "top-right"
-    | "bottom-left"
-    | "bottom-right";
+    "top" | "bottom" | "left" | "right" | "center" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 export interface RichTextStyle {
     font: string;
@@ -233,7 +225,7 @@ export class RichTextLabel {
             textOutline: false,
             textOutlineColor: "black",
             textOutlineWidth: 2,
-            textOutlineJoin: "round" as CanvasLineJoin,
+            textOutlineJoin: "round",
             pointer: false,
             pointerDirection: "bottom",
             pointerWidth: 20,

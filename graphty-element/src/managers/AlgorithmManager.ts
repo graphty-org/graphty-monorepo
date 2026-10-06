@@ -326,7 +326,7 @@ export class AlgorithmManager implements Manager {
             { prototype: Edge.prototype, target: "edge" },
         ]);
         try {
-            const options = command.options as AlgorithmSpecificOptions | undefined;
+            const { options } = command;
             // Pass options to constructor for new-style algorithms with zodOptionsSchema
             const alg = Algorithm.get(facade, command.namespace, command.type, options);
             if (!alg) {

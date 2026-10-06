@@ -233,7 +233,7 @@ function layerSpecOf(name: string, target: "node" | "edge", selector: string, se
         source: AI_LAYER_SOURCE,
         selector: isMatchAllSelector(selector)
             ? { match: "everything" }
-            : { match: "expression", where: selector.replace(/"/g, "'") },
+            : { match: "expression", where: selector.replaceAll('"', "'") },
         set,
     };
 }

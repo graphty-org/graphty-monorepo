@@ -115,7 +115,8 @@ export function widenScalar(a: ScalarKind, b: ScalarKind): ScalarKind {
 const INTEGER_TEXT = /^[+-]?[0-9]+$/;
 
 /** Java's Double.valueOf forms that Cytoscape writes: no hex, no `d` / `f` suffix. */
-const REAL_TEXT = /^[+-]?(NaN|Infinity|([0-9]+\.?[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?)$/;
+const REAL_TEXT = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+const NON_FINITE_TEXT = /^[+-]?(?:NaN|Infinity)$/;
 
 const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;
@@ -165,7 +166,7 @@ export function parseScalar(text: string, kind: ScalarKind, unescape: boolean): 
         }
         case "real": {
             const t = text.trim();
-            if (!REAL_TEXT.test(t)) {
+            if (!REAL_TEXT.test(t) && !NON_FINITE_TEXT.test(t)) {
                 return null;
             }
             const n = Number(t);

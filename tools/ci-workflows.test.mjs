@@ -600,7 +600,7 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
 describe("pr-title.yml", () => {
     it("skips the whole job, not a step, for Mergify's own merge-queue draft and only for it", () => {
         // A skipped job completes at once; a job that installs first leaves the required check in progress
-        // for a minute after each of Mergify's body edits, and under merge-batch GitHub merges the draft itself.
+        // for a minute after each of Mergify's body edits.
         const pr = workflow("pr-title.yml");
         assert.ok(pr.includes(`        name: Lint PR Title\n`));
         assert.ok(pr.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
@@ -796,9 +796,10 @@ echo "${aptSays}"`,
 });
 
 describe(".mergify.yml", () => {
-    it("merges each batch with one commit, and the release pull request with its own merge commit", () => {
-        // merge-batch: one master commit (and one master CI, GPU and Hosts run) per batch. The release rule stays
-        // merge, because release.yml's publish job finds the release by the branch its merge commit names.
+    it("merges every pull request, the release one included, with its own merge commit", () => {
+        // Never merge-batch: marking the batch's draft ready starts a second CI run on the same commit, and the
+        // ruleset waits on its unfinished "All Checks Pass" until Mergify dequeues the batch. The release rule
+        // must stay merge, because release.yml's publish job finds the release by the branch its merge commit names.
         const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
         const queues = mergify.slice(mergify.indexOf("queue_rules:"));
         const release = queues.slice(queues.indexOf("- name: release"), queues.indexOf("- name: default"));
@@ -807,9 +808,8 @@ describe(".mergify.yml", () => {
         assert.match(release, /^\s+- head~=\^release\/train-$/m);
         assert.match(release, /^\s+- author=github-actions\[bot\]$/m);
         assert.match(release, /^\s+merge_method: merge(\s+#.*)?$/m);
-        assert.match(batch, /^\s+merge_method: merge-batch$/m);
-        // merge-batch requires a batch size above 1
-        assert.match(batch, /batch_size:\n\s+min: 1\n\s+max: ([2-9]|\d{2,})\n/);
+        assert.match(batch, /^\s+merge_method: merge$/m);
+        assert.doesNotMatch(mergify, /^\s+merge_method: merge-batch/m);
     });
 
     it("does not make the queue wait on the visual gate before the gate accepts a batch", () => {
@@ -854,42 +854,10 @@ describe("gpu.yml", () => {
     });
 });
 
-describe(".mergify.yml and the GPU gate", () => {
-    const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-
-    it("lets a pull request skip the gate only when none of its files can affect the GPU package", () => {
-        const exempt = /-files~=\^\(\?!\(([^)]+)\)\/\)/.exec(mergify)[1].split("|");
-        assert.match(mergify, /- check-success=T4 GPU gate/);
-        // Every workspace package the GPU package depends on, through package.json (what nx follows).
-        const pkg = (dir) => JSON.parse(readFileSync(new URL(`../${dir}/package.json`, import.meta.url), "utf8"));
-        const dirs = [
-            "algorithms",
-            "graph-format",
-            "graph-io",
-            "graph-samples",
-            "layout",
-            "graphty-element",
-            "graphty",
-        ];
-        dirs.push("remote-logger", "compact-mantine", "visual-review", "webgpu-graph-algorithms");
-        const byName = new Map(dirs.map((d) => [pkg(d).name, d]));
-        const deps = new Set(["webgpu-graph-algorithms"]);
-        for (const d of deps) {
-            const p = pkg(d);
-            for (const name of Object.keys({ ...p.dependencies, ...p.devDependencies, ...p.peerDependencies })) {
-                if (byName.has(name)) {
-                    deps.add(byName.get(name));
-                }
-            }
-        }
-        assert.ok(deps.has("graph-format") && deps.has("layout"), "the walk found the GPU package's dependencies");
-        for (const dir of exempt) {
-            assert.ok(!deps.has(dir), `${dir} is a dependency of webgpu-graph-algorithms, so it cannot skip the gate`);
-        }
-        const skip = new RegExp(`^(?!(${exempt.join("|")})/)`);
-        assert.ok(!skip.test("graphty-element/src/Graph.ts"));
-        assert.ok(skip.test("graph-format/src/index.ts"));
-        assert.ok(skip.test("pnpm-lock.yaml"));
+describe(".mergify.yml and the T4", () => {
+    it("makes no pull request wait on a T4 result", () => {
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        assert.doesNotMatch(mergify, /T4 GPU gate/);
     });
 });
 
@@ -1074,7 +1042,7 @@ describe("release.yml", () => {
         assert.match(publish, /node tools\/release-diff.mjs "\$sha" "\$commit"/);
         assert.match(publish, /\.workflow_run.head_branch == "master"/);
         assert.doesNotMatch(train, /id-token|nx release publish/);
-        // a merge-batch commit (.mergify.yml's default rule) never names the release branch, so it never publishes
+        // a Mergify merge commit of any other pull request never names the release branch, so it never publishes
         const marker = /contains\(github.event.head_commit.message, '([^']+)'\)/.exec(publish)[1];
         assert.ok(!"Merged #42, #43, #44\n\nMerged by Mergify Merge Queue".includes(marker));
         assert.ok(!"Merge of #42".includes(marker));
@@ -1096,6 +1064,10 @@ describe("release.yml", () => {
         assert.match(train, /^\s+- author=github-actions\[bot\]$/m);
         assert.match(train, /^\s+priority: high$/m);
         assert.match(train, /^\s+allow_checks_interruption: false$/m);
+        const next = rules.slice(rules.indexOf("- name: next in line"));
+        assert.ok(rules.indexOf("- name: next in line") > rules.indexOf("- name: fix for a red master"));
+        assert.match(next, /^\s+- label=queue:next$/m);
+        assert.match(next, /^\s+priority: medium$/m);
     });
 
     it("deploys graphty.app from every green CI run of a push to master", () => {

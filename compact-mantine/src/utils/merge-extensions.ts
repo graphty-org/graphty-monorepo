@@ -26,7 +26,7 @@ type NoOverlap<T, U> = keyof T & keyof U extends never ? U : never;
  * ```
  */
 export function mergeExtensions<A extends object, B extends object>(a: A, b: NoOverlap<A, B>): A & B {
-    return { ...a, ...b } as A & B;
+    return { ...a, ...b };
 }
 
 /**
@@ -41,7 +41,7 @@ export function mergeExtensions3<A extends object, B extends object, C extends o
     b: NoOverlap<A, B>,
     c: NoOverlap<A & B, C>,
 ): A & B & C {
-    return { ...a, ...b, ...c } as A & B & C;
+    return { ...a, ...b, ...c };
 }
 
 /**
@@ -59,5 +59,5 @@ export function mergeExtensions4<A extends object, B extends object, C extends o
     c: NoOverlap<A & B, C>,
     d: NoOverlap<A & B & C, D>,
 ): A & B & C & D {
-    return { ...a, ...b, ...c, ...d } as A & B & C & D;
+    return { ...a, ...b, ...c, ...d };
 }

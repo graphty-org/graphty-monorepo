@@ -424,7 +424,7 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
         const painted = toColorValue(typeof raw === "string" ? raw : undefined);
 
         if (painted !== null) {
-            setAtPath(style as unknown as Record<string, unknown>, path, painted.hex);
+            setAtPath(style, path, painted.hex);
         }
     }
 
@@ -484,7 +484,7 @@ export function bootstrapNodePaint(): NodePaint {
         const style = cloneDeep(NODE_BASE);
         const painted = toColorValue(typeof style.texture?.color === "string" ? style.texture.color : undefined);
 
-        setAtPath(style as unknown as Record<string, unknown>, "texture.color", NEUTRAL_HEX);
+        setAtPath(style, "texture.color", NEUTRAL_HEX);
 
         bootstrapNode = {
             meshKey: BOOTSTRAP_MESH_KEY,

@@ -647,7 +647,7 @@ export class Graph implements GraphContext {
                 this.updateManager.redrawArrangement(wrote);
             },
             pin: (id, pinned) => {
-                const node = this.getNode(id as string | number);
+                const node = this.getNode(id);
                 const engine = this.layoutManager.layoutEngine;
                 if (node === undefined || engine === undefined) {
                     return;
@@ -1587,8 +1587,7 @@ export class Graph implements GraphContext {
      */
     setSelectionStyle(selection: GraphSelectionStyleInput): void {
         const current = dispatcherOf(this.session).state.config.get("selectionStyle") as
-            | GraphSelectionStyleInput
-            | undefined;
+            GraphSelectionStyleInput | undefined;
         const merged = { ...current, ...selection };
 
         GraphSelectionStyleOpts.parse(merged);
@@ -1705,7 +1704,7 @@ export class Graph implements GraphContext {
             ),
         );
 
-        return Object.keys(set).length > 0 ? (set as GraphBehaviorConfig) : undefined;
+        return Object.keys(set).length > 0 ? set : undefined;
     }
 
     /**
@@ -5825,7 +5824,7 @@ export class Graph implements GraphContext {
         name: string,
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
-        return this.setCameraState({ preset: name } as { preset: string }, options);
+        return this.setCameraState({ preset: name }, options);
     }
 
     /**

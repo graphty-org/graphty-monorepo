@@ -16,7 +16,7 @@ describe("remoteLoggerPlugin", () => {
         vi.mocked(process.cwd).mockReturnValue("/home/user/project/.worktrees/remote-logging");
 
         const plugin = remoteLoggerPlugin();
-        const configFn = plugin.config as () => { define: Record<string, string> };
+        const configFn = plugin.config;
         const config = configFn();
 
         expect(config.define.__REMOTE_LOG_PROJECT_MARKER__).toBe(JSON.stringify("remote-logging"));
@@ -26,7 +26,7 @@ describe("remoteLoggerPlugin", () => {
         vi.mocked(process.cwd).mockReturnValue("/home/user/project/.worktrees/remote-logging");
 
         const plugin = remoteLoggerPlugin();
-        const configFn = plugin.config as () => { define: Record<string, string> };
+        const configFn = plugin.config;
         const config = configFn();
 
         expect(config.define.__REMOTE_LOG_WORKTREE_PATH__).toBe(
@@ -38,7 +38,7 @@ describe("remoteLoggerPlugin", () => {
         vi.mocked(process.cwd).mockReturnValue("/home/user/my-project");
 
         const plugin = remoteLoggerPlugin();
-        const configFn = plugin.config as () => { define: Record<string, string> };
+        const configFn = plugin.config;
         const config = configFn();
 
         expect(config.define.__REMOTE_LOG_PROJECT_MARKER__).toBe(JSON.stringify("my-project"));
@@ -49,7 +49,7 @@ describe("remoteLoggerPlugin", () => {
         vi.mocked(process.cwd).mockReturnValue("C:\\Users\\dev\\.worktrees\\feature-xyz");
 
         const plugin = remoteLoggerPlugin();
-        const configFn = plugin.config as () => { define: Record<string, string> };
+        const configFn = plugin.config;
         const config = configFn();
 
         expect(config.define.__REMOTE_LOG_PROJECT_MARKER__).toBe(JSON.stringify("feature-xyz"));
@@ -65,7 +65,7 @@ describe("remoteLoggerPlugin", () => {
 
         expect(typeof plugin.config).toBe("function");
 
-        const configFn = plugin.config as () => { define: Record<string, string> };
+        const configFn = plugin.config;
         const config = configFn();
 
         expect(config).toHaveProperty("define");

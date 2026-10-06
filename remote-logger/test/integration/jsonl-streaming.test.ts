@@ -47,7 +47,7 @@ describe("JSONL streaming integration", () => {
             host: "127.0.0.1",
             storage,
         });
-        server = result.server as http.Server;
+        ({ server } = result);
 
         // Wait for server to be ready
         await new Promise<void>((resolve) => {

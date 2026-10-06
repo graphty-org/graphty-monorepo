@@ -192,7 +192,7 @@ function findMatchingNodeIds(graph: Graph, selector: string): string[] {
     try {
         // Normalize selector: JMESPath npm library only supports single quotes for string literals,
         // not double quotes. LLMs like Anthropic send double quotes, so convert them.
-        const normalizedSelector = selector.replace(/"/g, "'");
+        const normalizedSelector = selector.replaceAll('"', "'");
         const query = `[?${normalizedSelector}]`;
 
         for (const [id, node] of nodes) {

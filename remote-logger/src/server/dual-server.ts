@@ -135,14 +135,9 @@ async function isPortAvailable(port: number, host: string): Promise<boolean> {
     return new Promise((resolve) => {
         const server = net.createServer();
 
-        // Enable SO_REUSEADDR to allow faster port reuse after server shutdown
-        server.once("error", (err: NodeJS.ErrnoException) => {
-            if (err.code === "EADDRINUSE") {
-                resolve(false);
-            } else {
-                // Other errors (permission, etc.) - port is not usable
-                resolve(false);
-            }
+        // Any bind error (in use, permission, ...) means the port is not usable
+        server.once("error", () => {
+            resolve(false);
         });
 
         server.once("listening", () => {

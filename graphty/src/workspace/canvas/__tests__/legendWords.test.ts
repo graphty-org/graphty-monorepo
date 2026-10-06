@@ -16,7 +16,7 @@ function block(over: Partial<LegendBlock>): LegendBlock {
         swatches: [],
         departures: [],
         ...over,
-    } as LegendBlock;
+    };
 }
 
 const swatch = (over: Partial<LegendSwatch>): LegendSwatch => ({ label: "x", value: 0, ...over });

@@ -24,15 +24,7 @@ import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
-import {
-    createMockGraph,
-    getEdgeResult as _getEdgeResult,
-    getGraphResult,
-    getNodeResult,
-} from "../../helpers/mockGraph";
-
-// Re-export for future use
-void _getEdgeResult;
+import { createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
 
 /**
  * Test data: a simple graph for pathfinding tests

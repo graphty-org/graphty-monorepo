@@ -202,7 +202,7 @@ describe("CLI", () => {
             vi.spyOn(process, "on").mockImplementation(
                 (event: string | symbol, handler: (...args: unknown[]) => void) => {
                     if (event === "SIGINT") {
-                        sigintHandlers.push(handler as () => void);
+                        sigintHandlers.push(handler);
                     }
                     return process;
                 },

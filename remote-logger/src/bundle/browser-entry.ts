@@ -119,8 +119,9 @@ export function initRemoteLogger(): RemoteLoggerGlobal | undefined {
     const originalMethods: Record<ConsoleMethod, typeof console.log> = {} as Record<ConsoleMethod, typeof console.log>;
 
     for (const method of INTERCEPTED_METHODS) {
-        // eslint-disable-next-line no-console
-        originalMethods[method] = console[method];
+        // The function itself, unbound, so destroy() can put back exactly what was there; it is
+        // always called through apply(console, ...).
+        originalMethods[method] = Reflect.get(console, method);
 
         // eslint-disable-next-line no-console
         console[method] = (...args: unknown[]) => {

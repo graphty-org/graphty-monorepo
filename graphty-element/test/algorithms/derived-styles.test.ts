@@ -16,7 +16,7 @@
 import { assert, describe, it } from "vitest";
 
 import { BUILT_IN_ALGORITHMS } from "../../src/catalog/algorithms";
-import type { AlgorithmKey, Channel, FieldDescriptor, ResultShape, RunId } from "../../src/catalog/types";
+import type { AlgorithmKey, Channel, FieldDescriptor, ResultShape } from "../../src/catalog/types";
 import { resultShapeContract } from "../../src/session/results/types";
 import { suggestStyles } from "../../src/session/styles";
 
@@ -50,7 +50,7 @@ const EXPECTED: Readonly<
  * @returns What `suggestStyles` takes.
  */
 function runOf(key: AlgorithmKey, shape: ResultShape, fields: readonly FieldDescriptor[]) {
-    return { id: key as RunId, algorithm: key, params: {}, label: key, shape, fields };
+    return { id: key, algorithm: key, params: {}, label: key, shape, fields };
 }
 
 describe("what a built-in algorithm draws by itself", () => {

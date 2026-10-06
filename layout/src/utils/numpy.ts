@@ -6,26 +6,22 @@
 export const np = {
     zeros: function (shape: number | number[]): number[] | number[][] {
         if (typeof shape === "number") {
-            return Array(shape).fill(0) as number[];
+            return new Array(shape).fill(0) as number[];
         }
         if (shape.length === 1) {
-            return Array(shape[0]).fill(0) as number[];
+            return new Array(shape[0]).fill(0) as number[];
         }
-        return Array(shape[0])
-            .fill(0)
-            .map(() => this.zeros(shape.slice(1))) as number[][];
+        return new Array(shape[0]).fill(0).map(() => this.zeros(shape.slice(1))) as number[][];
     },
 
     ones: function (shape: number | number[]): number[] | number[][] {
         if (typeof shape === "number") {
-            return Array(shape).fill(1) as number[];
+            return new Array(shape).fill(1) as number[];
         }
         if (shape.length === 1) {
-            return Array(shape[0]).fill(1) as number[];
+            return new Array(shape[0]).fill(1) as number[];
         }
-        return Array(shape[0])
-            .fill(1)
-            .map(() => this.ones(shape.slice(1))) as number[][];
+        return new Array(shape[0]).fill(1).map(() => this.ones(shape.slice(1))) as number[][];
     },
 
     linspace: function (start: number, stop: number, num: number): number[] {

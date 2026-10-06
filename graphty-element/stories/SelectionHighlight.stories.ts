@@ -79,7 +79,7 @@ function render(args: HighlightArgs): Element {
 const meta: Meta = {
     title: "Styles/Selection Highlight",
     component: "graphty-element",
-    render: render as Meta["render"],
+    render: render,
     decorators: [eventWaitingDecorator],
     parameters: {
         chromatic: { delay: 800 },

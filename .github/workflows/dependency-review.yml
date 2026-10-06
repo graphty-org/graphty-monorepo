@@ -1,7 +1,7 @@
 name: Dependency Review
 
 # Checks only the dependencies a pull request adds or changes, so an advisory against a package the
-# pull request did not touch never fails it. The full `pnpm audit` runs on the release train
+# pull request did not touch never fails it. `pnpm audit --prod` runs on the release train
 # (release.yml). Not a required check.
 on:
     pull_request:

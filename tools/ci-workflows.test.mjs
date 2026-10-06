@@ -335,7 +335,7 @@ describe("release.yml", () => {
     });
 
     it("audits the released commit's dependencies before it opens the release pull request", () => {
-        const audit = train.indexOf("run: pnpm audit --audit-level=high");
+        const audit = train.indexOf("run: pnpm audit --prod --audit-level=high");
         assert.ok(audit > train.indexOf("pnpm install --frozen-lockfile"), "after install");
         assert.ok(audit < train.indexOf("nx release --skip-publish"), "before versioning");
         assert.ok(audit < train.indexOf("name: Keep the builds for the publish job"), "before the 30-day artifact");

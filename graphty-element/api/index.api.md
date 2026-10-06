@@ -3335,6 +3335,7 @@ export type NodeStyleConfig = z.infer<typeof NodeStyle>;
 export interface Note {
     readonly author?: string;
     readonly cites?: readonly NoteCite[];
+    readonly done?: string;
     readonly edited?: string;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly id: NoteId;
@@ -3348,7 +3349,7 @@ export interface Note {
 export interface NoteChange {
     readonly cause: "command" | "undo" | "redo" | "load";
     readonly change: "created" | "updated" | "removed";
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
     readonly id: NoteId;
     readonly note: Note | null;
 }
@@ -3383,6 +3384,7 @@ export interface NoteInput {
 export interface NoteListOptions {
     readonly author?: string;
     readonly cites?: ResultId;
+    readonly done?: boolean;
     readonly missing?: boolean;
     readonly target?: NoteTargetInput | readonly NoteTargetInput[];
     readonly targetKind?: string;
@@ -3399,6 +3401,7 @@ export interface NotePatch {
     readonly cites?: readonly {
         readonly result: ResultId;
     }[];
+    readonly done?: boolean;
     readonly extensions?: Readonly<Record<string, unknown>> | null;
     readonly mediaType?: string | null;
     readonly targets?: readonly NoteTargetInput[];

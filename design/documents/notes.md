@@ -54,9 +54,10 @@ interface Note {
     text: string; // "Text"
     mediaType?: string; // "Text" rule 5
     author?: string; // 1 to 256 characters, not only white space
-    edited?: string; // RFC 3339; when text, targets, cites, mediaType or extensions last changed
+    edited?: string; // RFC 3339; when text, targets, cites, mediaType, extensions or done last changed
     cites?: { result: string; run: string }[]; // 1 to 64
     extensions?: Record<string, unknown>; // reverse-domain keys; plain JSON, 32 levels, 64 KB
+    done?: string; // RFC 3339; when the note was marked done; absent: not done
 }
 
 type NoteTarget =
@@ -81,9 +82,14 @@ type NoteTarget =
    never `""`, never a placeholder such as "Anonymous".
 4. **`cites`** are results the note's claim rests on, each pinned to the run it was written against.
    A note is listed under its targets, not under what it cites.
-5. **`extensions`** hold other applications' data about a note (a done flag, tags, a color) under
+5. **`extensions`** hold other applications' data about a note (tags, a color) under
    reverse-domain keys. A reader keeps them and writes them back; graphty-element never reads them.
-6. The member and each note are open objects: a reader keeps a field it does not know and writes it
+6. **`done`** is when the note was marked done, written like `time`; absent means not done. A
+   note marked done again keeps its first time, and clearing it removes the field. It was added
+   to version 1 after the first release, as an optional field ("Later versions" rule 3): a
+   release that does not know it keeps it as an unknown field and writes it back, so the note
+   reads as not done there and stays done in the file.
+7. The member and each note are open objects: a reader keeps a field it does not know and writes it
    back ("Opening" rule 7). The targets and cites are closed forms with a fallback ("Targets").
 
 ## Targets
@@ -148,8 +154,9 @@ written into a file.
    that order, and the notes **oldest first**: by `time` as an instant, then by `id`. A new note
    is added at the end, so a file under version control changes where something changed.
 2. Inside a note the keys are written in the order `id`, `time`, `targets`, `text`, `mediaType`,
-   `author`, `edited`, `cites`, `extensions`, then the fields this release does not know, as read.
-   The same notes give the same bytes.
+   `author`, `edited`, `cites`, `extensions`, `done`, then the fields this release does not know,
+   as read. `done` comes last of the named fields because a release that does not know it writes
+   it there too, so every release gives the same notes the same bytes.
 3. A writer produces only the named target and cite forms: edges as their ends plus `id` or
    `ordinal` and `among`, items and cites with `run`, sets with `name` when the set has one. A target
    or cite read as `unsupported` is written back exactly as read.
@@ -237,7 +244,7 @@ the session past 10,000 notes (`E_TOO_LARGE`), is refused whole, and nothing cha
    exactly as a style's `results.<as>.<field>` path is (container.md, "Applying a file" rule 3).
    Until that run finishes, a `{ result }` target reads `missing`.
 9. **Order in a file:** data, recipes, styles, then notes, so that every target can bind.
-10. A `time` or `edited` more than a day after the moment of opening is kept, and reported with
+10. A `time`, `edited` or `done` more than a day after the moment of opening is kept, and reported with
     `W_FUTURE_TIME`: a note dated 2099 would otherwise sit at the top of every list unexplained.
 
 ```ts

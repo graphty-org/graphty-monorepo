@@ -241,7 +241,7 @@ function statusText(jobs, minutes) {
         "githerd: status check on the jobs this session holds:\n" +
         jobs.map((j) => `- ${j.id} (${j.target})\n`).join("") +
         "Answer by calling githerd_expect once per listed job, with job set to its id, reason set to one line on " +
-        "where it stands, and minutes set to how long until your current step ends. " +
+        "where it stands. " +
         "Can you take another job? Answer that with capacity set, in those githerd_expect calls, to how many further " +
         "jobs this session can take now (0 if none); githerd invites a session with room to queued work even while it is busy. " +
         `A listed job still unanswered when githerd asks again in ${minutes} minutes goes back to the queue. ` +

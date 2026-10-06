@@ -21,10 +21,7 @@ const BLOCKING_IMPACTS = new Set(["serious", "critical"]);
  * a substring of the offending node's selector or markup, and the issue that tracks it. Delete the
  * entry with the fix; anything not listed here fails the scan.
  */
-const KNOWN_VIOLATIONS: readonly { readonly rule: string; readonly target: string; readonly issue: number }[] = [
-    // The Coming tag's chrome ink on the raised fill measures 4.42:1 at 10px.
-    { rule: "color-contrast", target: 'span[title="Coming"]', issue: 509 },
-];
+const KNOWN_VIOLATIONS: readonly { readonly rule: string; readonly target: string; readonly issue: number }[] = [];
 
 /**
  * Renders the shell with the store pinned and lets the canvas measurement land.

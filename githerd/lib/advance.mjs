@@ -127,19 +127,21 @@ export function waitNews(state, job) {
         return !other || board.TERMINAL.includes(other.state) ? `job ${w.job} is ${other?.state ?? "gone"}` : null;
     }
     if (w.github) return state.github?.downSince ? null : "GitHub answers again";
-    // The task runs in its session: once the job has no holder, it ended with that session.
-    if (w.local) return job.holder ? localNews(w.local, w.output) : `task ${w.local} ended with its session`;
+    if (w.local) return localNews(job, w.local, w.output);
     return null;
 }
 
 /**
  * The news of a wait on a session's background task: Claude Code ends a finished task's output
- * file with `[exited with code N]`. Null while it runs, or while its file cannot be read.
+ * file with `[exited with code N]`. The task runs in its session, so once the job has no holder it
+ * ended with that session. Null while it runs, or while its file cannot be read.
+ * @param {any} job the waiting job
  * @param {string} task the task
  * @param {string | undefined} output its output file
  * @returns {string | null} the news line, or null
  */
-function localNews(task, output) {
+function localNews(job, task, output) {
+    if (!job.holder) return `task ${task} ended with its session`;
     let tail;
     try {
         tail = readFileSync(output ?? "", "utf8").slice(-200);

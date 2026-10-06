@@ -372,6 +372,17 @@ function noteLaneName(lane, runName, ms) {
 }
 
 /**
+ * Records when master's green commit moved: a failure key counts as shared only from then on
+ * (classify.mjs othersWithKey, the push queue).
+ * @param {any} m the master record, changed in place
+ * @param {string | null} previousGreen the green commit before this poll
+ * @param {string} iso the poll's time
+ */
+function noteGreenMove(m, previousGreen, iso) {
+    if (m.greenSha && m.greenSha !== previousGreen) m.greenAt = iso;
+}
+
+/**
  * Whether a red lane holds merges: `code` by Claude's verdict, or `unclassified` while it has none,
  * or not classified yet (fail closed). Paid capacity, credential, outside and an `environment`
  * verdict park the lane instead (design 4.4).
@@ -1557,8 +1568,7 @@ export async function startDaemon({
             Object.assign(m, masterVerdict(m.lanes, config, { headSha: m.headSha, commits, greenSha: previousGreen }));
         else m.verdict = "unknown";
         if (m.verdict !== previousVerdict) m.since = iso;
-        // When the green commit moved: a failure key counts as shared only from here on (classify.mjs).
-        if (m.greenSha && m.greenSha !== previousGreen) m.greenAt = iso;
+        noteGreenMove(m, previousGreen, iso);
         await track(m, previousGreen, iso);
         await incidentSteps();
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);

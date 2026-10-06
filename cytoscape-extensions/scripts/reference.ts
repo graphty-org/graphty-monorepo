@@ -72,14 +72,12 @@ const SIMULATION_TYPES: Readonly<Record<string, string>> = {
 // ("legacy") and say "snapshot" for the graph a function reads. A Cytoscape user has neither, so those remarks are
 // dropped and the wording adjusted here. The site is written in American English, so the few British spellings in
 // those comments are changed too.
-const FOR_CYTOSCAPE_READERS: readonly (readonly [RegExp, string | ((match: string) => string)])[] = [
+const FOR_CYTOSCAPE_READERS: readonly (readonly [RegExp, string])[] = [
     [/ The legacy [^.]*\./g, ""],
     [
         /,? (?:as (?:in )?|which is what )?the legacy (?:`\w+`|functions?)(?: does| rule)?(?: when normalization is switched OFF)?/g,
         "",
     ],
-    // one parenthesis at a time, then a test for the word, so the pattern cannot backtrack
-    [/ ?\([^)]*\)/g, (m: string): string => (/\blegacy\b/.test(m) ? "" : m)],
     [/the legacy id-keyed record/g, "a record keyed by node id"],
     // the layouts read a string as a node data field (src/layouts.ts nodeFields); a Cytoscape graph has no role columns
     [/the name of a numeric node column/g, "the name of a numeric node data field"],
@@ -582,9 +580,11 @@ const MEMBER_DOCS: Readonly<Record<string, string>> = {
  * @returns the cell text
  */
 function cell(s: string): string {
-    let out = s.replaceAll(/\s+/g, " ");
+    // a parenthesis about the legacy functions goes first: each innermost parenthesis is matched once and then
+    // tested for the word, so the pattern cannot backtrack
+    let out = s.replaceAll(/\s+/g, " ").replaceAll(/ ?\([^()]*\)/g, (m) => (/\blegacy\b/.test(m) ? "" : m));
     for (const [from, to] of FOR_CYTOSCAPE_READERS) {
-        out = typeof to === "string" ? out.replaceAll(from, to) : out.replaceAll(from, to);
+        out = out.replaceAll(from, to);
     }
     return out
         .replaceAll(/ ?\((?:see )?design [^)]*\)/gi, "")
@@ -728,8 +728,8 @@ const LITERAL_DEFAULTS: ReadonlySet<string> = new Set(["true", "false", "null", 
 function withoutDefault(doc: string): string {
     const trimmed = doc
         // linear: the two branches of each group never match the same character (and the text is our own doc comments)
-        .replaceAll(/;\s*default\s+(?:[^;.]|\.(?=\S))*\.(?=\s|$)/gi, ".") // NOSONAR(typescript:S5852): disjoint branches, trusted input
-        .replaceAll(/,\s*default\s+(?:[^;.,]|\.(?=\S))*(?=\.(?:\s|$))/gi, "") // NOSONAR(typescript:S5852): disjoint branches, trusted input
+        .replaceAll(/;\s*default\s+(?:[^;.]|\.(?=\S))*\.(?=\s|$)/gi, ".") // NOSONAR(S5852): disjoint branches, trusted input
+        .replaceAll(/,\s*default\s+(?:[^;.,]|\.(?=\S))*(?=\.(?:\s|$))/gi, "") // NOSONAR(S5852): disjoint branches, trusted input
         .replaceAll(/ \(default [^)]+\)/gi, "");
     return trimmed
         .split(/(?<=\.)\s+(?=[A-Z`"])/)

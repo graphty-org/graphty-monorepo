@@ -236,7 +236,10 @@ export class LabelDeclutter {
      * @returns A promise that resolves when nothing is left to publish.
      */
     whenPublished(): Promise<void> {
-        if (!this.dirty && sameCounts(this.counts, this.published)) {
+        // A setting switched since the last pass is a pass still to come: without this check a
+        // wait started right after `labels.declutter` changed resolved before any label moved.
+        const on = this.context.getStyles().config.behavior.labels.declutter;
+        if (!this.dirty && on === this.wasOn && sameCounts(this.counts, this.published)) {
             return Promise.resolve();
         }
 

@@ -23,7 +23,7 @@ import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
-import { decide, fileIssue, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
+import { decide, fileIssue, FREEZE_PREFIX, frozenSha, mergedPrs, revertBody, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
@@ -598,8 +598,13 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
 });
 
 describe("pr-title.yml", () => {
-    it("passes only Mergify's own merge-queue draft without linting its title", () => {
-        assert.ok(workflow("pr-title.yml").includes(`- name: Lint PR title\n              if: \${{ !(${QUEUE}) }}\n`));
+    it("skips the whole job, not a step, for Mergify's own merge-queue draft and only for it", () => {
+        // A skipped job completes at once; a job that installs first leaves the required check in progress
+        // for a minute after each of Mergify's body edits, and under merge-batch GitHub merges the draft itself.
+        const pr = workflow("pr-title.yml");
+        assert.ok(pr.includes(`        name: Lint PR Title\n`));
+        assert.ok(pr.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
+        assert.equal(pr.split(QUEUE).length, 2);
     });
     it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
         // A concurrency group cancels superseded runs even without cancel-in-progress.
@@ -637,7 +642,7 @@ describe("apt in the workflows", () => {
             "visual-review template",
             readFileSync(new URL("../visual-review/templates/visual-review.yml", import.meta.url), "utf8"),
         ]);
-        const APT = /--with-deps|install-deps|install-browser|apt-get/;
+        const APT = /--with-deps|install-deps|install-browser|apt-get|playwright-system-deps/;
         let checked = 0;
         for (const [file, text] of files) {
             const code = text.replace(/^\s*#.*$/gm, "");
@@ -653,7 +658,140 @@ describe("apt in the workflows", () => {
     });
 });
 
+describe("Playwright's system packages", () => {
+    // apt ran on every browser job (15 s median, 30 s mean); now the .deb files apt chose are cached per
+    // runner image and Playwright version, and a hit runs only dpkg. Covers the test job and the visual
+    // job; visual-seed.yml (dispatched by hand) still runs `visual-review install-browser`.
+    const actionDir = new URL("../.github/actions/playwright-system-deps/", import.meta.url);
+    const action = readFileSync(new URL("action.yml", actionDir), "utf8");
+    const script = new URL("install.sh", actionDir).pathname;
+
+    it("keys the cache on the runner image and the Playwright version", () => {
+        assert.match(
+            action,
+            /key=playwright-debs-\$\{ImageOS:\?\}-\$\{ImageVersion:\?\}-\$\(pnpm exec playwright --version/,
+        );
+        assert.match(action, /path: ~\/\.cache\/playwright-debs/);
+        assert.match(action, /run: '"\$GITHUB_ACTION_PATH\/install\.sh"'\n/);
+    });
+
+    it("installs through the action in ci.yml's test and visual jobs, never with apt directly", () => {
+        const ci = workflow("ci.yml").replace(/^\s*#.*$/gm, "");
+        const test = job(ci, "test");
+        assert.doesNotMatch(test, /--with-deps|install-deps/);
+        assert.match(test, /if: matrix\.needs-browser\n\s+uses: \.\/\.github\/actions\/playwright-system-deps\n/);
+        assert.match(test, /run: pnpm exec playwright install chromium\n/);
+        const visual = job(ci, "visual");
+        assert.doesNotMatch(visual, /--with-deps|install-deps|install-browser/);
+        assert.match(
+            visual,
+            /uses: \.\/\.github\/actions\/playwright-system-deps\n\s+with:\n\s+working-directory: visual-review\n/,
+        );
+        assert.match(visual, /working-directory: visual-review\n\s+run: pnpm exec playwright install chromium\n/);
+    });
+
+    // Runs install.sh against a fake apt: sudo logs its arguments (and really runs rm), pnpm answers
+    // the dry run with PKGS and the install by writing DOWNLOADS into the archive directory, and
+    // dpkg-query reports the packages named in INSTALLED as installed.
+    const run = ({ hit, cached = [], stale = [], downloads = [], aptSays = "", installed = "a b" }) => {
+        const home = mkdtempSync(join(tmpdir(), "pw-debs-"));
+        const bin = join(home, "bin");
+        const debs = join(home, "debs");
+        const archives = join(home, "archives");
+        for (const d of [bin, debs, archives]) mkdirSync(d);
+        for (const d of cached) writeFileSync(join(debs, d), "");
+        for (const d of stale) writeFileSync(join(archives, d), "");
+        const stub = (name, body) => writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
+        stub("sudo", `echo "$*" >> "${home}/calls"; case "$1" in rm) exec "$@";; tee) cat >/dev/null;; esac`);
+        stub(
+            "pnpm",
+            `echo "pnpm $*" >> "${home}/calls"
+if [ "$4" = --dry-run ]; then echo 'sudo -- sh -c "apt-get update&& apt-get install -y --no-install-recommends a b"'; exit; fi
+for d in ${downloads.join(" ")}; do touch "${archives}/$d"; done
+echo "${aptSays}"`,
+        );
+        stub(
+            "dpkg-query",
+            `rc=0; for p in "\${@:3}"; do case " ${installed} " in *" $p "*) echo "ii  $p";; *) echo "dpkg-query: no packages found matching $p" >&2; rc=1;; esac; done; exit $rc`,
+        );
+        const r = spawnSync("bash", [script], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                HIT: hit,
+                PLAYWRIGHT_DEBS: debs,
+                APT_ARCHIVES: archives,
+                PATH: `${bin}:${process.env.PATH}`,
+            },
+        });
+        let calls = "";
+        try {
+            calls = readFileSync(join(home, "calls"), "utf8");
+        } catch {
+            // nothing was called
+        }
+        return { ...r, calls, cache: readdirSync(debs).sort() };
+    };
+
+    it("on a hit installs exactly the cached files with dpkg and never runs apt", () => {
+        const r = run({ hit: "true", cached: ["a.deb", "b.deb"] });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n/m);
+        assert.doesNotMatch(r.calls, /install-deps chromium/);
+        assert.match(r.stdout, /All 2 packages Chromium needs are installed/);
+    });
+
+    it("on a hit fails when the cache left a package Chromium needs uninstalled", () => {
+        const r = run({ hit: "true", cached: ["a.deb"], installed: "a" });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /::error::Chromium's system packages are not all installed/);
+        assert.match(r.stdout, /no packages found matching b/);
+    });
+
+    it("on a miss clears apt's old downloads, installs with apt and caches only what apt downloaded", () => {
+        const r = run({
+            hit: "",
+            stale: ["old.deb"],
+            downloads: ["a.deb", "b.deb"],
+            aptSays: "0 upgraded, 2 newly installed",
+        });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.match(r.calls, /^tee \/etc\/apt\/apt\.conf\.d\/99keep-downloaded-packages\n/m);
+        assert.match(r.calls, /^rm -f \S+\/archives\/old\.deb\n/m);
+        assert.match(r.calls, /^pnpm exec playwright install-deps chromium\n/m);
+        assert.deepEqual(r.cache, ["a.deb", "b.deb"]);
+    });
+
+    it("on a miss fails when apt installed packages but kept none of the files", () => {
+        const r = run({ hit: "", aptSays: "0 upgraded, 2 newly installed" });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /::error::apt installed packages but kept no \.deb files/);
+    });
+
+    it("on a miss with everything already installed caches nothing and passes", () => {
+        const r = run({ hit: "", aptSays: "0 upgraded, 0 newly installed, 0 to remove and 1 not upgraded." });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.deepEqual(r.cache, []);
+    });
+});
+
 describe(".mergify.yml", () => {
+    it("merges each batch with one commit, and the release pull request with its own merge commit", () => {
+        // merge-batch: one master commit (and one master CI, GPU and Hosts run) per batch. The release rule stays
+        // merge, because release.yml's publish job finds the release by the branch its merge commit names.
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        const queues = mergify.slice(mergify.indexOf("queue_rules:"));
+        const release = queues.slice(queues.indexOf("- name: release"), queues.indexOf("- name: default"));
+        const batch = queues.slice(queues.indexOf("- name: default"));
+        // the rule that matches the train's branch and author is the one that merges with a plain merge commit
+        assert.match(release, /^\s+- head~=\^release\/train-$/m);
+        assert.match(release, /^\s+- author=github-actions\[bot\]$/m);
+        assert.match(release, /^\s+merge_method: merge(\s+#.*)?$/m);
+        assert.match(batch, /^\s+merge_method: merge-batch$/m);
+        // merge-batch requires a batch size above 1
+        assert.match(batch, /batch_size:\n\s+min: 1\n\s+max: ([2-9]|\d{2,})\n/);
+    });
+
     it("does not make the queue wait on the visual gate before the gate accepts a batch", () => {
         // In a queue run the gate's --pr is the queue draft's own number, which no review record names,
         // so a batch that changes a baseline fails "Queue Checks Pass" every time. merge_conditions may
@@ -762,8 +900,12 @@ describe("master-guard", () => {
         const sha = "a".repeat(40);
         assert.equal(frozenSha(`${FREEZE_PREFIX}${sha} (url)`), sha);
         assert.equal(frozenSha("release freeze"), null);
-        assert.equal(mergedPr("Merge pull request #1011 from graphty-org/x\n\nbody"), 1011);
-        assert.equal(mergedPr("chore(release): publish"), null);
+        assert.deepEqual(mergedPrs("Merge pull request #1011 from graphty-org/x\n\nbody"), [1011]);
+        assert.deepEqual(mergedPrs("Merged #42, #43, #44\n\nMerged by Mergify Merge Queue"), [42, 43, 44]);
+        assert.deepEqual(mergedPrs("Merged #42\n\nMerged by Mergify Merge Queue"), [42]);
+        // the merges inside a batch branch are not landings of their own
+        assert.deepEqual(mergedPrs("Merge of #42"), []);
+        assert.deepEqual(mergedPrs("chore(release): publish"), []);
     });
 
     // A fake repository: open issues, and every write the guard makes. `racer` is an issue another run opens
@@ -843,8 +985,27 @@ describe("master-guard", () => {
     it("titles a revert so Lint PR Title passes it", () => {
         const lint = (title) =>
             spawnSync("pnpm", ["exec", "commitlint"], { input: `${title}\n`, encoding: "utf8" }).status;
-        assert.equal(lint(revertTitle("0123456789abcdef0123456789abcdef01234567", 1011)), 0);
-        assert.equal(lint(revertTitle("0123456789abcdef0123456789abcdef01234567", null)), 0);
+        const sha = "0123456789abcdef0123456789abcdef01234567";
+        assert.equal(lint(revertTitle(sha, [1011])), 0);
+        assert.equal(lint(revertTitle(sha, [])), 0);
+        assert.equal(lint(revertTitle(sha, [42, 43, 44])), 0);
+    });
+
+    it("names every pull request of a reverted batch", () => {
+        const sha = "0123456789abcdef0123456789abcdef01234567";
+        assert.equal(revertTitle(sha, [42, 43, 44]), "revert: batch #42, #43, #44, master CI red at 0123456");
+        assert.equal(revertTitle(sha, [1011]), "revert: pull request #1011, master CI red at 0123456");
+    });
+
+    it("tells authors to revert the revert, never to re-queue a merged pull request", () => {
+        const sha = "0123456789abcdef0123456789abcdef01234567";
+        for (const prs of [[], [1011], [42, 43, 44]]) {
+            const body = revertBody(sha, "https://run", prs);
+            assert.match(body, /reverts this revert/);
+            assert.doesNotMatch(body, /re-enter/);
+        }
+        // a batch went red on the tree the queue passed: point at master-only jobs and flakes first
+        assert.match(revertBody(sha, "https://run", [42, 43, 44]), /#42, #43, #44.*jobs that run only on master/s);
     });
 });
 
@@ -893,6 +1054,10 @@ describe("release.yml", () => {
         assert.match(publish, /node tools\/release-diff.mjs "\$sha" "\$commit"/);
         assert.match(publish, /\.workflow_run.head_branch == "master"/);
         assert.doesNotMatch(train, /id-token|nx release publish/);
+        // a merge-batch commit (.mergify.yml's default rule) never names the release branch, so it never publishes
+        const marker = /contains\(github.event.head_commit.message, '([^']+)'\)/.exec(publish)[1];
+        assert.ok(!"Merged #42, #43, #44\n\nMerged by Mergify Merge Queue".includes(marker));
+        assert.ok(!"Merge of #42".includes(marker));
     });
 
     it("lets Mergify take the release pull request alone, ahead of the default rule", () => {

@@ -647,7 +647,7 @@ async function runRaw(
         let overflow = false;
         let batches = 0;
         let previousLevels = -1;
-        for (let start = 0; start < sources.length; ) {
+        for (let start = 0; start < sources.length;) {
             const k = planBatchSize(n, sources.length - start, limits);
             let form: ForwardForm = pinned === "edge" ? "edge" : "frontier";
             if (pinned === "auto" && previousLevels >= 0) {

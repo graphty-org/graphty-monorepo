@@ -115,13 +115,7 @@ export type WeightUse = "never" | "by-default";
  * - "graph": a second `GraphSnapshot`.
  */
 export type AlgorithmInputKind =
-    | "node"
-    | "node-values"
-    | "node-labels"
-    | "seed-labels"
-    | "node-pairs"
-    | "heuristic"
-    | "graph";
+    "node" | "node-values" | "node-labels" | "seed-labels" | "node-pairs" | "heuristic" | "graph";
 
 /** One positional argument: its parameter name and what it holds. */
 export interface AlgorithmInput {

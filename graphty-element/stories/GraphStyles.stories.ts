@@ -13,6 +13,7 @@ import {
     type Drawn,
     drawn,
 } from "./assertions";
+import { catSocialNetwork2FixedUrl, catSocialNetwork2Url, skyboxUrl } from "./datasets";
 import {
     eventWaitingDecorator,
     renderFn,
@@ -43,7 +44,7 @@ const meta: Meta = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2.json",
+            data: catSocialNetwork2Url,
         },
         layout: "ngraph",
         layoutConfig: {
@@ -89,7 +90,7 @@ export const Skybox: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2-fixed-positions-actual-engine.json",
+            data: catSocialNetwork2FixedUrl,
         },
         layout: "fixed",
         layoutConfig: {
@@ -98,7 +99,7 @@ export const Skybox: Story = {
         setup: storySetup({
             background: {
                 backgroundType: "skybox",
-                data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/rolling_hills_equirectangular_skybox.png",
+                data: skyboxUrl,
             },
         }),
     },
@@ -194,10 +195,7 @@ export const Layers: Story = {
 
         const untouched = scene.nodes.filter((node) => node.hex === "#6366f1");
 
-        await assertDrawnColour(
-            scene,
-            Object.fromEntries(untouched.map((node) => [node.id, "#6366f1"])),
-        );
+        await assertDrawnColour(scene, Object.fromEntries(untouched.map((node) => [node.id, "#6366f1"])));
         await assertDistinctPicture(scene, "Styles/Graph");
     },
 };

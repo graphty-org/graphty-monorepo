@@ -212,7 +212,6 @@ describe("Node position preservation during style changes (regression)", () => {
         // Record original positions
         const originalPositions = getNodePositions();
 
-
         // Apply multiple style changes in quick succession
         for (let i = 0; i < 5; i++) {
             await graph.getSession().styles.add({

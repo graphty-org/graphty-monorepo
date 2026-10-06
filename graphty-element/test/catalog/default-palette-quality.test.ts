@@ -86,7 +86,7 @@ const lightness = (hex: string): number => oklab(linearRgb(hex))[0];
 function hueDegrees(hex: string): number {
     const [, a, b] = oklab(linearRgb(hex));
 
-    return (((Math.atan2(b, a) * 180) / Math.PI) % 360 + 360) % 360;
+    return ((((Math.atan2(b, a) * 180) / Math.PI) % 360) + 360) % 360;
 }
 
 function contrast(left: string, right: string): number {
@@ -244,7 +244,11 @@ describe("the element's own highlight colour", () => {
     const underneath = { node: hexOf(nodeColor), edge: hexOf(edgeColor), background };
 
     it("stands off the background as a graphical object must (>= 3:1)", () => {
-        assert.isAtLeast(contrast(DEFAULT_HIGHLIGHT.color, background), 3, `${DEFAULT_HIGHLIGHT.color} on ${background}`);
+        assert.isAtLeast(
+            contrast(DEFAULT_HIGHLIGHT.color, background),
+            3,
+            `${DEFAULT_HIGHLIGHT.color} on ${background}`,
+        );
     });
 
     it("is apart from the default node, the default edge and the background for every kind of vision (Delta E >= 15)", () => {

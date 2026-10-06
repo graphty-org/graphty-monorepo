@@ -47,9 +47,9 @@ This was a version bump only for compact-mantine to align it with other projects
 
 ### 🚀 Features
 
-- ⚠️  **compact-mantine:** stop theming Mantine's ColorInput and ColorPicker ([#672](https://github.com/graphty-org/graphty-monorepo/issues/672))
-- ⚠️  **compact-mantine:** remove icon group row, narrow data row, add tree helpers ([1e463501](https://github.com/graphty-org/graphty-monorepo/commit/1e463501))
-- ⚠️  **compact-mantine:** match the figma editor's components in light and dark ([#0](https://github.com/graphty-org/graphty-monorepo/issues/0))
+- ⚠️ **compact-mantine:** stop theming Mantine's ColorInput and ColorPicker ([#672](https://github.com/graphty-org/graphty-monorepo/issues/672))
+- ⚠️ **compact-mantine:** remove icon group row, narrow data row, add tree helpers ([1e463501](https://github.com/graphty-org/graphty-monorepo/commit/1e463501))
+- ⚠️ **compact-mantine:** match the figma editor's components in light and dark ([#0](https://github.com/graphty-org/graphty-monorepo/issues/0))
 
 ### 🩹 Fixes
 
@@ -64,18 +64,18 @@ This was a version bump only for compact-mantine to align it with other projects
 - **compact-mantine:** keep the checked option on the field when a list overflows ([63ef41aa](https://github.com/graphty-org/graphty-monorepo/commit/63ef41aa))
 - **compact-mantine:** match figma quick actions, submenus, shortcut sheet; fix story plays ([dded3759](https://github.com/graphty-org/graphty-monorepo/commit/dded3759))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **compact-mantine:** stop theming Mantine's ColorInput and ColorPicker  ([#672](https://github.com/graphty-org/graphty-monorepo/issues/672))
+- **compact-mantine:** stop theming Mantine's ColorInput and ColorPicker ([#672](https://github.com/graphty-org/graphty-monorepo/issues/672))
   the theme no longer styles Mantine's ColorInput or
   ColorPicker; both render as plain Mantine. Migration: use
   CompactColorInput (ColorPickerPanel for the picker on its own surface).
   Refs #672
-- **compact-mantine:** remove icon group row, narrow data row, add tree helpers  ([1e463501](https://github.com/graphty-org/graphty-monorepo/commit/1e463501))
+- **compact-mantine:** remove icon group row, narrow data row, add tree helpers ([1e463501](https://github.com/graphty-org/graphty-monorepo/commit/1e463501))
   IconGroupRow, IconGroupRowProps and IconGroupOption are
   removed. DataRow loses role, tabIndex, onDoubleClick and onContextMenu, and
   the DataRowRole type is removed. CHANGELOG-figma.md has the migrations.
-- **compact-mantine:** match the figma editor's components in light and dark  ([#0](https://github.com/graphty-org/graphty-monorepo/issues/0))
+- **compact-mantine:** match the figma editor's components in light and dark ([#0](https://github.com/graphty-org/graphty-monorepo/issues/0))
   51 breaking changes, listed in compact-mantine/CHANGELOG-figma.md; the largest
   are the 240 px panel with 88 px fields, Select and Autocomplete as combobox roles, pill Tabs by
   default, one root popout at a time, and the restyled ControlSection.

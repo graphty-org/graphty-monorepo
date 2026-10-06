@@ -36,4 +36,3 @@ export const mantineJsonGridLightTheme = {
     selectHighlightBgColor: "var(--mantine-color-blue-1)",
     searchHighlightBgColor: "var(--mantine-color-yellow-3)",
 };
-

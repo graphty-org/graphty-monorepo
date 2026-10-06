@@ -7,7 +7,7 @@ import jmespath from "jmespath";
 import { z } from "zod";
 
 import { registeredCameraDescriptors } from "../../catalog/cameraRegistry";
-import { CAMERA_DESCRIPTORS,cameraDescriptor } from "../../catalog/cameras";
+import { CAMERA_DESCRIPTORS, cameraDescriptor } from "../../catalog/cameras";
 import type { Graph } from "../../Graph";
 import type { CommandResult, GraphCommand } from "./types";
 

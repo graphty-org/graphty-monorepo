@@ -28,7 +28,7 @@ describe("XRUIManager", () => {
 
         const message = container.querySelector(".webxr-not-available");
         assert.exists(message);
-         
+
         if (message?.textContent) {
             assert.include(message.textContent, "NOT AVAILABLE");
         }

@@ -81,9 +81,9 @@ export const np = {
             return (b as number[]).map((val) => a + val);
         }
         if (!Array.isArray(b)) {
-            return (a).map((val) => val + b);
+            return a.map((val) => val + b);
         }
-        return (a).map((val, i) => val + (b)[i]);
+        return a.map((val, i) => val + b[i]);
     },
 
     subtract: function (a: number | number[], b: number | number[]): number | number[] {
@@ -94,19 +94,23 @@ export const np = {
             return (b as number[]).map((val) => a - val);
         }
         if (!Array.isArray(b)) {
-            return (a).map((val) => val - b);
+            return a.map((val) => val - b);
         }
-        return (a).map((val, i) => val - (b)[i]);
+        return a.map((val, i) => val - b[i]);
     },
 
     max: function (arr: number | number[]): number {
-        if (!Array.isArray(arr)) {return arr;}
-        return Math.max(...((arr).flat(Infinity)));
+        if (!Array.isArray(arr)) {
+            return arr;
+        }
+        return Math.max(...arr.flat(Infinity));
     },
 
     min: function (arr: number | number[]): number {
-        if (!Array.isArray(arr)) {return arr;}
-        return Math.min(...((arr).flat(Infinity)));
+        if (!Array.isArray(arr)) {
+            return arr;
+        }
+        return Math.min(...arr.flat(Infinity));
     },
 
     norm: function (arr: number[]): number {

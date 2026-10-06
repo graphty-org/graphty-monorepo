@@ -117,7 +117,8 @@ async function selected(canvasElement: HTMLElement, story: string): Promise<Draw
  */
 function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: number } | null {
     const mesh = scene.graph.scene.meshes.find(
-        (candidate) => candidate.name.startsWith("graphty-selection-halo") && candidate.isVisible && candidate.isEnabled(),
+        (candidate) =>
+            candidate.name.startsWith("graphty-selection-halo") && candidate.isVisible && candidate.isEnabled(),
     );
 
     const material = mesh?.material;
@@ -128,7 +129,9 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
     }
 
     const lit = material as unknown as { emissiveColor: { toHexString: () => string }; alpha: number };
-    const of = (target: { getBoundingInfo: () => { boundingBox: { extendSizeWorld: { x: number; y: number; z: number } } } }): number => {
+    const of = (target: {
+        getBoundingInfo: () => { boundingBox: { extendSizeWorld: { x: number; y: number; z: number } } };
+    }): number => {
         const extent = target.getBoundingInfo().boundingBox.extendSizeWorld;
 
         return Math.max(extent.x, extent.y, extent.z);
@@ -145,10 +148,7 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
  * @param scene - The scene to read.
  * @param want - The colour, opacity and drawn size expected.
  */
-async function assertHalo(
-    scene: Drawn,
-    want: { color: string; alpha: number; clearance: number },
-): Promise<void> {
+async function assertHalo(scene: Drawn, want: { color: string; alpha: number; clearance: number }): Promise<void> {
     const halo = haloOnScreen(scene);
 
     await holds(halo !== null, `${scene.story}: a node is selected and no halo is drawn anywhere in the scene`);

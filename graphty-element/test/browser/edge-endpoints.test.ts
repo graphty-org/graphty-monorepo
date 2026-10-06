@@ -58,8 +58,20 @@ interface FormatCase {
 }
 
 const FORMATS: readonly FormatCase[] = [
-    { format: "json", data: karateD3Json, options: { node: { path: "nodes" }, edge: { path: "links" } }, edges: 78, resolvedFrom: "source/target" },
-    { format: "json", data: visjsJson, options: { node: { path: "nodes" }, edge: { path: "edges" } }, edges: 5, resolvedFrom: "from/to" },
+    {
+        format: "json",
+        data: karateD3Json,
+        options: { node: { path: "nodes" }, edge: { path: "links" } },
+        edges: 78,
+        resolvedFrom: "source/target",
+    },
+    {
+        format: "json",
+        data: visjsJson,
+        options: { node: { path: "nodes" }, edge: { path: "edges" } },
+        edges: 5,
+        resolvedFrom: "from/to",
+    },
     { format: "csv", data: simpleEdgesCsv, edges: 5, resolvedFrom: "source/target" },
     { format: "graphml", data: simpleGraphml, edges: 5, resolvedFrom: "source/target" },
     { format: "gexf", data: lesMiserablesGexf, edges: 254, resolvedFrom: "source/target" },

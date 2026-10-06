@@ -68,8 +68,10 @@ function shouldShowUI(): boolean {
     }
 
     try {
-        const {src} = (document.currentScript as HTMLScriptElement);
-        if (!src) {return false;}
+        const { src } = document.currentScript as HTMLScriptElement;
+        if (!src) {
+            return false;
+        }
         const params = new URL(src).searchParams;
         return params.get("ui") === "true";
     } catch {
@@ -78,8 +80,12 @@ function shouldShowUI(): boolean {
 }
 
 function formatArg(arg: unknown): string {
-    if (typeof arg === "string") {return arg;}
-    if (arg instanceof Error) {return `${arg.name}: ${arg.message}`;}
+    if (typeof arg === "string") {
+        return arg;
+    }
+    if (arg instanceof Error) {
+        return `${arg.name}: ${arg.message}`;
+    }
     try {
         return JSON.stringify(arg);
     } catch {
@@ -98,7 +104,9 @@ function formatArgs(args: unknown[]): string {
 export function initRemoteLogger(): RemoteLoggerGlobal | undefined {
     const serverUrl = detectServerUrl();
     if (!serverUrl) {
-        console.warn("[RemoteLogger] Could not detect server URL. Set window.__REMOTE_LOG_SERVER_URL__ before loading.");
+        console.warn(
+            "[RemoteLogger] Could not detect server URL. Set window.__REMOTE_LOG_SERVER_URL__ before loading.",
+        );
         return undefined;
     }
 
@@ -154,4 +162,4 @@ export function initRemoteLogger(): RemoteLoggerGlobal | undefined {
 initRemoteLogger();
 
 // Re-export for manual use via the IIFE global
-export { ConsoleCaptureUI,RemoteLogClient };
+export { ConsoleCaptureUI, RemoteLogClient };

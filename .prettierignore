@@ -63,3 +63,12 @@ visual-review/trusted/vendor/
 # the frozen design record the framework cites.
 design/ui/framework/
 design/ui/object-first-ux/
+
+# Prettier's markdown output for these files is not a fixed point: it re-indents fenced code
+# inside lists (or flips escapes) on every pass, so `prettier --check` can never pass on them.
+/design/rendering/edge-styles-implementation-plan.md
+/design/ui/mockups/system/ARTBOARD-CHANGES-1.7.md
+/design/ui/mockups/system/ARTBOARD-CHANGES-1.8.md
+/design/webgpu/webgpu-acceleration-plan.md
+/graphty/docs/decisions/G12.md
+/webgpu-graph-algorithms/docs/research/draft-B.md

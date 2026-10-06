@@ -53,7 +53,9 @@ describe("remoteLoggerPlugin", () => {
         const config = configFn();
 
         expect(config.define.__REMOTE_LOG_PROJECT_MARKER__).toBe(JSON.stringify("feature-xyz"));
-        expect(config.define.__REMOTE_LOG_WORKTREE_PATH__).toBe(JSON.stringify("C:\\Users\\dev\\.worktrees\\feature-xyz"));
+        expect(config.define.__REMOTE_LOG_WORKTREE_PATH__).toBe(
+            JSON.stringify("C:\\Users\\dev\\.worktrees\\feature-xyz"),
+        );
     });
 
     test("config function returns object with define property", () => {

@@ -23,8 +23,6 @@
  *   --axes    Enable BabylonJS AxesViewer to show coordinate system
  */
 
- 
-
 import { resolve } from "path";
 import { chromium } from "playwright";
 
@@ -178,37 +176,32 @@ async function enableAxesViewer(page: PageLike): Promise<void> {
 
         // Create AxesViewer using global BABYLON namespace
         // Size 5 makes axes visible but not too large
-         
+
         const axes = new (window as any).BABYLON.AxesViewer(scene, 5);
 
         // Make the colors bright and vivid (graphty-element's scene settings can wash out colors)
         // Set both emissive and diffuse colors to full brightness
-         
+
         axes._xAxis.getChildMeshes().forEach((mesh: any) => {
             if (mesh.material) {
-                 
                 mesh.material.emissiveColor = new (window as any).BABYLON.Color3(1, 0, 0); // Bright red
-                 
+
                 mesh.material.diffuseColor = new (window as any).BABYLON.Color3(1, 0, 0);
             }
         });
 
-         
         axes._yAxis.getChildMeshes().forEach((mesh: any) => {
             if (mesh.material) {
-                 
                 mesh.material.emissiveColor = new (window as any).BABYLON.Color3(0, 1, 0); // Bright green
-                 
+
                 mesh.material.diffuseColor = new (window as any).BABYLON.Color3(0, 1, 0);
             }
         });
 
-         
         axes._zAxis.getChildMeshes().forEach((mesh: any) => {
             if (mesh.material) {
-                 
                 mesh.material.emissiveColor = new (window as any).BABYLON.Color3(0, 0, 1); // Bright blue
-                 
+
                 mesh.material.diffuseColor = new (window as any).BABYLON.Color3(0, 0, 1);
             }
         });

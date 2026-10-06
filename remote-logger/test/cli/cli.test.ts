@@ -94,15 +94,7 @@ describe("CLI", () => {
         });
 
         test("should parse multiple arguments together", () => {
-            const result = parseArgs([
-                "--port",
-                "9090",
-                "--host",
-                "0.0.0.0",
-                "--quiet",
-                "--log-file",
-                "./logs.jsonl",
-            ]);
+            const result = parseArgs(["--port", "9090", "--host", "0.0.0.0", "--quiet", "--log-file", "./logs.jsonl"]);
             expect(result.options.port).toBe(9090);
             expect(result.options.host).toBe("0.0.0.0");
             expect(result.options.quiet).toBe(true);

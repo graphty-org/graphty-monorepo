@@ -39,38 +39,38 @@ Copied from the spec and the owner's rules; every task's requirements implicitly
 
 ### 0.1 Where the repository stands (2026-09-20)
 
-| Fact | Evidence |
-| --- | --- |
-| The worktree is on branch `feat/gpu-p5-p4` at `c6f1e85f chore(workspace): keep 0.x packages on 0.x when a commit is marked breaking` (above `ffd6b329` the M8a merge and `a471642d chore(release): publish`); the working tree holds nothing but this plan file. | `git rev-parse --abbrev-ref HEAD`; `git log --oneline -4`; `git status --porcelain` (one `??` line, this file) |
-| `@graphty/webgpu-graph-algorithms` is **0.4.1** and `@graphty/layout` is **1.7.0**; the GPU package's peer range on layout is `^1.7.0` and its `webgpu` (Dawn) devDependency is pinned at `0.4.0` (the peer range `>=0.4.0 <1.0.0`). | `node -e "console.log(require('./webgpu-graph-algorithms/package.json').version, require('./layout/package.json').version)"` -> `0.4.1 1.7.0`; `grep -n '"@graphty/layout"\|"webgpu"' webgpu-graph-algorithms/package.json` (`:91-92,117`) |
-| The layout seam of design 9.3 is on master: `layout/src/simulation/types.ts` declares `FruchtermanReingoldOptions` (`:40-45`), `SpringElectricalOptions` (`:48-54`), `LayoutAccelerator` with the optional `fruchtermanReingold` / `springElectrical` methods (`:71-78`) and `SimulationType` (`:82`); `create-simulation.ts:31-42` routes `"fruchtermanReingold"` / `"spring"` to the accelerator method or the CPU class and throws for `"spring-electrical"` without an accelerator; `fruchterman-reingold.ts` (620 lines) is the steppable CPU FR simulation. The built declarations exist. | `ls layout/src/simulation/`; `ls layout/dist/src/simulation/index.d.ts` |
-| The GPU package already re-exports those records as types: `src/types/options.ts:10-26` (`import type` from `@graphty/layout`, re-exported), `src/index.ts:113-119`; the option type tests already pin `FruchtermanReingoldOptions` / `SpringElectricalOptions` (`test/types/options.test-d.ts:55-62,114-115,147-150`, `test/types/public-api.test-d.ts:288-289`). | `grep -n 'FruchtermanReingold\|SpringElectrical' webgpu-graph-algorithms/src/types/options.ts webgpu-graph-algorithms/test/types/*.test-d.ts` |
-| `ForceSimulation` already picks the FR seed range by model kind: `range = this.model.kind === "fruchtermanReingold" ? "fr" : "fa2"` (`src/layouts/force-simulation.ts:975-976`); `seedPositions` takes `"fa2"` ([-1, 1)) or `"fr"` ([0, 1)) (`src/layouts/seed.ts:94-103,164-167`). `ForceModel.kind` already admits the three kinds (`force-simulation.ts:108`). | `sed -n '975,976p' webgpu-graph-algorithms/src/layouts/force-simulation.ts` |
-| `reheat()` resets `iterationsDone` and `settledCount` for EVERY model and then calls `model.onReheat(writer)` with no iteration argument (`force-simulation.ts:1200-1208`); the budget is `options.maxIter`, else `options.iterations`, else infinity (`:1626-1636`); `paramsFor` receives the GLOBAL iteration index and the shared fields win (`:1548-1561`). | `sed -n '1200,1208p;1548,1561p;1626,1636p' webgpu-graph-algorithms/src/layouts/force-simulation.ts` |
-| `ModelInputs` is `{ mass, weights }` (`force-simulation.ts:84-87`); `load()` calls `model.inputs()` in its check phase (`:924`) and clears the fixed words only on a resize (`:953-958`). Nothing lets a model pin nodes at load. | `sed -n '84,87p;920,933p;953,958p' webgpu-graph-algorithms/src/layouts/force-simulation.ts` |
-| `Fa2Params` is 96 bytes with `pad` (vec4f) at byte 80 reserved for P4's GridSpec (`src/kernels.ts:104-124`); `Fa2State` has `reserved0` .. `reserved8` from byte 112 (`:126-157`); `Fa2Trace` has `pad0` at byte 28 (`:159-173`). `UniformBlock.write` zeroes the region and skips ABSENT fields (`src/kernel/struct-block.ts:291-318`), so a model that does not name a field writes 0 there. | `sed -n '104,173p' webgpu-graph-algorithms/src/kernels.ts`; `sed -n '291,318p' webgpu-graph-algorithms/src/kernel/struct-block.ts` |
-| The four FA2 kernels declare these overrides: K1 none (`kernels.ts:349`), K2 `LINLOG` / `DISTRIBUTED` / `TIER` (`:366-370`), K3 `SWING_MODE` / `STRONG_GRAVITY` / `GRAVITY_CENTER` (`:391-395`), K5 `SWING_MODE` (`:434`). Their binding tables (K1 `:343-348`, K2 `:361-365`, K3 `:382-390`, K5 `:425-433`) are what P5 keeps. | `sed -n '339,439p' webgpu-graph-algorithms/src/kernels.ts` |
-| K3's pair law is `f = f + d * (k / d2)` after `d2 = max(d2, FA2_DIST_FLOOR_SQ)` with the coincident kick above it (`src/wgsl/fa2-repulsion-exact.wgsl.ts:46-55`); K2's is `mag = select(w, w * log(1 + len) / len, LINLOG)` then `f = f + d * mag` (`fa2-attraction.wgsl.ts:28-33`); K5's is `dp = select(f * factor, vec3f(0.0), fixed)` with `store_old` under `SWING_MODE == 0u` (`fa2-integrate.wgsl.ts:32-40`) and the partials A / C reduction after it (`:43-68`); K1 writes the trace record at `fa2-stats-finalize.wgsl.ts:52-55`. | the four files |
-| The compile matrix is GENERATED from the registry: every u32 override needs a row in `U32_OVERRIDE_VALUES` or the builder throws (`test/helpers/override-matrix.ts:55-62,115-120`); the per-phase counts are pinned at `:71-76` (P1 37, P2 52, P3 22, P7 37) and the per-kernel P1 / P2 counts at `test/kernel/wgsl-compile.test.ts:52`. | `sed -n '55,76p' webgpu-graph-algorithms/test/helpers/override-matrix.ts` |
-| The sabotage table pins the K3 row NAMES (`test/sabotage/coverage.test.ts:58-63`) and checks every `find` of `SABOTAGE` occurs exactly once (`:72-80`); `test/sabotage/fa2.test.ts:45-64` runs every `SABOTAGE` row of the P3 kernels against the FA2 checks. A P5 row placed in `SABOTAGE` would either break the name pin or be run against a check its branch never reaches. The addendum precedent is `SABOTAGE_P3_ADDENDUM` (`test/helpers/sabotage.ts:489`). The existing `find` strings P5 must keep intact: K2 `f = f + d * mag;`, `let mag = select(w, w * log(1.0 + len) / len, LINLOG);`, the row loop and the perm select; K3 `let k = P.scalingRatio * pi.w * o.w;`, `f = f + d * (k / d2);`, `if (o.w > 0.0 && jj != i) {`, `return -P.gravity * pi.w * q / d;`; K5 `dp = select(f * factor, vec3f(0.0), fixed);`, `if (SWING_MODE == 0u) { store_old(i, f); }`, `let f = load_force(i);`; K1 the `settledCount` select, `let c = tSum.xyz / n;`, the `rmsRadius` line. | `grep -n 'find:' webgpu-graph-algorithms/test/helpers/sabotage.ts` |
-| `noiseFloorFor(id)` THROWS for an id the committed `benchmarks/results/noise-floor.json` lacks (`test/helpers/noise-floor.ts:218-235`); the G3 recording sequence is: the writer files under `GRAPHTY_NOISE_FLOOR_WRITE=1` on NVIDIA, then on lavapipe, then `test/noise-floor.test.ts` in write mode on both, then `prettier --write` (`docs/decisions/G3.md:166-170`). | `sed -n '218,235p' webgpu-graph-algorithms/test/helpers/noise-floor.ts` |
-| `createAccelerator` returns `kind, ctx, options, forceAtlas2, release, dispose` and the seven P7 algorithm members (`src/accelerator.ts:107-214`); its header says `fruchtermanReingold` / `springElectrical` arrive "with P5" (`:11-12`); `GpuAccelerator` (`src/types/accelerator.ts:98-116`) has no FR / SE member; `test/accelerator.test.ts:63-64` asserts both are `undefined`; `test/index.test.ts:93-95` lists `createFruchtermanReingold` / `createSpringElectrical` as NEVER exported. | the four files |
-| `benchmarks/run.ts` registers `upload`, `roundtrip`, `layout-exact`, `pagerank`, `wcc` (`:34-40`); the dev-box baseline's last session carries exactly those five groups; `warmClock` (`benchmarks/layout-exact.bench.ts:234-246`) and `reportedRow` (`:200-224`) are module-private and FA2-typed; the append script the gates use is `docs/decisions/G3.md` appendix A (`:533-583`, `REQUIRED_GROUPS` at `:545`), copied to `tmp/` per gate (`docs/decisions/G7.md:106`). | `grep -o '"group": *"[^"]*"' webgpu-graph-algorithms/benchmarks/results/nvidia-lovelace-driver580.json \| sort -u` |
-| `ngraph.forcelayout@3.3.1` and `ngraph.graph@20` are devDependencies of graphty-element ONLY (`graphty-element/package.json:171-172`), installed under `graphty-element/node_modules/`; the GPU package has neither. ngraph's defaults: `springLength` 10, `springCoefficient` 0.8, `gravity` -12, `theta` 0.8, `dragCoefficient` 0.9, `timeStep` 0.5 (`lib/createPhysicsSimulator.js:29,34,40,48,54,59`), a seeded RNG (`:103`); mass `1 + links / 3` (`index.js:391-395`); stability `lastMove / bodiesCount <= 0.01` where `lastMove = (sum abs dx)^2 + (sum abs dy)^2 over n` (`index.js:62-63`, `lib/codeGenerators/generateIntegrator.js:43-46`); the integrator is semi-implicit Euler with a unit speed clamp and pinned bodies skipped (`generateIntegrator.js:21,27-41`); drag `force -= dragCoefficient * velocity` (`generateCreateDragForce.js:18`); spring `coefficient = k * (r - length) / r`, `body1.force += coefficient * d`, `body2.force -= coefficient * d` (`generateCreateSpringForce.js:24-42`); Coulomb `v = gravity * m1 * m2 / r^3; f += v * d` (`generateQuadTree.js:131-132`), zero distance jittered by the RNG (`:123-127`); `theta` 0 makes the tree exact (`:148`). | `ls graphty-element/node_modules/ngraph.forcelayout/lib/codeGenerators/`; the cited lines |
-| The "Performance/Large Graph" story graph is 150 nodes / 250 edges from a seeded LCG (`graphty-element/stories/PerformanceTest.stories.ts:15-57`: `seed = (seed * 1103515245 + 12345) & 0x7fffffff`, seed 42, every node given one edge first, no self-loops), laid out by `layout: "ngraph"` (`:70`). Its duplicate check keys the ORDERED pair `${src}-${dst}` (`:31,44`), and seed 42 produces exactly ONE reversed pair: 250 ordered keys are 249 unordered pairs. An undirected snapshot built from the 250 would carry a multi-arc on that pair while ngraph's non-multigraph `addLink` keeps one link, so the two sides of the G5 comparison would disagree on one mass and one spring; `storyGraph()` therefore dedupes on the unordered pair (P5-T5 Step 2). | `sed -n '15,57p' graphty-element/stories/PerformanceTest.stories.ts`; a node transcription of those lines counting `a < b ? a-b : b-a` keys prints `edges 250 unordered 249 reversed dups 1` |
+| Fact                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Evidence                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The worktree is on branch `feat/gpu-p5-p4` at `c6f1e85f chore(workspace): keep 0.x packages on 0.x when a commit is marked breaking` (above `ffd6b329` the M8a merge and `a471642d chore(release): publish`); the working tree holds nothing but this plan file.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `git rev-parse --abbrev-ref HEAD`; `git log --oneline -4`; `git status --porcelain` (one `??` line, this file)                                                                                                                                                                                |
+| `@graphty/webgpu-graph-algorithms` is **0.4.1** and `@graphty/layout` is **1.7.0**; the GPU package's peer range on layout is `^1.7.0` and its `webgpu` (Dawn) devDependency is pinned at `0.4.0` (the peer range `>=0.4.0 <1.0.0`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `node -e "console.log(require('./webgpu-graph-algorithms/package.json').version, require('./layout/package.json').version)"` -> `0.4.1 1.7.0`; `grep -n '"@graphty/layout"\|"webgpu"' webgpu-graph-algorithms/package.json` (`:91-92,117`)                                                    |
+| The layout seam of design 9.3 is on master: `layout/src/simulation/types.ts` declares `FruchtermanReingoldOptions` (`:40-45`), `SpringElectricalOptions` (`:48-54`), `LayoutAccelerator` with the optional `fruchtermanReingold` / `springElectrical` methods (`:71-78`) and `SimulationType` (`:82`); `create-simulation.ts:31-42` routes `"fruchtermanReingold"` / `"spring"` to the accelerator method or the CPU class and throws for `"spring-electrical"` without an accelerator; `fruchterman-reingold.ts` (620 lines) is the steppable CPU FR simulation. The built declarations exist.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `ls layout/src/simulation/`; `ls layout/dist/src/simulation/index.d.ts`                                                                                                                                                                                                                       |
+| The GPU package already re-exports those records as types: `src/types/options.ts:10-26` (`import type` from `@graphty/layout`, re-exported), `src/index.ts:113-119`; the option type tests already pin `FruchtermanReingoldOptions` / `SpringElectricalOptions` (`test/types/options.test-d.ts:55-62,114-115,147-150`, `test/types/public-api.test-d.ts:288-289`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `grep -n 'FruchtermanReingold\|SpringElectrical' webgpu-graph-algorithms/src/types/options.ts webgpu-graph-algorithms/test/types/*.test-d.ts`                                                                                                                                                 |
+| `ForceSimulation` already picks the FR seed range by model kind: `range = this.model.kind === "fruchtermanReingold" ? "fr" : "fa2"` (`src/layouts/force-simulation.ts:975-976`); `seedPositions` takes `"fa2"` ([-1, 1)) or `"fr"` ([0, 1)) (`src/layouts/seed.ts:94-103,164-167`). `ForceModel.kind` already admits the three kinds (`force-simulation.ts:108`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `sed -n '975,976p' webgpu-graph-algorithms/src/layouts/force-simulation.ts`                                                                                                                                                                                                                   |
+| `reheat()` resets `iterationsDone` and `settledCount` for EVERY model and then calls `model.onReheat(writer)` with no iteration argument (`force-simulation.ts:1200-1208`); the budget is `options.maxIter`, else `options.iterations`, else infinity (`:1626-1636`); `paramsFor` receives the GLOBAL iteration index and the shared fields win (`:1548-1561`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `sed -n '1200,1208p;1548,1561p;1626,1636p' webgpu-graph-algorithms/src/layouts/force-simulation.ts`                                                                                                                                                                                           |
+| `ModelInputs` is `{ mass, weights }` (`force-simulation.ts:84-87`); `load()` calls `model.inputs()` in its check phase (`:924`) and clears the fixed words only on a resize (`:953-958`). Nothing lets a model pin nodes at load.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `sed -n '84,87p;920,933p;953,958p' webgpu-graph-algorithms/src/layouts/force-simulation.ts`                                                                                                                                                                                                   |
+| `Fa2Params` is 96 bytes with `pad` (vec4f) at byte 80 reserved for P4's GridSpec (`src/kernels.ts:104-124`); `Fa2State` has `reserved0` .. `reserved8` from byte 112 (`:126-157`); `Fa2Trace` has `pad0` at byte 28 (`:159-173`). `UniformBlock.write` zeroes the region and skips ABSENT fields (`src/kernel/struct-block.ts:291-318`), so a model that does not name a field writes 0 there.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `sed -n '104,173p' webgpu-graph-algorithms/src/kernels.ts`; `sed -n '291,318p' webgpu-graph-algorithms/src/kernel/struct-block.ts`                                                                                                                                                            |
+| The four FA2 kernels declare these overrides: K1 none (`kernels.ts:349`), K2 `LINLOG` / `DISTRIBUTED` / `TIER` (`:366-370`), K3 `SWING_MODE` / `STRONG_GRAVITY` / `GRAVITY_CENTER` (`:391-395`), K5 `SWING_MODE` (`:434`). Their binding tables (K1 `:343-348`, K2 `:361-365`, K3 `:382-390`, K5 `:425-433`) are what P5 keeps.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `sed -n '339,439p' webgpu-graph-algorithms/src/kernels.ts`                                                                                                                                                                                                                                    |
+| K3's pair law is `f = f + d * (k / d2)` after `d2 = max(d2, FA2_DIST_FLOOR_SQ)` with the coincident kick above it (`src/wgsl/fa2-repulsion-exact.wgsl.ts:46-55`); K2's is `mag = select(w, w * log(1 + len) / len, LINLOG)` then `f = f + d * mag` (`fa2-attraction.wgsl.ts:28-33`); K5's is `dp = select(f * factor, vec3f(0.0), fixed)` with `store_old` under `SWING_MODE == 0u` (`fa2-integrate.wgsl.ts:32-40`) and the partials A / C reduction after it (`:43-68`); K1 writes the trace record at `fa2-stats-finalize.wgsl.ts:52-55`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | the four files                                                                                                                                                                                                                                                                                |
+| The compile matrix is GENERATED from the registry: every u32 override needs a row in `U32_OVERRIDE_VALUES` or the builder throws (`test/helpers/override-matrix.ts:55-62,115-120`); the per-phase counts are pinned at `:71-76` (P1 37, P2 52, P3 22, P7 37) and the per-kernel P1 / P2 counts at `test/kernel/wgsl-compile.test.ts:52`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `sed -n '55,76p' webgpu-graph-algorithms/test/helpers/override-matrix.ts`                                                                                                                                                                                                                     |
+| The sabotage table pins the K3 row NAMES (`test/sabotage/coverage.test.ts:58-63`) and checks every `find` of `SABOTAGE` occurs exactly once (`:72-80`); `test/sabotage/fa2.test.ts:45-64` runs every `SABOTAGE` row of the P3 kernels against the FA2 checks. A P5 row placed in `SABOTAGE` would either break the name pin or be run against a check its branch never reaches. The addendum precedent is `SABOTAGE_P3_ADDENDUM` (`test/helpers/sabotage.ts:489`). The existing `find` strings P5 must keep intact: K2 `f = f + d * mag;`, `let mag = select(w, w * log(1.0 + len) / len, LINLOG);`, the row loop and the perm select; K3 `let k = P.scalingRatio * pi.w * o.w;`, `f = f + d * (k / d2);`, `if (o.w > 0.0 && jj != i) {`, `return -P.gravity * pi.w * q / d;`; K5 `dp = select(f * factor, vec3f(0.0), fixed);`, `if (SWING_MODE == 0u) { store_old(i, f); }`, `let f = load_force(i);`; K1 the `settledCount` select, `let c = tSum.xyz / n;`, the `rmsRadius` line.                                                                                                                                                                                                                                                                                                                                            | `grep -n 'find:' webgpu-graph-algorithms/test/helpers/sabotage.ts`                                                                                                                                                                                                                            |
+| `noiseFloorFor(id)` THROWS for an id the committed `benchmarks/results/noise-floor.json` lacks (`test/helpers/noise-floor.ts:218-235`); the G3 recording sequence is: the writer files under `GRAPHTY_NOISE_FLOOR_WRITE=1` on NVIDIA, then on lavapipe, then `test/noise-floor.test.ts` in write mode on both, then `prettier --write` (`docs/decisions/G3.md:166-170`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `sed -n '218,235p' webgpu-graph-algorithms/test/helpers/noise-floor.ts`                                                                                                                                                                                                                       |
+| `createAccelerator` returns `kind, ctx, options, forceAtlas2, release, dispose` and the seven P7 algorithm members (`src/accelerator.ts:107-214`); its header says `fruchtermanReingold` / `springElectrical` arrive "with P5" (`:11-12`); `GpuAccelerator` (`src/types/accelerator.ts:98-116`) has no FR / SE member; `test/accelerator.test.ts:63-64` asserts both are `undefined`; `test/index.test.ts:93-95` lists `createFruchtermanReingold` / `createSpringElectrical` as NEVER exported.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | the four files                                                                                                                                                                                                                                                                                |
+| `benchmarks/run.ts` registers `upload`, `roundtrip`, `layout-exact`, `pagerank`, `wcc` (`:34-40`); the dev-box baseline's last session carries exactly those five groups; `warmClock` (`benchmarks/layout-exact.bench.ts:234-246`) and `reportedRow` (`:200-224`) are module-private and FA2-typed; the append script the gates use is `docs/decisions/G3.md` appendix A (`:533-583`, `REQUIRED_GROUPS` at `:545`), copied to `tmp/` per gate (`docs/decisions/G7.md:106`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `grep -o '"group": *"[^"]*"' webgpu-graph-algorithms/benchmarks/results/nvidia-lovelace-driver580.json \| sort -u`                                                                                                                                                                            |
+| `ngraph.forcelayout@3.3.1` and `ngraph.graph@20` are devDependencies of graphty-element ONLY (`graphty-element/package.json:171-172`), installed under `graphty-element/node_modules/`; the GPU package has neither. ngraph's defaults: `springLength` 10, `springCoefficient` 0.8, `gravity` -12, `theta` 0.8, `dragCoefficient` 0.9, `timeStep` 0.5 (`lib/createPhysicsSimulator.js:29,34,40,48,54,59`), a seeded RNG (`:103`); mass `1 + links / 3` (`index.js:391-395`); stability `lastMove / bodiesCount <= 0.01` where `lastMove = (sum abs dx)^2 + (sum abs dy)^2 over n` (`index.js:62-63`, `lib/codeGenerators/generateIntegrator.js:43-46`); the integrator is semi-implicit Euler with a unit speed clamp and pinned bodies skipped (`generateIntegrator.js:21,27-41`); drag `force -= dragCoefficient * velocity` (`generateCreateDragForce.js:18`); spring `coefficient = k * (r - length) / r`, `body1.force += coefficient * d`, `body2.force -= coefficient * d` (`generateCreateSpringForce.js:24-42`); Coulomb `v = gravity * m1 * m2 / r^3; f += v * d` (`generateQuadTree.js:131-132`), zero distance jittered by the RNG (`:123-127`); `theta` 0 makes the tree exact (`:148`).                                                                                                                            | `ls graphty-element/node_modules/ngraph.forcelayout/lib/codeGenerators/`; the cited lines                                                                                                                                                                                                     |
+| The "Performance/Large Graph" story graph is 150 nodes / 250 edges from a seeded LCG (`graphty-element/stories/PerformanceTest.stories.ts:15-57`: `seed = (seed * 1103515245 + 12345) & 0x7fffffff`, seed 42, every node given one edge first, no self-loops), laid out by `layout: "ngraph"` (`:70`). Its duplicate check keys the ORDERED pair `${src}-${dst}` (`:31,44`), and seed 42 produces exactly ONE reversed pair: 250 ordered keys are 249 unordered pairs. An undirected snapshot built from the 250 would carry a multi-arc on that pair while ngraph's non-multigraph `addLink` keeps one link, so the two sides of the G5 comparison would disagree on one mass and one spring; `storyGraph()` therefore dedupes on the unordered pair (P5-T5 Step 2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `sed -n '15,57p' graphty-element/stories/PerformanceTest.stories.ts`; a node transcription of those lines counting `a < b ? a-b : b-a` keys prints `edges 250 unordered 249 reversed dups 1`                                                                                                  |
 | The package's own rule for a new layout model, `webgpu-graph-algorithms/CLAUDE.md:404-457` step 6 (`:445-451`), asks for: force parity per stage, trace parity, distributional parity, the behaviour pins, the fast-check properties (fixed nodes, `setPosition`, settle, reheat, remapped `load`), the force-sum invariant where the law is antisymmetric, the subgroup twins, lifecycle, the frame loop, three sabotage rows per kernel, a noise-floor row per tolerance, a browser smoke. The FA2 precedents: `test/layouts/fa2-properties.test.ts` (`:68-403`, ten `it` cases, `numRuns` 200 at `:38`, `gpuScale()` sizing at `:41-43`), `fa2-force-sum.test.ts` (`:1-7`: `\|sum F_i\| <= tol x sum \|F_i\|` after one iteration with gravity 0, tolerance `fa2-force-sum` traced to the force-parity basis row), `fa2-distributional.test.ts` (`:1-19`: 100 iterations, `layoutMetrics` of the GPU layout vs the f64 oracle's within 10%, cases admitted only where the oracle reproduces its own metrics within a third of the cap under eight one-ulp start perturbations). A caps table's `basis` is a noise ROW id, never prose: `noise-floor.test.ts:454` looks the row up and `:996-998` throws when it is missing (`fa2-parity.ts:589-632`: `"fa2-force-sum": { cap: 1e-4, basis: "fa2-force-parity.oracle-f64" }`). | `sed -n '445,451p' webgpu-graph-algorithms/CLAUDE.md`; `grep -n "^\s*it(" webgpu-graph-algorithms/test/layouts/fa2-properties.test.ts`; `sed -n '1,7p' webgpu-graph-algorithms/test/layouts/fa2-force-sum.test.ts`; `sed -n '454p;996,998p' webgpu-graph-algorithms/test/noise-floor.test.ts` |
-| The commit script's scope list carries `webgpu-graph-algorithms` (`tools/commit-changes.sh:433-434`); the CI no-subgroups twin pass already covers `test/layouts` (`.github/workflows/ci.yml:318`); the node project's include already names `test/layouts`, `test/oracle`, `test/sabotage` (`webgpu-graph-algorithms/vitest.config.ts:196-199`). No CI or config edit is needed. | the cited lines |
-| `webgpu-graph-algorithms/docs/decisions/` holds G0, G1, G2, G3, G6-algorithms, G7. There is no G5. `design/decisions/README.md` indexes ten records (`:29-40`); `design/README.md:14` says 10, `:21` says 12 webgpu documents. | `ls webgpu-graph-algorithms/docs/decisions/`; `ls design/decisions/` |
-| No P4 plan file exists in the tree and no grid kernel exists (`ls webgpu-graph-algorithms/src/wgsl/` lists the ten P1-P3 bodies and the seven of P7; `ForceSimulation.load` throws `E_UNSUPPORTED { feature: "repulsion.grid" }` at `force-simulation.ts:889-898`). | `ls design/webgpu/plans/`; `sed -n '889,898p' webgpu-graph-algorithms/src/layouts/force-simulation.ts` |
+| The commit script's scope list carries `webgpu-graph-algorithms` (`tools/commit-changes.sh:433-434`); the CI no-subgroups twin pass already covers `test/layouts` (`.github/workflows/ci.yml:318`); the node project's include already names `test/layouts`, `test/oracle`, `test/sabotage` (`webgpu-graph-algorithms/vitest.config.ts:196-199`). No CI or config edit is needed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | the cited lines                                                                                                                                                                                                                                                                               |
+| `webgpu-graph-algorithms/docs/decisions/` holds G0, G1, G2, G3, G6-algorithms, G7. There is no G5. `design/decisions/README.md` indexes ten records (`:29-40`); `design/README.md:14` says 10, `:21` says 12 webgpu documents.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `ls webgpu-graph-algorithms/docs/decisions/`; `ls design/decisions/`                                                                                                                                                                                                                          |
+| No P4 plan file exists in the tree and no grid kernel exists (`ls webgpu-graph-algorithms/src/wgsl/` lists the ten P1-P3 bodies and the seven of P7; `ForceSimulation.load` throws `E_UNSUPPORTED { feature: "repulsion.grid" }` at `force-simulation.ts:889-898`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `ls design/webgpu/plans/`; `sed -n '889,898p' webgpu-graph-algorithms/src/layouts/force-simulation.ts`                                                                                                                                                                                        |
 
 ### 0.2 Entry criteria
 
-| Criterion | Status | Evidence |
-| --- | --- | --- |
-| The design's P3 gate (the exact-tier FA2, `ForceSimulation`, the `ForceModel` hook) | **MET** | `webgpu-graph-algorithms/docs/decisions/G3.md` (closed on the dev box); `src/layouts/force-simulation.ts` and `forceatlas2.ts` on master |
-| Phase M5b (the real `@graphty/layout` option and accelerator types imported by the GPU package) | **MET** | `src/types/options.ts:10-16`, `src/types/accelerator.ts:26,47`; `test/types/conformance.test-d.ts:41-61` compiles |
-| Phase M8a (the real `AlgorithmAccelerator`) | **MET** | `src/types/accelerator.ts:8-24`; commit `48a28adc` |
-| The design's P4 gate (the grid tier) | **NOT MET** | no grid kernel in the tree (0.1, last row). Design 13 orders `P4 (grid) -> P5` (`:4224`), and 7.20 says the FR law rides "the same exact-tile / grid kernels" (`:2442`). This plan lands P5 on the EXACT tier, which is all P3 provides, and threads the `LAW` override into K3 in the exact shape the grid's near-field kernel will take (0.5 DEP-P5-D). |
+| Criterion                                                                                       | Status      | Evidence                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The design's P3 gate (the exact-tier FA2, `ForceSimulation`, the `ForceModel` hook)             | **MET**     | `webgpu-graph-algorithms/docs/decisions/G3.md` (closed on the dev box); `src/layouts/force-simulation.ts` and `forceatlas2.ts` on master                                                                                                                                                                                                                  |
+| Phase M5b (the real `@graphty/layout` option and accelerator types imported by the GPU package) | **MET**     | `src/types/options.ts:10-16`, `src/types/accelerator.ts:26,47`; `test/types/conformance.test-d.ts:41-61` compiles                                                                                                                                                                                                                                         |
+| Phase M8a (the real `AlgorithmAccelerator`)                                                     | **MET**     | `src/types/accelerator.ts:8-24`; commit `48a28adc`                                                                                                                                                                                                                                                                                                        |
+| The design's P4 gate (the grid tier)                                                            | **NOT MET** | no grid kernel in the tree (0.1, last row). Design 13 orders `P4 (grid) -> P5` (`:4224`), and 7.20 says the FR law rides "the same exact-tile / grid kernels" (`:2442`). This plan lands P5 on the EXACT tier, which is all P3 provides, and threads the `LAW` override into K3 in the exact shape the grid's near-field kernel will take (0.5 DEP-P5-D). |
 
 P5 can therefore start now. Its ordering against P4 is 0.3.
 
@@ -86,63 +86,63 @@ P5 and P4 are both planned against the tree of 0.1. They touch some of the same 
 
 ### 0.4 Plan decisions (the index; each block is stated in full in the task that owns it)
 
-| Id | Decision | Task |
-| --- | --- | --- |
-| PD-1 | The three pair laws, the two integrators and the two extra statistics are override AXES on the four existing FA2 kernels (`LAW` on K2 / K3, `APPLY` on K5, `STATS_MODE` on K1), never new kernel ids; the binding tables are unchanged | P5-T2 |
-| PD-2 | The spring-electrical velocity lives in the `oldForce` slot of K3 / K5: the model's buffer is named `velocity` and bound there; FR keeps an `oldForce` buffer bound and unread | P5-T2, P5-T5 |
-| PD-3 | `Fa2Params` gains seven f32 model fields after `pad` (`frK`, `temperature`, `springLength`, `springCoefficient`, `coulomb`, `dragCoefficient`, `timeStep`) plus `pad1`; `Fa2State.reserved0` becomes `temperature` (f32), `kineticEnergy` (f32), `reserved0` (vec2f); `Fa2Trace.pad0` becomes `modelScalar` (f32). FA2's `paramsFor` is unchanged because `UniformBlock.write` zeroes absent fields | P5-T2 |
-| PD-4 | Kinetic energy rides partials B: under `APPLY = 2` K5 overwrites `swingTraction` with `(kineticEnergy, 0)` after K3's epilogue wrote it in the same pass; under `STATS_MODE = 2` K1 folds `.x` into `S.kineticEnergy` and the trace | P5-T2 |
-| PD-5 | The FR temperature index is anchored by the model: `onReheat` arms a flag, the next `paramsFor(global)` sets `tempOrigin = global - floor(0.7 * iterations)`; `temperature = max(0, 0.1 - dt * (global - tempOrigin))` | P5-T3 |
-| PD-6 | The FR `fixed` option resolves at load through a new optional `ModelInputs.fixed`, applied by `ForceSimulation.load()` after the resize block and before any submit; no reheat is triggered | P5-T1 |
-| PD-7 | The twelve option / value helpers of `forceatlas2.ts`, its `Overrides` alias, `U32_MODULUS` and the two buffer constants `FORCE_BYTES_PER_NODE` / `FILL_PARAMS_BUFFER` move to `src/layouts/model-common.ts` (T1 writes the copy, T2 deletes the originals and imports) | P5-T1, P5-T2 |
-| PD-8 | P5 sabotage rows live in `SABOTAGE_P5`, a separate table measured only by the P5 suites, so `coverage.test.ts`'s name pins and `fa2.test.ts`'s FA2 checks are untouched | P5-T7 |
-| PD-21 | The parity suites of BOTH models, the P5 noise-floor members and the one recording run that derives every P5 tolerance land in ONE task (P5-T4, after P5-T5), so no suite is ever created guarded and unguarded later by another task | P5-T4 |
-| PD-9 | Compile-matrix pins: P1 37 -> 53 (K3 9 -> 25), P3 22 -> 61 (K1 1 -> 4, K2 17 -> 49, K5 3 -> 7) | P5-T2 |
-| PD-10 | Coincident pairs under `LAW` 1 / 2 take the FA2 antisymmetric kick with the law's magnitude evaluated at `d = FA2_DISTANCE_FLOOR`; the CPU FR gives zero force there and the parity fixtures contain no coincident pair | P5-T2 |
-| PD-11 | FR mass is 1 for every node and weights are `none`; spring-electrical mass is `1 + outDegree / 3` and weights are `none` | P5-T3, P5-T5 |
-| PD-12 | `SpringElectricalOptions.gravity` (ngraph's Coulomb constant, -12) is written into `Fa2Params.coulomb`; `Fa2Params.gravity` (FA2's centre gravity) is 0 for both new models | P5-T5 |
-| PD-13 | `ngraph.forcelayout@^3.3.1` and `ngraph.graph@^20.0.1` become devDependencies of the GPU package, imported by two test files and nothing else | P5-T5 |
-| PD-14 | The ngraph cross-check runs ngraph with `theta: 0` (exact) and explicit positions for the one-iteration oracle comparison, and with its defaults for the 1,000-step edge-length comparison | P5-T5 |
-| PD-15 | Spring-electrical seeds in [-1, 1) (the `"fa2"` range branch); the FR range branch already exists | P5-T5 |
-| PD-16 | `setParams({ fixed })` on the FR simulation is `E_INVALID_ARGUMENT` (the hint names `setFixed`) | P5-T3 |
-| PD-17 | The `layout-fr` group carries FR AND spring-electrical rows at 10k and 100k on the exact tier; `warmClock` / `reportedRow` are exported from `layout-exact.bench.ts` in a model-agnostic shape | P5-T8 |
-| PD-18 | `test/helpers/frame-loop.ts` is widened to any model by two generic parameters; its body reads no FA2 field | P5-T9 |
-| PD-19 | The two accelerator members land in ONE task after both models are green; never a throwing stub | P5-T6 |
-| PD-20 | The FR / spring models compile K5 with `SWING_MODE = 1`, so its `store_old` never runs and the `oldForce` slot is free for the velocity (PD-2); K3's epilogue under mode 1 writes harmless partials B that K5 (PD-4) or nobody reads | P5-T3, P5-T5 |
+| Id    | Decision                                                                                                                                                                                                                                                                                                                                                                                            | Task         |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| PD-1  | The three pair laws, the two integrators and the two extra statistics are override AXES on the four existing FA2 kernels (`LAW` on K2 / K3, `APPLY` on K5, `STATS_MODE` on K1), never new kernel ids; the binding tables are unchanged                                                                                                                                                              | P5-T2        |
+| PD-2  | The spring-electrical velocity lives in the `oldForce` slot of K3 / K5: the model's buffer is named `velocity` and bound there; FR keeps an `oldForce` buffer bound and unread                                                                                                                                                                                                                      | P5-T2, P5-T5 |
+| PD-3  | `Fa2Params` gains seven f32 model fields after `pad` (`frK`, `temperature`, `springLength`, `springCoefficient`, `coulomb`, `dragCoefficient`, `timeStep`) plus `pad1`; `Fa2State.reserved0` becomes `temperature` (f32), `kineticEnergy` (f32), `reserved0` (vec2f); `Fa2Trace.pad0` becomes `modelScalar` (f32). FA2's `paramsFor` is unchanged because `UniformBlock.write` zeroes absent fields | P5-T2        |
+| PD-4  | Kinetic energy rides partials B: under `APPLY = 2` K5 overwrites `swingTraction` with `(kineticEnergy, 0)` after K3's epilogue wrote it in the same pass; under `STATS_MODE = 2` K1 folds `.x` into `S.kineticEnergy` and the trace                                                                                                                                                                 | P5-T2        |
+| PD-5  | The FR temperature index is anchored by the model: `onReheat` arms a flag, the next `paramsFor(global)` sets `tempOrigin = global - floor(0.7 * iterations)`; `temperature = max(0, 0.1 - dt * (global - tempOrigin))`                                                                                                                                                                              | P5-T3        |
+| PD-6  | The FR `fixed` option resolves at load through a new optional `ModelInputs.fixed`, applied by `ForceSimulation.load()` after the resize block and before any submit; no reheat is triggered                                                                                                                                                                                                         | P5-T1        |
+| PD-7  | The twelve option / value helpers of `forceatlas2.ts`, its `Overrides` alias, `U32_MODULUS` and the two buffer constants `FORCE_BYTES_PER_NODE` / `FILL_PARAMS_BUFFER` move to `src/layouts/model-common.ts` (T1 writes the copy, T2 deletes the originals and imports)                                                                                                                             | P5-T1, P5-T2 |
+| PD-8  | P5 sabotage rows live in `SABOTAGE_P5`, a separate table measured only by the P5 suites, so `coverage.test.ts`'s name pins and `fa2.test.ts`'s FA2 checks are untouched                                                                                                                                                                                                                             | P5-T7        |
+| PD-21 | The parity suites of BOTH models, the P5 noise-floor members and the one recording run that derives every P5 tolerance land in ONE task (P5-T4, after P5-T5), so no suite is ever created guarded and unguarded later by another task                                                                                                                                                               | P5-T4        |
+| PD-9  | Compile-matrix pins: P1 37 -> 53 (K3 9 -> 25), P3 22 -> 61 (K1 1 -> 4, K2 17 -> 49, K5 3 -> 7)                                                                                                                                                                                                                                                                                                      | P5-T2        |
+| PD-10 | Coincident pairs under `LAW` 1 / 2 take the FA2 antisymmetric kick with the law's magnitude evaluated at `d = FA2_DISTANCE_FLOOR`; the CPU FR gives zero force there and the parity fixtures contain no coincident pair                                                                                                                                                                             | P5-T2        |
+| PD-11 | FR mass is 1 for every node and weights are `none`; spring-electrical mass is `1 + outDegree / 3` and weights are `none`                                                                                                                                                                                                                                                                            | P5-T3, P5-T5 |
+| PD-12 | `SpringElectricalOptions.gravity` (ngraph's Coulomb constant, -12) is written into `Fa2Params.coulomb`; `Fa2Params.gravity` (FA2's centre gravity) is 0 for both new models                                                                                                                                                                                                                         | P5-T5        |
+| PD-13 | `ngraph.forcelayout@^3.3.1` and `ngraph.graph@^20.0.1` become devDependencies of the GPU package, imported by two test files and nothing else                                                                                                                                                                                                                                                       | P5-T5        |
+| PD-14 | The ngraph cross-check runs ngraph with `theta: 0` (exact) and explicit positions for the one-iteration oracle comparison, and with its defaults for the 1,000-step edge-length comparison                                                                                                                                                                                                          | P5-T5        |
+| PD-15 | Spring-electrical seeds in [-1, 1) (the `"fa2"` range branch); the FR range branch already exists                                                                                                                                                                                                                                                                                                   | P5-T5        |
+| PD-16 | `setParams({ fixed })` on the FR simulation is `E_INVALID_ARGUMENT` (the hint names `setFixed`)                                                                                                                                                                                                                                                                                                     | P5-T3        |
+| PD-17 | The `layout-fr` group carries FR AND spring-electrical rows at 10k and 100k on the exact tier; `warmClock` / `reportedRow` are exported from `layout-exact.bench.ts` in a model-agnostic shape                                                                                                                                                                                                      | P5-T8        |
+| PD-18 | `test/helpers/frame-loop.ts` is widened to any model by two generic parameters; its body reads no FA2 field                                                                                                                                                                                                                                                                                         | P5-T9        |
+| PD-19 | The two accelerator members land in ONE task after both models are green; never a throwing stub                                                                                                                                                                                                                                                                                                     | P5-T6        |
+| PD-20 | The FR / spring models compile K5 with `SWING_MODE = 1`, so its `store_old` never runs and the `oldForce` slot is free for the velocity (PD-2); K3's epilogue under mode 1 writes harmless partials B that K5 (PD-4) or nobody reads                                                                                                                                                                | P5-T3, P5-T5 |
 
 ### 0.5 Departures from the design (all of them)
 
-| Id | Departure | Reason |
-| --- | --- | --- |
-| DEP-P5-A | Design 13 row P5 (`:4212`) and 7.20 (`:2466`) give the preset "ngraph's settle rule (total kinetic energy below a threshold)"; the preset settles by the shared rule of 7.17 (`meanDisplacement <= settleThreshold * rmsRadius` for `settleWindow` iterations) and REPORTS `kineticEnergy`. | 7.17 (`:2257-2261`) already IS ngraph's rule made scale-relative on purpose ("ngraph's 0.01 per body ... are the models, made scale-relative because layout units are not scene units"); ngraph's own test is `lastMove / n <= 0.01` in absolute units (`index.js:62-63`), and a second, absolute rule inside the one state machine would contradict 7.17 and give the element two settle semantics. The gate's "settles within 1,000 steps" is measured under the shared rule and, separately, against ngraph's own `step()` return. Recorded by Task P5-T10 as `design/decisions/2026-09-20-spring-electrical-settles-by-the-shared-rule.md`. |
-| DEP-P5-B | Design 7.20 (`:2463`) calls the preset's integrator "a `velocityVerlet` integrate variant"; the preset integrates with ngraph's semi-implicit Euler step and unit speed clamp. | The gate compares the preset's layout with ngraph's (`:4212`), and ngraph integrates `v += (dt / m) F; clamp |v| <= 1; p += dt v` (`generateIntegrator.js:27-41`). A Verlet step would not reproduce ngraph's trajectory, and the clamp is what keeps a fresh graph from exploding under `gravity -12`. The design's own sentence names "ngraph's option names and defaults" and "the velocity integrator" in the same breath; the integrator ngraph has is Euler. Recorded by Task P5-T10 as `design/decisions/2026-09-20-spring-electrical-integrates-like-ngraph.md`. |
-| DEP-P5-C | Design 7.20 (`:2444`) and 7.19 (`:2323`): `reheat()` "sets the iteration to `floor(0.7 * iterations)`". The GPU model restarts the TEMPERATURE index there (PD-5) but the iteration BUDGET restarts at 0, because `ForceSimulation.reheat()` (`force-simulation.ts:1200-1208`) resets `iterationsDone` for every model and the hook has no iteration argument; the temperature is clamped at 0, so a reheated run cools over 30% of the budget, then stops moving and settles within `settleWindow` more iterations. | Changing the hook signature is a change to the P3 contract every model shares for one model's budget accounting; the observable difference is the `iterationsDone` value at the stop, not the layout. The CPU FR (`layout/src/simulation/fruchterman-reingold.ts:378-386`) stops at the budget instead. Recorded by Task P5-T10 as `design/decisions/2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md`. |
-| DEP-P5-D | Design 7.20 (`:2442`) puts `LAW = FR` on "the same exact-tile / grid kernels"; this plan puts it on the exact tile only. | The tree has no grid kernel (0.1). Rule (b) forbids P5 building P4's kernels to host an override; when P4 lands, its near-field kernel takes the same three-valued `LAW` declaration K3 takes here (0.3, 0.7). No decision record: nothing in the design is contradicted, only sequenced. |
+| Id       | Departure                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DEP-P5-A | Design 13 row P5 (`:4212`) and 7.20 (`:2466`) give the preset "ngraph's settle rule (total kinetic energy below a threshold)"; the preset settles by the shared rule of 7.17 (`meanDisplacement <= settleThreshold * rmsRadius` for `settleWindow` iterations) and REPORTS `kineticEnergy`.                                                                                                                                                                                                                          | 7.17 (`:2257-2261`) already IS ngraph's rule made scale-relative on purpose ("ngraph's 0.01 per body ... are the models, made scale-relative because layout units are not scene units"); ngraph's own test is `lastMove / n <= 0.01` in absolute units (`index.js:62-63`), and a second, absolute rule inside the one state machine would contradict 7.17 and give the element two settle semantics. The gate's "settles within 1,000 steps" is measured under the shared rule and, separately, against ngraph's own `step()` return. Recorded by Task P5-T10 as `design/decisions/2026-09-20-spring-electrical-settles-by-the-shared-rule.md`. |
+| DEP-P5-B | Design 7.20 (`:2463`) calls the preset's integrator "a `velocityVerlet` integrate variant"; the preset integrates with ngraph's semi-implicit Euler step and unit speed clamp.                                                                                                                                                                                                                                                                                                                                       | The gate compares the preset's layout with ngraph's (`:4212`), and ngraph integrates `v += (dt / m) F; clamp                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | v   | <= 1; p += dt v` (`generateIntegrator.js:27-41`). A Verlet step would not reproduce ngraph's trajectory, and the clamp is what keeps a fresh graph from exploding under `gravity -12`. The design's own sentence names "ngraph's option names and defaults" and "the velocity integrator" in the same breath; the integrator ngraph has is Euler. Recorded by Task P5-T10 as `design/decisions/2026-09-20-spring-electrical-integrates-like-ngraph.md`. |
+| DEP-P5-C | Design 7.20 (`:2444`) and 7.19 (`:2323`): `reheat()` "sets the iteration to `floor(0.7 * iterations)`". The GPU model restarts the TEMPERATURE index there (PD-5) but the iteration BUDGET restarts at 0, because `ForceSimulation.reheat()` (`force-simulation.ts:1200-1208`) resets `iterationsDone` for every model and the hook has no iteration argument; the temperature is clamped at 0, so a reheated run cools over 30% of the budget, then stops moving and settles within `settleWindow` more iterations. | Changing the hook signature is a change to the P3 contract every model shares for one model's budget accounting; the observable difference is the `iterationsDone` value at the stop, not the layout. The CPU FR (`layout/src/simulation/fruchterman-reingold.ts:378-386`) stops at the budget instead. Recorded by Task P5-T10 as `design/decisions/2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md`.                                                                                                                                                                                                                          |
+| DEP-P5-D | Design 7.20 (`:2442`) puts `LAW = FR` on "the same exact-tile / grid kernels"; this plan puts it on the exact tile only.                                                                                                                                                                                                                                                                                                                                                                                             | The tree has no grid kernel (0.1). Rule (b) forbids P5 building P4's kernels to host an override; when P4 lands, its near-field kernel takes the same three-valued `LAW` declaration K3 takes here (0.3, 0.7). No decision record: nothing in the design is contradicted, only sequenced.                                                                                                                                                                                                                                                                                                                                                       |
 
 ### 0.6 Phase map
 
-| Phase | Where | Entry criteria | Deliverable | Gate | Size |
-| --- | --- | --- | --- | --- | --- |
+| Phase                                                  | Where                      | Entry criteria                | Deliverable                                                                                                                                                                                                                                                                                                                                   | Gate      | Size                                                                                    |
+| ------------------------------------------------------ | -------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------- |
 | P5 Fruchterman-Reingold + the spring-electrical preset | `webgpu-graph-algorithms/` | P3, M5b, M8a -- all MET (0.2) | `createFruchtermanReingold`, `createSpringElectrical`, the two stats records, the `LAW` / `APPLY` / `STATS_MODE` kernel branches, two f64 oracles (the second checked against ngraph), the accelerator members, browser smoke, the `layout-fr` group with T-14, the P5 sabotage / inspect / noise rows, three decision records, the G5 record | design G5 | design 13 row P5 says 4-5 ed; this plan's eleven tasks sum to 15.5 ed (the table below) |
 
 Critical path: P5-T1 -> P5-T2 -> P5-T3 and P5-T5 in parallel -> P5-T4 -> P5-T7 ; P5-T6, P5-T8, P5-T9 after P5-T3 and P5-T5, in parallel with P5-T4 ; P5-T10 any time after P5-T1 ; P5-T11 last.
 
 **Per-task estimate, and the size this plan actually is.** The design's P5 cell says "4-5 ed", and design 13 rule (e) (`:4198-4199`) defines ed as "engineer-days (ed) for one engineer familiar with the code base; the WGSL phases carry the most uncertainty". The cell is not restated here unexamined:
 
-| Task | What it is | ed |
-| --- | --- | --- |
-| P5-T1 | the helper move (fourteen names), four constants tables, two resolved records, two stats records, the `fixed` seam and its test | 1.0 |
-| P5-T2 | seven block fields, three override axes in four bodies with eleven new branches, the registry, the matrix pins, the compile on three adapters | 2.5 |
-| P5-T3 | the FR model and factory, the FR f64 / f32 oracle with stages, the option, behaviour and fast-check property suites | 2.5 |
-| P5-T4 | the FR and spring parity helpers, the FR inspect / trace / twins / layout-oracle / lifecycle suites, the spring inspect / trace suites, the force-sum and distributional suites of both models, the 46 noise-floor tolerances, the recording run on two adapters | 3.0 |
-| P5-T5 | the devDependency, the spring-electrical oracle, its ngraph cross-check, the model and factory, the option / behaviour / property / settle suites | 2.5 |
-| P5-T6 | two accelerator members, the barrel, five pinned lists | 0.5 |
-| P5-T7 | 25 sabotage rows, two sabotage suites, the timed check-mode run of the whole P5 set on two adapters | 1.0 |
-| P5-T8 | the `layout-fr` group, the run.ts and README rows, two baselines re-captured (one through a labelled PR) | 1.0 |
-| P5-T9 | the frame-loop widening, the FR frame-loop case, the browser smoke | 0.5 |
-| P5-T10 | three decision records and three index edits | 0.5 |
-| P5-T11 | the full green check on two adapters plus the browser, and the G5 record | 0.5 |
-| | **total** | **15.5** |
+| Task   | What it is                                                                                                                                                                                                                                                       | ed       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| P5-T1  | the helper move (fourteen names), four constants tables, two resolved records, two stats records, the `fixed` seam and its test                                                                                                                                  | 1.0      |
+| P5-T2  | seven block fields, three override axes in four bodies with eleven new branches, the registry, the matrix pins, the compile on three adapters                                                                                                                    | 2.5      |
+| P5-T3  | the FR model and factory, the FR f64 / f32 oracle with stages, the option, behaviour and fast-check property suites                                                                                                                                              | 2.5      |
+| P5-T4  | the FR and spring parity helpers, the FR inspect / trace / twins / layout-oracle / lifecycle suites, the spring inspect / trace suites, the force-sum and distributional suites of both models, the 46 noise-floor tolerances, the recording run on two adapters | 3.0      |
+| P5-T5  | the devDependency, the spring-electrical oracle, its ngraph cross-check, the model and factory, the option / behaviour / property / settle suites                                                                                                                | 2.5      |
+| P5-T6  | two accelerator members, the barrel, five pinned lists                                                                                                                                                                                                           | 0.5      |
+| P5-T7  | 25 sabotage rows, two sabotage suites, the timed check-mode run of the whole P5 set on two adapters                                                                                                                                                              | 1.0      |
+| P5-T8  | the `layout-fr` group, the run.ts and README rows, two baselines re-captured (one through a labelled PR)                                                                                                                                                         | 1.0      |
+| P5-T9  | the frame-loop widening, the FR frame-loop case, the browser smoke                                                                                                                                                                                               | 0.5      |
+| P5-T10 | three decision records and three index edits                                                                                                                                                                                                                     | 0.5      |
+| P5-T11 | the full green check on two adapters plus the browser, and the G5 record                                                                                                                                                                                         | 0.5      |
+|        | **total**                                                                                                                                                                                                                                                        | **15.5** |
 
 15.5 ed against the design's 4-5. The gap is not padding: the cell predates rule (f), which makes every kernel branch carry three sabotage rows, an `inspect()` stage comparison and a recorded noise floor (that alone is P5-T4 and P5-T7), it predates the package's own step 6 (`CLAUDE.md:445-451`: the property rows, the force-sum invariant and distributional parity per model), and it counted one oracle where the gate needs two plus a third implementation (ngraph) to check the second against. The owner's call, in the PR: accept 15.5, or split -- P5-T1..T3 and T5 (the two models and their oracles, behaviour-tested but with no derived tolerance yet, so no G5 item closed) as one PR, and P5-T4 onward as the PR that closes G5.
 
@@ -184,11 +184,13 @@ then, if `$PKG/node_modules` or `$WT/graph-format/dist` or `$WT/layout/dist` is 
 **Spec:** design 3.3 lines 846-847 (`FruchtermanReingoldStats`, `SpringElectricalStats`, verbatim), 9.3 lines 3015-3016 (the two option records, already the real `@graphty/layout` declarations), 7.20 lines 2440-2446 (`k`, the temperature schedule, `fixed`), 7.12 lines 2148-2160 (the fixed mask at load), 7.17 lines 2257-2261 (the settle defaults every model shares).
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/src/layouts/model-common.ts`
 - Modify: `webgpu-graph-algorithms/src/constants.ts` (append `FR_DEFAULTS`, `FR_START_TEMPERATURE`, `FR_REHEAT_FRACTION`, `SE_DEFAULTS`), `webgpu-graph-algorithms/src/types/options.ts` (append `ResolvedFruchtermanReingoldOptions`, `ResolvedSpringElectricalOptions`), `webgpu-graph-algorithms/src/types/layout.ts` (append the two trace records and the two stats records), `webgpu-graph-algorithms/src/layouts/force-simulation.ts` (`ModelInputs.fixed` and its application in `load()`), `webgpu-graph-algorithms/test/layouts/force-simulation.test.ts` (one case), `webgpu-graph-algorithms/test/device/constants.test.ts` (the two new tables pinned)
 - NOT touched: `src/layouts/forceatlas2.ts` (Task P5-T2 deletes its private helper copies once the kernels compile against the new axes; until then the two copies coexist), `src/index.ts` (Task P5-T6 owns the barrel)
 
 **Interfaces:**
+
 - Consumes: `FA2_DEFAULTS` (`src/constants.ts:58-88`), `LayoutStatsBase` (`src/types/layout.ts:11-21`), `CommonLayoutOptions` / `SimulationOptions` / `FruchtermanReingoldOptions` / `SpringElectricalOptions` (`src/types/options.ts:20-26`, re-exported from `@graphty/layout`), `NodeMask` / `makeMask` / `maskTest` from `@graphty/graph-format` (`graph-format/src/util/mask.ts:27,37`).
 - Produces: `FR_DEFAULTS`, `FR_START_TEMPERATURE`, `FR_REHEAT_FRACTION`, `SE_DEFAULTS`; `ResolvedFruchtermanReingoldOptions`, `ResolvedSpringElectricalOptions`; `FruchtermanReingoldTraceRecord`, `FruchtermanReingoldStats`, `SpringElectricalTraceRecord`, `SpringElectricalStats`; `ModelInputs.fixed?: NodeMask | null`; the fourteen exports of `model-common.ts` (the twelve helpers, `Overrides`, `FORCE_BYTES_PER_NODE`, `FILL_PARAMS_BUFFER`).
 
@@ -435,24 +437,24 @@ In `$PKG/src/layouts/force-simulation.ts`:
 2. In `load()`, in the check phase right after the `inputs.mass.length !== n` check (`:925-933`), add:
 
 ```ts
-            const fixedWords = Math.ceil(n / 32);
-            if (inputs.fixed !== undefined && inputs.fixed !== null && inputs.fixed.length < fixedWords) {
-                throw invalidArgument(
-                    "fixed",
-                    inputs.fixed.length,
-                    fixedWords,
-                    `the model resolved a fixed mask of ${inputs.fixed.length} words, ${fixedWords} needed for ${n} nodes`,
-                );
-            }
+const fixedWords = Math.ceil(n / 32);
+if (inputs.fixed !== undefined && inputs.fixed !== null && inputs.fixed.length < fixedWords) {
+    throw invalidArgument(
+        "fixed",
+        inputs.fixed.length,
+        fixedWords,
+        `the model resolved a fixed mask of ${inputs.fixed.length} words, ${fixedWords} needed for ${n} nodes`,
+    );
+}
 ```
 
 3. In the mutate phase, right after the `if (resized) { ... }` block (`:953-958`) and before the `n === 0` return, add:
 
 ```ts
-        if (inputs !== null && inputs.fixed !== undefined && inputs.fixed !== null) {
-            this.fixedWords.set(inputs.fixed.subarray(0, Math.ceil(n / 32)));
-            this.fixedDirty = true;
-        }
+if (inputs !== null && inputs.fixed !== undefined && inputs.fixed !== null) {
+    this.fixedWords.set(inputs.fixed.subarray(0, Math.ceil(n / 32)));
+    this.fixedDirty = true;
+}
 ```
 
 `NodeMask` is already imported at `:11`. Nothing else changes: `recordAndSubmit` uploads dirty words before the first submit (`:1335-1338`) and `reheat()` is never called.
@@ -476,10 +478,12 @@ Expected: green; coverage at or above 80 / 80 / 75 / 80. `knip` is checked at P5
 **Spec:** design 7.20 lines 2438-2451 (the FR table: repulsion `k^2 / d` with the `|| 0.1` guard, attraction `d^2 / k`, temperature slots, `FR_APPLY`, no K4) and 2455-2467 (the preset: `forceLaw: "coulomb"`, the velocity integrator, ngraph's names), 7.2 lines 1676-1677 (the floor and the coincident kick, which `LAW = 0` keeps), 7.4 lines 1770-1776 (the binding tables P5 keeps), 3.5 / `CLAUDE.md:166-201` (the WGSL rules), 11.9 item 1 (the sabotage seam: bodies are the target of textual mutations, so every new line is written to be a unique `find` string).
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/src/kernels.ts` (`FA2_PARAMS` `:105-124`, `FA2_STATE` `:127-157`, `FA2_TRACE` `:160-173`, the `overrideDecls` of K1 `:349`, K2 `:366-370`, K3 `:391-395`, K5 `:434`, and their JSDoc lines), `webgpu-graph-algorithms/src/wgsl/fa2-stats-finalize.wgsl.ts`, `webgpu-graph-algorithms/src/wgsl/fa2-attraction.wgsl.ts`, `webgpu-graph-algorithms/src/wgsl/fa2-repulsion-exact.wgsl.ts`, `webgpu-graph-algorithms/src/wgsl/fa2-integrate.wgsl.ts`, `webgpu-graph-algorithms/src/layouts/forceatlas2.ts` (delete the twelve private helpers of `:96-297`, the `Overrides` alias of `:58`, `FORCE_BYTES_PER_NODE` of `:64`, `FILL_PARAMS_BUFFER` of `:67` and `U32_MODULUS` of `:79`; import them from `./model-common.js`), `webgpu-graph-algorithms/test/helpers/override-matrix.ts` (`U32_OVERRIDE_VALUES` `:55-62`, the comment `:64-70`, `EXPECTED_CASES_BY_PHASE` `:71-76`), `webgpu-graph-algorithms/test/kernel/wgsl-compile.test.ts` (the per-kernel pins at `:52`)
 - NOT touched: `test/kernel/bind-group-budget.test.ts` (no binding changes: its `STORAGE_COUNTS` `:19-37` stay 3 / 6 / 6 / 6), `test/helpers/sabotage.ts` (Task P5-T7), `src/layouts/repulsion-exact.ts` (its three-override `specs()` at `:95-104` omits `LAW`, which the composer defaults to 0 and `canonicalKey` fills in, `override-matrix.ts:251-253`)
 
 **Interfaces:**
+
 - Consumes: the prelude helpers `kick_dir`, `mask_bit`, `wg_reduce_f32`, `wg_reduce_vec4`, `group_id`, `linear_id` and the constants `FA2_DIST_FLOOR`, `FA2_DIST_FLOOR_SQ`, `FA2_COINCIDENT_SQ`, `F32_MAX` (`src/kernel/prelude.ts:48-52,59-126`); the fourteen exports of `model-common.ts` (P5-T1).
 - Produces: `Fa2Params` 128 bytes with `frK` @96, `temperature` @100, `springLength` @104, `springCoefficient` @108, `coulomb` @112, `dragCoefficient` @116, `timeStep` @120, `pad1` @124; `Fa2State.temperature` @112, `.kineticEnergy` @116, `.reserved0` (vec2f) @120; `Fa2Trace.modelScalar` @28; the override axes `LAW: u32` (K2, K3), `APPLY: u32` (K5), `STATS_MODE: u32` (K1), each defaulting to 0 = the FA2 text.
 
@@ -701,14 +705,16 @@ Expected: green; coverage at or above 80 / 80 / 75 / 80; the SwiftShader compile
 
 **Repository:** `$WT` (`$PKG` = `$WT/webgpu-graph-algorithms`; both exported by the phase's Step 0).
 
-**Spec:** design 7.20 lines 2438-2453 (the FR table and "kernels K1, K2, K3, K5 of 7.4 with a trivial integrate and no K4; `FruchtermanReingoldStats` carry `temperature`"), 7.19 lines 2316-2326 (the hook interface; `onReheat`: "FR: iteration = floor(0.7 * iterations)"), 7.17 lines 2245-2273 (settlement), 7.12 lines 2148-2160 (`fixed`), 3.3 line 873 (`createFruchtermanReingold(ctx, options?: FruchtermanReingoldOptions & GpuLayoutTuning): GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>`), 11.4 lines 3551-3555 (the behaviour pins), `CLAUDE.md:404-457` steps 3-6 ("Adding a Layout Model").
+**Spec:** design 7.20 lines 2438-2453 (the FR table and "kernels K1, K2, K3, K5 of 7.4 with a trivial integrate and no K4; `FruchtermanReingoldStats` carry `temperature`"), 7.19 lines 2316-2326 (the hook interface; `onReheat`: "FR: iteration = floor(0.7 \* iterations)"), 7.17 lines 2245-2273 (settlement), 7.12 lines 2148-2160 (`fixed`), 3.3 line 873 (`createFruchtermanReingold(ctx, options?: FruchtermanReingoldOptions & GpuLayoutTuning): GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>`), 11.4 lines 3551-3555 (the behaviour pins), `CLAUDE.md:404-457` steps 3-6 ("Adding a Layout Model").
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/src/layouts/fruchterman-reingold.ts`, `webgpu-graph-algorithms/test/oracle/fruchterman-reingold.ts`, `webgpu-graph-algorithms/test/layouts/fr-options.test.ts`, `webgpu-graph-algorithms/test/layouts/fr-behaviour.test.ts`, `webgpu-graph-algorithms/test/layouts/fr-properties.test.ts`
 - Modify: `webgpu-graph-algorithms/test/oracle/oracles.test.ts` (three hand-computed FR cases, Step 1)
 - NOT touched: `src/accelerator.ts`, `src/index.ts`, `test/index.test.ts` (Task P5-T6 owns the surface, PD-19), `test/helpers/fa2-parity.ts` (Task P5-T4)
 
 **Interfaces:**
+
 - Consumes: `ForceSimulation`, `ForceModel`, `BufferSpec`, `ModelInputs`, `ModelResources`, `StateWriter` (`src/layouts/force-simulation.ts:47-126,561`), `FA2_PARAMS` / `FA2_STATE` / `FA2_TRACE` / `FILL_PARAMS` / `graphBindings` / `kernelSpec` (`src/kernels.ts`, as `forceatlas2.ts:34` imports them), `plan1d` (`src/kernel/dispatch.ts`), `resolveLayoutTuning` (`forceatlas2.ts:386-431`, exported), `BufferUsage` (`src/device/webgpu-constants.ts`), `UNIFORM_SLOT_BYTES` (`src/constants.ts`), the fourteen exports of `model-common.ts` (P5-T1), `FR_DEFAULTS` / `FR_START_TEMPERATURE` / `FR_REHEAT_FRACTION` (P5-T1), `kickDir` (`test/oracle/forceatlas2.ts:246`).
 - Produces: `resolveFruchtermanReingoldOptions(options, previous?)`, `class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldOptions, FruchtermanReingoldStats>`, `createFruchtermanReingold(ctx, options?)` exactly as design 3.3 line 873 declares it; `class FruchtermanReingoldOracle` with `step()`, `reheat()`, `positions`, `stages`, `trace`; `fruchtermanReingoldOracle(s, scenePositions, options, iterations)`.
 
@@ -726,32 +732,47 @@ Create `$PKG/test/oracle/fruchterman-reingold.ts`: an index-based reference of O
 export interface FrOracleOptions {
     readonly precision: "f64" | "f32";
     readonly dim: 2 | 3;
-    readonly k: number | null;               // null: 1 / sqrt(n)
-    readonly iterations: number;             // the cooling schedule's budget
+    readonly k: number | null; // null: 1 / sqrt(n)
+    readonly iterations: number; // the cooling schedule's budget
     readonly settleThreshold: number;
     readonly fixed?: NodeMask | null | undefined;
 }
 export interface FrOracleStages {
-    readonly attraction: Float64Array;       // K2's force (stride 3)
-    readonly repulsion: Float64Array;        // K3's addition
-    readonly force: Float64Array;            // attraction + repulsion (what K3 leaves in `force`)
-    readonly displacement: Float64Array;     // the applied dp (stride 3; 0 on a fixed row)
-    readonly partials: { readonly sum: [number, number, number]; readonly sumSq: number; readonly min: [number, number, number]; readonly max: [number, number, number]; readonly maxSq: number; readonly disp: number; readonly free: number };
+    readonly attraction: Float64Array; // K2's force (stride 3)
+    readonly repulsion: Float64Array; // K3's addition
+    readonly force: Float64Array; // attraction + repulsion (what K3 leaves in `force`)
+    readonly displacement: Float64Array; // the applied dp (stride 3; 0 on a fixed row)
+    readonly partials: {
+        readonly sum: [number, number, number];
+        readonly sumSq: number;
+        readonly min: [number, number, number];
+        readonly max: [number, number, number];
+        readonly maxSq: number;
+        readonly disp: number;
+        readonly free: number;
+    };
 }
 export interface FrOracleTraceRecord extends FruchtermanReingoldTraceRecord {
-    readonly rmsRadius: number; readonly layoutRadius: number; readonly centroid: readonly [number, number, number];
+    readonly rmsRadius: number;
+    readonly layoutRadius: number;
+    readonly centroid: readonly [number, number, number];
 }
 export class FruchtermanReingoldOracle {
-    constructor(s: GraphSnapshot, positions: F32, options: FrOracleOptions);   // layout-unit positions (scale 1, zero centre), rows as given
+    constructor(s: GraphSnapshot, positions: F32, options: FrOracleOptions); // layout-unit positions (scale 1, zero centre), rows as given
     readonly positions: Float64Array | Float32Array;
     get stages(): FrOracleStages;
     get trace(): readonly FrOracleTraceRecord[];
-    get temperature(): number;               // of the NEXT iteration
-    step(): FrOracleTraceRecord;             // K1 fold (of the previous iteration's partials), K2, K3, K5; the record's temperature is this iteration's
-    reheat(): void;                          // the temperature index becomes floor(0.7 * iterations), clamped at 0 as the GPU does (PD-5)
+    get temperature(): number; // of the NEXT iteration
+    step(): FrOracleTraceRecord; // K1 fold (of the previous iteration's partials), K2, K3, K5; the record's temperature is this iteration's
+    reheat(): void; // the temperature index becomes floor(0.7 * iterations), clamped at 0 as the GPU does (PD-5)
     setFixed(mask: NodeMask | null): void;
 }
-export function fruchtermanReingoldOracle(s: GraphSnapshot, scenePositions: F32, options: FrOracleOptions & { readonly scale?: number; readonly center?: readonly number[] }, iterations: number): { oracle: FruchtermanReingoldOracle; trace: FrOracleTraceRecord[] };
+export function fruchtermanReingoldOracle(
+    s: GraphSnapshot,
+    scenePositions: F32,
+    options: FrOracleOptions & { readonly scale?: number; readonly center?: readonly number[] },
+    iterations: number,
+): { oracle: FruchtermanReingoldOracle; trace: FrOracleTraceRecord[] };
 ```
 
 The temperature of iteration `it` (0-based since load) is `max(0, 0.1 - it * 0.1 / (iterations + 1))`, the value the GPU's uniform slot carries (PD-5). The K1 fold is the FA2 oracle's (`test/oracle/forceatlas2.ts` `computeFold`): centroid of the new positions, RMS radius and layout radius about the PREVIOUS centroid, mean displacement over free rows, the settle counter against `settleThreshold * rmsRadius`.
@@ -764,6 +785,7 @@ Expected: PASS (the three cases; no GPU).
 - [ ] **Step 2: Write the failing option and behaviour tests**
 
 Create `$PKG/test/layouts/fr-options.test.ts` (mirroring `test/layouts/fa2-options.test.ts`, whose imports at `:13-35` and describe layout the executor copies), each as its own `it`:
+
 1. `resolveFruchtermanReingoldOptions()` with no options equals `{ ...FR_DEFAULTS, center: [0, 0, 0], seed: null }`, frozen;
 2. `k: 0` and `k: NaN` resolve to `null` (the CPU's `if (!k)`, `layout/src/simulation/fruchterman-reingold.ts:140-152`); `k: -1` and `k: Infinity` are `E_INVALID_ARGUMENT { argument: "k" }`; `iterations: 0` is accepted (a budget of 0: settled at load); `iterations: 1.5` and `-1` rejected; `fixed: "pinned"` (a string) and a `NodeMask` accepted, `fixed: 7` rejected;
 3. a patch over a previous record keeps every unpatched field; `maxInFlight` may not change (the `resolveForceAtlas2Options` rule, `forceatlas2.ts:329-335`);
@@ -773,6 +795,7 @@ Create `$PKG/test/layouts/fr-options.test.ts` (mirroring `test/layouts/fa2-optio
 7. `paramsFor(global)`: with `iterations: 9` (`dt = 0.01`) the temperatures of globals 0, 5, 9, 12 are `0.1`, `0.05`, `0.01`, `0` (clamped) bitwise as f32; after `reheat()` the next `paramsFor(20)` yields the temperature of index `floor(0.7 * 9) = 6`, i.e. `0.04`, and `paramsFor(21)` `0.03`; `frK` is `1 / sqrt(n)` when `k` is null and the option otherwise.
 
 Create `$PKG/test/layouts/fr-behaviour.test.ts` (the 11.4 pins, mirroring `test/layouts/fa2-behaviour.test.ts:36-215`), each its own `it`, every GPU case run twice with `expectBitwiseEqual` on the owner's array first:
+
 1. the empty graph: `load()` and `step()` resolve, settled at once, no GPU work (the `LeakCounter` `mapAsync` count 0), dispose leaves no buffer;
 2. a single node never moves (no pair, no arc: every force is zero);
 3. two coincident nodes (both seeded at the same position through a finite `positions` array) separate after one iteration (PD-10);
@@ -785,6 +808,7 @@ Create `$PKG/test/layouts/fr-behaviour.test.ts` (the 11.4 pins, mirroring `test/
 10. `stats.repulsionTier` is `"exact"`, `stats.trace` has `k` records after `step(k)`.
 
 Create `$PKG/test/layouts/fr-properties.test.ts` -- the fast-check property rows of `CLAUDE.md:445-451` step 6 for this model, mirroring `test/layouts/fa2-properties.test.ts` (`:68-403`: `numRuns` 200, `CASE_TIMEOUT` 300 s, the `STEPS` / `HALF` sizing by `gpuScale()` at `:41-43`, `bitwiseStableFloat` at `:55-59`; `pinMask`, `startPositions`, `paritySnapshot`, `xyzOf`, `asF32` from `fa2-parity.ts`), on karate with `createFruchtermanReingold(ctx, { seed: 7, iterations: 1_000_000, settleThreshold: 0 })` unless a case says otherwise (a budget of a million keeps the temperature positive through every generated step count; `dt` is then 1e-7 per iteration). No derived tolerance is used anywhere in the file: every assertion is bitwise, an exact count, or an inequality with a stated f32 margin. Each its own `it`, each an `fc.asyncProperty`:
+
 1. fixed nodes never move: a random mask set through `setFixed` between random step counts (`fc.integer({ min: 1, max: STEPS })` before and after) keeps every pinned row bitwise where it was, including the all-fixed mask, which settles within `settleWindow + 1` single-iteration steps; the same property with the mask given as the `fixed` OPTION at creation (PD-6) instead of `setFixed`;
 2. `setPosition(i, x, y, z)` with `bitwiseStableFloat` coordinates is visible in the next readback and never clobbered by an older batch (`maxInFlight: 2`, a `step(3)` issued before the write and one after);
 3. settled within `maxIter`: for `maxIter` in [1, 30], `run({ maxIter, batch: 1 })` stops at exactly `maxIter` with `stats.iteration === maxIter`; and settled within the FR BUDGET: for `iterations` in [1, 30] (a fresh simulation per draw), `run({ batch: 1 })` stops at exactly `iterations` (behaviour case 5 pins the default; the property draws the budget);
@@ -864,11 +888,13 @@ Expected: green on both; coverage still above 80 / 80 / 75 / 80 (`fruchterman-re
 **Spec:** design 13 row P5 gate G5 (`:4212`: "one-iteration displacement parity with the CPU FR oracle (<= 1e-4), fixed nodes immobile"), 11.4 lines 3529-3555 (force parity per stage, trace parity, the behaviour pins), 11.9 items 2-4 (per-kernel inspection; derived tolerances "at most 10x that floor"; run twice), 11.3 (lifecycle: leak 0, `E_RELEASED`, device loss), `CLAUDE.md:445-451` step 6 ("distributional parity (`test/helpers/metrics.ts`)", "the force-sum invariant where the law is antisymmetric", "a noise-floor row and a `tolerances` entry per tolerance (`noiseFloorFor(id)`; never a literal)"), `docs/decisions/G3.md:166-170` (the recording sequence).
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/test/helpers/fr-parity.ts`, `webgpu-graph-algorithms/test/helpers/se-parity.ts`, `webgpu-graph-algorithms/test/layouts/fr-inspect.test.ts`, `webgpu-graph-algorithms/test/layouts/fr-trace.test.ts`, `webgpu-graph-algorithms/test/layouts/fr-twins.test.ts`, `webgpu-graph-algorithms/test/layouts/fr-layout-oracle.test.ts`, `webgpu-graph-algorithms/test/layouts/fr-lifecycle.test.ts`, `webgpu-graph-algorithms/test/layouts/fr-force-sum.test.ts`, `webgpu-graph-algorithms/test/layouts/fr-distributional.test.ts`, `webgpu-graph-algorithms/test/layouts/se-inspect.test.ts`, `webgpu-graph-algorithms/test/layouts/se-trace.test.ts`, `webgpu-graph-algorithms/test/layouts/se-force-sum.test.ts`, `webgpu-graph-algorithms/test/layouts/se-distributional.test.ts`
 - Modify: `webgpu-graph-algorithms/test/helpers/fa2-parity.ts` (three `export` keywords: `readPartials` `:518`, `assertUnitStart` `:878`, `layoutStart` `:893`; nothing else), `webgpu-graph-algorithms/test/noise-floor.test.ts` (the P5 members and the 46 tolerances, Step 3), `webgpu-graph-algorithms/benchmarks/results/noise-floor.json` and `webgpu-graph-algorithms/test/fixtures/noise/*.json` (through the recording run of Step 4, never by hand)
 - NOT touched: `test/helpers/sabotage.ts` and `test/sabotage/**` (Task P5-T7), `src/layouts/**` and `test/oracle/**` (P5-T3 / P5-T5: a parity miss here is fixed there, by the task that owns the file, before this task proceeds)
 
 **Interfaces:**
+
 - Consumes: `paritySnapshot`, `startPositions`, `pinIndex`, `pinMask`, `stageError`, `rel`, `maxAbsDiff`, `asF32`, `xyzOf`, `debugStages`, `withSim`-style wrappers (`test/helpers/fa2-parity.ts:158-436`; `withSim` at `:381`, `stageError` at `:848`), `FruchtermanReingoldOracle` / `fruchtermanReingoldOracle` (P5-T3), `SpringElectricalOracle` (P5-T5), `writeNoiseFixture` / `adapterClass` / `noiseFloorFor` / `recordNoiseRow` / `readNoiseFixtures` (`test/helpers/noise-floor.ts:127,243,218,197,150`), `expectBitwiseEqual` (`test/helpers/matchers.ts:65`), `LeakCounter` (`test/helpers/leak-counter.ts:17`), `FruchtermanReingoldSimulation` from `@graphty/layout` (the built barrel, as `test/layouts/fa2-layout-oracle.test.ts:39` imports `ForceAtlas2Simulation`), the `stageRows` / `stageTolerances` helpers of `test/noise-floor.test.ts:158-183`, `distributionalError` / `metricsValues` (`fa2-parity.ts:1602,1554`), `layoutMetrics` (`test/helpers/metrics.ts:296`), `fixture("coincident")` (`test/helpers/graphs.ts:408,492`), `mergeReports` / `ratioOf` / `assertCheckPasses` (`test/helpers/sabotage.ts`).
 - Produces: `FR_BASE_OPTIONS`, `createFrSim`, `withFrSim`, `captureFrStages(ctx, s, start, options, mask)`, `FR_STAGE_KEYS`, `FR_STAGE_KERNEL`, `FR_STAGE_TOLERANCE`, `FR_NOISE_FIXTURES`, `frStageReport`, `frTolerance(id)`, `P5_TOLERANCE_CAPS` -- the FR half of what `fa2-parity.ts` is for FA2 -- and their `SE_*` / `se*` twins in `se-parity.ts` with `SE_TOLERANCE_CAPS`; the 46 P5 tolerance ids in `noise-floor.json` and the P5 fixture files.
 
@@ -879,14 +905,24 @@ Expected: green on both; coverage still above 80 / 80 / 75 / 80 (`fruchterman-re
 Create `$PKG/test/helpers/fr-parity.ts`:
 
 ```ts
-export const FR_BASE_OPTIONS: FruchtermanReingoldOptions = Object.freeze({ dim: 2, scale: 1, center: [0, 0, 0], seed: 7, iterations: 50, settleThreshold: 0, settleWindow: 10, iterationsPerStep: 1, maxInFlight: 2 });
+export const FR_BASE_OPTIONS: FruchtermanReingoldOptions = Object.freeze({
+    dim: 2,
+    scale: 1,
+    center: [0, 0, 0],
+    seed: 7,
+    iterations: 50,
+    settleThreshold: 0,
+    settleWindow: 10,
+    iterationsPerStep: 1,
+    maxInFlight: 2,
+});
 export const FR_TUNING: GpuLayoutTuning = Object.freeze({ repulsion: "exact" });
 export type FrSim = ForceSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
 export type FrStageKey = "attraction" | "force" | "positions" | "displacement" | "partials" | "scene" | "k1";
 export const FR_STAGE_KEYS: readonly FrStageKey[];
-export const FR_STAGE_KERNEL: Readonly<Record<FrStageKey, KernelId>>;     // attraction K2, force K3, positions / displacement / partials K5, scene fa2-to-scene, k1 fa2-stats-finalize
-export const FR_STAGE_TOLERANCE: Readonly<Record<FrStageKey, string>>;    // "fr-inspect.attraction", "fr-force-parity", "fr-inspect.positions", "fr-displacement", "fr-inspect.partials", "fr-inspect.scene", "fr-inspect.k1"
-export const FR_NOISE_FIXTURES: Readonly<Record<FrStageKey, { kernel: KernelId; fixture: string }>>;   // fixtures "fr-random1k-K2", "fr-random1k-K3", "fr-random1k-K5", "fr-random1k-K5-disp", "fr-random1k-K5-partials", "fr-random1k-toScene", "fr-random1k-K1"
+export const FR_STAGE_KERNEL: Readonly<Record<FrStageKey, KernelId>>; // attraction K2, force K3, positions / displacement / partials K5, scene fa2-to-scene, k1 fa2-stats-finalize
+export const FR_STAGE_TOLERANCE: Readonly<Record<FrStageKey, string>>; // "fr-inspect.attraction", "fr-force-parity", "fr-inspect.positions", "fr-displacement", "fr-inspect.partials", "fr-inspect.scene", "fr-inspect.k1"
+export const FR_NOISE_FIXTURES: Readonly<Record<FrStageKey, { kernel: KernelId; fixture: string }>>; // fixtures "fr-random1k-K2", "fr-random1k-K3", "fr-random1k-K5", "fr-random1k-K5-disp", "fr-random1k-K5-partials", "fr-random1k-toScene", "fr-random1k-K1"
 /**
  * The P5 FR tolerance ids, their spec caps and BASIS ROWS, in the shape of P3_TOLERANCE_CAPS (fa2-parity.ts:589-632):
  * `basis` is the id of a noise ROW of benchmarks/results/noise-floor.json (test/noise-floor.test.ts:454 looks it up,
@@ -900,37 +936,38 @@ export const FR_NOISE_FIXTURES: Readonly<Record<FrStageKey, { kernel: KernelId; 
  * (fa2-force-parity.cross, :592), twice the oracle cap for the trajectories (the triangle-inequality rule of
  * fa2-trace-parity.cross10, :614-616) and 0.2 for the distributional row (fa2-distributional.cross, :620).
  */
-export const P5_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; readonly basis: string }>> = Object.freeze({
-    "fr-displacement": { cap: 1e-4, basis: "fr-displacement.oracle-f64" },            // G5: one-iteration displacement parity
-    "fr-displacement.cross": { cap: 1e-4, basis: "fr-displacement.cross" },
-    "fr-force-parity": { cap: 1e-4, basis: "fr-force-parity.oracle-f64" },            // K3's force (design 11.4)
-    "fr-force-parity.cross": { cap: 1e-4, basis: "fr-force-parity.cross" },
-    "fr-force-sum": { cap: 1e-4, basis: "fr-force-parity.oracle-f64" },               // traced to the force-parity row, as fa2-force-sum is; no member of its own, so no .cross
-    "fr-inspect.attraction": { cap: 1e-4, basis: "fr-inspect.attraction.oracle-f64" }, // K2
-    "fr-inspect.attraction.cross": { cap: 1e-4, basis: "fr-inspect.attraction.cross" },
-    "fr-inspect.positions": { cap: 1e-4, basis: "fr-inspect.positions.oracle-f64" },   // K5 positions
-    "fr-inspect.positions.cross": { cap: 1e-4, basis: "fr-inspect.positions.cross" },
-    "fr-inspect.partials": { cap: 1e-4, basis: "fr-inspect.partials.oracle-f64" },     // K5 partials
-    "fr-inspect.partials.cross": { cap: 1e-4, basis: "fr-inspect.partials.cross" },
-    "fr-inspect.scene": { cap: 1e-4, basis: "fr-inspect.scene.oracle-f64" },           // toScene
-    "fr-inspect.scene.cross": { cap: 1e-4, basis: "fr-inspect.scene.cross" },
-    "fr-inspect.k1": { cap: 1e-4, basis: "fr-inspect.k1.oracle-f64" },                 // the K1 fold and the traced temperature
-    "fr-inspect.k1.cross": { cap: 1e-4, basis: "fr-inspect.k1.cross" },
-    "fr-trajectory": { cap: 1e-3, basis: "fr-trajectory.oracle-f64" },                 // 10 free-running iterations vs the f64 oracle
-    "fr-trajectory.cross": { cap: 2e-3, basis: "fr-trajectory.cross" },               // twice the oracle cap (fa2-trace-parity.cross10's rule)
-    "fr-layout-oracle": { cap: 1e-3, basis: "fr-layout-oracle.oracle-f64" },           // 10 iterations vs @graphty/layout's CPU FR (its row's "oracle-f64" class IS the CPU class)
-    "fr-layout-oracle.cross": { cap: 2e-3, basis: "fr-layout-oracle.cross" },
-    "fr-distributional": { cap: 0.1, basis: "fr-distributional.oracle-f64" },          // layoutMetrics after 100 iterations vs the f64 oracle (design 11.4)
-    "fr-distributional.cross": { cap: 0.2, basis: "fr-distributional.cross" },         // as fa2-distributional.cross
-    "fr-twins.force": { cap: 1e-5, basis: "fr-twins.force.twin" },                     // design 11.5: the subgroup twin
-    "fr-twins.positions": { cap: 1e-5, basis: "fr-twins.positions.twin" },
-});
+export const P5_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; readonly basis: string }>> =
+    Object.freeze({
+        "fr-displacement": { cap: 1e-4, basis: "fr-displacement.oracle-f64" }, // G5: one-iteration displacement parity
+        "fr-displacement.cross": { cap: 1e-4, basis: "fr-displacement.cross" },
+        "fr-force-parity": { cap: 1e-4, basis: "fr-force-parity.oracle-f64" }, // K3's force (design 11.4)
+        "fr-force-parity.cross": { cap: 1e-4, basis: "fr-force-parity.cross" },
+        "fr-force-sum": { cap: 1e-4, basis: "fr-force-parity.oracle-f64" }, // traced to the force-parity row, as fa2-force-sum is; no member of its own, so no .cross
+        "fr-inspect.attraction": { cap: 1e-4, basis: "fr-inspect.attraction.oracle-f64" }, // K2
+        "fr-inspect.attraction.cross": { cap: 1e-4, basis: "fr-inspect.attraction.cross" },
+        "fr-inspect.positions": { cap: 1e-4, basis: "fr-inspect.positions.oracle-f64" }, // K5 positions
+        "fr-inspect.positions.cross": { cap: 1e-4, basis: "fr-inspect.positions.cross" },
+        "fr-inspect.partials": { cap: 1e-4, basis: "fr-inspect.partials.oracle-f64" }, // K5 partials
+        "fr-inspect.partials.cross": { cap: 1e-4, basis: "fr-inspect.partials.cross" },
+        "fr-inspect.scene": { cap: 1e-4, basis: "fr-inspect.scene.oracle-f64" }, // toScene
+        "fr-inspect.scene.cross": { cap: 1e-4, basis: "fr-inspect.scene.cross" },
+        "fr-inspect.k1": { cap: 1e-4, basis: "fr-inspect.k1.oracle-f64" }, // the K1 fold and the traced temperature
+        "fr-inspect.k1.cross": { cap: 1e-4, basis: "fr-inspect.k1.cross" },
+        "fr-trajectory": { cap: 1e-3, basis: "fr-trajectory.oracle-f64" }, // 10 free-running iterations vs the f64 oracle
+        "fr-trajectory.cross": { cap: 2e-3, basis: "fr-trajectory.cross" }, // twice the oracle cap (fa2-trace-parity.cross10's rule)
+        "fr-layout-oracle": { cap: 1e-3, basis: "fr-layout-oracle.oracle-f64" }, // 10 iterations vs @graphty/layout's CPU FR (its row's "oracle-f64" class IS the CPU class)
+        "fr-layout-oracle.cross": { cap: 2e-3, basis: "fr-layout-oracle.cross" },
+        "fr-distributional": { cap: 0.1, basis: "fr-distributional.oracle-f64" }, // layoutMetrics after 100 iterations vs the f64 oracle (design 11.4)
+        "fr-distributional.cross": { cap: 0.2, basis: "fr-distributional.cross" }, // as fa2-distributional.cross
+        "fr-twins.force": { cap: 1e-5, basis: "fr-twins.force.twin" }, // design 11.5: the subgroup twin
+        "fr-twins.positions": { cap: 1e-5, basis: "fr-twins.positions.twin" },
+    });
 export function createFrSim(ctx, options, tuning): FrSim;
-export async function withFrSim<T>(ctx, options, tuning, body: (sim: FrSim) => Promise<T>): Promise<T>;   // dispose in finally
+export async function withFrSim<T>(ctx, options, tuning, body: (sim: FrSim) => Promise<T>): Promise<T>; // dispose in finally
 export async function captureFrStages(ctx, s, start: F32, options, mask: NodeMask | null): Promise<FrStageCapture>;
 // as captureAllStages (fa2-parity.ts:915-1065) with the FR oracle: run("K2") -> force = attraction; run("K3") -> force; run("K5") -> positions, displacement = positions - start (both xyz), partials; run("toScene") -> scene; one real step(1) then run("K1") -> the state header (k1) whose fields include S.temperature; every read through debugStages(); the expected values from FruchtermanReingoldOracle.stages and its K1 fold, the error through stageError(...) with the 11.4 floored per-node metric for the stride-3 stages and rel() for the scalars
-export function frStageReport(capture, key): CheckReport;        // ratioOf(error, frTolerance(FR_STAGE_TOLERANCE[key]).value), the CheckReport shape of sabotage.ts:560
-export function frTolerance(id: string): { value: number; basis: string };   // noiseFloorFor(id), then asserts value <= P5_TOLERANCE_CAPS[id].cap (a floor above the cap is a finding, 10.4)
+export function frStageReport(capture, key): CheckReport; // ratioOf(error, frTolerance(FR_STAGE_TOLERANCE[key]).value), the CheckReport shape of sabotage.ts:560
+export function frTolerance(id: string): { value: number; basis: string }; // noiseFloorFor(id), then asserts value <= P5_TOLERANCE_CAPS[id].cap (a floor above the cap is a finding, 10.4)
 ```
 
 `assertUnitStart`, `layoutStart` and `readPartials` come from `fa2-parity.ts` once exported (this task's one edit there): the three are pure and model-agnostic. The `k1` capture reads `S.temperature` through `FA2_STATE.readField(header, "temperature")` and compares it with the oracle's trace record; the `displacement` key is the G5 quantity, computed on both sides as positions after K5 minus the start in layout units, compared with the floored per-node metric (`|dp_gpu - dp_oracle| <= tol * max(|dp_oracle|, 1e-3 * max_j |dp_oracle_j|)`, the 11.4 form).
@@ -1008,11 +1045,13 @@ Expected: green; coverage at or above 80 / 80 / 75 / 80.
 **Spec:** design 7.20 lines 2455-2471 (the preset: Coulomb `1/d^2` repulsion, Hooke springs, drag, a velocity integrator, ngraph's option names and defaults, `SpringElectricalStats.kineticEnergy`; routing is Q-9's), 9.3 line 3016 (`SpringElectricalOptions`), 9.3 table row `"spring-electrical"` (`:3046`: no CPU simulation in v1), 3.3 line 874 (`createSpringElectrical(ctx, options?: SpringElectricalOptions & GpuLayoutTuning)`), 13 row P5 gate G5 (`:4212`: "the preset settles within 1,000 steps on the 150-node / 250-edge 'Performance/Large Graph' story graph to an edge-length distribution within 25% of ngraph's (ngraph run on the CPU in the test, devDependency of the test only)"), 11.4 line 3508-3528 (oracle independence: the oracle is checked against an independent, widely used implementation).
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/package.json` (two devDependencies) and `pnpm-lock.yaml` (through `pnpm add`, never by hand)
 - Create: `webgpu-graph-algorithms/src/layouts/spring-electrical.ts`, `webgpu-graph-algorithms/test/oracle/spring-electrical.ts`, `webgpu-graph-algorithms/test/oracle/spring-electrical-ngraph.test.ts`, `webgpu-graph-algorithms/test/helpers/story-graph.ts`, `webgpu-graph-algorithms/test/layouts/se-options.test.ts`, `webgpu-graph-algorithms/test/layouts/se-behaviour.test.ts`, `webgpu-graph-algorithms/test/layouts/se-properties.test.ts`, `webgpu-graph-algorithms/test/layouts/se-settle.test.ts`
 - NOT touched: `src/accelerator.ts`, `src/index.ts`, `test/index.test.ts` (P5-T6), `test/helpers/fa2-parity.ts`, `test/helpers/se-parity.ts`, `test/layouts/se-inspect.test.ts`, `test/layouts/se-trace.test.ts`, `test/layouts/se-force-sum.test.ts`, `test/layouts/se-distributional.test.ts`, `test/noise-floor.test.ts` (P5-T4: the spring parity, force-sum and distributional suites and every derived spring tolerance land there, after this task), the workspace root's `$WT/knip.config.ts` (the two packages are imported by two test files, which its `test/**/*.test.ts` entry covers, `$WT/knip.config.ts:59`; the package has no knip config of its own)
 
 **Interfaces:**
+
 - Consumes: everything P5-T3 consumes, plus `SE_DEFAULTS` (P5-T1), `s.outDegree()` (graph-format), `createLayout` from `ngraph.forcelayout` and `createGraph` from `ngraph.graph` (test only), `edgeLengthQuantiles` / `layoutMetrics` (`test/helpers/metrics.ts:184,296`).
 - Produces: `resolveSpringElectricalOptions(options, previous?)`, `class SpringElectricalModel implements ForceModel<SpringElectricalOptions, SpringElectricalStats>`, `createSpringElectrical(ctx, options?)` exactly as design 3.3 line 874 declares it; `class SpringElectricalOracle` with `stages` (`attraction`, `repulsion`, `force`, `velocity`, `displacement`, `partials`) and `stats`; `storyGraph()` / `storyEdges()` (the 150 / 250 graph).
 
@@ -1098,10 +1137,12 @@ Expected: green; knip clean (the two devDependencies are imported by `test/oracl
 **Spec:** design 3.3 lines 880-897 (`GpuAccelerator`; the two members at 892-893: `fruchtermanReingold(o?: FruchtermanReingoldOptions)`, `springElectrical(o?: SpringElectricalOptions)`, "the CPU option types; GPU tuning comes from `options.layout`, never from the caller"), 9.3 lines 3018-3025 (`LayoutAccelerator`'s optional members, the real declaration), 3.3 lines 873-874 (the two factories on the root entry), 2.4 (a method the GPU does not implement must be ABSENT, never a stub).
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/src/types/accelerator.ts` (`GpuAccelerator` `:98-116` gains the two members; the import lists at `:40-41`), `webgpu-graph-algorithms/src/accelerator.ts` (the two methods; the header `:11-12`), `webgpu-graph-algorithms/src/index.ts` (values `:48-51`; types `:105-112`), `webgpu-graph-algorithms/test/index.test.ts` (`VALUE_EXPORTS` `:41-46`, `NEVER_EXPORTED` `:93-95`, the identity assertions `:123-125`), `webgpu-graph-algorithms/test/accelerator.test.ts` (`:52-54,63-64,161-199`), `webgpu-graph-algorithms/test/types/public-api.test-d.ts`, `webgpu-graph-algorithms/test/types/accelerator.test-d.ts`, `webgpu-graph-algorithms/test/types/options.test-d.ts`, `webgpu-graph-algorithms/test/types/conformance.test-d.ts`
 - NOT touched: `src/layouts/**` (both factories exist since P5-T3 / P5-T5)
 
 **Interfaces:**
+
 - Consumes: `createFruchtermanReingold` (P5-T3), `createSpringElectrical` (P5-T5), the four stats / trace types and the two resolved records (P5-T1).
 - Produces: `GpuAccelerator.fruchtermanReingold` / `.springElectrical`; barrel values `createFruchtermanReingold`, `createSpringElectrical`, `FR_DEFAULTS`, `SE_DEFAULTS`; barrel types `FruchtermanReingoldStats`, `FruchtermanReingoldTraceRecord`, `SpringElectricalStats`, `SpringElectricalTraceRecord`.
 
@@ -1166,11 +1207,13 @@ Expected: PASS (the lint runs both `tsc` legs, which compile the four `.test-d.t
 **Spec:** design 11.9 item 1 (sabotage: "a kernel lands with at least three mutations", each failing its test "by at least 10x the test's tolerance"), 13 rule (f), `CLAUDE.md:445-451` step 6 ("at least three sabotage rows per kernel"), 10.4 line 3417 (T-12, the lane budget the timed run of Step 3 is measured against).
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/test/helpers/sabotage.ts` (append `SABOTAGE_P5` and four test-file constants)
 - Create: `webgpu-graph-algorithms/test/sabotage/fr.test.ts`, `webgpu-graph-algorithms/test/sabotage/se.test.ts`
 - NOT touched: `test/sabotage/coverage.test.ts` (its P1 name pins stand: PD-8), `test/sabotage/fa2.test.ts`, `test/noise-floor.test.ts`, `benchmarks/results/noise-floor.json`, `test/fixtures/noise/**`, the `fr-*` / `se-*` parity suites and helpers (all P5-T4's: every tolerance this task's ratios divide by is already recorded)
 
 **Interfaces:**
+
 - Consumes: `Mutation`, `withSabotage`, `sabotagedBody`, `mergeReports`, `assertCheckPasses`, `ratioOf` (`test/helpers/sabotage.ts:23-29,522-613`), `captureFrStages` / `frStageReport` and `captureSeStages` / `seStageReport` (P5-T4), the 46 recorded P5 tolerances (P5-T4 Step 4).
 - Produces: `SABOTAGE_P5: Readonly<Partial<Record<KernelId, readonly Mutation[]>>>` (25 rows).
 
@@ -1189,37 +1232,187 @@ const SE_TRACE_TEST = "test/layouts/se-trace.test.ts";
 /** The P5 rows (PD-8): the FR and spring-electrical BRANCHES of the four FA2 kernels; measured by test/sabotage/fr.test.ts and se.test.ts only, never against the FA2 checks (which never reach these lines). */
 export const SABOTAGE_P5: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
     "fa2-attraction": Object.freeze([
-        { name: "fr-attraction-k-multiplied", find: "if (LAW == 1u) { w = length(d) / P.frK; }", replace: "if (LAW == 1u) { w = length(d) * P.frK; }", minFactor: 10, test: FR_INSPECT_TEST },
-        { name: "fr-attraction-linear", find: "w = length(d) / P.frK;", replace: "w = 1.0 / P.frK;", minFactor: 10, test: FR_INSPECT_TEST },
-        { name: "fr-attraction-law-skipped", find: "if (LAW == 1u) { w = length(d) / P.frK; }", replace: "if (LAW == 3u) { w = length(d) / P.frK; }", minFactor: 10, test: FR_INSPECT_TEST },
-        { name: "spring-rest-length-dropped", find: "w = P.springCoefficient * (len - P.springLength) / len;", replace: "w = P.springCoefficient;", minFactor: 10, test: SE_INSPECT_TEST },
-        { name: "spring-sign-flipped", find: "w = P.springCoefficient * (len - P.springLength) / len;", replace: "w = P.springCoefficient * (P.springLength - len) / len;", minFactor: 10, test: SE_INSPECT_TEST },
-        { name: "spring-law-skipped", find: "if (LAW == 2u) { w = P.springCoefficient", replace: "if (LAW == 3u) { w = P.springCoefficient", minFactor: 10, test: SE_INSPECT_TEST },
+        {
+            name: "fr-attraction-k-multiplied",
+            find: "if (LAW == 1u) { w = length(d) / P.frK; }",
+            replace: "if (LAW == 1u) { w = length(d) * P.frK; }",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-attraction-linear",
+            find: "w = length(d) / P.frK;",
+            replace: "w = 1.0 / P.frK;",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-attraction-law-skipped",
+            find: "if (LAW == 1u) { w = length(d) / P.frK; }",
+            replace: "if (LAW == 3u) { w = length(d) / P.frK; }",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "spring-rest-length-dropped",
+            find: "w = P.springCoefficient * (len - P.springLength) / len;",
+            replace: "w = P.springCoefficient;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "spring-sign-flipped",
+            find: "w = P.springCoefficient * (len - P.springLength) / len;",
+            replace: "w = P.springCoefficient * (P.springLength - len) / len;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "spring-law-skipped",
+            find: "if (LAW == 2u) { w = P.springCoefficient",
+            replace: "if (LAW == 3u) { w = P.springCoefficient",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
     ]),
     "fa2-repulsion-exact": Object.freeze([
-        { name: "fr-repulsion-inverse-square", find: "f = f + d * (P.frK * P.frK / d2);", replace: "f = f + d * (P.frK * P.frK / (d2 * sqrt(d2)));", minFactor: 10, test: FR_INSPECT_TEST },
-        { name: "fr-repulsion-k-linear", find: "(P.frK * P.frK / d2)", replace: "(P.frK / d2)", minFactor: 10, test: FR_INSPECT_TEST },
-        { name: "fr-repulsion-law-skipped", find: "if (LAW == 1u) { f = f + d", replace: "if (LAW == 3u) { f = f + d", minFactor: 10, test: FR_INSPECT_TEST },
-        { name: "coulomb-sign-flipped", find: "(-P.coulomb * pi.w * o.w / (d2 * sqrt(d2)))", replace: "(P.coulomb * pi.w * o.w / (d2 * sqrt(d2)))", minFactor: 10, test: SE_INSPECT_TEST },
-        { name: "coulomb-inverse-linear", find: "pi.w * o.w / (d2 * sqrt(d2))", replace: "pi.w * o.w / d2", minFactor: 10, test: SE_INSPECT_TEST },
-        { name: "coulomb-mass-dropped", find: "(-P.coulomb * pi.w * o.w /", replace: "(-P.coulomb /", minFactor: 10, test: SE_INSPECT_TEST },
+        {
+            name: "fr-repulsion-inverse-square",
+            find: "f = f + d * (P.frK * P.frK / d2);",
+            replace: "f = f + d * (P.frK * P.frK / (d2 * sqrt(d2)));",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-repulsion-k-linear",
+            find: "(P.frK * P.frK / d2)",
+            replace: "(P.frK / d2)",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-repulsion-law-skipped",
+            find: "if (LAW == 1u) { f = f + d",
+            replace: "if (LAW == 3u) { f = f + d",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "coulomb-sign-flipped",
+            find: "(-P.coulomb * pi.w * o.w / (d2 * sqrt(d2)))",
+            replace: "(P.coulomb * pi.w * o.w / (d2 * sqrt(d2)))",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "coulomb-inverse-linear",
+            find: "pi.w * o.w / (d2 * sqrt(d2))",
+            replace: "pi.w * o.w / d2",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "coulomb-mass-dropped",
+            find: "(-P.coulomb * pi.w * o.w /",
+            replace: "(-P.coulomb /",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
     ]),
     "fa2-integrate": Object.freeze([
-        { name: "fr-temperature-cap-dropped", find: "dp = f * (min(mag, P.temperature) / mag);", replace: "dp = f;", minFactor: 10, test: FR_INSPECT_TEST },
-        { name: "fr-fixed-moves", find: "if (mag > 0.0 && !fixed) {", replace: "if (mag > 0.0) {", minFactor: 10, test: FR_INSPECT_TEST },
-        { name: "fr-apply-skipped", find: "if (APPLY == 1u) {", replace: "if (APPLY == 3u) {", minFactor: 10, test: FR_INSPECT_TEST },
-        { name: "euler-drag-sign", find: "let fd = f - P.dragCoefficient * v;", replace: "let fd = f + P.dragCoefficient * v;", minFactor: 10, test: SE_TRACE_TEST },
-        { name: "euler-mass-ignored", find: "v = v + (P.timeStep / p.w) * fd;", replace: "v = v + P.timeStep * fd;", minFactor: 10, test: SE_INSPECT_TEST },
-        { name: "euler-clamp-dropped", find: "if (sp > 1.0) { v = v / sp; }", replace: "if (sp > 1.0e30) { v = v / sp; }", minFactor: 10, test: SE_INSPECT_TEST },
-        { name: "euler-velocity-not-stored", find: "if (!fixed) { store_old(i, v); }", replace: "if (fixed) { store_old(i, v); }", minFactor: 10, test: SE_TRACE_TEST },
+        {
+            name: "fr-temperature-cap-dropped",
+            find: "dp = f * (min(mag, P.temperature) / mag);",
+            replace: "dp = f;",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-fixed-moves",
+            find: "if (mag > 0.0 && !fixed) {",
+            replace: "if (mag > 0.0) {",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-apply-skipped",
+            find: "if (APPLY == 1u) {",
+            replace: "if (APPLY == 3u) {",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "euler-drag-sign",
+            find: "let fd = f - P.dragCoefficient * v;",
+            replace: "let fd = f + P.dragCoefficient * v;",
+            minFactor: 10,
+            test: SE_TRACE_TEST,
+        },
+        {
+            name: "euler-mass-ignored",
+            find: "v = v + (P.timeStep / p.w) * fd;",
+            replace: "v = v + P.timeStep * fd;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "euler-clamp-dropped",
+            find: "if (sp > 1.0) { v = v / sp; }",
+            replace: "if (sp > 1.0e30) { v = v / sp; }",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "euler-velocity-not-stored",
+            find: "if (!fixed) { store_old(i, v); }",
+            replace: "if (fixed) { store_old(i, v); }",
+            minFactor: 10,
+            test: SE_TRACE_TEST,
+        },
     ]),
     "fa2-stats-finalize": Object.freeze([
-        { name: "fr-temperature-not-traced", find: "T[P.iterationIndex].modelScalar = P.temperature;", replace: "T[P.iterationIndex].modelScalar = 0.0;", minFactor: 10, test: FR_TRACE_TEST },
-        { name: "fr-temperature-state-stale", find: "S.temperature = P.temperature;", replace: "S.temperature = S.temperature;", minFactor: 10, test: FR_INSPECT_TEST },
-        { name: "fr-stats-mode-skipped", find: "if (STATS_MODE == 1u) {", replace: "if (STATS_MODE == 3u) {", minFactor: 10, test: FR_TRACE_TEST },
-        { name: "ke-not-folded", find: "ke = ke + q.swingTraction.x;", replace: "ke = ke + 0.0 * q.swingTraction.x;", minFactor: 10, test: SE_INSPECT_TEST },
-        { name: "ke-state-not-written", find: "S.kineticEnergy = tKe;", replace: "S.kineticEnergy = 0.0;", minFactor: 10, test: SE_INSPECT_TEST },
-        { name: "ke-stats-mode-skipped", find: "if (STATS_MODE == 2u) {", replace: "if (STATS_MODE == 3u) {", minFactor: 10, test: SE_INSPECT_TEST },
+        {
+            name: "fr-temperature-not-traced",
+            find: "T[P.iterationIndex].modelScalar = P.temperature;",
+            replace: "T[P.iterationIndex].modelScalar = 0.0;",
+            minFactor: 10,
+            test: FR_TRACE_TEST,
+        },
+        {
+            name: "fr-temperature-state-stale",
+            find: "S.temperature = P.temperature;",
+            replace: "S.temperature = S.temperature;",
+            minFactor: 10,
+            test: FR_INSPECT_TEST,
+        },
+        {
+            name: "fr-stats-mode-skipped",
+            find: "if (STATS_MODE == 1u) {",
+            replace: "if (STATS_MODE == 3u) {",
+            minFactor: 10,
+            test: FR_TRACE_TEST,
+        },
+        {
+            name: "ke-not-folded",
+            find: "ke = ke + q.swingTraction.x;",
+            replace: "ke = ke + 0.0 * q.swingTraction.x;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "ke-state-not-written",
+            find: "S.kineticEnergy = tKe;",
+            replace: "S.kineticEnergy = 0.0;",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
+        {
+            name: "ke-stats-mode-skipped",
+            find: "if (STATS_MODE == 2u) {",
+            replace: "if (STATS_MODE == 3u) {",
+            minFactor: 10,
+            test: SE_INSPECT_TEST,
+        },
     ]),
 });
 ```
@@ -1246,11 +1439,13 @@ Expected: PASS everywhere; `test/sabotage/fr.test.ts` and `se.test.ts` print eac
 **Spec:** design 10.4 line 3419 (T-14: "FR 10k / 100k nodes per-iteration numbers recorded", gate G5), 11.7 (benchmarks and baselines), 13 rule (c), `CLAUDE.md:106-149` (the harness, the clock warm-up burst, the append rule: "the LAST session of a file is the baseline and must carry every group"), `CLAUDE.md:452-455` step 7.
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/benchmarks/layout-fr.bench.ts`
 - Modify: `webgpu-graph-algorithms/benchmarks/layout-exact.bench.ts` (export `warmClock` and `reportedRow`, the latter with a `group` parameter; the two call sites at `:265,283-291`), `webgpu-graph-algorithms/benchmarks/run.ts` (`GROUPS` `:34-40`, the usage comment `:7-14`, the JSDoc `:30-33`), `webgpu-graph-algorithms/test/benchmarks.test.ts` (a describe for the new group beside `:463`), `webgpu-graph-algorithms/README.md` (the group list `:274-277`, one T-14 row in each of the two performance tables `:296-301` and `:343-348`, and the group sentence in the CLAUDE.md-mirrored paragraph), `webgpu-graph-algorithms/benchmarks/results/nvidia-lovelace-driver580.json` and `gpu-linux-t4.json` (one appended session each, through the append script, never by hand)
 - NOT touched: `scripts/bench-compare.js` (it compares whatever rows the last session carries, `:177-181`), `webgpu-graph-algorithms/CLAUDE.md` (its groups table `:115-121` gains the `layout-fr` row in Task P5-T11, which owns that file)
 
 **Interfaces:**
+
 - Consumes: `bench`, `BenchResult`, `appendSession` (`benchmarks/harness.ts:26,138,324`), `randomEdges` / `snapshotOf` (`benchmarks/datasets.ts:35,235`), `createFruchtermanReingold`, `createSpringElectrical`, `EXACT_LADDER`'s shape (`layout-exact.bench.ts:49-52`).
 - Produces: `LAYOUT_FR_GROUP = "layout-fr"`, `FR_RUNGS`, `runLayoutFrBenchmarks(ctx)`; the exported `warmClock(sim, minMs)` and `reportedRow(group, name, samples, runs, items, unit)`.
 
@@ -1262,9 +1457,25 @@ In `layout-exact.bench.ts`: `warmClock` (`:234-246`) becomes `export async funct
 
 ```ts
 export const LAYOUT_FR_GROUP = "layout-fr";
-export const FR_RUNGS: readonly LadderRung[] = [{ label: "10k", nodes: 10_000 }, { label: "100k", nodes: 100_000 }];
-const FR_OPTIONS: FruchtermanReingoldOptions & GpuLayoutTuning = { dim: 2, seed: 12345, iterations: 1_000_000, iterationsPerStep: 1, maxInFlight: 1, repulsion: "exact" };
-const SE_OPTIONS: SpringElectricalOptions & GpuLayoutTuning = { dim: 2, seed: 12345, iterationsPerStep: 1, maxInFlight: 1, repulsion: "exact" };
+export const FR_RUNGS: readonly LadderRung[] = [
+    { label: "10k", nodes: 10_000 },
+    { label: "100k", nodes: 100_000 },
+];
+const FR_OPTIONS: FruchtermanReingoldOptions & GpuLayoutTuning = {
+    dim: 2,
+    seed: 12345,
+    iterations: 1_000_000,
+    iterationsPerStep: 1,
+    maxInFlight: 1,
+    repulsion: "exact",
+};
+const SE_OPTIONS: SpringElectricalOptions & GpuLayoutTuning = {
+    dim: 2,
+    seed: 12345,
+    iterationsPerStep: 1,
+    maxInFlight: 1,
+    repulsion: "exact",
+};
 export async function runLayoutFrBenchmarks(ctx: GpuContext): Promise<BenchResult[]>;
 // per rung: snapshotOf(randomEdges(n, 10 n, SEED)), then for each of [["fr", createFruchtermanReingold, FR_OPTIONS], ["se", createSpringElectrical, SE_OPTIONS]]: load, warmClock(sim, 500), bench(LAYOUT_FR_GROUP, `${tag} step(1) wall n=${n} m=${m} 2D [${label}]`, { setup: reheat, run: step(1) and push stats.msPerIteration }, { device, items: n * (n - 1), unit: "pairs" }), then reportedRow(LAYOUT_FR_GROUP, `${tag} ms/iteration (${source}) n=${n} [${label}]`, samples, wall.runs, pairs, "pairs"); dispose and release in finally
 ```
@@ -1300,11 +1511,13 @@ Add to both README tables a row `| T-14 | Fruchterman-Reingold exact tier, GPU t
 **Spec:** design 11.6 item 3 (the 500-node smoke: "load, step(10) five times with maxInFlight = 2, positions written back, setPosition / setFixed honoured, dispose clean, plus the 11.4 frame-loop test"), 11.4 lines 3595-3600 (the frame-loop test), 13 row P5 ("browser smoke"), `CLAUDE.md:449-451`.
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/test/helpers/frame-loop.ts` (the two generic parameters at `:31-32,93,139,304`)
 - Create: `webgpu-graph-algorithms/test/layouts/fr-frame-loop.test.ts`, `webgpu-graph-algorithms/test/browser/spring-layouts.test.ts`
 - NOT touched: `test/browser/forceatlas2.test.ts`, `test/layouts/frame-loop.test.ts`
 
 **Interfaces:**
+
 - Consumes: `runFrameLoop` / `runFrameLoopUntilSettled` (`frame-loop.ts:138,303`), `requireBrowserGpu` / `acquireBrowser` / `browserScale` (`test/setup/browser.ts:97,127,142`), `randomEdges` / `snapshotOf` / `fixture` (`test/helpers/graphs.ts:216,350,438`), `storyGraph()` (P5-T5), both factories.
 - Produces: `runFrameLoop<O, S>(sim: GpuLayoutSimulation<O, S>, ...)` for any model.
 
@@ -1342,6 +1555,7 @@ Expected: both runs pass (the wrapper's exit-124 rule applies, `CLAUDE.md:297-29
 **Spec:** `design/decisions/README.md:1-27` (one decision per file, `YYYY-MM-DD-<slug>.md`, never edited after it lands, carries the argument that was REJECTED, plus a row in the index table).
 
 **Files:**
+
 - Create: `design/decisions/2026-09-20-spring-electrical-settles-by-the-shared-rule.md`, `design/decisions/2026-09-20-spring-electrical-integrates-like-ngraph.md`, `design/decisions/2026-09-20-fr-reheat-restarts-the-temperature-not-the-budget.md` (THREE records: DEP-P5-A, -B, -C)
 - Modify: `design/decisions/README.md` (three index rows after `:40`), `design/README.md:14` (`10` -> `13`) and `:21` (`12` -> `13`), `design/webgpu/README.md` (a row for this plan after `:14`)
 - NOT touched: `design/webgpu/webgpu-acceleration-plan.md` (the Review-log practice was retired on 2026-09-19, `design/decisions/README.md:14-21`)
@@ -1368,6 +1582,7 @@ Expected: `14` (the README plus thirteen records: the ten that exist today and t
 **Spec:** design 13 row P5 line 4212 (the G5 checklist, quoted in the template below); design 13 rule (a) (green on the default lane AND the GPU lane); 10.4 lines 3397-3402 (a missed target is re-fixed by a recorded owner decision, never relaxed silently).
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/docs/decisions/G5.md`
 - Modify: `webgpu-graph-algorithms/CLAUDE.md` (`:57` the wgsl inventory line gains "the P5 `LAW` / `APPLY` / `STATS_MODE` branches of K1, K2, K3, K5"; `:60` the layouts line gains `model-common.ts`, `fruchterman-reingold.ts`, `spring-electrical.ts` (P5); the benchmark groups table `:115-121` gains the `layout-fr` row (P5-T8's group, described in its PD-17; this task owns the file); the "Adding a Layout Model" preamble `:406-410` names the two P5 models as landed; the "Settled at G3" table gains a "Settled at G5" table with the measured facts of Step 1)
 - NOT touched: `docs/decisions/G0.md` .. `G7.md` (closed records)
@@ -1395,7 +1610,7 @@ Expected: as commented; coverage at or above 80 / 80 / 75 / 80; the non-ASCII co
 
 Create `$PKG/docs/decisions/G5.md` with this content; every `<...>` cell is a number or a string copied from the named command's output, and the owner signs the last section:
 
-````markdown
+```markdown
 # G5 -- Fruchterman-Reingold and the spring-electrical preset (spec 13 row P5)
 
 Recorded by: Task P5-T11 of `design/webgpu/plans/2026-09-20-webgpu-p5-fruchterman-reingold.md`, 2026-09-DD (every
@@ -1424,57 +1639,57 @@ The three departures from the design are `design/decisions/2026-09-20-spring-ele
 ## 1. Adapters exercised
 
 | Adapter | Runtime | adapter class | runner class | subgroups | how it was run |
-| --- | --- | --- | --- | --- | --- |
+| ------- | ------- | ------------- | ------------ | --------- | -------------- |
 
 ## 2. The G5 checklist (spec 13 row P5), each item mapped to its evidence
 
-| # | Item | Evidence | Result | Status |
-| --- | --- | --- | --- | --- |
-| 1 | one-iteration displacement parity with the CPU FR oracle (<= 1e-4) | `test/layouts/fr-inspect.test.ts` (`displacement` key), tolerance `fr-displacement` = <value> (basis <row>) | <max error over the fixtures> | pass / fail |
-| 2 | fixed nodes immobile | `fr-inspect.test.ts` pinned case, `fr-behaviour.test.ts` case 4, `fr-layout-oracle.test.ts` with a mask, `test/browser/spring-layouts.test.ts` | bitwise | pass / fail |
-| 3 | output NOT rescaled when `fixed` is given | `fr-behaviour.test.ts` case 4 (`scale: 3, center: [10, 20, 0]`, the analytic box), `fr-layout-oracle.test.ts` scale / center case (tolerance `fr-layout-oracle`) | <the free rows' bounding box; the layout-oracle error at k = 20> | pass / fail |
-| 4 | the preset settles within 1,000 steps on the 150 / 250 story graph to an edge-length distribution within 25% of ngraph's | `test/layouts/se-settle.test.ts` (both adapters), `test/browser/spring-layouts.test.ts` case 4 | GPU stop <n> its, ngraph stop <n> steps; q10 / q50 / q90 GPU <..> vs ngraph <..>, worst <pct>% | pass / fail |
-| 5 | T-14 recorded | section 3 | <two medians> | pass / fail |
-| 6 | rule (f): sabotage rows per kernel branch, each >= 10x | `test/sabotage/fr.test.ts`, `se.test.ts` | 25 rows; smallest ratio <r> | pass / fail |
-| 7 | rule (f): `inspect()` stage comparisons of every branch | `fr-inspect.test.ts`, `se-inspect.test.ts` (7 + 8 stage keys) | <worst stage error> | pass / fail |
-| 8 | rule (f): a noise-floor row and a derived tolerance per tolerance | section 4; `noise-floor.json` tolerances `fr-*` / `se-*` | 46 tolerances (23 per model, ten of them `.cross`), every one under its cap | pass / fail |
-| 9 | the oracle cross-checked against an independent implementation (11.4) | `test/oracle/spring-electrical-ngraph.test.ts` (1e-9 vs ngraph, theta 0); `fr-layout-oracle.test.ts` vs @graphty/layout | <errors> | pass / fail |
-| 10 | run twice bitwise; subgroup twins in-process; the no-subgroups pass | every `fr-*` / `se-*` suite; `fr-twins.test.ts`; Step 1's twin pass | <twin errors> | pass / fail |
-| 11 | lifecycle: leak 0, `E_RELEASED`, device loss | `fr-lifecycle.test.ts` | 0 live buffers | pass / fail |
-| 12 | browser smoke on SwiftShader and NVIDIA-Chromium | `test/browser/spring-layouts.test.ts` | <two run lines> | pass / fail |
-| 13 | FA2 unchanged: every committed FA2 noise fixture still matches | `fa2-inspect.test.ts`, `fa2-twins.test.ts` after P5-T2 | bitwise | pass / fail |
-| 14 | the lavapipe lane budget (T-12) | Step 1's timed run | <s> of 900 | pass / fail |
-| 15 | `CLAUDE.md` step 6: the fast-check property rows of both models | `test/layouts/fr-properties.test.ts`, `se-properties.test.ts` (7 + 7 rows, numRuns 200) | <wall time per file on lavapipe> | pass / fail |
-| 16 | `CLAUDE.md` step 6: the force-sum invariant (every P5 law is antisymmetric) | `fr-force-sum.test.ts`, `se-force-sum.test.ts`; tolerances `fr-force-sum` / `se-force-sum` | <worst ratio per model> | pass / fail |
-| 17 | `CLAUDE.md` step 6: distributional parity after 100 iterations | `fr-distributional.test.ts`, `se-distributional.test.ts`; tolerances `fr-distributional` / `se-distributional` | admitted cases <list, with the oracle's own spread per candidate>; worst error <e> | pass / fail |
+| #   | Item                                                                                                                     | Evidence                                                                                                                                                         | Result                                                                                         | Status      |
+| --- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------- |
+| 1   | one-iteration displacement parity with the CPU FR oracle (<= 1e-4)                                                       | `test/layouts/fr-inspect.test.ts` (`displacement` key), tolerance `fr-displacement` = <value> (basis <row>)                                                      | <max error over the fixtures>                                                                  | pass / fail |
+| 2   | fixed nodes immobile                                                                                                     | `fr-inspect.test.ts` pinned case, `fr-behaviour.test.ts` case 4, `fr-layout-oracle.test.ts` with a mask, `test/browser/spring-layouts.test.ts`                   | bitwise                                                                                        | pass / fail |
+| 3   | output NOT rescaled when `fixed` is given                                                                                | `fr-behaviour.test.ts` case 4 (`scale: 3, center: [10, 20, 0]`, the analytic box), `fr-layout-oracle.test.ts` scale / center case (tolerance `fr-layout-oracle`) | <the free rows' bounding box; the layout-oracle error at k = 20>                               | pass / fail |
+| 4   | the preset settles within 1,000 steps on the 150 / 250 story graph to an edge-length distribution within 25% of ngraph's | `test/layouts/se-settle.test.ts` (both adapters), `test/browser/spring-layouts.test.ts` case 4                                                                   | GPU stop <n> its, ngraph stop <n> steps; q10 / q50 / q90 GPU <..> vs ngraph <..>, worst <pct>% | pass / fail |
+| 5   | T-14 recorded                                                                                                            | section 3                                                                                                                                                        | <two medians>                                                                                  | pass / fail |
+| 6   | rule (f): sabotage rows per kernel branch, each >= 10x                                                                   | `test/sabotage/fr.test.ts`, `se.test.ts`                                                                                                                         | 25 rows; smallest ratio <r>                                                                    | pass / fail |
+| 7   | rule (f): `inspect()` stage comparisons of every branch                                                                  | `fr-inspect.test.ts`, `se-inspect.test.ts` (7 + 8 stage keys)                                                                                                    | <worst stage error>                                                                            | pass / fail |
+| 8   | rule (f): a noise-floor row and a derived tolerance per tolerance                                                        | section 4; `noise-floor.json` tolerances `fr-*` / `se-*`                                                                                                         | 46 tolerances (23 per model, ten of them `.cross`), every one under its cap                    | pass / fail |
+| 9   | the oracle cross-checked against an independent implementation (11.4)                                                    | `test/oracle/spring-electrical-ngraph.test.ts` (1e-9 vs ngraph, theta 0); `fr-layout-oracle.test.ts` vs @graphty/layout                                          | <errors>                                                                                       | pass / fail |
+| 10  | run twice bitwise; subgroup twins in-process; the no-subgroups pass                                                      | every `fr-*` / `se-*` suite; `fr-twins.test.ts`; Step 1's twin pass                                                                                              | <twin errors>                                                                                  | pass / fail |
+| 11  | lifecycle: leak 0, `E_RELEASED`, device loss                                                                             | `fr-lifecycle.test.ts`                                                                                                                                           | 0 live buffers                                                                                 | pass / fail |
+| 12  | browser smoke on SwiftShader and NVIDIA-Chromium                                                                         | `test/browser/spring-layouts.test.ts`                                                                                                                            | <two run lines>                                                                                | pass / fail |
+| 13  | FA2 unchanged: every committed FA2 noise fixture still matches                                                           | `fa2-inspect.test.ts`, `fa2-twins.test.ts` after P5-T2                                                                                                           | bitwise                                                                                        | pass / fail |
+| 14  | the lavapipe lane budget (T-12)                                                                                          | Step 1's timed run                                                                                                                                               | <s> of 900                                                                                     | pass / fail |
+| 15  | `CLAUDE.md` step 6: the fast-check property rows of both models                                                          | `test/layouts/fr-properties.test.ts`, `se-properties.test.ts` (7 + 7 rows, numRuns 200)                                                                          | <wall time per file on lavapipe>                                                               | pass / fail |
+| 16  | `CLAUDE.md` step 6: the force-sum invariant (every P5 law is antisymmetric)                                              | `fr-force-sum.test.ts`, `se-force-sum.test.ts`; tolerances `fr-force-sum` / `se-force-sum`                                                                       | <worst ratio per model>                                                                        | pass / fail |
+| 17  | `CLAUDE.md` step 6: distributional parity after 100 iterations                                                           | `fr-distributional.test.ts`, `se-distributional.test.ts`; tolerances `fr-distributional` / `se-distributional`                                                   | admitted cases <list, with the oracle's own spread per candidate>; worst error <e>             | pass / fail |
 
 ## 3. T-14 (spec 10.4; `benchmarks/results/<class>.json`, session <date>)
 
-| Id | Benchmark (group / name) | Target | Measured median of 5 (ms) | min / max (ms) | Rate | Pass |
-| --- | --- | --- | --- | --- | --- | --- |
-| T-14 | layout-fr / fr ms/iteration (profiler) n=10000 [10k] | recorded | <median> | <min> / <max> | <rate> | recorded |
-| T-14 | layout-fr / fr ms/iteration (profiler) n=100000 [100k] | recorded | <median> | <min> / <max> | <rate> | recorded |
-| -- | layout-fr / se ms/iteration (profiler) n=10000 [10k] | recorded | <median> | <min> / <max> | <rate> | recorded |
-| -- | layout-fr / se ms/iteration (profiler) n=100000 [100k] | recorded | <median> | <min> / <max> | <rate> | recorded |
+| Id   | Benchmark (group / name)                               | Target   | Measured median of 5 (ms) | min / max (ms) | Rate   | Pass     |
+| ---- | ------------------------------------------------------ | -------- | ------------------------- | -------------- | ------ | -------- |
+| T-14 | layout-fr / fr ms/iteration (profiler) n=10000 [10k]   | recorded | <median>                  | <min> / <max>  | <rate> | recorded |
+| T-14 | layout-fr / fr ms/iteration (profiler) n=100000 [100k] | recorded | <median>                  | <min> / <max>  | <rate> | recorded |
+| --   | layout-fr / se ms/iteration (profiler) n=10000 [10k]   | recorded | <median>                  | <min> / <max>  | <rate> | recorded |
+| --   | layout-fr / se ms/iteration (profiler) n=100000 [100k] | recorded | <median>                  | <min> / <max>  | <rate> | recorded |
 
 The same four rows for `gpu-linux-t4` once the lane has run (`{{OPEN: P5-T8 Step 3}}` until then).
 
 ## 4. Cross-adapter results (spec 11.5, 11.9; `benchmarks/results/noise-floor.json`)
 
-| Row id | kernel / fixture | comparison | a | b | maxRelError | maxAbsError | samples |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+| Row id | kernel / fixture | comparison | a   | b   | maxRelError | maxAbsError | samples |
+| ------ | ---------------- | ---------- | --- | --- | ----------- | ----------- | ------- |
 
 ## 5. Coverage (spec 11.8; the default-lane run of Step 1)
 
 | lines | functions | branches | statements | threshold | wall time |
-| --- | --- | --- | --- | --- | --- |
+| ----- | --------- | -------- | ---------- | --------- | --------- |
 
 ## 6. Baselines committed
 
 ## 7. Findings, owner decisions, re-fixed targets
 
 Signed off: <owner>, 2026-09-DD.
-````
+```
 
 A tolerance the recording run derived ABOVE its P5 cap does not close the gate by itself: 10.4 (`:3397-3402`) requires the owner either to re-fix the cap in a recorded decision or to keep the phase open; section 7 is where that decision is written, and the checklist's item 8 says `fail` honestly either way.
 
@@ -1490,62 +1705,62 @@ The inventory lines and the `layout-fr` groups-table row of the Files list above
 
 ### 7.1 The owner's command sheet (in order)
 
-| When | Command (paste as an `!` command in this session, or run in a shell) |
-| --- | --- |
-| Phase step 0 | the worktree `.worktrees/gpu-scale-layouts` on `feat/gpu-p5-p4` exists (0.1); `cd $WT && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run-many -t build --projects=graph-format,layout` if `node_modules` or the two `dist/` are missing |
-| P5-T1, P5-T2, P5-T3 | one `tools/commit-changes.sh` run per task, with the subject the task's Commit step names |
-| P5-T5 step 1 | `cd $PKG && pnpm add -D 'ngraph.forcelayout@^3.3.1' 'ngraph.graph@^20.0.1'` (an agent may run this: it is not git), then the task's commit |
-| P5-T4 (after P5-T5) | one commit; its recording run (Step 4) needs the NVIDIA card and lavapipe in turn, both on the dev box |
-| P5-T6, P5-T7 | one commit each |
-| P5-T8 step 2 | `cd $PKG && eval $GPU_NV XDG_RUNTIME_DIR=/tmp pnpm run bench && node tmp/p5/append-session.mjs benchmarks/out/nvidia-lovelace-driver580.json benchmarks/results/nvidia-lovelace-driver580.json && node scripts/bench-compare.js` on a quiet card, then the task's commit |
-| P5-T8 step 3 | push the branch, open the PR, `gh pr edit <n> --add-label gpu`, then `gh run download <run id> -n gpu-results-<run id> -D $PKG/tmp/p5/t4` and the same append script into `benchmarks/results/gpu-linux-t4.json`; the `record the layout-fr T4 lane baseline` commit |
-| P5-T9 | one commit |
-| P5-T10 | `tools/commit-changes.sh` with a type `docs` subject and NO scope |
-| P5-T11 | fill and sign `webgpu-graph-algorithms/docs/decisions/G5.md`, then the final commit and the PR merge once `ci.yml`, `hosts.yml` and `gpu.yml` are green |
+| When                | Command (paste as an `!` command in this session, or run in a shell)                                                                                                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Phase step 0        | the worktree `.worktrees/gpu-scale-layouts` on `feat/gpu-p5-p4` exists (0.1); `cd $WT && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run-many -t build --projects=graph-format,layout` if `node_modules` or the two `dist/` are missing                       |
+| P5-T1, P5-T2, P5-T3 | one `tools/commit-changes.sh` run per task, with the subject the task's Commit step names                                                                                                                                                                                |
+| P5-T5 step 1        | `cd $PKG && pnpm add -D 'ngraph.forcelayout@^3.3.1' 'ngraph.graph@^20.0.1'` (an agent may run this: it is not git), then the task's commit                                                                                                                               |
+| P5-T4 (after P5-T5) | one commit; its recording run (Step 4) needs the NVIDIA card and lavapipe in turn, both on the dev box                                                                                                                                                                   |
+| P5-T6, P5-T7        | one commit each                                                                                                                                                                                                                                                          |
+| P5-T8 step 2        | `cd $PKG && eval $GPU_NV XDG_RUNTIME_DIR=/tmp pnpm run bench && node tmp/p5/append-session.mjs benchmarks/out/nvidia-lovelace-driver580.json benchmarks/results/nvidia-lovelace-driver580.json && node scripts/bench-compare.js` on a quiet card, then the task's commit |
+| P5-T8 step 3        | push the branch, open the PR, `gh pr edit <n> --add-label gpu`, then `gh run download <run id> -n gpu-results-<run id> -D $PKG/tmp/p5/t4` and the same append script into `benchmarks/results/gpu-linux-t4.json`; the `record the layout-fr T4 lane baseline` commit     |
+| P5-T9               | one commit                                                                                                                                                                                                                                                               |
+| P5-T10              | `tools/commit-changes.sh` with a type `docs` subject and NO scope                                                                                                                                                                                                        |
+| P5-T11              | fill and sign `webgpu-graph-algorithms/docs/decisions/G5.md`, then the final commit and the PR merge once `ci.yml`, `hosts.yml` and `gpu.yml` are green                                                                                                                  |
 
 The agent never runs any of these git steps; it prepares the tree and verifies the results. In particular the agent never runs `git worktree`, `git stash`, `git checkout` or `git reset`: in a subagent they block on a prompt nobody answers.
 
 ### 7.2 Verification matrix
 
-| Check | Where | Command | Green means |
-| --- | --- | --- | --- |
-| The `fixed` seam | P5-T1 | `pnpm exec vitest run --project=node test/layouts/force-simulation.test.ts` | a model's mask reaches the device at load with no reheat (G5 item 2's root) |
-| The constants | P5-T1 | `pnpm exec vitest run --project=node test/device/constants.test.ts` | `FR_DEFAULTS` / `SE_DEFAULTS` are the CPU's and ngraph's numbers |
-| The compile matrix | P5-T2 | `pnpm exec vitest run --project=node test/kernel/wgsl-compile.test.ts` | 203 cases on the real device and `backend=null`, both twins (PD-9) |
-| The bind-group budget | P5-T2 | `pnpm exec vitest run --project=node test/kernel/bind-group-budget.test.ts` | every count unchanged (PD-1) |
-| FA2 bitwise unchanged | P5-T2 | `pnpm exec vitest run --project=node test/layouts/fa2-inspect.test.ts test/layouts/fa2-twins.test.ts test/sabotage/fa2.test.ts` | the committed FA2 fixtures still match (G5 item 13) |
-| The FR oracle's arithmetic | P5-T3 | `pnpm exec vitest run --project=node test/oracle/oracles.test.ts` | the three hand-computed cases |
-| FR options and behaviour | P5-T3 | `pnpm exec vitest run --project=node test/layouts/fr-options.test.ts test/layouts/fr-behaviour.test.ts` | the 11.4 pins, the temperature schedule, `fixed` at load, not rescaled (G5 items 2, 3) |
-| FR stage parity and displacement | P5-T4 | `pnpm exec vitest run --project=node test/layouts/fr-inspect.test.ts` | every stage within its traced tolerance; displacement <= 1e-4 (G5 item 1) |
-| FR trajectory, twins, layout oracle, lifecycle | P5-T4 | `pnpm exec vitest run --project=node test/layouts/fr-trace.test.ts test/layouts/fr-twins.test.ts test/layouts/fr-layout-oracle.test.ts test/layouts/fr-lifecycle.test.ts` | G5 items 9, 10, 11 |
-| The property rows (step 6) | P5-T3, P5-T5 | `pnpm exec vitest run --project=node test/layouts/fr-properties.test.ts test/layouts/se-properties.test.ts` | fixed, setPosition, settle, reheat, remapped load, the z rule and the per-node displacement bound hold over 200 random draws per row (G5 item 15) |
-| The force-sum invariant (step 6) | P5-T4 | `pnpm exec vitest run --project=node test/layouts/fr-force-sum.test.ts test/layouts/se-force-sum.test.ts` | `\|sum F\| <= tol x sum \|F\|` on every fixture including the coincident one (G5 item 16) |
-| Distributional parity (step 6) | P5-T4 | `pnpm exec vitest run --project=node test/layouts/fr-distributional.test.ts test/layouts/se-distributional.test.ts` | the admitted cases' metrics within the traced 10% after 100 iterations (G5 item 17) |
-| The spring oracle vs ngraph | P5-T5 | `pnpm exec vitest run --project=node test/oracle/spring-electrical-ngraph.test.ts` | 1e-9 against ngraph at theta 0 (G5 item 9) |
-| The preset settles like ngraph | P5-T5 | `pnpm exec vitest run --project=node test/layouts/se-settle.test.ts` | settled under 1,000 iterations; quantiles within 25% (G5 item 4) |
-| Spring stage parity | P5-T4 | `pnpm exec vitest run --project=node test/layouts/se-inspect.test.ts test/layouts/se-trace.test.ts` | every stage within its traced tolerance (G5 item 7) |
-| The barrel and the accelerator | P5-T6 | `pnpm exec vitest run --project=node test/index.test.ts test/accelerator.test.ts` and `pnpm run lint` | four new values, two members, the five pinned lists |
-| Sabotage | P5-T7 | `pnpm exec vitest run --project=node test/sabotage` | every P5 row breaks its check by >= 10x (G5 item 6) |
-| The noise floor | P5-T4 | `pnpm exec vitest run --project=node test/noise-floor.test.ts` | 46 P5 tolerances, each under its cap (G5 item 8) |
-| The no-subgroups twin | P5-T7 | `GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/layouts` | the FR / spring paths agree without the feature |
-| T-14 | P5-T8 | `pnpm run bench` then `node scripts/bench-compare.js` | the two baselines carry `layout-fr`; the medians are in G5.md section 3 |
-| Browser smoke and the FR frame loop | P5-T9 | `GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js` | G5 item 12 |
-| Coverage | P5-T11 | `pnpm exec vitest run --project=node --coverage` on lavapipe | at or above 80 / 80 / 75 / 80, never lowered |
-| Plain ASCII | P5-T11 | `LC_ALL=C grep -rnP '[^\x00-\x7F]' src test benchmarks docs \| wc -l` | 0 |
+| Check                                          | Where        | Command                                                                                                                                                                   | Green means                                                                                                                                       |
+| ---------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The `fixed` seam                               | P5-T1        | `pnpm exec vitest run --project=node test/layouts/force-simulation.test.ts`                                                                                               | a model's mask reaches the device at load with no reheat (G5 item 2's root)                                                                       |
+| The constants                                  | P5-T1        | `pnpm exec vitest run --project=node test/device/constants.test.ts`                                                                                                       | `FR_DEFAULTS` / `SE_DEFAULTS` are the CPU's and ngraph's numbers                                                                                  |
+| The compile matrix                             | P5-T2        | `pnpm exec vitest run --project=node test/kernel/wgsl-compile.test.ts`                                                                                                    | 203 cases on the real device and `backend=null`, both twins (PD-9)                                                                                |
+| The bind-group budget                          | P5-T2        | `pnpm exec vitest run --project=node test/kernel/bind-group-budget.test.ts`                                                                                               | every count unchanged (PD-1)                                                                                                                      |
+| FA2 bitwise unchanged                          | P5-T2        | `pnpm exec vitest run --project=node test/layouts/fa2-inspect.test.ts test/layouts/fa2-twins.test.ts test/sabotage/fa2.test.ts`                                           | the committed FA2 fixtures still match (G5 item 13)                                                                                               |
+| The FR oracle's arithmetic                     | P5-T3        | `pnpm exec vitest run --project=node test/oracle/oracles.test.ts`                                                                                                         | the three hand-computed cases                                                                                                                     |
+| FR options and behaviour                       | P5-T3        | `pnpm exec vitest run --project=node test/layouts/fr-options.test.ts test/layouts/fr-behaviour.test.ts`                                                                   | the 11.4 pins, the temperature schedule, `fixed` at load, not rescaled (G5 items 2, 3)                                                            |
+| FR stage parity and displacement               | P5-T4        | `pnpm exec vitest run --project=node test/layouts/fr-inspect.test.ts`                                                                                                     | every stage within its traced tolerance; displacement <= 1e-4 (G5 item 1)                                                                         |
+| FR trajectory, twins, layout oracle, lifecycle | P5-T4        | `pnpm exec vitest run --project=node test/layouts/fr-trace.test.ts test/layouts/fr-twins.test.ts test/layouts/fr-layout-oracle.test.ts test/layouts/fr-lifecycle.test.ts` | G5 items 9, 10, 11                                                                                                                                |
+| The property rows (step 6)                     | P5-T3, P5-T5 | `pnpm exec vitest run --project=node test/layouts/fr-properties.test.ts test/layouts/se-properties.test.ts`                                                               | fixed, setPosition, settle, reheat, remapped load, the z rule and the per-node displacement bound hold over 200 random draws per row (G5 item 15) |
+| The force-sum invariant (step 6)               | P5-T4        | `pnpm exec vitest run --project=node test/layouts/fr-force-sum.test.ts test/layouts/se-force-sum.test.ts`                                                                 | `\|sum F\| <= tol x sum \|F\|` on every fixture including the coincident one (G5 item 16)                                                         |
+| Distributional parity (step 6)                 | P5-T4        | `pnpm exec vitest run --project=node test/layouts/fr-distributional.test.ts test/layouts/se-distributional.test.ts`                                                       | the admitted cases' metrics within the traced 10% after 100 iterations (G5 item 17)                                                               |
+| The spring oracle vs ngraph                    | P5-T5        | `pnpm exec vitest run --project=node test/oracle/spring-electrical-ngraph.test.ts`                                                                                        | 1e-9 against ngraph at theta 0 (G5 item 9)                                                                                                        |
+| The preset settles like ngraph                 | P5-T5        | `pnpm exec vitest run --project=node test/layouts/se-settle.test.ts`                                                                                                      | settled under 1,000 iterations; quantiles within 25% (G5 item 4)                                                                                  |
+| Spring stage parity                            | P5-T4        | `pnpm exec vitest run --project=node test/layouts/se-inspect.test.ts test/layouts/se-trace.test.ts`                                                                       | every stage within its traced tolerance (G5 item 7)                                                                                               |
+| The barrel and the accelerator                 | P5-T6        | `pnpm exec vitest run --project=node test/index.test.ts test/accelerator.test.ts` and `pnpm run lint`                                                                     | four new values, two members, the five pinned lists                                                                                               |
+| Sabotage                                       | P5-T7        | `pnpm exec vitest run --project=node test/sabotage`                                                                                                                       | every P5 row breaks its check by >= 10x (G5 item 6)                                                                                               |
+| The noise floor                                | P5-T4        | `pnpm exec vitest run --project=node test/noise-floor.test.ts`                                                                                                            | 46 P5 tolerances, each under its cap (G5 item 8)                                                                                                  |
+| The no-subgroups twin                          | P5-T7        | `GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/layouts`                                                                                             | the FR / spring paths agree without the feature                                                                                                   |
+| T-14                                           | P5-T8        | `pnpm run bench` then `node scripts/bench-compare.js`                                                                                                                     | the two baselines carry `layout-fr`; the medians are in G5.md section 3                                                                           |
+| Browser smoke and the FR frame loop            | P5-T9        | `GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js`                                                                             | G5 item 12                                                                                                                                        |
+| Coverage                                       | P5-T11       | `pnpm exec vitest run --project=node --coverage` on lavapipe                                                                                                              | at or above 80 / 80 / 75 / 80, never lowered                                                                                                      |
+| Plain ASCII                                    | P5-T11       | `LC_ALL=C grep -rnP '[^\x00-\x7F]' src test benchmarks docs \| wc -l`                                                                                                     | 0                                                                                                                                                 |
 
 ### 7.3 Risk register for this plan
 
-| Id | Risk | Mitigation |
-| --- | --- | --- |
-| R-P5-1 | P4 lands first and rewrites `forceatlas2.ts`, `force-simulation.ts`, `kernels.ts` and the K3 body under this plan's feet. | 0.3 names every shared file; every edit of this plan is a complete before / after; the P5 edits to the four bodies are ADDED lines around unchanged P3 `find` strings, so a three-way merge keeps both. The `LAW` override on the grid near-field kernel is the one item that belongs to whichever lands second (0.7). |
-| R-P5-2 | PD-9's 53 extra compile cases push the SwiftShader compile-matrix test (`test/browser/compile-matrix.test.ts`) past the "light browser testing" budget of design 11.6. | P5-T2 Step 8 measures it; the remedy G2 recorded applies: the browser case list is a subset chosen in that test, not in the generator. K2's 49 cases have no twin (`needs: []`), so the matrix grows by 53 cases and 53 pipelines, not 106. |
-| R-P5-3 | The FR displacement floor on NVIDIA lands above the 1e-4 cap (a floor above the cap is a finding, 11.9 item 3). | The FR pair body is one division and a multiply, the attraction one multiply per arc, and the cap holds for the FA2 force with the SAME tile order (`fa2-skeleton.force` = 3.4e-6, `CLAUDE.md:333`), so the expected floor is 1e-6 with 100x headroom. If it lands above, `tolerances.mjs`-style derivation shows which stage, and 10.4's owner-decision rule applies in G5.md section 7. |
-| R-P5-4 | The preset settles under the shared rule at a point ngraph would call unstable, or vice versa, and the 25% quantile comparison misses. | Both stops are printed and recorded; the quantiles are compared on the FINAL layouts of each rule, and P5-T5 Step 4 first checks the two f64 implementations agree distributionally at 1,000 steps before the GPU is blamed. DEP-P5-A's record states the reversal condition. |
-| R-P5-5 | A `LAW != 0` combination with `LINLOG = true` or `DISTRIBUTED = true` compiles to nonsense nobody tests. | No factory emits it (the FR / spring override sets are constants); the matrix compiles it (a superset by design, `override-matrix.ts:14-21`); the bodies apply the FR / spring `w` BEFORE the linlog select, so the combination is well defined even if useless. |
-| R-P5-6 | The `velocity`-in-`oldForce` trick (PD-2) breaks when K5's `store_old(i, f)` runs under `SWING_MODE = 0`. | PD-20: both new models compile `SWING_MODE = 1`; `se-options.test.ts` pins the override set and `se-trace.test.ts`'s `euler-velocity-not-stored` sabotage row proves the stored velocity is what the next iteration reads. |
-| R-P5-7 | `Fa2Params` growing to 128 bytes collides with P4's GridSpec. | PD-3 appends after `pad` and never touches bytes 0-95; P4's field lands in `pad` as the P3 comment reserves. 128 < 256 (`UNIFORM_SLOT_BYTES`), so the ring slot is unchanged. |
-| R-P5-8 | The reheated FR temperature is anchored one batch late when a `reheat()` arrives while a batch is in flight. | PD-5 anchors at the first `paramsFor` AFTER the reheat, which is the first iteration RECORDED after it; the in-flight batch was computed before the reheat and its `settledCount` is already taken as 0 by `force-simulation.ts:1409-1411`. `fr-behaviour.test.ts` case 6 measures the anchor with batches of 1, 5 and 8. |
-| R-P5-9 | The 100k FR / spring rungs on the exact tier take long enough on the T4 to push `gpu.yml` past its 20-minute budget (T-12). | Each rung is one warm-up burst (500 ms) plus six timed `step(1)` calls: at ~18 ms per iteration that is under 2 s per row; the T4's 2-3x slower tile is still seconds. If the lane budget is hit, the 100k rungs move behind a `--full` flag by an owner decision recorded in G5.md. |
+| Id     | Risk                                                                                                                                                                   | Mitigation                                                                                                                                                                                                                                                                                                                                                                                |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R-P5-1 | P4 lands first and rewrites `forceatlas2.ts`, `force-simulation.ts`, `kernels.ts` and the K3 body under this plan's feet.                                              | 0.3 names every shared file; every edit of this plan is a complete before / after; the P5 edits to the four bodies are ADDED lines around unchanged P3 `find` strings, so a three-way merge keeps both. The `LAW` override on the grid near-field kernel is the one item that belongs to whichever lands second (0.7).                                                                    |
+| R-P5-2 | PD-9's 53 extra compile cases push the SwiftShader compile-matrix test (`test/browser/compile-matrix.test.ts`) past the "light browser testing" budget of design 11.6. | P5-T2 Step 8 measures it; the remedy G2 recorded applies: the browser case list is a subset chosen in that test, not in the generator. K2's 49 cases have no twin (`needs: []`), so the matrix grows by 53 cases and 53 pipelines, not 106.                                                                                                                                               |
+| R-P5-3 | The FR displacement floor on NVIDIA lands above the 1e-4 cap (a floor above the cap is a finding, 11.9 item 3).                                                        | The FR pair body is one division and a multiply, the attraction one multiply per arc, and the cap holds for the FA2 force with the SAME tile order (`fa2-skeleton.force` = 3.4e-6, `CLAUDE.md:333`), so the expected floor is 1e-6 with 100x headroom. If it lands above, `tolerances.mjs`-style derivation shows which stage, and 10.4's owner-decision rule applies in G5.md section 7. |
+| R-P5-4 | The preset settles under the shared rule at a point ngraph would call unstable, or vice versa, and the 25% quantile comparison misses.                                 | Both stops are printed and recorded; the quantiles are compared on the FINAL layouts of each rule, and P5-T5 Step 4 first checks the two f64 implementations agree distributionally at 1,000 steps before the GPU is blamed. DEP-P5-A's record states the reversal condition.                                                                                                             |
+| R-P5-5 | A `LAW != 0` combination with `LINLOG = true` or `DISTRIBUTED = true` compiles to nonsense nobody tests.                                                               | No factory emits it (the FR / spring override sets are constants); the matrix compiles it (a superset by design, `override-matrix.ts:14-21`); the bodies apply the FR / spring `w` BEFORE the linlog select, so the combination is well defined even if useless.                                                                                                                          |
+| R-P5-6 | The `velocity`-in-`oldForce` trick (PD-2) breaks when K5's `store_old(i, f)` runs under `SWING_MODE = 0`.                                                              | PD-20: both new models compile `SWING_MODE = 1`; `se-options.test.ts` pins the override set and `se-trace.test.ts`'s `euler-velocity-not-stored` sabotage row proves the stored velocity is what the next iteration reads.                                                                                                                                                                |
+| R-P5-7 | `Fa2Params` growing to 128 bytes collides with P4's GridSpec.                                                                                                          | PD-3 appends after `pad` and never touches bytes 0-95; P4's field lands in `pad` as the P3 comment reserves. 128 < 256 (`UNIFORM_SLOT_BYTES`), so the ring slot is unchanged.                                                                                                                                                                                                             |
+| R-P5-8 | The reheated FR temperature is anchored one batch late when a `reheat()` arrives while a batch is in flight.                                                           | PD-5 anchors at the first `paramsFor` AFTER the reheat, which is the first iteration RECORDED after it; the in-flight batch was computed before the reheat and its `settledCount` is already taken as 0 by `force-simulation.ts:1409-1411`. `fr-behaviour.test.ts` case 6 measures the anchor with batches of 1, 5 and 8.                                                                 |
+| R-P5-9 | The 100k FR / spring rungs on the exact tier take long enough on the T4 to push `gpu.yml` past its 20-minute budget (T-12).                                            | Each rung is one warm-up burst (500 ms) plus six timed `step(1)` calls: at ~18 ms per iteration that is under 2 s per row; the T4's 2-3x slower tile is still seconds. If the lane budget is hit, the 100k rungs move behind a `--full` flag by an owner decision recorded in G5.md.                                                                                                      |
 
 ---
 
@@ -1555,22 +1770,22 @@ The agent never runs any of these git steps; it prepares the tree and verifies t
 
 The row is `design/webgpu/webgpu-acceleration-plan.md:4212`. Item by item:
 
-| Deliverable (verbatim from the row) | Task |
-| --- | --- |
-| `createFruchtermanReingold` (7.20: `LAW = FR`, temperature slots, `FR_APPLY`, `fixed`, the `\|\| 0.1` guard, `reheat` at 0.7, `FruchtermanReingoldStats`) | P5-T2 Steps 2-4 (`LAW` 1 on K2 / K3, `APPLY` 1 on K5), P5-T3 Step 3 (the temperature slots through `paramsFor`, PD-5; `reheat` at 0.7), P5-T1 Steps 2-3 + P5-T3 (`fixed` through `ModelInputs`, PD-6), P5-T2 Step 3 (the guard: the FR law is unfloored above the coincident threshold, PD-10), P5-T1 Step 3 (the stats record) |
-| `createSpringElectrical` (the preset of 7.20 with the velocity integrator, ngraph's option names and settle rule, `SpringElectricalStats`) | P5-T5 Step 4 (the model), P5-T2 Step 4 (`APPLY` 2, the Euler integrator: DEP-P5-B), P5-T1 Step 1 (`SE_DEFAULTS` = ngraph's names and defaults), DEP-P5-A (the settle rule), P5-T1 Step 3 (the stats record) |
-| FR oracle | P5-T3 Step 1; the spring oracle P5-T5 Step 2, checked against ngraph |
-| browser smoke | P5-T9 Step 3 |
-| `layout-fr` benchmarks | P5-T8 Steps 1-4 |
-| `GpuAccelerator.fruchtermanReingold` / `springElectrical` | P5-T6 Step 2 |
-| G5: one-iteration displacement parity with the CPU FR oracle (<= 1e-4) | P5-T4 Steps 1-2 (`displacement` key, cap 1e-4), P5-T4 Steps 3-4 (the derived tolerance) |
-| G5: fixed nodes immobile | P5-T3 Step 2 (behaviour case 4), P5-T4 Step 2 (the pinned capture, the layout-oracle mask case), P5-T9 Step 3 |
-| G5: output NOT rescaled when `fixed` is given | P5-T3 Step 2 (behaviour case 4, the analytic box), P5-T4 Step 2 (`fr-layout-oracle.test.ts`, the scale / center case under the derived tolerance) |
-| G5: the preset settles within 1,000 steps on the 150 / 250 story graph to an edge-length distribution within 25% of ngraph's (ngraph a devDependency of the test only) | P5-T5 Steps 1-3 (`storyGraph`, `se-settle.test.ts`, PD-13, PD-14) |
-| G5: T-14 recorded | P5-T8 Steps 2-4, P5-T11 Step 2 section 3 |
-| rule (f): sabotage, `inspect()` comparisons, noise-floor rows for every kernel the phase adds (applied to every branch) | P5-T7 Steps 1-2 (sabotage: three rows per branch of K1, K2, K3, K5), P5-T4 Step 2 (inspect, both models), P5-T4 Steps 3-4 (noise rows) |
-| the package's own step 6 for a layout model (`CLAUDE.md:445-451`): the fast-check property rows, the force-sum invariant where the law is antisymmetric, distributional parity, the frame loop, lifecycle | P5-T3 Step 2 (`fr-properties.test.ts`), P5-T5 Step 3 (`se-properties.test.ts`), P5-T4 Step 2 (`fr-force-sum`, `se-force-sum`, `fr-distributional`, `se-distributional`), P5-T9 (frame loop), P5-T4 Step 2 (`fr-lifecycle`) |
-| the second and third layouts selectable by type (9.3 table) | P5-T6 (the members `createSimulation` dispatches on, `layout/src/simulation/create-simulation.ts:31-42`); routing `ngraph` to the preset stays Q-9's (0.7) |
+| Deliverable (verbatim from the row)                                                                                                                                                                       | Task                                                                                                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createFruchtermanReingold` (7.20: `LAW = FR`, temperature slots, `FR_APPLY`, `fixed`, the `\|\| 0.1` guard, `reheat` at 0.7, `FruchtermanReingoldStats`)                                                 | P5-T2 Steps 2-4 (`LAW` 1 on K2 / K3, `APPLY` 1 on K5), P5-T3 Step 3 (the temperature slots through `paramsFor`, PD-5; `reheat` at 0.7), P5-T1 Steps 2-3 + P5-T3 (`fixed` through `ModelInputs`, PD-6), P5-T2 Step 3 (the guard: the FR law is unfloored above the coincident threshold, PD-10), P5-T1 Step 3 (the stats record) |
+| `createSpringElectrical` (the preset of 7.20 with the velocity integrator, ngraph's option names and settle rule, `SpringElectricalStats`)                                                                | P5-T5 Step 4 (the model), P5-T2 Step 4 (`APPLY` 2, the Euler integrator: DEP-P5-B), P5-T1 Step 1 (`SE_DEFAULTS` = ngraph's names and defaults), DEP-P5-A (the settle rule), P5-T1 Step 3 (the stats record)                                                                                                                     |
+| FR oracle                                                                                                                                                                                                 | P5-T3 Step 1; the spring oracle P5-T5 Step 2, checked against ngraph                                                                                                                                                                                                                                                            |
+| browser smoke                                                                                                                                                                                             | P5-T9 Step 3                                                                                                                                                                                                                                                                                                                    |
+| `layout-fr` benchmarks                                                                                                                                                                                    | P5-T8 Steps 1-4                                                                                                                                                                                                                                                                                                                 |
+| `GpuAccelerator.fruchtermanReingold` / `springElectrical`                                                                                                                                                 | P5-T6 Step 2                                                                                                                                                                                                                                                                                                                    |
+| G5: one-iteration displacement parity with the CPU FR oracle (<= 1e-4)                                                                                                                                    | P5-T4 Steps 1-2 (`displacement` key, cap 1e-4), P5-T4 Steps 3-4 (the derived tolerance)                                                                                                                                                                                                                                         |
+| G5: fixed nodes immobile                                                                                                                                                                                  | P5-T3 Step 2 (behaviour case 4), P5-T4 Step 2 (the pinned capture, the layout-oracle mask case), P5-T9 Step 3                                                                                                                                                                                                                   |
+| G5: output NOT rescaled when `fixed` is given                                                                                                                                                             | P5-T3 Step 2 (behaviour case 4, the analytic box), P5-T4 Step 2 (`fr-layout-oracle.test.ts`, the scale / center case under the derived tolerance)                                                                                                                                                                               |
+| G5: the preset settles within 1,000 steps on the 150 / 250 story graph to an edge-length distribution within 25% of ngraph's (ngraph a devDependency of the test only)                                    | P5-T5 Steps 1-3 (`storyGraph`, `se-settle.test.ts`, PD-13, PD-14)                                                                                                                                                                                                                                                               |
+| G5: T-14 recorded                                                                                                                                                                                         | P5-T8 Steps 2-4, P5-T11 Step 2 section 3                                                                                                                                                                                                                                                                                        |
+| rule (f): sabotage, `inspect()` comparisons, noise-floor rows for every kernel the phase adds (applied to every branch)                                                                                   | P5-T7 Steps 1-2 (sabotage: three rows per branch of K1, K2, K3, K5), P5-T4 Step 2 (inspect, both models), P5-T4 Steps 3-4 (noise rows)                                                                                                                                                                                          |
+| the package's own step 6 for a layout model (`CLAUDE.md:445-451`): the fast-check property rows, the force-sum invariant where the law is antisymmetric, distributional parity, the frame loop, lifecycle | P5-T3 Step 2 (`fr-properties.test.ts`), P5-T5 Step 3 (`se-properties.test.ts`), P5-T4 Step 2 (`fr-force-sum`, `se-force-sum`, `fr-distributional`, `se-distributional`), P5-T9 (frame loop), P5-T4 Step 2 (`fr-lifecycle`)                                                                                                      |
+| the second and third layouts selectable by type (9.3 table)                                                                                                                                               | P5-T6 (the members `createSimulation` dispatches on, `layout/src/simulation/create-simulation.ts:31-42`); routing `ngraph` to the preset stays Q-9's (0.7)                                                                                                                                                                      |
 
 Every G5 clause has a row in the verification matrix (7.2) and a numbered row in the G5 record template (P5-T11 Step 2).
 

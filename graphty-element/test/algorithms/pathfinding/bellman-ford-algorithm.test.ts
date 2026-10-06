@@ -12,7 +12,7 @@ import { createMockGraph, getEdgeResult, getNodeResult, type MockGraphOpts } fro
  * @param opts - which fixture to load
  * @returns the mock graph
  */
- 
+
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     return createMockGraph(opts);
 }
@@ -21,7 +21,7 @@ async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
  * A graph with a negative cycle: A --1--> B --2--> C ---(-4)--> A, total weight -1.
  * @returns the mock graph
  */
- 
+
 async function mockGraphWithNegativeCycle(): Promise<any> {
     return createMockGraph({
         nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],

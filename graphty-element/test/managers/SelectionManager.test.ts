@@ -1,4 +1,3 @@
- 
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { AdHocData } from "../../src/config";

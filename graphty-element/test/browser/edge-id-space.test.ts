@@ -64,7 +64,11 @@ describe("an edge id taken from one surface is accepted by the others", () => {
         const graph = await makeGraph();
         const session = graph.getSession();
 
-        const run = session.runs.start("shortest-path", { method: "dijkstra", source: "a", target: "c" }, { as: "route" });
+        const run = session.runs.start(
+            "shortest-path",
+            { method: "dijkstra", source: "a", target: "c" },
+            { as: "route" },
+        );
         const result = await run;
 
         const ids = [...(await session.scope.resolve("graph")).edges];

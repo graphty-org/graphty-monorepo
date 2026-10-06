@@ -75,9 +75,9 @@ describe("lfrGraph", () => {
         expect(() => lfrGraph({ ...BASE, maxCommunity: 10 })).toThrow(/maxCommunity/);
         expect(() => lfrGraph({ ...BASE, maxCommunity: 6000 })).toThrow(/maxCommunity/);
         // no way to split 15 nodes into communities of exactly 10
-        expect(() => lfrGraph({ ...BASE, n: 15, minDegree: 1, maxDegree: 3, minCommunity: 10, maxCommunity: 10 })).toThrow(
-            /partition/,
-        );
+        expect(() =>
+            lfrGraph({ ...BASE, n: 15, minDegree: 1, maxDegree: 3, minCommunity: 10, maxCommunity: 10 }),
+        ).toThrow(/partition/);
         // internal degrees up to 45 do not fit communities of at most 30 nodes
         expect(() => lfrGraph({ ...BASE, maxCommunity: 30, mixing: 0.1 })).toThrow(/assign/);
     });

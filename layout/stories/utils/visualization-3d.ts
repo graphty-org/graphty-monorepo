@@ -40,11 +40,7 @@ interface Scene3D {
  * Create a Three.js scene with camera, renderer, and controls.
  * Fixed camera angle for deterministic Chromatic snapshots.
  */
-export function create3DScene(
-    width: number = 500,
-    height: number = 500,
-    enableControls: boolean = true,
-): Scene3D {
+export function create3DScene(width: number = 500, height: number = 500, enableControls: boolean = true): Scene3D {
     // Create container
     const container = document.createElement("div");
     container.style.cssText = `
@@ -126,13 +122,25 @@ function getPositionBounds3D(positions: PositionMap): {
     let maxZ = -Infinity;
 
     for (const pos of posValues) {
-        if (pos[0] < minX) {minX = pos[0];}
-        if (pos[0] > maxX) {maxX = pos[0];}
-        if (pos[1] < minY) {minY = pos[1];}
-        if (pos[1] > maxY) {maxY = pos[1];}
+        if (pos[0] < minX) {
+            minX = pos[0];
+        }
+        if (pos[0] > maxX) {
+            maxX = pos[0];
+        }
+        if (pos[1] < minY) {
+            minY = pos[1];
+        }
+        if (pos[1] > maxY) {
+            maxY = pos[1];
+        }
         const z = pos[2] ?? 0;
-        if (z < minZ) {minZ = z;}
-        if (z > maxZ) {maxZ = z;}
+        if (z < minZ) {
+            minZ = z;
+        }
+        if (z > maxZ) {
+            maxZ = z;
+        }
     }
 
     // Handle case where all positions are the same
@@ -155,10 +163,7 @@ function getPositionBounds3D(positions: PositionMap): {
 /**
  * Normalize 3D positions to fit within a target radius.
  */
-function normalizePositions3D(
-    positions: PositionMap,
-    targetRadius: number = 200,
-): PositionMap {
+function normalizePositions3D(positions: PositionMap, targetRadius: number = 200): PositionMap {
     const bounds = getPositionBounds3D(positions);
     const rangeX = bounds.maxX - bounds.minX;
     const rangeY = bounds.maxY - bounds.minY;
@@ -173,11 +178,7 @@ function normalizePositions3D(
     const normalized: PositionMap = {};
     for (const [nodeId, pos] of Object.entries(positions)) {
         const z = pos[2] ?? 0;
-        normalized[nodeId] = [
-            (pos[0] - centerX) * scale,
-            (pos[1] - centerY) * scale,
-            (z - centerZ) * scale,
-        ];
+        normalized[nodeId] = [(pos[0] - centerX) * scale, (pos[1] - centerY) * scale, (z - centerZ) * scale];
     }
 
     return normalized;
@@ -208,7 +209,9 @@ export function render3DGraph(
     for (let i = 0; i < graph.nodes.length; i++) {
         const node = graph.nodes[i];
         const pos = normalizedPositions[node.id];
-        if (!pos) {continue;}
+        if (!pos) {
+            continue;
+        }
 
         // Color based on node index for variety
         const color = new THREE.Color();
@@ -231,7 +234,9 @@ export function render3DGraph(
     for (const edge of graph.edges) {
         const sourcePos = normalizedPositions[edge.source];
         const targetPos = normalizedPositions[edge.target];
-        if (!sourcePos || !targetPos) {continue;}
+        if (!sourcePos || !targetPos) {
+            continue;
+        }
 
         const points = [
             new THREE.Vector3(sourcePos[0], sourcePos[1], sourcePos[2] ?? 0),
@@ -279,10 +284,7 @@ export function update3DPositions(
         const progress = Math.min(elapsed / duration, 1);
 
         // Ease in-out cubic
-        const eased =
-            progress < 0.5
-                ? 4 * progress * progress * progress
-                : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+        const eased = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
         // Update node positions
         scene3D.nodeGroup.children.forEach((mesh) => {
@@ -303,28 +305,18 @@ export function update3DPositions(
             const sourceId = line.userData.source as number;
             const targetId = line.userData.target as number;
 
-            const sourceMesh = scene3D.nodeGroup.children.find(
-                (m) => m.userData.nodeId === sourceId,
-            ) as THREE.Mesh | undefined;
-            const targetMesh = scene3D.nodeGroup.children.find(
-                (m) => m.userData.nodeId === targetId,
-            ) as THREE.Mesh | undefined;
+            const sourceMesh = scene3D.nodeGroup.children.find((m) => m.userData.nodeId === sourceId) as
+                | THREE.Mesh
+                | undefined;
+            const targetMesh = scene3D.nodeGroup.children.find((m) => m.userData.nodeId === targetId) as
+                | THREE.Mesh
+                | undefined;
 
             if (sourceMesh && targetMesh) {
-                const {geometry} = (line as THREE.Line);
+                const { geometry } = line as THREE.Line;
                 const positions = geometry.attributes.position;
-                positions.setXYZ(
-                    0,
-                    sourceMesh.position.x,
-                    sourceMesh.position.y,
-                    sourceMesh.position.z,
-                );
-                positions.setXYZ(
-                    1,
-                    targetMesh.position.x,
-                    targetMesh.position.y,
-                    targetMesh.position.z,
-                );
+                positions.setXYZ(0, sourceMesh.position.x, sourceMesh.position.y, sourceMesh.position.z);
+                positions.setXYZ(1, targetMesh.position.x, targetMesh.position.y, targetMesh.position.z);
                 positions.needsUpdate = true;
             }
         });

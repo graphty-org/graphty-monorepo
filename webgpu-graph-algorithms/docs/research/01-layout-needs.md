@@ -15,7 +15,7 @@ falls back to CPU.
 Vocabulary used below: n = node count, m = logical edge count, A = arc count
 of the undirected snapshot (`2m - selfLoops`), dim = 2 or 3.
 
----------------------------------------------------------------------------
+---
 
 ## 1. Summary
 
@@ -48,11 +48,11 @@ of the undirected snapshot (`2m - selfLoops`), dim = 2 or 3.
   after the section-14.3 rewrite, with these three points settled there
   first so CPU and GPU agree).
 - Every CPU force layout is O(n^2) per iteration and allocates O(n^2)
-  (FA2: O(n^2 * dim) per ITERATION). The practical ceiling is a few
+  (FA2: O(n^2 \* dim) per ITERATION). The practical ceiling is a few
   thousand nodes. The scale the format targets is 100k / 1M (design
   section 15.3); the GPU layout is what makes force layouts reach it.
 
----------------------------------------------------------------------------
+---
 
 ## 2. The CPU force layouts, one by one
 
@@ -78,21 +78,21 @@ NAME read through `graph.getEdgeData(source, target, weight) || 1` (lines
 
 - RNG: `new RandomNumberGenerator(seed ?? undefined)` (line 53); see 2.5.1.
 - Positions (three branches):
-  - `pos === null`: every coordinate `rng.rand() * 2 - 1`, i.e. uniform in
-    [-1, 1) per axis (lines 57-65).
-  - `pos` has an entry for every node: copied; a missing axis (2D `pos`
-    with `dim = 3`) is filled with `rng.rand() * 2 - 1` (lines 66-75).
-  - partial `pos`: bounding box of the given positions per axis (falling
-    back to [-1, 1] on an empty axis), missing nodes uniform inside that
-    box (lines 76-116).
+    - `pos === null`: every coordinate `rng.rand() * 2 - 1`, i.e. uniform in
+      [-1, 1) per axis (lines 57-65).
+    - `pos` has an entry for every node: copied; a missing axis (2D `pos`
+      with `dim = 3`) is filled with `rng.rand() * 2 - 1` (lines 66-75).
+    - partial `pos`: bounding box of the given positions per axis (falling
+      back to [-1, 1] on an empty axis), missing nodes uniform inside that
+      box (lines 76-116).
 - Mass: `nodeMass[node]` when truthy, else `getNodeDegree(graph, node) + 1`
   (lines 126-134; a mass of 0 in the record is treated as "not given").
   `getNodeDegree` is a private O(E) `edges().filter(...)` per node (line
-  446-448), i.e. O(n * m) before the first iteration. Design 14.3 replaces
+  446-448), i.e. O(n \* m) before the first iteration. Design 14.3 replaces
   it with `outDegree()` (self-loop counted once, parallel edges counted per
   arc).
 - Size: `nodeSize[node]` when truthy else 1; `adjustSizes = nodeSize !==
-  null` (lines 123, 136).
+null` (lines 123, 136).
 - Dense adjacency `A: number[][]` n x n, `A[i][j] = A[j][i] = w` (lines
   140-164): parallel edges collapse (last write wins), the graph is treated
   as undirected, a self-loop sets `A[i][i]` which every loop then skips via
@@ -104,12 +104,9 @@ NAME read through `graph.getEdgeData(source, target, weight) || 1` (lines
 2. ALLOCATE `diff` (n x n x dim) and `distance` (n x n); for all ordered
    pairs i != j: `diff[i][j] = p_i - p_j`, `distance = max(|diff|, 0.01)`
    (lines 244-268). This allocation is per iteration.
-3. Attraction over all pairs with `A[i][j] != 0`:
-   - linear (default): `attraction_i += -diff_ij * A_ij` (magnitude `w *
-     d`, towards j) (lines 288-297).
-   - linlog: `attraction_i += -(log(1 + d) / d) * A_ij * diff_ij`
-     (magnitude `w * log(1 + d)`) (lines 271-285).
-   - if `distributedAction`: `attraction_i /= mass_i` (lines 301-307).
+3. Attraction over all pairs with `A[i][j] != 0`: - linear (default): `attraction_i += -diff_ij * A_ij` (magnitude `w *
+d`, towards j) (lines 288-297). - linlog: `attraction_i += -(log(1 + d) / d) * A_ij * diff_ij`
+   (magnitude `w * log(1 + d)`) (lines 271-285). - if `distributedAction`: `attraction_i /= mass_i` (lines 301-307).
 4. Repulsion over all ordered pairs i != j (lines 310-331):
    `d' = adjustSizes ? max(d - (size_i - size_j), 0.01) : d`;
    `factor = mass_i * mass_j / d'^2 * scalingRatio`;
@@ -117,32 +114,31 @@ NAME read through `graph.getEdgeData(source, target, weight) || 1` (lines
    Net magnitude: `scalingRatio * m_i * m_j / d'^2` (see 2.1.9 for why this
    is NOT the FA2 paper's / NetworkX's `1/d`).
 5. Gravity (lines 335-364): centre of mass `c = mean(p)`; `q = p_i - c`;
-   strong: `g_i = -gravity * mass_i * q`; regular: `g_i = -gravity * mass_i
-   * q / |q|` when `|q| > 0.01`, else 0.
+   strong: `g_i = -gravity * mass_i * q`; regular: `g_i = -gravity \* mass_i
+    - q / |q|`when`|q| > 0.01`, else 0.
 6. `update_i = attraction_i + repulsion_i + gravities_i` (line 375).
 7. Swing / traction (lines 379-390), computed from `oldPos` and `newPos =
-   oldPos + update`: `swingVector = oldPos - newPos = -update`,
+oldPos + update`: `swingVector = oldPos - newPos = -update`,
    `tractionVector = oldPos + newPos = 2 * oldPos + update`;
    `totalSwing = sum_i mass_i * |update_i|`,
    `totalTraction = sum_i 0.5 * mass_i * |2 p_i + update_i|`.
    Both totals are RESET to 0 each iteration (lines 370-371). The `_swing =
-   1; _traction = 1` on lines 180-181 are unused.
+1; _traction = 1` on lines 180-181 are unused.
 8. `estimateFactor` (lines 184-230; scalar, identical to NetworkX's
    `estimate_factor`): `optJitter = 0.05 * sqrt(n)`; `minJitter =
-   sqrt(optJitter)`; `maxJitter = 10`; `minSpeedEfficiency = 0.05`; `other
-   = min(maxJitter, optJitter * traction / n^2)`; `jitter = jitterTolerance
-   * max(minJitter, other)`; if `swing / traction > 2`: halve
-   `speedEfficiency` (floor 0.05) and `jitter = max(jitter,
-   jitterTolerance)`; `targetSpeed = swing === 0 ? +Inf : jitter *
-   speedEfficiency * traction / swing`; if `swing > jitter * traction`:
-   `speedEfficiency *= 0.7` (floor 0.05) else if `speed < 1000`:
-   `speedEfficiency *= 1.3`; `speed += min(targetSpeed - speed, 0.5 *
-   speed)`. State carried across iterations: `speed` (init 1),
-   `speedEfficiency` (init 1).
+sqrt(optJitter)`; `maxJitter = 10`; `minSpeedEfficiency = 0.05`; `other
+= min(maxJitter, optJitter * traction / n^2)`; `jitter = jitterTolerance
+    - max(minJitter, other)`; if `swing / traction > 2`: halve
+   `speedEfficiency`(floor 0.05) and`jitter = max(jitter,
+      jitterTolerance)`; `targetSpeed = swing === 0 ? +Inf : jitter _
+      speedEfficiency _ traction / swing`; if `swing > jitter _ traction`:
+   `speedEfficiency _= 0.7`(floor 0.05) else if`speed < 1000`:
+   `speedEfficiency _= 1.3`; `speed += min(targetSpeed - speed, 0.5 _
+      speed)`. State carried across iterations: `speed`(init 1),`speedEfficiency` (init 1).
 9. Apply (lines 403-428): per node `swinging = mass_i * |update_i|`;
    `factor = speed / (1 + sqrt(speed * swinging))`; with `adjustSizes`:
    `factor = 0.1 * speed / (1 + sqrt(speed * swinging))`, then `factor =
-   min(factor * |update_i|, 10) / |update_i|` (displacement capped at 10);
+min(factor * |update_i|, 10) / |update_i|` (displacement capped at 10);
    `p_i += update_i * factor`; `totalMovement += sum_k |movement_k|`.
 10. Termination: `if (totalMovement < 1e-10) break` (line 431), else run
     to `maxIter`. In practice the 1e-10 threshold is never hit (float64
@@ -156,8 +152,7 @@ not).
 `rescaleLayout(positions)` with default `scale = 1`, `center = null`:
 translate to the centroid and scale so the farthest node is at radius 1
 (see 2.5.2). So the FA2 result is always inside the unit ball, regardless
-of `scalingRatio`; graphty-element multiplies by `scalingFactor` (default
-100) when reading (`LayoutEngine.ts` line 352-365).
+of `scalingRatio`; graphty-element multiplies by `scalingFactor` (default 100) when reading (`LayoutEngine.ts` line 352-365).
 
 #### 2.1.5 Dimensions
 
@@ -170,9 +165,9 @@ fill on line 73 is the fix and must be preserved.
 
 #### 2.1.6 Complexity and allocations
 
-Setup: O(n * m) degree scan, O(n^2) dense `A`. Per iteration: O(n^2 * dim)
-time AND a fresh `diff` (n * n * dim numbers, each an array object) plus
-`distance` (n * n) plus `update` (n) plus several small arrays per node
+Setup: O(n _ m) degree scan, O(n^2) dense `A`. Per iteration: O(n^2 _ dim)
+time AND a fresh `diff` (n _ n _ dim numbers, each an array object) plus
+`distance` (n \* n) plus `update` (n) plus several small arrays per node
 (`oldPos`, `newPos`, `swingVector`, `tractionVector`). At n = 10k, dim = 3
 that is 300M numbers per iteration; research note 03 puts the practical
 ceiling at a few thousand nodes. The `forceatlas2-layout.test.ts` "large
@@ -205,13 +200,13 @@ same signature order, same `estimate_factor`, same `1e-10` break, same
 `degree + 1` mass, same `[-1, 1)` initial positions via `random_layout`
 semantics). Three places differ, and each changes the picture:
 
-| Quantity | NetworkX (upstream) | graphty port | Consequence |
-| --- | --- | --- | --- |
-| Repulsion | `repulsion = einsum(diff, mass_i mass_j / d^2 * k)` = magnitude `k m_i m_j / d` (the FA2 paper's law) | `direction * factor` with `factor = k m_i m_j / d^2` = magnitude `k m_i m_j / d^2` (lines 322-329) | the port's repulsion decays one power faster; layouts are tighter and hubs less separated |
-| Swing / traction | `swing += sum(mass * norm(pos - update))`, `traction += sum(0.5 mass norm(pos + update))`, ACCUMULATED across iterations from `swing = traction = 1` | `sum mass * norm(update)` and `sum 0.5 mass norm(2 pos + update)`, RESET each iteration (lines 370-390) | different adaptive speed trajectory; the port converges differently |
-| `adjust_sizes` | `distance += -size_i - size_j` | `dist -= size[i] - size[j]` (line 318) | the port subtracts `size_i` and ADDS `size_j`; sizes are not symmetric |
-| Distance floor | none (diagonal only) | `max(d, 0.01)` (line 266) and again after the size correction (line 319) | harmless; keep |
-| Weights | `to_numpy_array(G, weight)` | `getEdgeData(...) || 1` | same "0 means 1" semantics through the fallback, but the port also treats a missing attribute as 1 |
+| Quantity         | NetworkX (upstream)                                                                                                                                  | graphty port                                                                                            | Consequence                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --- | -------------------------------------------------------------------------------------------------- |
+| Repulsion        | `repulsion = einsum(diff, mass_i mass_j / d^2 * k)` = magnitude `k m_i m_j / d` (the FA2 paper's law)                                                | `direction * factor` with `factor = k m_i m_j / d^2` = magnitude `k m_i m_j / d^2` (lines 322-329)      | the port's repulsion decays one power faster; layouts are tighter and hubs less separated |
+| Swing / traction | `swing += sum(mass * norm(pos - update))`, `traction += sum(0.5 mass norm(pos + update))`, ACCUMULATED across iterations from `swing = traction = 1` | `sum mass * norm(update)` and `sum 0.5 mass norm(2 pos + update)`, RESET each iteration (lines 370-390) | different adaptive speed trajectory; the port converges differently                       |
+| `adjust_sizes`   | `distance += -size_i - size_j`                                                                                                                       | `dist -= size[i] - size[j]` (line 318)                                                                  | the port subtracts `size_i` and ADDS `size_j`; sizes are not symmetric                    |
+| Distance floor   | none (diagonal only)                                                                                                                                 | `max(d, 0.01)` (line 266) and again after the size correction (line 319)                                | harmless; keep                                                                            |
+| Weights          | `to_numpy_array(G, weight)`                                                                                                                          | `getEdgeData(...)                                                                                       |                                                                                           | 1`  | same "0 means 1" semantics through the fallback, but the port also treats a missing attribute as 1 |
 
 Recommendation for the plan: settle these in the section-14.3 CPU rewrite
 (which is the parity target for the GPU kernel) BEFORE writing WGSL, and
@@ -232,7 +227,7 @@ seed = null)`.
 
 - Initial positions: `rng.rand(dim)` uniform in [0, 1) per axis when `pos`
   is null (lines 65-69). With a partial `pos`, a NEW `RandomNumberGenerator(
-  seed)` is created PER missing node (line 60), so with a seed every
+seed)` is created PER missing node (line 60), so with a seed every
   missing node gets the same coordinates (research note 03 section 4 flags
   this; design 14.3 fixes it with one RNG -- "single-RNG fix").
 - `k` defaults to `1 / sqrt(n)` (line 77).
@@ -251,7 +246,7 @@ seed = null)`.
 - 2D/3D: any `dim`; graphty-element's `SpringLayout` schema defaults `dim`
   to 3 (`SpringLayoutEngine.ts` line 214-220) but `LayoutManager`
   overrides it from the view mode.
-- Complexity: O(iterations * (n^2 + m)); the hot loop goes through
+- Complexity: O(iterations \* (n^2 + m)); the hot loop goes through
   `Record` property lookups and `Array.map` per pair (line 100), so it is
   the slowest of the four at equal n.
 - Parity notes for a GPU version: the only per-node input is the `fixed`
@@ -267,18 +262,18 @@ Signature (lines 13-20): `arfLayout(G, pos = null, scaling = 1, a = 1.1,
 maxIter = 1000, seed = null)`; throws when `a <= 1` (line 21).
 
 - 2D ONLY: `change` rows are `[0, 0]` (line 90), `randomLayout(G, null, 2,
-  seed)` seeds positions (line 34); graphty-element declares
+seed)` seeds positions (line 34); graphty-element declares
   `maxDimensions = 2` (`ArfLayoutEngine.ts` line 361).
 - Dense `K` n x n: 1 everywhere, 0 on the diagonal, `a` on edges (lines
   58-75). `rho = scaling * sqrt(n)` (line 78).
 - Per iteration over all ordered pairs: `change_i += K_ij * diff_ij - (rho
-  / d) * diff_ij` with `d = |diff| || 0.01` (lines 92-107); `p_i += change_i
-  * 1e-3` (lines 110-114); `error = sum_i |change_i|`.
+/ d) * diff_ij` with `d = |diff| || 0.01` (lines 92-107); `p_i += change_i
+    - 1e-3`(lines 110-114);`error = sum_i |change_i|`.
 - Termination: `error <= 1e-6` OR `maxIter` (default 1000) (line 86).
 - Output: NOT rescaled (line 128).
 - No fixed nodes, no weights, no mass.
 - GPU form (research note 03 section 12.3): `K` is `1 + (a - 1) *
-  isEdge`, so the pair sum is an all-pairs term plus a CSR-row correction
+isEdge`, so the pair sum is an all-pairs term plus a CSR-row correction
   of `(a - 1) * sum_{j in N(i)} diff_ij`. Low priority.
 
 ### 2.4 Kamada-Kawai -- `kamada-kawai.ts`, `algorithms/optimization/*`
@@ -290,16 +285,16 @@ null (line 68), so the layout is deterministic by construction.
 
 - `dist`: all-pairs shortest paths via Floyd-Warshall over nested Records
   (`kamada-kawai-solver.ts` lines 17-59, O(n^3)), weights via `getEdgeData(
-  ..., weight) || 1`, undirected. Unreachable -> `1e6` (line 48 of the
+..., weight) || 1`, undirected. Unreachable -> `1e6` (line 48 of the
   layout). Design 14.3 lets `dist` be a `Float32Array(n * n)` supplied by
   `@graphty/algorithms` or the GPU package.
 - Solver (`_kamadaKawaiSolve`, lines 68-140 of the solver): `invDist = 1 /
-  (d + 1e-3)` (0 on the diagonal), `meanWeight = 1e-3`, L-BFGS with memory
+(d + 1e-3)` (0 on the diagonal), `meanWeight = 1e-3`, L-BFGS with memory
   10, backtracking (Armijo) line search up to 20 evaluations, up to 500
-  iterations, stop at `||grad|| < 1e-5`. Each cost evaluation is O(n^2 *
+  iterations, stop at `||grad|| < 1e-5`. Each cost evaluation is O(n^2 \*
   dim) and reshapes `posVec` into `number[][]` (allocation per call).
 - Output: `rescaleLayout(finalPos, scale, center)`.
-- Complexity: O(n^3) APSP + O(500 * 21 * n^2 * dim); ceiling ~1-2k nodes.
+- Complexity: O(n^3) APSP + O(500 _ 21 _ n^2 \* dim); ceiling ~1-2k nodes.
 - GPU relevance: not a force simulation in the steppable sense (a line
   search needs a cost readback per evaluation). Its two GPU-able pieces
   are the APSP (n BFS frontiers, an algorithms-package primitive) and the
@@ -333,7 +328,7 @@ scene scale every frame); section 5 discusses what replaces it.
 Only validates `center.length === dim` (throws otherwise) and defaults
 `center` to zeros.
 
----------------------------------------------------------------------------
+---
 
 ## 3. The animated engines graphty-element actually uses
 
@@ -343,14 +338,14 @@ what a GPU `LayoutSimulation` will be judged against for feel.
 ### 3.1 ngraph -- `graphty-element/src/layout/NGraphLayoutEngine.ts`
 
 - The DEFAULT layout (`config/GraphBehavior.ts` line 13: `type: z.string()
-  .default("ngraph")`).
+.default("ngraph")`).
 - Constructor maps `dim` -> `dimensions` (default 3) and passes
   `springLength`, `springCoefficient`, `gravity`, `theta`, `dragCoefficient`,
   `timeStep` only when defined (lines 124-155); the zod schema on lines
   15-81 advertises defaults (30, 0.0008, -1.2, 0.8, 0.02, 20) but the
   constructor never parses it, so ngraph's OWN defaults apply when the
   caller omits them: `springLength 10`, `springCoefficient 0.8`, `gravity
-  -12`, `theta 0.8`, `dragCoefficient 0.9`, `timeStep 0.5`
+-12`, `theta 0.8`, `dragCoefficient 0.9`, `timeStep 0.5`
   (`node_modules/ngraph.forcelayout/lib/createPhysicsSimulator.js` lines
   28-70, version 3.3.1).
 - `seed` -> `ngraph.random(seed)` (line 149-151).
@@ -361,7 +356,7 @@ what a GPU `LayoutSimulation` will be judged against for feel.
 - ngraph's integrator (`lib/codeGenerators/generateIntegrator.js`):
   velocity Verlet-ish with `v += dt / mass * F`, velocity normalised when
   `|v| > 1`, `p += dt * v`, pinned bodies skipped, returns `sum(|dp|)^2 /
-  n`. Forces: Barnes-Hut quadtree/octree repulsion with `theta`, Hooke
+n`. Forces: Barnes-Hut quadtree/octree repulsion with `theta`, Hooke
   springs, drag.
 - `addNode` / `addEdge` reset `_settled = false`, `_stepCount = 0`, so any
   topology change restarts settling (lines 205-224).
@@ -387,17 +382,17 @@ what a GPU `LayoutSimulation` will be judged against for feel.
 
 ### 3.3 What the two engines have in common (the behaviour to preserve)
 
-| Behaviour | ngraph | d3 |
-| --- | --- | --- |
-| step granularity | one physics step per `step()` | one tick per `step()` |
-| settle signal | movement-per-node threshold + max steps | alpha decay below `alphaMin` |
-| restart on topology change | yes (reset counters) | yes (alpha = 1) |
-| pin | body flag, integrator skips it | fixed coordinates, no reheat |
-| drag | position overwrite per pointer move | position overwrite + reheat |
-| position units | scene units directly | scene units directly |
-| 2D | `dimensions: 2` at construction; switching view mode RECREATES the engine (`LayoutManager.updateLayoutDimension`, lines 321-358) | always 3D internally |
+| Behaviour                  | ngraph                                                                                                                           | d3                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| step granularity           | one physics step per `step()`                                                                                                    | one tick per `step()`        |
+| settle signal              | movement-per-node threshold + max steps                                                                                          | alpha decay below `alphaMin` |
+| restart on topology change | yes (reset counters)                                                                                                             | yes (alpha = 1)              |
+| pin                        | body flag, integrator skips it                                                                                                   | fixed coordinates, no reheat |
+| drag                       | position overwrite per pointer move                                                                                              | position overwrite + reheat  |
+| position units             | scene units directly                                                                                                             | scene units directly         |
+| 2D                         | `dimensions: 2` at construction; switching view mode RECREATES the engine (`LayoutManager.updateLayoutDimension`, lines 321-358) | always 3D internally         |
 
----------------------------------------------------------------------------
+---
 
 ## 4. How graphty-element drives a layout per frame
 
@@ -423,7 +418,7 @@ frame, SYNCHRONOUSLY:
    (`LayoutManager.ts` lines 241-245).
 4. `updateNodes()`: `for (node of layoutManager.nodes) node.update()`
    (lines 220-253). `Node.update()` reads `layoutEngine.getNodePosition(
-   this)` and copies `x, y, z ?? 0` into `mesh.position` (`Node.ts` lines
+this)` and copies `x, y, z ?? 0` into `mesh.position` (`Node.ts` lines
    175-183), skipped while `this.dragging` (line 170). A bounding box is
    accumulated from `mesh.getAbsolutePosition()` and `node.size`.
 5. `updateEdges()`: `Edge.updateRays(ctx)` then `edge.update()` per edge,
@@ -483,8 +478,8 @@ screenshots and keeps the label animations from starting).
   `removeNode` / `removeEdge`; `DataManager.ts` lines 328-329, 448-449 are
   guarded by type checks).
 - Design 14.4 replaces this with: `engine.load(dm.undirected(getSnapshot()
-  ).snapshot, positions)` at layout set, and `engine.reload(undirected,
-  report, positions)` on `snapshot-replaced` (the M3/M4/M5 row of the
+).snapshot, positions)` at layout set, and `engine.reload(undirected,
+report, positions)` on `snapshot-replaced` (the M3/M4/M5 row of the
   14.4 table); "`LayoutSimulation` engines keep stepping on the new
   array". `report.nodeRemap` tells the engine which node rows moved.
 
@@ -543,7 +538,7 @@ readback crosses back to the CPU array every frame (section 8.5). Sharing
 a device with a future `WebGPUEngine` (`engine._device`) is an optimisation
 for later, not a requirement.
 
----------------------------------------------------------------------------
+---
 
 ## 5. The `LayoutSimulation` contract and what a GPU drop-in must satisfy
 
@@ -551,11 +546,11 @@ Design section 14.3 (design doc lines 3976-3985):
 
 ```ts
 export interface LayoutSimulation {
-    load(snapshot: GraphSnapshot, positions: F32): void;        // positions: the owner's stride-3 scene-unit array, read AND written in place
-    step(iterations?: number): void | Promise<void>;           // GPU implementations are async (mapAsync readback); the GPU buffer is authoritative while stepping
+    load(snapshot: GraphSnapshot, positions: F32): void; // positions: the owner's stride-3 scene-unit array, read AND written in place
+    step(iterations?: number): void | Promise<void>; // GPU implementations are async (mapAsync readback); the GPU buffer is authoritative while stepping
     readonly settled: boolean;
-    setFixed(mask: NodeMask): void;                             // the same bitmap layout as a bool column with role "fixed"
-    setPosition(index: number, x: number, y: number, z: number): void;   // drag during simulation: a 12-byte write (writeBuffer on the GPU)
+    setFixed(mask: NodeMask): void; // the same bitmap layout as a bool column with role "fixed"
+    setPosition(index: number, x: number, y: number, z: number): void; // drag during simulation: a 12-byte write (writeBuffer on the GPU)
     dispose(): void;
 }
 ```
@@ -577,7 +572,7 @@ Facts the contract fixes (with the format's definitions):
   same `undirected(s).snapshot` object as the adapters"), so rows already
   hold both arcs and `outDegree()` is the degree (self-loop once).
 - `weights` is `F32 | null` on the snapshot; FA2 reads them when `weight
-  === true`, or a named edge column expanded with `expandEdges` (design
+=== true`, or a named edge column expanded with `expandEdges` (design
   14.4, cached per column version) -- the expanded per-arc array is what
   the GPU uploads.
 - Step may be async; "the GPU buffer is authoritative while stepping":
@@ -629,18 +624,18 @@ type) must satisfy, in order of how visible a miss would be:
 
 ### 5.2 Delta between `LayoutEngine` (today) and `LayoutSimulation` (design)
 
-| Today's abstract `LayoutEngine` (`LayoutEngine.ts` lines 36-63) | `LayoutSimulation` | Bridge |
-| --- | --- | --- |
-| `init(): Promise<void>` | `load(snapshot, positions)` | `init` acquires the device; `load` is called by `LayoutManager` after `getSnapshot()` (design M10) |
-| `addNode` / `addEdge` per record | none (snapshot-driven) | the manager stops feeding records to simulation engines |
-| `getNodePosition(n): Position` (allocates) | positions array is read directly | `getNodePositionInto(index, out)` (design 14.4) |
-| `getEdgePosition(e)` | same array via `edgesByIndex` | `getEdgePositionsInto(e, outSrc, outDst)` |
-| `step(): void` | `step(iterations?): void \| Promise<void>` | see 5.3 |
-| `pin(n)` / `unpin(n)` | `setFixed(mask)` | the manager keeps the pinned bitmap and re-sends it on change |
-| `setNodePosition(n, p)` | `setPosition(i, x, y, z)` | index instead of object |
-| `get isSettled` | `readonly settled` | rename |
-| optional `dispose()` | `dispose()` | required |
-| `static getOptionsForDimension` | `dim` option | unchanged |
+| Today's abstract `LayoutEngine` (`LayoutEngine.ts` lines 36-63) | `LayoutSimulation`                         | Bridge                                                                                             |
+| --------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `init(): Promise<void>`                                         | `load(snapshot, positions)`                | `init` acquires the device; `load` is called by `LayoutManager` after `getSnapshot()` (design M10) |
+| `addNode` / `addEdge` per record                                | none (snapshot-driven)                     | the manager stops feeding records to simulation engines                                            |
+| `getNodePosition(n): Position` (allocates)                      | positions array is read directly           | `getNodePositionInto(index, out)` (design 14.4)                                                    |
+| `getEdgePosition(e)`                                            | same array via `edgesByIndex`              | `getEdgePositionsInto(e, outSrc, outDst)`                                                          |
+| `step(): void`                                                  | `step(iterations?): void \| Promise<void>` | see 5.3                                                                                            |
+| `pin(n)` / `unpin(n)`                                           | `setFixed(mask)`                           | the manager keeps the pinned bitmap and re-sends it on change                                      |
+| `setNodePosition(n, p)`                                         | `setPosition(i, x, y, z)`                  | index instead of object                                                                            |
+| `get isSettled`                                                 | `readonly settled`                         | rename                                                                                             |
+| optional `dispose()`                                            | `dispose()`                                | required                                                                                           |
+| `static getOptionsForDimension`                                 | `dim` option                               | unchanged                                                                                          |
 
 ### 5.3 The async step problem (must be decided in the plan)
 
@@ -670,22 +665,22 @@ nodes; the 4070 SUPER moves that in well under a millisecond, but the
 `mapAsync` round trip is one frame of latency). Section 8.5 details the
 readback.
 
----------------------------------------------------------------------------
+---
 
 ## 6. Scale that graphty targets today
 
 Measured facts, not aspirations:
 
-| Source | Number |
-| --- | --- |
-| `graphty-element/stories/PerformanceTest.stories.ts` lines 55-57, 60 ("Performance/Large Graph") | 150 nodes / 250 edges, ngraph, seed 42 |
-| `layout/test/forceatlas2-layout.test.ts` lines 504-528 ("should handle large graphs reasonably") | 100 nodes, 30 iterations, < 2 s |
-| `layout/README.md` line 1037 | "Large Graphs (>1000 nodes)": advises circular first then 50 spring iterations |
-| `NGraphLayoutEngine.ts` line 176 | forced settle after 1000 steps |
-| design section 15.3 (lines 4350-4356) | targets: mobile 100k / 1M, desktop interactive 1M / 10M, batch 10M / 100M |
-| design section 15.4 (line 4403) | "a static layout re-run on 100k nodes is a full FA2 / KK run (seconds)" -- the design already assumes 100k-node FA2 is the workload |
-| design line 4210 | "per-node Babylon mesh creation, JMESPath style selection and the on-change Proxies still dominate at 100k nodes" |
-| README.md line 28 (monorepo) | "support for large datasets through mesh instancing and GPU acceleration" (claim) |
+| Source                                                                                           | Number                                                                                                                              |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `graphty-element/stories/PerformanceTest.stories.ts` lines 55-57, 60 ("Performance/Large Graph") | 150 nodes / 250 edges, ngraph, seed 42                                                                                              |
+| `layout/test/forceatlas2-layout.test.ts` lines 504-528 ("should handle large graphs reasonably") | 100 nodes, 30 iterations, < 2 s                                                                                                     |
+| `layout/README.md` line 1037                                                                     | "Large Graphs (>1000 nodes)": advises circular first then 50 spring iterations                                                      |
+| `NGraphLayoutEngine.ts` line 176                                                                 | forced settle after 1000 steps                                                                                                      |
+| design section 15.3 (lines 4350-4356)                                                            | targets: mobile 100k / 1M, desktop interactive 1M / 10M, batch 10M / 100M                                                           |
+| design section 15.4 (line 4403)                                                                  | "a static layout re-run on 100k nodes is a full FA2 / KK run (seconds)" -- the design already assumes 100k-node FA2 is the workload |
+| design line 4210                                                                                 | "per-node Babylon mesh creation, JMESPath style selection and the on-change Proxies still dominate at 100k nodes"                   |
+| README.md line 28 (monorepo)                                                                     | "support for large datasets through mesh instancing and GPU acceleration" (claim)                                                   |
 
 So: the element is exercised at ~10^2 nodes today; the format is
 benchmarked at 10^5 / 10^6; the GPU layout should be designed and tested
@@ -696,7 +691,7 @@ mandatory, section 8.2). The renderer will not draw 10^6 nodes today
 (per-node `InstancedMesh`, research note 04 section 5), so at that tier the
 layout is a batch / Node.js use case, not a 60 fps one.
 
----------------------------------------------------------------------------
+---
 
 ## 7. ForceAtlas2 option parity list
 
@@ -706,60 +701,60 @@ signature) and `graphty-element/src/layout/ForceAtlas2LayoutEngine.ts`
 
 ### 7.1 Must honour in the first GPU version
 
-| Option | CPU default | Element schema | GPU binding | Notes |
-| --- | --- | --- | --- | --- |
-| `maxIter` | 100 | int > 0, default 100 | iteration budget / settle bound | in a steppable engine this is the total iteration budget across frames, not a single call |
-| `jitterTolerance` | 1.0 | > 0, default 1.0, advanced | scalar in the speed controller (CPU side) | |
-| `scalingRatio` | 2.0 | > 0, default 2.0 | uniform | repulsion multiplier |
-| `gravity` | 1.0 | > 0, default 1.0 | uniform | the element schema forbids 0 (`positive()`), the CPU accepts 0; accept 0 on the GPU |
-| `strongGravity` | false | bool, advanced | uniform flag or `override` | linear vs unit-vector gravity |
-| `distributedAction` | false | bool, advanced | uniform flag | divides attraction by mass |
-| `linlog` | false | bool, advanced | uniform flag | `log(1 + d) / d` attraction |
-| `nodeMass` | null -> degree + 1 | `Record<number, number> \| null` | `Float32Array(n)` upload | design 14.3: accept `Float32Array`, column name or Record; default `outDegree()[i] + 1` computed on the CPU (or in a tiny kernel from `rowPtr`) |
-| `weight` (`weightPath` in the element) | null (unweighted) | `string \| null` | per-arc `Float32Array(A)` or `snapshot.weights` or none | inert in the element today (research note 03 section 8.1: the literal `{nodes, edges}` has no `getEdgeData`); becomes live through the snapshot -- documented behaviour change |
-| `seed` | null (random) | `number \| null`, advanced | CPU-side LCG for the initial positions | seed 0 == unseeded (LCG quirk) |
-| `dim` | 2 | int 2..3, default 2 | uniform; element overrides from view mode | 2D must not touch z |
-| `pos` | null | `Record<number, number[]> \| null` | initial upload | the element will pass the current position array instead (design 14.4 `fromPositionColumn`); keep the "missing axis / missing node" fill rules of 2.1.2 |
-| `scalingFactor` (element-level, `SimpleLayoutConfig`) | 100 | 1..1000 | scene scale applied on write-back | not a layout option; section 4.7 |
+| Option                                                | CPU default        | Element schema                     | GPU binding                                             | Notes                                                                                                                                                                          |
+| ----------------------------------------------------- | ------------------ | ---------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `maxIter`                                             | 100                | int > 0, default 100               | iteration budget / settle bound                         | in a steppable engine this is the total iteration budget across frames, not a single call                                                                                      |
+| `jitterTolerance`                                     | 1.0                | > 0, default 1.0, advanced         | scalar in the speed controller (CPU side)               |                                                                                                                                                                                |
+| `scalingRatio`                                        | 2.0                | > 0, default 2.0                   | uniform                                                 | repulsion multiplier                                                                                                                                                           |
+| `gravity`                                             | 1.0                | > 0, default 1.0                   | uniform                                                 | the element schema forbids 0 (`positive()`), the CPU accepts 0; accept 0 on the GPU                                                                                            |
+| `strongGravity`                                       | false              | bool, advanced                     | uniform flag or `override`                              | linear vs unit-vector gravity                                                                                                                                                  |
+| `distributedAction`                                   | false              | bool, advanced                     | uniform flag                                            | divides attraction by mass                                                                                                                                                     |
+| `linlog`                                              | false              | bool, advanced                     | uniform flag                                            | `log(1 + d) / d` attraction                                                                                                                                                    |
+| `nodeMass`                                            | null -> degree + 1 | `Record<number, number> \| null`   | `Float32Array(n)` upload                                | design 14.3: accept `Float32Array`, column name or Record; default `outDegree()[i] + 1` computed on the CPU (or in a tiny kernel from `rowPtr`)                                |
+| `weight` (`weightPath` in the element)                | null (unweighted)  | `string \| null`                   | per-arc `Float32Array(A)` or `snapshot.weights` or none | inert in the element today (research note 03 section 8.1: the literal `{nodes, edges}` has no `getEdgeData`); becomes live through the snapshot -- documented behaviour change |
+| `seed`                                                | null (random)      | `number \| null`, advanced         | CPU-side LCG for the initial positions                  | seed 0 == unseeded (LCG quirk)                                                                                                                                                 |
+| `dim`                                                 | 2                  | int 2..3, default 2                | uniform; element overrides from view mode               | 2D must not touch z                                                                                                                                                            |
+| `pos`                                                 | null               | `Record<number, number[]> \| null` | initial upload                                          | the element will pass the current position array instead (design 14.4 `fromPositionColumn`); keep the "missing axis / missing node" fill rules of 2.1.2                        |
+| `scalingFactor` (element-level, `SimpleLayoutConfig`) | 100                | 1..1000                            | scene scale applied on write-back                       | not a layout option; section 4.7                                                                                                                                               |
 
 ### 7.2 Can be deferred (documented as unsupported until a later slice)
 
-| Option | Why deferrable | What to do meanwhile |
-| --- | --- | --- |
-| `nodeSize` / `adjustSizes` | changes the repulsion distance per pair (needs `size` in the tile) and the apply rule (`0.1 * speed`, cap 10); rarely set; its CPU semantics are the sign-suspect line of 2.1.9 | throw or ignore with a warning in v1; add once the CPU rewrite fixes the formula |
-| `dissuadeHubs` | ignored by the CPU port and absent from NetworkX; the element still exposes it (schema line 66-73) | accept and ignore, exactly like the CPU |
-| `scale` / `center` (`CommonLayoutOptions`) | FA2 today has neither (always `rescaleLayout` to the unit ball); in a steppable engine per-step rescaling is wrong (section 8.4) | honour at `load` time for the initial placement only |
-| `weight` as a NAMED edge column | needs the element's `expandEdges` cache (design 14.4) | v1 supports `weight === true` (snapshot weights) and `null` |
+| Option                                     | Why deferrable                                                                                                                                                                  | What to do meanwhile                                                             |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `nodeSize` / `adjustSizes`                 | changes the repulsion distance per pair (needs `size` in the tile) and the apply rule (`0.1 * speed`, cap 10); rarely set; its CPU semantics are the sign-suspect line of 2.1.9 | throw or ignore with a warning in v1; add once the CPU rewrite fixes the formula |
+| `dissuadeHubs`                             | ignored by the CPU port and absent from NetworkX; the element still exposes it (schema line 66-73)                                                                              | accept and ignore, exactly like the CPU                                          |
+| `scale` / `center` (`CommonLayoutOptions`) | FA2 today has neither (always `rescaleLayout` to the unit ball); in a steppable engine per-step rescaling is wrong (section 8.4)                                                | honour at `load` time for the initial placement only                             |
+| `weight` as a NAMED edge column            | needs the element's `expandEdges` cache (design 14.4)                                                                                                                           | v1 supports `weight === true` (snapshot weights) and `null`                      |
 
 ### 7.3 Options that have no CPU counterpart but the engine needs
 
-| Option | Source | Purpose |
-| --- | --- | --- |
-| `fixed` mask (`setFixed`) | FR has `fixed`; FA2 does not; the element needs pins (section 4.5) | integrate step skips masked nodes (they still exert forces) |
-| `settle` threshold | ngraph's `0.01` per-node movement, element's `0.05` average (section 3.1) | the `settled` flag (section 8.6) |
-| `iterationsPerStep` | `stepMultiplier` (section 4.1) | how many kernel iterations one submission runs |
-| approximation control (`theta`, or grid resolution) | ngraph `theta 0.8`, GraphWaGu `theta 0.8`, cosmos has no theta | only when the approximate repulsion path is added (section 8.2); exact O(n^2) needs none |
+| Option                                              | Source                                                                    | Purpose                                                                                  |
+| --------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `fixed` mask (`setFixed`)                           | FR has `fixed`; FA2 does not; the element needs pins (section 4.5)        | integrate step skips masked nodes (they still exert forces)                              |
+| `settle` threshold                                  | ngraph's `0.01` per-node movement, element's `0.05` average (section 3.1) | the `settled` flag (section 8.6)                                                         |
+| `iterationsPerStep`                                 | `stepMultiplier` (section 4.1)                                            | how many kernel iterations one submission runs                                           |
+| approximation control (`theta`, or grid resolution) | ngraph `theta 0.8`, GraphWaGu `theta 0.8`, cosmos has no theta            | only when the approximate repulsion path is added (section 8.2); exact O(n^2) needs none |
 
----------------------------------------------------------------------------
+---
 
 ## 8. GPU implications
 
 ### 8.1 Data the FA2 kernel binds (all from the undirected snapshot)
 
-| Buffer | Bytes | Source | Update frequency |
-| --- | --- | --- | --- |
-| `rowPtr` | 4(n + 1) | `snapshot.rowPtr` (arena hot prefix or per array, design 10.3) | per snapshot |
-| `colIdx` | 4A | `snapshot.colIdx` | per snapshot |
-| `weights` | 4A or absent | `snapshot.weights` / expanded column | per snapshot / per column version |
-| `mass` | 4n | `outDegree()[i] + 1` or `nodeMass` | per snapshot / per option change |
-| `size` | 4n | only with `adjustSizes` | deferred |
-| `positions` | 12n (stride 3, `array<f32>` NOT `array<vec3f>`, design C14) | element array on `load`; GPU-authoritative after | read back every step (section 8.5) |
-| `fixed` mask | 4 ceil(n / 32) | `setFixed` | on pin/unpin |
-| `force` | 12n scratch | | per iteration |
-| `swing`, `traction` partials | 4 ceil(n / 256) each | workgroup reductions | per iteration |
-| `centerOfMass` partials | 12 ceil(n / 256) | reduction over positions | per iteration |
-| `movement` partial | 4 ceil(n / 256) | for `settled` | per iteration |
-| params uniform | < 256 B | `scalingRatio, gravity, flags, speed, speedEfficiency, jitterTolerance, dim, n, stride` | per iteration (speed changes) |
+| Buffer                       | Bytes                                                       | Source                                                                                  | Update frequency                   |
+| ---------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------- |
+| `rowPtr`                     | 4(n + 1)                                                    | `snapshot.rowPtr` (arena hot prefix or per array, design 10.3)                          | per snapshot                       |
+| `colIdx`                     | 4A                                                          | `snapshot.colIdx`                                                                       | per snapshot                       |
+| `weights`                    | 4A or absent                                                | `snapshot.weights` / expanded column                                                    | per snapshot / per column version  |
+| `mass`                       | 4n                                                          | `outDegree()[i] + 1` or `nodeMass`                                                      | per snapshot / per option change   |
+| `size`                       | 4n                                                          | only with `adjustSizes`                                                                 | deferred                           |
+| `positions`                  | 12n (stride 3, `array<f32>` NOT `array<vec3f>`, design C14) | element array on `load`; GPU-authoritative after                                        | read back every step (section 8.5) |
+| `fixed` mask                 | 4 ceil(n / 32)                                              | `setFixed`                                                                              | on pin/unpin                       |
+| `force`                      | 12n scratch                                                 |                                                                                         | per iteration                      |
+| `swing`, `traction` partials | 4 ceil(n / 256) each                                        | workgroup reductions                                                                    | per iteration                      |
+| `centerOfMass` partials      | 12 ceil(n / 256)                                            | reduction over positions                                                                | per iteration                      |
+| `movement` partial           | 4 ceil(n / 256)                                             | for `settled`                                                                           | per iteration                      |
+| params uniform               | < 256 B                                                     | `scalingRatio, gravity, flags, speed, speedEfficiency, jitterTolerance, dim, n, stride` | per iteration (speed changes)      |
 
 Note the per-iteration CPU dependency: `estimateFactor` needs the GLOBAL
 `swing` and `traction` sums before the apply pass can run. Options:
@@ -790,7 +785,7 @@ buffer with no host round trip.
   `repos/GraphWaGu/src/wgsl/compute_forcesBH.wgsl` lines 41-115 and
   `src/webgpu/force_directed.ts` line 41); cosmos 3.x uses a grid pyramid
   with a Monte-Carlo near field and no theta at all (`repos/cosmos/src/
-  config.ts` lines 390-397, the deprecated `simulationRepulsionTheta`
+config.ts` lines 390-397, the deprecated `simulationRepulsionTheta`
   comment); ngraph and d3 use Barnes-Hut on the CPU. The plan should
   schedule the exact kernel as the first slice (parity, simplicity,
   correctness oracle) and an approximate repulsion (grid/pyramid or BH)
@@ -805,7 +800,7 @@ buffer with no host round trip.
 
 - Attraction is a CSR-row gather per node over the undirected snapshot:
   `for a in rowPtr[i]..rowPtr[i+1]: j = colIdx[a]; w = weights ? weights[a]
-  : 1` -- no atomics, both arcs present by construction (design 10.5).
+: 1` -- no atomics, both arcs present by construction (design 10.5).
   Degree skew is the load-balance problem: a hub row of 10^5 arcs on one
   thread stalls the workgroup. `degreeOrder().segmentOffsets` (design 10.6)
   gives the high / mid / low tiers for workgroup-per-node / subgroup-per-
@@ -815,7 +810,7 @@ buffer with no host round trip.
 - Gravity needs the centroid: one reduction over positions per iteration
   (partials + finalize kernel; the same finalize kernel as 8.1).
 - Integration: per node, `swinging = mass * |force|`, `factor = speed /
-  (1 + sqrt(speed * swinging))`, `p += force * factor` unless `fixed`; z
+(1 + sqrt(speed * swinging))`, `p += force * factor` unless `fixed`; z
   untouched when `dim == 2`; accumulate `|dp|` for the settle reduction.
 - Initial placement (`load`): rows that are NaN (unplaced) get LCG
   coordinates on the CPU (2.5.1) in index order, scaled to scene units
@@ -902,11 +897,11 @@ threshold so screenshots and label animations proceed (section 4.3).
    (load / step(k) / settled / setFixed / setPosition / dispose), Node.js
    tests first, one browser story through the element.
 3. graphty-element: the `LayoutManager` bridge (5.2, 5.3): sync frame loop
-   + fire-and-forget async step + per-frame readback into the element
-   array; select the GPU engine behind the "forceatlas2" type when an
-   accelerator is injected, else the CPU `LayoutSimulation` (the CPU FA2
-   should ALSO become steppable in the rewrite so the element has one
-   code path and the GPU is only an implementation swap).
+    - fire-and-forget async step + per-frame readback into the element
+      array; select the GPU engine behind the "forceatlas2" type when an
+      accelerator is injected, else the CPU `LayoutSimulation` (the CPU FA2
+      should ALSO become steppable in the rewrite so the element has one
+      code path and the GPU is only an implementation swap).
 4. Approximate repulsion (grid pyramid or BH) as the scale slice;
    `degreeOrder` load balancing for the attraction gather at the same
    time.
@@ -914,7 +909,7 @@ threshold so screenshots and label animations proceed (section 4.3).
    temperature on the CPU side); ARF if ever wanted; KK later via the APSP
    primitive.
 
----------------------------------------------------------------------------
+---
 
 ## Sources
 

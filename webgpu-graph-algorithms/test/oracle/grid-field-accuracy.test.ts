@@ -123,7 +123,9 @@ describe("the grid far field against the exact pair law (CPU oracle)", () => {
             const err = flooredRelError(grid.force.subarray(0, 3 * core), exact.subarray(0, 3 * core), 1e-3);
             const rms = gridTolerance("grid-exact.rms").value;
             const p99 = gridTolerance("grid-exact.p99").value;
-            console.warn(`[grid-field-accuracy] outliers ${dim}D: core rms ${err.rms.toExponential(3)}, p99 ${err.p99.toExponential(3)}`);
+            console.warn(
+                `[grid-field-accuracy] outliers ${dim}D: core rms ${err.rms.toExponential(3)}, p99 ${err.p99.toExponential(3)}`,
+            );
             expect(err.rms, `core rms (tolerance ${rms})`).toBeLessThan(rms);
             expect(err.p99, `core p99 (tolerance ${p99})`).toBeLessThan(p99);
         });

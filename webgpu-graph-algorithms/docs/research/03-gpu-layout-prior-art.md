@@ -24,14 +24,14 @@ force MAGNITUDE falls off as 1/d (so the per-component update is
   repulsion dominates; Burtscher 2011 Table 6.2: kernel 5 = 81 % of GPU
   time).
 - Four repulsion strategies are in production use on GPUs:
-  1. exact tiled O(n^2) (cosmos <= 4,096 points; cuGraph `exact_fa2`;
-     d3-force-webgpu; GraphGPU; jaredmcqueen/analytics; cosmos 3D branch);
-  2. Barnes-Hut tree built top-down with CAS locks (Burtscher & Pingali 2011,
-     reused verbatim by cuGraph and by Brinkmann et al. 2017);
-  3. Barnes-Hut-like tree built bottom-up from a spatial sort (GraphWaGu
-     2025: Hilbert code + radix sort + level-by-level merge);
-  4. uniform grid pyramid with an exact/Monte-Carlo near field (cosmos.gl
-     >= 4,097 points, "P3M": particle-particle / particle-mesh).
+    1. exact tiled O(n^2) (cosmos <= 4,096 points; cuGraph `exact_fa2`;
+       d3-force-webgpu; GraphGPU; jaredmcqueen/analytics; cosmos 3D branch);
+    2. Barnes-Hut tree built top-down with CAS locks (Burtscher & Pingali 2011,
+       reused verbatim by cuGraph and by Brinkmann et al. 2017);
+    3. Barnes-Hut-like tree built bottom-up from a spatial sort (GraphWaGu
+       2025: Hilbert code + radix sort + level-by-level merge);
+    4. uniform grid pyramid with an exact/Monte-Carlo near field (cosmos.gl
+        > = 4,097 points, "P3M": particle-particle / particle-mesh).
 - WGSL has atomics only on `u32`/`i32` (WGSL spec 6.2.8), no float atomics,
   no warp vote/shuffle in core, no guarantee that all workgroups are
   co-resident (so the Burtscher spin-wait summarization is unsafe in
@@ -94,7 +94,7 @@ Gauss-Seidel style: each force pass is immediately followed by an
 `updatePosition` pass (friction + integrate + clamp), swapping the position
 FBO before each write:
 
-1. gravity (if `simulationGravity`): velocity += alpha * gravity * 0.1 * dist
+1. gravity (if `simulationGravity`): velocity += alpha _ gravity _ 0.1 \* dist
    toward the space centre (`ForceGravity/force-gravity.frag`);
 2. center (if `simulationCenter`): toward the centre of mass (a separate
    reduction pass);
@@ -107,14 +107,15 @@ FBO before each write:
    (`src/modules/Store/index.ts` lines 8, 329-332).
 
 Force laws (all d3-style):
+
 - repulsion: `addV = alpha * repulsion * mass / d` with the d3 minimum-distance
   clamp `if (l < 1) l = sqrt(l)` on the squared distance
   (`force-level.frag` lines 46-57) -- i.e. a 1/d law, identical to
   d3-force `manyBody` (`repos/d3/manyBody.js` lines 69-71,
   `node.vx += x * quad.value * alpha / l`);
 - link spring: `l = max(l, r*0.99); f = (l - r)/l * linkSpring * alpha *
-  strength * bias` where `r = linkDistance * random in
-  linkDistRandomVariationRange`, `strength = sqrt(1/min(deg))` by default and
+strength * bias` where `r = linkDistance * random in
+linkDistRandomVariationRange`, `strength = sqrt(1/min(deg))` by default and
   `bias = deg(other)/(deg(a)+deg(b))` (`force-spring.ts` lines 79-93,
   `ForceLink/index.ts` lines 55-68) -- d3-force `link` semantics;
 - parameters (`src/config.ts` lines 372-456, defaults `src/variables.ts`
@@ -156,17 +157,17 @@ a per-point random kick. Measured 1.81 ms/step at 2k points (history
    cell's points, redrawn every tick. K = 32 (n <= 16,384), 16 (<= 65,536),
    8 above (index.ts lines 51-55).
 3. `drawForces()`: per point,
-   - `force-level.frag` per level: at the COARSEST level, sum centroid forces
-     from every cell except the 3x3 Chebyshev-1 neighbourhood; at each finer
-     level, sum the aligned 6x6 child block of the parent's 3x3 minus this
-     level's own 3x3. Space is tiled exactly once; there is no theta
-     (lines 60-96).
-   - `force-nearfield.frag`: for the finest 3x3 neighbourhood, sum true
-     pairwise forces from the K sampled slots and scale each cell's sum by
-     `others / sampled` (Horvitz-Thompson unbiased estimator, line 139);
-     cells with <= K points are therefore exact. Then jitter
-     (`velocity += velocity * random`) and clamp the per-tick step to
-     `2 * cellSize` (line 154).
+    - `force-level.frag` per level: at the COARSEST level, sum centroid forces
+      from every cell except the 3x3 Chebyshev-1 neighbourhood; at each finer
+      level, sum the aligned 6x6 child block of the parent's 3x3 minus this
+      level's own 3x3. Space is tiled exactly once; there is no theta
+      (lines 60-96).
+    - `force-nearfield.frag`: for the finest 3x3 neighbourhood, sum true
+      pairwise forces from the K sampled slots and scale each cell's sum by
+      `others / sampled` (Horvitz-Thompson unbiased estimator, line 139);
+      cells with <= K points are therefore exact. Then jitter
+      (`velocity += velocity * random`) and clamp the per-tick step to
+      `2 * cellSize` (line 154).
 
 Cost model stated in the docs: K sequential peel passes (~0.1 ms fixed each)
 plus a fixed 9 + 27-per-level texel loop per point; memory at the 512^2 cap
@@ -224,6 +225,7 @@ constant; the "cell-average contact" is the approximation.
 
 Repo: `repos/GraphWaGu` = https://github.com/harp-lab/GraphWaGu, commit
 `bee7b7b8` (2025-04-28), MIT (Landon Dyken). Papers:
+
 - Dyken, Poudel, Usher, Petruzza, Bhatia, Kumar, "GraphWaGu: GPU Powered
   Large Scale Graph Layout Computation and Rendering for the Web", EGPGV 2022
   (`repos/papers/graphwagu-2022.pdf`, fetched from stevepetruzza.io);
@@ -233,7 +235,7 @@ Repo: `repos/GraphWaGu` = https://github.com/harp-lab/GraphWaGu, commit
   (`repos/papers/pacificvis-graphwagu.pdf`, fetched from evl.uic.edu with
   certificate verification disabled because the site's certificate has
   expired).
-The checked-out code is the 2025 (bottom-up) version.
+  The checked-out code is the 2025 (bottom-up) version.
 
 ### 2.1 Data layout
 
@@ -244,9 +246,9 @@ The checked-out code is the 2025 (bottom-up) version.
   (`create_sourcelist.wgsl` / `create_targetlist.wgsl`, `@workgroup_size(1)`,
   a serial loop over all edges -- an obvious O(m) serial bottleneck done
   once at load). Per node `EdgeInfo { source_start, source_degree,
-  dest_start, dest_degree }`.
+dest_start, dest_degree }`.
 - Tree: `TreeNode { boundary: vec4f, CoM: vec2f, mass: f32, test, code,
-  level, test2, test3: u32, pointers: array<u32, cluster_size> }` = 64 B
+level, test2, test3: u32, pointers: array<u32, cluster_size> }` = 64 B
   with `cluster_size = 4` (`force_directed.ts` line 48; substituted into the
   WGSL via `CHANGEME`). Tree slots: n leaves + n/4 + n/16 + ... ~ 1.33 n.
 
@@ -330,10 +332,10 @@ Kernel (`shaders/sim-velocity.glsl`): one fragment per node; a nested loop
 over the ENTIRE position texture (`nodesTexWidth^2` texels) applying FR
 repulsion `k^2/d` (lines 19-24, 66-84); then attraction by scanning the
 ENTIRE edge texture and applying `d^2/k` only for texels in the node's
-`[start, end)` range (lines 86-134) -- O(n * (n + m)) per frame, with every
+`[start, end)` range (lines 86-134) -- O(n _ (n + m)) per frame, with every
 node reading every edge. Velocity is normalised to `temperature`
-(`velocity = normalize(velocity) * temperature`, line 143), speed-limited,
-damped by 0.25; `sim-position.glsl` integrates `pos += vel * delta * 50`.
+(`velocity = normalize(velocity) _ temperature`, line 143), speed-limited,
+damped by 0.25; `sim-position.glsl`integrates`pos += vel _ delta _ 50`.
 No spatial structure, no CSR gather bound, no Barnes-Hut. The 1M-node
 60 fps claim cannot be consistent with an O(n^2) fragment loop at 1M
 (10^12 pair evaluations per frame); most plausibly it refers to rendering,
@@ -354,6 +356,7 @@ kernels are the Burtscher & Pingali 2011 code (kernel names, `THREADS1..6`,
 as first done by Brinkmann, Rietveld & Takes (ICPP 2017, section 4.6).
 
 ### 4.1 Parameters (`cpp/include/cugraph/algorithms.hpp` lines 175-256; Python
+
 docs docs.nvidia.com/cugraph)
 
 `max_iter` 500, `outbound_attraction_distribution` true, `lin_log_mode`
@@ -381,12 +384,12 @@ graph-format plan (`outDegree()` + 1).
 ### 4.3 Per-iteration kernels (`barnes_hut.cuh` lines 220-343)
 
 1. fills (rep_forces, attract, swing, traction = 0), `ResetKernel`;
-2. `BoundingBoxKernel` (512 threads x 3*SMs blocks): block-local min/max
+2. `BoundingBoxKernel` (512 threads x 3\*SMs blocks): block-local min/max
    reduction in shared memory, last block (via `atomicInc` limiter) combines
    and writes the root cell (radius = half max extent + 1e-5);
 3. `ClearKernel1` (children = -1), `TreeBuildingKernel` (512 threads):
    Burtscher's iterative insertion: descend to a leaf slot; `atomicCAS(slot,
-   -1, i)` to insert into an empty slot; else `atomicCAS(slot, ch, -2)` to
+-1, i)` to insert into an empty slot; else `atomicCAS(slot, ch, -2)` to
    LOCK, allocate new cells with `atomicSub(bottomd, 1)` walking down until
    the two bodies separate, then `__threadfence(); childd[locked] = patch`
    to publish/unlock (lines 178-248). Cell budget exhaustion is handled by
@@ -407,23 +410,22 @@ graph-format plan (`outDegree()` + 1).
    lanes of the warp agree (line 583), otherwise the whole warp descends;
    force `scaling_ratio * mass_i * mass_n / (d^2 + epssq)` times `(dx, dy)`
    (a 1/d law with a softening epssq = 0.0025, line 59);
-7. `apply_gravity` (linear: `mass*gravity/d`, strong: `scaling_ratio * mass
-   * gravity`, `fa2_kernels.cuh` lines 130-175);
+7. `apply_gravity` (linear: `mass*gravity/d`, strong: `scaling_ratio \* mass
+    - gravity`, `fa2_kernels.cuh` lines 130-175);
 8. `apply_attraction` (edge-parallel, 256 threads): per COO edge,
    `weight^edge_weight_influence`, `factor = -coef * w` (`coef =
-   sum(mass)/n` compensation when outbound distribution is on), LinLog
+sum(mass)/n` compensation when outbound distribution is on), LinLog
    `log(1+d)/d`, prevent-overlap using `d' = d - r_src - r_dst` (0 force
    when overlapping), `/ mass[src]` for outbound distribution, then FOUR
    `atomicAdd(float)` (lines 15-84) -- the pattern WebGPU cannot use;
 9. `compute_local_speed`: per node `swing = mass * |F(t) - F(t-1)|`,
    `traction = 0.5 * mass * |F(t) + F(t-1)|`; two `thrust::reduce` to the
-   HOST; `adapt_speed` on the CPU (jt = jitter_tolerance * clamp(0.05 sqrt(n)
-   * t / n^2, sqrt(0.05 sqrt n), 10); speed_efficiency *= 0.5 / 0.7 / 1.3
-   rules; `speed += min(target - speed, 0.5 * speed)`; lines 252-286 -- a
+   HOST; `adapt_speed` on the CPU (jt = jitter*tolerance \* clamp(0.05 sqrt(n) - t / n^2, sqrt(0.05 sqrt n), 10); speed_efficiency *= 0.5 / 0.7 / 1.3
+   rules; `speed += min(target - speed, 0.5 _ speed)`; lines 252-286 -- a
    line-by-line port of Gephi's `ForceAtlas2.java` lines 296-328);
 10. `apply_forces_bh`: `factor = speed / (1 + sqrt(speed * swing_i))`
     (x0.1 and capped at 10 units when preventing overlap), `pos += F *
-    mobility * factor`, `old = F`.
+mobility * factor`, `old = F`.
 
 `exact_fa2` differs only in step 6: `repulsion_kernel` with a 2D grid
 (32x32 threads, <= 256x256 blocks), each thread handling pairs `(i, j<i)`
@@ -479,15 +481,16 @@ into an MIT package -- only the published formulas are used):
 files from github.com/gephi/gephi master).
 
 Formulas confirmed against the paper and code:
+
 - attraction `Fa = d` (LinLog: `ln(1 + d)`), with edge weight `w^delta`
   (`edge_weight_influence`), "dissuade hubs" / outbound attraction
   distribution divides by `deg(n1) + 1` (code: `factor = -coef * e /
-  n1.mass`, `ForceFactory.java` lines 355-372);
+n1.mass`, `ForceFactory.java` lines 355-372);
 - repulsion `Fr = kr * (deg(n1)+1)(deg(n2)+1) / d` (code: `factor = coef *
-  m1 * m2 / d / d` applied to the component vector, lines 132-148: a 1/d
+m1 * m2 / d / d` applied to the component vector, lines 132-148: a 1/d
   magnitude);
 - gravity `Fg = kg * (deg+1)` (unit direction), strong gravity `kg *
-  (deg+1) * d`;
+(deg+1) * d`;
 - prevent overlap: `d' = d - size1 - size2`; `d' > 0`: use d'; `d' < 0`:
   repulsion `100 * kr * m1 * m2` (no division) and no attraction; `d' = 0`:
   nothing (lines 206-240);
@@ -515,14 +518,14 @@ options object must be a superset of this.
 
 ## 6. Other WebGPU / GPU implementations found (and not found)
 
-| Project | Repulsion | Attraction | Verdict |
-| --- | --- | --- | --- |
-| `repos/d3-force-webgpu` (jamescarruthers, commit `b19c463b` 2026-08-10, ISC/BSD-style d3 licence) | tiled exact O(n^2): `TILE_SIZE 256`, `var<workgroup> tile: array<vec4f, 256>`, two `workgroupBarrier()` per tile, d3 law with `distanceMin2/Max2` and LCG jiggle (`src/gpu/shaders/manyBody.wgsl`); comment claims "faster than Barnes-Hut for n < ~50k nodes" (UNVERIFIED, no benchmark) | edge-parallel with plain non-atomic read-modify-write on `nodes[].vx` -- documented data race (`link.wgsl` line 109); an alternative per-node kernel scans ALL links (O(n*m)) | the tiled kernel is the right shape for the exact tier; the link kernel is a counter-example |
-| `repos/GraphGPU` (drkameleon, commit `4456f02b` 2026-03-02, MIT) | untiled O(n^2) per node, vis.js law `G / d^2` (1/d^2 magnitude), `@workgroup_size(64)` (`src/shaders/index.ts` lines 264-291) | edge-parallel `forces[src] += fx` with acknowledged races (line 310); CPU path has a Barnes-Hut quadtree | counter-example |
-| `repos/webgpu-compute-exploration` (scttfrdmn, MIT) | Barnes-Hut listed only in `FUTURE_EXAMPLES.md`; not implemented | -- | nothing |
-| bneukom/gpu-nbody (OpenCL octree, from search) | not read | -- | not consulted |
-| t-FDP (Zhong et al., TVCG 2023, arXiv 2303.03964) | FFT-accelerated interpolation of a bounded t-distribution force on a grid, "one order of magnitude faster ... two orders faster on the GPU" | -- | far-field via FFT is a documented option; not pursued for v1 (different force law) |
-| Yunis, Yokota, Ahmadia 2012 (FMM for graph layout, from search) | fast multipole | -- | not pursued |
+| Project                                                                                           | Repulsion                                                                                                                                                                                                                                                                                 | Attraction                                                                                                                                                                     | Verdict                                                                                      |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `repos/d3-force-webgpu` (jamescarruthers, commit `b19c463b` 2026-08-10, ISC/BSD-style d3 licence) | tiled exact O(n^2): `TILE_SIZE 256`, `var<workgroup> tile: array<vec4f, 256>`, two `workgroupBarrier()` per tile, d3 law with `distanceMin2/Max2` and LCG jiggle (`src/gpu/shaders/manyBody.wgsl`); comment claims "faster than Barnes-Hut for n < ~50k nodes" (UNVERIFIED, no benchmark) | edge-parallel with plain non-atomic read-modify-write on `nodes[].vx` -- documented data race (`link.wgsl` line 109); an alternative per-node kernel scans ALL links (O(n\*m)) | the tiled kernel is the right shape for the exact tier; the link kernel is a counter-example |
+| `repos/GraphGPU` (drkameleon, commit `4456f02b` 2026-03-02, MIT)                                  | untiled O(n^2) per node, vis.js law `G / d^2` (1/d^2 magnitude), `@workgroup_size(64)` (`src/shaders/index.ts` lines 264-291)                                                                                                                                                             | edge-parallel `forces[src] += fx` with acknowledged races (line 310); CPU path has a Barnes-Hut quadtree                                                                       | counter-example                                                                              |
+| `repos/webgpu-compute-exploration` (scttfrdmn, MIT)                                               | Barnes-Hut listed only in `FUTURE_EXAMPLES.md`; not implemented                                                                                                                                                                                                                           | --                                                                                                                                                                             | nothing                                                                                      |
+| bneukom/gpu-nbody (OpenCL octree, from search)                                                    | not read                                                                                                                                                                                                                                                                                  | --                                                                                                                                                                             | not consulted                                                                                |
+| t-FDP (Zhong et al., TVCG 2023, arXiv 2303.03964)                                                 | FFT-accelerated interpolation of a bounded t-distribution force on a grid, "one order of magnitude faster ... two orders faster on the GPU"                                                                                                                                               | --                                                                                                                                                                             | far-field via FFT is a documented option; not pursued for v1 (different force law)           |
+| Yunis, Yokota, Ahmadia 2012 (FMM for graph layout, from search)                                   | fast multipole                                                                                                                                                                                                                                                                            | --                                                                                                                                                                             | not pursued                                                                                  |
 
 No WebGPU octree/quadtree n-body implementation other than GraphWaGu was
 found by the searches run ("WebGPU Barnes-Hut", "wgsl octree n-body",
@@ -534,20 +537,20 @@ building on the grid approach that has a working production reference
 
 ## 7. Comparison table
 
-| | cosmos.gl (grid P3M) | cosmos.gl (exact) | GraphWaGu 2025 | cuGraph FA2 BH (Burtscher) | cuGraph exact | d3-force-webgpu | analytics | GraphGPU |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| API | WebGL 2 fragment passes | WebGL 2 | WebGPU compute | CUDA | CUDA | WebGPU compute | WebGL 1 (three.js) | WebGPU compute |
-| Dim | 2 (3D branch: exact only) | 2/3 | 2 | 2 | 2 | 2 | 3 | 2 |
-| Repulsion | grid pyramid 4^2..512^2, exact once-tiling, Monte-Carlo near field (K = 32/16/8) | all pairs, one fragment per point | Hilbert sort + 4-ary cluster tree, DFS with private stack, theta | top-down quadtree with CAS locks, spin-wait summarize, warp-vote traversal, theta 0.5 | all pairs, symmetric 2D grid | tiled all pairs (256-tile shared mem) | all pairs, no tiling | all pairs, no tiling |
-| Force law | d3 1/d, min-distance clamp | same | FR `l^2/d` | FA2 `kr m_i m_j / d` softened | same | d3 1/d | FR | vis.js 1/d^2 |
-| Tree/grid build | additive-blend point draws per level + K depth-peel passes | none | Hilbert codes (1 kernel), radix sort (4x 8-bit passes), log_4 n merge dispatches | bbox reduce, CAS insert, spin-wait summarize, in-order sort | none | none | none | none |
-| Kernels / iteration | per force: 1 pass + integrate; many-body = levels (~9) + K peels + levels + near field | ~6 passes | 1 + sort (~12 dispatches) + log_4 n + 1 + 1 + 1 | 2 fills + 8 kernels + 2 host reductions | 2 fills + 6 kernels + 2 host reductions | 5-7 dispatches | 2 passes | 5 dispatches |
-| Attraction | per-node gather, 2 passes (in/out), texture CSR | same | per-node gather, 2 CSR lists | edge-parallel COO, float atomicAdd | same | edge-parallel, RACY | per-node scan of all edges | edge-parallel, RACY |
-| Atomics | none (blending, depth test) | none | i32 fixed-point min/max bbox; radix sort u32 | int CAS/Sub/Inc/Max + float atomicAdd | float atomicAdd | none | none | none |
-| Step control | d3 alpha decay, friction 0.85, sequential force/integrate | same | FR cooling `*= 0.9`, force clamp | FA2 swing/traction adaptive speed, host scalar | same | d3 alpha | temperature normalisation | velocity integration |
-| Memory for repulsion structure | ~20 MB at cap (independent of n) | 0 | ~64 B x 1.33 n + 8 B/node codes + sort scratch ~ 110 B/node | ~40 B/slot x 2-3 slots/body = 80-120 B/node (docs: 17-30 floats/node) | 0 | 0 | 0 | 0 |
-| Measured | 100k: 6.6 ms/step, 200k: 13.8 ms/step (GPU unnamed) | 2k: 1.8 ms/step | 95k n / 6.6M m: 5.5 ms/iter; 1.13M n: ~160 ms/iter (RTX 4070 Laptop, theta 2) | 1.13M n / 3M m: 231 ms/iter; 317k / 1M: 25 ms/iter (Titan X, 2017, theta not stated) | -- | none | none | none |
-| Licence | MIT | MIT | MIT | Apache-2.0 | Apache-2.0 | d3 (ISC-like) | GPL-3 | MIT |
+|                                | cosmos.gl (grid P3M)                                                                   | cosmos.gl (exact)                 | GraphWaGu 2025                                                                   | cuGraph FA2 BH (Burtscher)                                                            | cuGraph exact                           | d3-force-webgpu                       | analytics                  | GraphGPU             |
+| ------------------------------ | -------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------- | -------------------------- | -------------------- |
+| API                            | WebGL 2 fragment passes                                                                | WebGL 2                           | WebGPU compute                                                                   | CUDA                                                                                  | CUDA                                    | WebGPU compute                        | WebGL 1 (three.js)         | WebGPU compute       |
+| Dim                            | 2 (3D branch: exact only)                                                              | 2/3                               | 2                                                                                | 2                                                                                     | 2                                       | 2                                     | 3                          | 2                    |
+| Repulsion                      | grid pyramid 4^2..512^2, exact once-tiling, Monte-Carlo near field (K = 32/16/8)       | all pairs, one fragment per point | Hilbert sort + 4-ary cluster tree, DFS with private stack, theta                 | top-down quadtree with CAS locks, spin-wait summarize, warp-vote traversal, theta 0.5 | all pairs, symmetric 2D grid            | tiled all pairs (256-tile shared mem) | all pairs, no tiling       | all pairs, no tiling |
+| Force law                      | d3 1/d, min-distance clamp                                                             | same                              | FR `l^2/d`                                                                       | FA2 `kr m_i m_j / d` softened                                                         | same                                    | d3 1/d                                | FR                         | vis.js 1/d^2         |
+| Tree/grid build                | additive-blend point draws per level + K depth-peel passes                             | none                              | Hilbert codes (1 kernel), radix sort (4x 8-bit passes), log_4 n merge dispatches | bbox reduce, CAS insert, spin-wait summarize, in-order sort                           | none                                    | none                                  | none                       | none                 |
+| Kernels / iteration            | per force: 1 pass + integrate; many-body = levels (~9) + K peels + levels + near field | ~6 passes                         | 1 + sort (~12 dispatches) + log_4 n + 1 + 1 + 1                                  | 2 fills + 8 kernels + 2 host reductions                                               | 2 fills + 6 kernels + 2 host reductions | 5-7 dispatches                        | 2 passes                   | 5 dispatches         |
+| Attraction                     | per-node gather, 2 passes (in/out), texture CSR                                        | same                              | per-node gather, 2 CSR lists                                                     | edge-parallel COO, float atomicAdd                                                    | same                                    | edge-parallel, RACY                   | per-node scan of all edges | edge-parallel, RACY  |
+| Atomics                        | none (blending, depth test)                                                            | none                              | i32 fixed-point min/max bbox; radix sort u32                                     | int CAS/Sub/Inc/Max + float atomicAdd                                                 | float atomicAdd                         | none                                  | none                       | none                 |
+| Step control                   | d3 alpha decay, friction 0.85, sequential force/integrate                              | same                              | FR cooling `*= 0.9`, force clamp                                                 | FA2 swing/traction adaptive speed, host scalar                                        | same                                    | d3 alpha                              | temperature normalisation  | velocity integration |
+| Memory for repulsion structure | ~20 MB at cap (independent of n)                                                       | 0                                 | ~64 B x 1.33 n + 8 B/node codes + sort scratch ~ 110 B/node                      | ~40 B/slot x 2-3 slots/body = 80-120 B/node (docs: 17-30 floats/node)                 | 0                                       | 0                                     | 0                          | 0                    |
+| Measured                       | 100k: 6.6 ms/step, 200k: 13.8 ms/step (GPU unnamed)                                    | 2k: 1.8 ms/step                   | 95k n / 6.6M m: 5.5 ms/iter; 1.13M n: ~160 ms/iter (RTX 4070 Laptop, theta 2)    | 1.13M n / 3M m: 231 ms/iter; 317k / 1M: 25 ms/iter (Titan X, 2017, theta not stated)  | --                                      | none                                  | none                       | none                 |
+| Licence                        | MIT                                                                                    | MIT                               | MIT                                                                              | Apache-2.0                                                                            | Apache-2.0                              | d3 (ISC-like)                         | GPL-3                      | MIT                  |
 
 ---
 
@@ -581,8 +584,7 @@ building on the grid approach that has a working production reference
 3. Limits (design doc section 10; research note 09 table): default
    `maxComputeWorkgroupStorageSize` 16 KiB (a 256 x vec4f tile is 4 KiB),
    `maxComputeWorkgroupSizeX` 256, 65,535 workgroups per dimension -> at most
-   16,776,960 invocations per 1D dispatch; `maxStorageBuffersPerShaderStage`
-   8. A `components: 3` position column must be read as `array<f32>` with
+   16,776,960 invocations per 1D dispatch; `maxStorageBuffersPerShaderStage` 8. A `components: 3` position column must be read as `array<f32>` with
    `3*i` indexing, never `array<vec3<f32>>` (stride 16 != 12; design doc
    10.2). No recursion, no dynamic allocation, private arrays are fine
    (GraphWaGu's 64-entry stack).
@@ -603,6 +605,7 @@ building on the grid approach that has a working production reference
 ### 8.2 Cost model and crossovers
 
 Per iteration, repulsion work:
+
 - exact: `n^2` pair evaluations (~20-25 flops + 2 loads from shared memory
   each). Burtscher measured ~305 GFLOP/s for the O(n^2) CUDA kernel on a
   2009 GPU; a 2024 discrete GPU sustains several TFLOP/s on this kernel
@@ -614,12 +617,11 @@ Per iteration, repulsion work:
   GraphWaGu 2022: FR bitmap best below ~5k (RTX 2060, but their FR also did
   an n^2 adjacency probe); d3-force-webgpu's "< ~50k" is an unbacked
   comment.
-- grid pyramid (cosmos structure as compute): O(n * (K_far + occ_near)) with
-  `K_far = |coarsest grid| - 9 + 27 * (levels - 1)` (for 4^2 coarsest and a
-  512^2 finest: 7 + 27*7 = 196 centroid evaluations per point in 2D) and
-  `occ_near` = points in the 3x3 finest neighbourhood (mean ~2.25 at 1/4
+- grid pyramid (cosmos structure as compute): O(n _ (K_far + occ_near)) with
+  `K_far = |coarsest grid| - 9 + 27 _ (levels - 1)`(for 4^2 coarsest and a
+512^2 finest: 7 + 27*7 = 196 centroid evaluations per point in 2D) and`occ_near`= points in the 3x3 finest neighbourhood (mean ~2.25 at 1/4
   point per cell; hub cells are the tail). Build: O(n) cell ids + histogram
-  + scan over `cells` + scatter + O(cells * levels) downsample. At n = 1M
+    - scan over`cells` + scatter + O(cells \* levels) downsample. At n = 1M
   in 2D this is ~2 x 10^8 far-field evaluations, comparable to GraphWaGu's
   measured 160 ms/iteration budget at 1.1M but with coherent, branch-free
   memory access; a few tens of ms is a reasonable expectation on the 4070
@@ -630,6 +632,7 @@ Per iteration, repulsion work:
   ~100 B/node plus sort scratch.
 
 Crossover recommendation (discrete GPU; halve for integrated):
+
 - n <= 16,384: exact tiled all-pairs (deterministic, no build cost, exact
   hubs, trivially 3D). Cosmos chose 4,096 because its WebGL peel passes
   cost ~0.1 ms each; a single compute dispatch has no such floor, so the
@@ -642,20 +645,20 @@ Crossover recommendation (discrete GPU; halve for integrated):
   near field, whose worst case is hub-cell occupancy -- cap it (section
   8.4).
 - Memory per node (GPU, dim = 2 / 3), excluding the snapshot itself:
-  - exact: positions 12 B (the owner's stride-3 column) + force 8/12 +
-    old force 8/12 + swing/traction 8 + mass 4 = ~40-48 B/node; zero
-    structure.
-  - grid: + cell id 4 + sorted index 4 + histogram cursor (per cell) and per
-    cell `[sum x, sum y, (sum z), count]` 16 B x 1.33 (2D pyramid) or x
-    1.14 (3D) -- at the 512^2 cap 5.6 MB total in 2D; in 3D a 128^3 finest
-    grid is 2.1M cells x 16 B = 34 MB (pyramid ~38 MB), 256^3 would be
-    268 MB and is NOT recommended -- cap 3D at 128^3 (or 160^3) and let
-    occupancy rise. Per node ~56-64 B plus the fixed grid.
-  - GraphWaGu tree: ~110 B/node; Burtscher tree: ~80-120 B/node (2D),
-    ~130-170 B/node (3D, 8 children).
-  Node counts at which a 100 MB GPU budget is exhausted: exact ~2M,
-  grid ~1.5M (2D), tree ~0.9M -- all far beyond the interactive
-  per-iteration budget, so time, not memory, is the limit.
+    - exact: positions 12 B (the owner's stride-3 column) + force 8/12 +
+      old force 8/12 + swing/traction 8 + mass 4 = ~40-48 B/node; zero
+      structure.
+    - grid: + cell id 4 + sorted index 4 + histogram cursor (per cell) and per
+      cell `[sum x, sum y, (sum z), count]` 16 B x 1.33 (2D pyramid) or x
+      1.14 (3D) -- at the 512^2 cap 5.6 MB total in 2D; in 3D a 128^3 finest
+      grid is 2.1M cells x 16 B = 34 MB (pyramid ~38 MB), 256^3 would be
+      268 MB and is NOT recommended -- cap 3D at 128^3 (or 160^3) and let
+      occupancy rise. Per node ~56-64 B plus the fixed grid.
+    - GraphWaGu tree: ~110 B/node; Burtscher tree: ~80-120 B/node (2D),
+      ~130-170 B/node (3D, 8 children).
+      Node counts at which a 100 MB GPU budget is exhausted: exact ~2M,
+      grid ~1.5M (2D), tree ~0.9M -- all far beyond the interactive
+      per-iteration budget, so time, not memory, is the limit.
 
 ### 8.3 Why grid over tree for the primary large-n back-end
 
@@ -678,12 +681,12 @@ Crossover recommendation (discrete GPU; halve for integrated):
    and permutation conventions apply (a `perm` array, positions read via
    `perm[i]`; with `override USE_PERM` for the identity case, design doc
    10.1).
-Trees win only when the distribution is extremely non-uniform (most of
-space empty, a few dense clumps); a grid then wastes far-field work on
-empty cells and the near field degrades. Real graph layouts are clumpy, so
-keep the Hilbert-sorted cluster tree (GraphWaGu 2025) as the documented
-second experiment, sharing the same sort primitive, and decide with
-measurements on the hub-heavy test graphs.
+   Trees win only when the distribution is extremely non-uniform (most of
+   space empty, a few dense clumps); a grid then wastes far-field work on
+   empty cells and the near field degrades. Real graph layouts are clumpy, so
+   keep the Hilbert-sorted cluster tree (GraphWaGu 2025) as the documented
+   second experiment, sharing the same sort primitive, and decide with
+   measurements on the hub-heavy test graphs.
 
 ### 8.4 Sketch of the recommended kernels (per iteration, grid tier)
 
@@ -709,7 +712,7 @@ k]`), uploaded once per `load()` and thereafter GPU-authoritative.
    one dispatch per level, no atomics.
 7. `farField`: per point, coarsest-level full loop minus 3x3 (3x3x3), then
    per level the 6x6 (6x6x6) block minus own 3x3 (3x3x3), `F += k * m_i *
-   M_cell / (d^2 + eps) * delta` -- the same 1/d law parameterised for d3
+M_cell / (d^2 + eps) * delta` -- the same 1/d law parameterised for d3
    (`mass = 1`, strength), FA2 (`mass = deg+1`, scalingRatio), FR (`k^2`).
 8. `nearField`: per point, for each of the 9 (27) finest cells iterate
    `sorted[cellStart .. cellStart + count)` computing exact pairwise forces,
@@ -722,7 +725,7 @@ k]`), uploaded once per `load()` and thereafter GPU-authoritative.
    Clamp the per-iteration near-field step to `2 * cellSize`.
 9. `attraction`: per node, CSR row gather `for a in rowPtr[u]..rowPtr[u+1]`
    over `colIdx[a]`, `weights === null ? 1 : weights[a]` (via `override
-   HAS_WEIGHTS`), with the FA2 outbound-distribution / LinLog / overlap
+HAS_WEIGHTS`), with the FA2 outbound-distribution / LinLog / overlap
    variants as `override` constants (pipeline cache keyed by the variant).
    Undirected snapshots store both directions, so ONE pass replaces
    cosmos's two and cuGraph's atomics. For degree skew use graph-format's
@@ -735,11 +738,11 @@ k]`), uploaded once per `load()` and thereafter GPU-authoritative.
     writing `speed`, `speedEfficiency` to a storage block; d3/cosmos --
     host-side alpha decay is a uniform write, no readback.
 12. `integrate`: `pos += F * factor` (FA2 local speed) or `v = (v + F) *
-    friction; pos += v` (d3), honouring the `fixed` bitmap (u32 words, 32
+friction; pos += v` (d3), honouring the `fixed` bitmap (u32 words, 32
     nodes each) and `setPosition` writes (12-byte `writeBuffer`), writing
     the stride-3 column in place; staging copy + `mapAsync` only when the
     caller's `step()` promise resolves (design doc 14.3: the GPU buffer is
-    authoritative while stepping; readback per step is n * 12 B = 12 MB at
+    authoritative while stepping; readback per step is n \* 12 B = 12 MB at
     1M nodes, so batch several iterations per `step(iterations)`).
 
 Dispatch count per iteration: ~12 + levels (2D: up to 8) -- all recorded
@@ -747,18 +750,18 @@ into one command buffer, no host round trips except the optional readback.
 
 ### 8.5 How this maps onto the graph-format snapshot
 
-| Need | Snapshot source | Binding / note |
-| --- | --- | --- |
-| attraction rows | `rowPtr` (n+1), `colIdx` (arcCount) | storage, read; windowed at 64-arc boundaries if over the binding limit (design doc 10.6) |
-| edge weights | `weights` (Float32Array or null = all ones) | `override HAS_WEIGHTS`; null -> bind `colIdx` in the slot (never read) like the `USE_PERM` pattern |
-| FA2 mass | `outDegree()` view (+1 in-shader) or a `mass` node column via `gpuView` | Float32Array(n) |
-| node size (overlap) | `size` node column | optional |
-| fixed nodes | `bool` column role "fixed" -> packed u32 bitmap (`NodeMask`) | `setFixed(mask)` uploads ceil(n/32) words |
-| positions | owner's stride-3 `Float32Array(3n)` | `array<f32>` with `3*i`; `dim` uniform selects whether z participates |
-| degree tiers | `degreeOrder().segmentOffsets` (CPU) | three dispatches for the attraction gather |
-| release | `gpu.release(snapshot)` on snapshot-replaced | drops CSR uploads; the simulation's own scratch is owned by the `LayoutSimulation` and freed in `dispose()` |
-| multigraph | parallel arcs summed (documented behaviour change in 14.3) | matches CSR gather semantics |
-| directed input | `toLayoutSnapshot` -> undirected snapshot | layouts always see doubled arcs, self-loops once |
+| Need                | Snapshot source                                                         | Binding / note                                                                                              |
+| ------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| attraction rows     | `rowPtr` (n+1), `colIdx` (arcCount)                                     | storage, read; windowed at 64-arc boundaries if over the binding limit (design doc 10.6)                    |
+| edge weights        | `weights` (Float32Array or null = all ones)                             | `override HAS_WEIGHTS`; null -> bind `colIdx` in the slot (never read) like the `USE_PERM` pattern          |
+| FA2 mass            | `outDegree()` view (+1 in-shader) or a `mass` node column via `gpuView` | Float32Array(n)                                                                                             |
+| node size (overlap) | `size` node column                                                      | optional                                                                                                    |
+| fixed nodes         | `bool` column role "fixed" -> packed u32 bitmap (`NodeMask`)            | `setFixed(mask)` uploads ceil(n/32) words                                                                   |
+| positions           | owner's stride-3 `Float32Array(3n)`                                     | `array<f32>` with `3*i`; `dim` uniform selects whether z participates                                       |
+| degree tiers        | `degreeOrder().segmentOffsets` (CPU)                                    | three dispatches for the attraction gather                                                                  |
+| release             | `gpu.release(snapshot)` on snapshot-replaced                            | drops CSR uploads; the simulation's own scratch is owned by the `LayoutSimulation` and freed in `dispose()` |
+| multigraph          | parallel arcs summed (documented behaviour change in 14.3)              | matches CSR gather semantics                                                                                |
+| directed input      | `toLayoutSnapshot` -> undirected snapshot                               | layouts always see doubled arcs, self-loops once                                                            |
 
 ### 8.6 Testing implications (for the plan)
 
@@ -801,6 +804,7 @@ into one command buffer, no host round trips except the optional readback.
 ## 10. Sources
 
 Cloned repositories (under `tmp/webgpu-plan/repos/`):
+
 - https://github.com/cosmosgl/cosmos (-> cosmosgl/graph), commit 6843f5d9,
   branch `feat/3d` commit 9cc081d0; files cited: `README.md`,
   `docs/many-body-force/README.md`, `docs/collision-force/README.md`,
@@ -834,6 +838,7 @@ Cloned repositories (under `tmp/webgpu-plan/repos/`):
 
 Papers (downloaded to `tmp/webgpu-plan/repos/papers/`, text extracted with
 pypdf):
+
 - https://www2.evl.uic.edu/documents/pacificvisgraphwagu.pdf (Dyken et al.,
   "Accelerating Web-Based Graph Drawing with Bottom-Up GPU Quadtree
   Construction"; fetched with `curl -k`, expired certificate)
@@ -844,6 +849,7 @@ pypdf):
   (Brinkmann, Rietveld, Takes, ICPP 2017)
 
 Web pages read via WebFetch / WebSearch:
+
 - https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0098679
   (ForceAtlas2, Jacomy et al. 2014)
 - https://docs.nvidia.com/cugraph/latest/api_docs/api/cugraph/cugraph.force_atlas2/
@@ -873,6 +879,7 @@ cse.buffalo.edu 2023-06, dl.acm.org 10.1145/3230485,
 developer.nvidia.com/discover/cluster-analysis.
 
 Project files consulted (read-only):
+
 - /home/apowers/Projects/graphty-monorepo/design/graph-format/graph-format-design.md
   (sections 10 and 14.3)
 - /home/apowers/Projects/graphty-monorepo/tmp/graph-format-design/03-layout-needs.md

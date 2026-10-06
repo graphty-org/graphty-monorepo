@@ -120,7 +120,7 @@ export function heartbeatComment(judged, now) {
     if (!issue) {
         return null;
     }
-    const last = (issue.comments ?? []).filter((c) => MARK.test(c.body)).at(-1);
+    const last = (issue.comments ?? []).findLast((c) => MARK.test(c.body));
     const alarmOpen = last && MARK.exec(last.body)[1] !== "recovered";
     const aliveIso = alive ? new Date(alive).toISOString() : "never";
     if (state === "alive" || state === "not-live") {
@@ -215,7 +215,8 @@ export async function watchdog({ request, repo, label, now }) {
     );
 
     const judged = heartbeatState(issues, now);
-    const done = [`heartbeat: ${judged.state}${judged.issue ? ` (#${judged.issue.number})` : ""}`];
+    const where = judged.issue ? ` (#${judged.issue.number})` : "";
+    const done = [`heartbeat: ${judged.state}${where}`];
     const comment = heartbeatComment(judged, now);
     if (comment) {
         await request("POST", `/repos/${repo}/issues/${judged.issue.number}/comments`, { body: comment });

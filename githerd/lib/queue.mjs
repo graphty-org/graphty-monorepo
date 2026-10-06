@@ -356,8 +356,10 @@ export function prInUse(state, n, { config, now, except = null, review = false, 
     if (owned && session && owned.session === session) return "yours: you said it is yours";
     if (owned) return `session ${owned.name} owns it (${owned.by === "cli" ? "the owner said so" : "it said so"})`;
     // Broken, and its owner did not say it is fixing it (asks.mjs brokenOwned): offered at once.
-    if (state.prReleased?.[String(n)] && state.prReleased[String(n)] === state.prs?.[String(n)]?.headSha) return null;
     const inferred = state.prInferred?.[String(n)];
+    // A release under an owner that cannot answer (no githerd tools) does not hold: it owns it while it lives.
+    const released = state.prReleased?.[String(n)];
+    if (released && released === state.prs?.[String(n)]?.headSha && !inferred?.noTools) return null;
     if (inferred && session && inferred.session === session) return `yours: ${inferred.evidence}`;
     if (inferred) return `session ${inferred.name} owns it (${inferred.evidence})`;
     return brokenHeadInUse(state, n, { config, now, session });

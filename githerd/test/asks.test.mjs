@@ -873,6 +873,36 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(f.sent).toHaveLength(2);
     });
 
+    it("never asks or releases an owner without githerd's tools while it lives, and frees it when it exits", async () => {
+        const f = fake();
+        const state = owned();
+        state.prInferred[710].noTools = true;
+        for (const hm of ["12:00", "12:15", "12:30"]) {
+            expect(await statusStep(state, opts(f, { now: at(hm) }))).toEqual([]);
+        }
+        expect(f.sent).toEqual([]);
+        expect(prInUse(state, 710, { now: at("12:30") })).toBe("session graphty-14 owns it (pushed)");
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:30") })).not.toBeNull();
+        // The session exits: inferOwners drops it, and the pull request is asked about as usual.
+        delete state.prInferred[710];
+        expect(prInUse(state, 710, { now: at("12:31") })).not.toBe("session graphty-14 owns it (pushed)");
+    });
+
+    it("gives a pull request released under the old rule back to an owner without githerd's tools", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(state.prReleased[710]).toBe(HEAD);
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:15") })).toBeNull();
+        // The next poll learns the owner has no githerd tools: owned again, its job not offered.
+        state.prInferred[710].noTools = true;
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:16") })).toBe("session graphty-14 owns it (pushed)");
+        expect(await statusStep(state, opts(f, { now: at("12:16") }))).toEqual([]);
+        expect(state.prReleased[710]).toBeUndefined();
+        expect(f.sent).toHaveLength(1);
+    });
+
     it("releases it at once when its owner cannot be asked, and never for a question nobody heard", async () => {
         const gone = owned();
         const f = fake();

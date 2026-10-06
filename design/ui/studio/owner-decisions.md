@@ -4,6 +4,28 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-06 -- An export writes a partition's group as its rank, not the algorithm's group id
+
+**What.** When a community-detection result (Louvain, label propagation, connected components and
+the other "community"-shaped results) is exported, the `results.<run>.group` column now holds the
+group's rank by size -- 1 for the largest group, ties ordered by group id -- instead of the
+algorithm's own group id, and the graph-level `results.<run>.sizes` table's `group` values are
+the same ranks. Every export format gets this, CSV first among them. No exported name or type
+changes, and the live result (`session.results.get(run)`) still carries the algorithm's ids;
+only what a file holds changes. Files exported earlier keep their old numbers, so a reader who
+compares an old file with a new one sees different group numbers for the same partition.
+
+**Why.** The run summary, the legend and the data page all name a group by this rank ("Group 2,
+17 members"), while the CSV wrote the raw id ("5"). A report writer could not join the exported
+table to the picture or the legend. The algorithm's ids carry no meaning of their own, so the rank
+loses nothing a reader could use.
+
+**Alternatives.** Keep the raw id and add a second column, `results.<run>.groupRank` (two
+numbers for one group, and the one a reader sees first is still the wrong one). Write the
+app's words ("Group 2") into the cell (the element would be writing English; the app owns the
+words). Leave the file alone and have the app relabel the legend with raw ids (the summary's
+largest-first numbering is what makes "Group 1" mean something).
+
 ## 2026-10-06 -- The force layout's seed default is `null` again (no change from master)
 
 **What.** The studio branch had changed the published default of the default force layout's

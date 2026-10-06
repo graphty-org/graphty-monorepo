@@ -7,8 +7,10 @@
  * result and the style each element is drawn with. The element resolves all of it into one
  * graph-format snapshot -- positions into the `position` role column, colours, sizes and edge
  * widths into the `color`, `size` and `thickness` role columns, results into attribute columns
- * named by their result path -- and the exporter writes what its format has a place for. The
- * exporter's `check()` lists everything else as a loss note, so nothing is dropped silently.
+ * named by their result path, a partition's group as its rank (the "Group 2" the summary and the
+ * legend print, not the algorithm's own group id) -- and the exporter writes what its format has
+ * a place for. The exporter's `check()` lists everything else as a loss note, so nothing is
+ * dropped silently.
  *
  * WHAT IT NEVER CARRIES. The element's own bookkeeping: its internal edge ids and every
  * `graphty.`-prefixed column. A loaded column under that reserved root is reported as
@@ -53,6 +55,7 @@ import {
 import { GraphtyError } from "../errors";
 import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
+import { partitionGroupRanks } from "../session/results/pageColumns";
 import type { GraphSession } from "../session/types";
 
 /** Options of one export: the writer's own, and graph-io's common ones. */
@@ -477,10 +480,25 @@ function writeResults(
             continue;
         }
 
+        // A partition's group is written as its rank, the number the run summary, the legend and a
+        // page column name it by ("Group 2"), so a table read beside the picture joins it; the
+        // algorithm's own group ids are arbitrary labels.
+        const ranks = partitionGroupRanks(result);
         for (const field of result.fields) {
             const name = cell(session.results.path(root.runId, field.name));
+            const ranked = ranks !== undefined && (field.name === "group" || field.name === "sizes");
             try {
-                if (field.kind === "node") {
+                if (ranked && field.name === "group") {
+                    nodes.forEach((record, row) => {
+                        const rank = ranks.get(result.node(record.id)?.group);
+                        if (rank !== undefined) {
+                            builder.setNodeValue(name, row, rank);
+                        }
+                    });
+                } else if (ranked) {
+                    const rows = (result.graph.sizes ?? []) as readonly Record<string, unknown>[];
+                    builder.setGraphValue(name, cell(rows.map((row, index) => ({ ...row, group: index + 1 }))));
+                } else if (field.kind === "node") {
                     nodes.forEach((record, row) => {
                         const value = result.node(record.id)?.[field.name];
                         if (value !== undefined && value !== null) {

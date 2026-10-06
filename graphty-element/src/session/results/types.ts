@@ -773,8 +773,9 @@ export interface SummaryGroup {
     /**
      * Its place by size, from 1 for the largest, ties ordered by group id, for a result that
      * partitions into groups. The legend of a colour encoding over the same groups carries the
-     * same `rank` on each swatch, and a page column of the group field carries it per cell, so
-     * every surface names a group the same way: word it from the rank ("Group 3").
+     * same `rank` on each swatch, a page column of the group field carries it per cell, and an
+     * export writes it as the group column's value, so every surface and every exported file names
+     * a group the same way: word it from the rank ("Group 3").
      */
     readonly rank?: number;
     /**

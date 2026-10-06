@@ -291,7 +291,7 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
  * @param {string[]} masterRed the keys red on master now
  * @returns {string[] | null} the keys, or null
  */
-export function inheritedKeys(required, underlying, masterRed) {
+function inheritedKeys(required, underlying, masterRed) {
     const failing = Object.keys(required).filter((n) => required[n] === "FAILURE");
     if (!failing.length || !failing.every((n) => isSummaryJob(n)) || !underlying?.failures.length) return null;
     const verdicts = underlying.failures.map((f) => classify(f, { masterRed }));

@@ -7,7 +7,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Edge } from "../Edge";
 import type { Node } from "../Node";
-import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import { DEFAULT_LAYOUT_SEED, EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for NGraph Force Layout
@@ -71,10 +71,10 @@ const ngraphLayoutOptionsSchema = defineOptions({
         },
     },
     seed: {
-        schema: z.number().int().positive().nullable().default(null),
+        schema: z.number().int().positive().nullable().default(DEFAULT_LAYOUT_SEED),
         meta: {
             label: "Random Seed",
-            description: "Seed for reproducible layout",
+            description: "Seed for reproducible layout; null leaves the starting positions to ngraph",
             advanced: true,
         },
     },
@@ -156,8 +156,11 @@ export class NGraphEngine extends LayoutEngine {
         // ngraph.forcelayout never reads a generator from its settings: it seeds its own with a
         // hard-coded 42, so every seed used to give the same picture. A seeded layout therefore
         // places each node itself, from this generator, before the simulation moves it.
-        if (typeof typedConfig.seed === "number") {
-            this.seededPlacement = { rng: random(typedConfig.seed), dim: ngraphConfig.dimensions as number };
+        // Unset, the seed is the element's default one, so one file draws the same way each time
+        // it is loaded; only an explicit null leaves the placement to ngraph.
+        const seed = typedConfig.seed === undefined ? DEFAULT_LAYOUT_SEED : typedConfig.seed;
+        if (typeof seed === "number") {
+            this.seededPlacement = { rng: random(seed), dim: ngraphConfig.dimensions as number };
         }
 
         this.ngraphLayout = ngraphCreateLayout(this.ngraph, ngraphConfig);

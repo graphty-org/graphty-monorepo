@@ -23,6 +23,13 @@ import { GraphtyError } from "../errors";
 import type { Node, NodeIdType } from "../Node";
 import type { ReadonlyElementPositions } from "../session/types";
 
+/**
+ * The seed a layout the element chooses by default is drawn from: the default force arrangement,
+ * whichever driver draws it, and the random arrangement recommended for a large graph. A file
+ * loaded twice draws the same way twice, and a seed the consumer passes replaces this one.
+ */
+export const DEFAULT_LAYOUT_SEED = 1;
+
 export interface Position {
     x: number;
     y: number;

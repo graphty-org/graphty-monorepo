@@ -187,14 +187,10 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
     it("still sees a root file a pull request moves into a package", () => {
         const dir = mkdtempSync(join(tmpdir(), "visual-plan-"));
         const git = (...args) => {
-            const r = spawnSync(
-                "git",
-                ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
-                {
-                    cwd: dir,
-                    encoding: "utf8",
-                },
-            );
+            const r = spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], {
+                cwd: dir,
+                encoding: "utf8",
+            });
             assert.equal(r.status, 0, r.stderr);
         };
         try {

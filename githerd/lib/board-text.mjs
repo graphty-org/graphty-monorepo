@@ -199,6 +199,8 @@ const RENDER = {
                 let owned = "";
                 if (o) owned = ` -- owned by session ${o.name} (${o.by})`;
                 else if (i) owned = ` -- owned by session ${i.name} (${i.evidence})`;
+                const fixing = v.state?.brokenAsks?.[p.number]?.active;
+                if (fixing) owned += ` -- being fixed: ${fixing}`;
                 return `  #${[p.number, p.title].filter(Boolean).join(" ")} -- ${mergeWords(p.decision)}${owned}`;
             }),
         ];

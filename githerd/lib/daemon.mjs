@@ -117,7 +117,7 @@ import {
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
 import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
 import { containerStart, identify } from "./proc.mjs";
-import { inferOwners, parseWorktrees, processTable, readPushLog, scanTranscripts } from "./owners.mjs";
+import { inferOwners, parseWorktrees, prActivity, processTable, readPushLog, scanTranscripts } from "./owners.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
 import {
@@ -1830,7 +1830,9 @@ export async function startDaemon({
      * @param {Date} t the poll's time
      */
     async function askOwners(t) {
-        state.prInferred = inferOwners(state.prs ?? {}, { root, ...(await (peers.ownerFacts ?? ownerFacts)()) });
+        const facts = { root, ...(await (peers.ownerFacts ?? ownerFacts)()) };
+        state.prInferred = inferOwners(state.prs ?? {}, facts);
+        state.prActivity = prActivity(state.prs ?? {}, facts);
         const lines = await askStep(state, {
             now: t,
             acting: writeMode("workers") === "acting",

@@ -8,7 +8,14 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { askStep } from "../lib/asks.mjs";
 import { newJob } from "../lib/board.mjs";
-import { inferOwners, parseWorktrees, pushedBranches, readPushLog, scanTranscripts } from "../lib/owners.mjs";
+import {
+    inferOwners,
+    parseWorktrees,
+    prActivity,
+    pushedBranches,
+    readPushLog,
+    scanTranscripts,
+} from "../lib/owners.mjs";
 import { identify } from "../lib/proc.mjs";
 import { prInUse } from "../lib/queue.mjs";
 import { makeRepo } from "./helpers/git-repo.mjs";
@@ -105,6 +112,19 @@ describe("inferOwners", () => {
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
+    });
+});
+
+describe("prActivity", () => {
+    it("names the worktree a session's process is in and each session's last push of the branch", () => {
+        const procs = [
+            { pid: 200, ppid: 1, cwd: ROOT },
+            { pid: 202, ppid: 200, cwd: `${ROOT}/.worktrees/x/githerd` },
+        ];
+        const pushLog = [push(ALICE, { at: "2026-10-05T21:00:00Z" }), push(ALICE), push(BOB, { branch: "feat/other" })];
+        expect(prActivity(PRS, facts({ procs, pushLog }))).toEqual({
+            710: { present: { sb: ".worktrees/x" }, pushed: { sa: "2026-10-05T21:40:12Z" } },
+        });
     });
 });
 

@@ -1,8 +1,10 @@
-import type { AlgorithmKey, MetricAvailability } from "@graphty/graphty-element/catalog";
-import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
-import { describe, expect, it } from "vitest";
+import type { AlgorithmKey, AttributeDescriptor, MetricAvailability } from "@graphty/graphty-element/catalog";
+import { DEFAULT_LIMITS, type LoadReport } from "@graphty/graphty-element/session";
+import { assert, describe, expect, it } from "vitest";
 
 import {
+    hasTimeRole,
+    importIssueTypeCount,
     INSIGHT_ACTION_LABEL,
     insightCandidates,
     type InsightCapability,
@@ -333,9 +335,7 @@ describe("insightCandidates", () => {
         });
 
         it("draws the frozen Narrow the view copy, with the one-line comma collapse", () => {
-            const [narrow] = insightCandidates(largeShape()).filter(
-                (card) => card.capability === "narrow-the-view",
-            );
+            const [narrow] = insightCandidates(largeShape()).filter((card) => card.capability === "narrow-the-view");
 
             expect(narrow.title).toBe("Narrow the view");
             expect(narrow.technicalName).toBe("Filter builder, Explore");
@@ -670,5 +670,86 @@ describe("the three centrality cards at 500 nodes", () => {
             "search",
         ]);
         expect(capabilitiesOf(withInfluenceRetired.droppedCards)).toEqual(["temporal-navigation"]);
+    });
+});
+
+/**
+ * One column as `session.data.attributes()` describes it.
+ * @param name - the column's key
+ * @param extra - the roles or measurement under test
+ * @returns the descriptor
+ */
+function column(name: string, extra: Partial<AttributeDescriptor> = {}): AttributeDescriptor {
+    return {
+        path: name,
+        token: name,
+        name,
+        plainName: name,
+        technicalName: name,
+        kind: "edge",
+        type: "string",
+        origin: "imported",
+        completeness: 1,
+        sampleValues: [],
+        ...extra,
+    };
+}
+
+/**
+ * A clean load as `session.data.lastImport()` reports it, with the issue counts under test.
+ * @param issues - the counts that differ from a clean load
+ * @returns the report
+ */
+function report(
+    issues: { rejected?: number; unmatched?: number; duplicates?: number; repeated?: number } = {},
+): LoadReport {
+    return {
+        format: "csv",
+        endpoints: { resolvedFrom: "source/target", source: "source", target: "target" },
+        counts: { nodes: 10, edges: 12, nodeRecords: 10, edgeRecords: 12, rejected: issues.rejected ?? 0 },
+        repeated: { seen: issues.repeated ?? 0, kept: issues.repeated ?? 0, dropped: 0, merged: 0 },
+        policy: "keep",
+        weights: { resolvedFrom: "none", attribute: null },
+        edgeIdentity: { idPath: null, byId: 0, byPosition: 12 },
+        unmatched: { rows: issues.unmatched ?? 0, values: issues.unmatched ?? 0 },
+        tooLarge: null,
+        duplicates: { rows: issues.duplicates ?? 0, ids: [] },
+    };
+}
+
+describe("the rule inputs read from graphty-element", () => {
+    it("offers the time card once a loaded column plays the time role", () => {
+        const columns = [column("source"), column("target"), column("when", { roles: ["time"] })];
+        const shape = catShape({ hasTimeRole: hasTimeRole(columns) });
+        assert.include(capabilitiesOf(insightCandidates(shape)), "temporal-navigation");
+    });
+
+    it("offers the time card for a column declared as time", () => {
+        assert.isTrue(hasTimeRole([column("when", { measurement: "time", measurementSource: "declared" })]));
+    });
+
+    it("offers no time card when no column plays the time role", () => {
+        const columns = [column("when", { roles: ["weight"], measurement: "quantitative" })];
+        const shape = catShape({ hasTimeRole: hasTimeRole(columns) });
+        assert.notInclude(capabilitiesOf(insightCandidates(shape)), "temporal-navigation");
+    });
+
+    it("offers the validation card for a load with issues, counting each kind once", () => {
+        const count = importIssueTypeCount(report({ rejected: 3, unmatched: 7, repeated: 2 }));
+        assert.strictEqual(count, 3);
+        const [first] = insightCandidates(catShape({ validationIssueTypeCount: count }));
+        assert.strictEqual(first?.capability, "data-validation");
+        assert.strictEqual(first?.title, "Check 3 data issues");
+    });
+
+    it("counts repeated node ids as a kind of issue", () => {
+        assert.strictEqual(importIssueTypeCount(report({ duplicates: 2 })), 1);
+    });
+
+    it("offers no validation card for a clean load or before any load", () => {
+        assert.strictEqual(importIssueTypeCount(report()), 0);
+        assert.strictEqual(importIssueTypeCount(null), 0);
+        const shape = catShape({ validationIssueTypeCount: importIssueTypeCount(report()) });
+        assert.notInclude(capabilitiesOf(insightCandidates(shape)), "data-validation");
     });
 });

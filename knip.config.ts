@@ -175,6 +175,9 @@ const config: KnipConfig = {
                     : []),
                 // The self-contained bundle's entry, built by vite.bundle.config.ts.
                 "bundle.ts!",
+                // The types-only ./jsx entry. Its exports map entry names only a .d.ts, which knip
+                // does not map back to a source file, so it is listed for both runs.
+                "jsx.ts!",
                 "test/**/*.test.ts",
                 "test/**/*.ts",
                 "stories/**/*.stories.ts",
@@ -194,7 +197,7 @@ const config: KnipConfig = {
                 // Peer dependencies (provided by consumer)
                 "@mlc-ai/web-llm",
                 "@graphty/webgpu-graph-algorithms",
-                // The AI SDK and its key store, same shape as `webgpu` over in
+                // The AI SDK, same shape as `webgpu` over in
                 // webgpu-graph-algorithms: each is an OPTIONAL peer and an exact devDependency,
                 // imported from src so the element works without it and lights up with it. knip
                 // 5.77 reports every referenced optional peer, so they are ignored by name --
@@ -204,6 +207,10 @@ const config: KnipConfig = {
                 "@ai-sdk/google",
                 "@ai-sdk/openai",
                 "ai",
+                // The optional peer that types React's JSX namespace for the types-only ./jsx entry
+                // (jsx.ts imports "react", whose types it provides). A devDependency too, for the
+                // package's own type checks.
+                "@types/react",
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
                 // nothing externalises it), so each is a devDependency that production source imports.
                 // Only `lint:knip:prod` would report them, as unlisted.

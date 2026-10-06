@@ -338,10 +338,19 @@
             })();
         </script>
 
-        <!-- Load BabylonJS -->
-        <!-- crossorigin="anonymous" enables full error details from CDN scripts -->
-        <script src="https://cdn.babylonjs.com/babylon.js" crossorigin="anonymous"></script>
-        <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js" crossorigin="anonymous"></script>
+        <!-- Babylon.js, pinned to the version graphty-element installs. The integrity hashes match
+             the babylonjs and babylonjs-loaders npm packages at that version, so a new version
+             needs new hashes. The integrity check needs an anonymous cross-origin request. -->
+        <script
+            src="https://cdn.babylonjs.com/v8.43.0/babylon.js"
+            integrity="sha384-coYm6VFB3/3jq9+aeZRIl7A7ByQM9UsAnpXBOdvGreBb+x+G3ZxD38Kfm+/WolFu"
+            crossorigin="anonymous"
+        ></script>
+        <script
+            src="https://cdn.babylonjs.com/v8.43.0/loaders/babylonjs.loaders.min.js"
+            integrity="sha384-iqEidtVgMx5jXNxn2RtX9wxMGcSUTIUn5ybhg/D8tTLzKHtCxz7QW12lEWzvodVG"
+            crossorigin="anonymous"
+        ></script>
 
         <script>
             console.log("📦 BabylonJS version:", BABYLON.Engine.Version);

@@ -722,6 +722,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isRunning: READ,
             setRunning: IN_FLIGHT,
             worldToScreen: READ,
+            nodeScreenPosition: READ,
             screenToWorld: READ,
             setData: calls(
                 [{ nodes: [{ id: "d1" }], edges: [] }],
@@ -913,6 +914,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startInputRecording: INPUT,
             stopInputRecording: INPUT,
             worldToScreen: READ,
+            nodeScreenPosition: READ,
             screenToWorld: READ,
             getCameraController: READ,
             getNodeMesh: READ,

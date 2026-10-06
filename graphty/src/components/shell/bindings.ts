@@ -197,7 +197,7 @@ export function formatChord(chord: KeyChord, apple: boolean = isApplePlatform())
     const display = KEY_DISPLAY_NAMES[key];
     const printed = display === undefined ? chord : chord.slice(0, chord.length - key.length) + display;
 
-    return printed.replace(/\bMod\b/g, apple ? "Cmd" : "Ctrl");
+    return printed.replaceAll(/\bMod\b/g, apple ? "Cmd" : "Ctrl");
 }
 
 /**

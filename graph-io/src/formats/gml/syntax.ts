@@ -499,7 +499,7 @@ export function numberOfText(text: string): number {
     if (NON_FINITE_TEXT.test(text)) {
         const lower = text.toLowerCase();
         if (lower.endsWith("nan")) {
-            return NaN;
+            return Number.NaN;
         }
         return lower.startsWith("-") ? -Infinity : Infinity;
     }

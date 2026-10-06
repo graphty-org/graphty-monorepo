@@ -64,7 +64,7 @@ const MAX_ID_MAP_SIZE = 2 ** 24;
  * E_TOO_LARGE when the id map would grow past MAX_ID_MAP_SIZE, before anything is mutated.
  * @param size - the id map size the caller is about to reach
  */
-function checkIdMapSize(size: number): void {
+export function checkIdMapSize(size: number): void {
     if (size > MAX_ID_MAP_SIZE) {
         throw new GraphFormatError(
             "E_TOO_LARGE",

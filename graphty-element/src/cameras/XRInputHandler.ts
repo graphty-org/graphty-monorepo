@@ -558,7 +558,7 @@ export class XRInputHandler {
                 try {
                     const gripPos = grip.position;
                     // Verify position is valid (not disposed)
-                    if (isFinite(gripPos.x) && isFinite(gripPos.y) && isFinite(gripPos.z)) {
+                    if (Number.isFinite(gripPos.x) && Number.isFinite(gripPos.y) && Number.isFinite(gripPos.z)) {
                         const trigger = mc.motionController.getComponent("xr-standard-trigger");
                         if (trigger) {
                             // Use trigger.pressed OR value > 0.5 for pinching
@@ -609,7 +609,7 @@ export class XRInputHandler {
 
                     if (wrist && thumbTip && indexTip) {
                         // Verify positions are valid (not NaN from disposed objects)
-                        if (!isFinite(wrist.position.x) || !isFinite(thumbTip.position.x)) {
+                        if (!Number.isFinite(wrist.position.x) || !Number.isFinite(thumbTip.position.x)) {
                             return null;
                         }
 

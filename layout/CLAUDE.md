@@ -167,6 +167,11 @@ node stays where the user put it and `scale` / `center` are the only mapping bet
   role-`fixed` column. The iteration counter IS the temperature index, so `reheat()` restarts at
   `floor(0.7 * iterations)` (a drag or an unpin gets a small temperature and the remaining 30% of the budget).
   `iterationsDone`, `settledCount`, `meanDisplacement`, `rmsRadius`, `temperature` and `reheat()` are public.
+  `cooling: "adaptive"` replaces the schedule with the GPU simulation's Yifan Hu step control (constants in
+  `constants.ts`, pinned to the same literals in webgpu-graph-algorithms' `fr-adaptive.test.ts`): the free force
+  energy `sum |F|^2` of each iteration is compared at the start of the next one (x 1 / 0.9 after five strict falls,
+  x 0.9 otherwise), `iterations` is only a cap (default 10,000), and `reheat()` restarts the controller at 0.1 and
+  the budget at 0.
 
 Both settle by the design 7.17 rule: `settled` is `iterationsDone >= maxIter` (FR: `iterations`) OR
 `settledCount >= settleWindow`, where `settledCount` counts consecutive iterations whose mean FREE-node displacement
@@ -213,6 +218,8 @@ branch that chooses the CPU); a thrown accelerator error propagates -- there is 
 - `fruchterman-reingold.test.ts`: one `step()` equals one iteration of layout 1.x's `fruchtermanReingoldLayout` loop
   on the same start, recorded as a golden fixture (also with a self-loop, a parallel edge and an isolate); `k` / `scale` / `center`; 2D and 3D; the NaN-row
   seeding; the `fixed` forms; settlement by the window and by the budget; reloads.
+- `fruchterman-reingold-adaptive.test.ts`: `cooling: "adaptive"` against an independent transcription of the rule on
+  a two-node pair, settling before the cap, the difference from `"linear"`, the cap, `reheat()`, validation.
 
 Use `assert`, not `expect`, as everywhere else in the package.
 

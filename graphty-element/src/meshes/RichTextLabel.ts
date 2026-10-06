@@ -1109,8 +1109,8 @@ export class RichTextLabel {
      */
     public setText(text: string): void {
         const numericValue = Number(text);
-        if (this.options.smartOverflow && !isNaN(numericValue)) {
-            const num = parseInt(text, 10);
+        if (this.options.smartOverflow && !Number.isNaN(numericValue)) {
+            const num = Number.parseInt(text, 10);
             if (num > this.options.maxNumber) {
                 if (num >= 1000) {
                     this.options.text = `${Math.floor(num / 1000)}k`;

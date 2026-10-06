@@ -760,8 +760,9 @@ class PajekParser {
             );
         }
         try {
-            // the declared count must be reservable (the sink is the authority on what it can hold,
-            // E_TOO_LARGE beyond MAX_COUNT) before any vertex is materialised
+            // the declared count must be reservable (the sink is the authority on what it can hold;
+            // the builder refuses more than its id map holds with E_TOO_LARGE) before any vertex
+            // or per-vertex table is allocated
             this.sink.reserve(h.count);
         } catch (err) {
             const reason = err instanceof Error ? err.message : String(err);

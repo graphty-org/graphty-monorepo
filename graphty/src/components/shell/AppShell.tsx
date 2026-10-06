@@ -2634,9 +2634,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * It went with the narrow layout itself. Below `NARROW_BREAKPOINT` the shell now
      * draws a "screen too small" state instead of laying out, so there is no canvas to
      * tap and no overlay for a tap to dismiss; at or above it both sidebars are docked
-     * columns that nothing but the reader's own control may hide. `CanvasRegion` still
-     * accepts an `onCanvasTap`, and the shell deliberately passes none: an unused hook is
-     * cheaper to leave than a behaviour nobody can predict.
+     * columns that nothing but the reader's own control may hide. `CanvasRegion`'s
+     * `onCanvasTap` hook, which nothing passed any more, was removed with it.
      */
 
     /* ---------------------------------------------------------------------- */

@@ -1,4 +1,4 @@
-import type { Scene } from "@babylonjs/core";
+import type { Observable, Scene } from "@babylonjs/core";
 
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
@@ -8,6 +8,7 @@ import type { Styles } from "../Styles";
 import type { XRSessionManager } from "../xr/XRSessionManager";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
+import type { NodeLabelCounts } from "./LabelDeclutter";
 import type { LayoutManager } from "./LayoutManager";
 import type { SelectionManager } from "./SelectionManager";
 import type { StatsManager } from "./StatsManager";
@@ -48,6 +49,13 @@ export interface GraphContext {
      * @returns The session, or undefined for a context built without one.
      */
     getSession?(): GraphSession;
+
+    /**
+     * Told the node label counts once the view is still and they changed; see
+     * `LabelDeclutter`. Absent on a context nothing listens to.
+     * @since 3.7.0
+     */
+    readonly onNodeLabelCounts?: Observable<NodeLabelCounts>;
 
     /**
      * Get the LayoutManager for layout operations

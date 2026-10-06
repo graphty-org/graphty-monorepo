@@ -24,7 +24,7 @@ import {
     YIELD_BUDGET_MS,
 } from "../algorithms/results/types";
 import type { RegisterOptions } from "../catalog/pluginRegistry";
-import type { AlgorithmDescriptor, OptionDescriptor, ResultShape } from "../catalog/types";
+import type { AlgorithmDescriptor, OptionDescriptor, ResultShape, SuggestedName } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
@@ -59,6 +59,7 @@ interface CheckedAlgorithm {
     readonly weights?: { readonly option: string; readonly meaning: "distance" | "strength" };
     readonly passes?: string;
     readonly version?: string;
+    readonly suggestedName?: (options: Readonly<Record<string, unknown>>) => SuggestedName | undefined;
 }
 
 /** A class `defineAlgorithm` generates: a concrete `DeclaredAlgorithm` the element constructs. */
@@ -80,7 +81,10 @@ const SHAPES: Readonly<Record<Member, ResultShape>> = {
  * same members) files the same class, which the registry treats as a re-import. A changed member
  * -- options, name, direction, weights, passes -- generates a new class, which replaces the old.
  */
-const generated = new WeakMap<object, { readonly cls: GeneratedClass; readonly signature: string }>();
+const generated = new WeakMap<
+    object,
+    { readonly cls: GeneratedClass; readonly signature: string; readonly suggestedName: unknown }
+>();
 
 /** A function that holds the page longer than this at a time gets a warning. */
 const LONG_TASK_MS = 200;
@@ -124,6 +128,9 @@ function checkAlgorithm(definition: unknown): CheckedAlgorithm {
     const member = present[0];
     requireFunction(verb, checked, member);
     optionalOneOf(verb, checked, "direction", ["undirected", "directed"]);
+    if (checked.suggestedName !== undefined) {
+        requireFunction(verb, checked, "suggestedName");
+    }
     const options = expandOptions(verb, id, checked.options);
     const byName = new Map(options.map((option) => [option.name, option]));
 
@@ -179,6 +186,9 @@ function checkAlgorithm(definition: unknown): CheckedAlgorithm {
         ...(weights === undefined ? {} : { weights: weights as CheckedAlgorithm["weights"] }),
         ...(passes === undefined ? {} : { passes }),
         ...(typeof checked.version === "string" ? { version: checked.version } : {}),
+        ...(checked.suggestedName === undefined
+            ? {}
+            : { suggestedName: checked.suggestedName as CheckedAlgorithm["suggestedName"] }),
     };
 }
 
@@ -475,6 +485,7 @@ function generateClass(algorithm: CheckedAlgorithm): GeneratedClass {
         // The view keeps parallel edges separate, so no merge happens and none is reported.
         static override parallelEdges = "none" as const;
         static version = algorithm.version;
+        static suggestedName = algorithm.suggestedName;
 
         /**
          * Work units: one visit per node and two per edge for the per-element forms; one pass
@@ -527,11 +538,12 @@ export function defineAlgorithm<const O extends OptionsShorthand = NoOptions>(
     options?: RegisterOptions,
 ): void {
     const algorithm = checkAlgorithm(definition);
-    const { compute, ...members } = algorithm;
+    const { compute, suggestedName, ...members } = algorithm;
     const signature = JSON.stringify(members);
     let held = generated.get(compute);
-    if (held?.signature !== signature) {
-        held = { cls: generateClass(algorithm), signature };
+    // A function does not survive JSON, so the naming function is compared by identity.
+    if (held?.signature !== signature || held.suggestedName !== suggestedName) {
+        held = { cls: generateClass(algorithm), signature, suggestedName };
         generated.set(compute, held);
     }
 

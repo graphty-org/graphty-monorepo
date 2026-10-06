@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../../data/sampleManifest";
@@ -2055,8 +2055,12 @@ describe("AppShell", () => {
             const fake = installGraph(container, []);
             const apply = vi.fn(() => (refuse === undefined ? Promise.resolve({}) : Promise.reject(new Error(refuse))));
             const clear = vi.fn();
+            // What the inspector's Multiple surface reads when more than one element is selected.
+            const statistics = vi.fn(() =>
+                Promise.resolve({ nodes: 0, edges: 0, inducedEdges: 0, cutEdges: 0, attributes: [] }),
+            );
 
-            Object.assign(fake.session, { selection: { apply, clear } });
+            Object.assign(fake.session, { selection: { apply, clear, statistics } });
 
             return { container, apply, clear };
         }
@@ -2316,48 +2320,24 @@ describe("AppShell", () => {
         });
 
         /**
-         * Drags one layer row by its handle and drops it on another row, with the pointer events
-         * the list's drag sensor listens for.
+         * Drags one layer row and drops it on another row, with the HTML5 drag events the
+         * list's Tree listens for.
          * @param list - the layer list.
          * @param from - the name of the row to drag.
          * @param to - the name of the row to drop it on.
          */
         async function dragRow(list: HTMLElement, from: string, to: string): Promise<void> {
-            // A row is the nearest box around the name that also holds a drag handle.
-            const rowOf = (name: string): HTMLElement => {
-                let row: HTMLElement | null = within(list).getByText(name);
-
-                while (row !== null && row.querySelector('[data-testid="layer-drag-handle"]') === null) {
-                    row = row.parentElement;
-                }
-
-                expect(row).not.toBeNull();
-
-                return row as HTMLElement;
-            };
-            const handle = within(rowOf(from)).getByTestId("layer-drag-handle");
-            const start = handle.getBoundingClientRect();
+            // The list is a Tree: its rows are treeitems moved with HTML5 drag events. A row
+            // dragged up lands above the target, dragged down below it -- the target's place.
+            const rowOf = (name: string): HTMLElement => within(list).getByRole("treeitem", { name });
             const source = rowOf(from).getBoundingClientRect();
             const target = rowOf(to).getBoundingClientRect();
-            const x = start.left + start.width / 2;
-            const y = start.top + start.height / 2;
-            const dy = target.top + target.height / 2 - (source.top + source.height / 2);
-            const pointer = { button: 0, buttons: 1, isPrimary: true, pointerId: 1, clientX: x };
+            const clientY = target.top + target.height * (target.top < source.top ? 0.1 : 0.9);
+            const dataTransfer = new DataTransfer();
 
-            await act(async () => {
-                fireEvent.pointerDown(handle, { ...pointer, clientY: y });
-                await new Promise((resolve) => requestAnimationFrame(resolve));
-            });
-            await act(async () => {
-                fireEvent.pointerMove(document, { ...pointer, clientY: y + dy / 2 });
-                await new Promise((resolve) => requestAnimationFrame(resolve));
-                fireEvent.pointerMove(document, { ...pointer, clientY: y + dy });
-                await new Promise((resolve) => requestAnimationFrame(resolve));
-            });
-            await act(async () => {
-                fireEvent.pointerUp(document, { ...pointer, buttons: 0, clientY: y + dy });
-                await new Promise((resolve) => requestAnimationFrame(resolve));
-            });
+            fireEvent.dragStart(rowOf(from), { dataTransfer });
+            fireEvent.dragOver(rowOf(to), { dataTransfer, clientY });
+            fireEvent.drop(rowOf(to), { dataTransfer, clientY });
             await settleSession();
         }
 
@@ -4494,13 +4474,13 @@ describe("AppShell", () => {
 
             fireEvent.click(screen.getByRole("button", { name: "Present" }));
 
-            const format = await screen.findByRole("textbox", { name: "Image format" });
+            const format = await screen.findByRole("combobox", { name: "Image format" });
 
             fireEvent.click(format);
             fireEvent.click(await screen.findByRole("option", { name: "JPEG" }));
 
             await waitFor(() => {
-                expect(screen.getByRole("textbox", { name: "Image format" })).toHaveValue("JPEG");
+                expect(screen.getByRole("combobox", { name: "Image format" })).toHaveValue("JPEG");
             });
 
             fireEvent.click(screen.getByRole("button", { name: "Export image" }));
@@ -4832,10 +4812,8 @@ describe("AppShell", () => {
         /**
          * Watches the session's pin verbs on the mounted host.
          *
-         * Pins go through `session.positions`, one undoable step each. The ids are recorded,
-         * because the id TYPE is the thing that decides whether the verb does anything -- the
-         * element looks a node up by exact key, so a printed "1" finds nothing on a graph keyed
-         * by the number 1.
+         * Pins go through `session.positions`, one undoable step each. The ids are recorded, so a
+         * board can see which spelling of a numeric id the shell hands over.
          * @param container - the render result's container.
          * @returns the ids pinned and unpinned, in call order.
          */
@@ -4884,17 +4862,16 @@ describe("AppShell", () => {
             return { ...calls, selected };
         }
 
-        it("hands the element the id it holds, not the id the inspector printed", async () => {
+        /* The element takes an integer id in either spelling, so the shell keeps one id per
+           node -- the one it prints -- and hands that over. */
+        it("hands the element the id the inspector printed, which the element pins", async () => {
             const { pinnedWith, selected } = await selectNumericNode();
 
             fireEvent.click(screen.getByTestId("inspector-actions-more"));
             fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
 
-            /* A printed "1" would name a key that is not there, and `session.positions.pin` skips
-               a node it does not hold, so the miss would be silent: the verb
-               would read as wired and fix no node at all. */
-            expect(pinnedWith).toEqual([selected]);
-            expect(typeof pinnedWith[0]).toBe("number");
+            assert.deepEqual(pinnedWith, [String(selected)]);
+            assert.include((await screen.findByTestId("node-pinned-badge")).textContent ?? "", "Pinned");
         });
 
         it("draws the Pinned badge once the element holds the pin, and releases it again", async () => {
@@ -4909,7 +4886,7 @@ describe("AppShell", () => {
 
             fireEvent.click(screen.getByTestId("node-unpin"));
 
-            expect(unpinnedWith).toEqual([selected]);
+            assert.deepEqual(unpinnedWith, [String(selected)]);
             await waitFor(() => {
                 expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
             });

@@ -18,7 +18,12 @@
  * strings the spec fixes character for character are the strings that ship. The
  * locale-aware formatters in `@graphty/compact-mantine` are for user-entered values
  * in a panel field, which these are not.
+ *
+ * The exact form (rule 3) is the readings' `formatCount`, so a count reads the same in
+ * the tooltip, the phase lines and the inspector.
  */
+
+import { formatCount as formatExactCount } from "../readings/readingFormat";
 
 /** The locale whose grouping separators spec 02 section 7 is written in. */
 const COUNT_LOCALE = "en-US";
@@ -95,18 +100,6 @@ export function formatCount(value: number): string {
     }
 
     return `${millions.toFixed(1)}M`;
-}
-
-/**
- * Formats a count exactly, with thousands separators at every magnitude.
- *
- * Spec 02 section 7 rule 3: the exact values live in the tooltip, never in the bar's
- * visible text once the compact threshold is passed.
- * @param value - The count to format.
- * @returns The exact string for that count, e.g. `1,104,206`.
- */
-export function formatExactCount(value: number): string {
-    return whole(value).toLocaleString(COUNT_LOCALE);
 }
 
 /**

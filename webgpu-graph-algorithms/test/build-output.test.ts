@@ -89,6 +89,9 @@ describe("package.json (contract 2.1)", () => {
         expect(packageJson.sideEffects).toBe(false);
         expect(packageJson.browser).toBeUndefined();
         for (const [subpath, entry] of Object.entries(packageJson.exports)) {
+            if (subpath === "./acquire") {
+                continue;
+            }
             expect(Object.keys(entry), subpath).toEqual(["types", "import", "default"]);
             expect(entry.require, subpath).toBeUndefined();
             expect(entry.node, subpath).toBeUndefined();
@@ -108,6 +111,14 @@ describe("package.json (contract 2.1)", () => {
             import: "./dist/node.js",
             default: "./dist/node.js",
         });
+        // one specifier for both runtimes: the export condition picks the build, so the two never meet in one bundle
+        expect(packageJson.exports["./acquire"]).toEqual({
+            types: "./dist/acquire.d.ts",
+            browser: "./dist/browser.js",
+            node: "./dist/node.js",
+            default: "./dist/browser.js",
+        });
+        expect(Object.keys(packageJson.exports["./acquire"] ?? {})).toEqual(["types", "browser", "node", "default"]);
         expect(packageJson.files).toEqual(["dist/", "!dist/*.tsbuildinfo", "src/", "README.md", "LICENSE"]);
         expect(packageJson.publishConfig).toEqual({ access: "public", provenance: true });
         expect(packageJson.engines.node).toBe(">=18.19.0");
@@ -119,7 +130,7 @@ describe("package.json (contract 2.1)", () => {
         const names = entryNames();
         expect(names).toEqual(["webgpu-graph-algorithms", "browser", "node"]);
         const expected = names.map((name) => (name === "webgpu-graph-algorithms" ? "." : `./${name}`));
-        expect(Object.keys(packageJson.exports)).toEqual(expected);
+        expect(Object.keys(packageJson.exports)).toEqual([...expected, "./acquire"]);
         for (const name of ["browser", "node"]) {
             expect(existsSync(resolve(`./src/${name}/index.ts`)), name).toBe(true);
         }
@@ -147,7 +158,7 @@ describe("package.json (contract 2.1)", () => {
         // imports from it, so 1.x, 2.x and 3.x are all accepted; the range holds the current version before and after
         // the 3.0.0 bump, as nx release requires.
         expect(packageJson.peerDependencies["@graphty/algorithms"]).toBe("^1.0.0 || ^2.0.0 || ^3.0.0");
-        expect(packageJson.devDependencies.webgpu).toBe("0.4.0");
+        expect(packageJson.devDependencies.webgpu).toBe("0.6.1");
         expect(packageJson.devDependencies["@vitest/browser-playwright"]).toBeTypeOf("string");
         expect(packageJson.devDependencies.playwright).toBeTypeOf("string");
         expect(packageJson.devDependencies["fast-check"]).toBeTypeOf("string");
@@ -286,6 +297,9 @@ describe("dist (spec 2.5; hard failure under CI, skip locally)", () => {
             browser: 'export * from "./src/browser/index.js";',
             node: 'export * from "./src/node/index.js";',
         };
+        expect(readFileSync(resolve("./dist/acquire.d.ts"), "utf-8")).toContain(
+            'export { acquireAccelerator } from "./src/browser/index.js";',
+        );
         for (const [name, shim] of Object.entries(shims)) {
             expect(existsSync(resolve(`./dist/${name}.js`)), name).toBe(true);
             expect(existsSync(resolve(`./dist/${name}.js.map`)), name).toBe(true);

@@ -23,6 +23,7 @@ import { type CompactMantineLabels, useLabels } from "../../i18n";
 export type DataTableLabels = Pick<
     CompactMantineLabels,
     | "clearSearch"
+    | "columnMenu"
     | "dataTable"
     | "no"
     | "noMatchingRows"

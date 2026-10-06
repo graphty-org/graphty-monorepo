@@ -276,7 +276,9 @@ describe("bfs", () => {
 });
 
 describe("planar", () => {
-    it("matches the legacy layout when the edges are listed in ascending order", () => {
+    it("keeps its recorded layout when the edges are listed in ascending order", () => {
+        // wheel 7 and the tree are the output of layout 1.x; grid 3x4 and wheel 12 were re-recorded when interior nodes
+        // started keeping a minimum distance apart, because layout 1.x put two of their nodes about 1% of the scale apart
         const graphs = {
             "grid 3x4": gridGraph({ rows: 3, cols: 4 }),
             "wheel 7": wheelGraph({ n: 7 }),
@@ -311,17 +313,41 @@ describe("planar", () => {
         assert.throws(() => layout.planar(fromEdgeArrays(completeGraph({ n: 7 }))), /G is not planar/);
     });
 
-    it("lays out a disconnected graph and puts an isolated interior node on the centre", () => {
-        // a triangle plus isolated nodes: the triangle is the outer face
-        const r = layout.planar(
-            graph(5, [
-                [0, 1],
-                [1, 2],
-                [2, 0],
-            ]),
-            { seed: 2 },
-        );
-        assert.deepEqual(row(r, 3), row(r, 4));
+    it("never puts two nodes on the same point", () => {
+        // the 3x3 grid with seed 1 once put nodes 0 and 1 at the same point: the first draw of seed 1 is about 5e-6,
+        // so the jitter that was meant to move node 0 off its only placed neighbour moved it by 5e-7
+        const cases: [string, GraphSnapshot][] = [
+            ["grid 3x3", fromEdgeArrays(gridGraph({ rows: 3, cols: 3 }))],
+            ["grid 4x5", fromEdgeArrays(gridGraph({ rows: 4, cols: 5 }))],
+            ["wheel 9", fromEdgeArrays(wheelGraph({ n: 9 }))],
+            // K2,5: five nodes share the same two placed neighbours, so they share one mean
+            [
+                "K2,5",
+                graph(
+                    7,
+                    [0, 1].flatMap((u) => [2, 3, 4, 5, 6].map((v) => [u, v] as const)),
+                ),
+            ],
+            [
+                "triangle and isolated nodes",
+                graph(8, [
+                    [0, 1],
+                    [1, 2],
+                    [2, 0],
+                ]),
+            ],
+        ];
+        for (const [name, s] of cases) {
+            for (let seed = 1; seed <= 25; seed++) {
+                const r = layout.planar(s, { seed, scale: 100 });
+                for (let i = 0; i < r.n; i++) {
+                    for (let j = i + 1; j < r.n; j++) {
+                        const d = Math.hypot(row(r, i)[0] - row(r, j)[0], row(r, i)[1] - row(r, j)[1]);
+                        assert.ok(d >= 0.5, `${name}, seed ${seed}: nodes ${i} and ${j} are ${d} apart at scale 100`);
+                    }
+                }
+            }
+        }
     });
 
     it("lays out a long path without overflowing the stack", () => {

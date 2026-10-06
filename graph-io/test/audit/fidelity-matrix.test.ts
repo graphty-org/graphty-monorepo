@@ -32,6 +32,7 @@ import { csvImporter } from "../../src/formats/csv/importer.js";
 import { cxImporter } from "../../src/formats/cx/importer.js";
 import { cx2Exporter } from "../../src/formats/cx2/exporter.js";
 import { cx2Importer } from "../../src/formats/cx2/importer.js";
+import { cysImporter } from "../../src/formats/cys/importer.js";
 import { dotExporter } from "../../src/formats/dot/exporter.js";
 import { dotImporter } from "../../src/formats/dot/importer.js";
 import { gexfExporter } from "../../src/formats/gexf/exporter.js";
@@ -47,6 +48,8 @@ import { neo4jImporter } from "../../src/formats/neo4j/importer.js";
 import { oboImporter } from "../../src/formats/obo/importer.js";
 import { pajekExporter } from "../../src/formats/pajek/exporter.js";
 import { pajekImporter } from "../../src/formats/pajek/importer.js";
+import { xgmmlExporter } from "../../src/formats/xgmml/exporter.js";
+import { xgmmlImporter } from "../../src/formats/xgmml/importer.js";
 import {
     type CommonExportOptions,
     type CommonImportOptions,
@@ -56,7 +59,14 @@ import {
     type LossNote,
 } from "../../src/types.js";
 import { DYNAMIC_1_3, OPEN_1_2 } from "../formats/gexf/fixtures.js";
-import { CORPUS_FORMATS, CORPUS_ROOT, corpusFiles, type CorpusFormat, corpusOptions } from "../helpers/corpus.js";
+import {
+    CORPUS_FORMATS,
+    CORPUS_ROOT,
+    corpusFiles,
+    type CorpusFormat,
+    corpusOptions,
+    readCorpusInput,
+} from "../helpers/corpus.js";
 import { compareSnapshots, describeDiffs, type SnapshotDiff, valuesEqual } from "../helpers/roundtrip.js";
 
 // ============================================================ the format pairs
@@ -109,6 +119,11 @@ const PAIRS: Readonly<Record<CorpusFormat, Pair>> = {
         importer: pajekImporter as GraphImporter<AnyImportOptions>,
     },
     obo: { exporter: null, importer: oboImporter as GraphImporter<AnyImportOptions> },
+    xgmml: {
+        exporter: xgmmlExporter as GraphExporter<AnyExportOptions>,
+        importer: xgmmlImporter as GraphImporter<AnyImportOptions>,
+    },
+    cys: { exporter: null, importer: cysImporter as GraphImporter<AnyImportOptions> },
 };
 
 /** The formats graph-io writes: the targets of the matrix. */
@@ -151,7 +166,7 @@ interface Input {
     /** "gexf/minimal.gexf" or "synthetic/DYNAMIC_1_3". */
     readonly label: string;
     readonly format: CorpusFormat;
-    readonly text: string;
+    readonly text: string | Uint8Array;
     /** Importer options the file needs (a tab delimiter, a paired node or relationship file). */
     readonly importOptions: AnyImportOptions;
     /** Whether the file is a node table (CSV) with no edge rows. */
@@ -198,7 +213,7 @@ function allInputs(): Input[] {
             inputs.push({
                 label,
                 format,
-                text: corpusText(format, name),
+                text: readCorpusInput(format, name),
                 importOptions: importOptionsFor(format, name),
                 nodeTable:
                     format === "csv" && (name === "got-nodes.csv" || corpusOptions(format, name).table === "nodes"),
@@ -224,7 +239,12 @@ interface Loaded {
     readonly report: ImportReport;
 }
 
-async function load(format: CorpusFormat, text: string, options: AnyImportOptions, directed = true): Promise<Loaded> {
+async function load(
+    format: CorpusFormat,
+    text: string | Uint8Array,
+    options: AnyImportOptions,
+    directed = true,
+): Promise<Loaded> {
     const builder = new GraphBuilder({ directed, weightDtype: "f64" });
     const report = await PAIRS[format].importer.import(text, builder, options);
     return { snapshot: builder.freeze(), report };
@@ -505,6 +525,14 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_DOT_NON_FINITE", { column: DTYPE_CLASS }],
     ["W_PAJEK_NONFINITE_AS_TEXT", { column: DTYPE_CLASS }],
     ["W_NEO4J_ARRAY_DELIMITER", { column: DTYPE_CLASS }],
+    ["W_DOT_CLUSTER_MARKED", { column: ["extra", "value"] }],
+    ["W_XGMML_WIDENED_TYPE", { column: DTYPE_CLASS }],
+    ["W_XGMML_JSON_AS_STRING", { column: DTYPE_CLASS }],
+    ["W_XGMML_EDGE_ID_TEXT", { column: DTYPE_CLASS }],
+    ["W_XGMML_BACKSLASH_ESCAPE", { column: ["value"] }],
+    ["W_XGMML_POSITION", { global: ["nodes.z:extra"], column: MISSING_CLASS }],
+    ["W_XGMML_PARENT_CYCLE", { global: ["nodes.*:*"] }],
+    ["W_XGMML_INTERACTION_FROM_LABEL", { column: ["extra", "value"] }],
     // dropped columns
     ["W_HIERARCHY_DROPPED", { column: MISSING_CLASS }],
     ["W_VIZ_DROPPED", { column: MISSING_CLASS }],
@@ -560,7 +588,8 @@ function sameColumn(noteColumn: string, column: string): boolean {
         return true;
     }
     const mangled = noteColumn.replace(/[^A-Za-z0-9_]/g, "_");
-    return column === mangled || column === `${mangled}_2`;
+    // GML keys start with a letter: the GML exporter prefixes "x" to any other mangled key
+    return column === mangled || column === `${mangled}_2` || column === `x${mangled}`;
 }
 
 function matchesPattern(pattern: string, kind: DiffKind): boolean {

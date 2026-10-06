@@ -94,7 +94,7 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             "stride",
             "firstOfSubmit",
             "iteration",
-            "perNode",
+            "pad3",
             "pad2",
         ];
         expect(FRONTIER_PARAMS.fields.map((f) => f[0])).toEqual(params);

@@ -1,12 +1,12 @@
 /**
- * Spec 11.9 item 1 for the two closeness kernels (P8-T11): every SABOTAGE row of `closeness-sweep` and
- * `closeness-reduce` is spliced into the normative body and compiled on a FRESH context, and the SAME check that
- * passes on the real kernels -- closenessReport: the exact `reached` and 64-bit `sum` of every source and the f32
- * scores of karate, the 70-node path and the 200-funnel against the oracle, a sampled karate run against the CPU port, every `newCount` word zero after its
- * batch, and the hand-seeded one-workgroup `closeness-reduce` role 0 (the 64-bit carry, which no runnable graph
- * reaches), all bitwise (any mismatch is Infinity; a driver refusal is the maximal miss) -- fails on the mutant by at
- * least minFactor. No row is caught by a timing. The first block is the coverage loop of
- * test/sabotage/coverage.test.ts applied to these rows (P8 is not in SABOTAGE_PHASES until P8-T15).
+ * Spec 11.9 item 1 for the two closeness kernels: every SABOTAGE row of `closeness-level` and `closeness-rowsum` is
+ * spliced into the normative body and compiled on a FRESH context, and the SAME check that passes on the real
+ * kernels -- closenessReport: the exact sum, reached count and f32 score of every source of karate, the 70-node path,
+ * the funnel, a star and a directed graph against the oracle with the level step chosen per level, forced to push and
+ * forced to pull, a sampled karate run against the CPU port, and the all-pairs row sums in their three roles against
+ * an emulation of the device's f32 reduction, all bitwise (any mismatch is Infinity; a driver refusal is the maximal
+ * miss) -- fails on the mutant by at least minFactor. No row is caught by a timing. The first block is the coverage
+ * loop of test/sabotage/coverage.test.ts applied to these rows.
  */
 
 import { existsSync } from "node:fs";
@@ -24,22 +24,32 @@ const CLOSENESS_TEST = "test/algorithms/closeness.test.ts";
 /** The two kernels and the rows each must carry, by name. */
 const MEASURED: readonly { readonly id: KernelId; readonly names: readonly string[] }[] = [
     {
-        id: "closeness-sweep",
-        names: ["already-visited-recounted", "next-bits-not-set", "source-word-not-bit", "per-node-distance-dropped"],
-    },
-    {
-        id: "closeness-reduce",
+        id: "closeness-level",
         names: [
-            "distance-is-the-level",
-            "reached-not-accumulated",
-            "carry-dropped",
+            "push-claim-recounted",
+            "pull-keeps-seen-bits",
+            "push-next-not-set",
+            "pull-next-not-set",
+            "early-exit-too-soon",
+            "source-word-not-bit",
+            "per-node-distance-dropped",
             "sampled-list-ignored",
             "duplicate-seed-overwritten",
         ],
     },
+    {
+        id: "closeness-rowsum",
+        names: [
+            "unreachable-counted",
+            "tree-drops-half",
+            "hops-counted-as-one",
+            "weights-counted-as-one",
+            "harmonic-not-reciprocal",
+        ],
+    },
 ];
 
-describe("sabotage: closeness-sweep and closeness-reduce (spec 11.9 item 1; P8-T11)", () => {
+describe("sabotage: closeness-level and closeness-rowsum (spec 11.9 item 1)", () => {
     for (const { id, names } of MEASURED) {
         const rows: readonly Mutation[] = SABOTAGE[id] ?? [];
 

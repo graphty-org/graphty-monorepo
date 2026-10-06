@@ -183,7 +183,6 @@ const U32_BUFFER_NAMES: ReadonlySet<string> = new Set([
     "cellStart",
     "hubList",
     "hubCounters",
-    "hubArgs",
 ]);
 
 /** The per-batch epilogue stage: iterations 0..k-2 stop after the stage that precedes it (PLAN DECISION 2). */

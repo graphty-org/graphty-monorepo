@@ -2,42 +2,10 @@ import { Box, Tooltip, useMantineColorScheme } from "@mantine/core";
 import JSONGrid, { type keyPathNode } from "@redheadphone/react-json-grid";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { formatValueForClipboard } from "./clipboard";
 import { CopyButton } from "./CopyButton";
 import { mantineJsonGridDarkTheme, mantineJsonGridLightTheme } from "./mantineTheme";
 import { getValueAtPath, keyPathToJMESPath } from "./pathUtils";
-
-/**
- * Formats a value for copying to clipboard.
- * @param value - The value to format for clipboard
- * @returns The formatted string representation
- */
-function formatValueForClipboard(value: unknown): string {
-    if (value === null) {
-        return "null";
-    }
-
-    if (value === undefined) {
-        return "undefined";
-    }
-
-    if (typeof value === "object") {
-        return JSON.stringify(value, null, 2);
-    }
-
-    if (typeof value === "string") {
-        return value;
-    }
-
-    if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
-        return value.toString();
-    }
-
-    if (typeof value === "symbol") {
-        return value.toString();
-    }
-
-    return typeof value === "function" ? "[Function]" : "[Unknown]";
-}
 
 export type { keyPathNode };
 

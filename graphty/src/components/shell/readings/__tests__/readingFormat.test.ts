@@ -30,6 +30,11 @@ describe("readingFormat", () => {
             expect(formatCount(Number.NaN)).toBe("0");
             expect(formatCount(Number.POSITIVE_INFINITY)).toBe("0");
         });
+
+        it("keeps the sign of a negative value instead of hiding it as 0", () => {
+            expect(formatCount(-4)).toBe("-4");
+            expect(formatCount(-1104.4)).toBe("-1,104");
+        });
     });
 
     describe("formatProseCount, spec 5853's rounding", () => {
@@ -66,6 +71,12 @@ describe("readingFormat", () => {
 
         it("reads 0% for a value that is not a number", () => {
             expect(formatPercent(Number.NaN)).toBe("0%");
+        });
+
+        it("clamps to 0..100%, as a share cannot exceed the whole", () => {
+            expect(formatPercent(0.4)).toBe("40%");
+            expect(formatPercent(2)).toBe("100%");
+            expect(formatPercent(-0.3)).toBe("0%");
         });
     });
 

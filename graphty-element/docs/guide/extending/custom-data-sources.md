@@ -1,8 +1,8 @@
 # Custom file formats
 
-The element reads JSON, GraphML, GEXF, CSV, GML, DOT and Pajek. A format it does not ship is a
-class extending `DataSource`, and registering it puts the format everywhere the built-in seven
-are: in the catalogue an import dialog reads, in extension and content detection, and in every
+The element reads JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, XGMML, CX, CX2, Cytoscape sessions
+and OBO. A format it does not ship is a class extending `DataSource`, and registering it puts the
+format everywhere the built-in ones are: in the catalogue an import dialog reads, in extension and content detection, and in every
 call that names a format by string.
 
 There are two ways to write one:
@@ -79,7 +79,8 @@ class RosterDataSource extends DataSource {
     }
 
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        // Inherited: reads from `data`, a `File` or a `url`, with retries and a timeout.
+        // Inherited: reads from `data` (text or bytes), a `File` or a `url`, with retries and a
+        // timeout, and decodes bytes as UTF-8 unless a byte-order mark names another encoding.
         const text = await this.getContent();
         const nodes = [];
         const edges = [];
@@ -94,9 +95,9 @@ class RosterDataSource extends DataSource {
             const [verb, first, second, third] = line.split(/\s+/);
 
             if (verb === "person") {
-                nodes.push(DataSource.toRecord({ id: first, team: second, score: Number(third) * this.#scoreScale }));
+                nodes.push({ id: first, team: second, score: Number(third) * this.#scoreScale });
             } else if (verb === "knows") {
-                edges.push(DataSource.toRecord({ source: first, target: second }));
+                edges.push({ source: first, target: second });
             } else {
                 throw new GraphtyError({
                     code: "E_PARSE_FAILED",
@@ -121,9 +122,18 @@ class RosterDataSource extends DataSource {
 DataSource.register(RosterDataSource);
 ```
 
+A record is any plain object: yield `{ id: "a" }` as it is, with no cast and no wrapper.
+
 That is a whole format. Fetching the bytes from a string, a `File` or a URL, three attempts with
 exponential backoff, chunking, per-record validation, error aggregation, progress reporting and
 the direction declaration are all inherited.
+
+A reader that needs the bytes themselves -- a binary format, or one that reads an encoding
+declaration -- calls `this.getBytes()` instead of `this.getContent()`, and gets a `Uint8Array`
+with nothing decoded. A format whose file can hold several graphs declares
+`static listGraphs(input)`, answering `[{ index, name, nodes, edges }, ...]` for the file's text or
+bytes; it then reads the graph `this.graphChoice()` names (`{ graphIndex }`, `{ graphName }`, or
+`{}` for the first), and `listGraphs` from `./catalog` lists a file's graphs through it.
 
 **Name your endpoint keys `source` and `target`.** The element probes `source`/`target` first,
 then `src`/`dst`, then `from`/`to`, so all three work -- but `source`/`target` is the spelling
@@ -154,9 +164,12 @@ const tradeFlowsImporter: GraphImporter = {
     mimeTypes: ["text/vnd.acme.trade-flows"],
 
     import(input, sink) {
-        if (typeof input !== "string") {
-            return Promise.reject(new TypeError("the trade-flows importer reads text"));
+        // Inline text arrives as it was given; a file or a URL arrives as its bytes.
+        if (typeof input !== "string" && !(input instanceof Uint8Array)) {
+            return Promise.reject(new TypeError("the trade-flows importer reads text or bytes"));
         }
+
+        const text = typeof input === "string" ? input : new TextDecoder().decode(input);
 
         const issues: ImportIssue[] = [];
         const report = (): ImporterReport => ({
@@ -172,7 +185,7 @@ const tradeFlowsImporter: GraphImporter = {
 
         // A shipment goes one way: the file states that the graph is directed.
         sink.setDirected(true);
-        for (const [index, line] of input.split("\n").entries()) {
+        for (const [index, line] of text.split("\n").entries()) {
             if (line.trim() === "") {
                 continue;
             }
@@ -224,7 +237,13 @@ DataSource.register(
 What the class does around your importer:
 
 - It reads the input the way every reader does -- inline `data`, a `File` or a `url` -- and hands
-  your importer the text.
+  your importer inline text as a string and everything else as a `Uint8Array` of the file's bytes,
+  so your importer decides the encoding (graph-io's own importers read a byte-order mark and an
+  encoding declaration). A binary format, such as a zip, arrives intact.
+- When your importer has `listGraphs(input)`, the class has it too: `listGraphs` from `./catalog`
+  lists a file's graphs through it, and the `graphIndex` / `graphName` load options reach your
+  importer's `import` options. Without it, the format holds one graph and any other choice is
+  refused with `E_OPTION_RANGE`.
 - Every node and edge attribute you set becomes a key of the record, under the column's name; an
   edge's weight becomes `weight`. A node you add with `addNode` becomes a node record; one that an
   edge names without declaring it is created by the element, as for every format. A repeated node

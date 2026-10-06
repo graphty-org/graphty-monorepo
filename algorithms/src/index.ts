@@ -11,6 +11,9 @@
 // The algorithms, their options and their results.
 export * from "./indexed/index.js";
 
+// Id-keyed views of results, for a caller holding its own node ids.
+export { groupsById, type Partition, pathIds, scoresById } from "./indexed/by-id.js";
+
 // Errors the algorithms throw.
 export { type AlgorithmErrorCode, ConvergenceError, PathCountOverflowError, PathWalkError } from "./errors.js";
 

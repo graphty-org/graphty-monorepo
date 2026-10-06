@@ -264,7 +264,6 @@ describe("SpringElectricalModel (no device; contract 3.13)", () => {
             "cellHist",
             "cellStart",
             "hubList",
-            "hubArgs",
             "pyramid",
         ]);
     });

@@ -18,7 +18,7 @@ import { INVALID_INDEX, maskTest, type U32 } from "@graphty/graph-format";
 import type { EdgeId, NodeId, OptionDescriptor } from "../../catalog/types";
 import { edgeRowOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { ResultElementValues, RunResultInit } from "../../session/results/RunResult";
+import type { ResultColumns, ResultElementValues, RunResultInit } from "../../session/results/RunResult";
 import { declaresScopedInput, type ResolvedInputScope, runScopeOf } from "./ScopedInput";
 
 /** The note a run carries when its algorithm computed on the whole graph and was masked back. */
@@ -77,6 +77,23 @@ function scopeCaveat(declared: boolean, scope: ResolvedInputScope): string {
 }
 
 /**
+ * The rows of published columns whose element is kept.
+ * @param published - The ids and their columns.
+ * @param keep - Whether an element is kept.
+ * @returns The kept ids and their columns.
+ */
+function keepRows(published: ResultColumns, keep: (id: NodeId) => boolean): ResultColumns {
+    const kept = published.ids.map(keep);
+
+    return {
+        ids: published.ids.filter((_, row) => kept[row]),
+        columns: Object.fromEntries(
+            Object.entries(published.columns).map(([name, column]) => [name, column.filter((_, row) => kept[row])]),
+        ),
+    };
+}
+
+/**
  * A result's inputs with every value outside the run's scope dropped and the scope caveat added.
  * A run over the whole graph, or no run at all, passes unchanged.
  * @param algorithm - The algorithm instance publishing the result.
@@ -90,14 +107,16 @@ export function maskBack(algorithm: object, init: RunResultInit): RunResultInit 
     }
 
     const { graph, resolution } = scope;
-    const keepNode = (entry: ResultElementValues): boolean =>
-        has(resolution.nodes, graph.ids.indexOf(entry.id), graph.nodeCount);
+    const keepNode = (id: NodeId): boolean => has(resolution.nodes, graph.ids.indexOf(id), graph.nodeCount);
     const keepEdge = (entry: ResultElementValues<EdgeId>): boolean =>
         has(resolution.edges, edgeRowOf(graph, entry.id), graph.edgeCount);
+    const { nodes } = init;
 
     return {
         ...init,
-        ...(init.nodes === undefined ? {} : { nodes: init.nodes.filter(keepNode) }),
+        ...(nodes === undefined
+            ? {}
+            : { nodes: "columns" in nodes ? keepRows(nodes, keepNode) : nodes.filter((entry) => keepNode(entry.id)) }),
         ...(init.edges === undefined ? {} : { edges: init.edges.filter(keepEdge) }),
         caveats: {
             ...init.caveats,

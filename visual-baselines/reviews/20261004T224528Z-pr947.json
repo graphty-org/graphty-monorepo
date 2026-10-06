@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "pr": 947,
+  "subject": {
+    "builtMerge": "1a9fb437f4ce6b02b17fb37c2a79fceb4333e84d",
+    "head": "dd00b311337f83677d102d93adbcd525cc865c08",
+    "runId": 37234229676,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V45 96-Core Processor",
+      "emojiFont": true,
+      "tool": "1a9fb437f4ce6b02b17fb37c2a79fceb4333e84d"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.dark.png",
+      "from": "798e7eea407296394c0511e28e47c36d4cbb4166410c56ca5cb4db68d325cc96",
+      "to": "b75eb424ddadd9b041a0b7cfba40f54ebdf2815493db317606afb5eea2ec4688",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.light.png",
+      "from": "02b6c56054f785d2e635ab2f18773134d924e94697021260cf21ebedf953c571",
+      "to": "6cd85c46ed85e5178f26cb373fa202d0d8dc90bd63f663037a787c361ac6389a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--image.dark.png",
+      "from": "b56a6a56b835c0b1c0247c883d1ac972fd0e79942a5c50e2d36f1724f943639a",
+      "to": "7a3c8b695a71e05735c916a8c1351b04193645805bdbf67c4ad34b7702cf7957",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--image.light.png",
+      "from": "ac48b125bdbf51018ad1bc03d068c604d489a7f75b66d6c4678d786f4f9b57d3",
+      "to": "551d661258266770d251cce716e7fa905aa5916c92fdb5e21c3e297884db547a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--keyboard-shortcuts.dark.png",
+      "from": "d4bb189cd8a8c0e4ab9155f834ec5f0d974e5b463cbadef5f3147f41ce5a79e0",
+      "to": "62811e7db9c2a33a99c664461fe4b1d2b26b6a8fbdeefa884b533e4a44b13e10",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--keyboard-shortcuts.light.png",
+      "from": "1f046d6dc2883caf6b14d1d9f6b71034a8158ae243aaa5363d928771216c390a",
+      "to": "85fb1fde98ec8462b1da3af33bf6980bda0ae5374855a85a6808a60b33a66457",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--main-menu-open.dark.png",
+      "from": "70466af87b5805768b2b0fac3257eefc9ca4849dd7566a125b5bd5b66303dde9",
+      "to": "f60920c25f2272017968b5afbb90b6cda5b574f0e087f9798742816022447054",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--main-menu-open.light.png",
+      "from": "bcdad634ef060f4646c17920b43ce1c7878ab8fa9e5341c439d39a5578df59c2",
+      "to": "40a03f678a8f641e08dfe833898d66714e5e4362b57b221c89c53643be3dd4ca",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--project-menu-open.dark.png",
+      "from": "e1bca50a05ecb179beeeac8efec9517d33830c4acac1bbca51e4d80132ed854c",
+      "to": "8b5febff867ea38328763f05dcd5c3464ae4a854a6ebf47deaba0ae47e6dba14",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--project-menu-open.light.png",
+      "from": "88f348264af4305d02debfa4b536fe43ddd01efd0211cb97d654bec88401e9ae",
+      "to": "d38e758c3ca62a8f9825c079bfd7558c2cd1f8d1ecf1cfa2d3b172650d83e7bb",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-04T22:45:28.801Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoienRka0E2Tlc0N1hBV1o0TDRheVZZLUF3aHctbTljRUdfTUdFVlFydTRWdyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIBYrFAgaWMgnFd2-wyr3EiwVYTOeQGTxY0I9mewH4aj5AiBEsz2vBe__rwFfyLmFT1NpmkKF_M4IuOMZNZBWGc0rIw"
+  }
+}

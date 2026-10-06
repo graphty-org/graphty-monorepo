@@ -54,6 +54,9 @@ export type {
     LayoutId,
     LogSinkDescriptor,
     LogSinkId,
+    Measurement,
+    MeasurementDeclaration,
+    MeasurementSource,
     MetricAvailability,
     NodeId,
     OptionBound,
@@ -74,6 +77,7 @@ export type {
     Selector,
     StaticStyle,
     StyleDocument,
+    SuggestedName,
     ThemeDescriptor,
 } from "./types";
 export {

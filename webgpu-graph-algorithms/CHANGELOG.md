@@ -1,3 +1,94 @@
+## 0.6.34 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.5
+- Updated algorithms to 3.3.5
+- Updated layout to 2.2.6
+
+## 0.6.33 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.4
+- Updated algorithms to 3.3.4
+- Updated layout to 2.2.5
+
+## 0.6.32 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.3
+- Updated algorithms to 3.3.3
+- Updated layout to 2.2.4
+
+## 0.6.31 (2026-10-04)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** let a caller turn a Dawn toggle off, and stop quantising timestamps in the node tests ([ce6659adb](https://github.com/graphty-org/graphty-monorepo/commit/ce6659adb))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** follow the webgpu pin in the two tests that hard-code it ([9b2442ea4](https://github.com/graphty-org/graphty-monorepo/commit/9b2442ea4))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** count the dense-row loops down so Dawn 0.6 leaves them unguarded ([cc6e852b3](https://github.com/graphty-org/graphty-monorepo/commit/cc6e852b3))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.2
+- Updated algorithms to 3.3.2
+- Updated layout to 2.2.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.30 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.1
+- Updated algorithms to 3.3.1
+- Updated layout to 2.2.2
+
+## 0.6.29 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.2.1
+
+## 0.6.28 (2026-10-03)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** faster closeness on every route, and harmonic closeness ([#734](https://github.com/graphty-org/graphty-monorepo/issues/734))
+- **webgpu-graph-algorithms:** acquireAccelerator, one managed GPU accelerator ([#727](https://github.com/graphty-org/graphty-monorepo/issues/727))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** run betweenness 256 sources per batch ([#733](https://github.com/graphty-org/graphty-monorepo/issues/733))
+- **webgpu-graph-algorithms:** dispatch the grid tier's hub-cell centroid directly ([#732](https://github.com/graphty-org/graphty-monorepo/issues/732))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.0
+- Updated algorithms to 3.3.0
+- Updated layout to 2.2.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.27 (2026-10-03)
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.2.0
+- Updated layout to 2.1.0
+
 ## 0.6.26 (2026-10-03)
 
 ### 🩹 Fixes

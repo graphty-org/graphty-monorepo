@@ -4,6 +4,7 @@ import { dotImporter } from "@graphty/graph-io/dot";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import { columnsMapping, importWhole, toRecords } from "./graph-io-import.js";
+import { sampleOf } from "./source-bytes.js";
 
 // DOT has no additional config currently, so just use the base config
 type DOTDataSourceConfig = BaseDataSourceConfig;
@@ -48,11 +49,13 @@ export class DOTDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        const text = await this.getContent();
-        const headerless = (dotImporter.sniff?.(headBytes(text)) ?? 0) === 0 && /^\s*\{/.test(text);
+        // Bytes go to the importer undecoded, so it reads a `charset` declaration; only a body
+        // with no keyword is decoded here, to give it one.
+        const input = await this.getInput();
+        const headerless = (dotImporter.sniff?.(headBytes(input)) ?? 0) === 0 && /^\s*\{/.test(sampleOf(input));
         const imported = await importWhole(
             dotImporter,
-            headerless ? `digraph ${text}` : text,
+            headerless ? `digraph ${await this.getContent()}` : input,
             // Ids stay the strings DOT writes, `weight` stays an attribute (the element reads its
             // weight from the record), and `pos` stays the text the file wrote. A body with no
             // keyword takes each edge's direction from its own operator.

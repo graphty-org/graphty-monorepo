@@ -163,7 +163,7 @@ export class GraphMLDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        const imported = await importDocument(graphmlImporter, await this.getContent(), {
+        const imported = await importDocument(graphmlImporter, await this.getInput(), {
             errorLimit: this.config.errorLimit ?? 100,
         });
         aggregateErrors(imported.report, this.errorAggregator);

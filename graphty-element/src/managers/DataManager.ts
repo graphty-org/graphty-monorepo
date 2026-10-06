@@ -13,8 +13,9 @@ import type { AdHocData } from "../config";
 import { createEdgeCounter, edgeCounterOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
+import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
-import type { ImportReport } from "../data/report";
+import type { LoadReport } from "../data/report";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
@@ -49,9 +50,6 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./StylePainter";
 
 /** The graph value a plugin algorithm's graph-level results are kept under. */
 const GRAPH_RESULTS = "graphResults";
-
-/** An id that is an integer written as text, and so has a second spelling worth retrying. */
-const INTEGER_ID = /^-?\d+$/;
 
 export type { AddEdgesOptions } from "../session/project/ingest";
 
@@ -556,8 +554,8 @@ export class DataManager implements Manager {
      * consumer that subscribed after the load has no way to ask otherwise.
      * @returns the report, or null when nothing has been loaded into this graph
      */
-    get lastImport(): ImportReport | null {
-        return (this.graph.slice.values.get("importReport") as ImportReport | undefined) ?? null;
+    get lastImport(): LoadReport | null {
+        return (this.graph.slice.values.get("importReport") as LoadReport | undefined) ?? null;
     }
 
     /**
@@ -1020,6 +1018,7 @@ export class DataManager implements Manager {
                     );
                 }
             },
+            progress: (change) => this.dispatcher?.services.progress?.(change),
             loadFailed: (format, error, progress) => {
                 if (this.graphContext) {
                     const { loadId } = this;
@@ -1482,11 +1481,8 @@ export class DataManager implements Manager {
             return exact;
         }
 
-        if (typeof nodeId === "string") {
-            return INTEGER_ID.test(nodeId) ? this.nodes.get(Number.parseInt(nodeId, 10)) : undefined;
-        }
-
-        return Number.isInteger(nodeId) ? this.nodes.get(String(nodeId)) : undefined;
+        const other = otherIdSpelling(nodeId);
+        return other === undefined ? undefined : this.nodes.get(other);
     }
 
     /**

@@ -105,10 +105,6 @@ function at(result: unknown, path: string): unknown {
     return path === "" ? result : path.split(".").reduce<unknown>((o, k) => (o as Record<string, unknown>)[k], result);
 }
 
-// grsbm leaves every small graph whole, weighted or not, so the fixture cannot show it reading weights;
-// test/unit/indexed/grsbm.test.ts shows it on the karate club.
-const WEIGHTS_SHOWN_ELSEWHERE = new Set(["grsbm"]);
-
 // The "never" algorithms that take no options object, so there is no `weighted` for them to refuse.
 const NO_OPTIONS = new Set([
     "degrees",
@@ -130,8 +126,17 @@ function codeOf(fn: () => unknown): unknown {
 
 const entries = Object.entries(ALGORITHMS) as [string, AlgorithmEntry][];
 
-// Exports that are not algorithms of the `fn(graph, ...inputs, options)` shape.
-const NOT_ALGORITHMS = new Set(["accelerated", "walkPredArcs", "walkPredEdges", "bipartiteFlowNetwork", "arcSourceIn"]);
+// Exports that are not algorithms of the `fn(graph, ...inputs, options)` shape: helpers, and the id-keyed views of a result.
+const NOT_ALGORITHMS = new Set([
+    "accelerated",
+    "walkPredArcs",
+    "walkPredEdges",
+    "bipartiteFlowNetwork",
+    "arcSourceIn",
+    "groupsById",
+    "pathIds",
+    "scoresById",
+]);
 
 describe("ALGORITHMS", () => {
     it("lists every algorithm the package exports, under its export name", () => {
@@ -209,7 +214,7 @@ describe("ALGORITHMS", () => {
             // One rule for every algorithm: weights are read when the graph has them and `weighted: false` turns
             // them off; an algorithm that cannot use them refuses `weighted: true`.
             if (entry.weights === "by-default") {
-                expect(same()).toBe(WEIGHTS_SHOWN_ELSEWHERE.has(entry.name));
+                expect(same()).toBe(false);
                 expect(same({ weighted: false })).toBe(true);
             } else {
                 expect(same()).toBe(true);

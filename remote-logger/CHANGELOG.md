@@ -1,3 +1,23 @@
+## 2.0.6 (2026-10-05)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.5 (2026-10-05)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.4 (2026-10-04)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.3 (2026-10-04)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.2 (2026-10-04)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
 ## 2.0.1 (2026-10-02)
 
 This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.

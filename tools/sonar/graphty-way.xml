@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The "Graphty way" SonarQube quality profile: "Sonar way" for each language listed here, minus the
+  rules deactivated below. It inherits from "Sonar way", so rules SonarQube adds to "Sonar way" in
+  later releases reach it automatically.
+
+  This file is the source of truth. `node tools/sonar-baseline.mjs --setup` and the baseline loop
+  (`--watch`) restore it to the server: they create the profile for each language, set its parent,
+  deactivate exactly the rules listed and reactivate any other rule deactivated on the server.
+  Change a rule here, in a pull request, never on the server.
+
+  Every rule with open issues gets one decision (design/sonarqube/design.md, "Rule decisions"). A
+  rule whose decision is still open is deactivated here until it has one.
+-->
+<graphty-way name="Graphty way" parent="Sonar way">
+    <language key="ts">
+        <!-- Test has no assertion (5,977 issues). The tests assert through Vitest's chai-style
+             assert.* and through helpers the rule does not follow; the sampled tests all assert. -->
+        <deactivate rule="typescript:S2699" />
+        <!-- Optional property declared with `| undefined` (624). graph-format, graph-io,
+             webgpu-graph-algorithms and graphty-element typecheck their published types under
+             exactOptionalPropertyTypes, where `prop?: T | undefined` and `prop?: T` differ; the
+             `| undefined` is deliberate, and "fixing" it breaks strict consumers who pass undefined. -->
+        <deactivate rule="typescript:S4782" />
+        <!-- Negated condition with an else (71). Taste; off until decided in stage 3. -->
+        <deactivate rule="typescript:S7735" />
+        <!-- for...of over an index loop (34). Index loops over typed arrays are deliberate in the
+             hot paths; off until decided in stage 3. -->
+        <deactivate rule="typescript:S4138" />
+    </language>
+    <language key="js">
+        <!-- Negated condition with an else. Taste; off until decided in stage 3. -->
+        <deactivate rule="javascript:S7735" />
+    </language>
+</graphty-way>

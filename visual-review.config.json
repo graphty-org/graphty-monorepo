@@ -4,6 +4,7 @@
     "baselines": "visual-baselines",
     "workDir": "tmp/visual-review",
     "commitPrefix": "test(workspace)",
+    "fontconfig": "visual-fonts/fonts.conf",
     "issueLabels": ["bug", "priority:medium", "effort:low"],
     "projects": {
         "compact-mantine": {

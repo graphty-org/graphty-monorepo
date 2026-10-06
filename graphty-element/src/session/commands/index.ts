@@ -50,7 +50,7 @@ const batch: UndoableDefinition<BatchCommand> = {
     keys: () => [],
     lane: { kind: "immediate" },
     // Its members' own arguments, kept as their definitions keep them.
-    byReference: ["records", "config", "nodes", "edges"],
+    byReference: ["records", "config", "nodes", "edges", "held", "measure"],
     members: (command) => ({ label: command.label ?? batchLabel(command.steps.length), steps: command.steps }),
     execute: () => {
         throw new GraphtyError({

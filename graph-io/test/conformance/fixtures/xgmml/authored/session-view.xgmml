@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph id="82" label="Na" cy:view="1" cy:networkId="52" cy:visualStyle="default" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML">
+  <graphics><att name="NETWORK_TITLE" value="Na" type="string"/></graphics>
+  <node id="84" label="Node 1" cy:nodeId="64"><graphics z="0.0" x="-188.1" y="32.5"><att name="z" value="0.0" type="string"/></graphics></node>
+  <node id="86" label="Node 3" cy:nodeId="62"><graphics z="0.0" x="171.8" y="50.5"><att name="lockedVisualProperties" type="list"><att name="NODE_SHAPE" value="TRIANGLE" type="string"/></att></graphics></node>
+  <edge id="88" label="Node 2 (interaction) Node 3" cy:edgeId="65"><graphics><att name="lockedVisualProperties" type="list"><att name="EDGE_WIDTH" value="5.0" type="string"/></att></graphics></edge>
+</graph>

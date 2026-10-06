@@ -358,7 +358,7 @@ export class GEXFDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        const text = await this.getContent();
+        const text = await this.getInput();
         let imported = await this.read(text, false);
         let { snapshot } = imported;
         const written = writtenDefaultEdgeType(snapshot);
@@ -410,11 +410,11 @@ export class GEXFDataSource extends DataSource {
 
     /**
      * Import the document through graph-io.
-     * @param text - the document
+     * @param text - the document: text, or bytes graph-io decodes
      * @param defaultDirected - the direction an edge without a `type` takes when the graph wrote none
      * @returns the import
      */
-    private read(text: string, defaultDirected: boolean): Promise<ImportedGraph> {
+    private read(text: string | Uint8Array, defaultDirected: boolean): Promise<ImportedGraph> {
         return importDocument(
             gexfImporter,
             text,

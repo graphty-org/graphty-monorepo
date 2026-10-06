@@ -135,6 +135,7 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         )}`,
         `views=${canonical(state.views, path)}`,
         `notes=${canonical(state.notes, path)}`,
+        `attributes=${canonical(state.attributes, path)}`,
     ];
     if (options.snapshot !== undefined) {
         parts.push(`rows=${rowsDigest(options.snapshot, path, options.arrangement === true)}`);

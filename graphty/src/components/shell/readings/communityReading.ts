@@ -38,7 +38,7 @@
 
 import type { FieldBand } from "@graphty/graphty-element/catalog";
 
-import { formatCount, formatModularity, formatPercent, modularityBandPhrase } from "./readingFormat";
+import { formatCount, formatModularity, formatPercent, modularityBandPhrase, pluralise } from "./readingFormat";
 
 /**
  * One group and its size.
@@ -82,17 +82,6 @@ export interface CommunityStatistics {
  * body never grows past the sentence that describes it.
  */
 export const COMMUNITY_MANY_GROUPS_THRESHOLD = 12;
-
-/**
- * Pluralises a noun on a count, so a one-group, one-member run reads "1 group found.
- * The largest has 1 member." rather than the spec's plural strings ungrammatically.
- * @param count - the count the noun is attached to.
- * @param singular - the singular noun.
- * @returns the singular when the count is exactly 1, the "s" plural otherwise.
- */
-function pluralise(count: number, singular: string): string {
-    return count === 1 ? singular : `${singular}s`;
-}
 
 /**
  * The form spec 5820 writes out, for a graph with few enough groups that naming the

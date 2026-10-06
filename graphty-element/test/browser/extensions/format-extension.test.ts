@@ -1184,8 +1184,8 @@ describe("a third party's format in the catalogue a picker is built from", () =>
         );
         assert.deepStrictEqual(
             formatsForExtension(".xml").map((descriptor) => descriptor.id),
-            ["graphml", "gexf", ACME_XML_FORMAT],
-            "and an extension three formats claim is answered with all three, the element's own first",
+            ["graphml", "gexf", "xgmml", ACME_XML_FORMAT],
+            "and an extension four formats claim is answered with all four, the element's own first",
         );
     });
 
@@ -1307,7 +1307,7 @@ describe("a third party's format being recognised from a file", () => {
         async () => {
             assert.deepStrictEqual(
                 detectFormats({ filename: "team.xml", sample: ACME_XML }),
-                [ACME_XML_FORMAT, "graphml", "gexf"],
+                [ACME_XML_FORMAT, "graphml", "gexf", "xgmml"],
                 "the claimant whose own sniffer says yes is ranked first, and the others are still offered",
             );
 

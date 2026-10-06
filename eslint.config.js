@@ -9,6 +9,8 @@ import simpleImportSort from "eslint-plugin-simple-import-sort";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
+
 export default tseslint.config(
     // ============================================
     // IGNORE PATTERNS
@@ -77,7 +79,8 @@ export default tseslint.config(
             "jsdoc/check-tag-names": [
                 "error",
                 {
-                    definedTags: ["since", "internal", "remarks"],
+                    // category and defaultValue are TypeDoc tags: the API reference groups and fills in defaults from them
+                    definedTags: ["since", "internal", "remarks", "category", "defaultValue"],
                 },
             ],
             "jsdoc/require-jsdoc": [
@@ -211,6 +214,15 @@ export default tseslint.config(
         rules: {
             ...jsxA11y.flatConfigs.recommended.rules,
         },
+    },
+
+    // ============================================
+    // compact-mantine USES ITS OWN REPLACEMENTS FOR STOCK MANTINE COMPONENTS
+    // ============================================
+    // The list, and why, is compact-mantine/eslint/mantine-replacements.js.
+    {
+        files: ["compact-mantine/**/*.ts", "compact-mantine/**/*.tsx"],
+        rules: { "@typescript-eslint/no-restricted-imports": ["error", { paths: MANTINE_REPLACEMENTS }] },
     },
 
     // ============================================

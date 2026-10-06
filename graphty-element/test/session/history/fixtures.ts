@@ -496,6 +496,23 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         },
     },
     {
+        name: "data.declare",
+        tags: BOTH,
+        command: {
+            op: "data.declare",
+            column: { kind: "node", name: "name" },
+            declaration: { measurement: "ordinal", order: ["a", "b"] },
+        },
+    },
+    {
+        name: "data.setSource",
+        tags: ["session"],
+        before: async (session) => {
+            await session.data.import({ type: "json", config: { data: IMPORTED }, name: "first.json" });
+        },
+        command: { op: "data.setSource", source: { type: "json", name: "Renamed" } },
+    },
+    {
         name: "view.save",
         tags: ["session"],
         command: { op: "view.save", views: [{ name: "Fixture view", camera: { zoom: 2, pan: { x: 1, y: 2 } } }] },
@@ -558,6 +575,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "author",
         tags: BOTH,
         command: { op: "config.set", values: { author: "Fixture author" } },
+    },
+    {
+        name: "config.set name",
+        variant: "name",
+        tags: BOTH,
+        command: { op: "config.set", values: { name: "Fixture project" } },
     },
     {
         name: "config.set layoutBehavior.preSteps",

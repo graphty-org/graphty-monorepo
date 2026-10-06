@@ -29,9 +29,6 @@ graphty/
 │   │   ├── layout/           # LeftSidebar (style layer list, used by the shell)
 │   │   ├── layout-options/   # Layout configuration UI
 │   │   ├── sidebar/          # Style layer control panels
-│   │   │   ├── controls/     # Reusable control components
-│   │   │   ├── node-controls/ # Node styling controls
-│   │   │   ├── edge-controls/ # Edge styling controls
 │   │   │   └── panels/       # Sidebar panel components
 │   │   └── demo/             # Demo components (?demo gallery)
 │   ├── hooks/                # React hooks
@@ -42,6 +39,11 @@ graphty/
 │   └── stories/              # Storybook stories
 └── index.html
 ```
+
+`src/workspace/` is the tier 1 shell, reachable at `?next` until the Switch-over
+(design/ui/tier1-real-app/plan.md): `Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
+`keys/`, and one directory per later package. Each package registers its commands in its own
+`commands.ts`, which `registrations.ts` collects.
 
 ## Essential Commands
 
@@ -87,13 +89,9 @@ When testing from mobile devices:
 
 ### Sidebar Controls
 
-Controls in `src/components/sidebar/controls/` are reusable across different panels
-and are shared with the app shell's Style panel:
-
-- `StyleColorInput` - Color picker with label
-- `StyleNumberInput` - Number input with constraints
-- `StyleSelect` - Dropdown selection
-- `ControlSection` - Collapsible section wrapper
+The panels build their controls from `@graphty/compact-mantine` (`CompactColorInput`,
+`StyleNumberInput`, `StyleSelect`, `ControlSection`, `ControlSubGroup` and the rest). Do not copy
+one into the app: a control the app needs that compact-mantine lacks, or gets wrong, is fixed there.
 
 ### graphty-element Integration
 

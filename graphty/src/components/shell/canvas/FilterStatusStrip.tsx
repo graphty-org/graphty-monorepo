@@ -47,6 +47,8 @@ export interface FilterStatusStripProps {
     readonly note?: FilterStatusNote | null;
     /** Opens Explore. The collapsed "N filters" chip lands here. */
     readonly onOpenExplore?: () => void;
+    /** Controls an active filter draws after the chips, such as the ego network's depth. */
+    readonly controls?: React.ReactNode;
 }
 
 /**
@@ -55,10 +57,10 @@ export interface FilterStatusStripProps {
  * @returns the strip element, or null when there is nothing to report.
  */
 export function FilterStatusStrip(props: FilterStatusStripProps): React.JSX.Element | null {
-    const { chips, note, onOpenExplore } = props;
+    const { chips, note, onOpenExplore, controls } = props;
     const drawn = collapseFilterChips(chips, onOpenExplore);
 
-    if (drawn.length === 0 && (note === undefined || note === null)) {
+    if (drawn.length === 0 && (note === undefined || note === null) && controls === undefined) {
         return null;
     }
 
@@ -104,6 +106,8 @@ export function FilterStatusStrip(props: FilterStatusStripProps): React.JSX.Elem
                     </button>
                 ),
             )}
+
+            {controls}
 
             {note === undefined || note === null ? null : (
                 <span style={chipStyle}>

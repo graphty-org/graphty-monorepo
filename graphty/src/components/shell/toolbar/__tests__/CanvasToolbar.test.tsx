@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { render, screen, within } from "../../../../test/test-utils";
+import { render, screen, TOOLTIP_FIND_OPTIONS, within } from "../../../../test/test-utils";
 import {
     CANVAS_TOOLBAR_BOTTOM_OFFSET_BASE,
     CANVAS_TOOLBAR_DESKTOP,
@@ -208,7 +208,9 @@ describe("CanvasToolbar", () => {
 
             await user.hover(screen.getByRole("button", { name: ZOOM_TO_SELECTION_DISABLED_NAME }));
 
-            expect(await screen.findByText(ZOOM_TO_SELECTION_DISABLED_NAME)).toBeInTheDocument();
+            expect(
+                await screen.findByText(ZOOM_TO_SELECTION_DISABLED_NAME, {}, TOOLTIP_FIND_OPTIONS),
+            ).toBeInTheDocument();
         });
     });
 

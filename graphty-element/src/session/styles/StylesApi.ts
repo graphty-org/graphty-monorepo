@@ -72,13 +72,16 @@
 
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
 import type {
+    AttributeDescriptor,
     Binding,
     Channel,
     EdgeId,
+    Encoding,
     FieldDescriptor,
     LayerId,
     LayerSource,
     LayerSpec,
+    MeasurementDeclaration,
     NodeId,
     PaletteDescriptor,
     Path,
@@ -89,6 +92,7 @@ import type {
 } from "../../catalog/types";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { GraphtyError } from "../../errors";
+import { resolveColumn } from "../columns";
 import {
     STYLE_DEFINITIONS,
     type StyleCommand,
@@ -116,11 +120,21 @@ import {
     type RunTicket,
 } from "../runs";
 import { sealedSet } from "../sealed";
+import type { CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { beneathAuthored } from "./autoApply";
 import { channelDescriptor, isChannel } from "./channels";
 import type { PreparedBinding } from "./encoding";
-import { type EncodingRun, type EncodingSource, type EncodingSpec, planEncoding } from "./EncodingSpec";
+import {
+    type ColumnEncodingSpec,
+    type EncodingProposal,
+    type EncodingRun,
+    type EncodingSource,
+    type EncodingSpec,
+    planColumnEncoding,
+    planEncoding,
+    proposeColumnBinding,
+} from "./EncodingSpec";
 import {
     type ExplainSources,
     explainStyle,
@@ -323,13 +337,41 @@ export interface StylesApi {
      * over in place, keeping its id and its position, so a run that was encoded twice leaves one
      * layer and one legend block rather than two. Any other layer writing that channel is left
      * alone: an encoding replaces a derived layer, not a decision somebody made.
-     * @param spec - The run, the channel and the taste.
+     *
+     * A PLAIN DATA COLUMN is encoded the same way, with `column` in place of `run`. Whatever the
+     * spec leaves off is chosen from what the column measures (`session.data.declare`) and
+     * written into the new layer: one color per value for a categorical column, a ramp or a size
+     * range of 1 to 3 for a quantitative one, the declared order for an ordinal one. A later
+     * declaration or a new file never changes a layer that already exists. A column encoding adds
+     * a layer; it does not replace one.
+     *
+     * ```ts
+     * await session.styles.encode({ column: { kind: "node", name: "department" }, channel: "node.color" });
+     * ```
+     * @param spec - The run or the column, the channel and the taste.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the layer, and rejects with `E_UNKNOWN_RUN` for a run this
-     *     session does not hold, `E_UNKNOWN_ATTRIBUTE` for a field it does not publish, and
-     *     `E_BAD_COMMAND` when the result has nothing per element to bind a channel to.
+     *     session does not hold, `E_UNKNOWN_ATTRIBUTE` for a field or column that does not exist,
+     *     `E_BAD_COMMAND` when the result has nothing per element to bind a channel to, and with
+     *     the refusal's code (see {@link StylesApi.proposeEncoding}) when a column cannot be drawn
+     *     on the channel by default.
      */
-    encode(spec: EncodingSpec, options?: RunOptions): Run<Layer>;
+    encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
+    /**
+     * What `encode()` would store for a spec, without storing anything: the binding, or why the
+     * column or field cannot be drawn on that channel by default.
+     *
+     * SYNCHRONOUS and cheap: it reads the cached attribute descriptors, never the column, so a
+     * menu can ask it for every column and channel on every render.
+     *
+     * A refusal is a coded fact whose codes `EncodingRefusalCode` lists; a run spec's refusal carries
+     * the code `E_BAD_COMMAND` that `encode()` would reject with.
+     * @param spec - What `encode()` would be asked.
+     * @returns `{ ok: true, binding }` or `{ ok: false, refusal }`.
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE`, `E_UNKNOWN_RUN` or `E_UNKNOWN_CHANNEL`
+     *     for something that does not exist.
+     */
+    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     /**
      * Paint the elements a run chose: a route, a chosen set of nodes, a chosen set of edges.
      *
@@ -407,6 +449,34 @@ export interface StylesApi {
      *     `E_BAD_COMMAND` when that layer works the channel out from nothing.
      */
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
+    /**
+     * Hide or show the paint of one value of a layer's encoding -- one group of a community run's
+     * colours, say -- as one undoable step that is saved with the project.
+     *
+     * The value is hidden in `channel` and in every other channel of the layer that reads the same
+     * field, so a group drawn by colour and shape disappears from both; a channel reading another
+     * field is left alone, because a value of one field is not the same value in another. An
+     * element carrying it is drawn as the layers beneath paint it, as an unmeasured element is.
+     * The legend keeps the value's row, marked `hidden`, with the colour it comes back in. Values
+     * are compared as the legend spells them, so `0` and `"0"` are the same group; pass the
+     * `channel` and a swatch `value` of a legend block, or the `group` of a run summary's group.
+     * @param id - The layer, such as the one `encode()` returned.
+     * @param channel - The channel whose value it is, such as a legend block's `channel`.
+     * @param value - The value to hide or show.
+     * @param hidden - True to hide it, false to paint it again.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layer as it now stands (its bindings' `hidden` lists),
+     *     and rejects with `E_PROTECTED` for an element-owned layer, `E_UNKNOWN_LAYER` for an id
+     *     the stack does not hold, and `E_BAD_COMMAND` when the layer does not encode `channel`
+     *     from the data.
+     */
+    setValueHidden(
+        id: LayerId,
+        channel: Channel,
+        value: string | number | boolean,
+        hidden: boolean,
+        options?: RunOptions,
+    ): Run<Layer>;
     /**
      * Add a saved stack of layers to this one.
      *
@@ -548,6 +618,19 @@ export interface StylesSources {
      */
     readonly runs?: EncodingSource;
     /**
+     * Where a column encoding looks its column up. Absent, `encode({ column })` and
+     * `proposeEncoding({ column })` refuse with `E_UNSUPPORTED`.
+     */
+    readonly columns?: {
+        /** @returns What `session.data.attributes()` lists now. */
+        attributes(): readonly AttributeDescriptor[];
+        /**
+         * @param column - The column.
+         * @returns What it was declared to measure, if anything.
+         */
+        declaration(column: ColumnRef): MeasurementDeclaration | undefined;
+    };
+    /**
      * The prepared bindings the last repaint painted from, by layer.
      *
      * What {@link StylesApi.legend} and {@link StylesApi.explain} read, which is what makes both
@@ -594,6 +677,13 @@ export interface StylesSources {
      * @returns The words, or undefined when nothing in the session names that path.
      */
     readonly field?: (path: Path, target: SelectorTarget) => FieldWords | undefined;
+    /**
+     * Each group's place by size in one run, from the run's `sizes` table, keyed by the group as
+     * a category name. Absent, a legend ranks a run's groups by their place among its swatches.
+     * @param runId - The run.
+     * @returns The rank by group, or undefined when the run has no sizes table.
+     */
+    readonly groupRanks?: (runId: RunId) => ReadonlyMap<string, number> | undefined;
     /**
      * What paints the elements a change touched.
      *
@@ -952,6 +1042,24 @@ function badCommand(message: string, details: Readonly<Record<string, unknown>>)
 }
 
 /**
+ * An error's details as a coded fact's params: the plain values only.
+ * @param details - The details.
+ * @returns The params.
+ */
+function plainParams(details: unknown): Record<string, CodedFactParam> {
+    const params: Record<string, CodedFactParam> = {};
+    for (const [key, value] of Object.entries((details ?? {}) as Record<string, unknown>)) {
+        const plain = (entry: unknown): boolean =>
+            entry === null || ["string", "number", "boolean"].includes(typeof entry);
+        if (plain(value) || (Array.isArray(value) && value.every(plain))) {
+            params[key] = value as CodedFactParam;
+        }
+    }
+
+    return params;
+}
+
+/**
  * The refusal a run-bound verb gets in a session that cannot look a run up.
  * @param verb - What was being attempted.
  * @returns The error to reject with.
@@ -1064,6 +1172,54 @@ function halfOfStyle(set: StaticStyle | undefined, half: SelectorTarget): Static
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * The patch that hides or shows one value in the bindings of a layer that read one field.
+ *
+ * Only the bindings reading the same field as `channel` are touched: a value of one field is not
+ * the same value in another, so hiding community 2 must not hide the nodes whose degree is 2.
+ * @param layer - The layer, or undefined when the stack holds none with that id.
+ * @param channel - The channel whose field the value belongs to.
+ * @param value - The value.
+ * @param hidden - Whether to hide it.
+ * @returns The patch: the layer's whole `encode` with the matching bindings' `hidden` lists
+ *   updated, or nothing to change for a layer that is not there (the update then refuses it).
+ * @throws `E_BAD_COMMAND` when the layer does not encode `channel` from the data.
+ */
+function hiddenValuePatch(
+    layer: Layer | undefined,
+    channel: Channel,
+    value: string | number | boolean,
+    hidden: boolean,
+): Partial<LayerSpec> {
+    if (layer === undefined) {
+        return {};
+    }
+
+    const own = layer.encode?.[channel];
+    if (own === undefined || !("by" in own)) {
+        throw badCommand(`Layer ${layer.id} does not encode ${channel} from the data, so it has no value to hide.`, {
+            id: layer.id,
+            channel,
+        });
+    }
+
+    const encode: Encoding = {};
+    for (const [name, binding] of Object.entries(layer.encode ?? {}) as [Channel, Binding][]) {
+        if (!("by" in binding) || binding.by !== own.by) {
+            encode[name] = binding;
+            continue;
+        }
+
+        // The same spelling the legend compares by: 0 and "0" are one value.
+        const kept = (binding.hidden ?? []).filter((entry) => String(entry) !== String(value));
+        const list = hidden ? [...kept, value] : kept;
+        const { hidden: _previous, ...rest } = binding;
+        encode[name] = list.length === 0 ? rest : { ...rest, hidden: list };
+    }
+
+    return { encode };
+}
+
+/**
  * Build the style stack one session holds.
  * @param sources - What a selector compiles against, the element's own layers, the scales, the
  *     repaint seam, the dispatcher and the change hook.
@@ -1156,6 +1312,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         encoding: encodingOf,
         scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
+        ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         // Only a `{match:"has"}` layer below can be answered: its elements are the ones a column
         // lists, and each is put to the compiled test of the layer above. Every other shape would
         // need a walk over the whole graph, and a legend is read on every style change.
@@ -1469,6 +1626,40 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns Where a run is looked up.
      * @throws A `GraphtyError` with code `E_UNSUPPORTED` when no lookup was handed in.
      */
+    /**
+     * The column a column encoding names, and its declaration.
+     * @param spec - The column encoding.
+     * @returns The column's descriptor and declaration.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` in a session with no columns, and
+     *     `E_UNKNOWN_ATTRIBUTE` for a column no record carries.
+     */
+    const columnOf = (
+        spec: ColumnEncodingSpec,
+    ): { column: AttributeDescriptor; declaration: MeasurementDeclaration | undefined } => {
+        const { columns } = sources;
+        if (columns === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "This session holds no data columns to encode.",
+                source: "style",
+                details: { op: "styles.encode" },
+            });
+        }
+
+        const column = resolveColumn(columns.attributes(), spec.column);
+        return { column, declaration: columns.declaration(column) };
+    };
+
+    /**
+     * The layer a column encoding adds, with its defaults written in.
+     * @param spec - The column encoding.
+     * @returns The layer.
+     */
+    const planColumn = (spec: ColumnEncodingSpec): LayerSpec => {
+        const { column, declaration } = columnOf(spec);
+        return planColumnEncoding(spec, column, declaration, scales);
+    };
+
     const requireRuns = (verb: string): EncodingSource => {
         const { runs } = sources;
 
@@ -2080,13 +2271,42 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        encode(spec: EncodingSpec, options: RunOptions = {}): Run<Layer> {
+        encode(spec: EncodingSpec | ColumnEncodingSpec, options: RunOptions = {}): Run<Layer> {
+            if ("column" in spec) {
+                // Planned when the edit runs and stored as a plain layer, so undo, redo and a
+                // replay draw exactly the binding chosen now.
+                return edit<Layer>(
+                    "encode",
+                    `Encode ${spec.channel}`,
+                    () => ({ op: "style.patch", action: "add", spec: planColumn(spec) }),
+                    options,
+                );
+            }
+
             return edit<Layer>(
                 "encode",
                 `Encode ${spec.channel}`,
                 { op: "style.encode", spec: { ...spec, run: runIdOf(spec.run) } },
                 options,
             );
+        },
+
+        proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal {
+            if ("column" in spec) {
+                const { column, declaration } = columnOf(spec);
+                return proposeColumnBinding(spec, column, declaration, scales);
+            }
+
+            try {
+                const planned = planEncoding(spec, requireRuns("proposeEncoding"));
+                return { ok: true, binding: planned.encode?.[spec.channel] as Extract<Binding, { by: Path }> };
+            } catch (error) {
+                if (!(error instanceof GraphtyError) || error.code !== "E_BAD_COMMAND") {
+                    throw error;
+                }
+
+                return { ok: false, refusal: { code: error.code, params: plainParams(error.details) } };
+            }
         },
 
         highlight(spec: HighlightSpec, options: RunOptions = {}): Run<readonly Layer[]> {
@@ -2103,6 +2323,31 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 "resolve",
                 `Fix ${channel} on layer ${id}`,
                 { op: "style.patch", action: "resolveToStatic", id, channel, ...(at === undefined ? {} : { at }) },
+                options,
+            );
+        },
+
+        setValueHidden(
+            id: LayerId,
+            channel: Channel,
+            value: string | number | boolean,
+            hidden: boolean,
+            options: RunOptions = {},
+        ): Run<Layer> {
+            return edit<Layer>(
+                "update",
+                `${hidden ? "Hide" : "Show"} ${String(value)} on layer ${id}`,
+                (state) => ({
+                    op: "style.patch",
+                    action: "update",
+                    id,
+                    patch: hiddenValuePatch(
+                        state.styles.find((entry) => entry.layer.id === id)?.layer,
+                        channel,
+                        value,
+                        hidden,
+                    ),
+                }),
                 options,
             );
         },

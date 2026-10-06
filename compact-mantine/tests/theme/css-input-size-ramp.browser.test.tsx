@@ -2,21 +2,13 @@
  * The rendered height of every multi-value and native input follows its size prop.
  *
  * MultiSelect, TagsInput and PillsInput used to pin their field at a static
- * 24px min-height whatever size they were given, and NativeSelect and
- * ColorInput had no compact extension here at all (the graphty app styled
- * them itself, at one frozen size). Each is measured at every size token:
- * the height must rise from xs to md to xl, and the default must be the
- * compact 24px.
+ * 24px min-height whatever size they were given, and NativeSelect had no
+ * compact extension here at all (the graphty app styled it itself, at one
+ * frozen size). Each is measured at every size token:
+ * the height must rise from xs to md to xl (20, 32, 44), and the default must
+ * be the compact 24px.
  */
-import {
-    ColorInput,
-    MantineProvider,
-    type MantineSize,
-    MultiSelect,
-    NativeSelect,
-    PillsInput,
-    TagsInput,
-} from "@mantine/core";
+import { MantineProvider, type MantineSize, MultiSelect, NativeSelect, PillsInput, TagsInput } from "@mantine/core";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -36,7 +28,6 @@ const components: [string, Sized][] = [
         ),
     ],
     ["NativeSelect", (size) => <NativeSelect size={size} label="Field" data={["A", "B"]} />],
-    ["ColorInput", (size) => <ColorInput size={size} label="Field" />],
 ];
 
 /**
@@ -47,7 +38,9 @@ const components: [string, Sized][] = [
  */
 function measure(name: string, ui: React.ReactElement): number {
     const { container } = render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-    const input = container.querySelector(`.mantine-${name}-input`);
+    // The wrapper, not the input: an outlined field (NativeSelect) draws its 1px border on the
+    // wrapper and its input is 2px shorter inside it.
+    const input = container.querySelector(`.mantine-${name}-wrapper`);
     expect(input).not.toBeNull();
     const height = input?.getBoundingClientRect().height ?? 0;
     cleanup();
@@ -69,7 +62,7 @@ describe("multi-value and native inputs follow the size scale (Browser)", () => 
             const md = measure(name, sized("md"));
             const xl = measure(name, sized("xl"));
             expect(xs).toBe(20);
-            expect(md).toBe(30);
+            expect(md).toBe(32);
             expect(xl).toBe(44);
         });
     }

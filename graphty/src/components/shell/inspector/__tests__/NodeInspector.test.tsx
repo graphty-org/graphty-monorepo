@@ -313,8 +313,8 @@ describe("NodeInspector", () => {
 
             fireEvent.click(screen.getByTestId("inspector-actions-more"));
 
-            expect(await screen.findByRole("menuitem", { name: "Ego network" })).toHaveAttribute("data-disabled");
-            expect(screen.getByRole("menuitem", { name: "Merge with..." })).toHaveAttribute("data-disabled");
+            expect(await screen.findByRole("menuitem", { name: "Merge with..." })).toHaveAttribute("data-disabled");
+            expect(screen.getByRole("menuitem", { name: "Ego network" })).not.toHaveAttribute("data-disabled");
             expect(screen.getByRole("button", { name: "Frame this node" })).toBeEnabled();
         });
 

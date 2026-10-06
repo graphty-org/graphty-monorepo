@@ -210,6 +210,30 @@ describe("camera doors", () => {
     );
 
     it(
+        "zoomToSelection centres the camera on a selected edge's ends",
+        async () => {
+            const graph = await loadedGraph("3d");
+            const session = graph.getSession();
+            const [edge] = session.data.edges();
+            await session.selection.apply({ edges: [edge.id] });
+            assert.lengthOf(session.selection.nodes, 0, "only the edge is selected");
+            const ends = [edge.source, edge.target].map((id) => graph.getNodeMesh(String(id))?.position);
+            await compare(
+                graph,
+                "zoomToSelection on an edge",
+                async () => {
+                    const [a, b] = ends;
+                    assert.isDefined(a);
+                    assert.isDefined(b);
+                    await graph.setCameraTarget({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 });
+                },
+                () => graph.zoomToSelection(),
+            );
+        },
+        TEST_TIMEOUT_MS,
+    );
+
+    it(
         "zoomToSelection with nothing selected leaves the camera where it is",
         async () => {
             const graph = await loadedGraph("3d");

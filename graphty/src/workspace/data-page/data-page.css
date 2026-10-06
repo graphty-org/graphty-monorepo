@@ -1,0 +1,74 @@
+/* The Data page (tier1-design.md section 2.10). Colors come only from compact-mantine's --cm-* tokens. */
+
+.dp {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    height: 100%;
+    min-height: 0;
+    background: var(--cm-bg);
+    color: var(--cm-text);
+}
+
+.dp-header {
+    padding: 12px 16px 8px;
+}
+
+.dp-body {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    min-height: 0;
+    border-top: 1px solid var(--cm-border);
+}
+
+.dp-tables {
+    min-height: 0;
+    overflow: auto;
+    padding: 8px;
+    border-inline-end: 1px solid var(--cm-border);
+}
+
+.dp-section-head {
+    padding: 0 4px 4px;
+}
+
+.dp-main {
+    min-height: 0;
+    overflow: auto;
+}
+
+.dp-roles {
+    /* A fieldset: drop the browser's border, padding and margin. */
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+.dp-role {
+    width: 160px;
+}
+
+.dp-auto {
+    margin-inline-start: 4px;
+    color: var(--cm-text-menu-secondary);
+    font-size: 11px;
+}
+
+.dp-report {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 16px;
+    border-top: 1px solid var(--cm-border);
+}
+
+.dp-footer {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 8px 16px 12px;
+    border-top: 1px solid var(--cm-border);
+}

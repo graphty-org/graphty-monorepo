@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 /**
- * check-bundle-size.mjs -- a gzip budget for every JavaScript entry point graphty-element publishes.
+ * check-bundle-size.mjs -- a minified, gzipped size budget for every JavaScript entry point
+ * graphty-element publishes.
  *
  * For each entry in graphty-element/package.json `exports` that points at a .js file, this measures
  * the entry file plus every file it statically imports from dist/ (the shared chunks under
- * dist/chunks/, followed transitively), gzips each file, and compares the sum with the entry's
- * budget in graphty-element/size-budgets.json. Dynamic import() is not followed: a lazily loaded
- * chunk is not part of what a consumer downloads to load the entry. Bare imports (babylonjs, lit)
+ * dist/chunks/, followed transitively), minifies each file with esbuild (through Vite), gzips it,
+ * and compares the sum with the entry's budget in graphty-element/size-budgets.json. The library
+ * build is not minified, so measuring dist/ as it stands would count JSDoc and whitespace that a
+ * bundler strips before any user downloads it; minifying first measures the code that ships.
+ * Dynamic import() is not followed: a lazily loaded chunk is not part of what a consumer
+ * downloads to load the entry. Bare imports (babylonjs, lit)
  * are external to dist/ and are not counted; the Node-safe entry points are kept free of those by
  * graphty-element/test/packaging/node-safe-entries.test.ts.
  *
@@ -26,6 +30,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
+
+import { transformWithEsbuild } from "vite";
 
 const pkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "graphty-element");
 const budgetFile = path.join(pkgDir, "size-budgets.json");
@@ -63,7 +69,8 @@ for (const [name, target] of Object.entries(exports)) {
     }
     let bytes = 0;
     for (const f of closure(entry)) {
-        bytes += gzipSync(fs.readFileSync(f), { level: 9 }).length;
+        const { code } = await transformWithEsbuild(fs.readFileSync(f, "utf8"), f, { minify: true, format: "esm" });
+        bytes += gzipSync(code, { level: 9 }).length;
     }
     measured[name] = bytes;
 }
@@ -84,12 +91,12 @@ for (const [name, bytes] of Object.entries(measured)) {
     const budget = budgets.entries[name];
     if (budget === undefined) {
         failed++;
-        console.error(`${name}: ${kb(bytes)} gzip, but size-budgets.json has no budget for this entry point`);
+        console.error(`${name}: ${kb(bytes)} minified+gzip, but size-budgets.json has no budget for this entry point`);
     } else if (bytes > budget) {
         failed++;
-        console.error(`${name}: ${kb(bytes)} gzip is ${kb(bytes - budget)} over its budget of ${kb(budget)}`);
+        console.error(`${name}: ${kb(bytes)} minified+gzip is ${kb(bytes - budget)} over its budget of ${kb(budget)}`);
     } else {
-        console.log(`${name}: ${kb(bytes)} gzip, budget ${kb(budget)} (${kb(budget - bytes)} left)`);
+        console.log(`${name}: ${kb(bytes)} minified+gzip, budget ${kb(budget)} (${kb(budget - bytes)} left)`);
     }
 }
 for (const name of Object.keys(budgets.entries)) {

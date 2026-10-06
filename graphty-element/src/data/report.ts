@@ -50,7 +50,11 @@ export interface ImportReport {
         readonly nodeRecords: number;
         /** Edge records handed over, however many of them became edges. */
         readonly edgeRecords: number;
-        /** Records whose endpoint ids the store would not take, so they became no edge at all. */
+        /**
+         * Records that became nothing: an edge record whose endpoint ids the store would not
+         * take, and a node record with no usable id (absent, null, or not a string or a finite
+         * number). `LoadDraft.rows(id, { only: "rejected" })` lists them before a load.
+         */
         readonly rejected: number;
     };
     /** What happened to the records that named a pair the graph already held. */
@@ -78,6 +82,38 @@ export interface ImportReport {
         /** Edges stored without one, matched by position among their pair's edges. */
         readonly byPosition: number;
     };
+}
+
+/** What `E_TOO_LARGE` carries in `details` when a load would pass the element's limit. */
+export interface TooLargeDetails {
+    /** The most the element holds of {@link of}. */
+    readonly limit: number;
+    /** How many the graph would hold. */
+    readonly count: number;
+    /** What is counted. */
+    readonly of: "nodes" | "edges";
+    /** What the graph held when the load was refused. */
+    readonly graph: { readonly nodes: number; readonly edges: number };
+}
+
+/**
+ * An {@link ImportReport} plus two facts a reader checks before and after a load:
+ * `session.data.lastImport()` and `LoadDraft.report()` both return it.
+ */
+export interface LoadReport extends ImportReport {
+    /** Edge rows naming a node no node row (nor the graph, for a merge) held, and how many distinct such names. */
+    readonly unmatched: { readonly rows: number; readonly values: number };
+    /** The details `E_TOO_LARGE` would carry; null when the load fits. Always null after a real load, which refuses instead. */
+    readonly tooLarge: TooLargeDetails | null;
+    /**
+     * Node rows whose id an earlier node row of the same load already gave: `rows` is how many
+     * such rows there are, and `ids` the distinct ids, in the order they first repeated. What
+     * became of them is `LoadChoices.duplicateIds`; under `"refuse"` a load refuses with
+     * `E_DUPLICATE_ID` and a report counts them here. Counted for CSV and JSON node records; a
+     * graph file (GraphML, GEXF, GML, ...) has a repeated id folded by its parser before the
+     * element sees it, so it is not counted.
+     */
+    readonly duplicates: { readonly rows: number; readonly ids: readonly (string | number)[] };
 }
 
 /**
@@ -109,6 +145,18 @@ export interface ImportTally {
     edgesById: number;
     /** Edges stored without one. */
     edgesByPosition: number;
+    /** Edge records naming a node no node record held. */
+    unmatchedRows: number;
+    /** The distinct names those records used. */
+    readonly unmatchedValues: Set<unknown>;
+    /** The first limit a measured load passed. */
+    tooLarge: TooLargeDetails | null;
+    /** The node ids this load's node records have given so far. */
+    readonly nodeIds: Set<unknown>;
+    /** Node records repeating an id an earlier one gave. */
+    duplicateRows: number;
+    /** The distinct ids they repeated. */
+    readonly duplicateIds: Set<string | number>;
 }
 
 /**
@@ -128,6 +176,12 @@ export function newImportTally(): ImportTally {
         weightsAttribute: null,
         edgesById: 0,
         edgesByPosition: 0,
+        unmatchedRows: 0,
+        unmatchedValues: new Set(),
+        tooLarge: null,
+        nodeIds: new Set(),
+        duplicateRows: 0,
+        duplicateIds: new Set(),
     };
 }
 
@@ -153,7 +207,7 @@ interface ImportReportContext {
  * @param context - who loaded what, and what the graph holds now
  * @returns the frozen report
  */
-export function sealImportReport(tally: ImportTally, context: ImportReportContext): ImportReport {
+export function sealImportReport(tally: ImportTally, context: ImportReportContext): LoadReport {
     return Object.freeze({
         format: context.format,
         endpoints: Object.freeze({ ...context.endpoints }),
@@ -180,5 +234,8 @@ export function sealImportReport(tally: ImportTally, context: ImportReportContex
             byId: tally.edgesById,
             byPosition: tally.edgesByPosition,
         }),
+        unmatched: Object.freeze({ rows: tally.unmatchedRows, values: tally.unmatchedValues.size }),
+        tooLarge: tally.tooLarge,
+        duplicates: Object.freeze({ rows: tally.duplicateRows, ids: Object.freeze([...tally.duplicateIds]) }),
     });
 }

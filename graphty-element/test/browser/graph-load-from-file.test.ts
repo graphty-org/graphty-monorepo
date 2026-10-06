@@ -76,4 +76,38 @@ describe("Graph.loadFromFile", () => {
 
         assert.isTrue(errorThrown, "Should throw error for unknown format");
     });
+
+    // A file is bytes, and the importer decodes them. Read as text first, a Latin-1 file whose
+    // XML declaration says so lost every accented letter to the UTF-8 replacement character.
+    const latin1Graphml = (): File => {
+        const xml =
+            '<?xml version="1.0" encoding="ISO-8859-1"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns">' +
+            '<key id="l" for="node" attr.name="label" attr.type="string"/>' +
+            `<graph><node id="a"><data key="l">Caf${String.fromCharCode(0xe9)}</data></node><node id="b"/></graph></graphml>`;
+        return new File([Uint8Array.from(xml, (char) => char.charCodeAt(0))], "cafe.graphml");
+    };
+
+    test("reads a file as bytes, so its declared encoding is honoured", async () => {
+        const { Graph } = await import("../../src/Graph.js");
+        const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
+        const graph = new Graph(canvas);
+
+        await graph.loadFromFile(latin1Graphml());
+
+        assert.include(JSON.stringify(graph.getSession().data.nodes()), `Caf${String.fromCharCode(0xe9)}`);
+    });
+
+    test("refuses a choice of a second graph from a format that holds one", async () => {
+        const { Graph } = await import("../../src/Graph.js");
+        const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
+        const graph = new Graph(canvas);
+
+        try {
+            await graph.loadFromFile(latin1Graphml(), { graphIndex: 1 });
+            assert.fail("expected a refusal");
+        } catch (error) {
+            assert.isTrue(isGraphtyError(error), String(error));
+            assert.strictEqual((error as GraphtyError).code, "E_OPTION_RANGE");
+        }
+    });
 });

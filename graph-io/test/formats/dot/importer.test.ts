@@ -520,6 +520,44 @@ describe("dot importer: the grammar", () => {
         expect(cell(snapshot, "edges", "pos", 0)).toBe("e,1,2 3,4");
     });
 
+    it("reads every pos spelling of a point and rejects the rest", async () => {
+        const spellings: [string, number[] | null, boolean][] = [
+            [" 1.5 , -2e3 ", [1.5, -2000, 0], false],
+            [".5,.5", [0.5, 0.5, 0], false],
+            ["+1,-2,3e-2 ! ", [1, -2, 0.03], true],
+            ["1,2 !", [1, 2, 0], true],
+            ["1e5,2E+3", [100000, 2000, 0], false],
+            ["1.,2", null, false],
+            ["-.5,5.", null, false],
+            ["1,2,", null, false],
+            ["1,2!x", null, false],
+            ["1 2", null, false],
+            ["1,2,3,4", null, false],
+        ];
+        for (const [text, point, pinned] of spellings) {
+            const { snapshot, report } = await load(`digraph { a [pos="${text}"] }`);
+            const position = snapshot.nodes.byRole("position");
+            if (point === null) {
+                expect(codes(report), text).toEqual([DOT_ISSUE.BAD_POS]);
+                expect(position?.isSet(0) ?? false, text).toBe(false);
+                continue;
+            }
+            expect(codes(report), text).toEqual([]);
+            expect(Array.from(position?.value(0) as ArrayLike<number>), text).toEqual(point.map((v) => Math.fround(v)));
+            expect(nodeCell(snapshot, "a", "pin"), text).toBe(pinned ? true : null);
+        }
+    });
+
+    it("rejects a pathologically long pos in linear time", async () => {
+        // A run of digits, and a run of spaces before a bad character, each took quadratic time
+        // (about 10 s apiece at this length) when the point pattern could split a run two ways.
+        const n = 200_000;
+        const started = performance.now();
+        const { report } = await load(`digraph { a [pos="${"1".repeat(n)}x"]; b [pos="1,1${" ".repeat(n)}x"] }`);
+        expect(performance.now() - started).toBeLessThan(2000);
+        expect(codes(report)).toEqual([DOT_ISSUE.BAD_POS, DOT_ISSUE.BAD_POS]);
+    });
+
     it("keeps a node pos as written text with positions false", async () => {
         const { snapshot, report } = await load('digraph { a [pos="1,2!"]; b [pos="nope"] }', { positions: false });
         expect(codes(report)).toEqual([]);

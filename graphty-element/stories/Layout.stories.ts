@@ -15,6 +15,7 @@ import {
     drawn,
     holds,
 } from "./assertions";
+import { data3FixedUrl, data3Url } from "./datasets";
 import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
 
 /**
@@ -218,7 +219,7 @@ const meta: Meta = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
     },
 };
@@ -311,7 +312,7 @@ export const Circular: Story = {
     args: {
         dataSource: "json", // Add data source
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
         setup: storySetup({ viewMode: "3d" }),
         layout: "circular",
@@ -390,7 +391,7 @@ export const KamadaKawai: Story = {
     args: {
         dataSource: "json", // Add data source
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
         setup: storySetup({ viewMode: "3d" }),
         layout: "kamada-kawai",
@@ -422,7 +423,7 @@ export const ForceAtlas2: Story = {
     args: {
         dataSource: "json", // Add data source
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
         /*
          * `preSteps` MATCHES `maxIter` BELOW, so under Chromatic the 500 iterations run before the
@@ -535,7 +536,7 @@ export const Fixed: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3-fixed-positions.json",
+            data: data3FixedUrl,
         },
         layout: "fixed",
         layoutConfig: {

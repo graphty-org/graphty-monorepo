@@ -8,6 +8,7 @@ import {
     accumulateMerged,
     backfillRefs,
     commitRefs,
+    landStacked,
     MERGED_QUERY,
     parseMerged,
     REFS_QUERY,
@@ -61,6 +62,7 @@ describe("parseMerged", () => {
                 number: 1,
                 title: "t",
                 headRef: null,
+                base: null,
                 mergedAt: "x",
                 mergeSha: null,
                 closes: [],
@@ -135,6 +137,49 @@ describe("references on master", () => {
         const once = accumulateMerged({ pending: [] }, /** @type {any} */ ([pr]));
         expect(once.refs).toEqual({ 7: ["#550"], 422: ["#550"] });
         expect(accumulateMerged({ ...once, pending: [] }, /** @type {any} */ ([pr])).refs).toEqual(once.refs);
+    });
+
+    it("counts a pull request merged into another pull request's branch only once it lands (#696 into #617's branch)", async () => {
+        const pr = {
+            number: 696,
+            base: "feat/edge-styles",
+            mergedAt: "2026-10-03T00:00:00Z",
+            mergeSha: "fb5463ac4",
+            closes: [620],
+            mentions: [619],
+            paths: [],
+            truncated: false,
+        };
+        const once = accumulateMerged({ pending: [] }, /** @type {any} */ ([pr]), "master");
+        expect(once.refs).toEqual({});
+        expect(once.closed).toEqual([]);
+        expect(once.pending).toEqual([]);
+        expect(once.stacked.map((p) => p.number)).toEqual([696]);
+        expect(await landStacked(once, async () => false)).toBe(once);
+        const landed = await landStacked(once, async (sha) => sha === "fb5463ac4");
+        expect(landed.stacked).toEqual([]);
+        expect(landed.refs).toEqual({ 619: ["#696"], 620: ["#696"] });
+        // GitHub closed nothing: the issue it would close stays open, to be judged
+        expect(landed.closed).toEqual([]);
+        expect(landed.pending.map((p) => [p.number, p.mentions])).toEqual([[696, [619, 620]]]);
+    });
+
+    it("backfills only merges based on the default branch or since taken into it", async () => {
+        const node = (number, baseRefName, oid) => ({
+            number,
+            title: "",
+            body: "Refs #619",
+            baseRefName,
+            mergedAt: "x",
+            mergeCommit: { oid },
+        });
+        const gitHub = {
+            graphql: async () => ({
+                search: { nodes: [node(696, "feat/a", "a"), node(700, "feat/b", "b"), node(701, "master", "c")] },
+            }),
+        };
+        const refs = await backfillRefs(gitHub, "o/r", "2026-01-01T00:00:00Z", "master", async (sha) => sha === "b");
+        expect(refs).toEqual({ 619: ["#700", "#701"] });
     });
 
     it("backfills the references of earlier merges once, page by page", async () => {

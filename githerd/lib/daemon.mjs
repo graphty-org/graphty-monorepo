@@ -118,7 +118,7 @@ import { flakePoll, masterFlakeStep, noteMasterLog, readWorkspace } from "./flak
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
-import { accumulateMerged, backfillRefs, commitRefs, searchMerged } from "./merged.mjs";
+import { accumulateMerged, backfillRefs, commitRefs, landStacked, searchMerged } from "./merged.mjs";
 import { sessionWriteCheck } from "./session-writes.mjs";
 import {
     foldHead,
@@ -664,6 +664,8 @@ export async function startDaemon({
     state.incidents ??= {};
     state.issues ??= { since: null, byNumber: {} };
     state.merged ??= { lastScanAt: null, pending: [], closed: [] };
+    // References kept before only landed merges counted may name a stacked merge: read them again.
+    if (!state.merged.landedOnly) Object.assign(state.merged, { refs: {}, refsBackfilled: false, landedOnly: true });
     state.rate ??= {};
     state.writes ??= { pending: [] };
     state.github ??= { downSince: null, lastError: null };
@@ -2176,7 +2178,7 @@ export async function startDaemon({
             const upkeep = (state.upkeep ??= { lastHeads: {}, mergedHeads: [] });
             const heads = merged.map((pr) => pr.headRef).filter((h) => h !== null);
             upkeep.mergedHeads = [...new Set([...upkeep.mergedHeads, ...heads])];
-            state.merged = accumulateMerged(state.merged, merged);
+            state.merged = accumulateMerged(state.merged, merged, branch);
             state.merged.lastScanAt ??= iso;
         }
         let fetchedNow = false;
@@ -2209,6 +2211,11 @@ export async function startDaemon({
      */
     async function followRefs(gh, branch, fetched) {
         const open = Object.entries(state.issues?.byNumber ?? {}).filter(([, i]) => i.state === "open");
+        const onBranch = async (/** @type {string} */ sha) =>
+            (await runGit(["merge-base", "--is-ancestor", sha, `origin/${branch}`])).code === 0;
+        // ponytail: a stacked merge whose parent never merges stays in `stacked` for good; a git
+        // call each per fetch. Drop ones whose parent closed unmerged if the list ever grows.
+        if (fetched && state.merged.stacked?.length) state.merged = await landStacked(state.merged, onBranch);
         if (!open.length) return;
         if (fetched || !state.merged.commitRefs) {
             // ponytail: the whole history's subjects, every master move; a few ms locally
@@ -2225,7 +2232,7 @@ export async function startDaemon({
                     .map(([, i]) => i.createdAt)
                     .filter(Boolean)
                     .sort((a, b) => a.localeCompare(b))[0] ?? "1970-01-01T00:00:00Z";
-            const refs = await backfillRefs(gh, config.repo, since);
+            const refs = await backfillRefs(gh, config.repo, since, branch, onBranch);
             state.merged.refs ??= {};
             for (const [n, list] of Object.entries(refs)) {
                 const have = (state.merged.refs[n] ??= []);

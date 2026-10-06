@@ -658,6 +658,22 @@ describe("syncJobs: issues", () => {
         );
     });
 
+    it("does not offer a verify job for a fix merged into another pull request's branch", () => {
+        const state = base();
+        issue(state, 619, LABELED);
+        state.merged = accumulateMerged(state.merged, [
+            /** @type {any} */ ({
+                number: 696,
+                base: "feat/x",
+                mergedAt: "2026-10-03T00:00:00Z",
+                closes: [],
+                mentions: [619],
+            }),
+        ]);
+        expect(sync(state).created).toEqual(["issue-619"]);
+        expect(state.jobs["issue-619"].facts.references).toBeUndefined();
+    });
+
     it("leaves an issue nothing on master names unchanged", () => {
         const state = base();
         issue(state, 906, LABELED);

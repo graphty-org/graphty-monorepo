@@ -98,6 +98,7 @@ import {
 } from "./master.mjs";
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
 import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
+import { labelMasterFixes, linkMasterFix } from "./master-fix.mjs";
 import { classify, isNoLog } from "./classify.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
@@ -231,7 +232,7 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
     defaultBranchRef { name target { oid } }
     pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
       nodes {
-        id number title isDraft createdAt updatedAt headRefName headRefOid baseRefName
+        id number title body isDraft createdAt updatedAt headRefName headRefOid baseRefName
         mergeable mergeStateStatus
         autoMergeRequest { enabledAt }
         labels(first: 20) { nodes { name } }
@@ -1251,6 +1252,7 @@ export async function startDaemon({
         try {
             const open = Object.values(state.incidents).find((i) => i.status === "open");
             if (open) await codeRedKeys(open, actions);
+            await labelMasterFixes(github(), config.repo, state);
             await parkedLanes(actions);
             if (config.lanes.release) await releaseArtifacts(actions, spent);
         } catch (err) {
@@ -1615,6 +1617,9 @@ export async function startDaemon({
         if (m.verdict !== previousVerdict) m.since = iso;
         noteGreenMove(m, previousGreen, iso);
         await track(m, previousGreen, iso);
+        for (const link of linkMasterFix(state, prList.repository.pullRequests.nodes)) {
+            event("master-fix-linked", link);
+        }
         await incidentSteps();
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);
         if (pace.level === "normal") await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
@@ -2246,7 +2251,7 @@ export async function startDaemon({
     /**
      * The pull requests that are a red master's fix, exempt from its merge hold (design 4.6, line
      * 2), which Mergify's priority rule puts first: every open incident job's pull request, every
-     * revert pull request the open incident's procedure opened, and every owner pull request
+     * revert pull request the open incident's procedure opened, every linked fix (master-fix.mjs), and every owner pull request
      * labelled `priority:critical` by the owner's account (the owner, or an incident's worker: the
      * guard refuses the label to every other worker).
      * @returns {number[]} their numbers
@@ -2260,7 +2265,8 @@ export async function startDaemon({
         const critical = Object.entries(state.prs ?? {})
             .filter(([, p]) => board.byOwner(state, p.author) && (p.ownerLabels ?? []).includes(CRITICAL))
             .map(([n]) => Number(n));
-        return [...new Set([...jobs, ...reverts, ...critical].filter((n) => n > 0))];
+        const linked = (state.master.fixPrs ?? []).map((/** @type {any} */ f) => Number(f.pr));
+        return [...new Set([...jobs, ...reverts, ...critical, ...linked].filter((n) => n > 0))];
     }
 
     /**

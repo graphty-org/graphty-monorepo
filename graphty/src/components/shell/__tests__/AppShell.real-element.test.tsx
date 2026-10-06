@@ -260,13 +260,11 @@ describe("the ego network with the real graphty-element", () => {
 
             // A node whose 2-hop neighborhood is wider than its 1-hop one and narrower than the
             // graph, so the depth visibly matters.
-            const seedRecord = session.data
-                .nodes()
-                .find((node) => {
-                    const two = hopsFrom(edges, String(node.id), 2).length;
+            const seedRecord = session.data.nodes().find((node) => {
+                const two = hopsFrom(edges, String(node.id), 2).length;
 
-                    return two > hopsFrom(edges, String(node.id), 1).length && two < total;
-                });
+                return two > hopsFrom(edges, String(node.id), 1).length && two < total;
+            });
             assert.isDefined(seedRecord, "karate has no node whose 2-hop neighborhood is a strict subset");
             const seed = String(seedRecord.id);
 

@@ -11,12 +11,12 @@ import { Button, Group, Text } from "@mantine/core";
 import React from "react";
 
 /** The hop depths the control offers. */
-export const EGO_NETWORK_DEPTHS = [1, 2, 3] as const;
+const EGO_NETWORK_DEPTHS = [1, 2, 3] as const;
 
 /**
  * Props of the ego network control.
  */
-export interface EgoNetworkControlProps {
+interface EgoNetworkControlProps {
     /** The filter's current depth, in hops. */
     readonly depth: number;
     /** Asks for the filter at another depth. */

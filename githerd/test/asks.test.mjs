@@ -252,6 +252,17 @@ describe("inviting idle sessions to pull work", () => {
         expect(f.sent).toHaveLength(2);
     });
 
+    it("names a verdict job's exact failure key in its invitation", async () => {
+        const KEY = "CI / Build / Security audit";
+        const id = "verdict-ci-build-security-audit";
+        const state = {
+            jobs: { [id]: newJob({ kind: "incident", target: KEY, id, facts: { scope: "verdict" } }, NOW) },
+        };
+        const f = fake();
+        await inviteStep(state, { ...f.opts(), offered: [{ job: id, reason: "master red" }] });
+        expect(f.sent[0][1]).toContain(`githerd_verdict takes its key exactly: ${KEY}.`);
+    });
+
     it("waits for an idle session, and skips a job that left the queue", async () => {
         const state = queued("issue-5", "triage-new-1");
         move(state.jobs["triage-new-1"], "starting", NOW, { holder: { session: "w1", nonce: "n" } });

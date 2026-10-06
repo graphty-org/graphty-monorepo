@@ -244,6 +244,25 @@ describe("sessionToolSet", () => {
         );
     });
 
+    it("claims a verdict job by its normalized id and by an id saved before ids were normalized", async () => {
+        const KEY = "CI / Build / Security audit";
+        const verdictJob = (/** @type {string} */ id) =>
+            newJob({ kind: "incident", target: KEY, id, facts: { scope: "verdict", key: KEY } }, NOW);
+        for (const id of ["verdict-ci-build-security-audit", "verdict-CI-Build-Security-audit"]) {
+            const { ctx } = setup({ jobs: { [id]: verdictJob(id) } });
+            const owner = { session: "o1" };
+            const next = JSON.parse((await call(ctx, "githerd_next", {}, owner)).text);
+            expect(next.offered[0].facts.key).toBe(KEY);
+            const claim = {
+                job: id,
+                snapshotVersion: next.snapshot.version,
+                overlap: { decision: "independent", reason: "alone" },
+                plan: "judge it",
+            };
+            expect(JSON.parse((await call(ctx, "githerd_claim", claim, owner)).text)).toMatchObject({ ok: true });
+        }
+    });
+
     it("waits on an issue with no job: makes its issue job, blocks on it, and offers it next", async () => {
         const queued = newJob({ kind: "issue", target: "#713", id: "issue-713" }, NOW);
         const issues = {

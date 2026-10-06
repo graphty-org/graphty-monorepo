@@ -95,8 +95,8 @@ describe("syncJobs: incidents", () => {
             lastGreenSha: "a".repeat(40),
             keys: { "CI / Build / Run build": { lane: "ci", outcome: "waiting" } },
         };
-        expect(sync(state).created).toEqual(["verdict-CI-Build-Run-build"]);
-        expect(state.jobs["verdict-CI-Build-Run-build"]).toMatchObject({
+        expect(sync(state).created).toEqual(["verdict-ci-build-run-build"]);
+        expect(state.jobs["verdict-ci-build-run-build"]).toMatchObject({
             kind: "incident",
             target: "CI / Build / Run build",
             priority: "urgent",
@@ -111,15 +111,39 @@ describe("syncJobs: incidents", () => {
         });
         state.master.lanes.ci.verdicts = { "CI / Build / Run build": { verdict: "code" } };
         const after = sync(state);
-        expect(after.created).toEqual(["incident-CI-Build-Run-build"]);
+        expect(after.created).toEqual(["incident-ci-build-run-build"]);
         expect(after.cancelled).toEqual([
-            { job: "verdict-CI-Build-Run-build", reason: "a verdict was recorded, or master's incident ended" },
+            { job: "verdict-ci-build-run-build", reason: "a verdict was recorded, or master's incident ended" },
         ]);
         // An environment verdict makes no fix job.
         const env = base();
         env.master.lanes.ci = { verdicts: { "CI / Build / Run build": { verdict: "environment" } } };
         env.incidents.i1 = { ...state.incidents.i1 };
         expect(sync(env).created).toEqual([]);
+    });
+
+    it("makes ids from failure keys that match the tools' job id pattern, and keeps a live job saved under an old id", () => {
+        const KEY = "CI / Build / Security audit";
+        const state = base();
+        state.master.lanes.ci = { redJobs: [{ id: 1, runId: 2, key: KEY, textClass: "unclassified" }] };
+        state.incidents.i1 = {
+            id: "i1",
+            status: "open",
+            openedAt: "x",
+            keys: { [KEY]: { lane: "ci", outcome: "waiting" } },
+        };
+        const [id] = sync(state).created;
+        expect(id).toBe("verdict-ci-build-security-audit");
+        expect(id).toMatch(/^[a-z][a-z0-9-]{1,119}$/);
+        expect(state.jobs[id].facts.key).toBe(KEY);
+        // A job saved before ids were normalized stays the job for its key, neither cancelled nor doubled.
+        const old = base();
+        old.master.lanes.ci = state.master.lanes.ci;
+        old.incidents.i1 = state.incidents.i1;
+        const legacy = { ...state.jobs[id], id: "verdict-CI-Build-Security-audit" };
+        old.jobs = { [legacy.id]: legacy };
+        expect(sync(old)).toEqual({ created: [], cancelled: [], lapsed: [] });
+        expect(Object.keys(old.jobs)).toEqual(["verdict-CI-Build-Security-audit"]);
     });
 
     it("makes one urgent job per key judged code that did not go intermittent, and cancels it when the incident ends", () => {
@@ -138,8 +162,8 @@ describe("syncJobs: incidents", () => {
                 "CI / Test / Run tests": { lane: "ci", outcome: "intermittent", issue: 9 },
             },
         };
-        expect(sync(state).created).toEqual(["incident-CI-Build-Run-build"]);
-        expect(state.jobs["incident-CI-Build-Run-build"]).toMatchObject({
+        expect(sync(state).created).toEqual(["incident-ci-build-run-build"]);
+        expect(state.jobs["incident-ci-build-run-build"]).toMatchObject({
             kind: "incident",
             target: "CI / Build / Run build",
             priority: "urgent",
@@ -150,7 +174,7 @@ describe("syncJobs: incidents", () => {
         expect(sync(state)).toEqual({ created: [], cancelled: [], lapsed: [] });
         state.incidents.i1.status = "resolved";
         expect(sync(state).cancelled).toEqual([
-            { job: "incident-CI-Build-Run-build", reason: "master's incident ended or went intermittent" },
+            { job: "incident-ci-build-run-build", reason: "master's incident ended or went intermittent" },
         ]);
     });
 
@@ -320,12 +344,12 @@ describe("syncJobs: titles and the local gate", () => {
         failingPr(state, 4, { required: { "Lint PR Title": "FAILURE", "All Checks Pass": "SUCCESS" } });
         state.master.greenSha = "g".repeat(40);
         state.reference = { gate: { verdict: "fail", sha: "g".repeat(40), steps: ["Knip"] }, at: "x" };
-        expect(sync(state).created).toEqual(["incident-local-Knip", "title-4"]);
+        expect(sync(state).created).toEqual(["incident-local-knip", "title-4"]);
         expect(state.jobs["title-4"]).toMatchObject({ kind: "title", pr: 4 });
-        expect(state.jobs["incident-local-Knip"]).toMatchObject({ target: "gate: Knip", facts: { scope: "local" } });
+        expect(state.jobs["incident-local-knip"]).toMatchObject({ target: "gate: Knip", facts: { scope: "local" } });
         state.reference.gate = { verdict: "pass", sha: "g".repeat(40) };
         state.prs[4].required["Lint PR Title"] = "SUCCESS";
-        expect(sync(state).cancelled.map((c) => c.job)).toEqual(["incident-local-Knip", "title-4"]);
+        expect(sync(state).cancelled.map((c) => c.job)).toEqual(["incident-local-knip", "title-4"]);
     });
 });
 

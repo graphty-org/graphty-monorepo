@@ -107,7 +107,12 @@ echo "Checking relative links, anchors and repository links in $(wc -l < "$INPUT
 # 2. Everything else under github.com/graphty-org (issues, workflows, the other repositories)
 if [ $OFFLINE -eq 0 ]; then
     echo "Checking github.com/graphty-org links"
+    # Actions run and job pages are skipped: GitHub expires run logs after 90 days and serves run
+    # pages unreliably (502), so they are evidence pointers, not links the docs depend on. An
+    # --exclude cannot do it (--include wins over every exclude), so they are remapped to a URL
+    # the include does not match.
     "$LYCHEE" --include '^https://github\.com/graphty-org/' --exclude '.*' \
+        --remap '^https://github\.com/graphty-org/[^/]+/actions/runs/.* https://actions-run.invalid/' \
         --remap "$REPO_REMAP" --files-from "$INPUTS" || FAILED=1
 fi
 

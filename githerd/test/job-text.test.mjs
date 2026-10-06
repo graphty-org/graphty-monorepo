@@ -137,6 +137,14 @@ describe("jobText", () => {
         expect(tool?.description).toContain("Use wait when your job cannot go on");
     });
 
+    it("tells the holder of a red master's fix to push it as critical, and no one else", () => {
+        const job = newJob(JOBS.issue, NOW);
+        expect(jobText(job, { masterFix: true })).toContain(
+            "if you push it yourself, push through tools/push-queue.sh with PUSH_QUEUE_PRIORITY=critical",
+        );
+        expect(jobText(job, { masterFix: false })).not.toContain("PUSH_QUEUE_PRIORITY");
+    });
+
     it("writes plain ASCII in lines a pane shows whole", () => {
         for (const spec of Object.values(JOBS)) {
             const text = jobText(newJob(spec, NOW), { policies: [{ text: "p" }] });

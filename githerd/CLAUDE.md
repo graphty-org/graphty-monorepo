@@ -61,7 +61,8 @@ Build order and per-task done-criteria: `design/githerd/githerd-plan.md`.
 - **githerd pushes through the machine's push queue.** Every session pushes through
   `tools/push-queue.sh` (three gates at once, `PUSH_QUEUE_PRIORITY=critical` first, a dead
   waiter's ticket dropped), and so does githerd: each `githerd_push` runs the queue script with the
-  `git push` as its command, an incident's fix as critical, and the reference worktree's gate runs
+  `git push` as its command, a red master's fix (an incident's, or a pull request
+  `lib/master-fix.mjs` linked as the fix) as critical, and the reference worktree's gate runs
   through it too. `tools/prepush.sh` takes no lock of its own; adding one would make the three
   slots one gate at a time for every session. The board reads the queue's tickets in the main
   checkout's `tmp/push-queue/` (`pushQueueTickets` in `lib/proc.mjs`). The script also appends one line per push

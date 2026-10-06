@@ -218,11 +218,17 @@ function factLines(job, { refresh, verdict }) {
     ];
 }
 
+/** The line for a job whose pushes are a red master's fix (master-fix.mjs isMasterFix). */
+const MASTER_FIX =
+    "MASTER FIX: this job's pull request fixes the red master. githerd_push queues it as critical; if you push it " +
+    "yourself, push through tools/push-queue.sh with PUSH_QUEUE_PRIORITY=critical, so it goes ahead of every other push.";
+
 /**
  * The job's text for its worker.
  * @param {any} job the job record (`board.newJob`)
- * @param {{policies?: {text: string, endedAt?: string | null}[]}} [ctx] the owner's policies; only
- *   free-text policies that have not ended are shown
+ * @param {{policies?: {text: string, endedAt?: string | null}[], masterFix?: boolean}} [ctx] the
+ *   owner's policies (only free-text policies that have not ended are shown), and whether the job's
+ *   pushes are a red master's fix
  * @returns {string} the text
  */
 export function jobText(job, ctx = {}) {
@@ -240,6 +246,7 @@ export function jobText(job, ctx = {}) {
     if (job.reason) lines.push(`WHY NOW: ${job.reason}`);
     const finish = FINISH[verdict ? "verdict" : job.kind] ?? FINISH_DEFAULT;
     lines.push(`DONE WHEN: ${done}`, `TO FINISH: ${finish}`, ...earlier(job), ...factLines(job, { refresh, verdict }));
+    if (ctx.masterFix) lines.push(MASTER_FIX);
     const policies = (ctx.policies ?? []).filter((p) => !p.endedAt && p.text);
     if (policies.length) lines.push("OWNER POLICIES:", ...policies.map((p) => `  - ${p.text}`));
     lines.push("RULES:", ...RULES.map((r) => `  - ${r}`));

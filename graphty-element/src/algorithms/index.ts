@@ -1,5 +1,6 @@
 import type { OptionsSchema as ZodOptionsSchema } from "../config";
 import { Algorithm } from "./Algorithm";
+import { AStarAlgorithm } from "./AStarAlgorithm";
 // Phase 4 shortest path algorithms
 import { BellmanFordAlgorithm } from "./BellmanFordAlgorithm";
 // Phase 2 centrality algorithms
@@ -16,10 +17,12 @@ import { ConnectedComponentsAlgorithm } from "./ConnectedComponentsAlgorithm";
 import { DegreeAlgorithm } from "./DegreeAlgorithm";
 import { DFSAlgorithm } from "./DFSAlgorithm";
 import { DijkstraAlgorithm } from "./DijkstraAlgorithm";
+import { EdgeBetweennessCentralityAlgorithm } from "./EdgeBetweennessCentralityAlgorithm";
 import { EigenvectorCentralityAlgorithm } from "./EigenvectorCentralityAlgorithm";
 import { FloydWarshallAlgorithm } from "./FloydWarshallAlgorithm";
 // Phase 3 community detection algorithms
 import { GirvanNewmanAlgorithm } from "./GirvanNewmanAlgorithm";
+import { HierarchicalClusteringAlgorithm } from "./HierarchicalClusteringAlgorithm";
 import { HITSAlgorithm } from "./HITSAlgorithm";
 import { KatzCentralityAlgorithm } from "./KatzCentralityAlgorithm";
 import { KCoreAlgorithm } from "./KCoreAlgorithm";
@@ -29,10 +32,12 @@ import { LabelPropagationAlgorithm } from "./LabelPropagationAlgorithm";
 import { LeidenAlgorithm } from "./LeidenAlgorithm";
 import { LinkPredictionAlgorithm } from "./LinkPredictionAlgorithm";
 import { LouvainAlgorithm } from "./LouvainAlgorithm";
+import { MarkovClusteringAlgorithm } from "./MarkovClusteringAlgorithm";
 import { MaxFlowAlgorithm } from "./MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "./MinCutAlgorithm";
 import { PageRankAlgorithm } from "./PageRankAlgorithm";
 import { PrimAlgorithm } from "./PrimAlgorithm";
+import { SpectralClusteringAlgorithm } from "./SpectralClusteringAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "./StronglyConnectedComponentsAlgorithm";
 
 // Phase 1 registrations
@@ -76,6 +81,13 @@ Algorithm.register(MinCutAlgorithm);
 Algorithm.register(KCoreAlgorithm);
 Algorithm.register(ClusteringCoefficientAlgorithm);
 Algorithm.register(LinkPredictionAlgorithm);
+
+// Clustering, A* and edge betweenness registrations
+Algorithm.register(MarkovClusteringAlgorithm);
+Algorithm.register(SpectralClusteringAlgorithm);
+Algorithm.register(HierarchicalClusteringAlgorithm);
+Algorithm.register(AStarAlgorithm);
+Algorithm.register(EdgeBetweennessCentralityAlgorithm);
 
 // Export base class and types
 export { Algorithm } from "./Algorithm";
@@ -139,6 +151,11 @@ export function getAllAlgorithmInfo(): AlgorithmInfo[] {
         MinCutAlgorithm,
         KCoreAlgorithm,
         LinkPredictionAlgorithm,
+        MarkovClusteringAlgorithm,
+        SpectralClusteringAlgorithm,
+        HierarchicalClusteringAlgorithm,
+        AStarAlgorithm,
+        EdgeBetweennessCentralityAlgorithm,
     ];
 
     for (const AlgoClass of knownAlgorithms) {

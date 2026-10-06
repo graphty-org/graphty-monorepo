@@ -60,8 +60,8 @@ export function getSystemInfo(): SystemInfo {
                 const maxFreq = execSync("cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", {
                     encoding: "utf8",
                 });
-                const freqKHz = parseInt(maxFreq.trim());
-                if (!isNaN(freqKHz)) {
+                const freqKHz = Number.parseInt(maxFreq.trim());
+                if (!Number.isNaN(freqKHz)) {
                     cpuSpeed = Math.round(freqKHz / 1000); // Convert KHz to MHz
                 }
             } catch {

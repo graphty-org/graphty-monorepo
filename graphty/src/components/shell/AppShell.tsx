@@ -185,6 +185,8 @@ import {
     writePersistedInsightsMemory,
 } from "./insights/insightsMemory";
 import {
+    hasTimeRole,
+    importIssueTypeCount,
     insightCandidates,
     type InsightCapability,
     type InsightsGraphShape,
@@ -4644,10 +4646,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * which is also the card set Main.dc.html:702 draws minus the degree card that has no
      * reading yet.
      *
-     * Two inputs are honestly zero rather than plausibly filled: `hasTimeRole` is false
-     * because no column-role model exists, and `validationIssueTypeCount` is 0 because
-     * `DataManager` hardcodes its warning count to 0 and nothing computes a validation
-     * pass. Rule 1 and rule 6 are therefore implemented and never fire.
+     * The time role and the issue kinds are read off the element's columns and its last
+     * load report. Their cards (rule 1 and rule 6) are still filtered out by
+     * `isSliceAvailable` until the shell draws a validation report and a time slider.
      */
     const insightCards = useMemo<readonly InsightCard[]>(() => {
         if (!dataLoaded) {
@@ -4658,8 +4659,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             nodeCount: graphStatistics.nodeCount,
             edgeCount: graphStatistics.edgeCount,
             directedness: graphStatistics.directedness,
-            hasTimeRole: false,
-            validationIssueTypeCount: 0,
+            hasTimeRole: hasTimeRole(graphRecords?.data.attributes() ?? []),
+            validationIssueTypeCount: importIssueTypeCount(graphRecords?.data.lastImport() ?? null),
             searchExample: degreeResults?.byDegreeDescending[0]?.id,
             /* Whether a run is possible on this graph and what it would cost, for every
                algorithm the element ships. It replaces a three-entry record this file
@@ -4727,6 +4728,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         dataLoaded,
         degreeResults,
         elementMetrics,
+        graphRecords,
         graphStatistics.directedness,
         graphStatistics.edgeCount,
         graphStatistics.nodeCount,

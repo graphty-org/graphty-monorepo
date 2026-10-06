@@ -1,0 +1,1006 @@
+#!/usr/bin/env node
+// Drives the real graphty app (the tier 1 workspace, from a production build) the way a study
+// participant does: one live browser per session, a step at a time, a numbered PNG after each.
+//
+//   node real.mjs --start <session dir> [empty | setup:<setup file>]
+//       opens the app with clean storage in a browser held for the whole session, runs the setup
+//       steps (never shown to the participant), saves 01.png and writes session.json (the commit
+//       under study, the URL). A setup file holds one step per line, "--click Open the ... sample";
+//       a blank line or one starting with # is skipped. A setup step that misses fails the start.
+//   node real.mjs --step <session dir> <steps...>
+//       acts on the live session, waits for the drawing to settle, saves the next NN.png and prints
+//       what a participant would notice
+//   node real.mjs --end <session dir>
+//       closes the browser and frees its browser slot
+//   node real.mjs --prove
+//       a self-test against the real app; exit 1 on any miss
+//
+// Steps (the same as the mock study tool's, plus pointing, dragging and files):
+//   --click | --rclick | --dblclick | --shift-click | --ctrl-click | --alt-click | --hover "<name>"
+//       <name> is what a control says, its accessible name or its label; "<name>#2" takes the second
+//       of that name, "role=<role>:<name>" only that role. Exact names before partial ones. A name no
+//       control has falls back to a node whose label is drawn on the canvas, clicked at its center.
+//   --click-at | --rclick-at | --dblclick-at | --hover-at x,y
+//       a point on the last screenshot (CSS pixels of the 1440 x 900 window); prints what is there
+//   --hover-icon <n>       hovers the nth icon-only control (aria-label, no text), prints its tooltip
+//   --drag x1,y1 x2,y2     presses at the first point, moves to the second, releases
+//   --wheel x,y,delta      turns the mouse wheel at a point (negative delta zooms in)
+//   --key <Key>            a key or chord: Enter, Escape, Control+o, ...
+//   --type "<text>"        types into what has focus, a key at a time; nothing focused fails
+//   --upload <file>        answers the open file chooser (or the next one, for 3 s)
+//   --drop <file>          drops a file on the middle of the window
+//   --wait <ms>            lets the app run on its own for a moment
+//   --expect | --expect-not "<text>"  (role=<role>, role=<role>:<name>, selected=N)
+// A file is a path, or a bare name from files/ beside this tool.
+//
+// Every browser runs inside one of the shared browser slots (with-browser.sh beside this file), and
+// a session holds its slot until --end. The app is served from graphty/dist on a loopback port of
+// the session's own, so nothing outside this machine is involved.
+process.env.FC_FONTATIONS = "1"; // headless Chromium crashes on startup on this host without it
+
+import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, openSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { connect, createServer as netServer } from "node:net";
+import { basename, dirname, extname, join, normalize, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const repo = resolve(here, "../../../..");
+const dist = join(repo, "graphty/dist");
+const files = join(here, "files");
+const gate = join(here, "with-browser.sh");
+// The tier 1 workspace is reached with ?next until the Switch-over makes it the default (graphty/src/App.tsx)
+const TIER1 = "/?next";
+const VIEWPORT = { width: 1440, height: 900 };
+// A session nobody steps for this long is closed, so a forgotten one cannot hold a browser slot forever
+// ponytail: fixed idle limit; make it a flag if a real session ever needs longer between steps
+const IDLE_MS = 45 * 60 * 1000;
+
+// a fixed folder, not TMPDIR, so every agent finds the same session from the same session dir
+const sockOf = (dir) =>
+    join("/tmp", `graphty-real-${createHash("sha1").update(resolve(dir)).digest("hex").slice(0, 12)}.sock`);
+const fileArg = (f) => (existsSync(resolve(f)) ? resolve(f) : join(files, f));
+
+// ---------- steps: what each takes, checked before anything opens ----------
+const CLICKS = {
+    "--click": {},
+    "--hover": {},
+    "--rclick": { button: "right" },
+    "--dblclick": {},
+    "--shift-click": { modifiers: ["Shift"] },
+    "--ctrl-click": { modifiers: ["Control"] },
+    "--alt-click": { modifiers: ["Alt"] },
+};
+const AT = {
+    "--click-at": {},
+    "--rclick-at": { button: "right" },
+    "--dblclick-at": { clickCount: 2 },
+    "--hover-at": null,
+};
+const ARITY = {
+    ...Object.fromEntries(
+        [
+            ...Object.keys(CLICKS),
+            ...Object.keys(AT),
+            "--hover-icon",
+            "--key",
+            "--type",
+            "--wait",
+            "--expect",
+            "--expect-not",
+            "--upload",
+            "--drop",
+            "--wheel",
+        ].map((k) => [k, 1]),
+    ),
+    "--drag": 2,
+};
+const KEYS = new Set([
+    "Shift",
+    "Control",
+    "Alt",
+    "Meta",
+    "ControlOrMeta",
+    "Enter",
+    "Tab",
+    "Backspace",
+    "Delete",
+    "Escape",
+    "Space",
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+    "Insert",
+    "ContextMenu",
+    ...Array.from({ length: 12 }, (_, i) => "F" + (i + 1)),
+]);
+const keyOk = (v) =>
+    v.split(/\+(?!$)/).every((k) => k.length === 1 || KEYS.has(k) || /^(Key[A-Z]|Digit\d|Numpad\d)$/.test(k));
+const XY = /^\d+,\d+$/;
+// Splits argv into [step, values] pairs; returns { steps } or { refused }
+function parseSteps(list) {
+    const steps = [];
+    for (let i = 0; i < list.length; ) {
+        const a = list[i];
+        const n = ARITY[a];
+        if (!n) return { refused: `unknown step "${a}"; steps: ${Object.keys(ARITY).join(", ")}` };
+        const v = list.slice(i + 1, i + 1 + n);
+        if (v.length < n || v.some((x) => x === undefined))
+            return { refused: `${a} needs ${n === 1 ? "a value" : `${n} values`}` };
+        if (a in AT && !XY.test(v[0])) return { refused: `${a} takes x,y in pixels, not "${v[0]}"` };
+        if (a === "--drag" && !v.every((p) => XY.test(p)))
+            return { refused: `--drag takes two points, x1,y1 x2,y2, not "${v.join(" ")}"` };
+        if (a === "--wheel" && !/^\d+,\d+,-?\d+$/.test(v[0]))
+            return { refused: `--wheel takes x,y,delta, not "${v[0]}"` };
+        if (a === "--hover-icon" && !/^[1-9]\d*$/.test(v[0]))
+            return { refused: `--hover-icon takes a number from 1, not "${v[0]}"` };
+        if (a === "--wait" && !/^\d{1,5}$/.test(v[0])) return { refused: `--wait takes milliseconds, not "${v[0]}"` };
+        if (a === "--key" && !keyOk(v[0]))
+            return {
+                refused: `--key takes a key name such as Enter, Escape, ArrowDown, F2, a, or a chord such as Control+f; not "${v[0]}"`,
+            };
+        if ((a === "--upload" || a === "--drop") && !existsSync(fileArg(v[0])))
+            return { refused: `${a}: no file "${v[0]}" (a path, or a name in ${files})` };
+        steps.push([a, ...v]);
+        i += 1 + n;
+    }
+    return { steps };
+}
+// A setup file: one step per line, the flag then its value(s) unquoted
+function parseSetup(text) {
+    const list = [];
+    for (const line of text.split("\n").map((l) => l.trim())) {
+        if (!line || line.startsWith("#")) continue;
+        const m = line.match(/^(--[a-z-]+)\s*(.*)$/);
+        if (!m) return { refused: `setup line is not a step: "${line}"` };
+        list.push(m[1], ...(m[1] === "--drag" ? m[2].split(/\s+/) : [m[2]]));
+    }
+    return parseSteps(list);
+}
+
+// ---------- the client side: --start, --step, --end ----------
+function ask(dir, req) {
+    return new Promise((ok, fail) => {
+        const s = connect(sockOf(dir));
+        let buf = "";
+        s.on("data", (d) => (buf += d));
+        s.on("end", () => {
+            try {
+                ok(JSON.parse(buf));
+            } catch {
+                fail(new Error(`the session answered nothing readable: ${buf.slice(0, 200)}`));
+            }
+        });
+        s.on("error", fail);
+        s.end(JSON.stringify(req) + "\n");
+    });
+}
+const say = (r) => {
+    for (const l of r.out) console.log(l);
+    return r.code;
+};
+
+async function start(dir, how) {
+    dir = resolve(dir);
+    if (existsSync(sockOf(dir))) {
+        const alive = await ask(dir, { op: "ping" }).catch(() => null);
+        if (alive) {
+            console.error(`a session is already running in ${dir}; end it with --end first`);
+            return 2;
+        }
+        await rm(sockOf(dir), { force: true });
+    }
+    let setup = [];
+    if (how && how !== "empty") {
+        const m = how.match(/^setup:(.+)$/);
+        if (!m) {
+            console.error(`--start takes empty or setup:<file>, not "${how}"`);
+            return 2;
+        }
+        const p = parseSetup(await readFile(resolve(m[1]), "utf8"));
+        if (p.refused) {
+            console.error(p.refused);
+            return 2;
+        }
+        setup = p.steps;
+    }
+    await mkdir(dir, { recursive: true });
+    if (readdirSync(dir).some((f) => /^\d+\.png$/.test(f))) {
+        console.error(`${dir} already holds a session's screenshots; use a new folder`);
+        return 2;
+    }
+    // the session process holds a browser slot for its whole life, so it runs inside the gate
+    const log = openSync(join(dir, "session.log"), "a");
+    const child = spawn(gate, [process.execPath, fileURLToPath(import.meta.url), "--serve", dir], {
+        detached: true,
+        stdio: ["ignore", log, log],
+        env: { ...process.env, BROWSER_SLOTS: process.env.BROWSER_SLOTS || "4" },
+    });
+    let exited = null;
+    child.on("exit", (c) => (exited = c));
+    let waited = 0;
+    while (!existsSync(sockOf(dir))) {
+        if (exited !== null) {
+            console.error(`the session process stopped (exit ${exited}); see ${join(dir, "session.log")}`);
+            return 1;
+        }
+        if (waited === 10) console.log("waiting for a free browser slot ...");
+        await new Promise((r) => setTimeout(r, 500));
+        waited++;
+    }
+    child.unref();
+    const r = await ask(dir, { op: "start", setup });
+    return say(r);
+}
+
+// ---------- the session process: one browser, one page, a socket ----------
+const TYPES = {
+    ".html": "text/html",
+    ".js": "text/javascript",
+    ".mjs": "text/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".wasm": "application/wasm",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".map": "application/json",
+    ".gml": "text/plain",
+    ".txt": "text/plain",
+};
+async function serve(dir) {
+    const { chromium } = await import(join(repo, "node_modules/playwright/index.mjs"));
+    if (!existsSync(join(dist, "index.html")))
+        throw new Error(`no production build at ${dist}; run pnpm exec nx run graphty:build`);
+    // the app at / (so /samples/*.gml resolve); any path that is not a file is the app's page
+    const http = createServer(async (req, res) => {
+        const f = join(
+            dist,
+            normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^[/\\]+/, ""),
+        );
+        let body,
+            type = TYPES[extname(f)] ?? "application/octet-stream";
+        if (!f.startsWith(dist)) return res.writeHead(403).end();
+        try {
+            body = await readFile(f);
+        } catch {
+            if (extname(f)) return res.writeHead(404).end();
+            body = await readFile(join(dist, "index.html"));
+            type = "text/html";
+        }
+        res.writeHead(200, { "content-type": type }).end(body);
+    });
+    await new Promise((ok) => http.listen(0, "127.0.0.1", ok));
+    const origin = `http://127.0.0.1:${http.address().port}`;
+    const browser = await chromium.launch();
+    const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1, acceptDownloads: true });
+    const page = await context.newPage();
+    const s = { dir, page, origin, errors: [], downloads: [], chooser: null, saved: [] };
+    page.on("pageerror", (e) => s.errors.push(`script error: ${e.message.split("\n")[0]}`));
+    page.on("console", (m) => m.type() === "error" && s.errors.push(`console error: ${m.text().slice(0, 300)}`));
+    page.on(
+        "response",
+        (r) => r.status() >= 400 && s.errors.push(`failed request: ${r.status()} ${r.url().replace(origin, "")}`),
+    );
+    page.on("requestfailed", (r) =>
+        s.errors.push(`failed request: ${r.url().replace(origin, "")} (${r.failure()?.errorText})`),
+    );
+    page.on("filechooser", (c) => {
+        s.chooser = c;
+    });
+    page.on("download", (d) => s.downloads.push(saveDownload(s, d)));
+
+    const sock = sockOf(dir);
+    let queue = Promise.resolve();
+    let idle;
+    const close = async () => {
+        clearTimeout(idle);
+        await browser.close().catch(() => {});
+        http.close();
+        server.close();
+        await rm(sock, { force: true });
+        process.exit(0);
+    };
+    const touch = () => {
+        clearTimeout(idle);
+        idle = setTimeout(() => {
+            console.log(`no step for ${IDLE_MS / 60000} minutes; closing the session`);
+            close();
+        }, IDLE_MS);
+    };
+    const server = netServer({ allowHalfOpen: true }, (c) => {
+        let buf = "";
+        c.on("data", (d) => {
+            buf += d;
+            if (!buf.includes("\n")) return;
+            const req = JSON.parse(buf.slice(0, buf.indexOf("\n")));
+            touch();
+            // one request at a time, in the order they came
+            queue = queue.then(async () => {
+                let r;
+                try {
+                    if (req.op === "ping") r = { out: [], code: 0 };
+                    else if (req.op === "start") r = await opStart(s, req.setup);
+                    else if (req.op === "step") r = await opStep(s, req.steps);
+                    else if (req.op === "end") r = { out: [`session ended: ${dir}`], code: 0, end: true };
+                    else r = { out: [`unknown request ${req.op}`], code: 2 };
+                } catch (e) {
+                    r = { out: [`the tool failed: ${e.stack || e.message}`], code: 1 };
+                }
+                c.end(JSON.stringify(r) + "\n");
+                if (r.end) setTimeout(close, 50);
+            });
+        });
+    });
+    await rm(sock, { force: true });
+    await new Promise((ok) => server.listen(sock, ok));
+    touch();
+    for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, close);
+}
+
+async function saveDownload(s, d) {
+    const dir = join(s.dir, "downloads");
+    await mkdir(dir, { recursive: true });
+    let name = d.suggestedFilename() || "download";
+    for (let k = 2; existsSync(join(dir, name)); k++) name = d.suggestedFilename().replace(/(\.[^.]*)?$/, ` (${k})$1`);
+    const path = join(dir, name);
+    await d.saveAs(path);
+    const buf = readFileSync(path);
+    // a PNG's size is in its header; anything else is described by its length
+    const what =
+        buf.length > 24 && buf.toString("ascii", 1, 4) === "PNG"
+            ? `${buf.readUInt32BE(16)} x ${buf.readUInt32BE(20)}`
+            : `${buf.length.toLocaleString("en-US")} bytes`;
+    return `a file was saved: ${name}, ${what} (${path})`;
+}
+
+const commitOf = () => {
+    const sha = spawnSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
+    const dirty =
+        spawnSync("git", ["-C", repo, "status", "--porcelain", "--", "graphty", "graphty-element"], {
+            encoding: "utf8",
+        }).stdout.trim() !== "";
+    const stamp =
+        (readFileSync(join(dist, "index.html"), "utf8").match(/<meta name="graphty-build" content="([^"]*)"/) ||
+            [])[1] || null;
+    return { sha, dirty, build: stamp };
+};
+
+async function opStart(s, setup) {
+    const out = [];
+    const { page } = s;
+    await page
+        .goto(s.origin + TIER1, { waitUntil: "networkidle", timeout: 60000 })
+        .catch(() => out.push("the app did not finish loading in 60 s"));
+    await page
+        .waitForFunction(
+            () => document.querySelector("#root")?.children.length > 0 && document.querySelector("main, [role=main]"),
+            null,
+            { timeout: 30000 },
+        )
+        .catch(() => out.push("the app never drew its window"));
+    await settle(s, out);
+    const commit = commitOf();
+    await writeFile(
+        join(s.dir, "session.json"),
+        JSON.stringify(
+            {
+                commit: commit.sha,
+                uncommittedChanges: commit.dirty,
+                buildStamp: commit.build,
+                url: TIER1,
+                viewport: VIEWPORT,
+                started: new Date().toISOString(),
+                setup: setup.map((x) => x.join(" ")),
+            },
+            null,
+            1,
+        ) + "\n",
+    );
+    let code = 0;
+    if (setup.length) {
+        // run before 01.png and never shown to the participant: its lines go to setup.log only,
+        // and anything that does not work fails the start loudly
+        const said = [];
+        const r = await run(s, setup, said);
+        await writeFile(join(s.dir, "setup.log"), said.join("\n") + "\n");
+        if (r.code || r.missed) {
+            out.push(`SETUP FAILED: a setup step did not work (setup.log):`, ...said.map((l) => "  " + l));
+            code = 1;
+        }
+    }
+    s.errors.length = 0; // what loading and setup printed is in session.log, not the participant's view
+    out.push(`commit ${commit.sha}${commit.dirty ? " (with uncommitted changes)" : ""}, build ${commit.build}`);
+    out.push(await shot(s));
+    return { out, code };
+}
+
+async function opStep(s, steps) {
+    const out = [];
+    const r = await run(s, steps, out);
+    out.push(await shot(s));
+    return { out, code: r.code };
+}
+
+async function shot(s) {
+    const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
+    const file = join(s.dir, `${String(n).padStart(2, "0")}.png`);
+    await s.page.screenshot({ path: file });
+    return file;
+}
+
+// The DOM stops changing, then the drawing settles: graphty-element's waitForStableFrame
+async function settle(s, out, ms = 15000) {
+    const { page } = s;
+    let last = -1;
+    for (let i = 0; i < 30; i++) {
+        const n = await page.evaluate(() => document.body.innerHTML.length).catch(() => -1);
+        if (n === last) break;
+        last = n;
+        await page.waitForTimeout(100);
+    }
+    const moving = await page
+        .evaluate(async (ms) => {
+            const el = document.querySelector("graphty-element");
+            if (!el || typeof el.waitForStableFrame !== "function") return null;
+            try {
+                await el.waitForStableFrame({ timeoutMs: ms });
+                return null;
+            } catch (e) {
+                return String(e.message || e);
+            }
+        }, ms)
+        .catch(() => null);
+    if (moving) out.push(`the drawing is still moving (${moving.split("\n")[0].slice(0, 160)})`);
+    await page.evaluate(() => document.fonts.ready).catch(() => {});
+}
+
+// ---------- finding controls, nodes and points ----------
+const ROLES = [
+    "button",
+    "link",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "tab",
+    "treeitem",
+    "switch",
+    "option",
+    "checkbox",
+    "radio",
+    "combobox",
+    "textbox",
+    "searchbox",
+];
+const TIP = "[role=tooltip], .mantine-Tooltip-tooltip";
+// The control a click names: "<name>", "<name>#2" or "role=<role>:<name>". Exact names before partial
+// ones, controls before text; a name several controls share says so. With no control of that name, a
+// node whose label is drawn on the canvas, at its center.
+async function find(page, raw, out) {
+    let name = raw,
+        role = null,
+        nth = 0;
+    const r = raw.match(/^role=([a-z]+):(.+)$/);
+    if (r) [role, name] = [r[1], r[2]];
+    const n = name.match(/^(.*\S)#(\d+)$/);
+    if (n) [name, nth] = [n[1], +n[2]];
+    for (const exact of [true, false]) {
+        const locs = role
+            ? [page.getByRole(role, { name, exact })]
+            : [
+                  ...ROLES.map((x) => page.getByRole(x, { name, exact })),
+                  page.getByLabel(name, { exact }),
+                  page.getByText(name, { exact }),
+              ];
+        const seen = new Map(); // one entry per control: text inside a button is that button
+        for (const loc of locs) {
+            for (const el of await loc.filter({ visible: true }).elementHandles()) {
+                const [key, desc] = await el.evaluate((e, tip) => {
+                    // a tooltip bubble, hidden text and the graph's canvas are not controls
+                    if (e.closest(`${tip}, [aria-hidden=true], graphty-element, canvas`)) return [null];
+                    const c =
+                        e.closest(
+                            "button,a[href],input,select,textarea,label,tr,[tabindex],[role=button],[role=link],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=tab],[role=treeitem],[role=switch],[role=option],[role=row],[role=checkbox],[role=radio],[role=combobox]",
+                        ) || e;
+                    c.dataset.tryKey ??= String((window.__tryKeys = (window.__tryKeys || 0) + 1));
+                    const said = (c.getAttribute("aria-label") || c.innerText || c.value || "")
+                        .trim()
+                        .replace(/\s+/g, " ")
+                        .slice(0, 40);
+                    return [c.dataset.tryKey, `${c.getAttribute("role") || c.tagName.toLowerCase()} "${said}"`];
+                }, TIP);
+                if (key && !seen.has(key)) seen.set(key, { el, desc });
+            }
+        }
+        let all = [...seen.values()];
+        if (!all.length && !role) all = await nodesNamed(page, name, exact);
+        if (!all.length) continue;
+        if (nth > all.length)
+            return {
+                miss: `"${raw}": only ${all.length} control${all.length === 1 ? " is" : "s are"} called "${name}" (${all.map((x) => x.desc).join(", ")})`,
+            };
+        if (!nth && all.length > 1)
+            out.push(
+                `ambiguous: "${name}" matches ${all.length} controls (${all.map((x) => x.desc).join(", ")}); took the first`,
+            );
+        return all[Math.max(nth, 1) - 1];
+    }
+    return { miss: `nothing on screen is called "${name}"` };
+}
+// Nodes whose label reads <name> and is drawn, on screen: graphty-element's labelOf and nodeScreenPosition
+async function nodesNamed(page, name, exact) {
+    return page
+        .evaluate(
+            ([w, exact]) => {
+                const el = document.querySelector("graphty-element");
+                if (!el || typeof el.labelOf !== "function") return [];
+                const box = el.getBoundingClientRect();
+                const hits = [];
+                for (const node of el.getNodes()) {
+                    const label = el.labelOf(node.id);
+                    if (!label?.drawn) continue;
+                    const text = label.text.trim();
+                    if (exact ? text !== w : !text.toLowerCase().includes(w.toLowerCase())) continue;
+                    const at = el.nodeScreenPosition(node.id);
+                    if (!at?.visible) continue;
+                    const x = Math.round(box.x + at.x),
+                        y = Math.round(box.y + at.y);
+                    hits.push({ at: [x, y], desc: `node "${text}" on the canvas, at ${x},${y}` });
+                }
+                return hits;
+            },
+            [name, exact],
+        )
+        .catch(() => []);
+}
+// What is at a point of the window: a node (graphty-element's elementAt), empty canvas, or a control
+async function whatIsAt(page, x, y) {
+    return page.evaluate(
+        ([x, y]) => {
+            const el = document.querySelector("graphty-element");
+            const top = document.elementFromPoint(x, y);
+            if (
+                el &&
+                top &&
+                (top === el ||
+                    el.contains(top) ||
+                    el.shadowRoot?.contains(top) ||
+                    (top.tagName === "CANVAS" && el.contains(top)))
+            ) {
+                const box = el.getBoundingClientRect();
+                const hit =
+                    typeof el.elementAt === "function" ? el.elementAt({ x: x - box.x, y: y - box.y }) : undefined;
+                if (hit === undefined) return "the graph's canvas";
+                if (hit === null) return "empty canvas";
+                const label = hit.kind === "node" ? el.labelOf?.(hit.id) : undefined;
+                return `${hit.kind} ${label?.text ? `"${label.text}"` : `with id ${JSON.stringify(hit.id)}`}${label && !label.drawn ? " (its label is not drawn)" : ""}`;
+            }
+            if (!top) return "nothing (outside the window)";
+            const c = top.closest("button,a[href],input,select,textarea,label,[role]") || top;
+            const said = (c.getAttribute("aria-label") || c.innerText || "").trim().replace(/\s+/g, " ").slice(0, 50);
+            return `${c.getAttribute("role") || c.tagName.toLowerCase()}${said ? ` "${said}"` : ""}`;
+        },
+        [x, y],
+    );
+}
+async function act(page, f, verb, opt) {
+    if (f.el) return f.el[verb](Object.assign({ timeout: 3000 }, opt));
+    const [x, y] = f.at;
+    if (verb === "hover") return page.mouse.move(x, y);
+    for (const m of opt.modifiers || []) await page.keyboard.down(m);
+    await page.mouse.click(x, y, { button: opt.button || "left", clickCount: verb === "dblclick" ? 2 : 1 });
+    for (const m of opt.modifiers || []) await page.keyboard.up(m);
+}
+const tipNow = (page) =>
+    page.evaluate((tip) => {
+        const t = [...document.querySelectorAll(tip)].find((e) => e.checkVisibility());
+        return t ? t.innerText.replace(/\s+/g, " ").trim() : null;
+    }, TIP);
+// The tooltip of what the pointer rests on: the shared theme opens one 1000 ms after the pointer
+// arrives (compact-mantine TOOLTIP_OPEN_DELAY), so this waits up to 2 s for it, or null
+async function tooltip(page) {
+    for (let i = 0; i < 20; i++) {
+        const t = await tipNow(page);
+        if (t) return t;
+        await page.waitForTimeout(100);
+    }
+    return null;
+}
+
+// Runs the steps; pushes what a participant would notice onto out; returns { code, missed }
+async function run(s, steps, out) {
+    const { page } = s;
+    let code = 0,
+        missed = 0;
+    for (const [a, v, v2] of steps) {
+        if (a === "--expect" || a === "--expect-not") {
+            let seen;
+            const sel = v.match(/^selected=(\d+)$/);
+            if (sel) {
+                const n = await page.locator("[aria-selected=true]:not([role=tab])").filter({ visible: true }).count();
+                seen = n === +sel[1];
+                if (seen !== (a === "--expect")) {
+                    out.push(
+                        `${n} row${n === 1 ? " is" : "s are"} selected; ${a === "--expect" ? "expected" : "expected other than"} ${sel[1]}`,
+                    );
+                    code = 1;
+                }
+                continue;
+            }
+            const rn = v.match(/^role=([a-z]+)(?::(.+))?$/);
+            const byRole = async () => {
+                for (const exact of [true, false]) {
+                    const l = page.getByRole(rn[1], { name: rn[2], exact });
+                    if ((await l.filter({ visible: true }).count()) > 0) return l;
+                }
+                return page.getByRole(rn[1], { name: rn[2] });
+            };
+            const loc = rn ? (rn[2] ? await byRole() : page.getByRole(rn[1])) : page.getByText(v, { exact: false });
+            seen =
+                (await loc.filter({ visible: true }).count()) > 0 ||
+                (!rn &&
+                    (await page.evaluate(
+                        (w) =>
+                            [...document.querySelectorAll("input, textarea")].some(
+                                (f) => f.checkVisibility() && f.value.includes(w),
+                            ),
+                        v,
+                    )));
+            if (seen !== (a === "--expect")) {
+                out.push(
+                    `${a === "--expect" ? "expected on screen, not there" : "expected gone, still on screen"}: "${v}"`,
+                );
+                code = 1;
+            }
+            continue;
+        }
+        if (a in CLICKS) {
+            const verb = a === "--hover" ? "hover" : a === "--dblclick" ? "dblclick" : "click";
+            const f = await find(page, v, out);
+            if (f.miss) {
+                out.push(f.miss);
+                missed++;
+            } else {
+                if (f.at) out.push(`${verb === "hover" ? "hovered" : "clicked"} ${f.desc}`);
+                await act(page, f, verb, CLICKS[a]).catch((e) => {
+                    out.push(`could not ${verb} "${v}": ${e.message.split("\n")[0]}`);
+                    missed++;
+                });
+            }
+            if (verb !== "hover") await page.waitForTimeout(400);
+            if (verb === "hover" && !f.miss) out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
+        } else if (a in AT) {
+            const [x, y] = v.split(",").map(Number);
+            out.push(`at ${x},${y}: ${await whatIsAt(page, x, y)}`);
+            if (a === "--hover-at") {
+                await page.mouse.move(x, y);
+                out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
+            } else {
+                await page.mouse.click(x, y, { button: AT[a].button || "left", clickCount: AT[a].clickCount || 1 });
+                await page.waitForTimeout(400);
+            }
+        } else if (a === "--hover-icon") {
+            // the nth control with an accessible name and no text of its own, counted in page order
+            const icons = await page
+                .locator("button[aria-label], [role=button][aria-label], a[aria-label], [role=tab][aria-label]")
+                .filter({ visible: true })
+                .evaluateAll((els) =>
+                    els
+                        .filter((e) => !e.innerText.trim())
+                        .map((e) => {
+                            const b = e.getBoundingClientRect();
+                            return [
+                                Math.round(b.x + b.width / 2),
+                                Math.round(b.y + b.height / 2),
+                                e.getAttribute("aria-label"),
+                            ];
+                        }),
+                );
+            if (+v > icons.length) {
+                out.push(`there are ${icons.length} icon-only controls on screen, no icon ${v}`);
+                missed++;
+                continue;
+            }
+            const [x, y] = icons[+v - 1];
+            out.push(`icon ${v} of ${icons.length}, at ${x},${y}`);
+            await page.mouse.move(x, y);
+            out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
+        } else if (a === "--drag") {
+            const [[x1, y1], [x2, y2]] = [v, v2].map((p) => p.split(",").map(Number));
+            out.push(`drag from ${x1},${y1} (${await whatIsAt(page, x1, y1)}) to ${x2},${y2}`);
+            await page.mouse.move(x1, y1);
+            await page.mouse.down();
+            await page.mouse.move(x2, y2, { steps: 12 });
+            await page.mouse.up();
+            await page.waitForTimeout(400);
+        } else if (a === "--wheel") {
+            const [x, y, d] = v.split(",").map(Number);
+            await page.mouse.move(x, y);
+            await page.mouse.wheel(0, d);
+            await page.waitForTimeout(400);
+        } else if (a === "--wait") {
+            await page.waitForTimeout(+v);
+        } else if (a === "--key") {
+            await page.keyboard.press(v);
+            await page.waitForTimeout(400);
+        } else if (a === "--type") {
+            const into = await page.evaluate(() => {
+                const e = document.activeElement;
+                if (
+                    e &&
+                    (e.tagName === "TEXTAREA" ||
+                        e.isContentEditable ||
+                        (e.tagName === "INPUT" &&
+                            !/^(checkbox|radio|button|submit|reset|range|color|file|image)$/.test(e.type)))
+                )
+                    return null;
+                return !e || e === document.body
+                    ? "the page"
+                    : `${e.getAttribute("role") || e.tagName.toLowerCase()} "${(e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40)}"`;
+            });
+            if (into) {
+                out.push(`nothing that takes text has focus (focus is on ${into}); typed nothing, not "${v}"`);
+                code = 1;
+                continue;
+            }
+            await page.keyboard.type(v, { delay: 20 });
+            await page.waitForTimeout(400);
+        } else if (a === "--upload") {
+            for (let i = 0; !s.chooser && i < 30; i++) await page.waitForTimeout(100);
+            if (!s.chooser) {
+                out.push(`no file chooser is open; nothing was uploaded (click the control that opens one first)`);
+                code = 1;
+                continue;
+            }
+            const c = s.chooser;
+            s.chooser = null;
+            await c.setFiles(fileArg(v));
+            out.push(`chose the file ${basename(v)}`);
+            await page.waitForTimeout(400);
+        } else if (a === "--drop") {
+            const path = fileArg(v);
+            const bytes = readFileSync(path).toString("base64");
+            const target = await page.evaluate(
+                ([b64, name, x, y]) => {
+                    const bin = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+                    const dt = new DataTransfer();
+                    dt.items.add(new File([bin], name));
+                    const t = document.elementFromPoint(x, y) || document.body;
+                    for (const type of ["dragenter", "dragover", "drop"])
+                        t.dispatchEvent(
+                            new DragEvent(type, {
+                                bubbles: true,
+                                cancelable: true,
+                                dataTransfer: dt,
+                                clientX: x,
+                                clientY: y,
+                            }),
+                        );
+                    return t.tagName.toLowerCase();
+                },
+                [bytes, basename(path), VIEWPORT.width / 2, VIEWPORT.height / 2],
+            );
+            out.push(`dropped the file ${basename(path)} on the middle of the window (${target})`);
+            await page.waitForTimeout(400);
+        }
+        if (s.chooser && a !== "--upload") out.push("a file chooser is open (answer it with --upload <file>)");
+    }
+    await settle(s, out);
+    // downloads that started during these steps: saved into the session folder and named
+    if (s.downloads.length) {
+        await page.waitForTimeout(300);
+        for (const line of await Promise.all(s.downloads.splice(0))) out.push(line);
+    }
+    for (const e of s.errors.splice(0)) {
+        out.push(e);
+        code = 1;
+    }
+    return { code, missed };
+}
+
+// ---------- --prove: the tool against the real app ----------
+async function prove() {
+    const self = fileURLToPath(import.meta.url);
+    const base = join(repo, "design/ui/studio/tmp/prove");
+    await rm(base, { recursive: true, force: true });
+    let bad = 0;
+    const node = (args) => spawnSync(process.execPath, [self, ...args], { encoding: "utf8", env: process.env });
+    const check = (name, ok, detail) => {
+        console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : `: ${detail}`}`);
+        if (!ok) bad++;
+        return ok;
+    };
+    const step = (dir, ...a) => {
+        const r = node(["--step", dir, ...a]);
+        return { code: r.status, out: (r.stdout || "") + (r.stderr || "") };
+    };
+    const pngs = (dir) =>
+        existsSync(dir)
+            ? readdirSync(dir)
+                  .filter((f) => /^\d+\.png$/.test(f))
+                  .sort()
+            : [];
+
+    // refused before anything opens
+    const refused = node(["--step", join(base, "none"), "--bogus", "x"]);
+    check(
+        "an unknown step is refused with exit 2",
+        refused.status === 2 && /unknown step "--bogus"/.test(refused.stderr),
+        `exit ${refused.status} ${refused.stderr.trim()}`,
+    );
+
+    const A = join(base, "session-a");
+    let r = node(["--start", A, "empty"]);
+    const json = existsSync(join(A, "session.json")) ? JSON.parse(readFileSync(join(A, "session.json"), "utf8")) : {};
+    if (
+        !check(
+            "start opens the empty app and saves 01.png with the commit",
+            r.status === 0 && pngs(A)[0] === "01.png" && /^[0-9a-f]{40}$/.test(json.commit || ""),
+            `exit ${r.status}; ${r.stdout}${r.stderr}`,
+        )
+    )
+        return finish(bad, [A]);
+    try {
+        let x = step(A, "--click", "No thanks", "--expect", "Samples");
+        check("a click by a control's name", x.code === 0 && pngs(A).length === 2, x.out);
+        x = step(
+            A,
+            "--click",
+            "Open project or file",
+            "--upload",
+            "florentine.gml",
+            "--expect",
+            "role=button:Project: florentine",
+        );
+        check(
+            "an upload answers the file chooser and the file opens",
+            x.code === 0 && /chose the file florentine\.gml/.test(x.out),
+            x.out,
+        );
+        x = step(A, "--hover", "Undo");
+        check("a hover prints the tooltip", x.code === 0 && /^tooltip: "Undo/m.test(x.out), x.out);
+        // Tornabuoni: the label legend lists the first twelve names, so this one is only on the canvas
+        x = step(A, "--click", "Tornabuoni");
+        check(
+            "a node with no label drawn is a miss, said plainly",
+            /nothing on screen is called "Tornabuoni"/.test(x.out),
+            x.out,
+        );
+        x = step(
+            A,
+            "--click",
+            "role=treeitem:Everything",
+            "--click",
+            "role=tab:Style",
+            "--click",
+            "Add label line",
+            "--click",
+            "name",
+            "--key",
+            "Escape",
+        );
+        check("labels are turned on as a participant would", x.code === 0 && !/nothing on screen/.test(x.out), x.out);
+        x = step(A, "--click", "Tornabuoni");
+        const at = x.out.match(/clicked node "Tornabuoni" on the canvas, at (\d+),(\d+)/);
+        check("a click by a node's drawn label lands on that node", x.code === 0 && !!at, x.out);
+        if (at) {
+            x = step(A, "--click-at", `${at[1]},${at[2]}`);
+            check(
+                "a click-at reports the node under the point",
+                x.code === 0 && new RegExp(`^at ${at[1]},${at[2]}: node "Tornabuoni"`, "m").test(x.out),
+                x.out,
+            );
+        }
+        x = step(A, "--click-at", "1430,890");
+        check(
+            "a click-at off the canvas names what is there",
+            x.code === 0 && /^at 1430,890: /m.test(x.out) && !/node "/.test(x.out),
+            x.out,
+        );
+        x = step(A, "--click", "Find", "--type", "Strozzi", "--expect", "Strozzi");
+        check("a type goes into the focused box", x.code === 0, x.out);
+        x = step(A, "--key", "Escape", "--click", "Main menu", "--click", "Export...", "--click", "role=button:Export");
+        check(
+            "a download is saved into the session folder and printed",
+            x.code === 0 && /^a file was saved: .*\.png, \d+ x \d+/m.test(x.out),
+            x.out,
+        );
+        x = step(A, "--click", "No such control at all");
+        check(
+            "a miss says nothing on screen is called that",
+            /nothing on screen is called "No such control at all"/.test(x.out),
+            x.out,
+        );
+    } finally {
+        r = node(["--end", A]);
+        check(
+            "end closes the session and frees its slot",
+            r.status === 0 && !existsSync(sockOf(A)),
+            `exit ${r.status} ${r.stdout}${r.stderr}`,
+        );
+    }
+    // a setup start: steps run before 01.png and are not shown
+    const B = join(base, "session-b");
+    const setup = join(base, "setup.txt");
+    await writeFile(
+        setup,
+        "# open a sample before the participant arrives\n--click No thanks\n--click Open the Zachary's karate club sample\n",
+    );
+    r = node(["--start", B, `setup:${setup}`]);
+    check(
+        "a setup start runs its steps before 01.png",
+        r.status === 0 && pngs(B).length === 1 && existsSync(join(B, "setup.log")),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    const y = step(B, "--expect", "role=button:Project: Zachary's karate club");
+    check("the setup's sample is open when the participant arrives", y.code === 0, y.out);
+    node(["--end", B]);
+    await writeFile(setup, "--click A control that does not exist\n");
+    const C = join(base, "session-c");
+    r = node(["--start", C, `setup:${setup}`]);
+    check(
+        "a setup step that misses fails the start loudly",
+        r.status === 1 && /SETUP FAILED/.test(r.stdout),
+        `exit ${r.status} ${r.stdout}`,
+    );
+    node(["--end", C]);
+    return finish(bad, [A, B, C]);
+}
+function finish(bad, dirs) {
+    for (const d of dirs)
+        if (existsSync(sockOf(d))) spawnSync(process.execPath, [fileURLToPath(import.meta.url), "--end", d]);
+    console.log(bad ? `${bad} check${bad === 1 ? "" : "s"} failed` : "every check passed");
+    return bad ? 1 : 0;
+}
+
+// ---------- main ----------
+const args = process.argv.slice(2);
+const mode = args[0];
+let code = 0;
+if (mode === "--serve") {
+    await serve(resolve(args[1]));
+} else if (mode === "--start") {
+    if (!args[1]) {
+        console.error("usage: real.mjs --start <session dir> [empty | setup:<file>]");
+        code = 2;
+    } else code = await start(args[1], args[2] || "empty");
+} else if (mode === "--step") {
+    const p = parseSteps(args.slice(2));
+    if (!args[1] || p.refused) {
+        console.error(p.refused || "usage: real.mjs --step <session dir> <steps...>");
+        code = 2;
+    } else if (!existsSync(sockOf(args[1]))) {
+        console.error(`no live session in ${resolve(args[1])}; start one with --start`);
+        code = 2;
+    } else code = say(await ask(args[1], { op: "step", steps: p.steps }));
+} else if (mode === "--end") {
+    if (!existsSync(sockOf(args[1] || ""))) {
+        console.log(`no live session in ${resolve(args[1] || ".")}`);
+    } else {
+        const r = await ask(args[1], { op: "end" }).catch(() => ({
+            out: ["the session did not answer; removed its socket"],
+            code: 0,
+        }));
+        for (let i = 0; existsSync(sockOf(args[1])) && i < 50; i++) await new Promise((ok) => setTimeout(ok, 100));
+        await rm(sockOf(args[1]), { force: true });
+        code = say(r);
+    }
+} else if (mode === "--prove") {
+    code = await prove();
+} else {
+    console.error(
+        "usage: real.mjs --start <dir> [empty|setup:<file>] | --step <dir> <steps...> | --end <dir> | --prove",
+    );
+    code = 2;
+}
+if (mode !== "--serve") process.exit(code);

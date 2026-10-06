@@ -125,7 +125,7 @@ export interface EncodingSpec {
     readonly missing?: RuleBinding["missing"];
     /** Send the smallest value to the far end of the range instead of the near end. */
     readonly reverse?: boolean;
-    /** What to call the layer. Defaults to the run's label and the channel's plain name. */
+    /** What to call the layer. Defaults to the run's label. */
     readonly name?: string;
 }
 
@@ -525,7 +525,7 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
     const binding = buildBinding(ranged, path, scale, descriptor);
 
     return {
-        name: spec.name ?? `${run.label} - ${descriptor.plainName}`,
+        name: spec.name ?? run.label,
         target: descriptor.target,
         kind: "encoding",
         selector: { match: "has", path },

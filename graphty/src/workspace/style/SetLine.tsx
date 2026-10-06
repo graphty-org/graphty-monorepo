@@ -221,10 +221,15 @@ function BoundValue({
     }
     let swatch: string | undefined;
     if (descriptor.accepts === "color") {
+        // The colors the element paints for this line, from its legend; the named palette when it
+        // has none to report (a path that reads nothing).
+        const painted = session.styles
+            .legend()
+            .find((block) => block.layerId === layer.id && block.channel === descriptor.channel)
+            ?.swatches.flatMap((s) => (s.color === undefined ? [] : [s.color]));
+        const colors = painted !== undefined && painted.length > 0 ? painted : palette?.colors;
         swatch =
-            palette === undefined
-                ? "var(--mantine-color-gray-5)"
-                : `linear-gradient(to right, ${palette.colors.join(", ")})`;
+            colors === undefined ? "var(--mantine-color-gray-5)" : `linear-gradient(to right, ${colors.join(", ")})`;
     }
     const detach = (): void => {
         setOpen(false);

@@ -804,8 +804,8 @@ describe("encode()", () => {
         assert.deepEqual(layer.selector, { match: "has", path: "results.flow.value" });
     });
 
-    it("names the layer after the run and the channel, and takes a name when given one", () => {
-        assert.strictEqual(plan({ run: "betweenness", channel: "node.color" }).name, "Betweenness - Node Colour");
+    it("names the layer after the run, never the channel, and takes a name when given one", () => {
+        assert.strictEqual(plan({ run: "betweenness", channel: "node.color" }).name, "Betweenness");
         assert.strictEqual(plan({ run: "betweenness", channel: "node.color", name: "Hot spots" }).name, "Hot spots");
     });
 

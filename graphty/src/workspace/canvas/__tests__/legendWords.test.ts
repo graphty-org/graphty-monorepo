@@ -1,7 +1,7 @@
 import type { LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { imageLegend, overflowLine, paintWords, sectionTitle, swatchName } from "../legendWords";
+import { imageLegend, keyBlocks, overflowLine, paintWords, sectionTitle, swatchName } from "../legendWords";
 
 /**
  * A legend block with only what these tests read.
@@ -84,6 +84,22 @@ describe("the legend card's words", () => {
                 { title: "Size: Degree", ramp: { min: "1", max: "36" } },
                 { title: "Color: PageRank", ramp: { min: "0.01", max: "0.09", colors: ["#ffffff", "#000080"] } },
             ],
+        );
+    });
+
+    it("keys neither a label nor a size that does not vary", () => {
+        const color = block({ layerId: "color" });
+        const bound = block({ layerId: "sized", channel: "node.size" });
+        const blocks = [
+            color,
+            block({ layerId: "names", channel: "node.label", kind: "categorical" }),
+            block({ layerId: "one-size", channel: "node.size", kind: "literal", swatches: [swatch({ size: 1 })] }),
+            bound,
+        ];
+        assert.deepEqual(keyBlocks(blocks), [color, bound]);
+        assert.deepEqual(
+            imageLegend(blocks, (b) => b.layerId).map((section) => section.title),
+            ["Size: sized", "Color: color"],
         );
     });
 });

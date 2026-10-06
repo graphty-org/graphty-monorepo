@@ -7,6 +7,7 @@ import React, { useEffect, useState } from "react";
 
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
+import { keyBlocks } from "./legendWords";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -44,7 +45,7 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
         let live = true;
         const read = (): void => {
             const { nodeCount, edgeCount } = session.data.statistics();
-            setReading({ blocks: session.styles.legend(), nodeCount, edgeCount, load });
+            setReading({ blocks: keyBlocks(session.styles.legend()), nodeCount, edgeCount, load });
         };
         read();
         const offs = [

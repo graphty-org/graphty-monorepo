@@ -224,6 +224,9 @@ describe("the Style tab on the real element", () => {
                     },
                     { timeout: TIMEOUT_MS },
                 );
+                // The line's chip is the ramp the run paints, as the element's legend reports it.
+                const chip = styleTab().querySelector<HTMLElement>(".cm-var-chit");
+                assert.include(chip?.style.background ?? "", "linear-gradient", "the chip shows the ramp, not gray");
             }
 
             store.set({ inspected: { kind: "everything-row", id: "everything" } });

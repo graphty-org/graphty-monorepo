@@ -32,6 +32,28 @@ const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
 /** The channels whose swatches carry a size. */
 const SIZE_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(["node.size", "edge.width"]);
 
+/** The channels that write text onto the drawing: the text is its own key, so they get no section. */
+const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
+    "node.label",
+    "node.tooltip",
+    "edge.label",
+    "edge.arrowHeadText",
+    "edge.arrowTailText",
+]);
+
+/**
+ * The blocks the legend shows: not a label's (it would list every name beside the name already
+ * drawn), and not a size that does not vary (a key for one size reads as "sizes done" while every
+ * dot is the same).
+ * @param blocks - the blocks `styles.legend()` returned.
+ * @returns the blocks worth a key, in the same order.
+ */
+export function keyBlocks(blocks: readonly LegendBlock[]): LegendBlock[] {
+    return blocks.filter(
+        (block) => !TEXT_CHANNELS.has(block.channel) && !(isSizeBlock(block) && block.kind === "literal"),
+    );
+}
+
 /**
  * Whether a block describes a size, so its swatches carry `size` rather than `color`.
  * @param block - the block.
@@ -98,23 +120,29 @@ export function imageLegend(
     blocks: readonly LegendBlock[],
     rowName: (block: LegendBlock) => string,
 ): ScreenshotLegendSection[] {
-    return [...blocks].reverse().map((block) => {
-        const title = sectionTitle(block, rowName(block));
-        if (block.kind === "sequential" || block.kind === "diverging") {
-            const colors = block.swatches.flatMap((swatch) => (swatch.color === undefined ? [] : [swatch.color]));
-            const ramp = { min: block.swatches.at(0)?.label ?? "", max: block.swatches.at(-1)?.label ?? "" };
-            return { title, ramp: isSizeBlock(block) ? ramp : { ...ramp, colors } };
-        }
-        const rows = block.swatches.map((swatch) => {
-            const value = paintWords(swatch) ?? swatch.count?.toLocaleString();
+    return keyBlocks(blocks)
+        .reverse()
+        .map((block) => {
+            const title = sectionTitle(block, rowName(block));
+            if (block.kind === "sequential" || block.kind === "diverging") {
+                const colors = block.swatches.flatMap((swatch) => (swatch.color === undefined ? [] : [swatch.color]));
+                const ramp = { min: block.swatches.at(0)?.label ?? "", max: block.swatches.at(-1)?.label ?? "" };
+                return { title, ramp: isSizeBlock(block) ? ramp : { ...ramp, colors } };
+            }
+            const rows = block.swatches.map((swatch) => {
+                const value = paintWords(swatch) ?? swatch.count?.toLocaleString();
+                return {
+                    label: swatchName(swatch),
+                    ...(swatch.color === undefined ? {} : { color: swatch.color }),
+                    ...(value === undefined ? {} : { value }),
+                };
+            });
             return {
-                label: swatchName(swatch),
-                ...(swatch.color === undefined ? {} : { color: swatch.color }),
-                ...(value === undefined ? {} : { value }),
+                title,
+                rows,
+                ...(block.overflow === undefined ? {} : { note: overflowLine(block.overflow.hidden) }),
             };
         });
-        return { title, rows, ...(block.overflow === undefined ? {} : { note: overflowLine(block.overflow.hidden) }) };
-    });
 }
 
 /**

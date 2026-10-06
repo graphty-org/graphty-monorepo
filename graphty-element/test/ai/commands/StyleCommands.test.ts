@@ -34,7 +34,10 @@ describe("StyleCommands", () => {
      * @returns The layer, or undefined when nothing by that name was added.
      */
     function layerNamed(name: string): Layer | undefined {
-        return graph.getSession().styles.list().find((layer) => layer.name === name);
+        return graph
+            .getSession()
+            .styles.list()
+            .find((layer) => layer.name === name);
     }
 
     describe("findAndStyleNodes", () => {

@@ -147,14 +147,22 @@ describe("grid-parity helper (pure)", () => {
         // the node samples on random20k, the pyramid samples of every level of its 2D grid, and the word strides of
         // the primitives' writers (17 and 65 over the random20k build, 65 over a level, 1025 over 2^20 words)
         const n = 20_000;
-        const nodes = Array.from(sampleNodes(Float64Array.from({ length: 3 * n }, (_, i) => Math.floor(i / 3)), n));
+        const nodes = Array.from(
+            sampleNodes(
+                Float64Array.from({ length: 3 * n }, (_, i) => Math.floor(i / 3)),
+                n,
+            ),
+        );
         const spec = gridSpecFor(n, 2, {
             gridMax2D: LAYOUT_TUNING_DEFAULTS.gridMax2D,
             gridMax3D: LAYOUT_TUNING_DEFAULTS.gridMax3D,
             deterministic: true,
         });
         const cells = Array.from(
-            samplePyramid(Float64Array.from({ length: 3 * spec.pyramidCells }, (_, i) => Math.floor(i / 3)), spec),
+            samplePyramid(
+                Float64Array.from({ length: 3 * spec.pyramidCells }, (_, i) => Math.floor(i / 3)),
+                spec,
+            ),
         );
         const samples: Readonly<Record<string, readonly number[]>> = {
             nodes: nodes.filter((_, k) => k % 3 === 0),
@@ -166,7 +174,10 @@ describe("grid-parity helper (pure)", () => {
                     [1025, 2 ** 20],
                 ].map(([stride, count]) => [
                     `stride ${stride} over ${count}`,
-                    sampleStrided(Uint32Array.from({ length: count }, (_, i) => i), stride),
+                    sampleStrided(
+                        Uint32Array.from({ length: count }, (_, i) => i),
+                        stride,
+                    ),
                 ]),
             ),
         };

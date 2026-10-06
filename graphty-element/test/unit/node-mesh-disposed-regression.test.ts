@@ -187,6 +187,5 @@ describe("Node.update() mesh disposal regression", () => {
             // Position should NOT be updated when dragging
             assert.strictEqual(node.mesh?.position.x, 0);
         });
-
     });
 });

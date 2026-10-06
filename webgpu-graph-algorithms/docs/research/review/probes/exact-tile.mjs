@@ -75,31 +75,66 @@ fn kick(i: u32, j: u32, k: f32) -> vec3<f32> { let h = lowbias32((i * 0x9E3779B9
 }`;
 
 async function bench(label, code, n, iters = 10) {
-  const mod = device.createShaderModule({ code });
-  const pipe = device.createComputePipeline({ layout: "auto", compute: { module: mod, entryPoint: "main" } });
-  const pos = new Float32Array(3 * n); for (let i = 0; i < pos.length; i++) pos[i] = (Math.random() * 2 - 1) * 50;
-  const mass = new Float32Array(n); for (let i = 0; i < n; i++) mass[i] = 1 + Math.floor(Math.random() * 20);
-  const mk = (arr, usage) => { const b = device.createBuffer({ size: arr.byteLength, usage: usage | GPUBufferUsage.COPY_DST }); device.queue.writeBuffer(b, 0, arr); return b; };
-  const posBuf = mk(pos, GPUBufferUsage.STORAGE), massBuf = mk(mass, GPUBufferUsage.STORAGE);
-  const dispBuf = device.createBuffer({ size: pos.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
-  const ub = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  device.queue.writeBuffer(ub, 0, new Uint32Array([n, 0, 0, 0])); device.queue.writeBuffer(ub, 4, new Float32Array([2.0]));
-  const bg = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [
-    { binding: 0, resource: { buffer: ub } }, { binding: 1, resource: { buffer: posBuf } }, { binding: 2, resource: { buffer: massBuf } }, { binding: 3, resource: { buffer: dispBuf } }] });
-  const step = async () => { const e = device.createCommandEncoder(); const ps = e.beginComputePass(); ps.setPipeline(pipe); ps.setBindGroup(0, bg); ps.dispatchWorkgroups(Math.ceil(n / 256)); ps.end(); device.queue.submit([e.finish()]); await device.queue.onSubmittedWorkDone(); };
-  await step(); await step();
-  const t0 = performance.now(); for (let i = 0; i < iters; i++) await step(); const t1 = performance.now();
-  const ms = (t1 - t0) / iters;
-  const pairs = Math.ceil(n / 256) * 256 * Math.ceil(n / 256) * 256;
-  console.log(`${label.padEnd(6)} n=${String(n).padStart(7)}  ${ms.toFixed(3)} ms/iter  ${(pairs / (ms / 1000) / 1e11).toFixed(2)}e11 pairs/s`);
-  posBuf.destroy(); massBuf.destroy(); dispBuf.destroy(); ub.destroy();
-  return ms;
+    const mod = device.createShaderModule({ code });
+    const pipe = device.createComputePipeline({ layout: "auto", compute: { module: mod, entryPoint: "main" } });
+    const pos = new Float32Array(3 * n);
+    for (let i = 0; i < pos.length; i++) pos[i] = (Math.random() * 2 - 1) * 50;
+    const mass = new Float32Array(n);
+    for (let i = 0; i < n; i++) mass[i] = 1 + Math.floor(Math.random() * 20);
+    const mk = (arr, usage) => {
+        const b = device.createBuffer({ size: arr.byteLength, usage: usage | GPUBufferUsage.COPY_DST });
+        device.queue.writeBuffer(b, 0, arr);
+        return b;
+    };
+    const posBuf = mk(pos, GPUBufferUsage.STORAGE),
+        massBuf = mk(mass, GPUBufferUsage.STORAGE);
+    const dispBuf = device.createBuffer({
+        size: pos.byteLength,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+    });
+    const ub = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(ub, 0, new Uint32Array([n, 0, 0, 0]));
+    device.queue.writeBuffer(ub, 4, new Float32Array([2.0]));
+    const bg = device.createBindGroup({
+        layout: pipe.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: { buffer: ub } },
+            { binding: 1, resource: { buffer: posBuf } },
+            { binding: 2, resource: { buffer: massBuf } },
+            { binding: 3, resource: { buffer: dispBuf } },
+        ],
+    });
+    const step = async () => {
+        const e = device.createCommandEncoder();
+        const ps = e.beginComputePass();
+        ps.setPipeline(pipe);
+        ps.setBindGroup(0, bg);
+        ps.dispatchWorkgroups(Math.ceil(n / 256));
+        ps.end();
+        device.queue.submit([e.finish()]);
+        await device.queue.onSubmittedWorkDone();
+    };
+    await step();
+    await step();
+    const t0 = performance.now();
+    for (let i = 0; i < iters; i++) await step();
+    const t1 = performance.now();
+    const ms = (t1 - t0) / iters;
+    const pairs = Math.ceil(n / 256) * 256 * Math.ceil(n / 256) * 256;
+    console.log(
+        `${label.padEnd(6)} n=${String(n).padStart(7)}  ${ms.toFixed(3)} ms/iter  ${(pairs / (ms / 1000) / 1e11).toFixed(2)}e11 pairs/s`,
+    );
+    posBuf.destroy();
+    massBuf.destroy();
+    dispBuf.destroy();
+    ub.destroy();
+    return ms;
 }
 const out = {};
 for (const n of [4096, 8192, 16384, 20000, 32768, 65536, 100000]) {
-  const a = await bench("probe", probeBody, n);
-  const b = await bench("fa2", fa2Body, n);
-  out[n] = { probeMs: +a.toFixed(3), fa2Ms: +b.toFixed(3), ratio: +(b / a).toFixed(2) };
+    const a = await bench("probe", probeBody, n);
+    const b = await bench("fa2", fa2Body, n);
+    out[n] = { probeMs: +a.toFixed(3), fa2Ms: +b.toFixed(3), ratio: +(b / a).toFixed(2) };
 }
 console.log(JSON.stringify(out));
 device.destroy();

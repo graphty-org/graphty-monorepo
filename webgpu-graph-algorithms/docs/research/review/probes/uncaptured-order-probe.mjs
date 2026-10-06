@@ -12,14 +12,16 @@ const adapter = await gpu.requestAdapter();
 const device = await adapter.requestDevice();
 console.log("adapter:", adapter.info.vendor, adapter.info.architecture);
 const events = [];
-device.addEventListener("uncapturederror", (ev) => { events.push(`uncaptured@${performance.now().toFixed(2)}: ${ev.error.message.split("\n")[0]}`); });
+device.addEventListener("uncapturederror", (ev) => {
+    events.push(`uncaptured@${performance.now().toFixed(2)}: ${ev.error.message.split("\n")[0]}`);
+});
 
 // A kernel bug: bind a buffer too small for the dispatch's indexing is clamped (no error); instead
 // produce a genuine validation error at command-buffer creation: copy out of range.
 const a = device.createBuffer({ size: 256, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
 const st = device.createBuffer({ size: 256, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
 const enc = device.createCommandEncoder();
-enc.copyBufferToBuffer(a, 0, st, 0, 512);   // 512 > 256: validation error, surfaces at finish()/submit
+enc.copyBufferToBuffer(a, 0, st, 0, 512); // 512 > 256: validation error, surfaces at finish()/submit
 const cb = enc.finish();
 const t0 = performance.now();
 device.queue.submit([cb]);
@@ -33,6 +35,10 @@ console.log(`after setTimeout(50)@${(performance.now() - t0).toFixed(2)}; events
 for (const e of events) console.log("  ", e);
 
 // Second device on the same adapter?
-try { await adapter.requestDevice(); console.log("second requestDevice on same adapter: OK"); }
-catch (e) { console.log("second requestDevice on same adapter:", String(e).split("\n")[0]); }
+try {
+    await adapter.requestDevice();
+    console.log("second requestDevice on same adapter: OK");
+} catch (e) {
+    console.log("second requestDevice on same adapter:", String(e).split("\n")[0]);
+}
 device.destroy();

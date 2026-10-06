@@ -224,9 +224,10 @@ describe("grid tier: settle, determinism, saturation, 3D and R-24 (design 13 row
                 // the rule averages over EVERY node, strays included, so one iteration of the core alone may sit above
                 // the line (8 % above on lavapipe once the grid tier tracked the exact tier's expansion, issue #90);
                 // over the window the core's mean displacement is under threshold x rms
-                expect(coreOverWindow, "the core's mean displacement over the window under threshold x rms").toBeLessThanOrEqual(
-                    FA2_DEFAULTS.settleThreshold * rmsOverWindow,
-                );
+                expect(
+                    coreOverWindow,
+                    "the core's mean displacement over the window under threshold x rms",
+                ).toBeLessThanOrEqual(FA2_DEFAULTS.settleThreshold * rmsOverWindow);
                 // and no single iteration of the window more than 25 % over it (the measured worst is 8 %)
                 for (const r of window) {
                     expect(r.dispGiant, "the core's mean displacement at each window iteration").toBeLessThanOrEqual(

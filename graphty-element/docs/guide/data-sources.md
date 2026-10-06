@@ -561,11 +561,7 @@ Graphty validates data using Zod schemas. Invalid data will throw descriptive er
 
 ```typescript
 try {
-    await graph.addNodes([
-        {
-            /* missing id */
-        },
-    ]);
+    await graph.addNodes([{/* missing id */}]);
 } catch (error) {
     console.error("Invalid node data:", error.message);
 }

@@ -146,8 +146,7 @@ describe("sizing nodes by a run with style: { size }", () => {
             return new Map(
                 graph.getNodes().map((node) => {
                     const color = (node.mesh as InstancedMesh).instancedBuffers.color as
-                        | { r: number; g: number; b: number }
-                        | undefined;
+                        { r: number; g: number; b: number } | undefined;
 
                     return [
                         String(node.id),

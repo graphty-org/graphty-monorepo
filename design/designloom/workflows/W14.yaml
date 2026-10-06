@@ -3,117 +3,117 @@ name: First-Time User Onboarding
 category: onboarding
 validated: false
 personas:
-  - explorer-elena
+    - explorer-elena
 requires_capabilities:
-  - guided-onboarding
-  - sample-datasets
-  - data-import
-  - data-preview
-  - graph-rendering
-  - layout-force-directed
-  - zoom-pan
-  - basic-statistics
-  - community-detection
-  - tooltip-display
+    - guided-onboarding
+    - sample-datasets
+    - data-import
+    - data-preview
+    - graph-rendering
+    - layout-force-directed
+    - zoom-pan
+    - basic-statistics
+    - community-detection
+    - tooltip-display
 suggested_components:
-  - file-drop-zone
-  - sample-data-dialog
-  - onboarding-wizard
-  - toolbar
-  - graph-canvas
-  - zoom-controls
-  - statistics-panel
-  - tooltip
-  - keyboard-shortcut
+    - file-drop-zone
+    - sample-data-dialog
+    - onboarding-wizard
+    - toolbar
+    - graph-canvas
+    - zoom-controls
+    - statistics-panel
+    - tooltip
+    - keyboard-shortcut
 starting_state:
-  data_type: user's first graph file
-  node_count: unknown
-  edge_density: unknown
-  user_expertise: novice
+    data_type: user's first graph file
+    node_count: unknown
+    edge_density: unknown
+    user_expertise: novice
 goal: >-
-  **Intent**: Help a new user successfully load their first graph and understand what the tool can do. User arrives with
-  data but no prior graph analysis experience and needs to feel confident they can accomplish something meaningful.
+    **Intent**: Help a new user successfully load their first graph and understand what the tool can do. User arrives with
+    data but no prior graph analysis experience and needs to feel confident they can accomplish something meaningful.
 
 
-  **Mental Model**: "Guided tour" - like a museum audio guide that introduces key features progressively. Also "training
-  wheels" - supported early steps that build confidence before removing assistance.
+    **Mental Model**: "Guided tour" - like a museum audio guide that introduces key features progressively. Also "training
+    wheels" - supported early steps that build confidence before removing assistance.
 
 
-  **Task Phases**:
+    **Task Phases**:
 
-  1. **Arrival** - See clear call-to-action (not empty canvas), understand what's possible
+    1. **Arrival** - See clear call-to-action (not empty canvas), understand what's possible
 
-  2. **Data Loading** - Choose method (file, URL, paste, sample), see preview, confirm load
+    2. **Data Loading** - Choose method (file, URL, paste, sample), see preview, confirm load
 
-  3. **First Visualization** - See graph rendered, understand basic stats (node/edge counts)
+    3. **First Visualization** - See graph rendered, understand basic stats (node/edge counts)
 
-  4. **Guided Exploration** - Prompted to try key features (zoom, select, layout)
+    4. **Guided Exploration** - Prompted to try key features (zoom, select, layout)
 
-  5. **First Analysis** - Run a simple analysis (e.g., community detection) with guidance
+    5. **First Analysis** - Run a simple analysis (e.g., community detection) with guidance
 
-  6. **Next Steps** - Understand what else is possible, how to learn more
-
-
-  **Decision Points**:
-
-  - Which data loading method to use?
-
-  - Should I try sample data first to learn the tool?
-
-  - What do I want to explore in my data?
-
-  - What analysis should I try?
+    6. **Next Steps** - Understand what else is possible, how to learn more
 
 
-  **Information Needs**:
+    **Decision Points**:
 
-  - Clear guidance on supported formats
+    - Which data loading method to use?
 
-  - Preview of data before committing to load
+    - Should I try sample data first to learn the tool?
 
-  - Basic statistics after loading
+    - What do I want to explore in my data?
 
-  - Explanations of what each feature does
-
-  - Suggestions for what to try next
+    - What analysis should I try?
 
 
-  **Pain Points**:
+    **Information Needs**:
 
-  - Overwhelming interface with too many options
+    - Clear guidance on supported formats
 
-  - No idea where to start
+    - Preview of data before committing to load
 
-  - Data doesn't load and error messages are cryptic
+    - Basic statistics after loading
 
-  - Don't know what questions to ask of the data
+    - Explanations of what each feature does
 
-  - Feel stupid asking "basic" questions
+    - Suggestions for what to try next
 
 
-  **Data Flow**:
+    **Pain Points**:
 
-  - Input: User with data file + no prior experience
+    - Overwhelming interface with too many options
 
-  - Transformations: Data loading, initial layout, basic visualization
+    - No idea where to start
 
-  - Output: User understands basic workflow + has seen their data visualized
+    - Data doesn't load and error messages are cryptic
+
+    - Don't know what questions to ask of the data
+
+    - Feel stupid asking "basic" questions
+
+
+    **Data Flow**:
+
+    - Input: User with data file + no prior experience
+
+    - Transformations: Data loading, initial layout, basic visualization
+
+    - Output: User understands basic workflow + has seen their data visualized
 success_criteria:
-  - metric: Time to first visualization
-    target: Under 2 minutes
-  - metric: Comprehension
-    target: User can describe what they see
-  - metric: Confidence
-    target: User feels capable of exploring further
-  - metric: Activation
-    target: User runs at least one analysis
+    - metric: Time to first visualization
+      target: Under 2 minutes
+    - metric: Comprehension
+      target: User can describe what they see
+    - metric: Confidence
+      target: User feels capable of exploring further
+    - metric: Activation
+      target: User runs at least one analysis
 sources:
-  - title: Graphty Progressive Disclosure Design
-    url: https://graphty.app/docs/
-    summary: Explorer Elena persona journey and progressive disclosure patterns
-  - title: Nielsen Norman Group Progressive Disclosure
-    url: https://www.nngroup.com/articles/progressive-disclosure/
-    summary: UX pattern for reducing complexity for new users
+    - title: Graphty Progressive Disclosure Design
+      url: https://graphty.app/docs/
+      summary: Explorer Elena persona journey and progressive disclosure patterns
+    - title: Nielsen Norman Group Progressive Disclosure
+      url: https://www.nngroup.com/articles/progressive-disclosure/
+      summary: UX pattern for reducing complexity for new users
 version: 1.0.0
 created_at: 2026-01-16T16:22:44.421Z
 updated_at: 2026-01-16T16:22:44.421Z

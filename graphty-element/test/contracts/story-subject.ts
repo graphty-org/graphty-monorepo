@@ -159,10 +159,7 @@ function subjectVocabulary(): Set<string> {
  * @param fileChannels - Channel-shaped names from anywhere in its file, the loose reading.
  * @returns The words, and the paths they came from for a failure message.
  */
-function written(
-    story: StoryDeclaration,
-    fileChannels: readonly string[],
-): { words: Set<string>; paths: string[] } {
+function written(story: StoryDeclaration, fileChannels: readonly string[]): { words: Set<string>; paths: string[] } {
     // A story whose setup the parser could not evaluate is read at the level of its whole file:
     // stories/AllNodeShapes.stories.ts builds one layer per shape by mapping over the shape list
     // the schema publishes, which is how it should be written and is not something a parser can
@@ -305,9 +302,7 @@ function claimedKeys(exportName: string, keys: readonly string[]): string[] {
     const name = compact(exportName);
     const spelled = keys.filter((key) => name.includes(compact(key)));
 
-    return spelled.filter(
-        (key) => !spelled.some((other) => other !== key && compact(other).includes(compact(key))),
-    );
+    return spelled.filter((key) => !spelled.some((other) => other !== key && compact(other).includes(compact(key))));
 }
 
 /**

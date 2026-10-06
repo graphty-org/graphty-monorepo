@@ -458,13 +458,7 @@ export interface GraphExporter<Opts = unknown> {
  * @category Reports and errors
  */
 export type IssueCategory =
-    | "parse-error"
-    | "missing-value"
-    | "validation-error"
-    | "unsupported"
-    | "precision"
-    | "coercion"
-    | "merged";
+    "parse-error" | "missing-value" | "validation-error" | "unsupported" | "precision" | "coercion" | "merged";
 
 /**
  * One problem found while importing.

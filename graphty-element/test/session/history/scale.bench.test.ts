@@ -116,7 +116,7 @@ describe("undo at the largest graph a session holds", () => {
         assert.isBelow(freezeMs, loadMs / 4);
     });
 
-    it("dispatching one command over a million ids", async () => {
+    it("dispatching one command over a million ids", { timeout: REBUILD_TIMEOUT_MS }, async () => {
         const ids = Array.from({ length: 1_000_000 }, (_, at) => `v${String(at)}`);
         const ms = await time(() =>
             session.execute({
@@ -129,7 +129,7 @@ describe("undo at the largest graph a session holds", () => {
         // every row, it is the same order of work.
         assert.isBelow(ms, Math.max(loadMs, FRAME_MS * CONTENTION));
         await session.undo();
-    }, REBUILD_TIMEOUT_MS);
+    });
 
     it("undoing an attribute edit takes a frame", async () => {
         await session.data.updateNodes([{ id: "v7", values: { weight: 3 } }]);
@@ -138,79 +138,91 @@ describe("undo at the largest graph a session holds", () => {
         assert.isBelow(ms, FRAME_MS * CONTENTION);
     });
 
-    it("thirty undos of removals from the middle of the rows each return at once, in proportion to their patch", async () => {
-        for (let at = 0; at < 30; at++) {
-            await session.data.removeNodes([`v${String(20_000 + 101 * at)}`]);
-        }
+    it(
+        "thirty undos of removals from the middle of the rows each return at once, in proportion to their patch",
+        { timeout: REBUILD_TIMEOUT_MS },
+        async () => {
+            for (let at = 0; at < 30; at++) {
+                await session.data.removeNodes([`v${String(20_000 + 101 * at)}`]);
+            }
 
-        const calls: number[] = [];
-        const undone: Promise<unknown>[] = [];
-        for (let at = 0; at < 30; at++) {
-            const start = performance.now();
-            undone.push(session.undo());
-            calls.push(performance.now() - start);
-        }
+            const calls: number[] = [];
+            const undone: Promise<unknown>[] = [];
+            for (let at = 0; at < 30; at++) {
+                const start = performance.now();
+                undone.push(session.undo());
+                calls.push(performance.now() - start);
+            }
 
-        await Promise.all(undone);
-        const read = await time(() => Promise.resolve(session.snapshot()));
-        report("the slowest synchronous part of thirty undos", Math.max(...calls));
-        report("the one rebuild they cost, at the next read", read);
-        // One node's rows each: nowhere near a rebuild of the graph, which the read pays once.
-        assert.isBelow(Math.max(...calls), FRAME_MS * CONTENTION);
-    }, REBUILD_TIMEOUT_MS);
+            await Promise.all(undone);
+            const read = await time(() => Promise.resolve(session.snapshot()));
+            report("the slowest synchronous part of thirty undos", Math.max(...calls));
+            report("the one rebuild they cost, at the next read", read);
+            // One node's rows each: nowhere near a rebuild of the graph, which the read pays once.
+            assert.isBelow(Math.max(...calls), FRAME_MS * CONTENTION);
+        },
+    );
 
-    it("undoing a replacing import at the state layer costs less than the import it undoes", async () => {
-        const { nodes, edges } = graph;
-        const document = JSON.stringify({ nodes: nodes.slice(0, 10), edges: edges.slice(0, 10) });
-        await session.data.import({ type: "json", config: { data: document } }, { mode: "replace" });
-        const ms = await time(async () => {
-            await session.undo();
-            session.snapshot();
-        });
-        report("undoing a replacing import, with the read that rebuilds", ms);
-        assert.isBelow(ms, loadMs);
-    }, REBUILD_TIMEOUT_MS);
+    it(
+        "undoing a replacing import at the state layer costs less than the import it undoes",
+        { timeout: REBUILD_TIMEOUT_MS },
+        async () => {
+            const { nodes, edges } = graph;
+            const document = JSON.stringify({ nodes: nodes.slice(0, 10), edges: edges.slice(0, 10) });
+            await session.data.import({ type: "json", config: { data: document } }, { mode: "replace" });
+            const ms = await time(async () => {
+                await session.undo();
+                session.snapshot();
+            });
+            report("undoing a replacing import, with the read that rebuilds", ms);
+            assert.isBelow(ms, loadMs);
+        },
+    );
 
     // The fifty steps are most of this test's time: each add after a removal pays a rebuild of
     // the whole graph (about 450 ms each, ten of them, measured alone at load average 48). That
     // is the setup the measured restore needs, so it is sized here rather than skipped.
-    it("restoreTo(null) after fifty mixed steps costs less than loading the graph", async () => {
-        for (let at = 0; at < 50; at++) {
-            switch (at % 5) {
-                case 0:
-                    await session.data.addNodes([{ id: `n${String(at)}` }]);
-                    break;
-                case 1:
-                    await session.positions.set([{ id: `v${String(at)}`, x: at, y: at, z: at }]);
-                    break;
-                case 2:
-                    await session.styles.add({
-                        name: `L${String(at)}`,
-                        target: "node",
-                        selector: { match: "everything" },
-                        set: { "node.color": "#ff0000" },
-                    });
-                    break;
-                case 3:
-                    await session.data.updateNodes([{ id: `v${String(at)}`, values: { at } }]);
-                    break;
-                default:
-                    await session.data.removeNodes([`v${String(30_000 + at)}`]);
+    it(
+        "restoreTo(null) after fifty mixed steps costs less than loading the graph",
+        { timeout: RESTORE_TIMEOUT_MS },
+        async () => {
+            for (let at = 0; at < 50; at++) {
+                switch (at % 5) {
+                    case 0:
+                        await session.data.addNodes([{ id: `n${String(at)}` }]);
+                        break;
+                    case 1:
+                        await session.positions.set([{ id: `v${String(at)}`, x: at, y: at, z: at }]);
+                        break;
+                    case 2:
+                        await session.styles.add({
+                            name: `L${String(at)}`,
+                            target: "node",
+                            selector: { match: "everything" },
+                            set: { "node.color": "#ff0000" },
+                        });
+                        break;
+                    case 3:
+                        await session.data.updateNodes([{ id: `v${String(at)}`, values: { at } }]);
+                        break;
+                    default:
+                        await session.data.removeNodes([`v${String(30_000 + at)}`]);
+                }
             }
-        }
 
-        const start = performance.now();
-        const restoring = session.history.restoreTo(null);
-        const call = performance.now() - start;
-        await restoring;
-        session.snapshot();
-        const ms = performance.now() - start;
-        report("the call of restoreTo(null) over fifty steps", call);
-        report("restoreTo(null) over fifty steps, with its derivation and the read that rebuilds", ms);
-        // Undoing adds and removals in one move rebuilds the graph once, not once per add.
-        assert.isBelow(call, FRAME_MS * CONTENTION);
-        assert.isBelow(ms, loadMs);
-    }, RESTORE_TIMEOUT_MS);
+            const start = performance.now();
+            const restoring = session.history.restoreTo(null);
+            const call = performance.now() - start;
+            await restoring;
+            session.snapshot();
+            const ms = performance.now() - start;
+            report("the call of restoreTo(null) over fifty steps", call);
+            report("restoreTo(null) over fifty steps, with its derivation and the read that rebuilds", ms);
+            // Undoing adds and removals in one move rebuilds the graph once, not once per add.
+            assert.isBelow(call, FRAME_MS * CONTENTION);
+            assert.isBelow(ms, loadMs);
+        },
+    );
 
     it("reports what strict state adds to one dispatch", async () => {
         const plain = await time(() => session.data.updateNodes([{ id: "v9", values: { x: 1 } }]));

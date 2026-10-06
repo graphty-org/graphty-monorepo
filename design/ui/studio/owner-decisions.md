@@ -63,3 +63,33 @@ card is shown, so there is one legend switch and no export-only option.
 
 **Open points for the owner.** The field and type names; whether the card's place (top left) or
 its look (light card, system font) should be options -- today they are fixed.
+
+## 2026-10-06 -- An undirected graph draws its edges without arrowheads
+
+**What.** graphty-element's default edge look now depends on the graph: an edge of a directed graph
+draws a `normal` arrowhead as before, and an edge of an undirected graph draws none. A style layer
+that sets the arrowhead type still wins either way (a reader can put arrows on an undirected graph,
+or take them off a directed one). The exported `defaultEdgeStyle` object no longer carries an
+`arrowHead` entry (its type is unchanged), and the `edge.arrowHead` channel descriptor's default is
+stated as `"normal"`, the head a directed graph draws. The element's own "Edge defaults" layer no
+longer writes the arrowhead type; the renderer adds the head when the graph is directed. Not a type
+change; a change to the default picture.
+
+**Why.** Every sample in the app is undirected (marriages, shared chapters, club ties, games) and
+was drawn with arrows while the Graph panel said "Undirected". Arrows on a graph whose ties have no
+direction invite a wrong reading: asked whether one node can reach another, a reader follows the
+arrows and answers "no".
+
+**Alternatives considered.**
+
+- Leave the default and have the app add a "no arrows" layer on undirected graphs. An app
+  workaround: every other consumer would still draw arrows on undirected graphs, and the layer
+  would sit in the reader's layer list as something they did not add.
+- Keep the arrowhead in the element's "Edge defaults" layer and rewrite that layer whenever the
+  graph's direction changes. The layer is part of the undo baseline, so undo would bring back the
+  old direction's arrows.
+- A new arrow type such as `"auto"`. Adds a public enum value that every style editor and every
+  saved style would have to understand.
+
+**Open points for the owner.** Whether `explain()` and the layer list should name the arrowhead a
+directed graph draws (today they do not list it, since no layer writes it).

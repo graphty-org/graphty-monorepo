@@ -1185,6 +1185,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ),
             ),
             snapshotStale: READ,
+            directed: READ,
             // Strict state's check after every derivation pass.
             sliceProblems: READ,
             beginLoad: IN_FLIGHT,

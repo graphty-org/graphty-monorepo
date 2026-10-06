@@ -126,10 +126,8 @@ export const defaultEdgeStyle: EdgeStyleConfig = {
         width: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
         color: "darkgrey",
     },
-    // NO COLOUR HERE EITHER. This object is parsed once into the base every painted edge is
-    // filled out from, so a colour named here reaches every edge in the graph and no layer
-    // beneath the arrow channels can be seen past it. Unset, a cap follows the line it caps.
-    arrowHead: ArrowStyle.parse({
-        type: "normal",
-    }),
+    // NO ARROWHEAD HERE. Whether an edge has a direction is a fact about the graph, not a
+    // default look: the painter adds a `normal` head only when the graph is directed and no layer
+    // set the head's type (`StylePainter` `EDGE_BASE_DIRECTED`). Named here, the element's own
+    // base layer would write it to every edge and an undirected graph would draw arrows.
 };

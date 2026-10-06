@@ -62,8 +62,8 @@ acceptance test. "The studio worktree" is
    Re-test a symptom after an upstream fix before building: the label line's "0 labels" was the
    camera spin starving the element's settle-then-announce event, and needed no change.
 10. (2026-10-06) A run paints as soon as it finishes (owner). When a reader's own layer suppresses
-   it, the "Hidden by your layer" notice with Show anyway must appear; whether a run should instead
-   land above such a layer is an open owner question, not mine to decide in code.
+    it, the "Hidden by your layer" notice with Show anyway must appear; whether a run should instead
+    land above such a layer is an open owner question, not mine to decide in code.
 11. (2026-10-06) Known gaps on the core path I expect the study to hit: Open project or file...
     imports a `.graphty.json` as data; legend switch not saved with the project; Undo can leave a
     stale project name in the header; the Selection row's Style tab is empty (selection look lives
@@ -80,11 +80,11 @@ acceptance test. "The studio worktree" is
     app a failed open from the start screen closes the half-made project, adds nothing to Recent
     projects and leaves an error notice (`Notice.error`) that stays until dismissed; any new open
     path must keep this.
-14. (2026-10-06) Check a layout against a reference before a study offers it (Spectral was
-    wrong until matched against numpy; "Force, flat" runs ARF, not the default force on a plane).
-    Also: a load that the counts say worked can still draw nothing -- the store and the render
-    half are fed separately in `ingest.ts`; assert on `element.graph.getNodes()`, not only on
-    `statistics()`, in any load test.
+14. (2026-10-06) Arrowheads follow the graph's direction (commit "draw undirected graphs without
+    arrowheads"): `defaultEdgeStyle` has no `arrowHead`; `StylePainter` adds a `normal` head
+    (`EDGE_BASE_DIRECTED`, mesh key suffix `|>`) only when `DataManager.directed` is true and no
+    layer set `edge.arrowHead`. The edge bootstrap paint takes the direction so the first pass
+    still rebuilds nothing (issue #388). Never re-add a head to the element's base layer.
 15. (2026-10-06) Keyboard focus follows the reader's pick: a node chosen in the find box moves
     focus to that node's Summary values (a `role="group"` "Summary values", tabIndex -1), so one
     Tab reaches Degree and later letters stop typing into the box. Any new door that picks a node
@@ -167,17 +167,11 @@ acceptance test. "The studio worktree" is
   `labelOf(id) -> { text, drawn }`. Held PRs awaiting the owner's name confirmation; merged into
   the studio worktree so the study tool can use them. Studio proposed; owner to confirm. The
   seeded default layout merged with them (issue #801) is withdrawn; see the next entry.
-- 2026-10-06 -- No default layout seed in graphty-element; the app passes its own (owner). Undid
-  the element's DEFAULT_LAYOUT_SEED, `withDefaultSeed`, the ngraph schema default (back to null)
-  and the guide section; recorded in `owner-decisions.md` so held #801 does not land. App: seed on
-  the tag (not `session.layout.set` at open, which would add an undo step that unseeds the drawing)
-  and on Method picks; the Seed field falls back to the app's seed, not 0 (the flat layout's
-  schema refuses 0). Evidence: `LayoutSeed.real-element.test.tsx` fails on the old app sources
-  ("expected undefined to equal 1"); `tmp/check-r0-seed-out-of-element/a/`: Les Miserables opened,
-  tab reopened, opened again -- 02.png and 04.png byte-identical; Seed reads 1 for Force and Force,
-  flat (10.png, 12.png). Re-recorded on the seeded default: Louvain 6 groups of 20/17/11/11/10/8
-  (06.png); label line by name "77 labels, 7 hidden to avoid overlap" (09.png); after Force, flat
-  "77 labels, 0 hidden".
+- 2026-10-06 -- No default layout seed in graphty-element; the app passes its own (owner). The
+  element's seed default is undone and recorded in `owner-decisions.md` so held #801 does not land.
+  App: seed on the tag (not `session.layout.set` at open, an undo step) and on Method picks.
+  Evidence: `LayoutSeed.real-element.test.tsx`; `tmp/check-r0-seed-out-of-element/a/` (02 and 04
+  byte-identical across a reopen).
 - 2026-10-06 -- Studies run on a local production build of the studio worktree, not on graphty.app
   and not after the release. Owner (this run's brief).
 
@@ -212,43 +206,26 @@ acceptance test. "The studio worktree" is
   `test/browser/load-draft.test.ts`; `tmp/check-r0-new-from-data-empty-canvas/04.png`.
 
 - 2026-10-06 -- Chrome names and tooltips (commit f60a81711): Main menu and privacy chip
-  tooltips; the Graph place footer is no longer a link (only the toolbar is "Analyze"); cut names
-  get a tooltip from compact-mantine's `rows/EllipsizedName.tsx` only when actually cut. The
-  Canvas rows sit 8 px deeper than Method and Seed; left alone.
+  tooltips; cut names get a tooltip from compact-mantine's `rows/EllipsizedName.tsx` only when cut.
 - 2026-10-06 -- The finding "Style tab panel named by its whole content" came from the study
   tool's printout (it shows innerText for an element with no aria-label), not from the ARIA name:
   Mantine's `Tabs.Panel` is labelled by its tab. `--click "Style"` no longer prints ambiguous. No
   change.
 
-- 2026-10-06 -- Legend and Style lines kept truthful (commit 377c526e1). App: `keyBlocks()` filters
-  the legend before the card (`CanvasOverlays.tsx` read) and `imageLegend()`: no label, tooltip or
-  arrow-text block, no literal size block. `SetLine.tsx` BoundValue's chip reads the element legend
-  block for (layer, channel), then the named palette, then gray. Element: a run's encoding layer is
-  named `run.label` (was "<run> - Node Colour"), as a column layer is `column.name`; a default
-  string, not public API, so no owner door. Not done: renaming the "Node Colour" plainName itself
-  (validation messages still say "Colour"). Evidence: the chip assertion in
-  `StyleTab.real-element.test.tsx` fails on the old SetLine (gray var); `legendWords.test.ts`;
-  `tmp/check-r0-legend-and-style-lines-truthful/` 06 (constant size: no Size block, orange chip),
-  07 (bound size: Size ramp), 08 (names drawn, no Label block).
+- 2026-10-06 -- Legend and Style lines kept truthful (commit 377c526e1): `keyBlocks()` drops
+  label, tooltip, arrow-text and literal size blocks; `SetLine.tsx`'s chip reads the element legend
+  block. A run's encoding layer is named `run.label`. Not done: the "Node Colour" plainName.
+  Evidence: `StyleTab.real-element.test.tsx`; `tmp/check-r0-legend-and-style-lines-truthful/`.
 
-- 2026-10-06 -- One Everything row (commit 1889d513a). The reader's Everything layer (the layer
-  `writeLine` in `style/row.ts` adds, marked `userData.graphtyEverything`) is the Everything row's
-  paint, so `paintRows` (`graph-place/rows.ts`) skips it instead of listing a second "Everything"
-  layer row. Kept the Everything row eye-less (fixed rows have no eye). Evidence: new case in
-  `graph-place/__tests__/rows.test.ts` fails on the old rows.ts; real.mjs session
-  `tmp/check-r0-duplicate-everything-row/` 10.png: labels drawn, one Everything row.
-  Still open: the inspector header reads "Everything" twice (row name, then its kind word from
-  `inspector/words.ts`), so `--click "Everything"` stays ambiguous (treeitem plus two `p`s).
+- 2026-10-06 -- One Everything row (commit 1889d513a): `paintRows` (`graph-place/rows.ts`) skips
+  the reader's Everything layer (`userData.graphtyEverything`). Still open: the inspector header
+  reads "Everything" twice, so `--click "Everything"` stays ambiguous.
 
 ## Tried: worked / did not work
 
-- 2026-10-06 -- Analyze keyboard pick as the ARIA combobox pattern: focus stays in the filter box,
-  `aria-activedescendant` names the active option, and the first match is active while there is
-  filter text, so Enter on a single match opens it. Worked: a new real-element test fails on the
-  old popover and passes on the new one; real.mjs session `tmp/check-r0-analyze-keyboard-pick/`
-  (Shift+A, type "brokers", Enter opens Betweenness, Enter runs it; ArrowDown twice, Enter opens
-  Degree). Side effect: the `AnalyzeFiltered` story now shows the first match highlighted, a
-  baseline change for the owner's visual review.
+- 2026-10-06 -- Analyze keyboard pick as the ARIA combobox pattern (focus stays in the filter,
+  `aria-activedescendant`, first match active): worked; `tmp/check-r0-analyze-keyboard-pick/`.
+  The `AnalyzeFiltered` story's baseline changed (owner review).
 - 2026-10-06 -- When a keyboard step "does nothing" in real.mjs, probe focus with a `--type` step
   before blaming the app (a capture once dropped focus to the page body; fixed in the tool).
 
@@ -300,16 +277,22 @@ acceptance test. "The studio worktree" is
   each fail on the old files. In real.mjs hover the name span (`"Edges per node#2"`), not the stat
   group, whose center lands on the value.
 
-- (2026-10-06) **Find box focus hand-off: worked.** A find pick of a node calls
-  `focusNodeValuesNext()` (a one-shot flag in `inspector/reads.ts`) before `selection.apply`;
-  `NodeValues` consumes it in an effect that runs after every render (so re-picking the node
-  already shown also moves focus) and focuses a tabIndex -1 group around the Summary rows. A
-  module flag beside the component file failed lint (react-refresh only-export-components), so the
-  flag lives in `reads.ts`. Escape on an empty box already blurred it; unchanged. Proven by the
-  real-element test "T12 from the find box" (fails without the call) and on the running app: find
-  Javert, Enter, Tab lands on Degree, Enter lists "Javert's 17 connections"
-  (`design/ui/studio/tmp/check-r0-find-box-focus/06-08.png`). Edge and value picks keep focus
-  where it was (no node view to land in).
+- (2026-10-06) **Find box focus hand-off: worked.** `focusNodeValuesNext()` (a one-shot flag in
+  `inspector/reads.ts`, not beside the component: react-refresh lint) moves focus to the Summary
+  values after a find pick. Proven by "T12 from the find box" and
+  `tmp/check-r0-find-box-focus/06-08.png`.
+
+- (2026-10-06) **Undirected arrowheads: worked.** Tried and rejected first: rewriting the
+  element's "Edge defaults" layer on a direction change (the layer is the undo baseline) and an
+  "auto" arrow type (new public enum value). The painter-level default keeps a reader's arrow line
+  winning both ways. Proven by `test/managers/style-painter.test.ts` "StylePainter arrowheads"
+  (fails without the change) and on the app: Florentine families draws plain lines, a `directed 1`
+  GML draws heads (`design/ui/studio/tmp/check-r0-undirected-arrowheads/03.png`,
+  `directed/03.png`). Listed in `owner-decisions.md`.
+- (2026-10-06) **Layout and load checks (folded from Top of mind).** Check a layout against a
+  reference before a study offers it (Spectral was wrong until matched against numpy). A load the
+  counts say worked can still draw nothing (store and render half fed separately in `ingest.ts`):
+  assert on `element.graph.getNodes()` too.
 
 ## Thinking
 

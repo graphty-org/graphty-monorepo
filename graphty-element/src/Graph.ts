@@ -480,7 +480,7 @@ export class Graph implements GraphContext {
         // layers -- those are `session.styles`.
         this.#styles = new Styles(() => this.configDocument());
 
-        this.stylePainter = new StylePainter();
+        this.stylePainter = new StylePainter(() => this.dataManager.directed);
 
         // get the element that we are going to use for placing our canvas
         if (typeof element === "string") {

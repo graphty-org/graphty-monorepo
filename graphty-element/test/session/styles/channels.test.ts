@@ -340,7 +340,10 @@ describe("what a style editor needs to draw a row", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.shape"].default, defaultNodeStyle.shape?.type);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.width"].default, defaultEdgeStyle.line?.width);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.style"].default, defaultEdgeStyle.line?.type);
-        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHead"].default, defaultEdgeStyle.arrowHead?.type);
+        // The one exception: a head is drawn only on a directed graph, so the default style
+        // carries none and the descriptor names the head a directed graph draws.
+        assert.isUndefined(defaultEdgeStyle.arrowHead);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHead"].default, "normal");
         // "darkgrey", written as the hex a swatch can open on.
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.color"].default, "#A9A9A9");
     });

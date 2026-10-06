@@ -463,7 +463,8 @@ type ArrowEndChannel<End extends "Head" | "Tail"> =
 
 /**
  * The six channels of one arrow end, in table order. The head's and the tail's differ only in
- * their names, their style paths and the tail's type default (an edge draws a head and no tail),
+ * their names, their style paths and the tail's type default (an edge of a directed graph draws a
+ * head and no tail),
  * so they are written once here and a change to one end cannot miss the other.
  * @param end - Which end of the edge.
  * @returns The end's channels: type, size, colour, opacity, caption and caption style.
@@ -479,7 +480,9 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             plainName: `Arrow ${end}`,
             shortName: end,
             group: "arrows",
-            ...(end === "Tail" ? { default: "none" } : {}),
+            // The head's default is what a DIRECTED graph draws; an undirected graph draws no
+            // head until a layer sets one (see `EDGE_BASE_DIRECTED` in StylePainter).
+            default: end === "Tail" ? "none" : "normal",
             accepts: "enum",
             values: ARROW_VALUES,
             stylePath: `arrow${end}.type`,

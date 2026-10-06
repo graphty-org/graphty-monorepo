@@ -1040,13 +1040,11 @@ export class Edge {
      * @param g - The graph or graph context containing the edges
      */
     static updateRays(g: Graph | GraphContext): void {
-        const context = "getStyles" in g ? g : g;
-
-        if (!context.needsRayUpdate()) {
+        if (!g.needsRayUpdate()) {
             return;
         }
 
-        const { layoutEngine } = context.getLayoutManager();
+        const { layoutEngine } = g.getLayoutManager();
         if (!layoutEngine) {
             return;
         }

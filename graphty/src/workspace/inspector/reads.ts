@@ -43,6 +43,27 @@ export function selectNode(session: GraphSession, id: NodeId): void {
     void session.selection.apply({ nodes: [id] });
 }
 
+/** Set by a find pick, so the next node view takes keyboard focus on its Summary values. */
+let nodeValuesFocus = false;
+
+/**
+ * Asks the node view the next selection draws to take keyboard focus on its Summary values,
+ * so typing after a find pick no longer lands in the find box.
+ */
+export function focusNodeValuesNext(): void {
+    nodeValuesFocus = true;
+}
+
+/**
+ * Takes a pending request from `focusNodeValuesNext`, once.
+ * @returns whether the node view should take focus now.
+ */
+export function takeNodeValuesFocus(): boolean {
+    const asked = nodeValuesFocus;
+    nodeValuesFocus = false;
+    return asked;
+}
+
 /** The settings the reader changed in Made with and has not rerun yet. */
 export type Draft = Readonly<Record<string, unknown>>;
 

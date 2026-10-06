@@ -210,6 +210,28 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
     );
 
     it(
+        "T12 from the find box: a pick moves focus to the node's values, one Tab reaches Degree",
+        async () => {
+            const { session } = await openRings();
+            await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "Node 0");
+            await screen.findByRole("option", { name: /Node 0/ });
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.deepEqual([...session.selection.nodes], ["n0"]);
+            });
+            await waitFor(() => {
+                assert.equal(document.activeElement, inspector().getByRole("group", { name: "Summary values" }));
+            });
+
+            await userEvent.tab();
+            assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
+            await userEvent.keyboard("{Enter}");
+            await inspector().findByRole("region", { name: "n0's 3 connections" });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
         "T7: a measure row shows its top 10, a node its rank, and Rerun revises the same row",
         async () => {
             const { session, store } = await openRings();

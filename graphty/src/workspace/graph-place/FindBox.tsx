@@ -5,6 +5,7 @@ import { Text } from "@mantine/core";
 import { CircleDot, ListFilter, Minus } from "lucide-react";
 import React, { useId, useMemo, useState } from "react";
 
+import { focusNodeValuesNext } from "../inspector/reads";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useSessionVersion } from "./useSessionVersion";
 
@@ -42,7 +43,7 @@ function hitName(hit: FindHit): string {
 /**
  * The find box and its one live list (tier1-design.md section 2.5 and task T12): results appear
  * as the reader types and focus stays in the box; Down enters the list, Enter picks, Esc clears
- * and then leaves the box. The selection changes only on a pick. Every match comes from
+ * and then leaves the box. A node pick moves focus to that node's values in the inspector. The selection changes only on a pick. Every match comes from
  * graphty-element's `session.find`; the box only words and arranges it.
  * @returns The find box
  */
@@ -77,6 +78,10 @@ export function FindBox(): React.JSX.Element {
             return;
         }
         const { hit } = option;
+        if (hit.kind !== "edge") {
+            // The keyboard follows the pick into the node's values, out of the box (task T12).
+            focusNodeValuesNext();
+        }
         await session.selection.apply(hit.target);
         // The inspector shows what is selected once no row is open.
         store.set({ inspected: null });

@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
-import { finishedRuns, selectNode } from "./reads";
+import { finishedRuns, selectNode, takeNodeValuesFocus } from "./reads";
 import { count, formatNumber, groupName, valueText } from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
@@ -89,12 +89,19 @@ function fileAttributes(
 export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const degree = useRef<HTMLDivElement>(null);
+    const summary = useRef<HTMLDivElement>(null);
     useEffect(() => {
         if (returnToDegree) {
             returnToDegree = false;
             degree.current?.querySelector("button")?.focus();
         }
     }, []);
+    // After every render, so a pick of the node already shown takes focus too.
+    useEffect(() => {
+        if (summary.current !== null && takeNodeValuesFocus()) {
+            summary.current.focus();
+        }
+    });
     if (session === null) {
         return null;
     }
@@ -119,24 +126,26 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
     return (
         <>
             <ControlSection label="Summary" defaultOpened>
-                <AttributeRows rows={fileAttributes(session, "node", session.data.node(id))} />
-                {ranked.length > 0 && <DataRowHeader label="Results" />}
-                {ranked.map(({ run, value, rank }) => (
-                    <DataRow
-                        key={run.id}
-                        stat
-                        name={run.label}
-                        value={`${formatNumber(value)}, #${String(rank)} of ${formatNumber(run.result.measured.nodes)}`}
-                    />
-                ))}
-                <div ref={degree} style={{ display: "contents" }}>
-                    <DataRow
-                        name="Degree"
-                        value={connections}
-                        onClick={() => {
-                            void openNeighborhood(session, store, id);
-                        }}
-                    />
+                <div ref={summary} tabIndex={-1} role="group" aria-label="Summary values">
+                    <AttributeRows rows={fileAttributes(session, "node", session.data.node(id))} />
+                    {ranked.length > 0 && <DataRowHeader label="Results" />}
+                    {ranked.map(({ run, value, rank }) => (
+                        <DataRow
+                            key={run.id}
+                            stat
+                            name={run.label}
+                            value={`${formatNumber(value)}, #${String(rank)} of ${formatNumber(run.result.measured.nodes)}`}
+                        />
+                    ))}
+                    <div ref={degree} style={{ display: "contents" }}>
+                        <DataRow
+                            name="Degree"
+                            value={connections}
+                            onClick={() => {
+                                void openNeighborhood(session, store, id);
+                            }}
+                        />
+                    </div>
                 </div>
             </ControlSection>
             {memberships.length > 0 && (

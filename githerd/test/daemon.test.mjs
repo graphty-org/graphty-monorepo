@@ -248,6 +248,8 @@ async function start({ peers, ...options } = {}) {
     const daemon = await startDaemon({
         root: dir,
         port: 0,
+        // No fsync per save: it waits on a disk every parallel test file writes to.
+        durable: false,
         fetch: gh.fetch,
         token: gh.token,
         git: async (args) => {

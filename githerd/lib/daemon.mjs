@@ -508,6 +508,8 @@ function requeueLostStarts(state, at) {
  * @param {boolean} [options.autoPoll] poll at once and then on the timer; tests call `poll()`
  * @param {(line: string) => void} [options.log] one plain-ASCII line per event; stdout by default
  * @param {boolean} [options.quiet] record pages in the ledger without running the notify command
+ * @param {boolean} [options.durable] false saves state.json without fsync (tests that poll many times);
+ *   true by default
  * @param {boolean} [options.workers] false starts no worker session (the one-poll check and the
  *   self-update's protocol test); true by default
  * @param {Partial<import("./start.mjs").Platform>} [options.platform] overrides for what a worker
@@ -541,6 +543,7 @@ export async function startDaemon({
     // An acting development daemon is the live one, so it pages as its owner-items group says.
     quiet = Boolean(env.GITHERD_DEV) && env.GITHERD_DEV_NOTIFY !== "1" && env.GITHERD_DEV_ACT !== "1",
     workers: workersOn = true,
+    durable = true,
     platform: platformOptions = {},
     npm = npmLookup(),
     peers = {},
@@ -733,7 +736,7 @@ export async function startDaemon({
     async function save() {
         if (!mayWrite()) return;
         for (const line of recordLines(state, recorded)) void ledger(line);
-        await saveState(stateDir, state);
+        await saveState(stateDir, state, { durable });
         writeChangedNews();
         if (client) {
             const file = join(stateDir, "etags.json");

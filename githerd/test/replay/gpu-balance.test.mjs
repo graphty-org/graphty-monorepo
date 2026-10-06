@@ -170,6 +170,9 @@ describe("replay: the 10-02 GPU balance stretches through the whole daemon", () 
         const daemon = await startDaemon({
             root: dir,
             port: 0,
+            // A fsync per save waits on a disk every parallel test file writes to; 336 polls of them
+            // took 2 s alone and timed the test out in the full suite. Nothing here crashes mid-save.
+            durable: false,
             fetch: gh.fetch,
             token: gh.token,
             git: async () => ({ code: 0, stdout: "", stderr: "" }),

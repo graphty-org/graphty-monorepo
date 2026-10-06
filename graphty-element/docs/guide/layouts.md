@@ -90,24 +90,7 @@ graph.setLayout("ngraph", {
     dimensions: 3, // 2 or 3
     dragCoefficient: 0.02, // Damping
     theta: 0.8, // Barnes-Hut approximation
-    seed: 1, // Starting positions; 1 unless you pass another
 });
-```
-
-### The same drawing every time
-
-The default layout starts from a fixed seed, so the same data settles in the same place every
-time it is loaded, however its nodes and edges arrive. Everyone who opens one file sees one
-drawing. Pass your own seed for a different arrangement that is just as repeatable:
-
-```typescript
-const element = document.querySelector("graphty-element");
-
-// The default: the same file always draws the same way.
-await element.session.data.import({ type: "json", config: { url: "/data/team.json" } }, { layout: "recommended" });
-
-// A different, equally repeatable drawing of the same graph.
-await element.setLayout("force", { seed: 7 });
 ```
 
 ### d3-force (Force-Directed)

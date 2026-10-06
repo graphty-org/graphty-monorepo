@@ -4,7 +4,7 @@ import type React from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useSessionVersion } from "../toolbar/useSessionVersion";
-import { methodChoices } from "./methods";
+import { LAYOUT_SEED, methodChoices, takesSeed } from "./methods";
 
 /**
  * The graph's Layout group (tier1-design.md 2.7 and 5.T11): Method, from the element's layout
@@ -41,7 +41,10 @@ export function LayoutGroup(): React.JSX.Element | null {
                 comboboxProps={{ withinPortal: false }}
                 onChange={(value) => {
                     if (value !== null && value !== id) {
-                        session.layout.set(value).catch(fail);
+                        // The app's seed goes with every layout that takes one, so a method drawn
+                        // twice draws the same way.
+                        const seeded = takesSeed(session, value) ? { options: { seed: LAYOUT_SEED } } : undefined;
+                        session.layout.set(value, seeded).catch(fail);
                     }
                 }}
             />
@@ -49,7 +52,9 @@ export function LayoutGroup(): React.JSX.Element | null {
                 <StyleNumberInput
                     label="Seed"
                     value={typeof options.seed === "number" ? options.seed : undefined}
-                    defaultValue={typeof seedOption.default === "number" ? seedOption.default : 0}
+                    // Only a project saved before the app seeded its layouts has none: the field offers
+                    // the app's seed, which every layout's schema accepts.
+                    defaultValue={typeof seedOption.default === "number" ? seedOption.default : LAYOUT_SEED}
                     step={1}
                     decimalScale={0}
                     onChange={(seed) => {

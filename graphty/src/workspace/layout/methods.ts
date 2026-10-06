@@ -28,6 +28,24 @@ const LAYOUT_NAMES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The seed the app lays every graph out from, so one file draws the same way each time it is
+ * opened. graphty-element imposes no seed of its own; the app passes this one with the layout it
+ * asks for, and Reshuffle layout seed replaces it.
+ */
+export const LAYOUT_SEED = 1;
+
+/**
+ * Whether a layout takes a seed, from its catalog entry.
+ * @param session - the element's session.
+ * @param id - the layout's catalog id.
+ * @returns true when its options include `seed`.
+ */
+export function takesSeed(session: GraphSession, id: string): boolean {
+    const descriptor = session.catalog.layouts().find((layout) => layout.id === id);
+    return descriptor?.options.some((option) => option.name === "seed") ?? false;
+}
+
+/**
  * A layout's name.
  * @param descriptor - the element's layout descriptor.
  * @returns the name the app shows.

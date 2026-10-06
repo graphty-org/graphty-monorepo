@@ -1,18 +1,7 @@
-import type { GraphSession } from "@graphty/graphty-element/session";
-
 import { defineRegistration } from "../commands/registry";
 import { togglePopover } from "../toolbar/popover";
 import { nothingDrawn } from "../toolbar/useSessionVersion";
-
-/**
- * Whether the chosen layout takes a seed, from its catalog entry.
- * @param session - the element's session.
- * @returns true when its options include `seed`.
- */
-function hasSeed(session: GraphSession): boolean {
-    const descriptor = session.catalog.layouts().find((layout) => layout.id === session.layout.id);
-    return descriptor?.options.some((option) => option.name === "seed") ?? false;
-}
+import { takesSeed } from "./methods";
 
 /** The Layout package's commands (tier1-design.md 5.T11). */
 export const registration = defineRegistration({
@@ -44,7 +33,7 @@ export const registration = defineRegistration({
             label: "Reshuffle layout seed",
             group: "Layout",
             disabled: ({ session }) =>
-                nothingDrawn(session) ?? (session !== null && hasSeed(session) ? null : "This layout has no seed"),
+                nothingDrawn(session) ?? (session !== null && takesSeed(session, session.layout.id) ? null : "This layout has no seed"),
             run: async ({ session }) => {
                 if (session !== null) {
                     const { id, engine, options } = session.layout;

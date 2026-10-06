@@ -2,11 +2,21 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useRef } from "react";
 
+import { LAYOUT_SEED } from "../layout/methods";
+
 /**
  * Labels that would land on each other are thinned out until the reader turns on Show all
  * labels (tier1-design.md section 2.7). A view setting written on the tag; it records no step.
  */
 const LAYOUT_BEHAVIOR = { labels: { declutter: true } } as const;
+
+/**
+ * The element's default force layout, from the app's seed, so every file and sample draws the
+ * same way each time it is opened. Declared on the tag, it is where the project starts, not an
+ * undoable step.
+ */
+const LAYOUT_ENGINE = "ngraph";
+const LAYOUT_CONFIG = { seed: LAYOUT_SEED } as const;
 
 /** Props for ElementHost. */
 interface ElementHostProps {
@@ -51,6 +61,8 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
     return (
         <graphty-element
             ref={ref}
+            layout={LAYOUT_ENGINE}
+            layoutConfig={LAYOUT_CONFIG}
             layoutBehavior={LAYOUT_BEHAVIOR}
             style={{ display: "block", width: "100%", height: "100%" }}
         />

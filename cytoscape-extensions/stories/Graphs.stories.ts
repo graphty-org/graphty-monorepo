@@ -10,7 +10,7 @@ import { DATASETS } from "@graphty/graph-samples";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
 import type { ExportFormat, GeneratorName } from "../src/index.js";
-import { FORMATS, GENERATOR_PRESETS } from "./catalog.js";
+import { FORMATS, GENERATOR_PRESETS, presetWithSeed } from "./catalog.js";
 import { networkArgs, renderDemo, type RunArgs } from "./demo.js";
 import { BUNDLED_DATASETS, colorBy, counts, CPU_LAYOUT, placeForAlgorithm, roundTrip } from "./run.js";
 
@@ -58,8 +58,7 @@ export const Generate: StoryObj<GenerateArgs> = {
             },
             async (cy) => {
                 const options = {
-                    ...GENERATOR_PRESETS[args.generator],
-                    seed: args.seed,
+                    ...presetWithSeed(args.generator, args.seed),
                     ...(JSON.parse(args.generatorOptions || "{}") as Record<string, unknown>),
                 };
                 call.title = `cy.graphtyGenerate(${JSON.stringify(args.generator)}, ${JSON.stringify(options)})`;

@@ -17,6 +17,7 @@ import {
     FORMATS,
     GENERATOR_PRESETS,
     type Network,
+    presetWithSeed,
     SIMULATION_LAYOUTS,
     STATIC_LAYOUTS,
 } from "./catalog.js";
@@ -124,7 +125,7 @@ export const Generators: Story = {
             (Object.keys(GENERATOR_PRESETS) as GeneratorName[]).map((name) => ({
                 title: name,
                 load: async (cy) => {
-                    await cy.graphtyGenerate(name, { ...GENERATOR_PRESETS[name], seed: SEED } as never);
+                    await cy.graphtyGenerate(name, presetWithSeed(name, SEED) as never);
                 },
                 run: async (cy) => {
                     colorBy(cy, cy.nodes().some((n) => n.data("community") !== undefined) ? "community" : null);

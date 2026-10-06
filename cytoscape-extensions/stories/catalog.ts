@@ -3,6 +3,7 @@
  * generator. Data only, so test/demo-catalog.test.ts can check that nothing the extension registers is missing.
  */
 
+import { GENERATOR_OPTION_NAMES } from "../src/algorithm-options.js";
 import type { ExportFormat, GeneratorName, GeneratorOptions } from "../src/index.js";
 
 /** The force simulations: the layouts that run on the GPU. */
@@ -142,6 +143,18 @@ export const ALGORITHM_GROUPS = {
     },
 } as const satisfies Record<string, AlgorithmGroup>;
 export type AlgorithmGroupName = keyof typeof ALGORITHM_GROUPS;
+
+/**
+ * A generator's preset with the seed added when the generator takes one: the deterministic ones (ak, petersen, ...)
+ * refuse an option they do not take.
+ * @param name - the generator
+ * @param seed - the seed
+ * @returns the options to pass to cy.graphtyGenerate
+ */
+export function presetWithSeed(name: GeneratorName, seed: number): Record<string, unknown> {
+    const preset = GENERATOR_PRESETS[name] as Record<string, unknown>;
+    return GENERATOR_OPTION_NAMES[name]?.includes("seed") === true ? { ...preset, seed } : { ...preset };
+}
 
 /** Every generator with options that make a readable picture of at most a few hundred nodes. */
 export const GENERATOR_PRESETS: { [N in GeneratorName]: GeneratorOptions<N> } = {

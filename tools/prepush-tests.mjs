@@ -51,8 +51,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
  * @returns the SHARDS entries, longest-running kinds (browser) first
  */
 export function localShards(affected) {
-    const dirs = affected.map((p) => p.replace(/^@graphty\//, ""));
-    const shards = SHARDS.filter((s) => dirs.includes(s.package));
+    const dirs = new Set(affected.map((p) => p.replace(/^@graphty\//, "")));
+    const shards = SHARDS.filter((s) => dirs.has(s.package));
     return [...shards.filter((s) => s["needs-browser"]), ...shards.filter((s) => !s["needs-browser"])];
 }
 
@@ -197,13 +197,16 @@ function main() {
     // Every waiting shard starts (browser ones then queue on the shared gate), except one startRule
     // holds back until its package's caches are warm, and a third shard without a browser.
     const next = () => {
-        for (const shard of [...waiting]) {
+        // An index loop: a started shard is spliced out of `waiting` as it goes.
+        for (let i = 0; i < waiting.length; ) {
+            const shard = waiting[i];
             const now = [...running.keys()].map((n) => SHARDS.find((s) => s.shard === n));
             const nodeLane = now.filter((s) => !s["needs-browser"]).length;
             if (!canStart(shard, now, warmed) || (!shard["needs-browser"] && nodeLane >= 2)) {
+                i++;
                 continue;
             }
-            waiting.splice(waiting.indexOf(shard), 1);
+            waiting.splice(i, 1);
             start(shard);
         }
         if (waiting.length === 0 && running.size === 0) {

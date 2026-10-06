@@ -1,13 +1,14 @@
 // Keeps master green (design/ci/ci-cd-plan.md section 12). Run by .github/workflows/master-guard.yml when
-// CI, GPU or Hosts finishes on master, with the finished run in GITHUB_EVENT_PATH.
+// CI or Hosts finishes on master, with the finished run in GITHUB_EVENT_PATH.
 //
 // - CI red on a master commit: freeze the Mergify queue (pull requests labelled priority:critical still
 //   merge, so the fix can land), open a revert of the commit when its parent was green, and open a
 //   priority:critical issue.
 // - CI green on a commit at or after a frozen red commit: lift that freeze.
-// - GPU or Hosts red on master (a push or the nightly): open (or add to) a priority:critical issue naming
+// - Hosts red on master (a push or the nightly): open (or add to) a priority:critical issue naming
 //   the merges since the lane's last green run. A hardware lane never freezes the queue; release.yml already
-//   refuses to release a commit whose lanes are not green.
+//   refuses to release a commit whose lanes are not green. The T4 GPU lane (gpu.yml) runs only in the
+//   release train, which files its own "Release held" issue, so a GPU run is never this script's business.
 //
 // Every step is attempted even when an earlier one fails; the run then exits 1 so the failure is seen.
 import { execFileSync } from "node:child_process";
@@ -32,7 +33,7 @@ export function decide(run) {
         }
         return run.conclusion === "success" ? "green" : "none";
     }
-    if ((run.name === "GPU" || run.name === "Hosts") && failed && ["push", "schedule"].includes(run.event)) {
+    if (run.name === "Hosts" && failed && ["push", "schedule"].includes(run.event)) {
         return "hardware-red";
     }
     return "none";

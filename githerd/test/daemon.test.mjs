@@ -1923,6 +1923,55 @@ describe("jobs from the facts", () => {
         expect(paths.filter((p) => p.includes("/actions/runs/261/jobs"))).toHaveLength(1);
         expect(gh.writes()).toEqual([]);
     });
+
+    it("offers one shared job, and no pr job, for a job failing on three pull requests while master is green", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass"] });
+        const failed = (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ step) => ({
+            id,
+            run_attempt: 1,
+            name,
+            conclusion: "failure",
+            labels: ["ubuntu-24.04"],
+            steps: [{ name: step, conclusion: "failure" }],
+        });
+        scene.ci = [{ ...run(100, A, "success"), name: "CI" }];
+        const runs = [260, 261, 262, 263];
+        scene.jobs = Object.fromEntries(
+            runs.map((r) => [r, [failed(r * 10, "Links", "Check links"), failed(r * 10 + 1, "All Checks Pass", "x")]]),
+        );
+        const pr = (/** @type {number} */ number, /** @type {string} */ head, /** @type {number} */ runId) => {
+            const node = { ...gatedPr(), number, headRefName: `fix/${number}`, headRefOid: head };
+            node.commits.nodes[0].commit.statusCheckRollup.contexts.nodes[0] = {
+                ...node.commits.nodes[0].commit.statusCheckRollup.contexts.nodes[0],
+                databaseId: runId * 10 + 1,
+                checkSuite: { workflowRun: { databaseId: runId, workflow: { name: "CI" } } },
+            };
+            return node;
+        };
+        const daemon = await start();
+        const pollAt = async (/** @type {string} */ at) => {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        };
+        // Two pull requests failing the same job are each their own.
+        scene.prs = [pr(8, C, 260), pr(9, D, 261)];
+        await pollAt("12:00");
+        expect(daemon.state.master.verdict).toBe("green");
+        expect(Object.keys(daemon.state.jobs).sort()).toEqual(["pr-8", "pr-9"]);
+        // A third makes it shared: one job for the cause, and the pr jobs go.
+        scene.prs = [pr(8, C, 260), pr(9, D, 261), pr(10, "e".repeat(40), 262), pr(11, "f".repeat(40), 263)];
+        await pollAt("12:03");
+        const live = Object.values(daemon.state.jobs).filter((j) => !["cancelled", "done"].includes(j.state));
+        expect(live.map((j) => j.id)).toEqual(["incident-shared-ci-links-check-links"]);
+        expect(live[0]).toMatchObject({
+            kind: "incident",
+            target: "CI / Links / Check links",
+            facts: { scope: "shared", prs: [8, 9, 10, 11], lane: "ci" },
+        });
+        expect(daemon.state.prs["10"].stuck).toContain("Links failing on 4 PRs: shared cause");
+        expect(daemon.state.prs["10"].stuck.join("\n")).not.toContain("required check failing");
+        expect(gh.writes()).toEqual([]);
+    });
 });
 
 describe("asking whose a failed pull request is", () => {

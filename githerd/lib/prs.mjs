@@ -22,7 +22,7 @@ import { execFileSync } from "node:child_process";
 
 import { advisoryFailure, advisoryWords, utcDay } from "./advisory.mjs";
 import { classify } from "./classify.mjs";
-import { isSummaryJob } from "./lanes.mjs";
+import { failureKey, isSummaryJob } from "./lanes.mjs";
 
 /**
  * @typedef {import("./config.mjs").Config} Config
@@ -58,9 +58,12 @@ import { isSummaryJob } from "./lanes.mjs";
  *   cancelledRuns: CancelledRun[],
  *   ownerGate: boolean, captureFailed: string[], ownerRejected: boolean, stackedOn: number | null,
  *   underlying?: Underlying | null, inherited?: string[] | null, advisory?: string[],
+ *   failureKeys?: string[] | null, shared?: string[] | null,
  *   lastActivityAt: string, mergeStatus?: MergeStatus | null, [key: string]: unknown,
  * }} PrRecord `mergeStatus` is the `githerd/merge` status last decided for the head; `inherited` the
  *   master keys every failure under its failing summary checks is red on, when that is all that fails;
+ *   `failureKeys` the keys of those failures when only summary checks fail; `shared` the board's
+ *   words for them when every one is shared across pull requests (shared.mjs);
  *   `advisory` the advisory checks failing on the head, in the board's words (they count as passed)
  */
 
@@ -291,6 +294,8 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
         const rec = foldPr(node, saved[node.number], config, now);
         const own = warnAdvisory(rec, master.advisory, utcDay(now));
         rec.inherited = inheritedKeys(rec.required, own, master.redKeys ?? []);
+        rec.failureKeys = summaryKeys(rec.required, own);
+        rec.shared = null; // shared.mjs `markShared` decides it over every pull request
         if (node.baseRefName !== master.branch) rec.stackedOn = byHead.get(node.baseRefName) ?? null;
         out[node.number] = rec;
     }
@@ -347,10 +352,22 @@ function passSummaries(rec) {
  * @returns {string[] | null} the keys, or null
  */
 function inheritedKeys(required, underlying, masterRed) {
+    if (!summaryKeys(required, underlying)) return null;
+    const verdicts = /** @type {Underlying} */ (underlying).failures.map((f) => classify(f, { masterRed }));
+    return verdicts.every((v) => v.class === "inherited") ? [...new Set(verdicts.map((v) => v.key))] : null;
+}
+
+/**
+ * The failure keys of a pull request whose every failing required check is a summary check, from
+ * the jobs failed under them (shared.mjs counts them across pull requests). Null otherwise.
+ * @param {Record<string, CheckState>} required the required checks' states
+ * @param {Underlying | null | undefined} underlying the jobs failed under the summary checks
+ * @returns {string[] | null} the keys, or null
+ */
+function summaryKeys(required, underlying) {
     const failing = Object.keys(required).filter((n) => required[n] === "FAILURE");
     if (!failing.length || !failing.every((n) => isSummaryJob(n)) || !underlying?.failures.length) return null;
-    const verdicts = underlying.failures.map((f) => classify(f, { masterRed }));
-    return verdicts.every((v) => v.class === "inherited") ? [...new Set(verdicts.map((v) => v.key))] : null;
+    return [...new Set(underlying.failures.map((f) => failureKey(f.workflow, f.job, f.steps[0])))];
 }
 
 /**
@@ -589,6 +606,7 @@ function failingReasons(rec, master) {
     if (!failing.length) return [];
     const reasons = rec.ownerGate ? [] : [`required check failing: ${failing.join(", ")}`];
     if (rec.inherited?.length) reasons.splice(0, reasons.length, `inherited from master: ${rec.inherited.join(", ")}`);
+    else if (rec.shared?.length) reasons.splice(0, reasons.length, ...rec.shared);
     if (master.fixedAt && rec.failingStartedAt && rec.failingStartedAt < master.fixedAt) {
         reasons.push("failure predates master fix");
     }

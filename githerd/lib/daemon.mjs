@@ -115,6 +115,7 @@ import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
 import { labelMasterFixes, linkMasterFix } from "./master-fix.mjs";
 import { classify, isNoLog } from "./classify.mjs";
 import { flakePoll, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
+import { markShared } from "./shared.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
@@ -2619,6 +2620,9 @@ export async function startDaemon({
             advisory: state.advisory ?? null,
         };
         const prs = updatePrs(state.prs, nodes, view, config, iso);
+        const shared = markShared(state, prs, nodes, { threshold: config.sharedFailurePrs, at: iso });
+        for (const key of shared.declared) event("shared-failure", { key, prs: state.sharedFailures[key].prs });
+        for (const end of shared.ended) event("shared-failure-ended", end);
         for (const node of nodes) if (node.detail.gateJob) prs[node.number].gateJob = node.detail.gateJob;
         await rerunCancelled(gh, prs, iso);
         for (const ended of board.expire(state, sessionGone)) {

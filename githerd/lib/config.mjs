@@ -36,6 +36,9 @@ export const DEFAULTS = Object.freeze({
     servherdCommand: ["npx", "-y", "servherd@^1.2.0"],
     release: null,
     requiredChecks: [],
+    // How many open pull requests failing the same key, while master is green, make it one shared
+    // cause with one job instead of a job per pull request (shared.mjs).
+    sharedFailurePrs: 3,
     ownerGate: null,
     labels: { types: [], priorities: [], efforts: [] },
     protectedPaths: DEFAULT_PROTECTED,
@@ -109,7 +112,7 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  * @typedef {{
  *   repo: string, mode: "paused" | "dry-run" | "acting", pollSeconds: number, servherdCommand: string[],
  *   lanes: Record<string, Lane>, release: { commitPattern: string } | null,
- *   requiredChecks: string[],
+ *   requiredChecks: string[], sharedFailurePrs: number,
  *   ownerGate: { steps: string[], rejectMarker: string | null,
  *     reviewServer: { name: string, command: string[] } | null } | null,
  *   labels: { types: string[], priorities: string[], efforts: string[] },
@@ -398,6 +401,7 @@ export function normalizeConfig(input) {
         lanes: lanes(raw.lanes),
         release,
         requiredChecks: opt("requiredChecks", strings),
+        sharedFailurePrs: opt("sharedFailurePrs", (v, k) => number(v, k, { min: 2, max: 100 })),
         ownerGate: ownerGate(raw.ownerGate),
         labels: /** @type {any} */ (labels),
         protectedPaths: withDefaults(raw.protectedPaths, DEFAULT_PROTECTED, "protectedPaths"),

@@ -57,6 +57,14 @@ const JOBS_KEPT = 2000;
 /** The longest log line quoted. */
 const LINE_MAX = 300;
 
+/**
+ * Whether a job is a test job, whose failing tests this tracker reads and owns (shared.mjs leaves
+ * them to it).
+ * @param {string} name the job's name
+ * @returns {boolean} true for `Test (...)`
+ */
+export const isTestJob = (name) => /^Test\b/.test(name);
+
 const ANSI = new RegExp(String.raw`${String.fromCodePoint(27)}\[[0-9;]*m`, "g");
 const STAMP = /^\uFEFF?\d{4}-\d\d-\d\dT[\d:.]+Z ?/;
 const PATH = /(?:^|\s)((?:[\w@.-]+\/)*[\w@.-]+\.[cm]?[jt]sx?)(?=\s|$)/;
@@ -659,8 +667,7 @@ async function observeRollups({ nodes, store, ws, required, at, files, get, log,
         for (const c of contexts.filter((x) => x.conclusion === "SUCCESS"))
             passes.push({ sha, job: c.name, where, contains });
         const failed = contexts.filter(
-            (c) =>
-                FAILED.has(c.conclusion) && /^Test\b/.test(c.name) && c.databaseId && !store.jobs[String(c.databaseId)],
+            (c) => FAILED.has(c.conclusion) && isTestJob(c.name) && c.databaseId && !store.jobs[String(c.databaseId)],
         );
         const changed = queue ? null : files(node.number, sha);
         const base = { sha, where, pr: node.number, at };

@@ -86,7 +86,7 @@ function reportedFixes(state, keys) {
  *   keys, the incident's issues and the reported fixes
  * @returns {string | null} why
  */
-function fixReason(node, { keys, issues, reported }) {
+export function fixReason(node, { keys, issues, reported }) {
     const body = String(node.body ?? "");
     const closes = (node.closingIssuesReferences?.nodes ?? []).map((/** @type {any} */ i) => Number(i.number));
     const named = [...body.matchAll(/#(\d+)\b/g)].map((m) => Number(m[1]));

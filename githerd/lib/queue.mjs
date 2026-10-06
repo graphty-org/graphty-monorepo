@@ -113,12 +113,13 @@ export const failingRequired = (rec) =>
 /**
  * What githerd asks the sessions about before it offers a pull request as a job (design 8.2): its
  * failing required checks, and a conflict seen twice (a conflicting head runs no CI, so nothing
- * else would show that a session is still on it). A failure inherited from master is not asked about.
+ * else would show that a session is still on it). A failure inherited from master, or shared by
+ * several pull requests, is not asked about.
  * @param {any} rec the pull request's record
  * @returns {string[]} the problems, empty when there is nothing to ask about
  */
 export const askProblems = (rec) => [
-    ...(rec.inherited?.length ? [] : failingRequired(rec)),
+    ...(rec.inherited?.length || rec.shared?.length ? [] : failingRequired(rec)),
     ...((rec.conflictSightings ?? 0) >= 2 ? [`conflicts with ${rec.baseRef ?? "its base"}`] : []),
 ];
 
@@ -178,7 +179,8 @@ export function prWork(number, rec, state) {
     if (rec.captureFailed?.length) return `visual capture failed: ${rec.captureFailed.join("; ")}`;
     // A known flaky test is not the pull request's failure (flakes.mjs): the job says so.
     // A failure red on master by the same keys is master's (classify.mjs `inherited`): no job.
-    if (failing.length && !rec.ownerGate && !rec.inherited?.length)
+    // So is one shared by several pull requests (shared.mjs): its one shared job fixes it.
+    if (failing.length && !rec.ownerGate && !rec.inherited?.length && !rec.shared?.length)
         return rec.knownFlake ?? `required check failing: ${failing.join(", ")}`;
     return conflict;
 }

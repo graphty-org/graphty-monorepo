@@ -12,6 +12,8 @@
  *   procedure did not end intermittent, and every open release escalation (a failed or stalled
  *   release).
  * - `incident-local-<step>`: the pre-push gate failing on the green commit (the reference worktree).
+ * - `incident-shared-<key>`: a failure key shared by several open pull requests while master is
+ *   green (shared.mjs), unless an open pull request is already its fix.
  * - `pr-<n>`: the owner's non-draft pull requests with an own failing required check, a conflict
  *   seen twice (the only work of a stacked one), or the owner's visual reject. One that changes
  *   githerd's own config, hooks or worker instructions is `facts.ownerOnly`: offered to the owner's
@@ -67,6 +69,7 @@ import {
 } from "./queue.mjs";
 import { promotionsDue, utcDay } from "./advisory.mjs";
 import { touches } from "./prs.mjs";
+import { sharedJobSpecs } from "./shared.mjs";
 
 /** Issues in one triage job (design 8.1). */
 const TRIAGE_BATCH = 20;
@@ -235,8 +238,10 @@ function incidentJobs(state, add, cancel) {
         });
         live.add(job.id);
     }
+    for (const spec of sharedJobSpecs(state).values()) live.add(add(spec).id);
     const ended = {
         master: "master's incident ended or went intermittent",
+        shared: "the shared failure ended, or an open pull request fixes it",
         verdict: "a verdict was recorded, or master's incident ended",
         release: "the release recovered",
         local: "the gate passes on the green commit",

@@ -9,6 +9,7 @@
 
 import * as board from "./board.mjs";
 import { flakeData, flakeLines } from "./flakes.mjs";
+import { sharedLines } from "./shared.mjs";
 import { GRACE_DAYS } from "./proposals.mjs";
 import { issueTypes, jobInUse, jobOrder, ownerWaitingPrs, prInUse, prOf } from "./queue.mjs";
 
@@ -105,6 +106,7 @@ function masterData(state) {
         newerInFlight: inFlight.size,
         lastRelease: m.lastRelease ?? null,
         fixPrs: m.fixPrs ?? [],
+        shared: sharedLines(state),
         incident: incident
             ? {
                   id: incident.id,
@@ -354,6 +356,7 @@ function masterLines(m, now) {
     if (m.verdict === "red") lines.push(...redLines(m.incident, since, m.fixPrs));
     else if (m.verdict === "green") lines.push(`MASTER: green${since}.`);
     else lines.push("MASTER: unknown (no complete poll yet).");
+    if (m.shared?.length) lines.push("SHARED FAILURES:", ...m.shared);
     const third = verifiedSentences(m, now);
     if (third.length) lines.push(`  ${third.join(" ")}`);
     if (m.githubDownSince) {

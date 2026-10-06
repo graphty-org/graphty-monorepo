@@ -7,6 +7,7 @@
 import { effectiveMode } from "./config.mjs";
 import { TERMINAL } from "./board.mjs";
 import { flakeData, flakeLines } from "./flakes.mjs";
+import { sharedLines } from "./shared.mjs";
 import { jobWaits } from "./waits.mjs";
 
 /** The board's sections, in order; banners and faults always come first. */
@@ -177,8 +178,11 @@ const RENDER = {
 
     incidents(v, now) {
         const open = openJobs(v.state).filter((j) => j.kind === "incident");
-        if (!open.length) return ["INCIDENTS: none"];
+        // Keys failing on several pull requests while master is green (shared.mjs).
+        const shared = sharedLines(v.state);
+        if (!open.length) return shared.length ? ["SHARED FAILURES:", ...shared] : ["INCIDENTS: none"];
         return [
+            ...(shared.length ? ["SHARED FAILURES:", ...shared] : []),
             `INCIDENTS (${open.length}):`,
             ...open.map((j) => {
                 const how = [j.facts?.class && `class ${j.facts.class}`, j.facts?.step && `step ${j.facts.step}`];

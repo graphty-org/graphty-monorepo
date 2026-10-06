@@ -1,5 +1,5 @@
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
-import { GEXF_ISSUE, gexfImporter } from "@graphty/graph-io/gexf";
+import { gexfImporter } from "@graphty/graph-io/gexf";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import {
@@ -415,7 +415,6 @@ export class GEXFDataSource extends DataSource {
             gexfImporter,
             text,
             { addMissingNodes: true, defaultDirected, errorLimit: this.config.errorLimit ?? 100 },
-            [GEXF_ISSUE.NO_GRAPH],
         );
     }
 }

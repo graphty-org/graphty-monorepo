@@ -207,19 +207,10 @@ describe("the graph-io import helper", () => {
         assert.instanceOf(thrown.cause, ImportError);
     });
 
-    it("keeps what a recognised document held before it broke off, with the failure in the report", async () => {
-        const imported = await importDocument(recordingImporter({ ending: "abort", sniff: 1 }), "doc", {});
-        const { nodes, edges } = toRecords(imported, plain);
-
-        assert.strictEqual(nodes.length, 2);
-        assert.strictEqual(edges.length, 2);
-        assert.strictEqual(imported.report.errorCount, 1);
-    });
-
-    it("still throws E_PARSE_FAILED for a recognised document whose report holds a fatal code", async () => {
+    it("refuses a recognised document that broke off, keeping nothing it read before the break", async () => {
         let thrown: unknown;
         try {
-            await importDocument(recordingImporter({ ending: "abort", sniff: 1 }), "doc", {}, ["E_TEST"]);
+            await importDocument(recordingImporter({ ending: "abort", sniff: 1 }), "doc", {});
         } catch (error) {
             thrown = error;
         }
@@ -332,13 +323,6 @@ describe("the graph-io import helper's options, weights, cells and failures", ()
         assert.isTrue(Array.isArray(components(position, row)));
     });
 
-    it("keeps what a recognisable document gave before the importer gave up", async () => {
-        const imported = await importDocument(abortingImporter(1), "doc", {});
-
-        assert.deepEqual<unknown>(toRecords(imported, { node() {}, edge() {} }).nodes, [{ id: "a" }]);
-        assert.strictEqual(imported.report.errorCount, 1);
-    });
-
     it("turns an importer failure on an unreadable document into E_PARSE_FAILED naming the line", async () => {
         let unrecognised: unknown;
         try {
@@ -347,14 +331,14 @@ describe("the graph-io import helper's options, weights, cells and failures", ()
             unrecognised = error;
         }
 
-        let fatal: unknown;
+        let recognised: unknown;
         try {
-            await importDocument(abortingImporter(1), "doc", {}, ["E_TEST"]);
+            await importDocument(abortingImporter(1), "doc", {});
         } catch (error) {
-            fatal = error;
+            recognised = error;
         }
 
-        for (const error of [unrecognised, fatal]) {
+        for (const error of [unrecognised, recognised]) {
             assert.instanceOf(error, GraphtyError);
             assert.strictEqual(error.code, "E_PARSE_FAILED");
             assert.instanceOf(error.cause, ImportError);

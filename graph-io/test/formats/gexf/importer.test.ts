@@ -1,7 +1,7 @@
 import { type Column, GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { DUPLICATE_ATTRIBUTE_CODE, XML_SYNTAX_CODE } from "../../../src/common/codes.js";
+import { DUPLICATE_ATTRIBUTE_CODE, EMPTY_INPUT_CODE, XML_SYNTAX_CODE } from "../../../src/common/codes.js";
 import { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE } from "../../../src/common/direction.js";
 import { INVALID_UTF8_CODE } from "../../../src/common/input.js";
 import { SINK_OPTION_CODE } from "../../../src/common/options.js";
@@ -636,7 +636,8 @@ describe("gexfImporter: headers and defaults", () => {
             <nodes><node id="a"/><node id="b"/></nodes>
             <edges><edge source="a" target="b" weight="9"><attvalues><attvalue for="w" value="2"/><attvalue for="w" value="3" start="1"/><attvalue for="c" value="x" start="1" end="2"/><attvalue for="c" value="y"/></attvalues></edge></edges></graph></gexf>`;
         const { snapshot, report } = await load(doc);
-        expect(codes(report)).toEqual([TIMED_STATIC_CODE]);
+        // weight="9" and the weight attvalue "2" on one edge: the clash is reported, the attvalue wins
+        expect(codes(report)).toEqual([DUPLICATE_ATTRIBUTE_CODE, TIMED_STATIC_CODE]);
         expect(Array.from(snapshot.edgeList().weights ?? [])).toEqual([2]);
         expect(snapshot.edges.byRole("weight")).toBeNull();
         expect(snapshot.meta.weightOrigin).toMatchObject({ id: "w", title: "weight", type: "double" });
@@ -811,6 +812,8 @@ describe("gexfImporter: error aggregation (design 8.6)", () => {
             ATTRIBUTE_TYPE_CODE,
             ATTRIBUTE_ID_CODE,
             ATTRIBUTES_CLASS_CODE,
+            // <attvalue for="0"> twice on node a
+            DUPLICATE_ATTRIBUTE_CODE,
             "E_COLUMN_TYPE",
             UNKNOWN_ATTRIBUTE_CODE,
             ATTVALUE_SHAPE_CODE,
@@ -824,7 +827,7 @@ describe("gexfImporter: error aggregation (design 8.6)", () => {
             "E_UNKNOWN_NODE",
         ]);
         expect(report.errorCount).toBe(8);
-        expect(report.warningCount).toBe(11);
+        expect(report.warningCount).toBe(12);
         expect(report.issues.find((i) => i.code === "E_COLUMN_TYPE")).toMatchObject({
             category: "validation-error",
             severity: "error",
@@ -873,7 +876,8 @@ describe("gexfImporter: error aggregation (design 8.6)", () => {
 
 describe("gexfImporter: malformed corpus", () => {
     const expectedCodes: Record<string, string> = {
-        "empty-file.gexf": XML_SYNTAX_CODE,
+        // one code for the concept: every importer gives an empty input E_EMPTY_INPUT (was E_XML_SYNTAX)
+        "empty-file.gexf": EMPTY_INPUT_CODE,
         "invalid-xml.gexf": XML_SYNTAX_CODE,
         "not-xml.gexf": XML_SYNTAX_CODE,
         "no-graph-element.gexf": NO_GRAPH_CODE,
@@ -1026,9 +1030,12 @@ describe("gexfImporter: less common constructs", () => {
         expect(snapshot.nodes.get("b")).toBeNull();
     });
 
+    // the malformed interval is escaped: a literal "<" in an attribute value is not well-formed XML
     it("reads 1.3 intervals attributes and edge spells, and rejects a malformed interval", async () => {
+        // a literal "<" in an attribute value is not well-formed XML (a fatal E_XML_SYNTAX), so the
+        // malformed interval is written escaped like the well-formed one
         const doc = `<gexf version="1.3"><graph defaultedgetype="directed" timeformat="double">
-            <nodes><node id="a" intervals="&lt;[1, 2]; [3.5, 4]&gt;"/><node id="b" intervals="<[1]>"/></nodes>
+            <nodes><node id="a" intervals="&lt;[1, 2]; [3.5, 4]&gt;"/><node id="b" intervals="&lt;[1]&gt;"/></nodes>
             <edges><edge source="a" target="b"><spells><spell start="1" end="2"/></spells><viz:color r="1" g="2" b="3"/><viz:shape value="dashed"/></edge></edges></graph></gexf>`;
         const { snapshot, report } = await load(doc);
         expect(values(snapshot.nodes.get("spells"))).toEqual([
@@ -1050,7 +1057,8 @@ describe("gexfImporter: less common constructs", () => {
             <node id="a"><parents><parent/><parent for="ghost"/><parent for="b"/></parents></node><node id="b"/>
             </nodes></graph></gexf>`;
         const { snapshot, report } = await load(doc);
-        expect(codes(report)).toEqual([ATTVALUE_SHAPE_CODE, UNKNOWN_PARENT_CODE]);
+        // a <parent> without for is a parent problem (E_UNKNOWN_PARENT), not an attvalue shape
+        expect(codes(report)).toEqual([UNKNOWN_PARENT_CODE, UNKNOWN_PARENT_CODE]);
         expect(report.issues[1].message).toContain("ghost");
         expect(values(snapshot.nodes.get("parents"))).toEqual([[1], undefined]);
     });

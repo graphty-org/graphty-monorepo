@@ -23,8 +23,11 @@ on:
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
 # merge anything, and the runners it holds are what every other pull request is queued behind.
 # A push to master never cancels (each master commit is released and deployed from its own run).
+# A plain draft's run (the build job's skip test) has its own group, so it can never cancel or replace
+# a ready run of the same pull request: `opened` (draft) and `ready_for_review` fire a second apart.
+# A Mergify merge-queue draft is a real run and stays in the ready group.
 concurrency:
-    group: ci-${{ github.event.pull_request.number || github.sha }}
+    group: ci-${{ github.event.pull_request.number || github.sha }}-${{ github.event.pull_request.draft && !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') && 'draft' || 'run' }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Note: We use local Nx caching only (no Nx Cloud)

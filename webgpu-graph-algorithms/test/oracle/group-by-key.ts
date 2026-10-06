@@ -1,6 +1,7 @@
 /**
  * The CPU reference of the per-row group-by-key (design 8.6; the P11 plan's P11-T5): a Map per row from key to
- * summed weight, then the key with the largest sum, the lowest on a tie. The sums follow the primitive's documented
+ * summed weight, then the key with the largest sum; on a tie the row's own key (`keyIn[v]`) when it is among the tied,
+ * else the lowest. The sums follow the primitive's documented
  * fixed-point rule -- each weight scaled by the row's power of two `2^s` (`maxWeight x degree x 2^s < 2^30`), rounded
  * to the nearest integer with halves up, negatives counted as 0 -- because that rule IS the primitive's contract: it
  * is what makes two tiers and two devices agree bitwise.
@@ -77,10 +78,11 @@ export function groupByKeyOracle(
             const k = keyIn[colIdx[a]];
             sums.set(k, (sums.get(k) ?? 0) + quantize(weights === null ? 1 : weights[a], scale));
         }
+        const own = keyIn[v];
         let key = INVALID;
         let sum = 0;
         for (const [k, s] of sums) {
-            if (s > sum || (s === sum && k < key)) {
+            if (s > sum || (s === sum && key !== own && (k === own || k < key))) {
                 key = k;
                 sum = s;
             }

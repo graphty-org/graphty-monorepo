@@ -73,6 +73,7 @@ import { advisoryFailure, advisoryWords, CI_FILE, readAdvisory, REGISTRY_FILE, u
 import { askStep, disown, inviteStep, markMine, statusStep, tellAccepted, tellCancelled } from "./asks.mjs";
 import * as board from "./board.mjs";
 import { groupModes, NO_PUSH_QUEUE } from "./board-text.mjs";
+import { stuckJobs, writeHeartbeat } from "./heartbeat.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
 import { effectiveMode, MODELS } from "./config.mjs";
 import { createGitHub, GitHubError, notSent } from "./github.mjs";
@@ -1855,7 +1856,40 @@ export async function startDaemon({
         for (const key of board.resolveDerived(state, (esc) => holding.has(esc.key), t)) {
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
         }
+        await heartbeat({});
         return null;
+    }
+
+    /**
+     * Rewrites the heartbeat issue when it is due (heartbeat.mjs): every 15 minutes, and at once when
+     * the mode, a pause, a stuck job, a stop or fatal mode changes it. A failure is ledgered; the next
+     * poll tries again.
+     * @param {{stopped?: string, fatal?: string}} end a clean stop's or fatal mode's reason
+     */
+    async function heartbeat(end) {
+        if (!config || fenced || loaded.readOnly) return;
+        let paused = null;
+        if (mode() === "paused") paused = "mode paused (the config or the local override)";
+        else if (state.settings?.paused) paused = "githerd pause (githerd resume ends it)";
+        try {
+            await writeHeartbeat({
+                github: github(),
+                repo: config.repo,
+                state,
+                now: now().getTime(),
+                lines: {
+                    mode: mode(),
+                    paused,
+                    stuck: stuckJobs(state),
+                    stopped: end.stopped ?? null,
+                    fatal: end.fatal ?? null,
+                    version: codeHash ? `${version} ${codeHash.slice(0, 12)}` : version,
+                },
+                final: Boolean(end.fatal),
+            });
+        } catch (err) {
+            void ledger({ kind: "error", where: "heartbeat", error: /** @type {Error} */ (err).message });
+        }
     }
 
     /**
@@ -2633,7 +2667,10 @@ export async function startDaemon({
             // DOWN, not a wedged one to restart, or fatal mode ends without its cause changing.
             loopTickAt = now().toISOString();
             if (fatal === configError) await retryConfig();
-            if (fatal) return { fatal: firstLine(fatal) };
+            if (fatal) {
+                await heartbeat({ fatal: firstLine(fatal) });
+                return { fatal: firstLine(fatal) };
+            }
         }
         if (busy || stopping || fenced) return { skipped: true };
         if (loaded.readOnly) {
@@ -3688,6 +3725,8 @@ export async function startDaemon({
         // A push killed here reaches its job as a failed push; the next start finds nothing running.
         pushQueue?.stop();
         await pushQueue?.drain();
+        // The watchdog reads a clean stop as no alarm (for 7 days), not as a stale heartbeat.
+        if (!fatal) await heartbeat({ stopped: "shutdown" });
         await save();
         await halt({ reason: "shutdown" });
     }

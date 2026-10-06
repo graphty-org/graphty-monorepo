@@ -869,7 +869,9 @@ describe("the poll loop", () => {
         // job would have been re-run once on the red head
         expect(gh.calls.length).toBeGreaterThan(0);
         expect(gh.writes()).toEqual([]);
-        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter(
+            (e) => e.kind === "would-do" && e.situation !== "heartbeat",
+        );
         expect(wouldDo.map((e) => [e.group, e.op, e.situation, e.key])).toEqual([
             // the verdict job a worker would take, were the workers group acting
             ["workers", "start a worker for verdict-ci-build", undefined, undefined],
@@ -889,6 +891,22 @@ describe("the poll loop", () => {
                 .filter((a) => a[0] !== "fetch")
                 .every((a) => shown.map((f) => `show origin/master:${f}`).includes(a.join(" "))),
         ).toBe(true);
+    });
+
+    it("writes the heartbeat each poll it is due and a stopped line on a clean stop, as would-dos in dry-run", async () => {
+        const daemon = await start();
+        await poll(daemon);
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        await daemon.shutdown();
+        const beats = (await readLedger(join(dir, ".githerd"))).filter((e) => e.situation === "heartbeat");
+        expect(beats.map((e) => [e.kind, e.group, e.op])).toEqual([
+            ["would-do", "owner-items", "POST issues"],
+            ["would-do", "owner-items", "POST issues"],
+        ]);
+        expect(beats[0].body.body).toMatch(/^alive: \S+Z\nmode: \S+Z dry-run\nversion: /);
+        expect(beats[1].body.body).toContain("stopped: 2026-10-02T12:03:00.000Z shutdown");
+        expect(gh.writes()).toEqual([]);
     });
 
     it("takes a master failure of an advisory check for a warning: no incident, no hold, until its enforce date", async () => {
@@ -1287,7 +1305,9 @@ describe("the poll loop", () => {
         expect(gate.checks.faults).toEqual([
             { record: "pr 7", problem: "native auto-merge is armed; it bypasses githerd/merge" },
         ]);
-        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter(
+            (e) => e.kind === "would-do" && e.situation !== "heartbeat",
+        );
         expect(wouldDo.map((e) => [e.group, e.situation])).toEqual([
             ["statuses", "native auto-merge armed"],
             ["statuses", "success"],
@@ -1296,7 +1316,9 @@ describe("the poll loop", () => {
         // the same head and status are not posted again
         clock = new Date("2026-10-02T12:03:00Z");
         await poll(daemon);
-        const again = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        const again = (await readLedger(join(dir, ".githerd"))).filter(
+            (e) => e.kind === "would-do" && e.situation !== "heartbeat",
+        );
         expect(again).toHaveLength(2);
         expect(gh.writes()).toEqual([]);
 
@@ -1513,7 +1535,9 @@ describe("the poll loop", () => {
             },
         };
         await poll(daemon);
-        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter(
+            (e) => e.kind === "would-do" && e.situation !== "heartbeat",
+        );
         expect(wouldDo.map((e) => [e.group, e.op])).toEqual([
             ["owner-items", "POST issues/7/comments"],
             ["owner-items", "POST issues/7/labels"],
@@ -1565,7 +1589,9 @@ describe("the poll loop", () => {
         };
         await poll(daemon);
         expect(daemon.state.proposals["issue:4"]).toMatchObject({ status: "commented", dryRun: true });
-        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter(
+            (e) => e.kind === "would-do" && e.situation !== "heartbeat",
+        );
         expect(wouldDo.map((e) => [e.group, e.situation])).toEqual([["proposals", "propose duplicate"]]);
         expect(gh.writes()).toEqual([]);
     });
@@ -1584,7 +1610,9 @@ describe("the poll loop", () => {
         expect(daemon.state.proposals["issue:4"]).toMatchObject({ status: "ended", reason: "closed on GitHub" });
         expect(daemon.state.proposals["issue:6"].status).toBe("unconfirmed");
         expect(gh.writes()).toEqual([]);
-        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
+        const wouldDo = (await readLedger(join(dir, ".githerd"))).filter(
+            (e) => e.kind === "would-do" && e.situation !== "heartbeat",
+        );
         expect(wouldDo.filter((e) => e.group === "proposals")).toEqual([]);
     });
 

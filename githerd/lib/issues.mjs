@@ -12,6 +12,8 @@
  * list (seen live 2026-10-04), so the epoch cannot stand in for "from the beginning".
  */
 
+import { LABEL as HEARTBEAT } from "./heartbeat.mjs";
+
 /** How far before the high-water mark a `since` poll starts. */
 const SINCE_OVERLAP_MS = 10 * 60_000;
 
@@ -72,6 +74,11 @@ export function applyIssues(saved, items) {
     for (const item of items) {
         if (!since || item.updated_at > since) since = item.updated_at;
         if ("pull_request" in item) continue;
+        // githerd's own heartbeat issue (heartbeat.mjs) is no work: no job, no triage.
+        if ((item.labels ?? []).some((/** @type {any} */ l) => (typeof l === "string" ? l : l.name) === HEARTBEAT)) {
+            delete byNumber[item.number];
+            continue;
+        }
         const old = byNumber[item.number];
         if (old && old.updatedAt === item.updated_at) continue;
         byNumber[item.number] = {

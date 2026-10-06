@@ -16,6 +16,17 @@ const NEXT = (cursor) =>
     `<https://api.github.com/repositories/1122477634/issues?state=all&per_page=100&after=${cursor}&page=2>; rel="next"`;
 
 describe("applyIssues", () => {
+    it("keeps githerd's own heartbeat issue out: it is no work, however often its body changes", () => {
+        const heartbeat = (at) => issue(1150, at, { labels: [{ name: "githerd-heartbeat" }], body: `alive: ${at}` });
+        const r = applyIssues({ since: null, byNumber: { 1150: { state: "open" } } }, [
+            heartbeat("2026-10-05T12:00:00Z"),
+            issue(643, "2026-10-05T12:01:00Z"),
+        ]);
+        expect(Object.keys(r.byNumber)).toEqual(["643"]);
+        expect(r.changed).toEqual([643]);
+        expect(applyIssues(r, [heartbeat("2026-10-05T12:15:00Z")]).changed).toEqual([]);
+    });
+
     it("records issues and drops pull requests", () => {
         const r = applyIssues(empty(), [
             issue(643, "2026-10-01T04:09:29Z", { title: "Crash in layout", body: "x".repeat(3000) }),

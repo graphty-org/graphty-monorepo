@@ -12,27 +12,58 @@ import { after, describe, it } from "node:test";
 
 import { needsScan, pickCommit, scanLock } from "../sonar-baseline.mjs";
 
-const run = (headSha, status, conclusion = "", databaseId = 1) => ({ headSha, status, conclusion, databaseId });
+const run = (headSha, status, conclusion = "", event = "schedule", databaseId = headSha) => ({
+    headSha,
+    status,
+    conclusion,
+    event,
+    databaseId,
+});
 
 describe("pickCommit", () => {
-    it("picks the newest commit whose CI finished while the tip's is still running", () => {
-        const shas = ["c3", "c2", "c1"];
-        const runs = [run("c3", "in_progress"), run("c2", "queued"), run("c1", "completed", "success", 7)];
-        assert.deepEqual(pickCommit(shas, runs), { sha: "c1", run: runs[2] });
+    const withCoverage = (ids) => (r) => ids.includes(r.databaseId);
+
+    it("picks the newest finished train run while a newer train is still running", () => {
+        const runs = [run("c3", "in_progress"), run("c2", "completed", "success")];
+        assert.deepEqual(pickCommit(runs, withCoverage(["c2"])), { sha: "c2", run: runs[1] });
     });
 
-    it("skips a cancelled run, which uploads no coverage", () => {
-        const runs = [run("c2", "completed", "cancelled"), run("c1", "completed", "failure")];
-        assert.equal(pickCommit(["c2", "c1"], runs).sha, "c1");
+    it("ignores runs that are not trains (master pushes, the old workflow_run trigger)", () => {
+        const runs = [
+            run("c3", "completed", "success", "push"),
+            run("c2", "completed", "success", "workflow_run"),
+            run("c1", "completed", "failure", "workflow_dispatch"),
+        ];
+        assert.equal(pickCommit(runs, withCoverage(["c3", "c2", "c1"])).sha, "c1");
     });
 
-    it("judges a commit by its newest run (a rerun in progress)", () => {
-        const runs = [run("c1", "in_progress", "", 2), run("c1", "completed", "success", 1)];
-        assert.equal(pickCommit(["c1"], runs), null);
+    it("stops asking after maxAsk runs", () => {
+        const runs = ["c4", "c3", "c2", "c1"].map((c) => run(c, "completed", "success"));
+        assert.equal(pickCommit(runs, withCoverage(["c1"]), 3), null);
+        assert.equal(pickCommit(runs, withCoverage(["c1"]), 4).sha, "c1");
     });
 
-    it("returns null when no listed commit has a finished run", () => {
-        assert.equal(pickCommit(["c2", "c1"], [run("c2", "queued")]), null);
+    it("skips a train that left no coverage (nothing to release, or expired)", () => {
+        const runs = [
+            run("c3", "completed", "success"),
+            run("c2", "completed", "cancelled"),
+            run("c1", "completed", "success"),
+        ];
+        assert.equal(pickCommit(runs, withCoverage(["c2", "c1"])).sha, "c1");
+    });
+
+    it("asks about coverage only until one run has it", () => {
+        const asked = [];
+        const runs = [run("c2", "completed", "success"), run("c1", "completed", "success")];
+        pickCommit(runs, (r) => asked.push(r.databaseId) > 0);
+        assert.deepEqual(asked, ["c2"]);
+    });
+
+    it("returns null when no train run has coverage", () => {
+        assert.equal(
+            pickCommit([run("c2", "queued")], () => true),
+            null,
+        );
     });
 });
 

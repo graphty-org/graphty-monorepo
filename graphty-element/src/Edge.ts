@@ -1709,11 +1709,7 @@ export class Edge {
 
         // Remove properties that shouldn't be passed to RichTextLabel
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions as RichTextLabelOptions & {
-            location?: string;
-            textPath?: string;
-            enabled?: boolean;
-        };
+        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions;
 
         return finalLabelOptions;
     }
@@ -1732,11 +1728,10 @@ export class Edge {
         textConfig: RichTextStyleType,
         source: "arrowHead" | "arrowTail",
     ): { label: RichTextLabel; offset: number; attachPosition: AttachPosition } {
-        // The two arrow glyphs below are the only non-ASCII bytes in this file and they are
-        // DELIBERATE: this is what is drawn for a caption that was switched on and given no
-        // words, so it is UI content, not source punctuation. Replacing it with "->" / "<-"
-        // would change what the scene draws, which is not a formatting fix.
-        const glyph = source === "arrowHead" ? "→" : "←";
+        // What is drawn for a caption that was switched on and given no words: a right arrow
+        // (U+2192) at the head and a left arrow (U+2190) at the tail. It is UI content, so it is
+        // the arrow glyph rather than "->" / "<-"; written as escapes to keep the source ASCII.
+        const glyph = source === "arrowHead" ? "\u2192" : "\u2190";
         const words = this.extractLabelText(textConfig);
         const labelText = words === "" ? glyph : words;
         const placement = this.placementOf(textConfig, ARROW_CAPTION_LOCATION, ARROW_CAPTION_OFFSET);

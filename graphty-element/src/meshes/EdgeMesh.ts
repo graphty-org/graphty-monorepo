@@ -545,7 +545,7 @@ void main() {
             mesh.visibility = style.line.opacity;
         }
 
-        return mesh as Mesh;
+        return mesh;
     }
 
     private static createAnimatedLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): Mesh {
@@ -586,7 +586,7 @@ void main() {
             mesh.visibility = style.line.opacity;
         }
 
-        return mesh as Mesh;
+        return mesh;
     }
 
     /**

@@ -10,7 +10,7 @@
 import { fromBytes } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
-import type { EdgeMember, SetDefinition, SetDefinitionInput } from "../../../src/catalog/types";
+import type { EdgeMember, SetDefinitionInput } from "../../../src/catalog/types";
 import { resolveSet } from "../../../src/session/sets/cache";
 import { digestOf } from "../../../src/session/sets/resolve";
 import { createSetsApi, setsStoreOf } from "../../../src/session/sets/SetsApi";
@@ -48,7 +48,7 @@ describe("a save and reopen of an embedded graph", () => {
             ids.map((id) => {
                 const record = sets.get(id);
                 assert.isDefined(record, id);
-                const resolution = resolveSet(record as { id: string; definition: SetDefinition }, {
+                const resolution = resolveSet(record, {
                     snapshot,
                     sets: setsStoreOf(sets),
                 });

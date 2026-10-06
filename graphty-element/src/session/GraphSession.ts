@@ -837,10 +837,10 @@ class Session implements ElementSession {
         }
 
         const held = subscribers;
-        held.add(handler as (detail: never) => void);
+        held.add(handler);
 
         return () => {
-            held.delete(handler as (detail: never) => void);
+            held.delete(handler);
         };
     }
 
@@ -2631,7 +2631,7 @@ function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: n
     const space = edgeSpaceOf(graph);
     for (const key of dirty) {
         if (key.startsWith("n:")) {
-            const row = graph.ids.indexOf(nodeOfKey(key) as string | number);
+            const row = graph.ids.indexOf(nodeOfKey(key));
             if (row !== INVALID_INDEX) {
                 rows.node.push(row);
             }

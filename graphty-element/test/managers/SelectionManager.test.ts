@@ -1,4 +1,3 @@
- 
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { AdHocData } from "../../src/config";
@@ -236,7 +235,7 @@ describe("SelectionManager", () => {
 
             try {
                 const before = graph.getSession().styles.list().length;
-                await graph.addNode({ id: "layer-free" } as unknown as AdHocData);
+                await graph.addNode({ id: "layer-free" });
                 graph.selectNode("layer-free");
 
                 assert.equal(graph.getSession().styles.list().length, before);
@@ -249,7 +248,7 @@ describe("SelectionManager", () => {
             const graph = await createTestGraph();
 
             try {
-                await graph.addNode({ id: "bag-free" } as unknown as AdHocData);
+                await graph.addNode({ id: "bag-free" });
                 graph.selectNode("bag-free");
 
                 const node = graph.getSelectedNode();
@@ -277,7 +276,7 @@ describe("SelectionManager", () => {
 
         it("selectById() selects a node by its ID", async () => {
             // Add a node to the graph
-            await graph.addNode({ id: "test-node-1" } as unknown as AdHocData);
+            await graph.addNode({ id: "test-node-1" });
 
             // Select by ID
             const result = selectionManager.selectById("test-node-1");
@@ -309,7 +308,7 @@ describe("SelectionManager integration with Graph", () => {
 
     it("node removal while selected deselects the node", async () => {
         // Add a node
-        await graph.addNode({ id: "node-to-remove" } as unknown as AdHocData);
+        await graph.addNode({ id: "node-to-remove" });
 
         // Select it
         graph.selectNode("node-to-remove");
@@ -324,7 +323,7 @@ describe("SelectionManager integration with Graph", () => {
 
     it("selection persists across style changes", async () => {
         // Add nodes
-        await graph.addNode({ id: "persistent-node" } as unknown as AdHocData);
+        await graph.addNode({ id: "persistent-node" });
 
         // Select a node
         graph.selectNode("persistent-node");

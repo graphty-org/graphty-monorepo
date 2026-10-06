@@ -14,19 +14,21 @@
 //       servherd_start({ name: "sonar-baseline", cwd: "<repo>", command: "node tools/sonar-baseline.mjs --watch" })
 //     with no token in env or command; this script reads it from the environment or .env.
 //
-// A pass: fetch origin; pick the newest master commit whose CI run (master push runs only, listed
-// with one `gh run list` call) has finished; if <key> has not analyzed it or a later commit, move
-// the detached worktree .worktrees/sonar-baseline to it, install and build, merge that run's
-// coverage, restore the profile if the file changed, and run a full scan under the lock the gate
-// uses (waiting up to LOCK_WAIT_S for a push to release it, else retrying at the next poll). Master
-// moves faster than CI finishes, so the tip itself is rarely the commit scanned. The first pass of
-// each ISO week comments the numbers on the pinned "SonarQube burn-down" issue.
+// A pass: fetch origin; pick the newest release-train run (release.yml, scheduled or dispatched,
+// listed with one `gh run list` call) that finished and still has coverage-* artifacts: master
+// pushes run no tests, so the train's full CI run of its candidate commit is the only coverage of a
+// master commit (design/ci/ci-cd-plan.md section 8). If <key> has not analyzed that commit or a
+// later one, move the detached worktree .worktrees/sonar-baseline to it, install and build, merge
+// that run's coverage, restore the profile if the file changed, and run a full scan under the lock
+// the gate uses (waiting up to LOCK_WAIT_S for a push to release it, else retrying at the next
+// poll). The first pass of each ISO week comments the numbers on the pinned "SonarQube burn-down"
+// issue.
 //
 // The token goes only to the scanner child and to tools/sonar/api.mjs; every other child (git,
 // pnpm, gh, the build) runs with both tokens removed from its environment.
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -45,8 +47,10 @@ const PROFILE_FILE = join(ROOT, "tools/sonar/graphty-way.xml");
 const POLL_MS = 30 * 60 * 1000;
 // How long a pass waits for the scan lock; pre-push gates hold it a few minutes each, up to 3 at once.
 const LOCK_WAIT_S = 15 * 60;
-// How many master commits (and CI runs) a pass looks back through for one whose CI has finished.
-const LOOKBACK = 50;
+// How many release.yml runs a pass lists; most are publish runs of master pushes, a few are trains.
+const LOOKBACK = 100;
+// The events that start a release train; a push starts the publish job, which tests nothing.
+const TRAIN_EVENTS = ["schedule", "workflow_dispatch"];
 const SCAN_TIMEOUT_MS = 1800 * 1000;
 const GATE_NAME = "Graphty";
 // The "Graphty" gate's conditions at stage 0. Each stage of the burn-down adds its ratchet here
@@ -188,18 +192,21 @@ const sh = (cmd, args, cwd) => spawnSync(cmd, args, { cwd, stdio: "inherit", env
 const ghJson = (args) => JSON.parse(execFileSync("gh", args, { cwd: ROOT, encoding: "utf8", env: envWithoutToken() }));
 
 /**
- * The commit to scan: the newest of `shas` (master, newest first) whose newest CI run finished
- * without being cancelled (a cancelled run uploads no coverage).
- * @param shas - Master's commits, newest first.
- * @param runs - Master push CI runs, newest first, as `{ databaseId, status, conclusion, headSha }`.
- * @returns `{ sha, run }`, or null when no listed commit has a finished run.
+ * The commit to scan: the head commit of the newest release-train run that finished, was not
+ * cancelled or skipped, and has coverage (a train that found nothing to release tests nothing).
+ * @param runs - release.yml runs, newest first, as `{ databaseId, status, conclusion, headSha, event }`.
+ * @param hasCoverage - `(run)` true when the run has unexpired coverage-* artifacts; asked newest
+ *   first, only for finished train runs, and no further once one has them or `maxAsk` were asked.
+ * @param maxAsk - The most runs to ask about (each is an API call; coverage is kept one day).
+ * @returns `{ sha, run }`, or null when no train run asked about has coverage.
  */
-export function pickCommit(shas, runs) {
-    const newest = new Map();
-    for (const r of runs) if (!newest.has(r.headSha)) newest.set(r.headSha, r);
-    for (const sha of shas) {
-        const run = newest.get(sha);
-        if (run?.status === "completed" && !["cancelled", "skipped"].includes(run.conclusion)) return { sha, run };
+export function pickCommit(runs, hasCoverage, maxAsk = 5) {
+    let asked = 0;
+    for (const run of runs) {
+        if (!TRAIN_EVENTS.includes(run.event) || run.status !== "completed") continue;
+        if (["cancelled", "skipped"].includes(run.conclusion)) continue;
+        if (asked++ >= maxAsk) break;
+        if (hasCoverage(run)) return { sha: run.headSha, run };
     }
     return null;
 }
@@ -218,14 +225,26 @@ export function needsScan(sha, last, isAncestor) {
 
 const isAncestor = (a, b) => sh("git", ["merge-base", "--is-ancestor", a, b], ROOT);
 
-// Master push CI runs, newest first: one API call. Null (logged) when gh failed.
-function masterRuns() {
+// release.yml runs on master, newest first: one API call. Null (logged) when gh failed.
+function trainRuns() {
     try {
-        const filter = ["--workflow", "ci.yml", "--branch", "master", "--event", "push", "--limit", String(LOOKBACK)];
-        return ghJson(["run", "list", ...filter, "--json", "databaseId,status,conclusion,headSha"]);
+        const filter = ["--workflow", "release.yml", "--branch", "master", "--limit", String(LOOKBACK)];
+        return ghJson(["run", "list", ...filter, "--json", "databaseId,status,conclusion,headSha,event"]);
     } catch (e) {
         log(`gh run list failed: ${firstLine(e)}`);
         return null;
+    }
+}
+
+// Whether a run still has coverage-* artifacts (they are kept one day): one API call per run asked.
+function hasCoverage(run) {
+    try {
+        const path = `repos/{owner}/{repo}/actions/runs/${run.databaseId}/artifacts?per_page=100`;
+        const { artifacts = [] } = ghJson(["api", path]);
+        return artifacts.some((a) => a.name.startsWith("coverage-") && !a.expired);
+    } catch (e) {
+        log(`gh api artifacts of run ${run.databaseId} failed: ${firstLine(e)}`);
+        return false;
     }
 }
 
@@ -248,6 +267,11 @@ function mergeCoverage(run, worktree) {
     rmSync(dir, { recursive: true, force: true });
     rmSync(join(worktree, "coverage/lcov.info"), { force: true });
     if (!sh("gh", ["run", "download", String(run.databaseId), "-p", "coverage-*", "-D", dir], ROOT)) return false;
+    // A shard group's artifact holds one coverage-<shard> directory per member: lift them up beside
+    // the others, as coverage.yml does, or merge-coverage.sh finds those packages missing.
+    for (const group of readdirSync(dir).filter((d) => d.startsWith("coverage-group-"))) {
+        for (const shard of readdirSync(join(dir, group))) renameSync(join(dir, group, shard), join(dir, shard));
+    }
     return sh("./tools/merge-coverage.sh", ["--ci", "--artifacts", dir], worktree);
 }
 
@@ -419,24 +443,22 @@ async function fullScan(cfg, worktree, sha) {
     }
 }
 
-// One poll: scan the newest master commit with a finished CI run, if <key> has not analyzed it yet.
+// One poll: scan the newest release-train candidate with coverage, if <key> has not analyzed it yet.
 async function pass(cfg) {
     if (!(await serverStatus(cfg.host))) return log("server unreachable; next poll");
     const api = client(cfg.host, cfg.token);
     const key = cfg.projectKey;
     if (!sh("git", ["fetch", "--quiet", "origin", "master"], ROOT)) return log("git fetch failed; next poll");
-    const runs = masterRuns();
-    if (!runs) return log("could not list CI runs; next poll");
-    const shas = git(["rev-list", "--first-parent", `--max-count=${LOOKBACK}`, "origin/master"]).split("\n");
-    const picked = pickCommit(shas, runs);
-    if (!picked) return log(`no finished CI run among the last ${LOOKBACK} master commits; next poll`);
+    const runs = trainRuns();
+    if (!runs) return log("could not list release.yml runs; next poll");
+    const picked = pickCommit(runs, hasCoverage);
+    if (!picked) return log(`no finished release-train run with coverage among the last ${LOOKBACK}; next poll`);
     const { sha, run } = picked;
     const last = (await api.call("api/project_analyses/search", { project: key, ps: 1 })).analyses?.[0];
     if (!needsScan(sha, last?.revision, isAncestor)) {
-        log(`${sha.slice(0, 9)} (newest master commit with finished CI) is already analyzed; next poll`);
+        log(`${sha.slice(0, 9)} (newest release-train candidate with coverage) is already analyzed; next poll`);
     } else {
-        if (sha !== shas[0])
-            log(`scanning ${sha.slice(0, 9)}: CI has not finished for the ${shas.indexOf(sha)} newer commit(s)`);
+        log(`scanning ${sha.slice(0, 9)}, the candidate of release-train run ${run.databaseId}`);
         const worktree = join(dirname(commonDir()), ".worktrees", "sonar-baseline");
         if (!prepareWorktree(worktree, sha)) return;
         if (!mergeCoverage(run, worktree)) {

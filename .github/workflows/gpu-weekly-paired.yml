@@ -2,12 +2,11 @@
 # T4: master's tip against the latest released version (the newest webgpu-graph-algorithms@<version> tag), every
 # benchmark group, with scripts/bench-ab.js's statistics unchanged (4 ABBA rounds, flag above x1.08).
 #
-# Why it exists: a pull request's paired benchmark in gpu.yml runs only the groups its change can move
-# (scripts/bench-groups.js), so a slowdown the import scan cannot see, or one that builds up over several pull
-# requests each under the threshold, is caught here within a week. A regression fails this run and files or
-# rewrites one open issue (labels bug, gpu, priority:high, effort:medium); a clean run closes it. It never runs on a
-# pull request, and it is a workflow of its own rather than a job of gpu.yml so that release.yml's gate, which reads
-# the newest gpu.yml run of a commit, never mistakes it for the lane's verdict on master.
+# Why it exists: the T4 runs nowhere else on a schedule. The release train's T4 run (gpu.yml, called by
+# release.yml) compares the benchmarks against the checked-in baseline but pairs nothing, so a slowdown under that
+# loose threshold, or one that builds up over several merges, is caught here within a week. A regression fails
+# this run and files or rewrites one open issue (labels bug, gpu, priority:high, effort:medium); a clean run closes
+# it. It never runs on a pull request, and it is a workflow of its own so that its verdict never decides a release.
 #
 # Timing: one pass of every group is about 7.7 minutes on the T4 and the paired run makes eight passes plus the
 # base build, about 65 minutes (gpu.yml run 36882775800 hit a 40-minute limit after about 5 of the 8); setup,

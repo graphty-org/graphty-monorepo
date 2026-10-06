@@ -17,7 +17,7 @@ export function _lbfgsDirection(grad: number[], sList: number[][], yList: number
     }
 
     const q = grad.slice();
-    const alpha = Array(sList.length).fill(0);
+    const alpha = new Array(sList.length).fill(0);
     const rho: number[] = [];
 
     // Compute rho values

@@ -352,21 +352,26 @@ gate needs fixing, not more bypasses.
 --watch`, started once as `servherd_start({ name: "sonar-baseline", cwd: "<repo>", command:
 "node tools/sonar-baseline.mjs --watch" })`, with no token in `env` or `command`.
 
-Every 30 minutes it fetches `origin` and picks the newest master commit whose CI run (master push
-runs only, the last 50 listed with one `gh run list` call) has finished and was not cancelled.
-Master gets a commit about every 20 minutes and CI takes about an hour, so this is rarely the tip;
-waiting for the tip's CI would never scan on a busy day. If `graphty-monorepo` has not analyzed that
-commit or a later one (the server's last analysis revision, from `api/project_analyses/search`), it:
+Every 30 minutes it fetches `origin` and picks the newest release-train run (`release.yml`,
+scheduled or dispatched, among its last 100 runs listed with one `gh run list` call) that finished,
+was not cancelled, and still has `coverage-*` artifacts (one `gh api` call per run asked, newest
+first, at most 5, stopping at the first that has them). Master pushes run no tests (design/ci/ci-cd-plan.md
+section 8), so the train's full CI run of its candidate is the only coverage of a master commit;
+the commit scanned is that candidate, not master's tip. The train runs every 6 hours and skips
+while a release is pending, so the analysis is as fresh as the last train that tested something.
+If `graphty-monorepo` has not analyzed that commit or a later one (the server's last analysis
+revision, from `api/project_analyses/search`), it:
 
 1. moves its own detached worktree, `.worktrees/sonar-baseline`, to that commit (never the
    main checkout);
 2. runs `pnpm install --frozen-lockfile` and the nx build (cached), so type-aware rules resolve
    cross-package types the same way the gate's scans do, with both tokens removed from their
    environment;
-3. downloads that run's `coverage-*` artifacts (`gh run download <run id>`; never a pull request
-   run with the same head commit) and merges them with `tools/merge-coverage.sh --ci --artifacts`,
-   which writes the repository-relative `coverage/lcov.info` the scanner imports. If the run has
-   none to download, it scans without coverage and says so in the log;
+3. downloads that run's `coverage-*` artifacts (`gh run download <run id>`), lifts each shard
+   group's members out of their `coverage-group-*` artifact as `coverage.yml` does, and merges them
+   with `tools/merge-coverage.sh --ci --artifacts`, which writes the repository-relative
+   `coverage/lcov.info` the scanner imports. If the download or merge fails, it scans without
+   coverage and says so in the log;
 4. restores `tools/sonar/graphty-way.xml` to the server if the file changed since the last run;
 5. takes `sonar-local.lock` with `flock -w 900`, waiting up to 15 minutes for the pre-push gates
    holding it (up to 3 at once) to finish; if it still cannot, it logs that and tries again at the

@@ -137,6 +137,15 @@ describe("ci.yml", () => {
         assert.match(job(ci, "all-checks"), /\n\s+cost-accuracy,\n/);
     });
 
+    it("runs no security audit on pull requests or merge-queue runs", () => {
+        // advisories land against code a pull request did not change; the release train audits instead
+        assert.doesNotMatch(ci, /pnpm audit/);
+        const review = workflow("dependency-review.yml");
+        assert.match(review, /paths:\n\s+- "pnpm-lock.yaml"/);
+        assert.match(review, /if: \$\{\{ !startsWith\(github.head_ref, 'mergify\/merge-queue\/'\) \}\}/);
+        assert.match(review, /fail-on-severity: high/);
+    });
+
     it("keeps the benchmarks advisory", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
     });
@@ -353,6 +362,18 @@ describe("release.yml", () => {
         assert.match(held, /::error::release held/);
         // and the next train whose T4 passes closes it
         assert.match(train, /startswith\("Release held: T4 GPU failed on "\)[\s\S]*gh issue close "\$open"/);
+    });
+
+    it("audits the released commit's dependencies before it opens the release pull request", () => {
+        const audit = train.indexOf("run: pnpm audit --prod --audit-level=high");
+        assert.ok(audit > train.indexOf("pnpm install --frozen-lockfile"), "after install");
+        assert.ok(audit < train.indexOf("nx release --skip-publish"), "before versioning");
+        assert.ok(audit < train.indexOf("name: Keep the builds for the publish job"), "before the 30-day artifact");
+        assert.ok(audit < train.indexOf("gh pr create"), "before the release pull request");
+        const step = train.slice(train.lastIndexOf("- name:", audit), audit);
+        // no step condition: the train job itself runs only when a release is cut (and the T4 passed)
+        assert.doesNotMatch(step, /if:/, "runs whenever a release is cut");
+        assert.doesNotMatch(step, /continue-on-error/, "a high advisory blocks the release");
     });
 
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {

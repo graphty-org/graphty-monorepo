@@ -15,8 +15,9 @@
 # Build first, as CI does: pnpm exec nx run-many -t build
 #
 # The environment CI sets up per shard is reproduced here: CI=true for every shard (several
-# tests and configs are stricter under it, and it adds the junit reporter), FC_FONTATIONS=1 for browser shards
-# (headless Chromium can crash at startup without it), and for the lavapipe shard the Mesa
+# tests and configs are stricter under it, and it adds the junit reporter), FC_FONTATIONS=1 for
+# browser shards (headless Chromium can crash at startup without it) and the runner's fonts
+# (visual-fonts/, through FONTCONFIG_FILE), and for the lavapipe shard the Mesa
 # lavapipe Vulkan ICD with GRAPHTY_GPU_ADAPTER=llvmpipe and GRAPHTY_GPU_REQUIRE=any. Install
 # mesa-vulkan-drivers for that one, or set VK_DRIVER_FILES yourself.
 
@@ -44,7 +45,17 @@ run_shard() {
     IFS=$'\t' read -r _ browser lavapipe cmd <<<"$line"
     (
         export CI=true
-        [ "$browser" = 1 ] && export FC_FONTATIONS=1
+        if [ "$browser" = 1 ]; then
+            export FC_FONTATIONS=1
+            # CI's runner draws with the fonts `playwright install --with-deps` puts on it; this machine
+            # has others (no emoji font, so a story asserting its emoji labels are inked fails here
+            # only). visual-fonts/ is a snapshot of the runner's fonts, so the browser uses it here.
+            if [ "$(head -c 7 "$ROOT/visual-fonts/fonts/truetype/noto/NotoColorEmoji.ttf" 2>/dev/null)" = "version" ]; then
+                echo "tools/run-tests.sh: visual-fonts/ holds Git LFS pointers; run git lfs pull --include 'visual-fonts/**'" >&2
+                exit 1
+            fi
+            export FONTCONFIG_FILE="$ROOT/visual-fonts/fonts.conf"
+        fi
         if [ "$lavapipe" = 1 ]; then
             if [ -z "${VK_DRIVER_FILES:-}" ]; then
                 # the same search CI does (ci.yml, "Locate the lavapipe ICD")

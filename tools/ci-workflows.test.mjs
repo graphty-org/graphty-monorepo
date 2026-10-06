@@ -110,14 +110,16 @@ describe("the pre-push gate matches CI", () => {
 
     it("runs each shard in CI's environment, moving only where a shared package writes its coverage", () => {
         assert.match(code(tool("run-tests.sh")), /\n\s+export CI=true\n/);
+        // The runner's fonts, which visual-fonts/ is a snapshot of: this machine has no emoji font.
+        assert.match(code(tool("run-tests.sh")), /export FONTCONFIG_FILE="\$ROOT\/visual-fonts\/fonts.conf"/);
         assert.match(code(tool("prepush-tests.mjs")), /"bash", "tools\/run-tests.sh", shard.shard/);
         for (const s of SHARDS) {
-            const env = shardEnv(s);
-            if (["graphty-element", "algorithms"].includes(s.package)) {
-                assert.deepEqual(env, { COVERAGE_DIR: `.coverage-parts/${s.shard}` });
-            } else {
-                assert.deepEqual(env, {}, s.shard);
-            }
+            const shared = SHARDS.filter((x) => x.package === s.package && / --coverage/.test(x["test-command"]));
+            assert.deepEqual(
+                shardEnv(s),
+                shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {},
+                s.shard,
+            );
         }
     });
 

@@ -13,8 +13,20 @@
  * Usage: node tools/prepush-tests.mjs <affected-projects-json>
  *   the JSON array `nx show projects --affected --json` prints
  *
- * Browser shards each take one slot of <main checkout>/tmp/with-browser.sh (the machine's shared
- * cap of four browsers) when it exists; at most two shards without a browser run at once. Each
+ * Shards run side by side: browser shards each take one slot of <main checkout>/tmp/with-browser.sh
+ * (the machine's shared cap of four browsers) when it exists, and at most two shards without a
+ * browser run at once. Two things CI's separate runners give each shard are reproduced here:
+ *  - The numbered shards of one family (graphty-element-browser-1 to -5) share their projects' Vite
+ *    dependency cache (node_modules/.vite/vitest/<hash>). On a cold or stale cache each vitest
+ *    optimizes and swaps that directory in under the others: four browser shards started together
+ *    failed with deps chunks that "point to missing source files". So one shard of each family runs
+ *    alone and fills the cache (the one with the shortest command: browser-1 also runs the
+ *    benchmarks), and its siblings start once it passed.
+ *  - The packages that run several shards with --coverage (graphty-element, algorithms) write each
+ *    shard's report to .coverage-parts/<shard> (COVERAGE_DIR), not into one coverage/ directory each
+ *    run would empty under the others. In both packages COVERAGE_DIR otherwise only switches off
+ *    thresholds that a --project run already switches off.
+ * Each
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
  * prints the end of its log. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m) fails.
  */
@@ -41,11 +53,7 @@ export function localShards(affected) {
 }
 
 /**
- * The environment one shard adds. CI runs every shard on its own runner; here several shards of one
- * package run at once in the same directory, so the packages that run more than one shard with
- * --coverage write each shard's report to a directory of its own instead of deleting each other's.
- * Only the report's location changes: in both packages COVERAGE_DIR otherwise only switches off
- * thresholds that a --project run already switches off.
+ * The environment one shard adds: its own coverage directory where a package runs several shards.
  * @param shard a SHARDS entry
  * @returns extra environment variables
  */
@@ -54,6 +62,9 @@ export function shardEnv(shard) {
         ? { COVERAGE_DIR: `.coverage-parts/${shard.shard}` }
         : {};
 }
+
+// graphty-element-browser-3 -> graphty-element-browser; a shard without a number is its own family.
+const family = (shard) => shard.shard.replace(/-\d+$/, "");
 
 function main() {
     const [affectedArg] = process.argv.slice(2);
@@ -76,6 +87,15 @@ function main() {
     console.log(`Shards: ${shards.map((s) => s.shard).join(", ")}`);
 
     const running = new Map();
+    const warmed = new Set();
+    // The shard that fills each family's cache: the shortest command, the first of equals.
+    const warmup = new Map();
+    for (const s of shards) {
+        const w = warmup.get(family(s));
+        if (!w || s["test-command"].length < w["test-command"].length) {
+            warmup.set(family(s), s);
+        }
+    }
     const waiting = [...shards];
     let failed = null;
     const started = Date.now();
@@ -105,6 +125,7 @@ function main() {
                 return;
             }
             if (code === 0) {
+                warmed.add(family(shard));
                 console.log(`  [PASS] ${shard.shard} (${secs}s)`);
                 next();
                 return;
@@ -152,15 +173,18 @@ function main() {
         process.exit(0);
     };
 
-    // Browser shards queue on the shared gate, so all of them start; the others two at a time.
+    // Every waiting shard starts (browser ones then queue on the shared gate), except a sibling of a
+    // family whose warm-up shard has not passed yet, and a third shard without a browser.
     const next = () => {
-        while (waiting.length > 0) {
-            const shard = waiting[0];
-            const nodeLane = [...running.keys()].filter((n) => !SHARDS.find((s) => s.shard === n)["needs-browser"]);
-            if (!shard["needs-browser"] && nodeLane.length >= 2) {
-                break;
+        for (const shard of [...waiting]) {
+            const now = [...running.keys()].map((n) => SHARDS.find((s) => s.shard === n));
+            const coldSibling = !warmed.has(family(shard)) && warmup.get(family(shard)) !== shard;
+            const nodeLane = now.filter((s) => !s["needs-browser"]).length;
+            if (coldSibling || (!shard["needs-browser"] && nodeLane >= 2)) {
+                continue;
             }
-            start(waiting.shift());
+            waiting.splice(waiting.indexOf(shard), 1);
+            start(shard);
         }
         if (waiting.length === 0 && running.size === 0) {
             finish();

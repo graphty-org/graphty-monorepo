@@ -13,7 +13,7 @@
  */
 import { assert, describe, test } from "vitest";
 
-import type { Graph } from "../../src/Graph";
+import { Graph } from "../../src/Graph";
 
 /**
  * A three-node path over a fresh canvas, with a weight on each edge.
@@ -21,8 +21,7 @@ import type { Graph } from "../../src/Graph";
  */
 async function makeGraph(): Promise<Graph> {
     document.body.innerHTML = '<canvas id="id-space-canvas"></canvas>';
-    const { Graph: GraphClass } = await import("../../src/Graph.js");
-    const graph = new GraphClass(document.getElementById("id-space-canvas") as HTMLCanvasElement);
+    const graph = new Graph(document.getElementById("id-space-canvas") as HTMLCanvasElement);
     await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }], undefined, { skipQueue: true });
     await graph.addEdges(
         [
@@ -64,7 +63,11 @@ describe("an edge id taken from one surface is accepted by the others", () => {
         const graph = await makeGraph();
         const session = graph.getSession();
 
-        const run = session.runs.start("shortest-path", { method: "dijkstra", source: "a", target: "c" }, { as: "route" });
+        const run = session.runs.start(
+            "shortest-path",
+            { method: "dijkstra", source: "a", target: "c" },
+            { as: "route" },
+        );
         const result = await run;
 
         const ids = [...(await session.scope.resolve("graph")).edges];

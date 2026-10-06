@@ -674,7 +674,7 @@ describe("oboImporter: the corpus", () => {
         it(`imports ${entry.path} with the manifest's counts from every input shape`, async () => {
             const bytes = readCorpusBytes("obo", entry.path);
             for (const shape of inputShapes(bytes)) {
-                const { snapshot, report } = await load(shape.make(), entry.options as Options | undefined);
+                const { snapshot, report } = await load(shape.make(), entry.options);
                 expect(snapshot.nodeCount, shape.name).toBe(entry.expectedNodes);
                 expect(snapshot.edgeCount, shape.name).toBe(entry.expectedEdges);
                 expect(report.errorCount, shape.name).toBe(0);

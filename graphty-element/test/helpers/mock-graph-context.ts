@@ -385,10 +385,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         },
 
         // Algorithm methods
-        async runAlgorithm(namespace: string, type: string): Promise<void> {
-            // Mock implementation - use parameters to avoid lint warnings
-            void namespace;
-            void type;
+        async runAlgorithm(_namespace: string, _type: string): Promise<void> {
             return Promise.resolve();
         },
     } as unknown as Graph;

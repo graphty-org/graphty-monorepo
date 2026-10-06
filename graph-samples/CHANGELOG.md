@@ -1,3 +1,17 @@
+## 0.1.21 (2026-10-06)
+
+### 🩹 Fixes
+
+- **graph-samples:** return a fresh empty array for k = 0 neighbours ([#714](https://github.com/graphty-org/graphty-monorepo/issues/714))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.20 (2026-10-05)
 
 ### 🧱 Updated Dependencies

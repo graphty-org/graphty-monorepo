@@ -188,11 +188,32 @@ function room(state, session) {
     return said.n - claimed;
 }
 
+/** Job states a session is actively working in; a `waiting` job counts only while it waits on the session's own task. */
+const ACTIVE = new Set(["working", "starting"]);
+const DEFAULT_MAX_ACTIVE = 3;
+
+/**
+ * Why a session may take no more jobs now, or null: it holds `workers.maxActive` jobs it is
+ * actively working (working, starting, or waiting on its own local task). Blocked, parked,
+ * verifying and other waiting jobs do not count. Applies whatever capacity the session reported.
+ * @param {any} state the daemon state
+ * @param {string} session the session id
+ * @param {any} [config] the normalized config
+ * @returns {string | null} the reason
+ */
+export function atActiveCap(state, session, config) {
+    const max = config?.workers?.maxActive ?? DEFAULT_MAX_ACTIVE;
+    const active = Object.values(state.jobs ?? {}).filter(
+        (j) => j.holder?.session === session && (ACTIVE.has(j.state) || (j.state === "waiting" && j.waitingFor?.local)),
+    ).length;
+    return active >= max ? `you hold ${active} active jobs; finish or report one first` : null;
+}
+
 /**
  * Invites the Claude sessions in this repository that have room to pull work (the owner's
  * decisions of 2026-10-05): each queued job no worker slot took is announced once, to every session
  * whose registry status is `idle` or whose last capacity answer leaves room (`room`); a session that
- * never answered is invited only while idle. githerd's own workers are never among them (`liveSessions` leaves
+ * never answered is invited only while idle, and one at `workers.maxActive` (`atActiveCap`) never. githerd's own workers are never among them (`liveSessions` leaves
  * them out). A job is marked (`invitedAt`) only once a session was there to hear it, so a job
  * queued while every session is busy is announced when one goes idle. A session is invited only to
  * a job it could claim (`jobInUse` with that session, the rule githerd_next and githerd_claim
@@ -213,7 +234,11 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
     for (const { job: id, reason } of offered) {
         const job = state.jobs?.[id];
         if (job?.state !== "queued" || job.invitedAt) continue;
-        free ??= sessions().filter((s) => s.status === "idle" || (room(state, s.sessionId) ?? 0) > 0);
+        free ??= sessions().filter(
+            (s) =>
+                (s.status === "idle" || (room(state, s.sessionId) ?? 0) > 0) &&
+                !atActiveCap(state, s.sessionId, config),
+        );
         if (!free.length) break;
         const able = free.filter((s) => !jobInUse(state, job, { config, now, session: s.sessionId }));
         if (!able.length) continue;

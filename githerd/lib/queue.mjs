@@ -446,6 +446,8 @@ export function jobInUse(state, job, opts) {
 
 /** Issue priorities, most urgent first. */
 const PRIORITIES = ["critical", "high", "medium", "low"];
+/** A pull request's priority label: `priority:high`, or a bare `high`. */
+const PR_PRIORITY = /^(?:priority:)?(critical|high|medium|low)$/;
 /** Labels that keep an issue job out of the queue. */
 const ISSUE_SKIP = new Set(["blocked", "needs-decision", "research"]);
 
@@ -478,6 +480,46 @@ function tier(job) {
 }
 
 /**
+ * Whether a job finishes work already in flight rather than starting new work: a pull request's
+ * review, fix or title, an issue master already names (verify the fix) and a re-land.
+ * @param {import("./board.mjs").Job} job the job
+ * @returns {boolean} true when it finishes
+ */
+function finishes(job) {
+    if (job.kind === "issue") return Boolean(job.facts?.references?.length) || job.facts?.scope === "reland";
+    return job.kind === "review" || job.kind === "pr" || job.kind === "title";
+}
+
+/**
+ * A pull request job's priority, from the owner's priority label on it, or null.
+ * @param {import("./board.mjs").Job} job the job
+ * @returns {string | null} the priority
+ */
+function prPriority(job) {
+    for (const l of job.facts?.labels ?? []) {
+        const m = PR_PRIORITY.exec(l);
+        if (m) return m[1];
+    }
+    return null;
+}
+
+/**
+ * A job's priority tier, lower first (index into `PRIORITIES`). The owner's label decides: an
+ * issue's priority, a pull request's own priority label. `githerd:next` or a place in an open order
+ * lifts a job to the top tier. Without a label, work in flight and the daemon's own jobs (triage,
+ * major) stay in the top tier, and an unprioritized issue goes last.
+ * @param {import("./board.mjs").Job} job the job
+ * @returns {number} the tier
+ */
+function priorityTier(job) {
+    if (job.facts?.next || Number.isFinite(job.facts?.order)) return 0;
+    const label = job.kind === "issue" ? job.priority : prPriority(job);
+    const p = PRIORITIES.indexOf(label ?? "");
+    if (p !== -1) return p;
+    return job.kind === "issue" ? PRIORITIES.length : 0;
+}
+
+/**
  * Why a queued job is skipped right now, or null.
  * @param {import("./board.mjs").Job} job the job
  * @param {{reviewQueueFull?: boolean}} ctx the review queue at its limit
@@ -494,19 +536,27 @@ function skipped(job, ctx) {
 }
 
 /**
- * An issue job's place among issues: in an open order first, then priority, bug before other
- * types, then low effort before high.
+ * The sort key of a queued job (design 5.4): urgent incidents first and the low-priority rest last;
+ * between them the priority tier, then work that finishes before work that starts, then the kind's
+ * tier, the owner's `githerd:next`, an open order, bug before other types, low effort before high.
  * @param {import("./board.mjs").Job} job the job
- * @returns {{order: number, priority: number, bug: number, effort: number}} lower first
+ * @param {number} kindTier the kind's tier
+ * @returns {number[]} lower first
  */
-function issueRank(job) {
-    const p = PRIORITIES.indexOf(job.priority ?? "");
-    return {
-        order: job.facts?.order ?? Infinity,
-        priority: p === -1 ? PRIORITIES.length : p,
-        bug: job.facts?.bug ? 0 : 1,
-        effort: effortRank(job.facts?.effort),
-    };
+function sortKey(job, kindTier) {
+    let band = 1;
+    if (kindTier < 2) band = 0;
+    else if (kindTier >= 8) band = 2;
+    return [
+        band,
+        band === 1 ? priorityTier(job) : 0,
+        finishes(job) ? 0 : 1,
+        kindTier,
+        job.facts?.next ? 0 : 1,
+        job.facts?.order ?? Infinity,
+        job.facts?.bug ? 0 : 1,
+        effortRank(job.facts?.effort),
+    ];
 }
 
 /**
@@ -523,6 +573,42 @@ export function issueRule(priority, facts) {
 }
 
 /**
+ * What a job is about, in words: the pull request or issue it names ("#710").
+ * @param {import("./board.mjs").Job} job the job
+ * @returns {string} the reference
+ */
+function refOf(job) {
+    const n =
+        prOf(job) ??
+        String(job.target ?? "")
+            .replace(/^#/, "")
+            .split(" ")[0];
+    return n ? `#${n}` : job.id;
+}
+
+/**
+ * The rule that places a job, in words: "finishes #710: conflicting with master", "starts #322:
+ * high enhancement, effort low", or its tier's words.
+ * @param {import("./board.mjs").Job} job the job
+ * @param {string} words its tier's words
+ * @returns {string} the rule
+ */
+function placeRule(job, words) {
+    const f = job.facts ?? {};
+    if (job.kind === "issue") {
+        const rule = issueRule(job.priority, f);
+        if (f.scope === "reland") return `finishes ${refOf(job)}: re-land, ${rule}`;
+        if (f.references?.length) return `finishes ${refOf(job)}: verify the fix, ${rule}`;
+        return `starts ${refOf(job)}: ${rule}`;
+    }
+    if (!finishes(job)) return words;
+    const what = job.kind === "pr" && job.reason ? job.reason : words;
+    const label = prPriority(job);
+    const priority = label ? `, ${label} priority` : "";
+    return `finishes ${refOf(job)}: ${what}${priority}`;
+}
+
+/**
  * The reason line for a queued job.
  * @param {import("./board.mjs").Job} job the job
  * @param {string} words its tier's words
@@ -533,7 +619,7 @@ function jobReason(job, words) {
     const parts = [
         f.next && `${NEXT} (owner)`,
         job.kind === "issue" && Number.isFinite(f.order) && `in open order, position ${f.order + 1}`,
-        job.kind === "issue" ? issueRule(job.priority, f) : words,
+        placeRule(job, words),
         f.since && `${job.kind === "incident" ? "red" : "open"} since ${f.since}`,
     ];
     return parts.filter(Boolean).join(", ");
@@ -541,9 +627,13 @@ function jobReason(job, words) {
 
 /**
  * The queued jobs in the order of design 5.4, each with its one-line reason, and the queued jobs
- * skipped right now with why. Within a tier: the owner's `githerd:next` first, then for issues the
- * open order, priority, bug before other types and low effort before high, then oldest (`facts.since`: red since for an
- * incident, opened for a pull request or issue), then id.
+ * skipped right now with why. Urgent incidents first (verdicts, master, release, shared); then by
+ * the owner's priority label (`priorityTier`), and within one priority, work that finishes what is
+ * in flight (a review, a pull request's fix or title, verifying a fix master names, a re-land)
+ * before work that starts something new (triage of new issues, a major, a fresh issue); then the
+ * kind's tier, the owner's `githerd:next`, for issues the open order, bug before other types and
+ * low effort before high, then oldest (`facts.since`: red since for an incident, opened for a pull
+ * request or issue), then id. Triage passes and low-priority incidents come last.
  * A job whose pull request is in use (`prInUse`) is neither ordered nor skipped but listed apart.
  * @param {Record<string, import("./board.mjs").Job>} jobs the job records
  * @param {{reviewQueueFull?: boolean, inUse?: (job: any) => string | null}} [ctx] what limits apply
@@ -561,18 +651,15 @@ export function jobOrder(jobs, ctx = {}) {
         const inUse = skip ? null : (ctx.inUse?.(job) ?? null);
         if (skip) skips.push({ job: job.id, reason: skip });
         else if (inUse) used.push({ job: job.id, reason: inUse });
-        else items.push({ job, tier: tier(job) });
+        else {
+            const t = tier(job);
+            items.push({ job, tier: t, key: sortKey(job, t[0]) });
+        }
     }
     items.sort((a, b) => {
-        const ra = issueRank(a.job);
-        const rb = issueRank(b.job);
+        const i = a.key.findIndex((v, k) => v !== b.key[k]);
+        if (i !== -1) return a.key[i] - b.key[i];
         return (
-            a.tier[0] - b.tier[0] ||
-            Number(Boolean(b.job.facts?.next)) - Number(Boolean(a.job.facts?.next)) ||
-            ra.order - rb.order ||
-            ra.priority - rb.priority ||
-            ra.bug - rb.bug ||
-            ra.effort - rb.effort ||
             String(a.job.facts?.since ?? "~").localeCompare(String(b.job.facts?.since ?? "~")) ||
             a.job.id.localeCompare(b.job.id)
         );

@@ -425,7 +425,8 @@ export async function fillSlots(ctx) {
         // A job whose start task still runs (its deadline requeued it meanwhile) is not admitted twice.
         ...jobOrder(state.jobs ?? {}, { inUse: (j) => jobInUse(state, j, { config: ctx.config, now: t }) })
             .items.map((i) => state.jobs[i.job])
-            .filter((j) => !ctx.tasks.has(j.id)),
+            // A pull request that changes githerd itself is the owner's sessions' (jobs.mjs prJobs).
+            .filter((j) => !ctx.tasks.has(j.id) && !j.facts?.ownerOnly),
     ];
     if (!candidates.length) return { blocked: null, admitted: [] };
     if (ctx.mode !== "acting") return wouldStart(ctx, candidates);

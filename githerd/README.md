@@ -74,7 +74,11 @@ allows a revert; an environment verdict lifts the hold. When a job waits in the 
 free worker slot, githerd messages the sessions in this repository with room once per job, inviting
 them to call `githerd_next` and claim it. A session has room while it is idle, or while the
 `capacity` it last gave in `githerd_expect` (its answer to the status question's "Can you take
-another job?") is above the jobs it claimed since. A session calls `githerd_next` for its job (a worker) or the queued jobs it could
+another job?") is above the jobs it claimed since. A session working `workers.maxActive` jobs (default
+3: working, starting, or waiting on its own task; blocked, parked and verifying jobs do not count) is
+not invited, and `githerd_claim` refuses it another until it finishes or reports one. The queue
+finishes before it starts: within one owner priority, a broken pull request's job, a review or a
+fix to verify comes before a fresh issue. A session calls `githerd_next` for its job (a worker) or the queued jobs it could
 take (an owner session), and `githerd_claim` with its overlap judgment before any edit. A pull
 request another session works on is never offered (design section 8.2): one whose job a live session
 claimed; one whose CI is running on a head someone other than githerd pushed; and one whose CI

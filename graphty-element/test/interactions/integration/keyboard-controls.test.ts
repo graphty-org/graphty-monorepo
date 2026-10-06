@@ -271,6 +271,35 @@ describe("Keyboard Controls Integration", () => {
                 anyInput.enable();
             }
         });
+        test("a key still down when focus leaves the canvas stops panning", () => {
+            const inputController = get2DInputController(graph);
+            const cameraController = get2DCameraController(graph);
+            assert.isDefined(inputController);
+            assert.isDefined(cameraController);
+            const button = document.createElement("button");
+            container.appendChild(button);
+
+            graph.canvas.focus();
+            graph.canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
+            button.focus();
+            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+            inputController.applyKeyboardInertia();
+
+            assert.equal(cameraController.velocity.x, 0, "a released off the canvas should not keep panning");
+        });
+
+        test("Ctrl+D is a page shortcut, not a pan", () => {
+            const inputController = get2DInputController(graph);
+            const cameraController = get2DCameraController(graph);
+            assert.isDefined(inputController);
+            assert.isDefined(cameraController);
+
+            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+            graph.canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "d", ctrlKey: true }));
+            inputController.applyKeyboardInertia();
+
+            assert.equal(cameraController.velocity.x, 0);
+        });
     });
 
     describe("3D Mode", () => {
@@ -333,6 +362,59 @@ describe("Keyboard Controls Integration", () => {
             assert.isTrue(keyEventReceived, "Canvas should receive keyboard events when focused");
 
             canvas.removeEventListener("keydown", handler);
+        });
+
+        /**
+         * Count the camera spins the 3D input handler makes over a few frames.
+         * @param press - What to do to the focused canvas before the frames run
+         * @returns The number of spin calls
+         */
+        function spinsAfter(press: (canvas: HTMLCanvasElement) => void): number {
+            const handler = (graph.camera as any).activeInputHandler;
+            const { controller } = handler;
+            const original = controller.spin.bind(controller);
+            let spins = 0;
+            controller.spin = (dz: number): void => {
+                spins++;
+                original(dz);
+            };
+
+            const { canvas } = graph;
+            canvas.focus();
+            assert.strictEqual(document.activeElement, canvas, "canvas should take focus");
+            press(canvas);
+            for (let i = 0; i < 5; i++) {
+                handler.update();
+            }
+
+            controller.spin = original;
+            return spins;
+        }
+
+        test("A held on the focused canvas spins the camera", () => {
+            const spins = spinsAfter((canvas) => {
+                canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+            });
+            assert.isAbove(spins, 0);
+        });
+
+        test("Shift+A is a page shortcut, not a camera spin", () => {
+            const spins = spinsAfter((canvas) => {
+                canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "A", shiftKey: true, bubbles: true }));
+            });
+            assert.equal(spins, 0);
+        });
+
+        test("a key still down when focus leaves the canvas stops spinning", () => {
+            const button = document.createElement("button");
+            container.appendChild(button);
+            const spins = spinsAfter((canvas) => {
+                canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+                // Focus moves away; the keyup lands on the button, never on the canvas
+                button.focus();
+                button.dispatchEvent(new KeyboardEvent("keyup", { key: "a", bubbles: true }));
+            });
+            assert.equal(spins, 0);
         });
     });
 });

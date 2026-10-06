@@ -1,6 +1,7 @@
 // OrbitInputController.ts
 import Hammer from "hammerjs";
 
+import { hasModifier } from "./InputUtils";
 import { OrbitCameraController, OrbitConfig } from "./OrbitCameraController";
 
 /**
@@ -49,11 +50,22 @@ export class OrbitInputController {
     };
 
     private keyDownHandler = (evt: KeyboardEvent): void => {
+        // A modified key is a shortcut (Shift+A, Mod+S), not a camera move: the shortcut
+        // usually moves focus away, so its keyup never reaches the canvas and the key stays held
+        if (hasModifier(evt)) {
+            return;
+        }
+
         this.keysDown[evt.key.toLowerCase()] = true;
     };
 
     private keyUpHandler = (evt: KeyboardEvent): void => {
         this.keysDown[evt.key.toLowerCase()] = false;
+    };
+
+    // The canvas never sees the keyup of a key released after it lost focus
+    private releaseKeys = (): void => {
+        this.keysDown = {};
     };
 
     /**
@@ -118,6 +130,8 @@ export class OrbitInputController {
 
         this.canvas.addEventListener("keydown", this.keyDownHandler);
         this.canvas.addEventListener("keyup", this.keyUpHandler);
+        this.canvas.addEventListener("blur", this.releaseKeys);
+        document.addEventListener("visibilitychange", this.releaseKeys);
 
         if (!this.hammer) {
             this.attachMouseTouch();
@@ -141,6 +155,9 @@ export class OrbitInputController {
 
         this.canvas.removeEventListener("keydown", this.keyDownHandler);
         this.canvas.removeEventListener("keyup", this.keyUpHandler);
+        this.canvas.removeEventListener("blur", this.releaseKeys);
+        document.removeEventListener("visibilitychange", this.releaseKeys);
+        this.releaseKeys();
 
         if (this.hammer) {
             this.hammer.destroy();

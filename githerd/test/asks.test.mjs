@@ -826,6 +826,53 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(prInUse(state, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (it said so)");
     });
 
+    it("keeps it, unasked, while its owner works in the branch's worktree, and asks once that stops", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        // A session started before githerd's MCP server cannot answer, but its process is there.
+        state.prActivity = { 710: { present: { s2: ".worktrees/feat-x" }, pushed: {} } };
+        expect(await statusStep(state, opts(f, { now: at("12:15") }))).toEqual([]);
+        expect(f.sent).toHaveLength(1);
+        expect(state.brokenAsks[710].active).toBe("graphty-14 active in .worktrees/feat-x");
+        expect(prInUse(state, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (pushed)");
+        // The activity stops: asked again, not released; released only when that goes unanswered.
+        state.prActivity = { 710: { present: {}, pushed: {} } };
+        await statusStep(state, opts(f, { now: at("12:30") }));
+        expect(f.sent).toHaveLength(2);
+        const lines = await statusStep(state, opts(f, { now: at("12:45") }));
+        expect(lines).toMatchObject([{ kind: "pr-released", pr: 710 }]);
+    });
+
+    it("gives a released pull request back the moment its owner is active in its worktree again", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:15") })).toBeNull();
+        state.prActivity = { 710: { present: { s2: ".worktrees/feat-x" }, pushed: {} } };
+        expect(await statusStep(state, opts(f, { now: at("12:16") }))).toEqual([]);
+        expect(prInUse(state, 710, { now: at("12:16") })).toBe("session graphty-14 owns it (pushed)");
+        expect(state.brokenAsks[710].active).toBe("graphty-14 active in .worktrees/feat-x");
+        expect(f.sent).toHaveLength(1);
+    });
+
+    it("keeps it when its owner pushed the branch since the question, or the head moved", async () => {
+        const f = fake();
+        const pushed = owned();
+        await statusStep(pushed, opts(f, { now: at("12:00") }));
+        pushed.prActivity = { 710: { present: {}, pushed: { s2: "2026-10-05T12:07:00Z" } } };
+        expect(await statusStep(pushed, opts(f, { now: at("12:15") }))).toEqual([]);
+        expect(pushed.brokenAsks[710].active).toBe("graphty-14 pushed feat/cytoscape-adapter at 12:07 UTC");
+
+        const moved = owned();
+        await statusStep(moved, opts(f, { now: at("12:00") }));
+        moved.prs[710].headSha = "b".repeat(40);
+        expect(await statusStep(moved, opts(f, { now: at("12:15") }))).toEqual([]);
+        expect(moved.brokenAsks[710].active).toBe("new head bbbbbbb");
+        expect(f.sent).toHaveLength(2);
+    });
+
     it("releases it at once when its owner cannot be asked, and never for a question nobody heard", async () => {
         const gone = owned();
         const f = fake();

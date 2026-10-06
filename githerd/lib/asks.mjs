@@ -457,6 +457,8 @@ function brokenOwner(state, n, rec) {
     // A session that says it is its own after the release owns it again.
     if (state.prOwners?.[n]) delete state.prReleased[n];
     const owner = state.prOwners?.[n] ?? state.prInferred?.[n];
+    // Its owner working in its worktree again owns it again (a new push already ends the release).
+    if (owner && state.prActivity?.[n]?.present?.[owner.session]) delete state.prReleased[n];
     const why = owner && state.prReleased[n] !== rec.headSha ? broken(state, n, rec) : null;
     if (!why) {
         delete state.brokenAsks[n];
@@ -486,6 +488,18 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
     // A cadence, how often to ask: never a deadline on the work.
     if (same && now.getTime() - Date.parse(ask.at) < minutes * MINUTE) return null;
     const gone = !live().some((s) => s.sessionId === owner.session);
+    // Work on it counts as the answer for this cycle: a session without githerd's tools cannot say so.
+    const active = !gone && activity(state, n, rec, owner, ask);
+    if (active) {
+        state.brokenAsks[n] = {
+            head: rec.headSha,
+            session: owner.session,
+            at: now.toISOString(),
+            heard: false,
+            active,
+        };
+        return null;
+    }
     if (gone || (same && ask.heard && !brokenAnswered(state, n, ask))) {
         const reason = gone ? "githerd cannot ask its owner" : `no answer to the question of ${ask.at}`;
         state.prReleased[n] = rec.headSha;
@@ -495,6 +509,28 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
         return null;
     }
     return { session: owner.session, why };
+}
+
+/**
+ * What shows the owner of pull request `n` working on it, or null: a process of its session in the
+ * branch's worktree now (`state.prActivity`, owners.mjs), or since the question `ask` a push of the
+ * branch by it or a new head.
+ * @param {any} state the daemon state
+ * @param {string} n the pull request
+ * @param {any} rec its record
+ * @param {{session: string, name?: string}} owner its owner
+ * @param {{head: string, at: string, session: string} | undefined} ask the last question
+ * @returns {string | null} the evidence
+ */
+function activity(state, n, rec, owner, ask) {
+    const act = state.prActivity?.[n];
+    const who = owner.name ?? owner.session;
+    if (act?.present?.[owner.session]) return `${who} active in ${act.present[owner.session]}`;
+    if (ask?.session !== owner.session) return null;
+    const pushed = act?.pushed?.[owner.session];
+    if (pushed && pushed >= ask.at)
+        return `${who} pushed ${rec.headRef ?? "its branch"} at ${pushed.slice(11, 16)} UTC`;
+    return ask.head === rec.headSha ? null : `new head ${String(rec.headSha).slice(0, 7)}`;
 }
 
 /**

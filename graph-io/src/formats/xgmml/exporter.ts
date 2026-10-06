@@ -772,7 +772,7 @@ function valueText(value: unknown, dtype: string | null, escapes: boolean): stri
     } else if (typeof value === "number") {
         text = dtype === "f32" ? formatF32(value) : formatF64(value);
     } else if (typeof value === "string") {
-        text = escapes ? value.replace(/\n/g, "\\n").replace(/\t/g, "\\t") : value;
+        text = escapes ? value.replaceAll("\n", String.raw`\n`).replaceAll("\t", String.raw`\t`) : value;
     } else if (ArrayBuffer.isView(value)) {
         text = JSON.stringify(Array.from(value as unknown as ArrayLike<number>));
     } else {

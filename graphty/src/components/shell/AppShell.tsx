@@ -2634,9 +2634,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * It went with the narrow layout itself. Below `NARROW_BREAKPOINT` the shell now
      * draws a "screen too small" state instead of laying out, so there is no canvas to
      * tap and no overlay for a tap to dismiss; at or above it both sidebars are docked
-     * columns that nothing but the reader's own control may hide. `CanvasRegion` still
-     * accepts an `onCanvasTap`, and the shell deliberately passes none: an unused hook is
-     * cheaper to leave than a behaviour nobody can predict.
+     * columns that nothing but the reader's own control may hide. `CanvasRegion`'s
+     * `onCanvasTap` hook, which nothing passed any more, was removed with it.
      */
 
     /* ---------------------------------------------------------------------- */
@@ -2694,14 +2693,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        case notes). Read from `session.notes` and read again on every `note:changed` -- a write,
        an undo, a redo or an opened project. The shell keeps no note store of its own. */
     const [selectedNodeNotes, setSelectedNodeNotes] = useState<readonly Note[]>([]);
-    const [caseNoteCount, setCaseNoteCount] = useState(0);
+    const [caseNotes, setCaseNotes] = useState<readonly Note[]>([]);
+    const caseNoteCount = caseNotes.length;
     useEffect(() => {
         if (session === null) {
             return undefined;
         }
 
         const read = (): void => {
-            setCaseNoteCount(session.notes.list({ target: { graph: true } }).length);
+            setCaseNotes(session.notes.list({ target: { graph: true } }));
             setSelectedNodeNotes(
                 selectedNode === null ? [] : session.notes.list({ target: { node: selectedNode.id } }),
             );
@@ -2713,10 +2713,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, [selectedNode, session]);
 
     /* The case notes -- graphty-element's notes about the whole graph -- are listed in the
-       Explore panel's Notes section, so this opens Explore with that section expanded. */
+       Explore panel's Notes section, so this opens Explore with that section expanded and its
+       note input focused. */
     const openCaseNotes = useCallback(() => {
         openPanelAt("explore");
         setSectionOpen("explore.notes", true);
+        focusWhenMounted('[data-testid="explore-note-input"]');
     }, [openPanelAt, setSectionOpen]);
 
     /* ---------------------------------------------------------------------- */
@@ -3397,6 +3399,23 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         next.focus();
     }, []);
 
+    /* N, and the Explore Notes section's plus: the inspector's note input for the selected
+       node; with nothing selected, the case notes. */
+    const addNote = useCallback(() => {
+        if (selectedNode === null) {
+            openCaseNotes();
+
+            return;
+        }
+
+        if (sidebarsHidden) {
+            toggleSidebars();
+        }
+
+        setSectionOpen(INSPECTOR_SECTION_IDS.nodeNotes, true);
+        focusWhenMounted('[data-testid="node-note-input"]');
+    }, [openCaseNotes, selectedNode, setSectionOpen, sidebarsHidden, toggleSidebars]);
+
     /* ---------------------------------------------------------------------- */
     /* The one dispatcher                                                      */
     /* ---------------------------------------------------------------------- */
@@ -3437,22 +3456,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 openPanelAt("explore");
                 focusWhenMounted('[data-testid="explore-search-input"]');
             },
-            /* N: the inspector's note input for the selected node; with nothing selected, the
-               case notes. */
-            addNote: () => {
-                if (selectedNode === null) {
-                    openCaseNotes();
-
-                    return;
-                }
-
-                if (sidebarsHidden) {
-                    toggleSidebars();
-                }
-
-                setSectionOpen(INSPECTOR_SECTION_IDS.nodeNotes, true);
-                focusWhenMounted('[data-testid="node-note-input"]');
-            },
+            addNote,
             egoNetwork: showEgoNetwork,
             keyboardShortcuts: () => {
                 openFullPanelOverlay("shortcuts");
@@ -3660,6 +3664,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         onScopeChange={setExploreScope}
                         searchError={exploreError}
                         visibleScopeLabel={`${nodeCount.toLocaleString()} nodes`}
+                        hasSelection={selectedNode !== null}
+                        onAddNote={addNote}
+                        caseNotes={caseNotes}
+                        onAddCaseNote={(text) => {
+                            session?.notes.add({ text, targets: [{ graph: true }] });
+                        }}
+                        // One undoable step in the element's history, so Undo brings the note back.
+                        onDeleteCaseNote={(noteId) => {
+                            session?.notes.remove(noteId);
+                        }}
                         timeSliderOn={canvasLayout.timeSlider}
                         onTimeSliderChange={(on) => {
                             setCanvasLayout((current) => ({ ...current, timeSlider: on }));
@@ -3793,6 +3807,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, [
         activeActivity,
         activeResult,
+        addNote,
         captureImage,
         imageFormat,
         openFullPanelOverlay,
@@ -3803,6 +3818,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         canvasLayout.drawerOpen,
         canvasLayout.legend,
         canvasLayout.timeSlider,
+        caseNotes,
         legendIsAvailable,
         openResult,
         exploreError,
@@ -3823,6 +3839,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         runNodeMetricCard,
         runningSuggestedCardId,
         selectedLayerId,
+        selectedNode,
+        session,
         setDrawerOpen,
         stateAxis,
         suggestedRunCosts.labels,

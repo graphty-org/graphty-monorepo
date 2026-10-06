@@ -456,7 +456,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
         const canScrub = (wantsScrub || scrubsValue) && !disabled && !coarsePointer;
 
         const numberText = hidesValue ? "" : valueText;
-        const numberValue = valueText === "" || mixed ? NaN : parseNumber(valueText);
+        const numberValue = valueText === "" || mixed ? Number.NaN : parseNumber(valueText);
         const numberField = useNumberField({
             value: Number.isNaN(numberValue) ? null : numberValue,
             display: numberText,

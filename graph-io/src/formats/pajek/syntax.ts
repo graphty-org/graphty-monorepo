@@ -438,7 +438,7 @@ export function parseIntervals(token: string): [number, number][] {
     }
     const spells: [number, number][] = [];
     for (const part of body.split(",")) {
-        const match = TIME_POINT.exec(part.replace(/\s+/g, ""));
+        const match = TIME_POINT.exec(part.replaceAll(/\s+/g, ""));
         if (match === null) {
             throw new Error(`malformed time interval ${token}: "${part}" is not a-b, a-* or a`);
         }
@@ -485,7 +485,7 @@ export function decodeCharacterReferences(text: string, onUnknown?: (reference: 
     if (!text.includes("&#")) {
         return text;
     }
-    return text.replace(CHARACTER_REFERENCE, (whole, hex: string | undefined, dec: string | undefined) => {
+    return text.replaceAll(CHARACTER_REFERENCE, (whole, hex: string | undefined, dec: string | undefined) => {
         const code = hex === undefined ? Number(dec) : Number.parseInt(hex, 16);
         if (code <= 0x10ffff) {
             return String.fromCodePoint(code);
@@ -506,7 +506,7 @@ export function encodeCharacterReferences(text: string): string {
     if (!text.includes("&#")) {
         return text;
     }
-    return text.replace(CHARACTER_REFERENCE, (whole) => `&#38;${whole.slice(1)}`);
+    return text.replaceAll(CHARACTER_REFERENCE, (whole) => `&#38;${whole.slice(1)}`);
 }
 
 /**

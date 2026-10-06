@@ -187,5 +187,5 @@ export function parseScalar(text: string, kind: ScalarKind, unescape: boolean): 
  * @returns the text with `\n` and `\t` decoded
  */
 function unescapeCytoscape(text: string): string {
-    return text.includes("\\") ? text.replace(/\\t/g, "\t").replace(/\\n/g, "\n") : text;
+    return text.includes("\\") ? text.replaceAll(String.raw`\t`, "\t").replaceAll(String.raw`\n`, "\n") : text;
 }

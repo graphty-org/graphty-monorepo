@@ -14,12 +14,13 @@
 //       servherd_start({ name: "sonar-baseline", cwd: "<repo>", command: "node tools/sonar-baseline.mjs --watch" })
 //     with no token in env or command; this script reads it from the environment or .env.
 //
-// A pass: fetch origin; if origin/master is not the revision <key> last analyzed, move the detached
-// worktree .worktrees/sonar-baseline to it, install and build, merge the coverage of that commit's
-// CI run (master push runs only; wait up to 3 hours for it, then scan without), restore the profile
-// if the file changed, and run a full scan under the lock the gate uses (skipping the pass if a
-// push holds it). The first pass of each ISO week comments the numbers on the pinned
-// "SonarQube burn-down" issue.
+// A pass: fetch origin; pick the newest master commit whose CI run (master push runs only, listed
+// with one `gh run list` call) has finished; if <key> has not analyzed it or a later commit, move
+// the detached worktree .worktrees/sonar-baseline to it, install and build, merge that run's
+// coverage, restore the profile if the file changed, and run a full scan under the lock the gate
+// uses (waiting up to LOCK_WAIT_S for a push to release it, else retrying at the next poll). Master
+// moves faster than CI finishes, so the tip itself is rarely the commit scanned. The first pass of
+// each ISO week comments the numbers on the pinned "SonarQube burn-down" issue.
 //
 // The token goes only to the scanner child and to tools/sonar/api.mjs; every other child (git,
 // pnpm, gh, the build) runs with both tokens removed from its environment.
@@ -42,7 +43,10 @@ import {
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const PROFILE_FILE = join(ROOT, "tools/sonar/graphty-way.xml");
 const POLL_MS = 30 * 60 * 1000;
-const COVERAGE_WAIT_MS = 3 * 60 * 60 * 1000;
+// How long a pass waits for the scan lock; pre-push gates hold it a few minutes each, up to 3 at once.
+const LOCK_WAIT_S = 15 * 60;
+// How many master commits (and CI runs) a pass looks back through for one whose CI has finished.
+const LOOKBACK = 50;
 const SCAN_TIMEOUT_MS = 1800 * 1000;
 const GATE_NAME = "Graphty";
 // The "Graphty" gate's conditions at stage 0. Each stage of the burn-down adds its ratchet here
@@ -183,16 +187,59 @@ async function setup(cfg) {
 const sh = (cmd, args, cwd) => spawnSync(cmd, args, { cwd, stdio: "inherit", env: envWithoutToken() }).status === 0;
 const ghJson = (args) => JSON.parse(execFileSync("gh", args, { cwd: ROOT, encoding: "utf8", env: envWithoutToken() }));
 
-// The CI run of `sha`'s master push: the run, "pending" while it has not finished, or "error".
-function ciRun(sha) {
+/**
+ * The commit to scan: the newest of `shas` (master, newest first) whose newest CI run finished
+ * without being cancelled (a cancelled run uploads no coverage).
+ * @param shas - Master's commits, newest first.
+ * @param runs - Master push CI runs, newest first, as `{ databaseId, status, conclusion, headSha }`.
+ * @returns `{ sha, run }`, or null when no listed commit has a finished run.
+ */
+export function pickCommit(shas, runs) {
+    const newest = new Map();
+    for (const r of runs) if (!newest.has(r.headSha)) newest.set(r.headSha, r);
+    for (const sha of shas) {
+        const run = newest.get(sha);
+        if (run?.status === "completed" && !["cancelled", "skipped"].includes(run.conclusion)) return { sha, run };
+    }
+    return null;
+}
+
+/**
+ * Whether `sha` needs a scan: not when it is `last` (the revision <key> last analyzed) or an
+ * ancestor of it, since the server already holds that code or newer.
+ * @param sha - The candidate commit.
+ * @param last - The last analyzed revision, or undefined.
+ * @param isAncestor - `(a, b)` true when a is an ancestor of b.
+ * @returns True when the commit should be scanned.
+ */
+export function needsScan(sha, last, isAncestor) {
+    return !last || (sha !== last && !isAncestor(sha, last));
+}
+
+const isAncestor = (a, b) => sh("git", ["merge-base", "--is-ancestor", a, b], ROOT);
+
+// Master push CI runs, newest first: one API call. Null (logged) when gh failed.
+function masterRuns() {
     try {
-        const filter = ["--workflow", "ci.yml", "--branch", "master", "--event", "push", "--commit", sha];
-        const runs = ghJson(["run", "list", ...filter, "--json", "databaseId,status,conclusion"]);
-        return runs[0]?.status === "completed" ? runs[0] : "pending";
+        const filter = ["--workflow", "ci.yml", "--branch", "master", "--event", "push", "--limit", String(LOOKBACK)];
+        return ghJson(["run", "list", ...filter, "--json", "databaseId,status,conclusion,headSha"]);
     } catch (e) {
         log(`gh run list failed: ${firstLine(e)}`);
-        return "error";
+        return null;
     }
+}
+
+/**
+ * Take the scan lock the gate uses, waiting up to `waitSeconds` for a push to release it.
+ * @param file - The lock file.
+ * @param waitSeconds - How long to wait.
+ * @param say - Where the reason goes when the lock was not obtained.
+ * @returns `release`, or null (with the reason logged) when the wait ran out.
+ */
+export async function scanLock(file, waitSeconds, say = log) {
+    const release = await acquireLock(file, waitSeconds);
+    if (!release) say(`the scan lock was held by a push for ${waitSeconds} s; retrying at the next poll`);
+    return release;
 }
 
 // Download a run's coverage-* artifacts and merge them into <worktree>/coverage/lcov.info.
@@ -346,8 +393,8 @@ async function restoreIfChanged(api, key, worktree) {
 
 // The full scan of the worktree into <key>, under the lock the gate uses, bounded by SCAN_TIMEOUT_MS.
 async function fullScan(cfg, worktree, sha) {
-    const release = await acquireLock(join(sonarDir(), "sonar-local.lock"), 0);
-    if (!release) return log("a push holds the scan lock; next poll");
+    const release = await scanLock(join(sonarDir(), "sonar-local.lock"), LOCK_WAIT_S);
+    if (!release) return;
     try {
         const version = JSON.parse(readFileSync(join(worktree, "package.json"), "utf8")).version;
         const args = [
@@ -372,27 +419,29 @@ async function fullScan(cfg, worktree, sha) {
     }
 }
 
-// One poll: scan origin/master into <key> if <key> has not analyzed it yet.
+// One poll: scan the newest master commit with a finished CI run, if <key> has not analyzed it yet.
 async function pass(cfg) {
     if (!(await serverStatus(cfg.host))) return log("server unreachable; next poll");
     const api = client(cfg.host, cfg.token);
     const key = cfg.projectKey;
     if (!sh("git", ["fetch", "--quiet", "origin", "master"], ROOT)) return log("git fetch failed; next poll");
-    const sha = git(["rev-parse", "origin/master"]);
+    const runs = masterRuns();
+    if (!runs) return log("could not list CI runs; next poll");
+    const shas = git(["rev-list", "--first-parent", `--max-count=${LOOKBACK}`, "origin/master"]).split("\n");
+    const picked = pickCommit(shas, runs);
+    if (!picked) return log(`no finished CI run among the last ${LOOKBACK} master commits; next poll`);
+    const { sha, run } = picked;
     const last = (await api.call("api/project_analyses/search", { project: key, ps: 1 })).analyses?.[0];
-    if (last?.revision !== sha) {
-        const committed = Number(git(["show", "-s", "--format=%ct", sha])) * 1000;
-        const run = ciRun(sha);
-        if (run === "pending" && Date.now() - committed < COVERAGE_WAIT_MS) {
-            return log(`CI has not finished for ${sha.slice(0, 9)}; next poll`);
-        }
+    if (!needsScan(sha, last?.revision, isAncestor)) {
+        log(`${sha.slice(0, 9)} (newest master commit with finished CI) is already analyzed; next poll`);
+    } else {
+        if (sha !== shas[0])
+            log(`scanning ${sha.slice(0, 9)}: CI has not finished for the ${shas.indexOf(sha)} newer commit(s)`);
         const worktree = join(dirname(commonDir()), ".worktrees", "sonar-baseline");
         if (!prepareWorktree(worktree, sha)) return;
-        if (typeof run !== "object" || !mergeCoverage(run, worktree)) {
+        if (!mergeCoverage(run, worktree)) {
             rmSync(join(worktree, "coverage/lcov.info"), { force: true });
-            log(
-                `scanning ${sha.slice(0, 9)} WITHOUT coverage (CI run: ${typeof run === "object" ? "no coverage" : run})`,
-            );
+            log(`scanning ${sha.slice(0, 9)} WITHOUT coverage (run ${run.databaseId} has none to download)`);
         }
         await restoreIfChanged(api, key, worktree);
         await fullScan(cfg, worktree, sha);

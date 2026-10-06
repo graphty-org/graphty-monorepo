@@ -78,7 +78,7 @@ describe("SAMPLE_MANIFEST", () => {
         expect(karate.tags).toEqual([]);
         // No comma in the credit: REGISTER-1.5.md 11.3.
         expect(karate.credit).toBe("Zachary 1977");
-        expect(karate.creditHref).toBe("http://www-personal.umich.edu/~mejn/netdata/");
+        expect(karate.creditHref).toBe("https://www-personal.umich.edu/~mejn/netdata/");
         expect(karate.blurb).toBe("A club that split in two. The classic test for finding groups.");
         expect(karate.hint).toBeUndefined();
         expect(karate.source).toEqual({
@@ -123,7 +123,7 @@ describe("SAMPLE_MANIFEST", () => {
         expect(football.fileName).toBe("football.gml");
         expect(football.tags).toEqual(["Types"]);
         expect(football.credit).toBe("Girvan and Newman 2002");
-        expect(football.creditHref).toBe("http://www-personal.umich.edu/~mejn/netdata/");
+        expect(football.creditHref).toBe("https://www-personal.umich.edu/~mejn/netdata/");
         expect(football.blurb).toBe("Teams that played each other in one season, tagged by conference.");
         expect(football.hint).toBeUndefined();
         expect(football.suggestedCapability).toBeUndefined();

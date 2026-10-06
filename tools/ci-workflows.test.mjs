@@ -1083,9 +1083,12 @@ describe("release.yml", () => {
     it("tries a release every 6 hours and on dispatch, from master's newest commit", () => {
         assert.match(release, /schedule:\n\s+- cron: "0 0,6,12,18 \* \* \*"\n/);
         assert.match(release, /workflow_dispatch:\n\s+inputs:\n\s+packages:/);
-        assert.match(pick, /if: \$\{\{ github.event_name != 'push' && github.ref == 'refs\/heads\/master' \}\}/);
-        // the run's own commit, so the run, Coveralls and the lanes all name the tested commit
-        assert.match(pick, /echo "sha=\$\{GITHUB_SHA\}"/);
+        assert.match(pick, /if: \$\{\{ github.event_name != 'push' && github.ref == 'refs\/heads\/master' && /);
+        // the run's own commit (the pushed commit for a restart), so the run, Coveralls and the lanes all name
+        // the tested commit
+        assert.match(pick, /CANDIDATE: \$\{\{ github.event.workflow_run.head_sha \|\| github.sha \}\}/);
+        assert.match(pick, /ref: \$\{\{ github.event.workflow_run.head_sha \|\| github.sha \}\}/);
+        assert.match(pick, /echo "sha=\$\{CANDIDATE\}"/);
         assert.doesNotMatch(pick, /ref: master/);
         // no master CI run is read: master runs no tests, the train tests the candidate itself
         assert.doesNotMatch(pick, /ci\.yml|hosts\.yml|ci_run_id/);
@@ -1097,8 +1100,8 @@ describe("release.yml", () => {
         assert.match(pick, /startswith\("release\/train-"\)/);
         assert.match(pick, /pending \| held\) skip "release pull request #\$\{number\} is still open/);
         assert.match(pick, /\*\) gh pr close "\$number" --delete-branch/);
-        // an open "Release held" issue (a fix is in progress); an ad hoc dispatch runs anyway
-        assert.match(pick, /if \[ -n "\$held" \] && \[ "\$EVENT" != workflow_dispatch \]; then\n\s+skip /);
+        // an open "Release held" issue stops the schedule; a restart and an ad hoc dispatch run anyway
+        assert.match(pick, /if \[ -n "\$held" \] && \[ "\$EVENT" = schedule \]; then\n\s+skip /);
         // the last release not tagged yet
         assert.match(pick, /has no tag \$\{project\}@\$\{version\} yet/);
         // nothing releasable: the same versioning the train runs, made locally, makes no commit
@@ -1222,6 +1225,87 @@ describe("release.yml", () => {
         // and the next train that passes closes it, as its last step
         const close = train.indexOf("tools/release-held.sh close");
         assert.ok(close > train.indexOf("gh pr create"), "closed only after the release pull request");
+    });
+
+    describe("restarts a held release on a master push whose build passed", () => {
+        // The pick job's "Skip while the previous release is pending" step, run in a scratch directory with
+        // stubs for gh (no release pull request), git (no release yet) and tools/release-held.sh (the held
+        // issue, or none).
+        const pending = (event, heldIssue) => {
+            const script = /- name: Skip while the previous release is pending[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
+                pick,
+            )[1];
+            const dir = mkdtempSync(join(tmpdir(), "release-pick-"));
+            try {
+                mkdirSync(join(dir, "tools"));
+                mkdirSync(join(dir, "bin"));
+                writeFileSync(join(dir, "bin", "gh"), "#!/bin/sh\n", { mode: 0o755 });
+                // no release commit yet, so no tag to wait for
+                writeFileSync(join(dir, "bin", "git"), "#!/bin/sh\n", { mode: 0o755 });
+                writeFileSync(join(dir, "tools", "release-held.sh"), `#!/bin/sh\necho ${heldIssue}\n`, { mode: 0o755 });
+                const output = join(dir, "output");
+                writeFileSync(output, "");
+                const run = spawnSync("bash", ["-c", script.replace(/^ {18}/gm, "")], {
+                    cwd: dir,
+                    encoding: "utf8",
+                    env: {
+                        ...process.env,
+                        PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+                        EVENT: event,
+                        GITHUB_SERVER_URL: "https://github.com",
+                        GITHUB_REPOSITORY: "o/r",
+                        GITHUB_RUN_ID: "1",
+                        CANDIDATE: "abc123",
+                        GITHUB_OUTPUT: output,
+                    },
+                });
+                assert.equal(run.status, 0, run.stderr);
+                return readFileSync(output, "utf8");
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        };
+
+        it("is started by every completed CI run of a push to master", () => {
+            assert.match(
+                release,
+                /\n {4}workflow_run:\n {8}workflows: \["CI"\]\n {8}types:\n {12}- completed\n {8}branches:\n {12}- master\n/,
+            );
+        });
+
+        it("starts only when the build passed, on a push to master in this repository", () => {
+            const gate = /\n {8}if: (\$\{\{.*\}\})\n/.exec(pick)[1];
+            assert.match(
+                gate,
+                /github.event_name != 'workflow_run' \|\| \(github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master' && github.event.workflow_run.head_repository.full_name == github.repository\)/,
+            );
+        });
+
+        it("starts the held release on the pushed commit when a held issue is open", () => {
+            assert.equal(pending("workflow_run", "1234"), "pending=false\nsha=abc123\n");
+        });
+
+        it("never starts when no held issue is open", () => {
+            assert.equal(pending("workflow_run", ""), "pending=true\n");
+            // the schedule, unlike a restart, runs only when nothing is held
+            assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\n");
+            assert.equal(pending("schedule", "1234"), "pending=true\n");
+            assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
+        });
+
+        it("shares the one train group, so two pushes in a row never start two trains", () => {
+            assert.match(
+                release,
+                /^concurrency:\n {4}group: \$\{\{ github.event_name == 'push' && format\('release-push-\{0\}', github.run_id\) \|\| 'release-train' \}\}\n {4}cancel-in-progress: false/m,
+            );
+            // and a restart that finds the first train's release pull request open skips
+            assert.match(pick, /pending \| held\) skip "release pull request/);
+        });
+
+        it("comments on the same held issue when the restarted release fails again", () => {
+            assert.match(held, /\[ "\$EVENT" != workflow_run \] \|\| echo "This was a restarted release/);
+            assert.match(held, /Refs #<this issue>/);
+        });
     });
 
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {

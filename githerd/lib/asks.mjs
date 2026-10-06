@@ -258,15 +258,53 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
 }
 
 /**
- * The status question for the jobs one session holds: one line per job.
+ * The jobs blocked on job `id`, directly or through a chain of waits (`waitingFor.job`).
+ * @param {any} state the daemon state
+ * @param {string} id the job
+ * @returns {any[]} the waiting jobs
+ */
+function waitersOf(state, id) {
+    return Object.values(state.jobs ?? {}).filter((j) => {
+        if (j.state !== "blocked") return false;
+        const seen = new Set();
+        for (let on = j.waitingFor?.job; on && !seen.has(on); on = state.jobs?.[on]?.waitingFor?.job) {
+            if (on === id) return true;
+            seen.add(on);
+        }
+        return false;
+    });
+}
+
+/**
+ * The line that tells a holder which jobs wait on its job, and how to let them start when what is
+ * left waits on something held (a hold label, a breaking pull request held for a grouped major, a
+ * needs-decision issue): Claude judges whether it does; githerd never splits a job itself.
+ * @param {any} state the daemon state
+ * @param {any} job the held job
+ * @returns {string} the line, empty when nothing waits on it
+ */
+function waitersLine(state, job) {
+    const names = waitersOf(state, job.id).map((w) => String(w.target ?? w.id));
+    if (!names.length) return "";
+    const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
+    return (
+        `  ${list} wait${names.length > 1 ? "" : "s"} on this job. If what remains waits on something held, ` +
+        "report it split (file the remainder as its own issue) so they can start.\n"
+    );
+}
+
+/**
+ * The status question for the jobs one session holds: one line per job, and for a job others wait
+ * on, the line naming them (`waitersLine`).
+ * @param {any} state the daemon state
  * @param {any[]} jobs the jobs, each due an answer
  * @param {number} minutes how often githerd asks
  * @returns {string} the message
  */
-function statusText(jobs, minutes) {
+function statusText(state, jobs, minutes) {
     return (
         "githerd: status check on the jobs this session holds:\n" +
-        jobs.map((j) => `- ${j.id} (${j.target})\n`).join("") +
+        jobs.map((j) => `- ${j.id} (${j.target})\n${waitersLine(state, j)}`).join("") +
         "Answer by calling githerd_expect once per listed job, with job set to its id, reason set to one line on " +
         "where it stands. " +
         "Can you take another job? Answer that with capacity set, in those githerd_expect calls, to how many further " +
@@ -524,7 +562,7 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
         const op = `ask ${target[0].name} for ${what.join(", ")}`;
         lines.push({ kind: "would-do", group: "workers", op, jobs: ids });
     }
-    const text = [...(jobs.length ? [statusText(jobs, minutes)] : []), ...prs.map(brokenText)].join("\n");
+    const text = [...(jobs.length ? [statusText(state, jobs, minutes)] : []), ...prs.map(brokenText)].join("\n");
     const out = acting ? await tellSessions(target, text, transport) : { sent: [], failed: [] };
     const ask = { at: now.toISOString(), heard: out.sent.length > 0 };
     for (const job of jobs) job.statusAsk = { ...ask };
@@ -551,25 +589,62 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
  *   sessions githerd may message, and the transport
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
-export async function tellCancelled(cancelled, { acting, sessions, transport }) {
+export function tellCancelled(cancelled, opts) {
+    const told = cancelled.map((c) => ({
+        ...c,
+        what: "was cancelled",
+        text:
+            `githerd: job ${c.job}, which this session holds, was cancelled: ${c.reason}. ` +
+            "Nothing is left to do on it; stop its work and do not call githerd_done or githerd_expect for it.",
+    }));
+    return tellHolders(told, "cancel-told", opts);
+}
+
+/**
+ * Tells each owner session whose refused githerd_done report githerd checked again and accepted
+ * (done.mjs recheckRefused) that its job is done, as `tellCancelled` does.
+ * @param {{job: string, reportedAt: string, session?: string | null, startedBy?: string | null}[]} accepted
+ *   the reports accepted
+ * @param {{acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
+ *   transport: import("./peers.mjs").Transport}} opts as for `tellCancelled`
+ * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
+ */
+export function tellAccepted(accepted, opts) {
+    const told = accepted.map((a) => ({
+        ...a,
+        what: "is done",
+        text:
+            `githerd: your githerd_done report of ${a.reportedAt} for job ${a.job}, which githerd refused, was checked ` +
+            "again and now holds: the job is done. Nothing is left to report for it.",
+    }));
+    return tellHolders(told, "done-told", opts);
+}
+
+/**
+ * Sends each owner session holding one of `told`'s jobs its message.
+ * @param {{job: string, session?: string | null, startedBy?: string | null, what: string, text: string}[]} told
+ *   the messages
+ * @param {string} kind the ledger kind of a sent message
+ * @param {{acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
+ *   transport: import("./peers.mjs").Transport}} opts as for `tellCancelled`
+ * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
+ */
+async function tellHolders(told, kind, { acting, sessions, transport }) {
     const lines = [];
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a holder is told */
     let live = null;
-    for (const c of cancelled) {
+    for (const c of told) {
         if (c.startedBy !== "owner" || !c.session) continue;
         live ??= sessions();
         const target = live.filter((s) => s.sessionId === c.session);
         if (!target.length) continue;
         if (!acting) {
-            const op = `tell ${target[0].name} that ${c.job} was cancelled`;
+            const op = `tell ${target[0].name} that ${c.job} ${c.what}`;
             lines.push({ kind: "would-do", group: "workers", op, job: c.job });
             continue;
         }
-        const text =
-            `githerd: job ${c.job}, which this session holds, was cancelled: ${c.reason}. ` +
-            "Nothing is left to do on it; stop its work and do not call githerd_done or githerd_expect for it.";
-        const out = await tellSessions(target, text, transport);
-        lines.push({ kind: "cancel-told", job: c.job, session: target[0].name, ...out });
+        const out = await tellSessions(target, c.text, transport);
+        lines.push({ kind, job: c.job, session: target[0].name, ...out });
     }
     return lines;
 }

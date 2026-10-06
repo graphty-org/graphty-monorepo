@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { askStep, inviteStep, statusStep, tellCancelled } from "../lib/asks.mjs";
+import { askStep, inviteStep, statusStep, tellAccepted, tellCancelled } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { jobInUse, prInUse } from "../lib/queue.mjs";
 
@@ -429,6 +429,30 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(f.sent).toHaveLength(1);
     });
 
+    it("names the jobs that wait on the held job, chained waits included, and asks whether to report it split", async () => {
+        const f = fake();
+        const state = claimed();
+        const t = new Date(CLAIMED_AT);
+        const blocked = (/** @type {string} */ id, /** @type {string} */ on) => {
+            const j = newJob({ kind: "issue", target: `#${id.slice(6)}`, id }, t);
+            Object.assign(j, { state: "blocked", waitingFor: { job: on } });
+            state.jobs[id] = j;
+        };
+        blocked("issue-713", "issue-186");
+        blocked("issue-714", "issue-713");
+        await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(f.sent[0][1]).toContain(
+            "- issue-186 (#186)\n  #713 and #714 wait on this job. If what remains waits on something held, " +
+                "report it split (file the remainder as its own issue) so they can start.\n",
+        );
+        // Nothing waits: no such line. githerd only asks; it never splits the job itself.
+        const g = fake();
+        const alone = claimed();
+        await statusStep(alone, opts(g, { now: at("12:15") }));
+        expect(g.sent[0][1]).not.toContain("wait on this job");
+        expect(state.jobs["issue-186"].state).toBe("working");
+    });
+
     it("keeps an answered claim and asks again; releases one whose question is unanswered when the next is due", async () => {
         const f = fake();
         const answered = claimed();
@@ -595,6 +619,23 @@ describe("telling an owner session that the job it held was cancelled", () => {
         ]);
         expect(await tellCancelled(cancelled, f.opts({ sessions: () => [] }))).toEqual([]);
         expect(f.sent).toEqual([]);
+    });
+
+    it("tells the owner session whose refused report githerd accepted on a re-check, and only it", async () => {
+        const accepted = [
+            { job: "issue-736", session: "s1", startedBy: "owner", reportedAt: "2026-10-05T11:00:00.000Z" },
+            { job: "pr-7", session: "w9", startedBy: null, reportedAt: "2026-10-05T11:00:00.000Z" },
+        ];
+        const f = fake();
+        expect(await tellAccepted(accepted, f.opts())).toEqual([
+            expect.objectContaining({ kind: "done-told", job: "issue-736", sent: ["graphty-13"] }),
+        ]);
+        expect(f.sent).toEqual([["/s1.sock", expect.stringContaining("was checked again and now holds")]]);
+        const g = fake();
+        expect(await tellAccepted(accepted, g.opts({ acting: false }))).toEqual([
+            { kind: "would-do", group: "workers", op: "tell graphty-13 that issue-736 is done", job: "issue-736" },
+        ]);
+        expect(g.sent).toEqual([]);
     });
 });
 

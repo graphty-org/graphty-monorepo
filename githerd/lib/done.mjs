@@ -32,6 +32,8 @@
  *   new major.
  */
 
+import { randomUUID } from "node:crypto";
+
 import * as board from "./board.mjs";
 import { raiseItem } from "./notify.mjs";
 import { recordVerdict } from "./proposals.mjs";
@@ -47,6 +49,13 @@ const REVIEW_VERDICTS = new Set(["pass", "loosened", "breaking-unmarked", "does-
 const SHA = /^[0-9a-f]{7,40}$/;
 /** The job kinds whose `not-needed` is a proposal to close their issue or pull request. */
 const NOT_NEEDED_KINDS = new Set(["issue", "pr"]);
+/**
+ * This daemon process. A refused report is checked again once by every new daemon, because a
+ * restart may carry fixed code.
+ * ponytail: any restart re-checks, not only one with new code; key it on the code hash if
+ * restarts ever come often.
+ */
+const BOOT = randomUUID();
 
 /**
  * @typedef {{holds: true} | {ciPending: string} | {missing: string[]} | null} Answer what a check
@@ -704,6 +713,8 @@ async function settleClaim(ctx, job, report, session) {
     const { answer, error } = await check(job, report, view);
     if (moved()) return movedReply();
     job.report = { ...report, at: now.toISOString(), session };
+    // A new report supersedes a refused one.
+    job.refused = null;
     await reportLoose(ctx, job, report.defects);
     if (report.outcome === "failed" || report.outcome === "deferred") {
         if (!answer || !("holds" in answer)) return reply(toolAnswer(answer, { action: "working" }, error, job));
@@ -728,8 +739,8 @@ async function settleVerified(ctx, job, report, { holder, answer, error, view })
     board.move(job, "verifying", now);
     const after = board.verifyResult(job, answer, now);
     if (after?.action === "waiting") job.waitingFor.verify = true;
-    if (after?.action === "done" && job.kind === "triage") recordVerdicts(job, report, view, now);
-    if (after?.action === "done" && report.children) job.children = report.children;
+    if (after?.action === "done") applyDone(job, report, view, now);
+    keepRefused(ctx.state, job, answer, after, now);
     afterSettle(ctx.state, job, holder, after, now);
     await ctx.commit({
         kind: "done-report",
@@ -739,6 +750,117 @@ async function settleVerified(ctx, job, report, { holder, answer, error, view })
         error,
     });
     return reply(toolAnswer(answer, after, error, job));
+}
+
+/**
+ * What an accepted `done` report leaves on the job: a triage batch's verdicts and a split's children.
+ * @param {any} job the job, now done
+ * @param {any} report the report
+ * @param {View} view what the check read
+ * @param {Date} now the current time
+ */
+function applyDone(job, report, view, now) {
+    if (job.kind === "triage") recordVerdicts(job, report, view, now);
+    if (report.children) job.children = report.children;
+}
+
+/**
+ * The facts a refusal can turn on, as one string: the pull request's head, draft, base, checks, merge status and
+ * whether it is still open (gone once it merges or closes), the revisions of the issues the report
+ * names, master's green commit and the lanes' verdicts, and the open owner items (an answer ends
+ * one). A refused report is checked again when this string changes.
+ * @param {any} state the daemon state
+ * @param {any} job the job
+ * @param {any} report the refused report
+ * @returns {string} the facts
+ */
+function refusalFacts(state, job, report) {
+    const pr = state.prs?.[String(report.pr ?? job.pr ?? numberOf(job.target))];
+    const named = [numberOf(job.target), ...(report.children ?? [])];
+    if (Array.isArray(report.result)) named.push(...report.result.map((/** @type {any} */ r) => r.issue));
+    return JSON.stringify([
+        pr
+            ? [pr.headSha, pr.draft, pr.baseRef, pr.required, pr.mergeStatus?.state ?? null, pr.mergeable ?? null]
+            : null,
+        named.map((n) => state.issues?.byNumber?.[String(n)]?.updatedAt ?? null),
+        state.master?.greenSha ?? null,
+        Object.values(state.master?.lanes ?? {}).map((/** @type {any} */ l) => Object.keys(l.verdicts ?? {}).length),
+        Object.values(state.ownerItems ?? {})
+            .filter((/** @type {any} */ i) => !i.endedAt)
+            .map((/** @type {any} */ i) => i.id)
+            .sort((a, b) => a.localeCompare(b)),
+    ]);
+}
+
+/**
+ * Keeps a refused report (`job.refused`: the report, what was missing, the holding session, and the
+ * daemon and facts it was refused under), so `recheckRefused` can accept it once githerd or the
+ * facts change, without the holder having to report again.
+ * @param {any} state the daemon state
+ * @param {any} job the job, back to `working`
+ * @param {Answer} answer the answer
+ * @param {any} after what was done with it
+ * @param {Date} now the current time
+ */
+function keepRefused(state, job, answer, after, now) {
+    if (after?.action !== "working" || !answer || !("missing" in answer) || !job.report) return;
+    job.refused = {
+        report: job.report,
+        missing: answer.missing,
+        at: now.toISOString(),
+        session: job.holder?.session ?? job.report.session ?? null,
+        boot: BOOT,
+        facts: refusalFacts(state, job, job.report),
+    };
+}
+
+/**
+ * Checks each kept refused report again (design 5.3: a claim is a claim on facts, not on the
+ * githerd that judged it) once per new daemon and whenever the facts it was refused under change.
+ * One that now holds is accepted as if just reported: the job is done, the holder gets the news,
+ * and the caller ledgers it and tells an owner session. A refusal is dropped once its job is no
+ * longer worked on by the session that reported it; a new report or claim replaces it.
+ * @param {any} state the daemon state
+ * @param {{config: any, io: DoneIo, now: Date}} ctx the context
+ * @returns {Promise<{job: string, session: string | null, startedBy: string | null, reportedAt: string}[]>}
+ *   the reports accepted
+ */
+export async function recheckRefused(state, { config, io, now }) {
+    const accepted = [];
+    for (const job of Object.values(state.jobs ?? {})) {
+        const j = /** @type {any} */ (job);
+        const r = j.refused;
+        if (!r) continue;
+        if (j.state !== "working" || j.holder?.session !== r.session) {
+            j.refused = null;
+            continue;
+        }
+        const facts = refusalFacts(state, j, r.report);
+        if (inProgress(state).has(j.id) || (r.boot === BOOT && r.facts === facts)) continue;
+        Object.assign(r, { boot: BOOT, facts });
+        const view = { state, config, io, session: r.session };
+        const { answer } = await check(j, r.report, view);
+        if (j.state !== "working" || j.refused !== r || !answer || !("holds" in answer)) continue;
+        const holder = j.holder;
+        j.report = r.report;
+        j.refused = null;
+        board.move(j, "verifying", now);
+        const after = board.verifyResult(j, answer, now);
+        applyDone(j, r.report, view, now);
+        j.news.push({
+            at: now.toISOString(),
+            text: `githerd checked your refused githerd_done report of ${r.report.at} again and accepted it: ${j.id} is done`,
+            acked: false,
+        });
+        afterSettle(state, j, holder, after, now);
+        accepted.push({
+            job: j.id,
+            session: r.session,
+            startedBy: holder?.startedBy ?? null,
+            reportedAt: r.report.at,
+        });
+    }
+    return accepted;
 }
 
 /**
@@ -901,11 +1023,13 @@ async function pollOne(state, j, waiting, ctx) {
     if (j.state !== before || (waiting && !j.waitingFor?.verify)) return null;
     if (waiting) {
         const action = settleWaiting(j, answer, ctx.now);
+        keepRefused(state, j, answer, { action }, ctx.now);
         afterSettle(state, j, holder, null, ctx.now);
         return action;
     }
     const result = board.verifyResult(j, answer, ctx.now);
     if (result?.action === "waiting") j.waitingFor.verify = true;
+    keepRefused(state, j, answer, result, ctx.now);
     afterSettle(state, j, holder, result, ctx.now);
     return result?.action;
 }

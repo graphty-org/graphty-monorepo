@@ -697,6 +697,8 @@ export function claimJob(state, args, caller, snapshot, now) {
         at: now.toISOString(),
     };
     if (!job.sessions.includes(caller.session)) job.sessions.push(caller.session);
+    // A new claim supersedes a refused done report (done.mjs recheckRefused).
+    job.refused = null;
     const other = state.jobs[args.overlap.with ?? ""];
     if (args.overlap.decision === "join") {
         joinJob(state, job, other, args.overlap.reason, now);

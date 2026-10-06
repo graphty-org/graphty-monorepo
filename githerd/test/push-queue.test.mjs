@@ -498,6 +498,26 @@ describe("the machine's push queue", () => {
         ]);
     });
 
+    it("pushes a pull request linked as the red master's fix as critical, and queues it first", async () => {
+        queue = makeQueue({ queueScript: fakeQueue() });
+        state.master = { ...state.master, fixPrs: [{ pr: 1107, why: "reported as the fix" }] };
+        const first = workingJob("first");
+        const other = workingJob("other");
+        const fix = workingJob("fix", { kind: "issue", pr: 1107 });
+        await queue.request({ job: "first", branch: "githerd/first", expectHead: first.head }, "s-first");
+        await queue.request({ job: "other", branch: "githerd/other", expectHead: other.head }, "s-other");
+        const asked = await queue.request({ job: "fix", branch: "githerd/fix", expectHead: fix.head }, "s-fix");
+        // Behind only the push already running, ahead of the one queued before it.
+        expect(asked).toEqual({ queued: true, position: 2 });
+        await queue.drain();
+        const log = readFileSync(join(repo.tmp, "queue-log"), "utf8").trim().split("\n");
+        expect(log.map((l) => `${l.split(" ")[0]} ${l.split(" ").at(-1)}`)).toEqual([
+            `normal ${first.head}:refs/heads/githerd/first`,
+            `critical ${fix.head}:refs/heads/githerd/fix`,
+            `normal ${other.head}:refs/heads/githerd/other`,
+        ]);
+    });
+
     it("charges no time waiting behind other sessions' gates to the push's bound", async () => {
         // The queue holds the push until the test lets it go, and the daemon's timers run on a
         // clock only the test moves: 1 s spent waiting against a 100 ms bound for the gate, with

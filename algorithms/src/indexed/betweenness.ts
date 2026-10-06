@@ -242,6 +242,18 @@ function accumulate(
 }
 
 /**
+ * Whether a weighted search skips an arc: a self-loop, or an edge the mask drops.
+ * @param s - The snapshot
+ * @param alive - Kept edges, or null for all
+ * @param u - The arc's row
+ * @param a - The arc
+ * @returns True when the arc is skipped
+ */
+function skipsArc(s: GraphSnapshot, alive: EdgeMask | null, u: number, a: number): boolean {
+    return s.colIdx[a] === u || (alive !== null && !maskTest(alive, s.arcToEdge[a]));
+}
+
+/**
  * The arcs a weighted search follows: for each neighbour of a row, the lightest alive arc to it, the first in row
  * order on a tie. Parallel edges are one neighbour relation at the weight of the lightest, as they are one relation
  * in the breadth-first search.
@@ -255,14 +267,14 @@ function lightestArcs(
     weights: NumericVector,
     alive: EdgeMask | null,
 ): { readonly rowPtr: U32; readonly arcs: U32 } {
-    const { nodeCount: n, colIdx, arcToEdge } = s;
+    const { nodeCount: n, colIdx } = s;
     const rowPtr = new Uint32Array(n + 1);
     const arcs = new Uint32Array(s.arcCount);
     let k = 0;
     for (let u = 0; u < n; u++) {
         const rowStart = k;
         for (let a = s.rowPtr[u], end = s.rowPtr[u + 1]; a < end; a++) {
-            if (colIdx[a] === u || (alive !== null && !maskTest(alive, arcToEdge[a]))) {
+            if (skipsArc(s, alive, u, a)) {
                 continue;
             }
             if (k > rowStart && colIdx[arcs[k - 1]] === colIdx[a]) {
@@ -276,6 +288,111 @@ function lightestArcs(
         rowPtr[u + 1] = k;
     }
     return { rowPtr, arcs: arcs.subarray(0, k) };
+}
+
+/** The arrays one weighted Brandes pass works in, reused from source to source. */
+interface WeightedSearch {
+    readonly colIdx: U32;
+    readonly arcToEdge: U32;
+    /** Row pointers into `arcs`, the lightest arc to each neighbour. */
+    readonly rowPtr: U32;
+    readonly arcs: U32;
+    readonly weights: NumericVector;
+    readonly dist: F64;
+    readonly sigma: F64;
+    readonly delta: F64;
+    /** The nodes in the order Dijkstra settles them. */
+    readonly order: U32;
+    readonly heap: IndexedMinHeap;
+}
+
+/**
+ * Dijkstra from one source: settle the nodes in distance order and count the shortest paths to each.
+ * @param ws - The search arrays
+ * @param source - The source node
+ * @returns How many nodes were settled
+ */
+function settleByWeight(ws: WeightedSearch, source: number): number {
+    const { colIdx, rowPtr, arcs, weights, dist, sigma, order, heap } = ws;
+    let tail = 0;
+    dist[source] = 0;
+    sigma[source] = 1;
+    heap.push(source, 0);
+    while (!heap.isEmpty()) {
+        const v = heap.pop();
+        order[tail++] = v;
+        for (let k = rowPtr[v], end = rowPtr[v + 1]; k < end; k++) {
+            const a = arcs[k];
+            const w = colIdx[a];
+            const d = dist[v] + weights[a];
+            if (d < dist[w]) {
+                dist[w] = d;
+                sigma[w] = sigma[v];
+                heap.pushOrDecrease(w, d);
+            } else if (d === dist[w]) {
+                sigma[w] += sigma[v];
+            }
+        }
+    }
+    return tail;
+}
+
+/**
+ * Add to `v`'s dependency the share of each successor on a shortest path, and the same share to the edge sums.
+ * @param ws - The search arrays
+ * @param v - A settled node whose successors are done
+ * @param edge - Edge sums, or null
+ */
+function gatherDependency(ws: WeightedSearch, v: number, edge: F64 | null): void {
+    const { colIdx, arcToEdge, rowPtr, arcs, weights, dist, sigma, delta } = ws;
+    for (let k = rowPtr[v], end = rowPtr[v + 1]; k < end; k++) {
+        const a = arcs[k];
+        const w = colIdx[a];
+        if (dist[v] + weights[a] === dist[w]) {
+            const c = (sigma[v] / sigma[w]) * (1 + delta[w]);
+            delta[v] += c;
+            if (edge !== null) {
+                edge[arcToEdge[a]] += c;
+            }
+        }
+    }
+}
+
+/**
+ * Walk the settled nodes back from the farthest, adding each one's dependency to the node and edge sums, then clear
+ * the arrays for the next source.
+ * @param ws - The search arrays, as {@link settleByWeight} left them
+ * @param source - The source node
+ * @param tail - How many nodes were settled
+ * @param node - Node sums, or null
+ * @param edge - Edge sums, or null
+ * @param endpoints - Count path ends on the path (node sums only)
+ */
+function addDependencies(
+    ws: WeightedSearch,
+    source: number,
+    tail: number,
+    node: F64 | null,
+    edge: F64 | null,
+    endpoints: boolean,
+): void {
+    const { dist, sigma, delta, order } = ws;
+    for (let i = tail - 1; i >= 0; i--) {
+        const v = order[i];
+        gatherDependency(ws, v, edge);
+        if (node !== null && v !== source) {
+            node[v] += endpoints ? delta[v] + 1 : delta[v];
+        }
+    }
+    if (node !== null && endpoints) {
+        node[source] += tail - 1;
+    }
+    for (let i = 0; i < tail; i++) {
+        const v = order[i];
+        dist[v] = Infinity;
+        sigma[v] = 0;
+        delta[v] = 0;
+    }
 }
 
 /**
@@ -299,60 +416,20 @@ function accumulateWeighted(
     alive: EdgeMask | null,
     endpoints: boolean,
 ): void {
-    const { nodeCount: n, colIdx, arcToEdge } = s;
-    const { rowPtr, arcs } = lightestArcs(s, weights, alive);
-    const dist = new Float64Array(n).fill(Infinity);
-    const sigma = new Float64Array(n);
-    const delta = new Float64Array(n);
-    const order = new Uint32Array(n);
-    const heap = new IndexedMinHeap(n, true);
+    const n = s.nodeCount;
+    const ws: WeightedSearch = {
+        colIdx: s.colIdx,
+        arcToEdge: s.arcToEdge,
+        ...lightestArcs(s, weights, alive),
+        weights,
+        dist: new Float64Array(n).fill(Infinity),
+        sigma: new Float64Array(n),
+        delta: new Float64Array(n),
+        order: new Uint32Array(n),
+        heap: new IndexedMinHeap(n, true),
+    };
     for (const source of sources) {
-        let tail = 0;
-        dist[source] = 0;
-        sigma[source] = 1;
-        heap.push(source, 0);
-        while (!heap.isEmpty()) {
-            const v = heap.pop();
-            order[tail++] = v;
-            for (let k = rowPtr[v], end = rowPtr[v + 1]; k < end; k++) {
-                const a = arcs[k];
-                const w = colIdx[a];
-                const d = dist[v] + weights[a];
-                if (d < dist[w]) {
-                    dist[w] = d;
-                    sigma[w] = sigma[v];
-                    heap.pushOrDecrease(w, d);
-                } else if (d === dist[w]) {
-                    sigma[w] += sigma[v];
-                }
-            }
-        }
-        for (let i = tail - 1; i >= 0; i--) {
-            const v = order[i];
-            for (let k = rowPtr[v], end = rowPtr[v + 1]; k < end; k++) {
-                const a = arcs[k];
-                const w = colIdx[a];
-                if (dist[v] + weights[a] === dist[w]) {
-                    const c = (sigma[v] / sigma[w]) * (1 + delta[w]);
-                    delta[v] += c;
-                    if (edge !== null) {
-                        edge[arcToEdge[a]] += c;
-                    }
-                }
-            }
-            if (node !== null && v !== source) {
-                node[v] += endpoints ? delta[v] + 1 : delta[v];
-            }
-        }
-        if (node !== null && endpoints) {
-            node[source] += tail - 1;
-        }
-        for (let i = 0; i < tail; i++) {
-            const v = order[i];
-            dist[v] = Infinity;
-            sigma[v] = 0;
-            delta[v] = 0;
-        }
+        addDependencies(ws, source, settleByWeight(ws, source), node, edge, endpoints);
     }
 }
 

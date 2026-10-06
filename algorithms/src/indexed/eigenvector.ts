@@ -132,6 +132,76 @@ export function minMaxRescale(x: F64): void {
     }
 }
 
+/** The rows a feeding relation merges: `a`'s, and on a `"total"` relation `b`'s too (empty otherwise). */
+interface FeederRows {
+    readonly aRowPtr: Uint32Array;
+    readonly aColIdx: Uint32Array;
+    readonly aW: NumericVector | null;
+    readonly bRowPtr: Uint32Array;
+    readonly bColIdx: Uint32Array;
+    readonly bW: NumericVector | null;
+}
+
+/**
+ * Merge row `v` of the two sorted sources into `colIdx` from `k` on, each neighbour once, summing the weights of
+ * the arcs that join the pair.
+ * @param src - The two sources
+ * @param v - The row
+ * @param colIdx - Neighbour indices, written
+ * @param weights - Summed weights, written, or null when unweighted
+ * @param k - The first free entry
+ * @returns The first free entry after the row
+ */
+function mergeFeederRow(src: FeederRows, v: number, colIdx: Uint32Array, weights: F64 | null, k: number): number {
+    const { aRowPtr, aColIdx, aW, bRowPtr, bColIdx, bW } = src;
+    let i = aRowPtr[v];
+    const iEnd = aRowPtr[v + 1];
+    let j = bRowPtr[v];
+    const jEnd = bRowPtr[v + 1];
+    const rowStart = k;
+    while (i < iEnd || j < jEnd) {
+        if (j >= jEnd || (i < iEnd && aColIdx[i] <= bColIdx[j])) {
+            k = appendFeeder(colIdx, weights, rowStart, k, aColIdx[i], aW?.[i] ?? 1);
+            i++;
+        } else {
+            k = appendFeeder(colIdx, weights, rowStart, k, bColIdx[j], bW?.[j] ?? 1);
+            j++;
+        }
+    }
+    return k;
+}
+
+/**
+ * Append neighbour `u` to the row being merged, or add `w` to its weight when it is the previous entry repeated.
+ * @param colIdx - Neighbour indices, written
+ * @param weights - Summed weights, written, or null when unweighted
+ * @param rowStart - The row's first entry
+ * @param k - The first free entry
+ * @param u - The neighbour
+ * @param w - The arc's weight
+ * @returns The first free entry after the append
+ */
+function appendFeeder(
+    colIdx: Uint32Array,
+    weights: F64 | null,
+    rowStart: number,
+    k: number,
+    u: number,
+    w: number,
+): number {
+    if (k > rowStart && colIdx[k - 1] === u) {
+        if (weights !== null) {
+            weights[k - 1] += w;
+        }
+        return k;
+    }
+    colIdx[k] = u;
+    if (weights !== null) {
+        weights[k] = w;
+    }
+    return k + 1;
+}
+
 /**
  * The feeding relation as a CSR with each neighbour once per row, and with `weighted` the summed weight of the arcs
  * that join the pair. Snapshot rows are sorted, so a parallel arc is the previous entry repeated, and the `"total"`
@@ -148,37 +218,20 @@ function feeders(s: GraphSnapshot, mode: "in" | "out" | "total", weighted: boole
     const total = s.directed && mode === "total";
     const bRowPtr = total ? s.rowPtr : new Uint32Array(n + 1);
     const bColIdx = total ? s.colIdx : new Uint32Array(0);
-    const aW = weighted ? a.weights : null;
-    const bW = weighted && total ? s.weights : null;
+    const src: FeederRows = {
+        aRowPtr: a.rowPtr,
+        aColIdx: a.colIdx,
+        aW: weighted ? a.weights : null,
+        bRowPtr,
+        bColIdx,
+        bW: weighted && total ? s.weights : null,
+    };
     const rowPtr = new Uint32Array(n + 1);
     const colIdx = new Uint32Array(a.colIdx.length + bColIdx.length);
     const weights = weighted ? new Float64Array(colIdx.length) : null;
     let k = 0;
     for (let v = 0; v < n; v++) {
-        let i = a.rowPtr[v];
-        const iEnd = a.rowPtr[v + 1];
-        let j = bRowPtr[v];
-        const jEnd = bRowPtr[v + 1];
-        const rowStart = k;
-        while (i < iEnd || j < jEnd) {
-            const fromA = j >= jEnd || (i < iEnd && a.colIdx[i] <= bColIdx[j]);
-            const u = fromA ? a.colIdx[i] : bColIdx[j];
-            const w = fromA ? (aW?.[i] ?? 1) : (bW?.[j] ?? 1);
-            if (fromA) {
-                i++;
-            } else {
-                j++;
-            }
-            if (k === rowStart || colIdx[k - 1] !== u) {
-                colIdx[k++] = u;
-            } else if (weights !== null) {
-                weights[k - 1] += w;
-                continue;
-            }
-            if (weights !== null) {
-                weights[k - 1] = w;
-            }
-        }
+        k = mergeFeederRow(src, v, colIdx, weights, k);
         rowPtr[v + 1] = k;
     }
     return { rowPtr, colIdx: colIdx.subarray(0, k), weights: weights?.subarray(0, k) ?? null };

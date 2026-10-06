@@ -160,14 +160,16 @@ export async function askStep(state, { now, acting, sessions, transport, session
 
 /**
  * The invitation for one queued job.
- * @param {string} job the job
+ * @param {any} job the job record
  * @param {string} reason its one-line reason from the queue order
  * @returns {string} the message
  */
 function inviteText(job, reason) {
+    // A verdict job names the exact failure key githerd_verdict takes.
+    const key = job.facts?.scope === "verdict" ? ` githerd_verdict takes its key exactly: ${job.target}.` : "";
     return (
-        `githerd has work queued (${job}, ${reason}). If you're free, call githerd_next and claim a job; ` +
-        "otherwise ignore this."
+        `githerd has work queued (${job.id}, ${reason}). If you're free, call githerd_next and claim a job; ` +
+        `otherwise ignore this.${key}`
     );
 }
 
@@ -186,6 +188,27 @@ function room(state, session) {
         (j) => j.claim?.session === session && j.claim.at >= said.at,
     ).length;
     return said.n - claimed;
+}
+
+/** Job states a session is actively working in; a `waiting` job counts only while it waits on the session's own task. */
+const ACTIVE = new Set(["working", "starting"]);
+const DEFAULT_MAX_ACTIVE = 3;
+
+/**
+ * Why a session may take no more jobs now, or null: it holds `workers.maxActive` jobs it is
+ * actively working (working, starting, or waiting on its own local task). Blocked, parked,
+ * verifying and other waiting jobs do not count. Applies whatever capacity the session reported.
+ * @param {any} state the daemon state
+ * @param {string} session the session id
+ * @param {any} [config] the normalized config
+ * @returns {string | null} the reason
+ */
+export function atActiveCap(state, session, config) {
+    const max = config?.workers?.maxActive ?? DEFAULT_MAX_ACTIVE;
+    const active = Object.values(state.jobs ?? {}).filter(
+        (j) => j.holder?.session === session && (ACTIVE.has(j.state) || (j.state === "waiting" && j.waitingFor?.local)),
+    ).length;
+    return active >= max ? `you hold ${active} active jobs; finish or report one first` : null;
 }
 
 /**
@@ -231,7 +254,7 @@ function dueInvites(state, queue, live, { config, now }) {
             ({ job }) => !jobInUse(state, state.jobs[job], { config, now, session: s.sessionId }),
         );
         const { free, at } = inviteRoom(state, s, able.length, now);
-        if (!free) continue;
+        if (!free || atActiveCap(state, s.sessionId, config)) continue;
         for (const { job: id } of able) {
             const job = state.jobs[id];
             const heard = job.invited?.[s.sessionId] ?? job.invitedAt;
@@ -245,7 +268,8 @@ function dueInvites(state, queue, live, { config, now }) {
  * Invites the Claude sessions in this repository that have room to pull work (the owner's
  * decisions of 2026-10-05): every pass, each queued job no worker slot took is announced to every
  * session whose registry status is `idle` or whose last capacity answer leaves room (`room`) and
- * that has not heard it since its room last rose (`inviteRoom`). So a session that heard a job and
+ * that has not heard it since its room last rose (`inviteRoom`); never one at `workers.maxActive`
+ * (`atActiveCap`). So a session that heard a job and
  * did not take it hears it again only after reporting more room: a capacity answer above its last,
  * or going idle after reporting none. Who heard which job is kept on the job, `job.invited` =
  * `{[session]: at}` (a job's older `invitedAt` counts as heard by every session). githerd's own
@@ -283,7 +307,7 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
             const op = `invite ${names.length} idle session(s) to take ${id}`;
             lines.push({ kind: "would-do", group: "workers", op, job: id });
         }
-        const out = acting ? await tellSessions(to, inviteText(id, reason), transport) : { sent: [], failed: [] };
+        const out = acting ? await tellSessions(to, inviteText(job, reason), transport) : { sent: [], failed: [] };
         state.invited = { at, count: acting ? out.sent.length : names.length, acting };
         lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });
     }

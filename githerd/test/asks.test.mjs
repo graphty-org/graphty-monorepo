@@ -252,6 +252,17 @@ describe("inviting idle sessions to pull work", () => {
         expect(f.sent).toHaveLength(2);
     });
 
+    it("names a verdict job's exact failure key in its invitation", async () => {
+        const KEY = "CI / Build / Security audit";
+        const id = "verdict-ci-build-security-audit";
+        const state = {
+            jobs: { [id]: newJob({ kind: "incident", target: KEY, id, facts: { scope: "verdict" } }, NOW) },
+        };
+        const f = fake();
+        await inviteStep(state, { ...f.opts(), offered: [{ job: id, reason: "master red" }] });
+        expect(f.sent[0][1]).toContain(`githerd_verdict takes its key exactly: ${KEY}.`);
+    });
+
     it("waits for an idle session, and skips a job that left the queue", async () => {
         const state = queued("issue-5", "triage-new-1");
         move(state.jobs["triage-new-1"], "starting", NOW, { holder: { session: "w1", nonce: "n" } });
@@ -403,6 +414,32 @@ describe("inviting idle sessions to pull work", () => {
         state.capacity = { s2: { n: 1, at: later(2).toISOString() } };
         await inviteStep(state, { ...f.opts(), offered, now: later(3) });
         expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
+    });
+
+    it("never invites a session holding workers.maxActive active jobs; blocked and parked jobs do not count", async () => {
+        const state = queued("issue-5");
+        const f = fake();
+        const config = { workers: { maxActive: 2 } };
+        // s2 has room by its capacity answer, but works two jobs: not invited, whatever it said.
+        state.capacity = { s2: { n: 5, at: NOW.toISOString() } };
+        const hold = (/** @type {string} */ id, /** @type {string} */ st) => {
+            state.jobs[id] = {
+                ...newJob({ kind: "issue", target: "#9", id }, NOW),
+                state: st,
+                holder: { session: "s2" },
+            };
+        };
+        hold("issue-a", "working");
+        hold("issue-b", "starting");
+        await inviteStep(state, { ...f.opts(), offered: offered.slice(0, 1), config });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s1.sock"]);
+
+        // One of them is blocked, another parked: they do not count, so s2 is invited again.
+        state.jobs["issue-b"].state = "blocked";
+        hold("issue-c", "parked");
+        state.jobs["issue-6"] = newJob({ kind: "issue", target: "#6", id: "issue-6" }, NOW);
+        await inviteStep(state, { ...f.opts(), offered: [{ job: "issue-6", reason: "bug" }], config });
+        expect(f.sent.slice(1).map(([socket]) => socket)).toEqual(["/s1.sock", "/s2.sock"]);
     });
 
     it("does not mark a job invited while only a session that cannot claim it is idle", async () => {

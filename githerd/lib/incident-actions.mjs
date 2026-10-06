@@ -60,12 +60,13 @@ const REVERT = `mutation RevertPullRequest($id: ID!, $title: String!, $body: Str
  * @typedef {{
  *   key: string, verdict?: "code" | null, redSha: string, redJob: JobRef, parentSha: string | null,
  *   parentJob: JobRef | null, suspects: import("./incident.mjs").Suspect[], confirmed: boolean,
- *   excerpt: string,
+ *   excerpt: string, flake?: boolean, flakeIssue?: number | null,
  * }} CodeRed one code-red key on master: Claude's verdict on it (`code`, or null while it is
  *   unclassified), the red commit and its failing job, the last green commit and the same job of
  *   its run (null when not known), the first-parent commits between them, whether an earlier
  *   reconcile already saw the key red (the first one posts the merge hold and reads the steps;
- *   design 4.5 steps 1 to 3), and a log excerpt for the issue
+ *   design 4.5 steps 1 to 3), a log excerpt for the issue, and, for a job whose failing tests are
+ *   all flaky or in packages the red range left alone (flakes.mjs), `flake` and the flaky-test issue
  * @typedef {{
  *   lane: string, openedAt: number, retry: boolean, run: {id: number, attempt: number},
  *   running: boolean, notProgressing: boolean,
@@ -383,16 +384,22 @@ export function createIncidentActions({ github, repo, spent, now = Date.now }) {
      *   outcome, with the issue or revert pull request it led to (null: not made yet)
      */
     async function codeRed(inc) {
-        if (!inc.confirmed) return { outcome: "waiting", waitingFor: "confirmation" };
+        // A flake's re-run went out at the first sighting (flakes.mjs), so it needs no confirmation.
+        if (!inc.confirmed && !inc.flake) return { outcome: "waiting", waitingFor: "confirmation" };
         await rerun(inc.redJob, inc.redSha, inc.key, "red-head-rerun");
-        const code = inc.verdict === "code";
+        // A flake moves toward a revert only once its re-run failed too.
+        const held = inc.flake ? (await rerunResult(inc.redJob)) !== "failure" : false;
+        const code = inc.verdict === "code" && !held;
         if (code && inc.parentJob && inc.parentSha) await rerun(inc.parentJob, inc.parentSha, inc.key, "parent-retest");
         const redHead = await rerunResult(inc.redJob);
         if (!code && redHead !== "success") return { outcome: "waiting", waitingFor: "verdict" };
         const parent = redHead === "failure" && inc.parentJob ? await rerunResult(inc.parentJob) : null;
         const out = incidentOutcome({ redHead, parent, suspects: inc.suspects });
         if (out.outcome === "intermittent")
-            return { ...out, issue: await intermittentIssue(inc.key, inc.redSha, inc.excerpt) };
+            return {
+                ...out,
+                issue: inc.flake ? (inc.flakeIssue ?? null) : await intermittentIssue(inc.key, inc.redSha, inc.excerpt),
+            };
         if (out.outcome === "revert") return { ...out, revertPr: await openRevert(out.revert.pr, inc) };
         return out;
     }

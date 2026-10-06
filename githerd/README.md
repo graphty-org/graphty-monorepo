@@ -74,7 +74,11 @@ allows a revert; an environment verdict lifts the hold. When a job waits in the 
 free worker slot, githerd messages the sessions in this repository with room once per job, inviting
 them to call `githerd_next` and claim it. A session has room while it is idle, or while the
 `capacity` it last gave in `githerd_expect` (its answer to the status question's "Can you take
-another job?") is above the jobs it claimed since. A session calls `githerd_next` for its job (a worker) or the queued jobs it could
+another job?") is above the jobs it claimed since. A session working `workers.maxActive` jobs (default
+3: working, starting, or waiting on its own task; blocked, parked and verifying jobs do not count) is
+not invited, and `githerd_claim` refuses it another until it finishes or reports one. The queue
+finishes before it starts: within one owner priority, a broken pull request's job, a review or a
+fix to verify comes before a fresh issue. A session calls `githerd_next` for its job (a worker) or the queued jobs it could
 take (an owner session), and `githerd_claim` with its overlap judgment before any edit. A pull
 request another session works on is never offered (design section 8.2): one whose job a live session
 claimed; one whose CI is running on a head someone other than githerd pushed; and one whose CI
@@ -89,6 +93,32 @@ pull request that is broken is still offered; the label only keeps it from mergi
 `githerd_push`, which runs the push and its pre-push gate through the machine's push queue
 (`tools/push-queue.sh`). `githerd_wait` declares a wait the daemon watches and ends with a
 doorbell; `githerd_done` is checked against GitHub before the job counts as done.
+
+## Flaky tests
+
+githerd tracks flaky tests from the runs that happen anyway; it never starts a run to look for
+flakiness, except one master re-run (below). From every failed test job log it reads (a red master
+job, a failed `Test (...)` job on a pull request or a merge-queue batch, each read once) it records
+the failing Vitest tests: run, attempt, job, commit, where it ran, and whether the change touched
+the test's package or a package it depends on.
+
+A test is proven flaky when the same job passes on the same commit (anyone's re-run), when a merge
+batch holding the failing pull request head passes the job, when master passes at the next commit
+and nothing between touched the package, or when it failed on two or more pull requests that do not
+touch its package. Each proven test gets one issue, `Flaky test: <test> (<package>)`, labelled
+`bug`, `intermittent`, `effort:medium` and a priority, filed with the owner's account through the
+`owner-items` write group, so the issue queue offers it like any other. Later failures are appended
+to it, and a closed one is reopened rather than filed again. Its priority only goes up: critical
+once it failed on master or in a merge batch, high once on two or more pull requests, medium after
+one.
+
+While its issue is open, a known flaky test failing on a pull request is not that pull request's
+failure: the pull request's job says so and names the issue. On master, a red job whose failing
+tests are all known flakes, or all in packages the red changes did not touch, is re-run once (that
+job only, through `worker-writes`) before anything moves toward a revert, and the incident points at
+the issue. The GPU lane is never re-run for this; its failures are only recorded. There are no
+retries, skips or quarantines in the test runners. `githerd board flakes` lists every tracked test
+with its failures, proof and issue. Design section 4.12 has the details.
 
 ## Commands
 

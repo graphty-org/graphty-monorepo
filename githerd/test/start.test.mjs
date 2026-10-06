@@ -159,6 +159,13 @@ describe("fillSlots", () => {
         expect(lines.map((l) => l.kind)).toEqual(["job-admitted", "session-started"]);
     });
 
+    it("never starts a worker on a pull request that changes githerd itself: it is the owner's sessions'", async () => {
+        const state = stateWith({ kind: "pr", target: "#710", id: "pr-710", facts: { ownerOnly: true } });
+        const ctx = ctxOf(state, { mode: "dry-run" });
+        expect(await fillSlots(ctx)).toEqual({ blocked: null, admitted: [] });
+        expect(lines).toEqual([]);
+    });
+
     it("names why no worker starts: the self-test, its version, a credential stop, an owner item", async () => {
         const state = stateWith({ kind: "issue", target: "#7", id: "issue-7" });
         /**

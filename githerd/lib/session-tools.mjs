@@ -17,6 +17,7 @@ import { join } from "node:path";
 import * as board from "./board.mjs";
 import { githerdDone, namesIssue, numberOf } from "./done.mjs";
 import { taskOutputPath } from "./hook.mjs";
+import { atActiveCap } from "./asks.mjs";
 import { askOwner, recordOwner } from "./owner.mjs";
 import { jobText } from "./job-text.mjs";
 import { TOOLS } from "./mcp.mjs";
@@ -251,6 +252,9 @@ export function sessionToolSet(ctx) {
                     text: JSON.stringify({ ok: false, reason: `${args.job} is in use: ${inUse}` }),
                     isError: true,
                 };
+            // A githerd worker holds its one job; an owner session is capped at workers.maxActive.
+            const full = queued && !client.job && atActiveCap(state, session, ctx.config);
+            if (full) return { text: JSON.stringify({ ok: false, reason: full }), isError: true };
             const result = board.claimJob(state, args, { session }, snapshot(ctx), now);
             if (!result.ok) return { text: JSON.stringify(result), isError: true };
             await ctx.commit({ kind: "job-claim", job: args.job, session, decision: args.overlap.decision });
@@ -381,28 +385,31 @@ export function sessionToolSet(ctx) {
         githerd_verdict: async (args, caller, client) => {
             const session = sessionOf(caller, client);
             if (!session) throw new Error("this session is not identified yet; try again in a moment");
-            const found = unjudged(state, args.key);
-            if (!found) throw new Error(`${args.key} is not a red failure on master that waits for a verdict`);
+            // The verdict job's id names its key too.
+            const byId = state.jobs?.[args.key];
+            const key = byId?.facts?.scope === "verdict" ? byId.target : args.key;
+            const found = unjudged(state, key);
+            if (!found) throw new Error(`${key} is not a red failure on master that waits for a verdict`);
             const verdicts = (found.lane.verdicts ??= {});
-            const had = verdicts[args.key];
+            const had = verdicts[key];
             if (had) {
-                const text = `${args.key} was already judged ${had.verdict} at ${had.at}: ${had.reason}`;
+                const text = `${key} was already judged ${had.verdict} at ${had.at}: ${had.reason}`;
                 return { text: JSON.stringify({ ok: false, reason: text }), isError: true };
             }
             const at = now.toISOString();
-            verdicts[args.key] = {
+            verdicts[key] = {
                 verdict: args.verdict,
                 reason: args.reason,
                 by: session,
                 at,
                 runId: found.lane.runId,
             };
-            await ctx.commit({ kind: "verdict", key: args.key, verdict: args.verdict, reason: args.reason, session });
+            await ctx.commit({ kind: "verdict", key, verdict: args.verdict, reason: args.reason, session });
             const effect =
                 args.verdict === "code"
                     ? "the incident procedure goes on, its revert step included"
                     : "the merge hold lifts at the next poll; the owner is told if the failure persists";
-            return JSON.stringify({ ok: true, key: args.key, verdict: args.verdict, effect });
+            return JSON.stringify({ ok: true, key, verdict: args.verdict, effect });
         },
     };
 

@@ -244,6 +244,25 @@ describe("sessionToolSet", () => {
         );
     });
 
+    it("claims a verdict job by its normalized id and by an id saved before ids were normalized", async () => {
+        const KEY = "CI / Build / Security audit";
+        const verdictJob = (/** @type {string} */ id) =>
+            newJob({ kind: "incident", target: KEY, id, facts: { scope: "verdict", key: KEY } }, NOW);
+        for (const id of ["verdict-ci-build-security-audit", "verdict-CI-Build-Security-audit"]) {
+            const { ctx } = setup({ jobs: { [id]: verdictJob(id) } });
+            const owner = { session: "o1" };
+            const next = JSON.parse((await call(ctx, "githerd_next", {}, owner)).text);
+            expect(next.offered[0].facts.key).toBe(KEY);
+            const claim = {
+                job: id,
+                snapshotVersion: next.snapshot.version,
+                overlap: { decision: "independent", reason: "alone" },
+                plan: "judge it",
+            };
+            expect(JSON.parse((await call(ctx, "githerd_claim", claim, owner)).text)).toMatchObject({ ok: true });
+        }
+    });
+
     it("waits on an issue with no job: makes its issue job, blocks on it, and offers it next", async () => {
         const queued = newJob({ kind: "issue", target: "#713", id: "issue-713" }, NOW);
         const issues = {
@@ -312,6 +331,45 @@ describe("sessionToolSet", () => {
             expect(ok).toEqual({ ok: true, job: { id: "issue-713", state: "blocked" }, instructions: CLAIMED });
             expect(fresh.waitingFor).toMatchObject({ job: "issue-736" });
         }
+    });
+
+    it("refuses a claim from a session at workers.maxActive; blocked, parked and verifying jobs do not count", async () => {
+        const queued = newJob({ kind: "issue", target: "#5", id: "issue-5" }, NOW);
+        /** @type {Record<string, any>} */
+        const jobs = { "issue-5": queued };
+        for (const [id, st] of [
+            ["issue-1", "working"],
+            ["issue-2", "starting"],
+            ["issue-3", "blocked"],
+            ["issue-4", "parked"],
+            ["issue-6", "verifying"],
+        ]) {
+            jobs[id] = {
+                ...newJob({ kind: "issue", target: `#${id}`, id }, NOW),
+                state: st,
+                holder: { session: "o1" },
+            };
+        }
+        jobs["issue-7"] = {
+            ...newJob({ kind: "issue", target: "#7", id: "issue-7" }, NOW),
+            state: "waiting",
+            waitingFor: { local: "task-1" },
+            holder: { session: "o1" },
+        };
+        const { ctx } = setup({ jobs, trust: { login: "me" } }, { config: { repo: REPO, workers: { maxActive: 3 } } });
+        const next = JSON.parse((await call(ctx, "githerd_next", {}, { session: "o1" })).text);
+        const claim = {
+            job: "issue-5",
+            snapshotVersion: next.snapshot.version,
+            overlap: { decision: "independent", reason: "alone" },
+            plan: "fix it",
+        };
+        const refused = await call(ctx, "githerd_claim", claim, { session: "o1" });
+        expect(refused.isError).toBe(true);
+        expect(JSON.parse(refused.text).reason).toBe("you hold 3 active jobs; finish or report one first");
+        // Its local-task wait ends in a wait on CI: two active jobs, room for one more.
+        jobs["issue-7"].waitingFor = { checks: HEAD };
+        expect(JSON.parse((await call(ctx, "githerd_claim", claim, { session: "o1" })).text).ok).toBe(true);
     });
 
     it("never offers a pull request another session claimed, and lists it as in use with why", async () => {

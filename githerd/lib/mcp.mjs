@@ -289,9 +289,11 @@ export function servedProtocols(sessions, current = TOOL_PROTOCOL) {
 
 /**
  * A job id, as the job record names it (design 5.2): `pr-412`, `incident-ci-build-security-audit`.
+ * githerd makes them lowercase (`jobId` in jobs.mjs); capitals, dots and underscores are accepted
+ * for a job saved before that, such as `verdict-CI-Build-Security-audit`.
  * @type {import("./schema.mjs").Schema}
  */
-const JOB = { type: "string", pattern: "^[a-z][a-z0-9-]{1,119}$", description: "Your job's id." };
+const JOB = { type: "string", pattern: "^[A-Za-z][A-Za-z0-9._-]{1,119}$", description: "Your job's id." };
 /**
  * A short reason.
  * @type {import("./schema.mjs").Schema}
@@ -365,7 +367,7 @@ export const TOOLS = [
         inputSchema: object({
             section: {
                 type: "string",
-                enum: ["all", "owner", "master", "release", "prs", "jobs", "sessions", "health"],
+                enum: ["all", "owner", "master", "release", "prs", "jobs", "sessions", "health", "flakes"],
                 default: "all",
             },
             pr: NUMBER,
@@ -571,10 +573,17 @@ export const TOOLS = [
         description:
             "Judge a master failure githerd could not classify: code or environment, with a one-line reason, after " +
             "reading the failed step's log and the commits since the last green run. Code allows the revert; " +
-            "environment lifts the merge hold. One verdict per failure key while its lane is red.",
+            "environment lifts the merge hold. One verdict per failure key while its lane is red. The key is the " +
+            "failure key exactly as the verdict job states it (such as CI / Build / Security audit), or the verdict " +
+            "job's id.",
         inputSchema: object(
             {
-                key: { type: "string", minLength: 1, maxLength: 300 },
+                key: {
+                    type: "string",
+                    minLength: 1,
+                    maxLength: 300,
+                    description: "The failure key, exactly as the verdict job states it, or the verdict job's id.",
+                },
                 verdict: { type: "string", enum: ["code", "environment"] },
                 reason: REASON,
             },

@@ -31,12 +31,12 @@ describe("jobOrder: the order of design 5.4", () => {
             { job: "incident-build", reason: "master incident, red since 2026-10-01" },
             { job: "incident-release", reason: "release incident, red since 2026-10-02" },
             { job: "incident-shared", reason: "shared incident, red since 2026-10-01" },
-            { job: "review-abc", reason: "review" },
-            { job: "pr-412", reason: "pull request, open since 2026-09-30" },
-            { job: "title-9", reason: "pull request title" },
+            { job: "review-abc", reason: "finishes #abc: review" },
+            { job: "pr-412", reason: "finishes #412: pull request, open since 2026-09-30" },
+            { job: "title-9", reason: "finishes #9: pull request title" },
             { job: "triage-new", reason: "triage of new issues" },
             { job: "major-graphty-element", reason: "major the owner approved" },
-            { job: "issue-1", reason: "high issue" },
+            { job: "issue-1", reason: "starts #1: high issue" },
             { job: "triage-full", reason: "triage full" },
             { job: "incident-docs", reason: "low-priority incident on a non-gating workflow" },
         ]);
@@ -57,10 +57,10 @@ describe("jobOrder: the order of design 5.4", () => {
         );
         const order = jobOrder(jobs);
         expect(order.items).toEqual([
-            { job: "issue-123", reason: "critical bug, effort low" },
-            { job: "issue-124", reason: "critical bug, effort medium" },
-            { job: "issue-125", reason: "critical bug, effort high" },
-            { job: "issue-40", reason: "high enhancement, effort low" },
+            { job: "issue-123", reason: "starts #123: critical bug, effort low" },
+            { job: "issue-124", reason: "starts #124: critical bug, effort medium" },
+            { job: "issue-125", reason: "starts #125: critical bug, effort high" },
+            { job: "issue-40", reason: "starts #40: high enhancement, effort low" },
         ]);
         expect(order.skipped).toEqual([{ job: "issue-7", reason: "labelled needs-decision" }]);
     });
@@ -87,9 +87,38 @@ describe("jobOrder: the order of design 5.4", () => {
             "issue-1",
             "issue-8",
         ]);
-        expect(order[0].reason).toBe("githerd:next (owner), unprioritized issue");
-        expect(order[1].reason).toBe("in open order, position 1, low issue");
-        expect(order[3].reason).toBe("high bug, open since 2026-09-15");
+        expect(order[0].reason).toBe("githerd:next (owner), starts #7: unprioritized issue");
+        expect(order[1].reason).toBe("in open order, position 1, starts #6: low issue");
+        expect(order[3].reason).toBe("starts #4: high bug, open since 2026-09-15");
+    });
+
+    it("finishes before starting within a priority: a broken pull request before a new issue", () => {
+        const jobs = jobsOf(
+            { kind: "issue", target: "#322", priority: "high", facts: { type: "enhancement", effort: "low" } },
+            { kind: "issue", target: "#1065", priority: "high", facts: { references: ["#1066"] } },
+            { kind: "pr", target: "#710", reason: "conflicting with master (GitHub: DIRTY)", facts: { labels: [] } },
+            {
+                kind: "pr",
+                target: "#1107",
+                reason: "required check failing: Test",
+                facts: { labels: ["priority:high"] },
+            },
+        );
+        expect(jobOrder(jobs).items).toEqual([
+            { job: "pr-#710", reason: "finishes #710: conflicting with master (GitHub: DIRTY)" },
+            { job: "pr-#1107", reason: "finishes #1107: required check failing: Test, high priority" },
+            { job: "issue-#1065", reason: "finishes #1065: verify the fix, high issue" },
+            { job: "issue-#322", reason: "starts #322: high enhancement, effort low" },
+        ]);
+    });
+
+    it("the owner's priority still decides first: a higher-priority new issue before a lower-priority pull request", () => {
+        const jobs = jobsOf(
+            { kind: "pr", target: "#9", facts: { labels: ["priority:low"] } },
+            { kind: "issue", target: "#5", priority: "medium" },
+            { kind: "issue", target: "#6", priority: "low" },
+        );
+        expect(jobOrder(jobs).items.map((i) => i.job)).toEqual(["issue-#5", "pr-#9", "issue-#6"]);
     });
 
     it("lists only queued jobs, and skips with a reason", () => {
@@ -103,7 +132,7 @@ describe("jobOrder: the order of design 5.4", () => {
         );
         move(jobs["issue-6"], "starting", NOW);
         expect(jobOrder(jobs, { reviewQueueFull: true })).toEqual({
-            items: [{ job: "pr-5", reason: "pull request" }],
+            items: [{ job: "pr-5", reason: "finishes #5: pull request" }],
             skipped: [
                 { job: "issue-1", reason: "labelled needs-decision" },
                 { job: "issue-2", reason: "githerd:skip (owner)" },

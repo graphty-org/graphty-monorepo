@@ -167,5 +167,5 @@ export function shadeInstanceColors(material: StandardMaterial): void {
 
     // Constructed for its side effect on the material, which is how every Babylon material plugin
     // is attached; the instance itself is reached back through `material.pluginManager`.
-    new InstanceColorShading(material);
+    new InstanceColorShading(material); // NOSONAR(S1848): a Babylon material plugin attaches itself in its constructor
 }

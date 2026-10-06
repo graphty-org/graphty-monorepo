@@ -113,7 +113,7 @@ export interface Session {
  * @category Plugin helpers
  */
 export function urlDecode(text: string): string {
-    const plus = text.replace(/\+/g, " ");
+    const plus = text.replaceAll("+", " ");
     try {
         return decodeURIComponent(plus);
     } catch {

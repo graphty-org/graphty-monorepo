@@ -661,19 +661,29 @@ export async function observeRollups({ nodes, store, ws, required, at, files, ge
             (c) =>
                 FAILED.has(c.conclusion) && /^Test\b/.test(c.name) && c.databaseId && !store.jobs[String(c.databaseId)],
         );
-        const runs = [...new Set(failed.map(runOf).filter(Boolean))];
-        for (const runId of runs) {
+        const changed = queue ? null : files(node.number, sha);
+        for (const runId of new Set(failed.map(runOf).filter(Boolean))) {
             const jobs = (await get(`repos/${repo}/actions/runs/${runId}/jobs?filter=latest&per_page=100`))?.jobs ?? [];
             for (const c of failed.filter((x) => runOf(x) === runId)) {
-                const workflow = c.checkSuite?.workflowRun?.workflow?.name ?? "";
-                const tests = failingTests(await log(c.databaseId), { job: c.name, workflow, packages: ws.packages });
                 const attempt = jobs.find((/** @type {any} */ x) => x.id === c.databaseId)?.run_attempt ?? null;
                 const occ = { runId, attempt, job: c.name, jobId: c.databaseId, sha, where, pr: node.number, at };
-                recordTests(store, tests, { ...occ, files: queue ? null : files(node.number, sha) }, ws);
+                await recordJob({ store, ws, log, check: c, occ, files: changed });
             }
         }
     }
     return { passes, heads };
+}
+
+/**
+ * Reads one failed check run's log and records its failing tests.
+ * @param {{store: Store, ws: Workspace, log: (jobId: number) => Promise<string | null>, check: any,
+ *   occ: Omit<Occurrence, "line" | "touched">, files: string[] | null}} ctx the record, the
+ *   workspace, the log reader, the check run, the occurrence and the change's files
+ */
+async function recordJob({ store, ws, log, check, occ, files }) {
+    const workflow = check.checkSuite?.workflowRun?.workflow?.name ?? "";
+    const tests = failingTests(await log(check.databaseId), { job: check.name, workflow, packages: ws.packages });
+    recordTests(store, tests, { ...occ, files }, ws);
 }
 
 /** Check run conclusions that fail a job. */

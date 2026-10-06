@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { escalate, expire, heartbeat, holderAlive, resolve, resolveDerived } from "../lib/board.mjs";
+import { escalate, expire, heartbeat, resolve, resolveDerived } from "../lib/board.mjs";
 
 const T0 = new Date("2026-10-02T12:00:00Z");
 const at = (minutes) => new Date(T0.getTime() + minutes * 60 * 1000);
@@ -25,31 +25,25 @@ function claim(state, target) {
 }
 
 describe("expire and session liveness", () => {
-    it("keeps a claim while its holder lives, however old", () => {
-        const state = fresh();
-        claim(state, "pr:1");
-        for (const m of [0, 600, 6000]) {
-            heartbeat(state, { session: "githerd-100" }, at(m));
-            expect(expire(state, at(m), T0)).toEqual([]);
-        }
-    });
-
-    it("lapses a dead session's claims and forgets the session", () => {
-        const state = fresh();
-        heartbeat(state, { session: "githerd-100", cwd: "/w", branch: "feat/x" }, T0);
-        claim(state, "pr:1");
-        expect(expire(state, at(14), T0)).toEqual([]);
-        expect(expire(state, at(15), T0)).toEqual([{ target: "pr:1", holder: "githerd-100", reason: "holder-gone" }]);
-        expect(state.sessions).toEqual({});
-    });
-
-    it("gives every session one full interval after a daemon restart", () => {
+    it("keeps a claim while the registry names its holder, however long since it was heard", () => {
         const state = fresh();
         heartbeat(state, { session: "githerd-100" }, T0);
         claim(state, "pr:1");
-        const restart = at(60);
-        expect(expire(state, at(74), restart)).toEqual([]);
-        expect(expire(state, at(75), restart)).toMatchObject([{ reason: "holder-gone" }]);
+        const gone = (/** @type {string} */ s) => s !== "githerd-100";
+        expect(expire(state, gone)).toEqual([]);
+        expect(Object.keys(state.sessions)).toEqual(["githerd-100"]);
+    });
+
+    it("lapses a session's claims and forgets it as soon as the registry loses it", () => {
+        const state = fresh();
+        heartbeat(state, { session: "githerd-100", cwd: "/w", branch: "feat/x" }, T0);
+        heartbeat(state, { session: "other-200" }, T0);
+        claim(state, "pr:1");
+        state.claims["pr:2"] = { target: "pr:2", holder: "daemon" };
+        const gone = (/** @type {string} */ s) => s !== "other-200";
+        expect(expire(state, gone)).toEqual([{ target: "pr:1", holder: "githerd-100", reason: "holder-gone" }]);
+        expect(Object.keys(state.sessions)).toEqual(["other-200"]);
+        expect(Object.keys(state.claims)).toEqual(["pr:2"]);
     });
 });
 
@@ -96,12 +90,5 @@ describe("escalations", () => {
         expect(resolveDerived(state, (e) => e.target === "still", at(2))).toEqual(["visual-review:pr:704"]);
         expect(state.escalations["visual-review:pr:704"].resolvedAt).toBe(at(2).toISOString());
         expect(state.escalations["manual:x"].resolvedAt).toBeNull();
-    });
-});
-
-describe("holderAlive", () => {
-    it("treats an unknown session as seen at daemon start", () => {
-        expect(holderAlive(fresh(), "never-seen", at(14), T0)).toBe(true);
-        expect(holderAlive(fresh(), "never-seen", at(15), T0)).toBe(false);
     });
 });

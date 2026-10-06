@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
     PATTERNS,
-    SHARED_WINDOW_MS,
     cannotAffect,
     classify,
     failureLines,
@@ -339,18 +338,26 @@ describe("cannotAffect", () => {
 
 describe("othersWithKey", () => {
     const at = Date.parse("2026-10-02T00:30:00Z");
-    it("counts distinct other pull requests on the key inside the window", () => {
+    const green = at - 60 * 60_000;
+    it("counts distinct other pull requests on the key since master's green commit last moved", () => {
         const seen = [
             { key: "k", pr: 1, at: at - 60_000 },
             { key: "k", pr: 1, at: at - 120_000 },
-            { key: "k", pr: 2, at: at - SHARED_WINDOW_MS },
-            { key: "k", pr: 3, at: at - SHARED_WINDOW_MS - 1 },
+            { key: "k", pr: 2, at: green },
+            { key: "k", pr: 3, at: green - 1 },
             { key: "k", pr: 4, at: at + 1 },
             { key: "j", pr: 5, at },
             { key: "k", pr: 9, at },
         ];
-        expect(othersWithKey(seen, { key: "k", pr: 9, at })).toBe(2);
-        expect(othersWithKey([], { key: "k", pr: 9, at })).toBe(0);
+        expect(othersWithKey(seen, { key: "k", pr: 9, at }, green)).toBe(2);
+        expect(othersWithKey([], { key: "k", pr: 9, at }, green)).toBe(0);
+    });
+
+    it("keeps a sighting of any age while green has not moved past it", () => {
+        const old = [{ key: "k", pr: 3, at: at - 30 * 24 * 3_600_000 }];
+        expect(othersWithKey(old, { key: "k", pr: 9, at }, at - 31 * 24 * 3_600_000)).toBe(1);
+        expect(othersWithKey(old, { key: "k", pr: 9, at })).toBe(1);
+        expect(othersWithKey(old, { key: "k", pr: 9, at }, at - 60_000)).toBe(0);
     });
 });
 

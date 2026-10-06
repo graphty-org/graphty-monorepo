@@ -187,7 +187,10 @@ describe("groupModes and modeText", () => {
 
 describe("whyText", () => {
     const job = newJob({ kind: "pr", target: "#412", id: "pr-412", reason: "red checks", facts: { since: "x" } }, NOW);
-    job.attempts.push({ endedAt: "2026-10-03T10:00:00.000Z", outcome: "no GitHub change within the working budget" });
+    job.attempts.push({
+        endedAt: "2026-10-03T10:00:00.000Z",
+        outcome: "session recycled: 2 doorbells brought no progress",
+    });
     move(job, "starting", NOW, { holder: { session: "s" } });
     move(job, "working", NOW);
     move(job, "waiting", NOW, { waitingFor: { checks: "abc" } });
@@ -207,10 +210,10 @@ describe("whyText", () => {
         ];
         const text = /** @type {string} */ (whyText("412", state, ledger, NOW));
         expect(text.split("\n")).toEqual([
-            "job pr-412 (pr, #412): waiting 0 s, doorbell in 10 min, held by s",
+            "job pr-412 (pr, #412): waiting 0 s, held by s",
             "  reason: red checks",
             '  waiting for: {"checks":"abc"}',
-            "  attempt ended 10-03 10:00: no GitHub change within the working budget",
+            "  attempt ended 10-03 10:00: session recycled: 2 doorbells brought no progress",
             '  facts: {"since":"x"}',
             "owner item a [visual], open: approve the baselines",
             "ledger:",

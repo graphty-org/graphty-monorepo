@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
 import { move, TERMINAL } from "../board.mjs";
-import { classify, SHARED_WINDOW_MS } from "../classify.mjs";
+import { classify } from "../classify.mjs";
 import { identify } from "../proc.mjs";
 import { checkOutgoing } from "../text.mjs";
 import { git as gitIn, run as exec } from "../worktrees.mjs";
@@ -212,7 +212,7 @@ const rank = (job) => {
  *   owner session with the files each is changing (design 8.2)
  * @returns {{
  *   request: (args: {job: string, branch: string, expectHead: string}, session: string | null) =>
- *     Promise<{queued: true, position: number, estimateMinutes: number} | {ok: false, reason: string}>,
+ *     Promise<{queued: true, position: number} | {ok: false, reason: string}>,
  *   depth: () => number,
  *   drain: () => Promise<void>,
  *   stop: () => void,
@@ -306,12 +306,12 @@ export function createPushQueue({
             ordered()
                 .filter((e) => e.status === "queued")
                 .indexOf(entry) + (running === null ? 1 : 2);
-        // The worker is idle while its push waits and runs; the wait is bounded by the gate.
-        move(job, "waiting", now(), { waitingFor: { push: entry.id }, boundMs: 2 * gateMs() * position });
+        // The worker is idle while its push waits and runs; the push's result ends the wait.
+        move(job, "waiting", now(), { waitingFor: { push: entry.id } });
         await ledger({ kind: "push-queued", job: job.id, branch: entry.branch, head: entry.head, position });
         await save();
         pump();
-        return { queued: true, position, estimateMinutes: Math.ceil((position * gateMs()) / 60_000) };
+        return { queued: true, position };
     }
 
     /** Starts the next push when none runs. */
@@ -550,7 +550,7 @@ export function createPushQueue({
     /**
      * Classifies a failed push (design 4.4) under a local failure key: the gate's first failed step,
      * or the push itself when the gate passed or never ran. A key that failed for another job within
-     * the shared window, or that also fails on the green commit, is shared.
+     * since master's green commit last moved, or that also fails on the green commit, is shared.
      * @param {PushEntry} e the entry
      * @param {any} job its job
      * @param {{code: number, out: string, timedOut: boolean}} r the push's result
@@ -562,7 +562,9 @@ export function createPushQueue({
         const name = gate ? "gate" : "push";
         const f = { workflow: "local", job: name, steps: steps.length ? steps : [name], log: r.out };
         const t = now().getTime();
-        q.failures = q.failures.filter((/** @type {any} */ x) => t - x.at < SHARED_WINDOW_MS);
+        // Only failures since master's green commit last moved count toward shared; no age does.
+        const greenAt = Date.parse(state.master?.greenAt ?? "");
+        if (!Number.isNaN(greenAt)) q.failures = q.failures.filter((/** @type {any} */ x) => x.at >= greenAt);
         const { key } = classify(f);
         const others = new Set(
             q.failures

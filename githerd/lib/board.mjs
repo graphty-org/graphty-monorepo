@@ -8,13 +8,6 @@
  * for the daemon itself.
  */
 
-/**
- * A session whose heartbeat is older than this leaves the session list. A job an owner session
- * holds never lapses on it: that claim ends when the session leaves Claude Code's registry or does
- * not answer githerd's status question (design 8.2).
- */
-const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
-
 const MINUTE = 60 * 1000;
 
 /**
@@ -45,33 +38,6 @@ function ensure(state) {
 }
 
 /**
- * Whether a session is still alive: while its heartbeat is younger than 15 minutes, measured from
- * `max(lastSeen, startedAt)` so that after a daemon restart every session gets a full interval to
- * reappear.
- * @param {any} state the daemon state
- * @param {string} holder a session id
- * @param {Date} now the current time
- * @param {Date} startedAt when this daemon started
- * @returns {boolean} alive
- */
-export function holderAlive(state, holder, now, startedAt) {
-    const lastSeen = Date.parse(state.sessions?.[holder]?.lastSeen ?? "") || 0;
-    return now.getTime() - Math.max(lastSeen, startedAt.getTime()) < SESSION_TIMEOUT_MS;
-}
-
-/**
- * Why a claim has ended, or null while it is live.
- * @param {any} state the daemon state
- * @param {Claim} claim the claim
- * @param {Date} now the current time
- * @param {Date} startedAt when this daemon started
- * @returns {"holder-gone" | null} the reason
- */
-function endReason(state, claim, now, startedAt) {
-    return holderAlive(state, claim.holder, now, startedAt) ? null : "holder-gone";
-}
-
-/**
  * Records that a session is alive. Called for every heartbeat and every tool call it makes.
  * @param {any} state the daemon state
  * @param {{session: string, cwd?: string, branch?: string}} beat the session and where it works
@@ -88,24 +54,24 @@ export function heartbeat(state, { session, cwd, branch }, now) {
 }
 
 /**
- * Ends every claim whose holder is gone, and forgets sessions that are gone.
+ * Ends every claim whose holder ended, and forgets sessions that ended. A session ends when Claude
+ * Code's session registry no longer names it (design 8.2), never after a stretch of silence: one
+ * idle on a long command keeps its claims, and one that quit loses them at once.
  * @param {any} state the daemon state
- * @param {Date} now the current time
- * @param {Date} startedAt when this daemon started
+ * @param {(session: string) => boolean} gone whether the registry no longer names a session
  * @returns {{target: string, holder: string, reason: string}[]} the claims that ended
  */
-export function expire(state, now, startedAt) {
+export function expire(state, gone) {
     ensure(state);
     const ended = [];
     for (const [target, claim] of Object.entries(state.claims)) {
-        const reason = endReason(state, claim, now, startedAt);
-        if (reason) {
+        if (claim.holder !== "daemon" && gone(claim.holder)) {
             delete state.claims[target];
-            ended.push({ target, holder: claim.holder, reason });
+            ended.push({ target, holder: claim.holder, reason: "holder-gone" });
         }
     }
     for (const session of Object.keys(state.sessions)) {
-        if (!holderAlive(state, session, now, startedAt)) delete state.sessions[session];
+        if (gone(session)) delete state.sessions[session];
     }
     return ended;
 }
@@ -193,8 +159,6 @@ export function byOwner(state, who) {
 // Pure functions over `state.jobs`; the caller persists the state and writes the ledger line.
 // ---------------------------------------------------------------------------------------------
 
-const HOUR = 60 * MINUTE;
-
 /** The job kinds of design 5.1. A kind exists only if GitHub or the machine can check it done. */
 const KINDS = new Set(["incident", "pr", "issue", "triage", "review", "title", "major"]);
 
@@ -219,19 +183,16 @@ const EXITS = {
 export const STATES = Object.keys(EXITS);
 export const TERMINAL = ["done", "failed", "cancelled"];
 
-/** Attempts per job, counted per job and never reset by a head change (5.3). */
-const ATTEMPTS = 3;
 /**
- * Working time with no GitHub change before a githerd worker's attempt ends: 4 hours, 2 for
- * incidents. A job an owner session holds has no such clock: its status question settles it.
+ * Attempts per job, counted per job and never reset by a head change (5.3). No clock ends an
+ * attempt: a githerd worker's ends on the watchdog's verdict (stall, Escape, recycle) or its
+ * session's end, and an owner session's on its status question or its session's end.
  */
-const WORKING_MS = { incident: 2 * HOUR, other: 4 * HOUR };
+const ATTEMPTS = 3;
 /** The start deadlines: the worktree, the registry entry, the first githerd call. */
 // The registry deadline outlasts tmux.mjs's own 30 s poll (REGISTRY_MS), so it fires only for a
 // start the daemon lost, never while startWorker is still waiting.
 const START_MS = { worktree: 20 * MINUTE, registry: 60 * 1000, "first-call": 3 * MINUTE };
-/** Default wait bounds when the caller has no measured one: checks not started, a quiet local task. */
-const WAIT_MS = { checks: 10 * MINUTE, local: 20 * MINUTE, other: 20 * MINUTE };
 /** Deaths and counted faults that end a job's chances. */
 const DEATHS_TO_FAULT = 3;
 const FAULTS_TO_FAIL = 3;
@@ -269,7 +230,7 @@ const VERIFY_POLLS = 2;
  * @property {string | null} steeredAt when the owner took over the session, or null
  * @property {boolean} fresh the next session starts fresh, not by resume
  * @property {boolean} evidenceFirst the next attempt is evidence-first, given the old theories
- * @property {{workingMinutes: number, attempts: number}} budget the job's budgets
+ * @property {{attempts: number}} budget the job's budget
  * @property {any} facts what the queue order reads (`queue.mjs`): since, scope, bug, order, labels,
  *   next, skip, storybook
  * @property {string | null} [cancelledBy] the job or event that superseded it
@@ -298,7 +259,6 @@ export function ownerHeld(job) {
  */
 export function newJob({ kind, target, id, priority = null, reason = "", facts = {} }, now) {
     if (!KINDS.has(kind)) throw new Error(`unknown job kind ${kind}`);
-    const working = kind === "incident" ? WORKING_MS.incident : WORKING_MS.other;
     return {
         id: id ?? `${kind}-${target}`,
         kind,
@@ -325,7 +285,7 @@ export function newJob({ kind, target, id, priority = null, reason = "", facts =
         steeredAt: null,
         fresh: false,
         evidenceFirst: false,
-        budget: { workingMinutes: working / MINUTE, attempts: ATTEMPTS },
+        budget: { attempts: ATTEMPTS },
         facts,
     };
 }
@@ -344,25 +304,17 @@ function startClock(job, budgetMs, action, now) {
 }
 
 /**
- * The wait bound for a declared condition.
- * @param {any} waitingFor the condition
- * @returns {number} milliseconds
- */
-function waitBound(waitingFor) {
-    if (waitingFor?.checks) return WAIT_MS.checks;
-    if (waitingFor?.local) return WAIT_MS.local;
-    return WAIT_MS.other;
-}
-
-/**
  * Moves a job to another state, refusing an exit the state does not have, and sets the new
- * state's deadline (design 5.3). An invalid move is a defect in githerd, so it throws.
+ * state's deadline (design 5.3). An invalid move is a defect in githerd, so it throws. Only
+ * `starting` has a deadline: a waiting job leaves on the event that settles its condition
+ * (settleWaits in advance.mjs, the push's result), and a working one on its holder's progress
+ * verdict, never on a timer.
  * @param {Job} job the job
  * @param {string} to the new state
  * @param {Date} now the current time
- * @param {{reason?: string, waitingFor?: any, boundMs?: number, phase?: string, holder?: any,
- *   cancelledBy?: string}} [opts] `waitingFor` for blocked, waiting and parked; `boundMs` a
- *   measured wait bound (twice a median, twice the gate's duration); `phase` the start phase
+ * @param {{reason?: string, waitingFor?: any, phase?: string, holder?: any,
+ *   cancelledBy?: string}} [opts] `waitingFor` for blocked, waiting and parked; `phase` the start
+ *   phase
  * @returns {Job} the job
  */
 export function move(job, to, now, opts = {}) {
@@ -377,11 +329,7 @@ export function move(job, to, now, opts = {}) {
     if (opts.reason) job.reason = opts.reason;
     if (opts.holder !== undefined) job.holder = opts.holder;
     job.waitingFor = opts.waitingFor ?? (to === "parked" ? job.waitingFor : null);
-    // A blocked job has no clock: it waits until its blocker ends (settleWaits in advance.mjs).
     if (to === "starting") startClock(job, START_MS[opts.phase ?? "worktree"], startAction(opts.phase), now);
-    else if (to === "working" && !ownerHeld(job)) {
-        startClock(job, job.budget.workingMinutes * MINUTE, "end-attempt", now);
-    } else if (to === "waiting") startClock(job, opts.boundMs ?? waitBound(job.waitingFor), "doorbell", now);
     else if (to === "verifying") job.verifyPolls = 0;
     if (to === "cancelled") job.cancelledBy = opts.cancelledBy ?? null;
     if (["queued", "faulted", ...TERMINAL].includes(to)) {
@@ -419,34 +367,20 @@ export function startPhase(job, phase, now) {
 }
 
 /**
- * The GitHub state of a working job changed: its no-change clock starts again.
- * @param {Job} job the job
- * @param {Date} now the current time
- */
-export function githubChanged(job, now) {
-    if (job.state === "working" && !ownerHeld(job)) {
-        startClock(job, job.budget.workingMinutes * MINUTE, "end-attempt", now);
-    }
-}
-
-/**
  * The pauses that hold this job's clock (design 5.3): githerd's view unknown, a usage stop and
- * `githerd pause` hold every clock; a steered job holds its own; Actions degraded holds only
- * waits on CI; machine load holds only the start deadlines.
+ * `githerd pause` hold every clock; a steered job holds its own; machine load holds only the start
+ * deadlines.
  * @param {Job} job the job
- * @param {{unknown?: boolean, usage?: boolean, paused?: boolean, actionsDegraded?: boolean,
- *   load?: boolean}} pauses what holds right now
+ * @param {{unknown?: boolean, usage?: boolean, paused?: boolean, load?: boolean}} pauses what
+ *   holds right now
  * @returns {string[]} the pauses that apply
  */
 export function pausesFor(job, pauses) {
-    const ci =
-        job.state === "waiting" && Boolean(job.waitingFor?.checks || job.waitingFor?.lane || job.waitingFor?.release);
     return [
         pauses.unknown && "github unknown",
         pauses.usage && "usage stop",
         pauses.paused && "githerd pause",
         job.steeredAt && "steered",
-        pauses.actionsDegraded && ci && "actions degraded",
         pauses.load && job.state === "starting" && "machine load",
     ].filter((p) => typeof p === "string");
 }
@@ -475,15 +409,14 @@ export function tick(job, now, pauses = {}) {
 /**
  * Restarts every deadline clock at `now`, so the time the daemon was down is not counted: githerd's
  * view was unknown then, and every deadline pauses while it is (design 5.3). Called once at start,
- * after the state is loaded. A blocked job saved with the old 4-hour clock loses it: a blocked
- * job waits until its blocker ends, however long that takes. So does a job an owner session holds
- * in `working`: its status question settles it, not elapsed time.
+ * after the state is loaded. Only a `starting` job keeps its clock: a job saved with an older
+ * wait or working clock loses it, because it ends on its event, not on elapsed time.
  * @param {any} state the daemon state
  * @param {Date} now the current time
  */
 export function resumeClocks(state, now) {
     for (const job of Object.values(state.jobs ?? {})) {
-        if (job.state === "blocked" || (job.state === "working" && ownerHeld(job))) {
+        if (job.state !== "starting") {
             Object.assign(job, { clock: null, deadline: null, deadlineAction: null });
         } else if (job.clock) job.clock.at = now.toISOString();
     }
@@ -499,13 +432,8 @@ function fire(job, now) {
     const action = /** @type {string} */ (job.deadlineAction);
     if (action === "fault") {
         return fault(job, "worktree not ready within 20 minutes", now);
-    } else if (action === "start-failure") {
-        move(job, "queued", now, { reason: "session start failed" });
-    } else if (action === "end-attempt") {
-        return endAttempt(job, { outcome: "no GitHub change within the working budget" }, now);
-    } else {
-        move(job, "working", now);
     }
+    move(job, "queued", now, { reason: "session start failed" });
     return { action, job: job.id };
 }
 
@@ -899,9 +827,6 @@ export function checkInvariants(state, facts) {
     return faults;
 }
 
-/** States that run a deadline clock. */
-const CLOCKED = new Set(["starting", "working", "waiting"]);
-
 /**
  * @typedef {{sessionAlive: (session: string) => boolean, recovering: (job: string) => boolean,
  *   waitPending: (job: Job) => boolean, itemOpen: (item: string) => boolean}} Reads what the
@@ -938,8 +863,7 @@ const HOLDER_CHECKS = {
  */
 function jobProblem(job, facts) {
     if (!STATES.includes(job.state)) return `unknown state ${job.state}`;
-    // An owner session's working job has no clock: its status question settles it (design 8.2).
-    const clocked = CLOCKED.has(job.state) && !(job.state === "working" && ownerHeld(job));
-    if (clocked && !job.clock) return `${job.state} with no deadline`;
+    // Only a start has a deadline; every other state ends on its event (design 5.3).
+    if (job.state === "starting" && !job.clock) return "starting with no deadline";
     return HOLDER_CHECKS[job.state]?.(job, facts) ?? null;
 }

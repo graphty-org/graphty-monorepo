@@ -1,7 +1,7 @@
 /**
- * Advancing job records each reconcile (design 5.3, 7.4 and 9.5): every deadline clock ticks, a
- * declared wait whose condition changed is settled and its worker rung, a working job whose pull
- * request moved gets its no-change clock back, and the invariant check runs. Pure functions over
+ * Advancing job records each reconcile (design 5.3, 7.4 and 9.5): every start deadline ticks, a
+ * declared wait whose condition changed is settled and its worker rung, and the invariant check
+ * runs. No wait and no stretch of work ends on elapsed time. Pure functions over
  * the state; the daemon persists it, writes the ledger lines and rings the workers named.
  */
 
@@ -81,12 +81,12 @@ function afterMove(state, job, holder, result, now) {
 }
 
 /**
- * Ticks every job's deadline clock (board.tick) and carries out what fired: a doorbell rings the
- * worker, a requeue, start failure, fault or ended attempt ends the session the job left.
+ * Ticks every job's deadline clock (board.tick; only a start has one) and carries out what fired:
+ * a start failure or fault ends the session the job left.
  * @param {any} state the daemon state
  * @param {Date} now the clock
- * @param {{unknown?: boolean, usage?: boolean, paused?: boolean, actionsDegraded?: boolean,
- *   load?: boolean}} pauses what holds every clock right now
+ * @param {{unknown?: boolean, usage?: boolean, paused?: boolean, load?: boolean}} pauses what
+ *   holds every clock right now
  * @returns {Step[]} what fired
  */
 export function tickJobs(state, now, pauses) {
@@ -97,12 +97,9 @@ export function tickJobs(state, now, pauses) {
         const result = board.tick(job, now, pauses);
         if (!result) continue;
         afterMove(state, job, holder, result, now);
-        // A wait's doorbell moves it back to working; its session is told to look again.
-        const ring = result.action === "doorbell" && Boolean(job.holder);
         steps.push({
             job: job.id,
             action: result.action,
-            ring,
             line: { kind: "deadline", ...result, state: job.state },
         });
     }
@@ -130,21 +127,24 @@ export function waitNews(state, job) {
         return !other || board.TERMINAL.includes(other.state) ? `job ${w.job} is ${other?.state ?? "gone"}` : null;
     }
     if (w.github) return state.github?.downSince ? null : "GitHub answers again";
-    if (w.local && w.output) return localNews(w.local, w.output);
+    if (w.local) return localNews(job, w.local, w.output);
     return null;
 }
 
 /**
  * The news of a wait on a session's background task: Claude Code ends a finished task's output
- * file with `[exited with code N]`. Null while it runs, or while its file cannot be read.
+ * file with `[exited with code N]`. The task runs in its session, so once the job has no holder it
+ * ended with that session. Null while it runs, or while its file cannot be read.
+ * @param {any} job the waiting job
  * @param {string} task the task
- * @param {string} output its output file
+ * @param {string | undefined} output its output file
  * @returns {string | null} the news line, or null
  */
-function localNews(task, output) {
+function localNews(job, task, output) {
+    if (!job.holder) return `task ${task} ended with its session`;
     let tail;
     try {
-        tail = readFileSync(output, "utf8").slice(-200);
+        tail = readFileSync(output ?? "", "utf8").slice(-200);
     } catch {
         return null;
     }
@@ -188,9 +188,9 @@ function laneNews(state, job, name) {
 /**
  * Settles every declared wait whose condition changed (design 7.4): the job goes back to work with
  * a news line, and its worker is rung. A push wait is the push queue's, a done check's wait on CI
- * is the verification poll's, and a local task's wait ends when its output file records the exit (or by its bound). A blocked job whose
- * blocker ended goes back to the queue; that is the only way out of `blocked` short of a session's death or a cancel, and no
- * time limit applies.
+ * is the verification poll's, and a local task's wait ends when its output file records the exit
+ * or its session ends. A blocked job whose blocker ended goes back to the queue; that is the only
+ * way out of `blocked` short of a session's death or a cancel. No time limit applies to either.
  * @param {any} state the daemon state
  * @param {Date} now the clock
  * @returns {Step[]} what settled
@@ -220,22 +220,6 @@ export function settleWaits(state, now) {
         steps.push({ job: job.id, action: "settled", ring: true, line: { kind: "wait-settled", job: job.id, news } });
     }
     return steps;
-}
-
-/**
- * Restarts the no-change clock of every working job whose pull request's head or required checks
- * changed since the last reconcile (design 5.3: 4 hours of working time with no GitHub change).
- * @param {any} state the daemon state
- * @param {Date} now the clock
- */
-export function noteGitHubChanges(state, now) {
-    for (const job of Object.values(state.jobs ?? {})) {
-        const rec = job.pr ? state.prs?.[String(job.pr)] : null;
-        if (!rec) continue;
-        const seen = `${rec.headSha}:${JSON.stringify(rec.required ?? {})}`;
-        if (job.githubSeen !== undefined && job.githubSeen !== seen) board.githubChanged(job, now);
-        job.githubSeen = seen;
-    }
 }
 
 /**

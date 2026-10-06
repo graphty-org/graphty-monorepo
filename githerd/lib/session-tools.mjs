@@ -286,10 +286,10 @@ export function sessionToolSet(ctx) {
                 waitingFor.output = taskOutputPath(ctx.uid, cwd, session ?? "", args.target);
             }
             // ponytail: only a job wait is checked for being settled; checks, lanes and releases are
-            // settled by the next poll, which ends the wait with the doorbell.
+            // settled by the next poll, which ends the wait with the doorbell. No timer ends it.
             board.move(job, "waiting", now, { waitingFor });
             await ctx.commit({ kind: "wait", job: job.id, for: args.for, target: args.target });
-            return JSON.stringify({ ok: true, until: job.deadline });
+            return JSON.stringify({ ok: true });
         },
         githerd_expect: async (args, caller, client) => {
             const session = sessionOf(caller, client);

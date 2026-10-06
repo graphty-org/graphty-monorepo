@@ -8,7 +8,6 @@ import {
     death,
     endAttempt,
     fault,
-    githubChanged,
     move,
     newJob,
     pausesFor,
@@ -52,9 +51,9 @@ describe("newJob", () => {
             stateSince: T0.toISOString(),
             deadline: null,
             holder: null,
-            budget: { workingMinutes: 240, attempts: 3 },
+            budget: { attempts: 3 },
         });
-        expect(newJob({ kind: "incident", target: "k" }, T0).budget.workingMinutes).toBe(120);
+        expect(newJob({ kind: "incident", target: "k" }, T0).budget).toEqual({ attempts: 3 });
     });
 
     it("refuses an unknown kind", () => {
@@ -177,62 +176,52 @@ describe("deadlines and what follows them", () => {
         expect(() => startPhase(late, "registry", T0)).toThrow("not starting");
     });
 
-    it("working: the clock restarts on a GitHub change, and runs out after 4 hours without one", () => {
-        const job = jobIn(["starting", "working"]);
-        tick(job, at(200));
-        githubChanged(job, at(200));
-        expect(tick(job, at(439))).toBeNull();
-        expect(tick(job, at(440))).toEqual({ action: "requeue", job: job.id, evidenceFirst: false, theories: [] });
-        expect(job.attempts[0].outcome).toBe("no GitHub change within the working budget");
-        githubChanged(job, at(441)); // not working: nothing to restart
-        expect(job.clock).toBeNull();
-    });
-
-    it("working for an owner session: no clock, so nothing ends it on elapsed time", () => {
-        const job = newJob({ kind: "issue", target: "737" }, T0);
-        move(job, "starting", T0, { holder: { session: "o1", window: null, startedBy: "owner" } });
-        move(job, "working", T0);
-        expect(job).toMatchObject({ clock: null, deadline: null });
-        githubChanged(job, at(10));
-        expect(job.clock).toBeNull();
-        expect(tick(job, at(24 * 60))).toBeNull();
-        expect(job.state).toBe("working");
-        // A clock saved before this rule is dropped at the next start.
-        job.clock = { budgetMs: 240 * MIN, usedMs: 0, at: T0.toISOString() };
-        resumeClocks({ jobs: { [job.id]: job } }, at(1));
-        expect(job.clock).toBeNull();
+    it("working: no clock for a githerd worker or an owner session; elapsed time never ends an attempt", () => {
+        const worker = jobIn(["starting", "working"]);
+        const owned = newJob({ kind: "incident", target: "ci/build" }, T0);
+        move(owned, "starting", T0, { holder: { session: "o1", window: null, startedBy: "owner" } });
+        move(owned, "working", T0);
+        for (const job of [worker, owned]) {
+            expect(job).toMatchObject({ clock: null, deadline: null, deadlineAction: null });
+            expect(tick(job, at(365 * 24 * 60))).toBeNull();
+            expect(job).toMatchObject({ state: "working", attempts: [] });
+            // A clock saved by an older version is dropped at the next start.
+            Object.assign(job, {
+                clock: { budgetMs: 240 * MIN, usedMs: 0, at: T0.toISOString() },
+                deadline: at(240).toISOString(),
+                deadlineAction: "end-attempt",
+            });
+            resumeClocks({ jobs: { [job.id]: job } }, at(1));
+            expect(job).toMatchObject({ clock: null, deadline: null, deadlineAction: null });
+            expect(tick(job, at(10000))).toBeNull();
+        }
         const facts = {
             sessionAlive: () => true,
             recovering: () => false,
             waitPending: () => true,
             itemOpen: () => true,
         };
-        expect(checkInvariants({ jobs: { [job.id]: job } }, facts)).toEqual([]);
+        expect(checkInvariants({ jobs: { [worker.id]: worker, [owned.id]: owned } }, facts)).toEqual([]);
     });
 
-    it("working: an incident's budget is 2 hours", () => {
-        const job = jobIn(["starting", "working"], { kind: "incident", target: "ci/build" });
-        expect(tick(job, at(120))).toMatchObject({ action: "requeue" });
-    });
-
-    it("waiting: the bound rings the doorbell, from the condition or a measured bound", () => {
-        const checks = jobIn(["starting", "working", "waiting"]);
-        expect(tick(checks, at(10))).toEqual({ action: "doorbell", job: checks.id });
-        expect(checks.state).toBe("working");
-
-        const local = jobIn(["starting", "working"]);
-        move(local, "waiting", T0, { waitingFor: { local: "task-1" } });
-        expect(tick(local, at(19))).toBeNull();
-        expect(tick(local, at(20))).toMatchObject({ action: "doorbell" });
-
-        const push = jobIn(["starting", "working"]);
-        move(push, "waiting", T0, { waitingFor: { push: 7 }, boundMs: 50 * MIN });
-        expect(tick(push, at(49))).toBeNull();
-        expect(tick(push, at(50))).toMatchObject({ action: "doorbell" });
-
-        const lane = jobIn(["starting", "working"]);
-        move(lane, "waiting", T0, { waitingFor: { lane: "GPU" } });
-        expect(tick(lane, at(20))).toMatchObject({ action: "doorbell" });
+    it("waiting: no clock, whatever it waits on; elapsed time never wakes it", () => {
+        for (const waitingFor of [{ checks: HEAD }, { local: "task-1" }, { push: "push-7" }, { lane: "GPU" }]) {
+            const job = jobIn(["starting", "working"]);
+            move(job, "waiting", T0, { waitingFor });
+            expect(job).toMatchObject({ clock: null, deadline: null, deadlineAction: null });
+            expect(tick(job, at(365 * 24 * 60))).toBeNull();
+            expect(job).toMatchObject({ state: "waiting", waitingFor });
+        }
+        // A doorbell clock saved by an older version is dropped at the next start.
+        const old = jobIn(["starting", "working", "waiting"]);
+        Object.assign(old, {
+            clock: { budgetMs: 10 * MIN, usedMs: 0, at: T0.toISOString() },
+            deadline: at(10).toISOString(),
+            deadlineAction: "doorbell",
+        });
+        resumeClocks({ jobs: { [old.id]: old } }, at(1));
+        expect(tick(old, at(60))).toBeNull();
+        expect(old.state).toBe("waiting");
     });
 
     it("queued, parked and faulted have no deadline", () => {
@@ -249,35 +238,19 @@ describe("pauses: each holds the clock only where design 5.3 says", () => {
         ["usage", "usage stop"],
         ["paused", "githerd pause"],
     ])("%s holds every clock", (pause, words) => {
-        const job = jobIn(["starting", "working"]);
+        const job = jobIn(["starting"]);
         expect(tick(job, at(300), { [pause]: true })).toBeNull();
-        expect(job).toMatchObject({ pausedBy: [words], deadline: null, state: "working" });
+        expect(job).toMatchObject({ pausedBy: [words], deadline: null, state: "starting" });
         // The paused 300 minutes did not count; the unpaused minute since did.
         expect(tick(job, at(301))).toBeNull();
-        expect(job.deadline).toBe(at(300 + 240).toISOString());
+        expect(job.deadline).toBe(at(301 + 19).toISOString());
     });
 
     it("a steered job holds its own clock", () => {
-        const job = jobIn(["starting", "working"]);
+        const job = jobIn(["starting"]);
         job.steeredAt = T0.toISOString();
         expect(tick(job, at(500))).toBeNull();
         expect(job.pausedBy).toEqual(["steered"]);
-    });
-
-    it("Actions degraded holds only waits on CI", () => {
-        const ci = jobIn(["starting", "working", "waiting"]);
-        expect(tick(ci, at(30), { actionsDegraded: true })).toBeNull();
-        expect(ci.pausedBy).toEqual(["actions degraded"]);
-        for (const waitingFor of [{ lane: "GPU" }, { release: HEAD }]) {
-            const job = jobIn(["starting", "working"]);
-            move(job, "waiting", T0, { waitingFor });
-            expect(pausesFor(job, { actionsDegraded: true })).toEqual(["actions degraded"]);
-        }
-        const local = jobIn(["starting", "working"]);
-        move(local, "waiting", T0, { waitingFor: { local: "t" } });
-        expect(tick(local, at(30), { actionsDegraded: true })).toMatchObject({ action: "doorbell" });
-        const working = jobIn(["starting", "working"]);
-        expect(pausesFor(working, { actionsDegraded: true })).toEqual([]);
     });
 
     it("machine load holds only the start deadlines", () => {
@@ -289,11 +262,11 @@ describe("pauses: each holds the clock only where design 5.3 says", () => {
     });
 
     it("time before a pause still counts", () => {
-        const job = jobIn(["starting", "working"]);
-        tick(job, at(100));
+        const job = jobIn(["starting"]);
+        tick(job, at(10));
         tick(job, at(200), { usage: true });
-        expect(tick(job, at(339))).toBeNull();
-        expect(tick(job, at(340))).toMatchObject({ action: "requeue" });
+        expect(tick(job, at(209))).toBeNull();
+        expect(tick(job, at(210))).toMatchObject({ action: "faulted" });
     });
 });
 
@@ -370,16 +343,16 @@ describe("budgets", () => {
     });
 
     it("a daemon restart does not count the time it was down against a deadline", () => {
-        const job = jobIn(["starting", "working"]);
-        expect(job.deadline).toBe(at(240).toISOString());
-        expect(tick(job, at(200))).toBeNull();
-        // The daemon was down from minute 200 to minute 500: its view was unknown.
+        const job = jobIn(["starting"]);
+        expect(job.deadline).toBe(at(20).toISOString());
+        expect(tick(job, at(10))).toBeNull();
+        // The daemon was down from minute 10 to minute 500: its view was unknown.
         const state = { jobs: { [job.id]: job, other: { id: "other", clock: null } } };
         resumeClocks(state, at(500));
         expect(tick(job, at(500))).toBeNull();
-        expect(job).toMatchObject({ state: "working", attempts: [] });
-        expect(job.deadline).toBe(at(540).toISOString());
-        expect(tick(job, at(540))).toMatchObject({ action: "requeue" });
+        expect(job).toMatchObject({ state: "starting", faults: 0 });
+        expect(job.deadline).toBe(at(510).toISOString());
+        expect(tick(job, at(510))).toMatchObject({ action: "faulted" });
     });
 
     it("a second death after an attempt ended resumes, and within one attempt starts fresh, whatever the time", () => {
@@ -637,7 +610,7 @@ describe("checkInvariants", () => {
     it("every violation is a fault naming its record", () => {
         const unknown = jobIn([], { target: "1" });
         unknown.state = "lost";
-        const noDeadline = jobIn(["starting", "working"], { target: "2" });
+        const noDeadline = jobIn(["starting"], { target: "2" });
         noDeadline.clock = null;
         const blocked = jobIn(["starting", "blocked"], { target: "3" });
         blocked.waitingFor = null;
@@ -662,7 +635,7 @@ describe("checkInvariants", () => {
         };
         expect(checkInvariants(state, facts)).toEqual([
             { record: "job issue-1", problem: "unknown state lost" },
-            { record: "job issue-2", problem: "working with no deadline" },
+            { record: "job issue-2", problem: "starting with no deadline" },
             { record: "job issue-3", problem: "blocked on nothing named" },
             { record: "job issue-4", problem: "starting with no session" },
             { record: "job issue-6", problem: "working, but its session is gone and no recovery runs" },

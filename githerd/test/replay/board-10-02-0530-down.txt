@@ -4,7 +4,7 @@ MASTER: unknown
 RELEASE: unknown
 INCIDENTS (2):
   Hosts / Test (d3d12 on windows-latest) / Node suite (Dawn on d3d12) -- class code; step red-head re-run; queued 10 min
-  CI / Test (graphty-element-browser-*) / Run tests -- class code; step red-head re-run; working 0 s, end-attempt in 2 h 0 min, held by githerd:w1
+  CI / Test (graphty-element-browser-*) / Run tests -- class code; step red-head re-run; working 0 s, held by githerd:w1
 OWNER (1):
   item-1 [paid capacity] top up the GPU runner balance, 1 h 0 min ago
 PULL REQUESTS: unknown

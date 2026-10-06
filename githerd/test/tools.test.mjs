@@ -94,7 +94,6 @@ function exampleState() {
         sessions: {
             "graphty-monorepo-bc": { branch: "feat/x", lastSeen: ago(60) },
             "githerd-2463873": { branch: "feat/githerd", lastSeen: ago(120) },
-            "gone-1": { branch: "feat/old", lastSeen: ago(5 * 3600) },
         },
         escalations: {
             "visual-review:batch": {

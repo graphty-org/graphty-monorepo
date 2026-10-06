@@ -478,8 +478,9 @@ describe("sessionToolSet", () => {
         ).toBe("no job nope-1");
 
         const local = await call(ctx, "githerd_wait", { job: "pr-7", for: "local", target: "t1", reason: "tests" });
-        expect(JSON.parse(local.text)).toMatchObject({ ok: true });
-        expect(job.state).toBe("waiting");
+        // No deadline to report: the wait ends when the task does, not at a time.
+        expect(JSON.parse(local.text)).toEqual({ ok: true });
+        expect(job).toMatchObject({ state: "waiting", deadline: null });
         expect(job.waitingFor.output).toBe("/tmp/claude-1000/-work-x/w1/tasks/t1.output");
         expect((await call(ctx, "githerd_wait", { job: "pr-7", for: "checks", target: HEAD, reason: "ci" })).text).toBe(
             "pr-7 is waiting, not working",

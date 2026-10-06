@@ -23,7 +23,7 @@ import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
-import { decide, fileIssue, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
+import { decide, fileIssue, FREEZE_PREFIX, frozenSha, mergedPrs, revertBody, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
@@ -598,8 +598,13 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
 });
 
 describe("pr-title.yml", () => {
-    it("passes only Mergify's own merge-queue draft without linting its title", () => {
-        assert.ok(workflow("pr-title.yml").includes(`- name: Lint PR title\n              if: \${{ !(${QUEUE}) }}\n`));
+    it("skips the whole job, not a step, for Mergify's own merge-queue draft and only for it", () => {
+        // A skipped job completes at once; a job that installs first leaves the required check in progress
+        // for a minute after each of Mergify's body edits, and under merge-batch GitHub merges the draft itself.
+        const pr = workflow("pr-title.yml");
+        assert.ok(pr.includes(`        name: Lint PR Title\n`));
+        assert.ok(pr.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
+        assert.equal(pr.split(QUEUE).length, 2);
     });
     it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
         // A concurrency group cancels superseded runs even without cancel-in-progress.
@@ -654,6 +659,22 @@ describe("apt in the workflows", () => {
 });
 
 describe(".mergify.yml", () => {
+    it("merges each batch with one commit, and the release pull request with its own merge commit", () => {
+        // merge-batch: one master commit (and one master CI, GPU and Hosts run) per batch. The release rule stays
+        // merge, because release.yml's publish job finds the release by the branch its merge commit names.
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        const queues = mergify.slice(mergify.indexOf("queue_rules:"));
+        const release = queues.slice(queues.indexOf("- name: release"), queues.indexOf("- name: default"));
+        const batch = queues.slice(queues.indexOf("- name: default"));
+        // the rule that matches the train's branch and author is the one that merges with a plain merge commit
+        assert.match(release, /^\s+- head~=\^release\/train-$/m);
+        assert.match(release, /^\s+- author=github-actions\[bot\]$/m);
+        assert.match(release, /^\s+merge_method: merge(\s+#.*)?$/m);
+        assert.match(batch, /^\s+merge_method: merge-batch$/m);
+        // merge-batch requires a batch size above 1
+        assert.match(batch, /batch_size:\n\s+min: 1\n\s+max: ([2-9]|\d{2,})\n/);
+    });
+
     it("does not make the queue wait on the visual gate before the gate accepts a batch", () => {
         // In a queue run the gate's --pr is the queue draft's own number, which no review record names,
         // so a batch that changes a baseline fails "Queue Checks Pass" every time. merge_conditions may
@@ -762,8 +783,12 @@ describe("master-guard", () => {
         const sha = "a".repeat(40);
         assert.equal(frozenSha(`${FREEZE_PREFIX}${sha} (url)`), sha);
         assert.equal(frozenSha("release freeze"), null);
-        assert.equal(mergedPr("Merge pull request #1011 from graphty-org/x\n\nbody"), 1011);
-        assert.equal(mergedPr("chore(release): publish"), null);
+        assert.deepEqual(mergedPrs("Merge pull request #1011 from graphty-org/x\n\nbody"), [1011]);
+        assert.deepEqual(mergedPrs("Merged #42, #43, #44\n\nMerged by Mergify Merge Queue"), [42, 43, 44]);
+        assert.deepEqual(mergedPrs("Merged #42\n\nMerged by Mergify Merge Queue"), [42]);
+        // the merges inside a batch branch are not landings of their own
+        assert.deepEqual(mergedPrs("Merge of #42"), []);
+        assert.deepEqual(mergedPrs("chore(release): publish"), []);
     });
 
     // A fake repository: open issues, and every write the guard makes. `racer` is an issue another run opens
@@ -843,8 +868,27 @@ describe("master-guard", () => {
     it("titles a revert so Lint PR Title passes it", () => {
         const lint = (title) =>
             spawnSync("pnpm", ["exec", "commitlint"], { input: `${title}\n`, encoding: "utf8" }).status;
-        assert.equal(lint(revertTitle("0123456789abcdef0123456789abcdef01234567", 1011)), 0);
-        assert.equal(lint(revertTitle("0123456789abcdef0123456789abcdef01234567", null)), 0);
+        const sha = "0123456789abcdef0123456789abcdef01234567";
+        assert.equal(lint(revertTitle(sha, [1011])), 0);
+        assert.equal(lint(revertTitle(sha, [])), 0);
+        assert.equal(lint(revertTitle(sha, [42, 43, 44])), 0);
+    });
+
+    it("names every pull request of a reverted batch", () => {
+        const sha = "0123456789abcdef0123456789abcdef01234567";
+        assert.equal(revertTitle(sha, [42, 43, 44]), "revert: batch #42, #43, #44, master CI red at 0123456");
+        assert.equal(revertTitle(sha, [1011]), "revert: pull request #1011, master CI red at 0123456");
+    });
+
+    it("tells authors to revert the revert, never to re-queue a merged pull request", () => {
+        const sha = "0123456789abcdef0123456789abcdef01234567";
+        for (const prs of [[], [1011], [42, 43, 44]]) {
+            const body = revertBody(sha, "https://run", prs);
+            assert.match(body, /reverts this revert/);
+            assert.doesNotMatch(body, /re-enter/);
+        }
+        // a batch went red on the tree the queue passed: point at master-only jobs and flakes first
+        assert.match(revertBody(sha, "https://run", [42, 43, 44]), /#42, #43, #44.*jobs that run only on master/s);
     });
 });
 
@@ -893,6 +937,10 @@ describe("release.yml", () => {
         assert.match(publish, /node tools\/release-diff.mjs "\$sha" "\$commit"/);
         assert.match(publish, /\.workflow_run.head_branch == "master"/);
         assert.doesNotMatch(train, /id-token|nx release publish/);
+        // a merge-batch commit (.mergify.yml's default rule) never names the release branch, so it never publishes
+        const marker = /contains\(github.event.head_commit.message, '([^']+)'\)/.exec(publish)[1];
+        assert.ok(!"Merged #42, #43, #44\n\nMerged by Mergify Merge Queue".includes(marker));
+        assert.ok(!"Merge of #42".includes(marker));
     });
 
     it("lets Mergify take the release pull request alone, ahead of the default rule", () => {

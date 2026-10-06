@@ -32,6 +32,20 @@ import { createMeshScene, type MeshTestScene } from "./real-mesh-harness";
 
 type ShapeName = z.infer<typeof NodeShapes>;
 
+/** The polyhedron shapes whose names are snake_case, so they cannot be written as bare object keys. */
+const SNAKE_CASE_POLYHEDRA = [
+    "triangular_prism",
+    "pentagonal_prism",
+    "hexagonal_prism",
+    "square_pyramid",
+    "pentagonal_pyramid",
+    "triangular_dipyramid",
+    "pentagonal_dipyramid",
+    "elongated_square_dipyramid",
+    "elongated_pentagonal_dipyramid",
+    "elongated_pentagonal_cupola",
+];
+
 /**
  * The Babylon builder each shape is expected to reach, identified by the name the builder gives
  * the mesh. Several shapes share a builder, which is the point: `cone` is a cylinder with a zero
@@ -50,16 +64,7 @@ const EXPECTED_SOURCE_NAME: Record<string, string> = {
     dodecahedron: "polyhedron",
     icosahedron: "polyhedron",
     rhombicuboctahedron: "polyhedron",
-    triangular_prism: "polyhedron",
-    pentagonal_prism: "polyhedron",
-    hexagonal_prism: "polyhedron",
-    square_pyramid: "polyhedron",
-    pentagonal_pyramid: "polyhedron",
-    triangular_dipyramid: "polyhedron",
-    pentagonal_dipyramid: "polyhedron",
-    elongated_square_dipyramid: "polyhedron",
-    elongated_pentagonal_dipyramid: "polyhedron",
-    elongated_pentagonal_cupola: "polyhedron",
+    ...Object.fromEntries(SNAKE_CASE_POLYHEDRA.map((name) => [name, "polyhedron"])),
     goldberg: "goldberg",
     icosphere: "icosphere",
     geodesic: "geodesic",

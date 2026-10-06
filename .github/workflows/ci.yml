@@ -211,9 +211,8 @@ jobs:
             - name: ESLint root config
               run: pnpm run lint:eslint-root
 
-            - name: Formatting (changed files)
-              if: github.event_name == 'pull_request'
-              run: pnpm run format:check:changed origin/${{ github.base_ref }}
+            - name: Formatting
+              run: pnpm run format:check
 
             - name: Bundle size (graphty-element)
               run: pnpm run check:bundle-size

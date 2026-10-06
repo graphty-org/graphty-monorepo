@@ -27,7 +27,6 @@
         "typecheck": "pnpm exec nx run-many --target=typecheck",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "format:check:changed": "./tools/check-format-changed.sh",
         "prepush": "NX_DAEMON=false pnpm exec nx affected -t build lint test --base=origin/master --head=HEAD --parallel=3",
         "prepush:fast": "./tools/prepush.sh",
         "prepare": "husky",

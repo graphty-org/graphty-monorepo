@@ -124,6 +124,7 @@ import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
 import {
     needsReleaseDryRun,
+    newestContexts,
     patchId,
     releaseSectionChanged,
     startedAsDraft,
@@ -1133,7 +1134,51 @@ export async function startDaemon({
                 }
             }
         }
+        detail.underlying = await underlyingFailures(node, prev);
         node.detail = detail;
+    }
+
+    /**
+     * The jobs failed under a pull request's failing summary checks (`All Checks Pass`, `Queue
+     * Checks Pass`), which fail only because a job they need did: each with its failed steps, so it
+     * is judged by its own key (prs.mjs `inheritedKeys`). One jobs call per workflow run, read once
+     * per set of summary check runs (a new head or a re-run makes a new set).
+     * @param {any} node the GraphQL node
+     * @param {any} prev the saved record
+     * @returns {Promise<import("./prs.mjs").Underlying | null>} the failures; null when no summary
+     *   check fails or its run could not be read
+     */
+    async function underlyingFailures(node, prev) {
+        const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
+        const summaries = [...newestContexts(contexts).values()].filter(
+            (c) =>
+                c.__typename === "CheckRun" &&
+                config.requiredChecks.includes(c.name) &&
+                isSummaryJob(c.name) &&
+                c.status === "COMPLETED" &&
+                !["SUCCESS", "NEUTRAL", "SKIPPED"].includes(c.conclusion) &&
+                c.checkSuite?.workflowRun?.databaseId,
+        );
+        if (!summaries.length) return null;
+        const tag = summaries.map((c) => c.databaseId).join(",");
+        if (prev?.underlying?.for === tag) return prev.underlying;
+        /** @type {Map<number, string>} */
+        const runs = new Map(
+            summaries.map((c) => [c.checkSuite.workflowRun.databaseId, c.checkSuite.workflowRun.workflow?.name ?? ""]),
+        );
+        const failures = [];
+        try {
+            for (const [runId, workflow] of runs) {
+                for (const j of await failingJobs(runId)) {
+                    if (isSummaryJob(j.name)) continue;
+                    const steps = (j.steps ?? []).filter((/** @type {any} */ x) => RED_JOB.has(x.conclusion));
+                    failures.push({ workflow, job: j.name, steps: steps.map((/** @type {any} */ x) => x.name) });
+                }
+            }
+        } catch {
+            return null; // unread: judged as the pull request's own failure, read again next poll
+        }
+        return { for: tag, failures };
     }
 
     /**
@@ -2379,6 +2424,10 @@ export async function startDaemon({
             verdict: m.verdict,
             branch,
             fixedAt: m.fixedAt ?? null,
+            // The keys red on master now (`judge`): a pull request failing only on them inherited it.
+            redKeys: Object.values(m.lanes ?? {})
+                .filter((/** @type {any} */ l) => l.verdict === "red")
+                .flatMap((/** @type {any} */ l) => (l.redJobs ?? []).map((/** @type {any} */ r) => r.key)),
         };
         const prs = updatePrs(state.prs, nodes, view, config, iso);
         for (const node of nodes) if (node.detail.gateJob) prs[node.number].gateJob = node.detail.gateJob;

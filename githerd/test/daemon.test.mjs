@@ -1793,6 +1793,54 @@ describe("jobs from the facts", () => {
         const created = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "job-created");
         expect(created.map((e) => e.job)).toEqual(["pr-7"]);
     });
+
+    it("makes no pr job for a summary check failing only on jobs red on master, reading its jobs once per head", async () => {
+        writeConfig({ requiredChecks: ["All Checks Pass"] });
+        const failed = (/** @type {number} */ id, /** @type {string} */ name, /** @type {string} */ step) => ({
+            id,
+            run_attempt: 1,
+            name,
+            conclusion: "failure",
+            labels: ["ubuntu-24.04"],
+            steps: [{ name: step, conclusion: "failure" }],
+        });
+        const audit = (/** @type {number} */ id) => failed(id, "Build", "Security audit");
+        const summary = (/** @type {number} */ id) => failed(id, "All Checks Pass", "Check all jobs passed");
+        // Master's CI fails its audit on a new advisory; so does every pull request's.
+        scene.ci = [{ ...run(250, A, "failure"), name: "CI" }];
+        scene.jobs = {
+            250: [audit(2500), summary(2501)],
+            260: [audit(2600), summary(2601)],
+            261: [audit(2610), failed(2611, "Test (layout)", "Run tests"), summary(2612)],
+        };
+        const pr = (/** @type {number} */ number, /** @type {string} */ head, /** @type {number} */ runId) => {
+            const node = { ...gatedPr(), number, headRefName: `fix/${number}`, headRefOid: head };
+            node.commits.nodes[0].commit.statusCheckRollup.contexts.nodes[0] = {
+                ...node.commits.nodes[0].commit.statusCheckRollup.contexts.nodes[0],
+                databaseId: runId * 10 + 1,
+                checkSuite: { workflowRun: { databaseId: runId, workflow: { name: "CI" } } },
+            };
+            return node;
+        };
+        const daemon = await start();
+        const pollAt = async (/** @type {string} */ at) => {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        };
+        // Master is red on the audit first, as it was before the pull requests ran.
+        for (const at of ["12:00", "12:03"]) await pollAt(at);
+        expect(daemon.state.master.lanes.ci.verdict).toBe("red");
+        scene.prs = [pr(8, C, 260), pr(9, D, 261)];
+        for (const at of ["12:06", "12:09"]) await pollAt(at);
+        expect(daemon.state.prs["8"].stuck).toContain("inherited from master: CI / Build / Security audit");
+        expect(daemon.state.prs["8"].stuck.join("\n")).not.toContain("required check failing");
+        expect(daemon.state.prs["9"].stuck).toContain("required check failing: All Checks Pass");
+        expect(Object.keys(daemon.state.jobs).filter((id) => id.startsWith("pr-"))).toEqual(["pr-9"]);
+        const paths = gh.calls.map((c) => c.args.at(-1) ?? "");
+        expect(paths.filter((p) => p.includes("/actions/runs/260/jobs"))).toHaveLength(1);
+        expect(paths.filter((p) => p.includes("/actions/runs/261/jobs"))).toHaveLength(1);
+        expect(gh.writes()).toEqual([]);
+    });
 });
 
 describe("asking whose a failed pull request is", () => {

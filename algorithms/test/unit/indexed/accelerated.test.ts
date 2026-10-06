@@ -713,12 +713,12 @@ describe("accelerated(acc)", () => {
             const calls: unknown[][] = [];
             const dispatcher = accelerated({ ...stub(calls), harmonicCloseness: true });
             expect(await dispatcher.closenessCentrality(s, { harmonic: true })).toBe(closeness);
-            expect(calls).toEqual([["closenessCentrality", s, { weighted: false, harmonic: true }]]);
+            expect(calls).toEqual([["closenessCentrality", s, { weighted: true, harmonic: true }]]);
             // a sampled or normalized harmonic run is the port's
             for (const options of [
                 { harmonic: true, sources: [0, 3] },
                 { harmonic: true, k: 2 },
-                { harmonic: true, normalized: true },
+                { harmonic: true, normalization: "per-other-node" },
             ]) {
                 expect((await dispatcher.closenessCentrality(s, options)).scores, JSON.stringify(options)).toEqual(
                     indexed.closenessCentrality(s, options).scores,

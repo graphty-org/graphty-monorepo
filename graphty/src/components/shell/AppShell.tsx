@@ -65,9 +65,10 @@
  *   graphty-element publishes no drag-cancel call. Rung 4 pauses time slider playback,
  *   and no time slider can be drawn until a Time role can be assigned. Both are
  *   recorded on the `escapeLadder` call below.
- * - **The filter status strip.** Nothing holds an active filter yet, so there is nothing
- *   to draw and no control claims otherwise. The Insights strip is no longer in this
- *   group -- the 7.3 rule table computes its cards and the strip is drawn from them.
+ * - **The filter status strip's chips.** The only filter the shell applies is the ego
+ *   network, which the strip draws as its depth control rather than as a chip. The
+ *   Insights strip is no longer in this group -- the 7.3 rule table computes its cards
+ *   and the strip is drawn from them.
  * - **The minimap.** It has nothing to project until graphty-element publishes node
  *   positions and camera changes (#293), and drawn before then it was an empty dark box.
  *   Its Views row carries the Coming tag and its M binding is unshipped, so no control
@@ -98,8 +99,10 @@ import {
     type Layer,
     type LayerSpec,
     type Note,
+    type RuleTree,
     type RunId,
     type SelectionDelta,
+    type SelectionStatistics,
     type TransactionScope,
 } from "@graphty/graphty-element/session";
 import { Box, Button, Group, Modal, Text } from "@mantine/core";
@@ -139,6 +142,7 @@ import { useCanvasBottomStack } from "./canvas/canvasBottomStack";
 import { readPersistedCanvasLayout, resolveCanvasLayout, writePersistedCanvasLayout } from "./canvas/canvasMemory";
 import { CanvasRegion, type CanvasRegionOwnProps } from "./canvas/CanvasRegion";
 import type { DataDrawerTab } from "./canvas/DataTableDrawer";
+import { EgoNetworkControl } from "./canvas/EgoNetworkControl";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
 import { legendAvailable } from "./canvas/legendAvailability";
@@ -185,6 +189,8 @@ import {
     writePersistedInsightsMemory,
 } from "./insights/insightsMemory";
 import {
+    hasTimeRole,
+    importIssueTypeCount,
     insightCandidates,
     type InsightCapability,
     type InsightsGraphShape,
@@ -216,7 +222,7 @@ import type { HelpMenuRowId } from "./rail/HelpMenu";
 import { communityHeadline, communityReading, communityResultBody } from "./readings/communityReading";
 import { DEFAULT_EDGE_NOUN, GRAPH_SUMMARY_EMPTY_READING, graphSummaryReading } from "./readings/graphSummaryReading";
 import { nodeMetricHeadline, nodeMetricReading, nodeMetricResultBody } from "./readings/nodeMetricReading";
-import { formatCount } from "./readings/readingFormat";
+import { formatCount, pluralise } from "./readings/readingFormat";
 import { caveatsLine, runRecordLine } from "./readings/runRecord";
 import { ShellProvider } from "./ShellContext";
 import { formatAcceleration } from "./statusbar/formatAcceleration";
@@ -585,8 +591,8 @@ function CanvasToolbarSlot(props: Omit<CanvasToolbarComponentProps, "bottomOffse
 /**
  * Which inspector surface the shell's facts choose, in one rule.
  *
- * A selected node outranks a picked style layer, which outranks a result, which outranks
- * the graph summary. It needs no new machinery: a card click clears the selection before
+ * A selection of several elements outranks a selected node, which outranks a picked style
+ * layer, which outranks a result, which outranks the graph summary. It needs no new machinery: a card click clears the selection before
  * it sets the result, and the next pick replaces the result surface -- so a stale result
  * can never outlive a fresh selection, and `ShellStateAxis` stays empty / loaded /
  * selected.
@@ -597,13 +603,19 @@ function CanvasToolbarSlot(props: Omit<CanvasToolbarComponentProps, "bottomOffse
  * @param hasSelectedNode - whether a node is selected.
  * @param hasResult - whether a result is being drawn.
  * @param hasSelectedLayer - whether a style layer is picked in the Style panel.
+ * @param hasSeveralSelected - whether the element's selection holds more than one element.
  * @returns the surface kind the inspector draws.
  */
 function selectedNodeSelectionKind(
     hasSelectedNode: boolean,
     hasResult: boolean,
     hasSelectedLayer = false,
+    hasSeveralSelected = false,
 ): SelectionKind {
+    if (hasSeveralSelected) {
+        return "multiple";
+    }
+
     if (hasSelectedNode) {
         return "node";
     }
@@ -1059,6 +1071,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* How many elements the element's selection holds, from its own change event; null
        until the element has reported one. */
     const [selectedCount, setSelectedCount] = useState<number | null>(null);
+    /* What a selection of more than one element adds up to, from the element's own
+       `selection.statistics()`; null when one element or none is selected. */
+    const [selectionStatistics, setSelectionStatistics] = useState<SelectionStatistics | null>(null);
     const [viewMode, setViewMode] = useState<CanvasViewMode>("3d");
     const [layoutType, setLayoutType] = useState<string>(DEFAULT_LAYOUT);
     const [layoutConfig, setLayoutConfig] = useState<Record<string, unknown>>({});
@@ -1598,6 +1613,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 const { nodes, edges, cause } = event.detail as SelectionDelta;
                 setSelectedCount(nodes + edges);
 
+                const selection = graphtyRef.current?.session?.selection;
+
+                if (nodes + edges > 1 && selection !== undefined) {
+                    selection.statistics().then(setSelectionStatistics, (error: unknown) => {
+                        console.error("[shell] the element could not total the selection:", error);
+                    });
+                } else {
+                    setSelectionStatistics(null);
+                }
+
                 /* The search is the app's only "api" selection; a click ("user") or a command
                    replaced what it chose, so emptying the field must not clear that. */
                 if (cause !== "api") {
@@ -1823,6 +1848,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const crossDatasetBoundary = useCallback(() => {
         setSelectedNode(null);
+        setSelectionStatistics(null);
         setInspectorPinned(false);
         setPaletteOpen(false);
         setViewsMenuOpen(false);
@@ -2050,6 +2076,39 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             unwatchRuns();
         };
     }, [session]);
+
+    /* The ego network on the canvas is the element's own `neighborhood` visibility filter, read
+       back from the element so an undo or a project load moves the depth control with it. */
+    const [egoFilter, setEgoFilter] = useState<Extract<RuleTree, { kind: "neighborhood" }> | null>(null);
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+
+        const readEgoFilter = (): void => {
+            const { filter } = session.visibility;
+            setEgoFilter(filter?.kind === "neighborhood" ? filter : null);
+        };
+        readEgoFilter();
+
+        return session.on("visibility:changed", readEgoFilter);
+    }, [session]);
+
+    /* Shows the seeds and their neighbors out to `depth` hops, or the whole graph for null. */
+    const setEgoNetwork = useCallback((filter: Extract<RuleTree, { kind: "neighborhood" }> | null) => {
+        graphtyRef.current?.session?.visibility.set(filter).then(undefined, (error: unknown) => {
+            console.error("[shell] the element refused the ego network:", error);
+        });
+    }, []);
+
+    /* The Ego network verb and G: the selection's neighborhood, at the depth already chosen. */
+    const showEgoNetwork = useCallback(() => {
+        const seeds = graphtyRef.current?.session?.selection.nodes ?? [];
+
+        if (seeds.length > 0) {
+            setEgoNetwork({ kind: "neighborhood", seeds, depth: egoFilter?.depth ?? 1 });
+        }
+    }, [egoFilter, setEgoNetwork]);
 
     /* `runFindGroups` is declared further down; a load reaches it through this ref. */
     const runFindGroupsRef = useRef<
@@ -3394,6 +3453,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setSectionOpen(INSPECTOR_SECTION_IDS.nodeNotes, true);
                 focusWhenMounted('[data-testid="node-note-input"]');
             },
+            egoNetwork: showEgoNetwork,
             keyboardShortcuts: () => {
                 openFullPanelOverlay("shortcuts");
             },
@@ -3785,6 +3845,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         selectedNode !== null,
         activeResult !== null,
         selectedLayerId !== null && layers.some((layer) => layer.id === selectedLayerId),
+        selectionStatistics !== null,
     );
 
     /**
@@ -3969,6 +4030,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, []);
 
     const inspectorSelection = useMemo<InspectorSelection>(() => {
+        if (selectionStatistics !== null) {
+            const { nodes, edges } = selectionStatistics;
+            // 6.2's zero rule: the zero half of the count is not drawn.
+            const countLabel = [
+                nodes === 0 ? null : `${formatCount(nodes)} ${pluralise(nodes, "node")}`,
+                edges === 0 ? null : `${formatCount(edges)} ${pluralise(edges, "edge")}`,
+            ]
+                .filter((part) => part !== null)
+                .join(", ");
+
+            return {
+                kind: "multiple",
+                selection: { countLabel, statistics: selectionStatistics, onAction: () => undefined },
+            };
+        }
+
         /* A layer picked in the Style panel opens that layer's surface. It outranks the
            result and the graph summary because it is the reader's own most recent pick,
            and it yields to a selected node for the same reason -- a node selection is
@@ -4188,6 +4265,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onAction: (action) => {
                     if (action === "pinNode") {
                         togglePin(selectedNode.id);
+                    } else if (action === "egoNetwork") {
+                        showEgoNetwork();
                     }
                 },
             },
@@ -4216,7 +4295,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         selectedLayerId,
         selectedNode,
         selectedNodeNotes,
+        selectionStatistics,
         session,
+        showEgoNetwork,
         togglePin,
         updateLayer,
         zoomToSelection,
@@ -4644,10 +4725,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * which is also the card set Main.dc.html:702 draws minus the degree card that has no
      * reading yet.
      *
-     * Two inputs are honestly zero rather than plausibly filled: `hasTimeRole` is false
-     * because no column-role model exists, and `validationIssueTypeCount` is 0 because
-     * `DataManager` hardcodes its warning count to 0 and nothing computes a validation
-     * pass. Rule 1 and rule 6 are therefore implemented and never fire.
+     * The time role and the issue kinds are read off the element's columns and its last
+     * load report. Their cards (rule 1 and rule 6) are still filtered out by
+     * `isSliceAvailable` until the shell draws a validation report and a time slider.
      */
     const insightCards = useMemo<readonly InsightCard[]>(() => {
         if (!dataLoaded) {
@@ -4658,8 +4738,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             nodeCount: graphStatistics.nodeCount,
             edgeCount: graphStatistics.edgeCount,
             directedness: graphStatistics.directedness,
-            hasTimeRole: false,
-            validationIssueTypeCount: 0,
+            hasTimeRole: hasTimeRole(graphRecords?.data.attributes() ?? []),
+            validationIssueTypeCount: importIssueTypeCount(graphRecords?.data.lastImport() ?? null),
             searchExample: degreeResults?.byDegreeDescending[0]?.id,
             /* Whether a run is possible on this graph and what it would cost, for every
                algorithm the element ships. It replaces a three-entry record this file
@@ -4727,6 +4807,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         dataLoaded,
         degreeResults,
         elementMetrics,
+        graphRecords,
         graphStatistics.directedness,
         graphStatistics.edgeCount,
         graphStatistics.nodeCount,
@@ -4861,6 +4942,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                       },
                   }
                 : undefined,
+        ...(egoFilter === null
+            ? {}
+            : {
+                  filterStatus: {
+                      chips: [],
+                      controls: (
+                          <EgoNetworkControl
+                              depth={egoFilter.depth}
+                              onDepthChange={(depth) => {
+                                  setEgoNetwork({ ...egoFilter, depth });
+                              }}
+                              onClear={() => {
+                                  setEgoNetwork(null);
+                              }}
+                          />
+                      ),
+                  },
+              }),
     };
 
     const visibleNodeCount = nodeCount;
@@ -5096,7 +5195,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                     presentation={presentation}
                                     selectionKind={selectionKind}
                                     kindLabel={INSPECTOR_KIND_LABELS[selectionKind]}
-                                    identityLabel={selectedNode?.id}
+                                    identityLabel={selectionStatistics === null ? selectedNode?.id : undefined}
                                     pinned={dataLoaded && inspectorPinned}
                                     onCopyReading={() => {
                                         copyReading(inspectorReadingForCopy);

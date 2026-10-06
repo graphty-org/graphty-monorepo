@@ -926,6 +926,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             attributes: () => fakeAttributes(options.records?.() ?? { nodes: [], edges: [] }),
             /* Where the graph came from, as the last load named it; history does not move it here. */
             source: () => loadedFrom,
+            /* No load report: this stand-in reads no file, so it has no import issues to count. */
+            lastImport: () => null,
             import: async (source: DataSourceInput, importOptions?: ImportOptions): Promise<void> => {
                 await (options.importer?.(source, importOptions) ?? Promise.resolve());
                 loadedFrom = {
@@ -948,6 +950,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
            drag, so every row is unplaced and the arrangement that keeps the data's own
            coordinates never wins. A board that wants the placed case states its own session. */
         notes: notesApi,
+        /* No filter is ever active here: the shell reads it to draw the ego network control. */
+        visibility: { filter: null },
         positions: {
             placedCount: 0,
             pinned,

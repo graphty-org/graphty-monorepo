@@ -20,6 +20,7 @@ import { PhotoDome } from "@babylonjs/core";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { afterEach, assert, describe, it } from "vitest";
 
+import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { FIXTURES } from "../session/history/fixtures";
 import { roundTrip } from "../session/history/round-trip-harness";
@@ -97,6 +98,20 @@ function paintOf(mesh: AbstractMesh): unknown {
 }
 
 /**
+ * What one edge shows. A straight solid 3D line is a slot in a batch shared by every edge of its
+ * appearance, and that batch's mesh is named after the session's interned style key -- which a
+ * session mints afresh for a style it sees again after an undo, so the name says nothing about the
+ * picture. It stands where an instance's source mesh stood: the same `custom-line` geometry for
+ * every line, whatever the key. The appearance itself is in the `picture` digest.
+ * @param edge - The edge.
+ * @returns Its paint.
+ */
+function edgePaintOf(edge: Edge): unknown {
+    const paint = paintOf(edge.mesh as AbstractMesh) as { source: string };
+    return edge.drawnLine === null ? paint : { ...paint, source: "custom-line" };
+}
+
+/**
  * The scene digest of a graph.
  * @param graph - The graph.
  * @returns Its canonical text.
@@ -117,7 +132,7 @@ function sceneDigest(graph: Graph): string {
         },
         painted: {
             nodes: nodes.map(([id, node]) => [String(id), paintOf(node.mesh), node.label?.textBounds ?? null]),
-            edges: edges.map(([id, edge]) => [id, paintOf(edge.mesh as AbstractMesh)]),
+            edges: edges.map(([id, edge]) => [id, edgePaintOf(edge)]),
         },
     });
 }

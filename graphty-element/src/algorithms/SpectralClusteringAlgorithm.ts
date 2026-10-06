@@ -61,14 +61,14 @@ interface SpectralClusteringOptions extends Record<string, unknown> {
  * Fewer groups than asked for come back when k-means leaves a cluster empty.
  */
 export class SpectralClusteringAlgorithm extends DeclaredAlgorithm<SpectralClusteringOptions> {
-    static namespace = "graphty";
-    static type = "spectral-clustering";
+    static readonly namespace = "graphty";
+    static readonly type = "spectral-clustering";
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = spectralClusteringOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = spectralClusteringOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         clusters: {
             type: "integer",
             default: 2,

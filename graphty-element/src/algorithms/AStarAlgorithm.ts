@@ -86,16 +86,16 @@ function layoutDistance(graph: GraphSnapshot, searched: GraphSnapshot): (node: n
  * Publishes the path shape's fields, like the shortest-path key.
  */
 export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
-    static namespace = "graphty";
-    static type = "astar";
+    static readonly namespace = "graphty";
+    static readonly type = "astar";
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
     /** A route takes the cheapest of a group of parallel edges, not their sum. */
-    static parallelEdges: SimplifyPolicy = "min";
+    static readonly parallelEdges: SimplifyPolicy = "min";
 
-    static zodOptionsSchema: ZodOptionsSchema = astarOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = astarOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         source: {
             type: "nodeId",
             default: null,

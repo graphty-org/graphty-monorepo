@@ -724,7 +724,13 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "path",
         shape: "path",
         fields: [
-            field({ name: "onPath", plainName: "On the route", technicalName: "onPath", kind: "node", type: "boolean" }),
+            field({
+                name: "onPath",
+                plainName: "On the route",
+                technicalName: "onPath",
+                kind: "node",
+                type: "boolean",
+            }),
             field({
                 name: "order",
                 plainName: "Position on the route",
@@ -732,7 +738,13 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 kind: "node",
                 type: "integer",
             }),
-            field({ name: "onPath", plainName: "On the route", technicalName: "onPath", kind: "edge", type: "boolean" }),
+            field({
+                name: "onPath",
+                plainName: "On the route",
+                technicalName: "onPath",
+                kind: "edge",
+                type: "boolean",
+            }),
             field({
                 name: "length",
                 plainName: "Nodes on the route",

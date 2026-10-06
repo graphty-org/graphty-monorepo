@@ -117,7 +117,10 @@ describe("clustering splits two triangles at the bridge", () => {
         // Hop distances tie everywhere on this graph, so which side a bridge end joins is a
         // tie-break; the outer pairs, two hops from the bridge's far side, are not.
         const groups = groupsOf(
-            await run(TWO_TRIANGLES, (g) => new HierarchicalClusteringAlgorithm(g, { clusters: 2, linkage: "average" })),
+            await run(
+                TWO_TRIANGLES,
+                (g) => new HierarchicalClusteringAlgorithm(g, { clusters: 2, linkage: "average" }),
+            ),
         );
 
         assert.lengthOf(groups, 2);
@@ -133,7 +136,10 @@ describe("clustering splits two triangles at the bridge", () => {
 
     it("hierarchical clustering never merges two pieces no path joins, and says so", async () => {
         const output = await run(TWO_PIECES, (g) => new HierarchicalClusteringAlgorithm(g, { clusters: 1 }));
-        assert.deepStrictEqual(groupsOf(output), [["A", "B"], ["C", "D", "E"]]);
+        assert.deepStrictEqual(groupsOf(output), [
+            ["A", "B"],
+            ["C", "D", "E"],
+        ]);
         assert.include(output.caveats.notes, "1 clusters were asked for; the graph allows 2.");
     });
 
@@ -184,7 +190,14 @@ describe("A*", () => {
 
     it("marks only the route's nodes as on it", async () => {
         const output = await run(TWO_TRIANGLES, (g) => new AStarAlgorithm(g, { source: "A", target: "F" }));
-        assert.deepStrictEqual(nodeValues(output, "onPath"), { A: true, B: false, C: true, D: true, E: false, F: true });
+        assert.deepStrictEqual(nodeValues(output, "onPath"), {
+            A: true,
+            B: false,
+            C: true,
+            D: true,
+            E: false,
+            F: true,
+        });
     });
 });
 

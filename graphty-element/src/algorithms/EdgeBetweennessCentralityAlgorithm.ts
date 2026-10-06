@@ -43,14 +43,14 @@ interface EdgeBetweennessOptions extends Record<string, unknown> {
  * of the one edge the undirected view merged them into.
  */
 export class EdgeBetweennessCentralityAlgorithm extends DeclaredAlgorithm<EdgeBetweennessOptions> {
-    static namespace = "graphty";
-    static type = "edge-betweenness";
+    static readonly namespace = "graphty";
+    static readonly type = "edge-betweenness";
     /** Computes over the run's scope: the edge list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = edgeBetweennessOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = edgeBetweennessOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         k: {
             type: "integer",
             default: null,

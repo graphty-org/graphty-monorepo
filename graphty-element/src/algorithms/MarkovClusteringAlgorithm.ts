@@ -59,14 +59,14 @@ interface MarkovClusteringOptions extends Record<string, unknown> {
  * Weights are read as strengths: a heavier edge carries more flow.
  */
 export class MarkovClusteringAlgorithm extends DeclaredAlgorithm<MarkovClusteringOptions> {
-    static namespace = "graphty";
-    static type = "markov-clustering";
+    static readonly namespace = "graphty";
+    static readonly type = "markov-clustering";
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = markovClusteringOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = markovClusteringOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         inflation: {
             type: "number",
             default: 2,

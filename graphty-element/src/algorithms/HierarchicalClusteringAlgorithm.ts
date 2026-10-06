@@ -49,14 +49,14 @@ interface HierarchicalClusteringOptions extends Record<string, unknown> {
  * piece, and the caveats say so.
  */
 export class HierarchicalClusteringAlgorithm extends DeclaredAlgorithm<HierarchicalClusteringOptions> {
-    static namespace = "graphty";
-    static type = "hierarchical-clustering";
+    static readonly namespace = "graphty";
+    static readonly type = "hierarchical-clustering";
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = hierarchicalClusteringOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = hierarchicalClusteringOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         clusters: {
             type: "integer",
             default: 2,

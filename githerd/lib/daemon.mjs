@@ -117,7 +117,15 @@ import { containerStart, identify } from "./proc.mjs";
 import { inferOwners, parseWorktrees, processTable, readPushLog, scanTranscripts } from "./owners.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
-import { needsReleaseDryRun, patchId, releaseSectionChanged, touches, updatePrs, whyStuck } from "./prs.mjs";
+import {
+    needsReleaseDryRun,
+    patchId,
+    releaseSectionChanged,
+    startedAsDraft,
+    touches,
+    updatePrs,
+    whyStuck,
+} from "./prs.mjs";
 import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
 import { jobInUse, jobOrder, NEXT, SKIP } from "./queue.mjs";
 import {
@@ -2276,7 +2284,14 @@ export async function startDaemon({
             for (const cancelled of rec.cancelledRuns ?? []) {
                 live.add(String(cancelled.id));
                 try {
-                    await rerunRun(gh, Number(n), cancelled, { spent, acting, runs: r, iso });
+                    if (await rerunRun(gh, Number(n), cancelled, { spent, acting, runs: r, iso, rec })) {
+                        void ledger({
+                            kind: "rerun-skipped",
+                            pr: Number(n),
+                            run: cancelled.id,
+                            reason: "started while a draft: a re-run skips CI again; close and reopen, or push",
+                        });
+                    }
                 } catch (err) {
                     void ledger({ kind: "error", where: "cancelled-rerun", error: /** @type {Error} */ (err).message });
                 }
@@ -3396,26 +3411,35 @@ export async function startDaemon({
 
 /**
  * Re-runs one cancelled run of pull request `n` (`rerunCancelled`), unless it is still running,
- * was re-run already, or its re-run was asked for already (or recorded as a would-do while the
+ * was re-run already, started while the pull request was a draft (a re-run reuses the draft event
+ * and skips CI again), or its re-run was asked for already (or recorded as a would-do while the
  * group does not act and still does not).
  * @param {ReturnType<typeof createGitHub>} gh the client
  * @param {number} n the pull request
  * @param {any} cancelled the run, marked with `rerun`
- * @param {{spent: Record<string, any>, acting: boolean, runs: string, iso: string}} opts the
- *   re-runs asked for by run, whether `worker-writes` acts, the runs' API path and the poll's time
+ * @param {{spent: Record<string, any>, acting: boolean, runs: string, iso: string, rec: any}} opts the
+ *   re-runs asked for by run, whether `worker-writes` acts, the runs' API path, the poll's time and
+ *   the pull request's record
+ * @returns {Promise<boolean>} true the first time the run is seen as a draft run, to ledger once
  */
-async function rerunRun(gh, n, cancelled, { spent, acting, runs, iso }) {
+async function rerunRun(gh, n, cancelled, { spent, acting, runs, iso, rec }) {
     const id = String(cancelled.id);
     const run = (await gh.get(`${runs}${id}`)).body ?? {};
-    if (run.status !== "completed") return;
+    if (run.status !== "completed") return false;
     if ((run.run_attempt ?? 1) > 1) {
         cancelled.rerun = "spent";
-        return;
+        return false;
     }
     const before = spent[id];
+    if (startedAsDraft(run, rec)) {
+        cancelled.rerun = "draft";
+        if (before?.draft) return false;
+        spent[id] = { at: iso, pr: n, draft: true };
+        return true;
+    }
     if (before && (before.acting || !acting)) {
         if (before.acting) cancelled.rerun = "started";
-        return;
+        return false;
     }
     spent[id] = { at: iso, pr: n, acting };
     try {
@@ -3429,4 +3453,5 @@ async function rerunRun(gh, n, cancelled, { spent, acting, runs, iso }) {
         if (notSent(err)) delete spent[id];
         throw err;
     }
+    return false;
 }

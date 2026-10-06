@@ -26,16 +26,17 @@ import { execFileSync } from "node:child_process";
  * @typedef {"SUCCESS" | "FAILURE" | "PENDING" | "MISSING" | "CANCELLED"} CheckState `CANCELLED` is no
  *   result: the run was cancelled (by hand, by a newer push, or because no runner picked its jobs
  *   up), so it counts as neither failing nor passing, the way PENDING does
- * @typedef {{id: number, workflow: string, rerun?: "started" | "spent"}} CancelledRun the newest run
- *   of a workflow on the head whose required checks were cancelled and nothing in it failed; `rerun`
- *   is set by the daemon: githerd re-ran it this poll, or it was re-run before and is not re-run again
+ * @typedef {{id: number, workflow: string, rerun?: "started" | "spent" | "draft"}} CancelledRun the newest
+ *   run of a workflow on the head whose required checks were cancelled and nothing in it failed; `rerun`
+ *   is set by the daemon: githerd re-ran it this poll, it was re-run before and is not re-run again, or
+ *   it started while the pull request was a draft and a re-run would skip CI again
  * @typedef {{
  *   verdict: "green" | "red" | "unknown", branch: string,
  *   fixedAt?: string | null,
  * }} MasterView `branch` is the default branch; `fixedAt` when
  *   the commit that ended the last incident was made
  * @typedef {{
- *   headSha: string, headRef: string, baseRef: string, draft: boolean, author: string | null,
+ *   headSha: string, headRef: string, baseRef: string, draft: boolean, readyAt: string | null, author: string | null,
  *   title: string, createdAt: string | null, references: number[], labels: string[], headChangedAt: string, headCommittedAt: string | null, headCommitter: string | null,
  *   breaking: boolean, breakingCheckedFor: string | null,
  *   touchesProtected: boolean,
@@ -216,6 +217,26 @@ function readChecks(node, requiredChecks) {
 }
 
 /**
+ * Whether a workflow run started while its pull request was a draft that is now ready. Re-running a
+ * run reuses its event payload, `pull_request.draft` included, so ci.yml would skip CI again; only a
+ * new run (close and reopen, or a push) carries the ready state. The run's `created_at` before the
+ * pull request's last ready-for-review event is the field that says so.
+ * ponytail: a run made before a ready PR was converted to a draft and back reads as a draft run too;
+ * ready_for_review starts a newer run then, so refusing the old one costs nothing.
+ * @param {any} run the REST workflow run
+ * @param {PrRecord | null | undefined} rec the pull request's record
+ * @returns {boolean} true when a re-run would skip CI again
+ */
+export function startedAsDraft(run, rec) {
+    return (
+        run?.event === "pull_request" &&
+        rec?.draft === false &&
+        Boolean(rec.readyAt && run.created_at) &&
+        run.created_at < /** @type {string} */ (rec.readyAt)
+    );
+}
+
+/**
  * Folds one poll's open pull requests into the saved records.
  * @param {Record<string, PrRecord>} saved the records from the last poll
  * @param {any[]} nodes GraphQL pullRequest nodes, each optionally with `detail` ({@link Detail})
@@ -270,6 +291,7 @@ function foldPr(node, prev, config, now) {
         headRef: node.headRefName,
         baseRef: node.baseRefName,
         draft: node.isDraft,
+        readyAt: node.timelineItems?.nodes?.[0]?.createdAt ?? null,
         author: node.author?.login ?? null,
         title: node.title,
         createdAt: node.createdAt ?? null,
@@ -450,6 +472,10 @@ function cancelledReasons(rec) {
         if (run.rerun === "started") reasons.push(`githerd re-ran the cancelled ${run.workflow} run ${run.id}`);
         if (run.rerun === "spent")
             reasons.push(`${run.workflow} run ${run.id} cancelled again after a re-run: not re-run again`);
+        if (run.rerun === "draft")
+            reasons.push(
+                `${run.workflow} run ${run.id} started while a draft, so a re-run skips CI again: close and reopen, or push`,
+            );
     }
     return reasons;
 }

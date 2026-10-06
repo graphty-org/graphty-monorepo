@@ -20,6 +20,7 @@ import { taskOutputPath } from "./hook.mjs";
 import { askOwner, recordOwner } from "./owner.mjs";
 import { jobText } from "./job-text.mjs";
 import { TOOLS } from "./mcp.mjs";
+import { startedAsDraft } from "./prs.mjs";
 import { askFor, jobInUse } from "./queue.mjs";
 import { statusData, statusText } from "./tools.mjs";
 
@@ -466,6 +467,11 @@ async function rerun(ctx, job, args, session) {
     }
     const run = (await ctx.github.get(`repos/${repo}/actions/runs/${args.run}`)).body ?? {};
     if (run.head_sha !== head) throw new Error(`run ${args.run} is not on the head ${head.slice(0, 9)}`);
+    if (startedAsDraft(run, rec)) {
+        throw new Error(
+            `run ${args.run} started while #${pr} was a draft, so a re-run skips CI again; close and reopen #${pr} (or push) to start a real run`,
+        );
+    }
     const failed = (await ctx.github.get(`repos/${repo}/actions/jobs/${args.jobId}`)).body ?? {};
     if (failed.run_id !== args.run || !["failure", "timed_out"].includes(failed.conclusion)) {
         throw new Error(`job ${args.jobId} is not a failed job of run ${args.run}`);

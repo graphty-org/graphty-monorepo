@@ -529,6 +529,27 @@ describe("sessionToolSet", () => {
         expect((await call(ctx, "githerd_rerun", args)).text).toMatch(/no pull request githerd knows/);
     });
 
+    it("refuses a re-run of a run that started while the pull request was a draft", async () => {
+        const state = {
+            jobs: { "pr-7": heldJob("pr-7") },
+            prs: { 7: { headSha: HEAD, draft: false, readyAt: "2026-10-02T11:00:00Z" } },
+        };
+        const { ctx, writes } = setup(state);
+        ctx.acting = true;
+        const run = { head_sha: HEAD, run_attempt: 1, event: "pull_request", created_at: "2026-10-02T10:00:00Z" };
+        ctx.github.answers[`repos/${REPO}/actions/runs/11`] = run;
+        ctx.github.answers[`repos/${REPO}/actions/jobs/22`] = { run_id: 11, conclusion: "failure", name: "Build" };
+        const args = { job: "pr-7", run: 11, jobId: 22, reason: "runner lost" };
+        expect((await call(ctx, "githerd_rerun", args)).text).toBe(
+            "run 11 started while #7 was a draft, so a re-run skips CI again; close and reopen #7 (or push) to start a real run",
+        );
+        expect(writes).toEqual([]);
+        expect(state).not.toHaveProperty("reruns");
+        // A run made after the pull request was marked ready is re-run as usual.
+        run.created_at = "2026-10-02T11:30:00Z";
+        expect((await call(ctx, "githerd_rerun", args)).text).toBe("re-run of Build started");
+    });
+
     it("re-runs on a named pull request: the job's, one the session took, or one naming the issue", async () => {
         const job = newJob({ kind: "issue", target: "#736", id: "issue-736" }, NOW);
         move(job, "starting", NOW, { holder: { session: "w1", nonce: "n1" } });

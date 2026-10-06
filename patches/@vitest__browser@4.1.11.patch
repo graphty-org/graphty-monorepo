@@ -1,0 +1,17 @@
+diff --git a/dist/client/__vitest_browser__/tester-BJtsJFpD.js b/dist/client/__vitest_browser__/tester-BJtsJFpD.js
+index 0594ada..7b79161 100644
+--- a/dist/client/__vitest_browser__/tester-BJtsJFpD.js
++++ b/dist/client/__vitest_browser__/tester-BJtsJFpD.js
+@@ -1955,10 +1955,10 @@ class ModuleMocker {
+   resolveMockPath(path) {
+     const config = this.config;
+     const fsRoot = join("/@fs/", config.root);
+-    if (path.startsWith(config.root)) {
++    if (path.startsWith(config.root + "/")) {
+       return path.slice(config.root.length);
+     }
+-    if (path.startsWith(fsRoot)) {
++    if (path.startsWith(fsRoot + "/")) {
+       return path.slice(fsRoot.length);
+     }
+     return path;

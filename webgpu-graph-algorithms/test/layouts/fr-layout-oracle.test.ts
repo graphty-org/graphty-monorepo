@@ -398,6 +398,57 @@ describe("FR vs @graphty/layout's FruchtermanReingoldSimulation: the second refe
     );
 
     it(
+        'karate under cooling: "adaptive": the CPU class runs the same controller -- the temperature of each of the first 12 iterations and the positions after 1 and 5',
+        async (t) => {
+            requireGpu(t);
+            const s = paritySnapshot("karate", 1, false);
+            try {
+                const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, cooling: "adaptive" };
+                const start = startPositions(s, options, false);
+                const count = 12;
+                const gpu = await gpuTrajectory(ctx, s, start, options, [1, 5, count]);
+                // the CPU's adaptive temperature moves at the start of an iteration, so it is read AFTER each step
+                const sim = new FruchtermanReingoldSimulation(options);
+                const positions = Float32Array.from(start);
+                const cpuTemperature: number[] = [];
+                const cpuAt = new Map<number, F32>();
+                try {
+                    sim.load(s, positions);
+                    for (let k = 1; k <= count; k++) {
+                        sim.step(1);
+                        cpuTemperature.push(sim.temperature);
+                        cpuAt.set(k, Float32Array.from(positions));
+                    }
+                } finally {
+                    sim.dispose();
+                }
+                // f32 on the GPU, f64 on the CPU: the same steps of x0.9 and x1/0.9, within f32 rounding
+                for (let k = 0; k < count; k++) {
+                    expect(gpu.temperature[k], `adaptive: temperature of iteration ${k + 1}`).toBeCloseTo(
+                        cpuTemperature[k],
+                        7,
+                    );
+                }
+                expect(Math.max(...cpuTemperature), "the temperature grew within the first 12").toBeGreaterThan(0.1);
+                const tolerance = frTolerance("fr-layout-oracle").value;
+                for (const k of [1, 5]) {
+                    const cpu = cpuAt.get(k);
+                    expect(cpu).toBeDefined();
+                    const err = stageError(true, at(gpu, k), cpu as F32);
+                    assertCheckPasses({
+                        worst: ratioOf(err.rel, tolerance),
+                        worstLabel: `karate/adaptive: positions after ${k} iterations vs @graphty/layout`,
+                        samples: s.nodeCount,
+                    });
+                }
+            } finally {
+                ctx.release(s);
+            }
+        },
+        CASE_TIMEOUT,
+    );
+
+    it(
         `writes the GPU's and the CPU class's ${LAYOUT10_LABEL} positions after ${LAYOUT10_HORIZON} iterations as the layout10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
         async (t) => {
             requireGpu(t);

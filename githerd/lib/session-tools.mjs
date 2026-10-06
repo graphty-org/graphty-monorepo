@@ -20,6 +20,7 @@ import { taskOutputPath } from "./hook.mjs";
 import { atActiveCap } from "./asks.mjs";
 import { askOwner, recordOwner } from "./owner.mjs";
 import { jobText } from "./job-text.mjs";
+import { isMasterFix } from "./master-fix.mjs";
 import { TOOLS } from "./mcp.mjs";
 import { startedAsDraft } from "./prs.mjs";
 import { askFor, jobInUse } from "./queue.mjs";
@@ -208,7 +209,7 @@ export function sessionToolSet(ctx) {
                 if (job.holder?.session === session) job.steeredAt = null;
                 await ctx.commit({ kind: "next", job: job.id, session, news: news.length });
                 const instructions =
-                    jobText(job, { policies: state.policies }) +
+                    jobText(job, { policies: state.policies, masterFix: isMasterFix(state, job) }) +
                     (job.state === "starting"
                         ? "Judge overlap against the snapshot, then call githerd_claim before any edit."
                         : "Continue your job; your news is above.");

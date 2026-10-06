@@ -399,6 +399,12 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
     const watchers = new Map<string, Set<(payload?: unknown) => void>>();
     const runs: FakeRun[] = [];
     const pinned = new Set<NodeId>();
+    /* Same node, either spelling of its id: the element's pin, unpin, `pinned.has` and
+       `edgePage({ touching })` all take an integer id written as a number or a string. */
+    const sameNode = (a: NodeId, b: NodeId): boolean => String(a) === String(b);
+    Object.defineProperty(pinned, "has", {
+        value: (id: NodeId): boolean => [...pinned].some((held) => sameNode(held, id)),
+    });
     let minted = 0;
 
     /** What the graph a run would measure looks like now. @returns the digest. */
@@ -911,8 +917,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                     (options.records?.().edges ?? []).filter(
                         (edge) =>
                             page.touching === undefined ||
-                            edge.source === page.touching ||
-                            edge.target === page.touching,
+                            sameNode(edge.source, page.touching) ||
+                            sameNode(edge.target, page.touching),
                     ),
                     page,
                 ),
@@ -946,14 +952,14 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             placedCount: 0,
             pinned,
             pin: (ids: readonly NodeId[]): Promise<void> => {
-                repin("Pinned", [...pinned, ...ids]);
+                repin("Pinned", [...pinned, ...ids.filter((id) => !pinned.has(id))]);
 
                 return Promise.resolve();
             },
             unpin: (ids: readonly NodeId[]): Promise<void> => {
                 repin(
                     "Unpinned",
-                    [...pinned].filter((id) => !ids.includes(id)),
+                    [...pinned].filter((held) => !ids.some((id) => sameNode(held, id))),
                 );
 
                 return Promise.resolve();

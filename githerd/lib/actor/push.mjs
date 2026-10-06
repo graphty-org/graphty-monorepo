@@ -18,6 +18,7 @@ import { stripVTControlCharacters } from "node:util";
 
 import { move, TERMINAL } from "../board.mjs";
 import { classify } from "../classify.mjs";
+import { isMasterFix } from "../master-fix.mjs";
 import { identify } from "../proc.mjs";
 import { checkOutgoing } from "../text.mjs";
 import { git as gitIn, run as exec } from "../worktrees.mjs";
@@ -165,13 +166,15 @@ async function worktreeHead(dir) {
 }
 
 /**
- * The queue rank of a job's push (design 4.8): incident fixes first, then pushes to a job's open
- * pull request, which finish work that only waits on them, then the rest.
+ * The queue rank of a job's push (design 4.8): a red master's fixes first (an incident's, or a
+ * pull request linked as the fix, master-fix.mjs), then pushes to a job's open pull request, which
+ * finish work that only waits on them, then the rest.
+ * @param {any} state the daemon state
  * @param {any} job the job
  * @returns {number} the rank, lowest first
  */
-const rank = (job) => {
-    if (job.kind === "incident") return 0;
+const rank = (state, job) => {
+    if (isMasterFix(state, job)) return 0;
     return job.pr ? 1 : 2;
 };
 
@@ -294,7 +297,7 @@ export function createPushQueue({
             branch: args.branch,
             head: args.expectHead,
             worktree: job.worktree,
-            rank: rank(job),
+            rank: rank(state, job),
             queuedAt: now().toISOString(),
             status: "queued",
             pid: null,
@@ -486,7 +489,7 @@ export function createPushQueue({
     /**
      * Runs `git push` in the job's worktree with the main checkout's hooks (never the worktree's,
      * which the worker can write), through the machine's push queue like every session's push
-     * (an incident's fix as `critical`, ahead of the rest), as a child of the daemon leading its
+     * (a red master's fix as `critical`, ahead of the rest), as a child of the daemon leading its
      * own process group, so a worker's death never touches it and a timeout or `stop` kills the
      * gate with every child it started. The gate is bounded at twice the longest recent gate,
      * never less than twice the default, counted from its "Pre-push validation" banner, so time
@@ -507,7 +510,7 @@ export function createPushQueue({
                 `${e.head}:refs/heads/${e.branch}`,
             ];
             const queued = existsSync(queueScript);
-            const critical = state.jobs?.[e.job]?.kind === "incident";
+            const critical = isMasterFix(state, state.jobs?.[e.job]);
             const child = spawn(queued ? "bash" : "git", queued ? [queueScript, ...push] : push.slice(1), {
                 cwd: e.worktree,
                 env: { ...env, ...(critical ? { PUSH_QUEUE_PRIORITY: "critical" } : {}) },

@@ -26,6 +26,7 @@ import { endAttempt, heartbeat, move } from "./board.mjs";
 import { repoRoot } from "./config.mjs";
 import { jobText } from "./job-text.mjs";
 import { daemonDown, launcherContext } from "./launcher.mjs";
+import { isMasterFix } from "./master-fix.mjs";
 import { raiseItem } from "./notify.mjs";
 import { logSessionWrites } from "./session-writes.mjs";
 import { defaultStateDir, spoolEvent } from "./store.mjs";
@@ -399,7 +400,8 @@ function sessionStart(state, job, req, facts, now) {
     }
     if (source === "compact" || source === "clear") {
         job.compactions = (job.compactions ?? 0) + 1;
-        return { answer: { context: `${jobText(job, { policies: state.policies })}${jobRecordText(job)}` }, ledger };
+        const text = jobText(job, { policies: state.policies, masterFix: isMasterFix(state, job) });
+        return { answer: { context: `${text}${jobRecordText(job)}` }, ledger };
     }
     if (source === "resume") {
         const news = unacked(job);

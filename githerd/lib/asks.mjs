@@ -218,15 +218,71 @@ export function atActiveCap(state, session, config) {
 }
 
 /**
+ * A session's room as invitations see it, recorded in `state.inviteRooms[session]` =
+ * `{room, at, said}`: the room it reported (its capacity answer less claims, `room`, at least 1
+ * while it is idle in the registry), when that room last rose from 0 or from fewer than the jobs
+ * queued for it to more (`at`, empty while it never did), and the capacity answer last read
+ * (`said`). A new capacity answer replaces the room; the session going busy without one does not
+ * lower it, so a session's turns ending and starting never read as fresh room.
+ * @param {any} state the daemon state, changed in place
+ * @param {import("./peers.mjs").PeerSession} s the session
+ * @param {number} able how many queued jobs it could claim
+ * @param {Date} now the clock
+ * @returns {{free: boolean, at: string}} whether it has room now, and since when its room rose
+ */
+function inviteRoom(state, s, able, now) {
+    const cur = Math.max(room(state, s.sessionId) ?? 0, 0);
+    const idle = s.status === "idle";
+    const eff = idle ? Math.max(cur, 1) : cur;
+    const said = state.capacity?.[s.sessionId]?.at ?? null;
+    const rec = state.inviteRooms[s.sessionId] ?? { room: 0, at: "", said: null };
+    let next = rec;
+    if (eff > rec.room) next = { room: eff, at: rec.room < able ? now.toISOString() : rec.at, said };
+    else if (said !== rec.said) next = { ...rec, room: idle ? rec.room : eff, said };
+    state.inviteRooms[s.sessionId] = next;
+    return { free: eff > 0, at: next.at };
+}
+
+/**
+ * The sessions due an invitation to each queued job: those with room (`inviteRoom`) that could
+ * claim it and have not heard it since their room last rose.
+ * @param {any} state the daemon state, changed in place
+ * @param {{job: string}[]} queue the queued jobs githerd would offer
+ * @param {import("./peers.mjs").PeerSession[]} live the sessions githerd may invite
+ * @param {{config?: any, now: Date}} opts the config and the clock
+ * @returns {Map<string, import("./peers.mjs").PeerSession[]>} the sessions due, by job
+ */
+function dueInvites(state, queue, live, { config, now }) {
+    /** @type {Map<string, import("./peers.mjs").PeerSession[]>} */
+    const due = new Map();
+    for (const s of live) {
+        const able = queue.filter(
+            ({ job }) => !jobInUse(state, state.jobs[job], { config, now, session: s.sessionId }),
+        );
+        const { free, at } = inviteRoom(state, s, able.length, now);
+        if (!free || atActiveCap(state, s.sessionId, config)) continue;
+        for (const { job: id } of able) {
+            const job = state.jobs[id];
+            const heard = job.invited?.[s.sessionId] ?? job.invitedAt;
+            if (heard === undefined || heard < at) due.set(id, [...(due.get(id) ?? []), s]);
+        }
+    }
+    return due;
+}
+
+/**
  * Invites the Claude sessions in this repository that have room to pull work (the owner's
- * decisions of 2026-10-05): each queued job no worker slot took is announced once, to every session
- * whose registry status is `idle` or whose last capacity answer leaves room (`room`); a session that
- * never answered is invited only while idle, and one at `workers.maxActive` (`atActiveCap`) never. githerd's own workers are never among them (`liveSessions` leaves
- * them out). A job is marked (`invitedAt`) only once a session was there to hear it, so a job
- * queued while every session is busy is announced when one goes idle. A session is invited only to
- * a job it could claim (`jobInUse` with that session, the rule githerd_next and githerd_claim
- * apply), so a review is never announced to the pull request's author. The last invitation is kept
- * in `state.invited` for the board.
+ * decisions of 2026-10-05): every pass, each queued job no worker slot took is announced to every
+ * session whose registry status is `idle` or whose last capacity answer leaves room (`room`) and
+ * that has not heard it since its room last rose (`inviteRoom`); never one at `workers.maxActive`
+ * (`atActiveCap`). So a session that heard a job and
+ * did not take it hears it again only after reporting more room: a capacity answer above its last,
+ * or going idle after reporting none. Who heard which job is kept on the job, `job.invited` =
+ * `{[session]: at}` (a job's older `invitedAt` counts as heard by every session). githerd's own
+ * workers are never among them (`liveSessions` leaves them out). A session is invited only to a job
+ * it could claim (`jobInUse` with that session, the rule githerd_next and githerd_claim apply), so a
+ * review is never announced to the pull request's author. The last invitation is kept in
+ * `state.invited` for the board.
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
  *   transport: import("./peers.mjs").Transport, offered: {job: string, reason: string}[],
@@ -237,42 +293,81 @@ export function atActiveCap(state, session, config) {
  */
 export async function inviteStep(state, { now, acting, sessions, transport, offered, config }) {
     const lines = [];
-    /** @type {import("./peers.mjs").PeerSession[] | null} read once, when an invitation is due */
-    let free = null;
-    for (const { job: id, reason } of offered) {
-        const job = state.jobs?.[id];
-        if (job?.state !== "queued" || job.invitedAt) continue;
-        free ??= sessions().filter(
-            (s) =>
-                (s.status === "idle" || (room(state, s.sessionId) ?? 0) > 0) &&
-                !atActiveCap(state, s.sessionId, config),
-        );
-        if (!free.length) break;
-        const able = free.filter((s) => !jobInUse(state, job, { config, now, session: s.sessionId }));
-        if (!able.length) continue;
-        const names = able.map((s) => s.name);
-        job.invitedAt = now.toISOString();
+    const queue = offered.filter(({ job }) => state.jobs?.[job]?.state === "queued");
+    if (!queue.length) return lines;
+    const live = sessions();
+    state.inviteRooms ??= {};
+    for (const id of Object.keys(state.inviteRooms)) {
+        if (!live.some((s) => s.sessionId === id)) delete state.inviteRooms[id];
+    }
+    const due = dueInvites(state, queue, live, { config, now });
+    for (const { job: id, reason } of queue) {
+        const to = due.get(id);
+        if (!to) continue;
+        const job = state.jobs[id];
+        const names = to.map((s) => s.name);
+        const at = now.toISOString();
+        job.invited ??= {};
+        for (const s of to) job.invited[s.sessionId] = at;
         if (!acting) {
             const op = `invite ${names.length} idle session(s) to take ${id}`;
             lines.push({ kind: "would-do", group: "workers", op, job: id });
         }
-        const out = acting ? await tellSessions(able, inviteText(job, reason), transport) : { sent: [], failed: [] };
-        state.invited = { at: job.invitedAt, count: acting ? out.sent.length : names.length, acting };
+        const out = acting ? await tellSessions(to, inviteText(job, reason), transport) : { sent: [], failed: [] };
+        state.invited = { at, count: acting ? out.sent.length : names.length, acting };
         lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });
     }
     return lines;
 }
 
 /**
- * The status question for the jobs one session holds: one line per job.
+ * The jobs blocked on job `id`, directly or through a chain of waits (`waitingFor.job`).
+ * @param {any} state the daemon state
+ * @param {string} id the job
+ * @returns {any[]} the waiting jobs
+ */
+function waitersOf(state, id) {
+    return Object.values(state.jobs ?? {}).filter((j) => {
+        if (j.state !== "blocked") return false;
+        const seen = new Set();
+        for (let on = j.waitingFor?.job; on && !seen.has(on); on = state.jobs?.[on]?.waitingFor?.job) {
+            if (on === id) return true;
+            seen.add(on);
+        }
+        return false;
+    });
+}
+
+/**
+ * The line that tells a holder which jobs wait on its job, and how to let them start when what is
+ * left waits on something held (a hold label, a breaking pull request held for a grouped major, a
+ * needs-decision issue): Claude judges whether it does; githerd never splits a job itself.
+ * @param {any} state the daemon state
+ * @param {any} job the held job
+ * @returns {string} the line, empty when nothing waits on it
+ */
+function waitersLine(state, job) {
+    const names = waitersOf(state, job.id).map((w) => String(w.target ?? w.id));
+    if (!names.length) return "";
+    const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
+    return (
+        `  ${list} wait${names.length > 1 ? "" : "s"} on this job. If what remains waits on something held, ` +
+        "report it split (file the remainder as its own issue) so they can start.\n"
+    );
+}
+
+/**
+ * The status question for the jobs one session holds: one line per job, and for a job others wait
+ * on, the line naming them (`waitersLine`).
+ * @param {any} state the daemon state
  * @param {any[]} jobs the jobs, each due an answer
  * @param {number} minutes how often githerd asks
  * @returns {string} the message
  */
-function statusText(jobs, minutes) {
+function statusText(state, jobs, minutes) {
     return (
         "githerd: status check on the jobs this session holds:\n" +
-        jobs.map((j) => `- ${j.id} (${j.target})\n`).join("") +
+        jobs.map((j) => `- ${j.id} (${j.target})\n${waitersLine(state, j)}`).join("") +
         "Answer by calling githerd_expect once per listed job, with job set to its id, reason set to one line on " +
         "where it stands. " +
         "Can you take another job? Answer that with capacity set, in those githerd_expect calls, to how many further " +
@@ -532,7 +627,7 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
         const op = `ask ${target[0].name} for ${what.join(", ")}`;
         lines.push({ kind: "would-do", group: "workers", op, jobs: ids });
     }
-    const text = [...(jobs.length ? [statusText(jobs, minutes)] : []), ...prs.map(brokenText)].join("\n");
+    const text = [...(jobs.length ? [statusText(state, jobs, minutes)] : []), ...prs.map(brokenText)].join("\n");
     const out = acting ? await tellSessions(target, text, transport) : { sent: [], failed: [] };
     const ask = { at: now.toISOString(), heard: out.sent.length > 0 };
     for (const job of jobs) job.statusAsk = { ...ask };
@@ -559,25 +654,62 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
  *   sessions githerd may message, and the transport
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
-export async function tellCancelled(cancelled, { acting, sessions, transport }) {
+export function tellCancelled(cancelled, opts) {
+    const told = cancelled.map((c) => ({
+        ...c,
+        what: "was cancelled",
+        text:
+            `githerd: job ${c.job}, which this session holds, was cancelled: ${c.reason}. ` +
+            "Nothing is left to do on it; stop its work and do not call githerd_done or githerd_expect for it.",
+    }));
+    return tellHolders(told, "cancel-told", opts);
+}
+
+/**
+ * Tells each owner session whose refused githerd_done report githerd checked again and accepted
+ * (done.mjs recheckRefused) that its job is done, as `tellCancelled` does.
+ * @param {{job: string, reportedAt: string, session?: string | null, startedBy?: string | null}[]} accepted
+ *   the reports accepted
+ * @param {{acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
+ *   transport: import("./peers.mjs").Transport}} opts as for `tellCancelled`
+ * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
+ */
+export function tellAccepted(accepted, opts) {
+    const told = accepted.map((a) => ({
+        ...a,
+        what: "is done",
+        text:
+            `githerd: your githerd_done report of ${a.reportedAt} for job ${a.job}, which githerd refused, was checked ` +
+            "again and now holds: the job is done. Nothing is left to report for it.",
+    }));
+    return tellHolders(told, "done-told", opts);
+}
+
+/**
+ * Sends each owner session holding one of `told`'s jobs its message.
+ * @param {{job: string, session?: string | null, startedBy?: string | null, what: string, text: string}[]} told
+ *   the messages
+ * @param {string} kind the ledger kind of a sent message
+ * @param {{acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
+ *   transport: import("./peers.mjs").Transport}} opts as for `tellCancelled`
+ * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
+ */
+async function tellHolders(told, kind, { acting, sessions, transport }) {
     const lines = [];
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a holder is told */
     let live = null;
-    for (const c of cancelled) {
+    for (const c of told) {
         if (c.startedBy !== "owner" || !c.session) continue;
         live ??= sessions();
         const target = live.filter((s) => s.sessionId === c.session);
         if (!target.length) continue;
         if (!acting) {
-            const op = `tell ${target[0].name} that ${c.job} was cancelled`;
+            const op = `tell ${target[0].name} that ${c.job} ${c.what}`;
             lines.push({ kind: "would-do", group: "workers", op, job: c.job });
             continue;
         }
-        const text =
-            `githerd: job ${c.job}, which this session holds, was cancelled: ${c.reason}. ` +
-            "Nothing is left to do on it; stop its work and do not call githerd_done or githerd_expect for it.";
-        const out = await tellSessions(target, text, transport);
-        lines.push({ kind: "cancel-told", job: c.job, session: target[0].name, ...out });
+        const out = await tellSessions(target, c.text, transport);
+        lines.push({ kind, job: c.job, session: target[0].name, ...out });
     }
     return lines;
 }

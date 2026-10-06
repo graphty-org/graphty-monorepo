@@ -104,6 +104,7 @@ function masterData(state) {
         pending: Boolean(m.pending),
         newerInFlight: inFlight.size,
         lastRelease: m.lastRelease ?? null,
+        fixPrs: m.fixPrs ?? [],
         incident: incident
             ? {
                   id: incident.id,
@@ -290,9 +291,10 @@ function countedList(items) {
  * Renders the red-master lines of status.
  * @param {any} inc the open incident, if any
  * @param {string} since the " since hh:mm UTC" text
+ * @param {{pr: number, why: string}[]} [fixes] the linked fix pull requests (master-fix.mjs)
  * @returns {string[]} the lines
  */
-function redLines(inc, since) {
+function redLines(inc, since, fixes = []) {
     const lanes = (inc?.lanes ?? []).map((l) => {
         const jobs = (l.failingJobs ?? []).join(", ");
         return ` ${l.lane} run ${l.runId} failed at ${short(l.sha)} (${jobs}).`;
@@ -305,6 +307,10 @@ function redLines(inc, since) {
     }
     if (inc?.rangeNote) second.push(`No code suspects: ${inc.rangeNote}.`);
     if (inc?.fixJob) second.push(`Incident job ${inc.fixJob} at work.`);
+    if (fixes.length) {
+        const list = fixes.map((f) => `#${f.pr} (${f.why})`).join(", ");
+        second.push(`Fix: ${list}, labelled priority:critical so it merges through the freeze.`);
+    }
     second.push("Hold merges; pushes to pull request branches are fine.");
     return [`MASTER: RED${since}${id}.${lanes.join("")}`, `  ${second.join(" ")}`];
 }
@@ -340,7 +346,7 @@ function verifiedSentences(m, now) {
 function masterLines(m, now) {
     const since = m.since ? ` since ${hhmm(m.since)} UTC` : "";
     const lines = [];
-    if (m.verdict === "red") lines.push(...redLines(m.incident, since));
+    if (m.verdict === "red") lines.push(...redLines(m.incident, since, m.fixPrs));
     else if (m.verdict === "green") lines.push(`MASTER: green${since}.`);
     else lines.push("MASTER: unknown (no complete poll yet).");
     const third = verifiedSentences(m, now);

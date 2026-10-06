@@ -67,7 +67,7 @@ import { homedir } from "node:os";
 import { inspect } from "node:util";
 
 import { createPushQueue } from "./actor/push.mjs";
-import { askStep, inviteStep, statusStep, tellCancelled } from "./asks.mjs";
+import { askStep, inviteStep, statusStep, tellAccepted, tellCancelled } from "./asks.mjs";
 import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
@@ -97,7 +97,8 @@ import {
     updateLane,
 } from "./master.mjs";
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
-import { doneIo, pollVerifying } from "./done.mjs";
+import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
+import { labelMasterFixes, linkMasterFix } from "./master-fix.mjs";
 import { classify, isNoLog } from "./classify.mjs";
 import { flakePoll, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
@@ -233,7 +234,7 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
     defaultBranchRef { name target { oid } }
     pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
       nodes {
-        id number title isDraft createdAt updatedAt headRefName headRefOid baseRefName
+        id number title body isDraft createdAt updatedAt headRefName headRefOid baseRefName
         mergeable mergeStateStatus
         autoMergeRequest { enabledAt }
         labels(first: 20) { nodes { name } }
@@ -1270,6 +1271,7 @@ export async function startDaemon({
         try {
             const open = Object.values(state.incidents).find((i) => i.status === "open");
             if (open) await codeRedKeys(open, actions);
+            await labelMasterFixes(github(), config.repo, state);
             await parkedLanes(actions);
             if (config.lanes.release) await releaseArtifacts(actions, spent);
         } catch (err) {
@@ -1609,6 +1611,35 @@ export async function startDaemon({
     }
 
     /**
+     * Settles the done reports githerd has not accepted yet: checks every unsettled claim again
+     * (`pollVerifying`, ringing a worker sent back to work), and every kept refused report whose
+     * daemon or facts changed (`recheckRefused`), telling an owner session whose report it accepted.
+     * @param {Date} t the poll's time
+     */
+    async function settleReports(t) {
+        for (const change of await pollVerifying(state, { config, io: doneReader(), now: t })) {
+            void ledger({ kind: "done-verify", ...change });
+            if (change.action === "working") await ringJob(state.jobs[change.job]);
+        }
+        const accepted = await recheckRefused(state, { config, io: doneReader(), now: t });
+        for (const a of accepted) void ledger({ kind: "done-recheck-accepted", ...a });
+        const told = await tellAccepted(accepted, {
+            acting: writeMode("workers") === "acting",
+            sessions: messageable,
+            transport: peers.transport ?? socketTransport(),
+        });
+        for (const line of told) void ledger(line);
+    }
+
+    /**
+     * Links the red master's fix pull requests (master-fix.mjs), recording each new link.
+     * @param {any[]} nodes the open pull requests
+     */
+    function linkFixes(nodes) {
+        for (const link of linkMasterFix(state, nodes)) event("master-fix-linked", link);
+    }
+
+    /**
      * One poll of GitHub (design section 6).
      * @returns {Promise<string | null>} why nothing was asked of GitHub (a back-off), or null
      */
@@ -1648,6 +1679,7 @@ export async function startDaemon({
         if (m.verdict !== previousVerdict) m.since = iso;
         noteGreenMove(m, previousGreen, iso);
         await track(m, previousGreen, iso);
+        linkFixes(prList.repository.pullRequests.nodes);
         await incidentSteps();
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);
         if (pace.level === "normal") {
@@ -1695,10 +1727,7 @@ export async function startDaemon({
             void ledger({ kind: "owner-answered", job: r.job });
             await ringJob(state.jobs[r.job]);
         }
-        for (const change of await pollVerifying(state, { config, io: doneReader(), now: t })) {
-            void ledger({ kind: "done-verify", ...change });
-            if (change.action === "working") await ringJob(state.jobs[change.job]);
-        }
+        await settleReports(t);
         await stacks(prList.repository.pullRequests.nodes, branch);
         if (state.trust.login) {
             const openPrs = new Set(prList.repository.pullRequests.nodes.map((/** @type {any} */ n) => n.number));
@@ -2286,7 +2315,7 @@ export async function startDaemon({
     /**
      * The pull requests that are a red master's fix, exempt from its merge hold (design 4.6, line
      * 2), which Mergify's priority rule puts first: every open incident job's pull request, every
-     * revert pull request the open incident's procedure opened, and every owner pull request
+     * revert pull request the open incident's procedure opened, every linked fix (master-fix.mjs), and every owner pull request
      * labelled `priority:critical` by the owner's account (the owner, or an incident's worker: the
      * guard refuses the label to every other worker).
      * @returns {number[]} their numbers
@@ -2300,7 +2329,8 @@ export async function startDaemon({
         const critical = Object.entries(state.prs ?? {})
             .filter(([, p]) => board.byOwner(state, p.author) && (p.ownerLabels ?? []).includes(CRITICAL))
             .map(([n]) => Number(n));
-        return [...new Set([...jobs, ...reverts, ...critical].filter((n) => n > 0))];
+        const linked = (state.master.fixPrs ?? []).map((/** @type {any} */ f) => Number(f.pr));
+        return [...new Set([...jobs, ...reverts, ...critical, ...linked].filter((n) => n > 0))];
     }
 
     /**

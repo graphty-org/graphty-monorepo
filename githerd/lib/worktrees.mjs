@@ -142,7 +142,7 @@ export async function changedFiles(dir, base) {
  * @param {string} target the target
  * @returns {string} for example `pr-704`
  */
-export function slug(target) {
+function slug(target) {
     return target.replaceAll(/[^A-Za-z0-9._-]+/g, "-");
 }
 

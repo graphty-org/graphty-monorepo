@@ -8,7 +8,12 @@
 # PREPUSH_ALL=1 runs every package.
 # This script avoids nx to work around git hook issues with nx daemon
 
-# Note: We don't use 'set -e' because we want to track all failures and report them at the end
+# A run_step check that fails ends the run at once (run_step exits), so a formatting or lint slip is
+# reported in seconds instead of after the build and the tests. The source-only checks run first,
+# before the build; then the build, knip, and lint with type-check (inside each package's lint). Two
+# kinds of check are still reported only at the end: the test blocks further down, which record each
+# failure and go on, and the SonarQube scan, which runs in the background (45-60 s) and is joined
+# just before the summary.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -42,7 +47,8 @@ NC='\033[0m' # No Color
 
 # Track failures.
 #
-# FAILED is the overall verdict and decides the exit code, so every step ORs into it.
+# FAILED is the overall verdict and decides the exit code, so every test block and the SonarQube
+# step OR into it (a run_step failure exits on the spot instead).
 # It must NOT be used to grade an individual step: a step-specific verdict needs its
 # own flag, or an earlier step's failure is reported against a step that passed. That
 # is exactly the bug the TESTS_FAILED flag below fixes -- knip failing used to make the
@@ -63,7 +69,9 @@ run_step() {
     else
         echo -e "${RED}[FAIL] $name failed${NC}"
         echo ""
-        FAILED=1
+        echo -e "${RED}Pre-push validation stopped at the first failure: $name${NC}"
+        echo "Fix it and push again; the checks after it did not run."
+        exit 1
     fi
 }
 
@@ -71,6 +79,55 @@ run_step() {
 # touches. The [s] and [-] keep the patterns from matching this line itself.
 run_step "No signing bypass in tools/ and .husky/" \
     "! git grep -niE -e 'no-gpg[-]sign' -e 'gpg[s]ign *[= ] *false' -- tools/ .husky/"
+
+# The checks below read only the source: no build, no affected list, about 30 seconds together
+# (2026-10-05). They run first and on every push, docs-only pushes included, so the commonest
+# failures stop the gate before the build starts.
+
+# Prettier on the files this branch adds or modifies. The tree is not formatted as a whole yet
+# (issue #239), so this stops new drift without asking a branch to reformat what it never touched.
+run_step "Formatting (changed files)" "pnpm run format:check:changed"
+
+# Every package that has its own eslint.config.js is linted with that file alone, so it must spread
+# the root config; a stale copy silently drops every rule the root gained since. Run for every push,
+# not per affected package: the check is about the configs, and it takes about a second.
+run_step "ESLint root config" "pnpm run lint:eslint-root"
+
+# Every tool a package's scripts run or its *.config.* files import is declared by that package,
+# not only by the root, where hoisting hides the gap until the package builds somewhere else.
+run_step "Declared build tools" "pnpm run check:declared-tools"
+
+# release-hold.json names only real nx projects, each with a reason and a date.
+run_step "Release hold list" "pnpm run check:release-hold"
+
+# graphty-element's data sources read files through @graphty/graph-io importers: no papaparse, no
+# fast-xml-parser and no hand-written parser in graphty-element/src/data. Reads source only.
+run_step "Element data sources on graph-io" "pnpm run check:data-source-migration"
+
+# The import reader of tools/count-migration-state.mjs, which prints the counts in
+# design/graph-format/STATUS.md. Reads nothing from the repository.
+run_step "Migration count script" "pnpm run check:migration-counts"
+
+# No use of the legacy graph API that the graph-format migration replaced (a legacy algorithms or
+# layout name, the legacy Graph, a positional layout call, an element parser not on graph-io). Reads
+# source only, every push.
+run_step "Legacy graph API use" "pnpm run check:legacy-use"
+
+# Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
+# files on GitHub, resolved against the working tree. Offline: the network half of the check
+# (github.com/graphty-org, and graphty.app against the assembled site) runs in CI's "Links" job,
+# which has the built site this gate does not. Under a second (2026-09-24); the first run also
+# downloads the pinned lychee binary. See tools/check-links.sh.
+run_step "Links" "./tools/check-links.sh --offline"
+
+# The CI shape: the test matrix's shard groups, and what ci.yml and pr-title.yml run on a draft,
+# a pull request and a merge-queue branch. Reads files only, under a second.
+run_step "CI workflow tests" "pnpm run test:ci-workflows"
+
+# The SonarQube step's decisions (server down, no token, a new problem, only old problems, the
+# bypass trailer, token leaks) against a throwaway repository, a fake server and a fake scanner.
+# Needs no server. A few seconds.
+run_step "SonarQube gate script tests" "pnpm run test:sonar-gate"
 
 # The affected projects, as nx names them. The base is where this branch left origin/master,
 # so commits other people landed on master since then do not count as this push's changes.
@@ -167,15 +224,8 @@ if affected webgpu-graph-algorithms; then
     run_step "Bundle webgpu-graph-algorithms" "(cd webgpu-graph-algorithms && npm run build:bundle)"
 fi
 
-# Lint the affected packages
-run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache"
-
-# Start the SonarQube step only after Lint: Lint (--skip-nx-cache) rebuilds the packages it depends
-# on, and each build deletes its dist/ first. The scanner walks the whole tree and dies with
-# NoSuchFileException when a folder vanishes mid-walk (seen 2026-10-02). No later step rewrites a
-# dist/. It is joined just before the summary.
-start_sonar
-
+# Knip before Lint: it needs only the dist/ the build above wrote, and it fails a push about three
+# times as often as Lint does, so a knip finding stops the gate before the slowest static step.
 # Run knip for dead code detection (blocks push if issues found)
 run_step "Knip (dead code detection)" "pnpm run lint:knip"
 
@@ -185,21 +235,21 @@ run_step "Knip (dead code detection)" "pnpm run lint:knip"
 # see a runtime dependency that nothing at run time imports. About 9 seconds (2026-09-24).
 run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
 
+# Lint the affected packages
+run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache"
+
+# Start the SonarQube step only after Lint: Lint (--skip-nx-cache) rebuilds the packages it depends
+# on, and each build deletes its dist/ first. The scanner walks the whole tree and dies with
+# NoSuchFileException when a folder vanishes mid-walk (seen 2026-10-02). No later step rewrites a
+# dist/. It is joined just before the summary.
+start_sonar
+
 # Pack every published package and compare the files it would ship with its package.json: an
 # import nobody declared, a dependency nothing imports, an @graphty range the workspace version
 # no longer satisfies, a test or tool config file in the tarball. Source-level checks cannot see
 # any of these; `pupt` shipped in @graphty/algorithms for six releases, and graphty-element's
 # WebGPU peer fell four breaking releases behind. Needs the build above. About 3 seconds (2026-09-24).
 run_step "Published dependencies" "pnpm run check:published-deps -- $DIR_LIST"
-
-# Every package that has its own eslint.config.js is linted with that file alone, so it must spread
-# the root config; a stale copy silently drops every rule the root gained since. Run for every push,
-# not per affected package: the check is about the configs, and it takes about a second.
-run_step "ESLint root config" "pnpm run lint:eslint-root"
-
-# Prettier on the files this branch adds or modifies. The tree is not formatted as a whole yet
-# (issue #239), so this stops new drift without asking a branch to reformat what it never touched.
-run_step "Formatting (changed files)" "pnpm run format:check:changed"
 
 # The gzip budget of each graphty-element entry point (graphty-element/size-budgets.json), counted
 # over the entry file and every chunk it statically imports. Needs the build above.
@@ -209,42 +259,6 @@ if affected graphty-element; then
     # (CLAUDE.md, "Public API review"). Needs the build above.
     run_step "Public API report (graphty-element)" "pnpm run check:api-report"
 fi
-
-# Every tool a package's scripts run or its *.config.* files import is declared by that package,
-# not only by the root, where hoisting hides the gap until the package builds somewhere else.
-run_step "Declared build tools" "pnpm run check:declared-tools"
-
-# release-hold.json names only real nx projects, each with a reason and a date.
-run_step "Release hold list" "pnpm run check:release-hold"
-
-# graphty-element's data sources read files through @graphty/graph-io importers: no papaparse, no
-# fast-xml-parser and no hand-written parser in graphty-element/src/data. Reads source only.
-run_step "Element data sources on graph-io" "pnpm run check:data-source-migration"
-
-# The import reader of tools/count-migration-state.mjs, which prints the counts in
-# design/graph-format/STATUS.md. Reads nothing from the repository.
-run_step "Migration count script" "pnpm run check:migration-counts"
-
-# The SonarQube step's decisions (server down, no token, a new problem, only old problems, the
-# bypass trailer, token leaks) against a throwaway repository, a fake server and a fake scanner.
-# Needs no server. A few seconds.
-run_step "SonarQube gate script tests" "pnpm run test:sonar-gate"
-
-# The CI shape: the test matrix's shard groups, and what ci.yml and pr-title.yml run on a draft,
-# a pull request and a merge-queue branch. Reads files only, under a second.
-run_step "CI workflow tests" "pnpm run test:ci-workflows"
-
-# No use of the legacy graph API that the graph-format migration replaced (a legacy algorithms or
-# layout name, the legacy Graph, a positional layout call, an element parser not on graph-io). Reads
-# source only, every push.
-run_step "Legacy graph API use" "pnpm run check:legacy-use"
-
-# Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
-# files on GitHub, resolved against the working tree. Offline: the network half of the check
-# (github.com/graphty-org, and graphty.app against the assembled site) runs in CI's "Links" job,
-# which has the built site this gate does not. Under a second (2026-09-24); the first run also
-# downloads the pinned lychee binary. See tools/check-links.sh.
-run_step "Links" "./tools/check-links.sh --offline"
 
 # Run fast tests for each package
 # These run only the 'default' project (happy-dom/jsdom/node tests, no playwright)

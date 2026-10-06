@@ -65,9 +65,10 @@
  *   graphty-element publishes no drag-cancel call. Rung 4 pauses time slider playback,
  *   and no time slider can be drawn until a Time role can be assigned. Both are
  *   recorded on the `escapeLadder` call below.
- * - **The filter status strip.** Nothing holds an active filter yet, so there is nothing
- *   to draw and no control claims otherwise. The Insights strip is no longer in this
- *   group -- the 7.3 rule table computes its cards and the strip is drawn from them.
+ * - **The filter status strip's chips.** The only filter the shell applies is the ego
+ *   network, which the strip draws as its depth control rather than as a chip. The
+ *   Insights strip is no longer in this group -- the 7.3 rule table computes its cards
+ *   and the strip is drawn from them.
  * - **The minimap.** It has nothing to project until graphty-element publishes node
  *   positions and camera changes (#293), and drawn before then it was an empty dark box.
  *   Its Views row carries the Coming tag and its M binding is unshipped, so no control
@@ -98,8 +99,10 @@ import {
     type Layer,
     type LayerSpec,
     type Note,
+    type RuleTree,
     type RunId,
     type SelectionDelta,
+    type SelectionStatistics,
     type TransactionScope,
 } from "@graphty/graphty-element/session";
 import { Box, Button, Group, Modal, Text } from "@mantine/core";
@@ -139,6 +142,7 @@ import { useCanvasBottomStack } from "./canvas/canvasBottomStack";
 import { readPersistedCanvasLayout, resolveCanvasLayout, writePersistedCanvasLayout } from "./canvas/canvasMemory";
 import { CanvasRegion, type CanvasRegionOwnProps } from "./canvas/CanvasRegion";
 import type { DataDrawerTab } from "./canvas/DataTableDrawer";
+import { EgoNetworkControl } from "./canvas/EgoNetworkControl";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
 import { legendAvailable } from "./canvas/legendAvailability";
@@ -216,7 +220,7 @@ import type { HelpMenuRowId } from "./rail/HelpMenu";
 import { communityHeadline, communityReading, communityResultBody } from "./readings/communityReading";
 import { DEFAULT_EDGE_NOUN, GRAPH_SUMMARY_EMPTY_READING, graphSummaryReading } from "./readings/graphSummaryReading";
 import { nodeMetricHeadline, nodeMetricReading, nodeMetricResultBody } from "./readings/nodeMetricReading";
-import { formatCount } from "./readings/readingFormat";
+import { formatCount, pluralise } from "./readings/readingFormat";
 import { caveatsLine, runRecordLine } from "./readings/runRecord";
 import { ShellProvider } from "./ShellContext";
 import { formatAcceleration } from "./statusbar/formatAcceleration";
@@ -585,8 +589,8 @@ function CanvasToolbarSlot(props: Omit<CanvasToolbarComponentProps, "bottomOffse
 /**
  * Which inspector surface the shell's facts choose, in one rule.
  *
- * A selected node outranks a picked style layer, which outranks a result, which outranks
- * the graph summary. It needs no new machinery: a card click clears the selection before
+ * A selection of several elements outranks a selected node, which outranks a picked style
+ * layer, which outranks a result, which outranks the graph summary. It needs no new machinery: a card click clears the selection before
  * it sets the result, and the next pick replaces the result surface -- so a stale result
  * can never outlive a fresh selection, and `ShellStateAxis` stays empty / loaded /
  * selected.
@@ -597,13 +601,19 @@ function CanvasToolbarSlot(props: Omit<CanvasToolbarComponentProps, "bottomOffse
  * @param hasSelectedNode - whether a node is selected.
  * @param hasResult - whether a result is being drawn.
  * @param hasSelectedLayer - whether a style layer is picked in the Style panel.
+ * @param hasSeveralSelected - whether the element's selection holds more than one element.
  * @returns the surface kind the inspector draws.
  */
 function selectedNodeSelectionKind(
     hasSelectedNode: boolean,
     hasResult: boolean,
     hasSelectedLayer = false,
+    hasSeveralSelected = false,
 ): SelectionKind {
+    if (hasSeveralSelected) {
+        return "multiple";
+    }
+
     if (hasSelectedNode) {
         return "node";
     }
@@ -631,9 +641,6 @@ function selectedNodeSelectionKind(
 function describesDataset(source: Layer["source"]): boolean {
     return (source.by === "template" && source.templateId === SHELL_DEFAULTS_TEMPLATE_ID) || source.by === "run";
 }
-
-/** What the shell reports as pinned before the element is up to be asked. */
-const EMPTY_PINNED_NODES: ReadonlySet<string | number> = new Set<string | number>();
 
 /**
  * The event graphty-element publishes when a data source has finished loading.
@@ -1062,30 +1069,25 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* How many elements the element's selection holds, from its own change event; null
        until the element has reported one. */
     const [selectedCount, setSelectedCount] = useState<number | null>(null);
+    /* What a selection of more than one element adds up to, from the element's own
+       `selection.statistics()`; null when one element or none is selected. */
+    const [selectionStatistics, setSelectionStatistics] = useState<SelectionStatistics | null>(null);
     const [viewMode, setViewMode] = useState<CanvasViewMode>("3d");
     const [layoutType, setLayoutType] = useState<string>(DEFAULT_LAYOUT);
     const [layoutConfig, setLayoutConfig] = useState<Record<string, unknown>>({});
     const [selectedNode, setSelectedNode] = useState<{
         readonly id: string;
-        /*
-         * The same node, as the ELEMENT spells its id. Kept beside the printed form because
-         * `session.positions.pinned` is a plain set of the ids the graph holds: on a graph whose
-         * ids are numbers, `pinned.has("34")` is false while node 34 is pinned. Every call on the
-         * element made from this state passes this field. Temporary: this is an element defect,
-         * tracked by https://github.com/graphty-org/graphty-monorepo/issues/1065, and goes once
-         * it is fixed.
-         */
-        readonly elementId: string | number;
         readonly attributes: Record<string, unknown> | null;
     } | null>(null);
     /*
      * Which nodes the element has pinned, as the inspector's Pinned badge and its Pin/Unpin verb
-     * read it. Re-read from the element rather than tracked here, because the element pins on
-     * drag as well (`pinOnDrag` is on by default) and a copy kept up to date only by this shell's
-     * own calls would say "Pin" over a node the reader has already fixed by dragging it. The two
-     * things that move it are this shell's own Pin verb and {@link NODE_DRAG_END_EVENT}.
+     * read it: the element's own set, re-read whenever pins move and never copied, because the
+     * element pins on drag as well (`pinOnDrag` is on by default) and only its set answers for
+     * the printed id of a node whose id is a number. Wrapped so every re-read renders, whether or
+     * not the element hands back a new set. The things that move pins are this shell's own Pin
+     * verb, an undo or redo, and {@link NODE_DRAG_END_EVENT}.
      */
-    const [pinnedNodes, setPinnedNodes] = useState<ReadonlySet<string | number>>(EMPTY_PINNED_NODES);
+    const [pins, setPins] = useState<{ readonly pinned: ReadonlySet<string | number> } | null>(null);
     const layerCounter = useRef(1);
     /* Why graphty-element refused the last new style layer, in its own words, or null. */
     const [styleRefusal, setStyleRefusal] = useState<string | null>(null);
@@ -1609,6 +1611,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 const { nodes, edges, cause } = event.detail as SelectionDelta;
                 setSelectedCount(nodes + edges);
 
+                const selection = graphtyRef.current?.session?.selection;
+
+                if (nodes + edges > 1 && selection !== undefined) {
+                    selection.statistics().then(setSelectionStatistics, (error: unknown) => {
+                        console.error("[shell] the element could not total the selection:", error);
+                    });
+                } else {
+                    setSelectionStatistics(null);
+                }
+
                 /* The search is the app's only "api" selection; a click ("user") or a command
                    replaced what it chose, so emptying the field must not clear that. */
                 if (cause !== "api") {
@@ -1702,7 +1714,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const frame = frameRef.current;
 
         const onNodeDragEnd = (): void => {
-            setPinnedNodes(new Set(graphtyRef.current?.session?.positions.pinned ?? EMPTY_PINNED_NODES));
+            const positions = graphtyRef.current?.session?.positions;
+
+            setPins(positions === undefined ? null : { pinned: positions.pinned });
         };
 
         frame?.addEventListener(NODE_DRAG_END_EVENT, onNodeDragEnd);
@@ -1832,6 +1846,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const crossDatasetBoundary = useCallback(() => {
         setSelectedNode(null);
+        setSelectionStatistics(null);
         setInspectorPinned(false);
         setPaletteOpen(false);
         setViewsMenuOpen(false);
@@ -2005,7 +2020,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             }
 
             if (slices.includes("pins")) {
-                setPinnedNodes(new Set(session.positions.pinned));
+                setPins({ pinned: session.positions.pinned });
             }
         });
         const unwatchStyle = session.on("style:changed", () => {
@@ -2059,6 +2074,39 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             unwatchRuns();
         };
     }, [session]);
+
+    /* The ego network on the canvas is the element's own `neighborhood` visibility filter, read
+       back from the element so an undo or a project load moves the depth control with it. */
+    const [egoFilter, setEgoFilter] = useState<Extract<RuleTree, { kind: "neighborhood" }> | null>(null);
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+
+        const readEgoFilter = (): void => {
+            const { filter } = session.visibility;
+            setEgoFilter(filter?.kind === "neighborhood" ? filter : null);
+        };
+        readEgoFilter();
+
+        return session.on("visibility:changed", readEgoFilter);
+    }, [session]);
+
+    /* Shows the seeds and their neighbors out to `depth` hops, or the whole graph for null. */
+    const setEgoNetwork = useCallback((filter: Extract<RuleTree, { kind: "neighborhood" }> | null) => {
+        graphtyRef.current?.session?.visibility.set(filter).then(undefined, (error: unknown) => {
+            console.error("[shell] the element refused the ego network:", error);
+        });
+    }, []);
+
+    /* The Ego network verb and G: the selection's neighborhood, at the depth already chosen. */
+    const showEgoNetwork = useCallback(() => {
+        const seeds = graphtyRef.current?.session?.selection.nodes ?? [];
+
+        if (seeds.length > 0) {
+            setEgoNetwork({ kind: "neighborhood", seeds, depth: egoFilter?.depth ?? 1 });
+        }
+    }, [egoFilter, setEgoNetwork]);
 
     /* `runFindGroups` is declared further down; a load reaches it through this ref. */
     const runFindGroupsRef = useRef<
@@ -2571,7 +2619,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         setSelectedNode({
             id: String(detail.currentNodeId),
-            elementId: detail.currentNodeId,
             attributes: detail.currentNodeData,
         });
     }, []);
@@ -2654,7 +2701,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const read = (): void => {
             setCaseNoteCount(session.notes.list({ target: { graph: true } }).length);
             setSelectedNodeNotes(
-                selectedNode === null ? [] : session.notes.list({ target: { node: selectedNode.elementId } }),
+                selectedNode === null ? [] : session.notes.list({ target: { node: selectedNode.id } }),
             );
         };
 
@@ -3404,6 +3451,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setSectionOpen(INSPECTOR_SECTION_IDS.nodeNotes, true);
                 focusWhenMounted('[data-testid="node-note-input"]');
             },
+            egoNetwork: showEgoNetwork,
             keyboardShortcuts: () => {
                 openFullPanelOverlay("shortcuts");
             },
@@ -3795,6 +3843,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         selectedNode !== null,
         activeResult !== null,
         selectedLayerId !== null && layers.some((layer) => layer.id === selectedLayerId),
+        selectionStatistics !== null,
     );
 
     /**
@@ -3816,13 +3865,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * @returns one row per DISTINCT neighbour, in edge-record order.
      */
     const neighborsOf = useCallback(
-        (elementId: string | number): readonly NeighborRow[] => {
+        (nodeId: string): readonly NeighborRow[] => {
             const rows: NeighborRow[] = [];
             const seen = new Set<string>();
-            const nodeId = String(elementId);
             /* The element answers which edges touch the node; every edge of the node, and
                none of the rest of the graph. */
-            const edges = graphRecords?.data.edgePage({ touching: elementId, limit: Infinity }).records ?? [];
+            const edges = graphRecords?.data.edgePage({ touching: nodeId, limit: Infinity }).records ?? [];
 
             for (const edge of edges) {
                 const { source, target } = edgeEndpoints(edge);
@@ -3864,20 +3912,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * The set is re-read from the element afterwards rather than edited here. The element is
      * where a pin lives, and it is the only thing that knows about the pins this shell did not
      * make.
-     * @param elementId - the node, as the element spells its id.
+     * @param nodeId - the node.
      */
-    const togglePin = useCallback((elementId: string | number) => {
+    const togglePin = useCallback((nodeId: string) => {
         const positions = graphtyRef.current?.session?.positions;
 
         if (positions === undefined) {
             return;
         }
 
-        const change = positions.pinned.has(elementId) ? positions.unpin([elementId]) : positions.pin([elementId]);
+        const change = positions.pinned.has(nodeId) ? positions.unpin([nodeId]) : positions.pin([nodeId]);
 
         void change.then(
             () => {
-                setPinnedNodes(new Set(positions.pinned));
+                setPins({ pinned: positions.pinned });
             },
             (error: unknown) => {
                 console.error("[shell] the element refused the pin:", error);
@@ -3980,6 +4028,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, []);
 
     const inspectorSelection = useMemo<InspectorSelection>(() => {
+        if (selectionStatistics !== null) {
+            const { nodes, edges } = selectionStatistics;
+            // 6.2's zero rule: the zero half of the count is not drawn.
+            const countLabel = [
+                nodes === 0 ? null : `${formatCount(nodes)} ${pluralise(nodes, "node")}`,
+                edges === 0 ? null : `${formatCount(edges)} ${pluralise(edges, "edge")}`,
+            ]
+                .filter((part) => part !== null)
+                .join(", ");
+
+            return {
+                kind: "multiple",
+                selection: { countLabel, statistics: selectionStatistics, onAction: () => undefined },
+            };
+        }
+
         /* A layer picked in the Style panel opens that layer's surface. It outranks the
            result and the graph summary because it is the reader's own most recent pick,
            and it yields to a selected node for the same reason -- a node selection is
@@ -4144,7 +4208,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
-        const neighbors = neighborsOf(selectedNode.elementId);
+        const neighbors = neighborsOf(selectedNode.id);
         const { attributes } = selectedNode;
 
         return {
@@ -4173,7 +4237,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     openDrawerOn("nodes");
                 },
                 onAddNote: (text: string) => {
-                    session?.notes.add({ text, targets: [{ node: selectedNode.elementId }] });
+                    session?.notes.add({ text, targets: [{ node: selectedNode.id }] });
                 },
                 // One undoable step in the element's history, so Undo brings the note back.
                 onDeleteNote: (noteId: string) => {
@@ -4192,13 +4256,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onSeeAllNeighbors: () => {
                     openDrawerOn("edges");
                 },
-                pinnedToCanvas: pinnedNodes.has(selectedNode.elementId),
+                pinnedToCanvas: pins?.pinned.has(selectedNode.id) === true,
                 onUnpinFromCanvas: () => {
-                    togglePin(selectedNode.elementId);
+                    togglePin(selectedNode.id);
                 },
                 onAction: (action) => {
                     if (action === "pinNode") {
-                        togglePin(selectedNode.elementId);
+                        togglePin(selectedNode.id);
+                    } else if (action === "egoNetwork") {
+                        showEgoNetwork();
                     }
                 },
             },
@@ -4220,14 +4286,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         openCaseNotes,
         openDrawerOn,
         openPanelAt,
-        pinnedNodes,
+        pins,
         removeResult,
         removeResultLayers,
         resolveLayerChannel,
         selectedLayerId,
         selectedNode,
         selectedNodeNotes,
+        selectionStatistics,
         session,
+        showEgoNetwork,
         togglePin,
         updateLayer,
         zoomToSelection,
@@ -4872,6 +4940,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                       },
                   }
                 : undefined,
+        ...(egoFilter === null
+            ? {}
+            : {
+                  filterStatus: {
+                      chips: [],
+                      controls: (
+                          <EgoNetworkControl
+                              depth={egoFilter.depth}
+                              onDepthChange={(depth) => {
+                                  setEgoNetwork({ ...egoFilter, depth });
+                              }}
+                              onClear={() => {
+                                  setEgoNetwork(null);
+                              }}
+                          />
+                      ),
+                  },
+              }),
     };
 
     const visibleNodeCount = nodeCount;
@@ -5107,7 +5193,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                     presentation={presentation}
                                     selectionKind={selectionKind}
                                     kindLabel={INSPECTOR_KIND_LABELS[selectionKind]}
-                                    identityLabel={selectedNode?.id}
+                                    identityLabel={selectionStatistics === null ? selectedNode?.id : undefined}
                                     pinned={dataLoaded && inspectorPinned}
                                     onCopyReading={() => {
                                         copyReading(inspectorReadingForCopy);

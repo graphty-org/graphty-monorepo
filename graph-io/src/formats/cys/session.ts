@@ -8,13 +8,17 @@
 
 import { readBytes, textChunks } from "../../common/input.js";
 import { type ResolvedImportOptions } from "../../common/options.js";
+import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { tokenizeXml, xmlDeclaredEncoding, XmlSyntaxError } from "../../common/xml.js";
 import { readZipDirectory, readZipEntry, type ZipEntry, ZipError } from "../../common/zip.js";
 import { ImportError, type ImportInput } from "../../types.js";
 import { CYS_ISSUE, FORMAT, MAX_RATIO } from "./constants.js";
 
-/** An entry of the session, by its path under the session's root folder. */
+/**
+ * An entry of the session, by its path under the session's root folder.
+ * @category Plugin helpers
+ */
 export interface SessionEntry {
     /** The path under the root folder, as the archive spells it (URL-encoded parts). */
     readonly path: string;
@@ -24,7 +28,10 @@ export interface SessionEntry {
     readonly zip: ZipEntry;
 }
 
-/** A 3.x network file: one root network (a collection). */
+/**
+ * A 3.x network file: one root network (a collection).
+ * @category Plugin helpers
+ */
 export interface NetworkEntry extends SessionEntry {
     /** The root network's saved SUID. */
     readonly suid: string;
@@ -40,7 +47,10 @@ interface ViewEntry extends SessionEntry {
     readonly view: string;
 }
 
-/** A 3.x table file. */
+/**
+ * A 3.x table file.
+ * @category Plugin helpers
+ */
 export interface TableEntry extends SessionEntry {
     /** The path under `tables/` (what `cytables.xml` names). */
     readonly tablePath: string;
@@ -77,15 +87,22 @@ interface SessionLayout {
     readonly skipped: readonly string[];
 }
 
-/** An opened session: its bytes, its layout and an entry reader within the byte budget. */
+/**
+ * An opened session: its bytes, its layout and an entry reader within the byte budget.
+ * @category Plugin helpers
+ */
 export interface Session {
     readonly layout: SessionLayout;
     /**
-     * Inflate one entry.
+     * Inflate one entry. Each entry counts against the byte budget and the progress once, however
+     * often it is read.
      * @param entry - the entry
+     * @param report - the report a damaged or over-budget entry fails (the network being imported)
      * @returns its bytes
      */
-    read(entry: SessionEntry): Promise<Uint8Array>;
+    read(entry: SessionEntry, report: ImportReportBuilder): Promise<Uint8Array>;
+    /** Report the progress complete: the import has read everything it needs. */
+    done(): void;
 }
 
 /**
@@ -93,6 +110,7 @@ export interface Session {
  * text as it is.
  * @param text - the encoded text
  * @returns the decoded text
+ * @category Plugin helpers
  */
 export function urlDecode(text: string): string {
     const plus = text.replace(/\+/g, " ");
@@ -139,24 +157,39 @@ export async function openSession(
     const layout = layoutOf(zipEntries, report);
     let budget = maxBytes;
     let inflated = 0;
-    const total = zipEntries.reduce((sum, e) => sum + e.size, 0);
+    // the progress total: the entries the importer may read, not images and app files
+    const total = [
+        ...layout.networks,
+        ...layout.views,
+        ...layout.tables,
+        ...layout.files.values(),
+        ...[layout.cytables, layout.networkList, layout.cysession].filter((e) => e !== null),
+    ].reduce((sum, e) => sum + e.zip.size, 0);
+    const charged = new Set<string>();
     return {
         layout,
-        read: async (entry: SessionEntry): Promise<Uint8Array> => {
+        read: async (entry: SessionEntry, into: ImportReportBuilder): Promise<Uint8Array> => {
+            const first = !charged.has(entry.name);
             const before = inflated;
             try {
                 const data = await readZipEntry(bytes, entry.zip, {
                     signal: common.signal,
-                    maxBytes: budget,
+                    maxBytes: first ? budget : entry.zip.size,
                     maxRatio: MAX_RATIO,
-                    onBytes: (n) => common.onProgress?.(before + n, total),
+                    onBytes: first ? (n): void => common.onProgress?.(Math.min(before + n, total), total) : undefined,
                 });
-                budget -= data.byteLength;
-                inflated += data.byteLength;
+                if (first) {
+                    charged.add(entry.name);
+                    budget -= data.byteLength;
+                    inflated += data.byteLength;
+                }
                 return data;
             } catch (err) {
-                return zipFailure(err, report);
+                return zipFailure(err, into);
             }
+        },
+        done: (): void => {
+            common.onProgress?.(total, total);
         },
     };
 }
@@ -184,6 +217,20 @@ function zipFailure(err: unknown, report: ImportReportBuilder): never {
     report.fail(code, err.message);
 }
 
+/**
+ * The session marker of the archive: the shallowest entry whose name ends in `.version` (a
+ * session re-zipped inside another folder keeps its layout one level down), else null.
+ * @param names - the entry names
+ * @param suffix - the marker's file name pattern
+ * @returns the names of the shallowest such entries, in directory order
+ */
+function shallowest(names: readonly string[], suffix: RegExp): string[] {
+    const depth = (name: string): number => name.split("/").length;
+    const found = names.filter((n) => suffix.test(n));
+    const least = Math.min(...found.map(depth));
+    return found.filter((n) => depth(n) === least);
+}
+
 /** A 3.x network entry name: `<SUID>[-<name>].xgmml`. */
 const NETWORK_FILE = /^networks\/(\d+)(?:-([^/]*))?\.xgmml$/;
 /** A 3.x view entry name: `<networkSUID>-<viewSUID>[-<title>].xgmml`. */
@@ -206,25 +253,35 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
     const byName = new Map<string, ZipEntry>();
     const repeated: string[] = [];
     for (const entry of zipEntries) {
-        if (entry.directory || NOISE.test(entry.name)) {
+        // a Windows tool may write backslashes, which APPNOTE 4.4.17 forbids: read them as "/"
+        const name = entry.name.replaceAll("\\", "/");
+        if (name.endsWith("/") || NOISE.test(name)) {
             continue;
         }
-        if (byName.has(entry.name)) {
-            repeated.push(entry.name);
+        if (byName.has(name)) {
+            repeated.push(name);
             continue;
         }
-        byName.set(entry.name, entry);
+        byName.set(name, entry);
     }
     if (repeated.length > 0) {
         report.warning(
             "unsupported",
             CYS_ISSUE.DUPLICATE_ENTRY,
-            `${repeated.length} entry name(s) appear more than once; the first of each is read: ${listed(repeated)}`,
+            `${repeated.length} entry name${plural(repeated.length)} appear more than once; the first of each is read: ${listed(repeated)}`,
         );
     }
     const names = [...byName.keys()];
-    const marker = names.find((n) => /^([^/]*\/)?[^/]+\.version$/.test(n));
-    const cysession = names.find((n) => /^([^/]*\/)?cysession\.xml$/.test(n));
+    const markers = shallowest(names, /(^|\/)[^/]+\.version$/);
+    const marker = markers.at(0);
+    const cysession = shallowest(names, /(^|\/)cysession\.xml$/).at(0);
+    if (markers.length > 1) {
+        report.warning(
+            "validation-error",
+            CYS_ISSUE.ENTRY_SKIPPED,
+            `the session has ${markers.length} version markers (${listed(markers)}); ${markers[0]} is used and the others are not read`,
+        );
+    }
     if (marker === undefined && cysession === undefined) {
         report.fail(
             CYS_ISSUE.NOT_SESSION,
@@ -237,8 +294,14 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
     let version = "2.0.0";
     if (marker !== undefined) {
         version = marker.slice(root.length, -".version".length);
+        if (!/^\d+(\.\d+)*$/.test(version)) {
+            report.fail(
+                CYS_ISSUE.VERSION,
+                `the session version marker ${marker} does not parse as a version (<major>.<minor>.<patch>.version)`,
+            );
+        }
         const major = Number(version.split(".")[0]);
-        if (!Number.isInteger(major) || major > 3) {
+        if (major > 3) {
             report.fail(
                 CYS_ISSUE.VERSION,
                 `the session version ${version} is newer than the Cytoscape 3 sessions graph-io reads`,
@@ -262,7 +325,7 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
     };
     for (const [name, zip] of byName) {
         if (!name.startsWith(root) || name === marker) {
-            if (name !== marker) {
+            if (name !== marker && !markers.includes(name)) {
                 layout.skipped.push(name);
             }
             continue;
@@ -300,12 +363,17 @@ function classify3(entry: SessionEntry, layout: Mutable): void {
             "org.cytoscape.model.CyEdge": "edge",
             "org.cytoscape.model.CyNetwork": "network",
         }[urlDecode(table[4])] as TableEntry["element"] | undefined;
+        if (element === undefined) {
+            // a table of an element class graph-io has no model for
+            layout.skipped.push(entry.name);
+            return;
+        }
         layout.tables.push({
             ...entry,
             tablePath: table[1],
             network: table[2],
             namespace: urlDecode(table[3]),
-            element: element ?? null,
+            element,
         });
     } else if (path === "apps/org.cytoscape.swing-application/network_list.xml") {
         layout.networkList = entry;
@@ -343,13 +411,27 @@ type Mutable = {
  * A list of names for a message: the first ten, then a count.
  * @param names - the names
  * @returns the text
+ * @category Plugin helpers
  */
 export function listed(names: readonly string[]): string {
-    const head = names.slice(0, 10).join(", ");
+    const head = names.slice(0, 10).map(entryLabel).join(", ");
     return names.length > 10 ? `${head} and ${names.length - 10} more` : head;
 }
 
-/** One element of a small XML document, as a tree. */
+/**
+ * An entry name as a message shows it: without the session folder every entry sits in
+ * (`CytoscapeSession-2026_10_02-12_00/networks/10-Collection.xgmml` is `networks/10-Collection.xgmml`).
+ * @param name - the zip entry name
+ * @returns the name inside the session
+ */
+export function entryLabel(name: string): string {
+    return name.replace(/^[^/]*CytoscapeSession[^/]*\//, "");
+}
+
+/**
+ * One element of a small XML document, as a tree.
+ * @category Plugin helpers
+ */
 export interface XmlNode {
     /** The local name. */
     readonly name: string;
@@ -374,11 +456,30 @@ export async function readXmlTree(
     report: ImportReportBuilder,
     common: ResolvedImportOptions,
 ): Promise<XmlNode> {
+    const tree = await parseXmlTree(bytes, entry, report, common);
+    return typeof tree === "string" ? report.fail(CYS_ISSUE.CORRUPT, `${entry}: ${tree}`) : tree;
+}
+
+/**
+ * Read a small XML entry as a tree; its decoding warnings (W_ENCODING_FALLBACK,
+ * W_UNKNOWN_ENCODING) go into the report with the entry name.
+ * @param bytes - the entry's bytes
+ * @param entry - the entry name
+ * @param report - the report
+ * @param common - cancellation
+ * @returns the root element, or why the entry cannot be read
+ */
+export async function parseXmlTree(
+    bytes: Uint8Array,
+    entry: string,
+    report: ImportReportBuilder,
+    common: ResolvedImportOptions,
+): Promise<XmlNode | string> {
     const scratch = new ImportReportBuilder(FORMAT, 0);
     const stack: XmlNode[] = [{ name: "", attrs: new Map(), children: [] }];
     try {
         await tokenizeXml(
-            textChunks(bytes, scratch, { signal: common.signal, declaredEncoding: xmlDeclaredEncoding }),
+            textChunks(bytes, scratch, { signal: common.signal, declaredEncoding: xmlDeclaredEncoding, xml: true }),
             {
                 start(name, attrs): void {
                     const node: XmlNode = { name: name.slice(name.lastIndexOf(":") + 1), attrs, children: [] };
@@ -395,15 +496,21 @@ export async function readXmlTree(
         );
     } catch (err) {
         if (err instanceof XmlSyntaxError || err instanceof ImportError) {
-            report.fail(CYS_ISSUE.CORRUPT, `${entry}: ${err.message}`);
+            return err.message;
         }
         throw err;
     }
-    const [root] = stack[0].children;
-    if (root === undefined) {
-        report.fail(CYS_ISSUE.CORRUPT, `${entry}: the document is empty`);
+    // the decoder's warnings (an encoding fallback, an unknown declared encoding) name the entry
+    for (const issue of scratch.issues) {
+        if (issue.severity === "warning") {
+            report.warning(issue.category, issue.code, `${entry}: ${issue.message}`, {
+                line: issue.line,
+                element: entry,
+            });
+        }
     }
-    return root;
+    const [root] = stack[0].children;
+    return root ?? "the document is empty";
 }
 
 /**
@@ -411,6 +518,7 @@ export async function readXmlTree(
  * @param node - the tree
  * @param name - the local name
  * @returns the elements
+ * @category Plugin helpers
  */
 export function elementsNamed(node: XmlNode, name: string): XmlNode[] {
     const out: XmlNode[] = [];

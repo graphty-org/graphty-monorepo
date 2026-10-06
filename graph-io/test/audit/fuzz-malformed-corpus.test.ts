@@ -39,6 +39,8 @@ const ACCEPTED: Readonly<Record<string, string>> = {
         "a repeated node id is a warning (W_DUPLICATE_NODE): the second merges into the first, as in every graph-io importer",
     "dot/invalid-keyword.gv": "Graphviz reads a bare identifier as a node and `a = b` as a graph attribute",
     "dot/missing-arrow.gv": "Graphviz reads `A B;` as two node statements",
+    "json/missing-edges.json": "a node-link document without its links is a graph without edges (W_MISSING_SECTION)",
+    "json/missing-nodes.json": "a node-link document without its nodes takes them from the links (W_MISSING_SECTION)",
     "graphml/invalid-edge-reference.graphml": "undeclared endpoints are created under addMissingNodes (the default)",
     "pajek/missing-edges-section.net": "a vertices-only network is legal (W_PAJEK_NO_LINES)",
     "pajek/wrong-vertex-count.net": "fewer vertex lines than *Vertices declares is legal (W_PAJEK_VERTEX_COUNT)",
@@ -106,7 +108,9 @@ describe("fuzz audit: every malformed corpus file", () => {
                     expect(error?.message.length).toBeGreaterThan(0);
                     expectPopulated(report, format);
                     expect(report.errorCount).toBeGreaterThanOrEqual(1);
-                    expect(report.truncated).toBe(true);
+                    // truncated means the error limit stopped the import; a fatal error (fail()) is not
+                    // the limit, so it leaves the flag false (it was set for both before)
+                    expect(report.truncated).toBe(error?.details.limit !== undefined);
                     // the error that aborted is the last issue and is an error
                     const last = report.issues[report.issues.length - 1];
                     expect(last.severity).toBe("error");

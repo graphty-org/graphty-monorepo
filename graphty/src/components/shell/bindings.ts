@@ -603,8 +603,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         action: "Ego network of the selection",
         scope: "global",
         owner: "dispatcher",
-        shipped: false,
-        note: "NOT SHIPPED: The ego-network view is new work.",
+        shipped: true,
         preventDefault: false,
     },
     {

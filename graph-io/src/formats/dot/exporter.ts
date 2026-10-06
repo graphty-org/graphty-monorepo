@@ -22,9 +22,10 @@ import { capabilities, checkCapabilities, countMixedEdges, LOSS, sanitizeIds } f
 import { formatDecimal, formatF32, formatF64, formatInteger, idText } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
-import { encodeChunks, joinText } from "../../common/writer.js";
+import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     CLUSTER_COLUMN,
@@ -38,23 +39,47 @@ import {
     TARGET_PORT_COLUMN,
 } from "./names.js";
 
-/** The DOT exporter's format-specific options. */
-export interface DotExportOptions {
-    /** The indentation of one nesting level; four spaces by default. */
-    indent?: string | undefined;
-    /** The graph name to write; `meta.name` by default, null for an anonymous graph. */
+/**
+ * The DOT exporter's format-specific options.
+ * @category Built-in formats
+ */
+export interface DotExportOptions extends CommonExportOptions {
+    /**
+     * The indentation of one nesting level: a number of spaces, or the text itself (spaces or tabs,
+     * such as "\t").
+     * @defaultValue 4
+     */
+    indent?: number | string | undefined;
+    /**
+     * The graph name to write, or null for an anonymous graph. The default is the graph's name
+     * (`snapshot.meta.name`), which a DOT, GML or GEXF import keeps.
+     * @defaultValue the graph's name
+     */
     name?: string | null | undefined;
-    /** Whether to write `strict`; by default when `meta.extra.dot.strict` is true. */
+    /**
+     * Whether to write the `strict` keyword. The default is to write it when the graph was read
+     * from a strict DOT file.
+     * @defaultValue as read
+     */
     strict?: boolean | undefined;
 }
 
-/** The LossNote codes of the DOT exporter; the shared ones are LOSS's. */
+/**
+ * The LossNote codes of the DOT exporter; the shared ones are LOSS's.
+ * @category Built-in formats
+ */
 export const DOT_LOSS = Object.freeze({
-    /** An id, name or text with a backslash before a quote or a line break, or at its end, cannot be written as a DOT quoted string; export() throws. */
+    /**
+     * An id, name or text with a backslash before a quote or a line break, or at its end, cannot be written as a DOT
+     * quoted string; the save fails.
+     */
     TRAILING_BACKSLASH: "E_DOT_TRAILING_BACKSLASH",
-    /** A non-finite f32 / f64 cell has no numeric DOT spelling and reads back as text. */
+    /** NaN or an infinity has no DOT number spelling; it is written as text and reads back as text. */
     NON_FINITE: "W_DOT_NON_FINITE",
-    /** Text cells that look like numbers or booleans read back as such (DOT attribute values are untyped). */
+    /**
+     * A text value that reads back as a number or a boolean, because the format does not record that it was text (the
+     * text "42" reads back as the number 42).
+     */
     TEXT_INFERRED: LOSS.TEXT_INFERRED,
     /** A plain column named like an attribute the exporter writes for a role (weight, key, pos) is not written. */
     ATTRIBUTE_CLASH: "W_DOT_ATTRIBUTE_CLASH",
@@ -64,11 +89,14 @@ export const DOT_LOSS = Object.freeze({
     PARENTS_DROPPED: LOSS.PARENTS,
     /** A position column that is not a node column of 2 or 3 components is not written. */
     POSITION_SHAPE: "W_DOT_POSITION_SHAPE",
-    /** An id whose text reads back as the other type under ids: "canonical" (1.5 as text, "1" as 1). */
+    /** An id that reads back as a different type, such as the decimal 1.5 as text or the text "1" as the number 1. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /** A declared column whose every row is unset is not written (DOT writes cells, never declarations). */
     EMPTY_COLUMN_DROPPED: LOSS.EMPTY_COLUMN,
-    /** A role-less column named `label` reads back with the label role. */
+    /**
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
+     * reads back with that role.
+     */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
     /** A parent that is a plain node is written as a node and a cluster of one name; it reads back marked as a cluster. */
     CLUSTER_MARKED: "W_DOT_CLUSTER_MARKED",
@@ -161,10 +189,12 @@ const SKIPPED_GRAPH_ROLES: ReadonlySet<string> = new Set(["position", "color", "
 const TEXT_ROLES: ReadonlySet<string> = new Set(["label", "id", "sourcePort", "targetPort"]);
 
 /**
- * The exporter plugin for DOT / Graphviz text (design section 12.4).
+ * The exporter plugin for DOT / Graphviz text.
+ * @category Built-in formats
  */
 export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
     format: DOT_FORMAT,
+    options: Object.freeze(["indent", "name", "strict"]),
     capabilities: CAPABILITIES,
 
     /**
@@ -286,6 +316,24 @@ function isTextualDtype(column: Column): boolean {
 }
 
 /**
+ * The E_UNSUPPORTED error of a DOT option with a value of the wrong type.
+ * @param option - the option name
+ * @param found - the caller's value
+ * @param expected - what the option takes, in words
+ * @returns the error
+ */
+function badOption(option: string, found: unknown, expected: string): GraphFormatError {
+    return new GraphFormatError(
+        "E_UNSUPPORTED",
+        `option ${option} of the DOT exporter: expected ${expected}, got ${JSON.stringify(found)}`,
+        {
+            option,
+            found,
+        },
+    );
+}
+
+/**
  * Everything one export needs to know about a snapshot, computed once and shared by check() and
  * write(): the output direction, the columns written per table, the cluster structure, and the
  * format-specific loss notes.
@@ -342,9 +390,16 @@ class ExportPlan {
     constructor(snapshot: GraphSnapshot, resolved: ResolvedExportOptions, options?: DotExportOptions) {
         this.snapshot = snapshot;
         this.resolved = resolved;
-        this.indent = options?.indent ?? DEFAULT_INDENT;
-        this.name = options?.name === undefined ? snapshot.meta.name : options.name;
-        this.strict = options?.strict ?? isStrictMeta(snapshot);
+        const { indent, name, strict } = options ?? {};
+        if (name !== undefined && name !== null && typeof name !== "string") {
+            throw badOption("name", name, "a string or null");
+        }
+        if (strict !== undefined && typeof strict !== "boolean") {
+            throw badOption("strict", strict, "a boolean");
+        }
+        this.indent = indentUnit(indent, DEFAULT_INDENT);
+        this.name = name === undefined ? snapshot.meta.name : name;
+        this.strict = strict ?? isStrictMeta(snapshot);
         this.mixed = countMixedEdges(snapshot);
         if (this.mixed > 0 && resolved.onMixedDirection !== "error") {
             this.directed = resolved.onMixedDirection === "directed";
@@ -452,7 +507,7 @@ class ExportPlan {
         if (unwritable > 0) {
             note(
                 DOT_LOSS.TRAILING_BACKSLASH,
-                `${unwritable} id(s), name(s) or text value(s) hold a backslash before a quote or a line break, or at the end, which a DOT quoted string cannot carry; export() will throw`,
+                `${unwritable} ids, names or text values hold a backslash before a quote or a line break, or at the end, which a DOT quoted string cannot carry; the save fails`,
                 null,
                 unwritable,
             );
@@ -490,7 +545,7 @@ class ExportPlan {
                     if (bad > 0) {
                         note(
                             DOT_LOSS.NON_FINITE,
-                            `${label} column "${column.meta.name}" holds ${bad} non-finite value(s) with no numeric DOT spelling; they read back as text`,
+                            `${label} column "${column.meta.name}" holds ${bad} non-finite value${plural(bad)} with no numeric DOT spelling; they read back as text`,
                             column.meta.name,
                             bad,
                         );
@@ -504,7 +559,7 @@ class ExportPlan {
                     if (typed > 0) {
                         note(
                             DOT_LOSS.TEXT_INFERRED,
-                            `${label} column "${column.meta.name}" holds ${typed} text value(s) that look like numbers or booleans; DOT values are untyped and they read back as such`,
+                            `${label} column "${column.meta.name}" holds ${typed} text value${plural(typed)} that look like numbers or booleans; DOT values are untyped and they read back as such`,
                             column.meta.name,
                             typed,
                         );
@@ -522,7 +577,7 @@ class ExportPlan {
         if (unmarked > 0) {
             note(
                 DOT_LOSS.CLUSTER_MARKED,
-                `${unmarked} parent node(s) are written as a node and a cluster of the same name and read back with "${CLUSTER_COLUMN}" true`,
+                `${unmarked} parent node${plural(unmarked)} ${agree(unmarked, "is", "are")} written as a node and a cluster of the same name and read back with "${CLUSTER_COLUMN}" true`,
                 CLUSTER_COLUMN,
                 unmarked,
             );
@@ -531,7 +586,7 @@ class ExportPlan {
         if (mutual > 0) {
             note(
                 DOT_LOSS.MUTUAL_EXPANDED,
-                `${mutual} mutual pair(s) are written as two directed edges each; the mutual mark is lost`,
+                `${mutual} mutual pair${plural(mutual)} ${agree(mutual, "is", "are")} written as two directed edges each; the mutual mark is lost`,
                 null,
                 mutual,
             );
@@ -571,7 +626,7 @@ class ExportPlan {
         if (textIds > 0) {
             note(
                 DOT_LOSS.ID_TEXT_TYPE,
-                `${textIds} node id(s) read back as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
+                `${textIds} node id${plural(textIds)} ${agree(textIds, "reads", "read")} back as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
                 null,
                 textIds,
             );
@@ -587,7 +642,7 @@ class ExportPlan {
         if (this.mixed > 0 && this.resolved.onMixedDirection === "error") {
             throw new GraphFormatError(
                 "E_DIRECTED",
-                `${this.mixed} undirected edge(s) in a directed graph; DOT has no mixed direction and onMixedDirection is "error"`,
+                `${this.mixed} undirected edge${plural(this.mixed)} in a directed graph, and DOT holds one direction per file, so the save fails unless onMixedDirection is "directed" or "undirected"`,
                 { reason: LOSS.MIXED_DIRECTION_ERROR, count: this.mixed },
             );
         }

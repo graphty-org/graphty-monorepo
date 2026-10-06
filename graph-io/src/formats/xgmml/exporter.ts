@@ -20,6 +20,7 @@ import { escapeXmlAttribute, escapeXmlText } from "../../common/escape.js";
 import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
 import { formatF32, formatF64, idText } from "../../common/format.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
@@ -48,11 +49,18 @@ import {
 } from "./constants.js";
 import { aliasesOf } from "./emit.js";
 
-/** The format-specific options of the XGMML exporter. */
-export interface XgmmlExportOptions {
+/** The two escapes Cytoscape reads back as a newline and a tab, as a message writes them. */
+const LITERAL_ESCAPES = String.raw`\n or \t`;
+
+/**
+ * The format-specific options of the XGMML exporter.
+ * @category Built-in formats
+ */
+export interface XgmmlExportOptions extends CommonExportOptions {
     /**
-     * Write newline and tab in string values as Cytoscape's two-character `\n` and `\t` (what the
-     * Cytoscape writer does) instead of the character references `&#10;` and `&#9;` (default).
+     * Write line breaks and tabs in text values as Cytoscape's two-character `\n` and `\t`, as
+     * Cytoscape does, instead of the XML character references `&#10;` and `&#9;`.
+     * @defaultValue false
      */
     cytoscapeEscapes?: boolean | undefined;
 }
@@ -481,7 +489,7 @@ function attNotes(column: Column, domain: string, note: NoteFn): void {
         if (escapes > 0) {
             note(
                 XGMML_LOSS.BACKSLASH_ESCAPE,
-                `${label}: ${escapes} value(s) hold a literal \\n or \\t, which Cytoscape's escape convention reads back as a newline or tab`,
+                `${label}: ${escapes} value${plural(escapes)} ${agree(escapes, "holds", "hold")} a literal ${LITERAL_ESCAPES}, which Cytoscape's escape convention reads back as a newline or tab`,
                 meta.name,
                 escapes,
             );
@@ -498,7 +506,7 @@ function attNotes(column: Column, domain: string, note: NoteFn): void {
         if (readsAs !== meta.dtype) {
             note(
                 XGMML_LOSS.STORAGE_CLASS_CHANGED,
-                `${label} reads back as ${readsAs} (the cardinality heuristic)`,
+                `${label} reads back as ${readsAs}: the importer stores text with few distinct values as dict and other text as string; the values are the same`,
                 meta.name,
                 null,
             );
@@ -540,7 +548,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
     if (folding.mutualCount > 0) {
         note(
             XGMML_LOSS.MUTUAL_EXPANDED,
-            `${folding.mutualCount} mutual pair(s) are written as two directed edges; the mutual mark is lost`,
+            `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two directed edges; the mutual mark is lost`,
             null,
             folding.mutualCount,
         );
@@ -549,7 +557,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
     if (numericIds > 0) {
         note(
             XGMML_LOSS.ID_TEXT_TYPE,
-            `${numericIds} numeric node id(s) are written as text and read back as strings`,
+            `${numericIds} numeric node id${plural(numericIds)} ${agree(numericIds, "is", "are")} written as text and read back as strings`,
             null,
             numericIds,
         );
@@ -567,7 +575,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
     if (hierarchy.unreachable > 0) {
         note(
             XGMML_LOSS.PARENT_CYCLE,
-            `${hierarchy.unreachable} node(s) whose parent chain never reaches a root are written at the top level and lose their parent`,
+            `${hierarchy.unreachable} node${plural(hierarchy.unreachable)} whose parent chain never reaches a root ${agree(hierarchy.unreachable, "is", "are")} written at the top level and lose their parent`,
             null,
             hierarchy.unreachable,
         );
@@ -596,7 +604,12 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
     const weights = explicitWeights(snapshot);
     for (const column of snapshot.edges) {
         if (column.meta.name === "weight" && column.meta.role === null && !weights.weighted) {
-            note(LOSS.WEIGHT_KEY_CLASH, `edge column "weight" reads back as THE weight`, "weight", null);
+            note(
+                LOSS.WEIGHT_KEY_CLASH,
+                `edge column "weight" reads back as the edge weight, not as a column`,
+                "weight",
+                null,
+            );
         }
     }
     return {
@@ -635,7 +648,7 @@ function interactionNote(snapshot: GraphSnapshot, note: NoteFn): void {
     if (shaped > 0) {
         note(
             XGMML_LOSS.INTERACTION_FROM_LABEL,
-            `${shaped} edge label(s) have Cytoscape's "a (i) b" shape and read back with an "${INTERACTION_COLUMN}" column`,
+            `${shaped} edge label${plural(shaped)} ${agree(shaped, "has", "have")} Cytoscape's "a (i) b" shape and read back with an "${INTERACTION_COLUMN}" column`,
             INTERACTION_COLUMN,
             shaped,
         );
@@ -691,7 +704,7 @@ function positionNotes(position: Column, snapshot: GraphSnapshot, note: NoteFn):
     if (meta.components !== 3) {
         note(
             XGMML_LOSS.POSITION,
-            `position column "${meta.name}" has ${meta.components} component(s) and reads back with 3`,
+            `position column "${meta.name}" has ${meta.components} component${plural(meta.components)} and reads back with 3`,
             meta.name,
             null,
         );
@@ -712,7 +725,7 @@ function positionNotes(position: Column, snapshot: GraphSnapshot, note: NoteFn):
     if (nonFinite > 0) {
         note(
             XGMML_LOSS.POSITION,
-            `${nonFinite} position(s) with a non-finite coordinate are not written`,
+            `${nonFinite} position${plural(nonFinite)} with a non-finite coordinate ${agree(nonFinite, "is", "are")} not written`,
             meta.name,
             nonFinite,
         );
@@ -722,8 +735,8 @@ function positionNotes(position: Column, snapshot: GraphSnapshot, note: NoteFn):
         note(
             XGMML_LOSS.POSITION,
             zColumn === null
-                ? `${depth} position(s) have a z; it is written as graphics z and reads back in the z column (zAs: "position" reads it as a coordinate)`
-                : `${depth} position(s) have a z, but graphics z holds the z column; the position z is lost`,
+                ? `${depth} position${plural(depth)} ${agree(depth, "has", "have")} a z; it is written as graphics z and reads back in the z column (zAs: "position" reads it as a coordinate)`
+                : `${depth} position${plural(depth)} ${agree(depth, "has", "have")} a z, but graphics z holds the z column; the position z is lost`,
             meta.name,
             depth,
         );
@@ -1193,9 +1206,13 @@ function planFor(snapshot: GraphSnapshot, options: (XgmmlExportOptions & CommonE
     return plan;
 }
 
-/** The XGMML exporter. */
+/**
+ * The XGMML exporter.
+ * @category Built-in formats
+ */
 export const xgmmlExporter: GraphExporter<XgmmlExportOptions> = Object.freeze({
     format: FORMAT,
+    options: Object.freeze(["cytoscapeEscapes"]),
     capabilities: CAPABILITIES,
     check: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): readonly LossNote[] =>
         Object.freeze(planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes),

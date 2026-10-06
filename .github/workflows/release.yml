@@ -5,8 +5,9 @@ name: Release
 #
 # 1. Once a day (the schedule), or at once when the owner dispatches it (the ad hoc release), the train job finds
 #    the newest master commit green on every lane, versions it with nx release, and opens a "chore(release):
-#    publish" pull request holding only version fields and changelogs, labeled priority:critical. Mergify merges
-#    it ahead of waiting pull requests.
+#    publish" pull request holding only version fields and changelogs. Mergify merges it ahead of waiting pull
+#    requests (.mergify.yml's "release train" priority rule, which matches the branch, not a label) without
+#    interrupting the batches already being checked.
 # 2. That merge is a push to master, which starts the publish job: it tags each released package
 #    {projectName}@{version}, creates its GitHub release and publishes it to npm with trusted publishing (OIDC),
 #    from the build of the commit every lane tested.
@@ -131,15 +132,6 @@ jobs:
                   run-id: ${{ steps.lanes.outputs.ci_run_id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Keep the builds for the publish job
-              if: ${{ steps.lanes.outputs.release == 'true' }}
-              uses: actions/upload-artifact@v4
-              with:
-                  name: release-builds-${{ steps.lanes.outputs.sha }}
-                  path: ${{ runner.temp }}/builds
-                  retention-days: 30
-                  if-no-files-found: error
-
             - uses: pnpm/action-setup@v4
               if: ${{ steps.lanes.outputs.release == 'true' }}
 
@@ -154,6 +146,24 @@ jobs:
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
+
+            # The security audit lives here, not in CI: a high or critical advisory against the released commit's
+            # shipped (production) dependencies stops the release, daily and ad hoc alike, never an unrelated pull
+            # request. Development tools are left out: they are not published. To release past an advisory that
+            # does not apply, add its GHSA to package.json pnpm.auditConfig.ignoreGhsas with the reason.
+            - name: Security audit
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+              run: pnpm audit --prod --audit-level=high
+
+            # After the audit, so a release the audit blocks leaves no 30-day artifact behind.
+            - name: Keep the builds for the publish job
+              if: ${{ steps.lanes.outputs.release == 'true' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: release-builds-${{ steps.lanes.outputs.sha }}
+                  path: ${{ runner.temp }}/builds
+                  retention-days: 30
+                  if-no-files-found: error
 
             # A package listed in release-hold.json is left out of nx.json's release.projects in this checkout, so
             # it is neither versioned nor published -- not even as a dependent of a package that is released. An ad
@@ -227,7 +237,7 @@ jobs:
                       echo
                       echo "This pull request changes only version fields and changelogs (tools/release-diff.mjs). When it merges, release.yml tags each package, creates its GitHub release and publishes it to npm from that commit's tested build. Opened by ${run_url}."
                   } > "$RUNNER_TEMP/body.md"
-                  gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md" --label priority:critical
+                  gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
                   for context in "All Checks Pass" "Lint PR Title"; do
                       gh api "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}" -f state=success -f context="$context" \
                           -f description="release train: versions and changelogs only, on a commit green on every lane" \

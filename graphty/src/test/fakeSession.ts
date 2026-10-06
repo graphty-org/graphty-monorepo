@@ -942,6 +942,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
            drag, so every row is unplaced and the arrangement that keeps the data's own
            coordinates never wins. A board that wants the placed case states its own session. */
         notes: notesApi,
+        /* No filter is ever active here: the shell reads it to draw the ego network control. */
+        visibility: { filter: null },
         positions: {
             placedCount: 0,
             pinned,

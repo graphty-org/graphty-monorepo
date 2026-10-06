@@ -65,9 +65,10 @@
  *   graphty-element publishes no drag-cancel call. Rung 4 pauses time slider playback,
  *   and no time slider can be drawn until a Time role can be assigned. Both are
  *   recorded on the `escapeLadder` call below.
- * - **The filter status strip.** Nothing holds an active filter yet, so there is nothing
- *   to draw and no control claims otherwise. The Insights strip is no longer in this
- *   group -- the 7.3 rule table computes its cards and the strip is drawn from them.
+ * - **The filter status strip's chips.** The only filter the shell applies is the ego
+ *   network, which the strip draws as its depth control rather than as a chip. The
+ *   Insights strip is no longer in this group -- the 7.3 rule table computes its cards
+ *   and the strip is drawn from them.
  * - **The minimap.** It has nothing to project until graphty-element publishes node
  *   positions and camera changes (#293), and drawn before then it was an empty dark box.
  *   Its Views row carries the Coming tag and its M binding is unshipped, so no control
@@ -98,6 +99,7 @@ import {
     type Layer,
     type LayerSpec,
     type Note,
+    type RuleTree,
     type RunId,
     type SelectionDelta,
     type TransactionScope,
@@ -139,6 +141,7 @@ import { useCanvasBottomStack } from "./canvas/canvasBottomStack";
 import { readPersistedCanvasLayout, resolveCanvasLayout, writePersistedCanvasLayout } from "./canvas/canvasMemory";
 import { CanvasRegion, type CanvasRegionOwnProps } from "./canvas/CanvasRegion";
 import type { DataDrawerTab } from "./canvas/DataTableDrawer";
+import { EgoNetworkControl } from "./canvas/EgoNetworkControl";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
 import { legendAvailable } from "./canvas/legendAvailability";
@@ -2060,6 +2063,39 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         };
     }, [session]);
 
+    /* The ego network on the canvas is the element's own `neighborhood` visibility filter, read
+       back from the element so an undo or a project load moves the depth control with it. */
+    const [egoFilter, setEgoFilter] = useState<Extract<RuleTree, { kind: "neighborhood" }> | null>(null);
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+
+        const readEgoFilter = (): void => {
+            const { filter } = session.visibility;
+            setEgoFilter(filter?.kind === "neighborhood" ? filter : null);
+        };
+        readEgoFilter();
+
+        return session.on("visibility:changed", readEgoFilter);
+    }, [session]);
+
+    /* Shows the seeds and their neighbors out to `depth` hops, or the whole graph for null. */
+    const setEgoNetwork = useCallback((filter: Extract<RuleTree, { kind: "neighborhood" }> | null) => {
+        graphtyRef.current?.session?.visibility.set(filter).then(undefined, (error: unknown) => {
+            console.error("[shell] the element refused the ego network:", error);
+        });
+    }, []);
+
+    /* The Ego network verb and G: the selection's neighborhood, at the depth already chosen. */
+    const showEgoNetwork = useCallback(() => {
+        const seeds = graphtyRef.current?.session?.selection.nodes ?? [];
+
+        if (seeds.length > 0) {
+            setEgoNetwork({ kind: "neighborhood", seeds, depth: egoFilter?.depth ?? 1 });
+        }
+    }, [egoFilter, setEgoNetwork]);
+
     /* `runFindGroups` is declared further down; a load reaches it through this ref. */
     const runFindGroupsRef = useRef<
         (options: { readonly retiresInsightCard: boolean }, via?: TransactionScope) => Promise<void>
@@ -3404,6 +3440,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setSectionOpen(INSPECTOR_SECTION_IDS.nodeNotes, true);
                 focusWhenMounted('[data-testid="node-note-input"]');
             },
+            egoNetwork: showEgoNetwork,
             keyboardShortcuts: () => {
                 openFullPanelOverlay("shortcuts");
             },
@@ -4199,6 +4236,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onAction: (action) => {
                     if (action === "pinNode") {
                         togglePin(selectedNode.elementId);
+                    } else if (action === "egoNetwork") {
+                        showEgoNetwork();
                     }
                 },
             },
@@ -4228,6 +4267,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         selectedNode,
         selectedNodeNotes,
         session,
+        showEgoNetwork,
         togglePin,
         updateLayer,
         zoomToSelection,
@@ -4872,6 +4912,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                       },
                   }
                 : undefined,
+        ...(egoFilter === null
+            ? {}
+            : {
+                  filterStatus: {
+                      chips: [],
+                      controls: (
+                          <EgoNetworkControl
+                              depth={egoFilter.depth}
+                              onDepthChange={(depth) => {
+                                  setEgoNetwork({ ...egoFilter, depth });
+                              }}
+                              onClear={() => {
+                                  setEgoNetwork(null);
+                              }}
+                          />
+                      ),
+                  },
+              }),
     };
 
     const visibleNodeCount = nodeCount;

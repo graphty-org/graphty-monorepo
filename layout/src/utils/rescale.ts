@@ -41,15 +41,15 @@ export function rescaleLayout(
 
     // Fix Bug #1: Default center should match dimensionality
     if (!center) {
-        center = Array(dim).fill(0);
+        center = new Array(dim).fill(0);
     }
 
     // Use the maximum dimension between positions and center
     const targetDim = Math.max(dim, center.length);
 
     // Calculate center of positions, handling NaN values (Bug #3)
-    const posCenter: number[] = Array(dim).fill(0);
-    const counts: number[] = Array(dim).fill(0);
+    const posCenter: number[] = new Array(dim).fill(0);
+    const counts: number[] = new Array(dim).fill(0);
 
     for (const p of posValues) {
         for (let i = 0; i < dim; i++) {
@@ -69,7 +69,7 @@ export function rescaleLayout(
     let centeredPos: PositionMap | number[][] = {};
     if (Array.isArray(pos)) {
         centeredPos = pos.map((p) => {
-            const centered = Array(targetDim).fill(0);
+            const centered = new Array(targetDim).fill(0);
             for (let i = 0; i < targetDim; i++) {
                 centered[i] = (i < p.length ? p[i] : 0) - (i < posCenter.length ? posCenter[i] : 0);
             }
@@ -77,7 +77,7 @@ export function rescaleLayout(
         });
     } else {
         for (const [node, p] of Object.entries(pos)) {
-            const centered = Array(targetDim).fill(0);
+            const centered = new Array(targetDim).fill(0);
             for (let i = 0; i < targetDim; i++) {
                 centered[i] = (i < p.length ? p[i] : 0) - (i < posCenter.length ? posCenter[i] : 0);
             }
@@ -145,7 +145,7 @@ export function rescaleLayout(
         // All nodes at the same position - extend to target dimensionality
         if (Array.isArray(pos)) {
             (scaledPos as number[][]) = pos.map((p) => {
-                const result = Array(targetDim);
+                const result = new Array(targetDim);
                 for (let i = 0; i < targetDim; i++) {
                     if (i < p.length) {
                         result[i] = isNaN(p[i]) ? NaN : center[i];
@@ -157,7 +157,7 @@ export function rescaleLayout(
             });
         } else {
             for (const [node, p] of Object.entries(pos)) {
-                const result = Array(targetDim);
+                const result = new Array(targetDim);
                 for (let i = 0; i < targetDim; i++) {
                     if (i < p.length) {
                         result[i] = isNaN(p[i]) ? NaN : center[i];
@@ -223,7 +223,7 @@ export function rescaleLayoutDict(pos: PositionMap, scale: number = 1): Position
     } else {
         // All points at the center
         for (const node of Object.keys(centeredPos)) {
-            scaledPos[node] = Array(centeredPos[node].length).fill(0);
+            scaledPos[node] = new Array(centeredPos[node].length).fill(0);
         }
     }
 

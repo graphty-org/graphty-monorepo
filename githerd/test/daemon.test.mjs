@@ -906,7 +906,7 @@ describe("the poll loop", () => {
             ["would-do", "owner-items", "POST issues"],
             ["would-do", "owner-items", "POST issues"],
         ]);
-        expect(beats[0].body.body).toMatch(/^alive: \S+Z\nmode: \S+Z dry-run\nversion: /);
+        expect(beats[0].body.body).toMatch(/^alive: \S+Z\nmode: \S+Z dry-run\nlast complete poll: \S+Z\nversion: /);
         expect(beats[1].body.body).toContain("stopped: 2026-10-02T12:03:00.000Z shutdown");
         expect(gh.writes()).toEqual([]);
     });
@@ -1205,6 +1205,62 @@ describe("the poll loop", () => {
         clock = new Date("2026-10-02T12:37:00Z");
         expect(await daemon.poll()).toEqual({ ok: true });
         expect(daemon.state.escalations["github-down"].resolvedAt).toBe(clock.toISOString());
+    });
+
+    it("runs the rest of a poll when one step throws, and saves the state", async () => {
+        const daemon = await start({
+            peers: {
+                ownerFacts: async () => {
+                    throw new Error("Cannot read properties of null (reading 'databaseId')");
+                },
+            },
+        });
+        expect(await poll(daemon)).toEqual({ ok: false });
+        // The owner-item step, after the step that threw, still ran.
+        expect(daemon.state.paging).toBeDefined();
+        expect(saved().paging).toBeDefined();
+        const errors = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "error");
+        expect(errors.map((e) => e.where)).toEqual(["poll"]);
+        expect(errors[0].error).toContain("databaseId");
+    });
+
+    it("pages once when two polls in a row fail, ends the item at the next complete poll, and says so in the heartbeat", async () => {
+        let broken = true;
+        const daemon = await start({
+            peers: {
+                ownerFacts: async () => {
+                    if (broken) throw new Error("boom");
+                    return { pushLog: [], sessions: [], procs: [], worktrees: [] };
+                },
+            },
+        });
+        const failing = () => pages().filter((p) => p.message.includes("poll is failing"));
+        await poll(daemon);
+        expect(daemon.state.ownerItems?.["poll-failing"]).toBeUndefined();
+        expect(failing()).toEqual([]);
+
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        const item = daemon.state.ownerItems["poll-failing"];
+        expect(item.question).toBe("githerd's poll is failing: owners: boom (since 2026-10-02T12:00:00.000Z)");
+        expect(item.endedAt).toBeUndefined();
+        expect(failing()).toHaveLength(1);
+
+        clock = new Date("2026-10-02T12:06:00Z");
+        await poll(daemon);
+        expect(failing()).toHaveLength(1);
+
+        broken = false;
+        clock = new Date("2026-10-02T12:09:00Z");
+        expect(await poll(daemon)).toEqual({ ok: true });
+        expect(daemon.state.ownerItems["poll-failing"].endedAt).toBe(clock.toISOString());
+
+        const beats = (await readLedger(join(dir, ".githerd")))
+            .filter((e) => e.situation === "heartbeat")
+            .map((e) => e.body.body);
+        expect(beats.some((b) => b.includes("poll failing: 2026-10-02T12:00:00.000Z owners: boom"))).toBe(true);
+        expect(beats.at(-1)).toContain("last complete poll: 2026-10-02T12:09:00.000Z");
+        expect(beats.at(-1)).not.toContain("poll failing");
     });
 
     it("keeps its ETags in etags.json, so a restarted daemon asks conditionally", async () => {

@@ -5,7 +5,8 @@
  * 15 minutes, a cadence and not a timeout, and at once when a line other than the times changes.
  *
  * The body, line 1 exactly `alive: <ISO 8601 UTC>`, then `<key>: <ISO time> <text>` lines: `mode`,
- * `paused` while paused, one `stuck` per faulted job (oldest last: the watchdog keeps the last line
+ * `last complete poll` (the last poll that ran every step), `poll failing` (since when, and the first
+ * error) while polls fail, `paused` while paused, one `stuck` per faulted job (oldest last: the watchdog keeps the last line
  * of a key), `stopped` on a clean stop, `fatal` in fatal mode, and `version`.
  *
  * Only one open issue may carry the label: an open one is reused, never a second opened. The writes
@@ -26,7 +27,8 @@ const PIN = `mutation pinIssue($id: ID!) {
 }`;
 
 /**
- * @typedef {{mode: string, paused?: string | null, stuck?: {since: string, job: string}[],
+ * @typedef {{mode: string, lastPoll?: string | null, failing?: {since: string, error: string} | null,
+ *   paused?: string | null, stuck?: {since: string, job: string}[],
  *   stopped?: string | null, fatal?: string | null, version?: string | null}} Lines what the body
  *   says besides `alive`
  */
@@ -44,8 +46,13 @@ const oneLine = (text) => text.split(/\r?\n/, 1)[0].trim();
  * @param {Lines} lines what it says
  * @returns {string} the body
  */
-export function heartbeatBody(at, { mode, paused = null, stuck = [], stopped = null, fatal = null, version = null }) {
+export function heartbeatBody(
+    at,
+    { mode, lastPoll = null, failing = null, paused = null, stuck = [], stopped = null, fatal = null, version = null },
+) {
     const out = [`alive: ${at}`, `mode: ${at} ${mode}`];
+    if (lastPoll) out.push(`last complete poll: ${lastPoll}`);
+    if (failing) out.push(`poll failing: ${failing.since} ${oneLine(failing.error)}`);
     if (paused) out.push(`paused: ${at} ${oneLine(paused)}`);
     const newestFirst = [...stuck].sort((a, b) => b.since.localeCompare(a.since));
     for (const s of newestFirst) out.push(`stuck: ${s.since} ${s.job}`);
@@ -80,8 +87,9 @@ export async function writeHeartbeat({ github, repo, state, now, lines, final = 
     const hb = (state.heartbeat ??= { issue: null, at: null, shape: null });
     const at = new Date(now).toISOString();
     const body = heartbeatBody(at, lines);
-    // The body without its times: what changing calls for a write at once.
-    const shape = body.replaceAll(at, "");
+    // The body without its times: what changing calls for a write at once. Another complete poll
+    // is not news; a poll failing is.
+    const shape = body.replaceAll(at, "").replace(`last complete poll: ${lines.lastPoll}`, "");
     const acting = github.acting(GROUP);
     const due = !acting || final ? false : !hb.at || now - Date.parse(hb.at) >= CADENCE_MS;
     if (shape === hb.shape && !due) return false;

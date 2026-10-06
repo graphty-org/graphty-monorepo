@@ -1822,26 +1822,49 @@ export async function startDaemon({
         const prList = await gh.graphql(PRS_QUERY, { owner, name }, { purpose: "essential" });
         m.branch = prList.repository.defaultBranchRef.name;
         const branch = m.branch ?? "master";
-        await pollLanes(gh, branch, ms, derived);
-        if (pace.level === "normal") await laneProgress(gh, ms);
-        await followHead(gh, branch, prList.repository.defaultBranchRef.target.oid, iso);
-
-        const previousGreen = m.greenSha ?? null;
-        const previousVerdict = m.verdict ?? "unknown";
-        if (m.headSha)
-            Object.assign(m, masterVerdict(m.lanes, config, { headSha: m.headSha, commits, greenSha: previousGreen }));
-        else m.verdict = "unknown";
-        if (m.verdict !== previousVerdict) m.since = iso;
-        noteGreenMove(m, previousGreen, iso);
-        await track(m, previousGreen, iso);
-        linkFixes(prList.repository.pullRequests.nodes);
-        await incidentSteps();
-        if (config.lanes.release || config.release) checkRelease(m, ms, derived);
+        const nodes = prList.repository.pullRequests.nodes;
+        // Each step past the pull request list runs on its own: one that throws is recorded and the
+        // rest still run, so one bad item never stops the whole poll.
+        /** @type {string[]} the steps that threw, with their errors */
+        const failed = [];
+        /**
+         * Runs one step, recording an error instead of throwing it.
+         * @param {string} name the step's name, for the error
+         * @param {() => unknown} fn the step
+         */
+        const run = async (name, fn) => {
+            try {
+                await fn();
+            } catch (err) {
+                failed.push(`${name}: ${/** @type {Error} */ (err).message}`);
+            }
+        };
+        await run("master", async () => {
+            await pollLanes(gh, branch, ms, derived);
+            if (pace.level === "normal") await laneProgress(gh, ms);
+            await followHead(gh, branch, prList.repository.defaultBranchRef.target.oid, iso);
+            const previousGreen = m.greenSha ?? null;
+            const previousVerdict = m.verdict ?? "unknown";
+            if (m.headSha)
+                Object.assign(
+                    m,
+                    masterVerdict(m.lanes, config, { headSha: m.headSha, commits, greenSha: previousGreen }),
+                );
+            else m.verdict = "unknown";
+            if (m.verdict !== previousVerdict) m.since = iso;
+            noteGreenMove(m, previousGreen, iso);
+            await track(m, previousGreen, iso);
+        });
+        await run("incidents", async () => {
+            linkFixes(nodes);
+            await incidentSteps();
+            if (config.lanes.release || config.release) checkRelease(m, ms, derived);
+        });
         if (pace.level === "normal") {
-            await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
+            await run("prs", () => pollPrs(gh, nodes, branch, t));
             await flakePoll({
                 state,
-                nodes: prList.repository.pullRequests.nodes,
+                nodes,
                 ws: workspace,
                 config,
                 github: gh,
@@ -1852,56 +1875,64 @@ export async function startDaemon({
         }
         // Holds post at every rate tier; the client's budget refuses a success below its floor.
         // The merge gate reads each githerd-made pull request's patch id (decision line 6).
-        await linkJobPrs(branch, t);
-        await mergeGate(gh, prList.repository.pullRequests.nodes, branch);
+        await run("merge", async () => {
+            await linkJobPrs(branch, t);
+            await mergeGate(gh, nodes, branch);
+        });
         // No owner, no jobs: every job acts only on the owner's issues and pull requests.
         if (state.trust.login) {
-            await jobsFromFacts(t);
-            await askOwners(t);
+            await run("jobs", () => jobsFromFacts(t));
+            await run("owners", () => askOwners(t));
         }
-        referenceWork();
+        await run("reference", () => referenceWork());
         await workerPass();
         if (state.trust.login) {
-            await inviteIdle(t);
-            await askStatus(t);
-        }
-        escalationItems();
-        await ownerItemsPoll({
-            api: gh,
-            repo: config.repo,
-            state,
-            notifier,
-            acting: writeMode("owner-items") === "acting",
-            login: state.trust.login,
-            now: t,
-            digestHourUtc: config.digest.hourUtc,
-            ledger,
-            isSessionWrite: sessionWriteCheck(stateDir),
-        });
-        for (const r of resumeAnswered(state, t)) {
-            void ledger({ kind: "owner-answered", job: r.job });
-            await ringJob(state.jobs[r.job]);
-        }
-        await settleReports(t);
-        await stacks(prList.repository.pullRequests.nodes, branch);
-        if (state.trust.login) {
-            const openPrs = new Set(prList.repository.pullRequests.nodes.map((/** @type {any} */ n) => n.number));
-            await advanceProposals(state, {
-                gitHub: gh,
-                repo: config.repo,
-                closed: await closedTargets(state, { gitHub: gh, repo: config.repo, openPrs }),
-                login: state.trust.login,
-                now: t,
-                presentDays: (/** @type {string} */ from) => presentDays(state, from),
-                isWorkerWrite: sessionWriteCheck(stateDir),
-                ledger,
+            await run("invites", async () => {
+                await inviteIdle(t);
+                await askStatus(t);
             });
         }
-
+        await run("owner items", async () => {
+            escalationItems();
+            await ownerItemsPoll({
+                api: gh,
+                repo: config.repo,
+                state,
+                notifier,
+                acting: writeMode("owner-items") === "acting",
+                login: state.trust.login,
+                now: t,
+                digestHourUtc: config.digest.hourUtc,
+                ledger,
+                isSessionWrite: sessionWriteCheck(stateDir),
+            });
+            for (const r of resumeAnswered(state, t)) {
+                void ledger({ kind: "owner-answered", job: r.job });
+                await ringJob(state.jobs[r.job]);
+            }
+        });
+        await run("reports", () => settleReports(t));
+        await run("stacks", () => stacks(nodes, branch));
+        if (state.trust.login) {
+            await run("proposals", async () => {
+                const openPrs = new Set(nodes.map((/** @type {any} */ n) => n.number));
+                await advanceProposals(state, {
+                    gitHub: gh,
+                    repo: config.repo,
+                    closed: await closedTargets(state, { gitHub: gh, repo: config.repo, openPrs }),
+                    login: state.trust.login,
+                    now: t,
+                    presentDays: (/** @type {string} */ from) => presentDays(state, from),
+                    isWorkerWrite: sessionWriteCheck(stateDir),
+                    ledger,
+                });
+            });
+        }
+        // A step that threw may not have re-raised what still holds: nothing derived is cleared.
+        if (failed.length) throw new Error(failed.join("; "));
         for (const key of board.resolveDerived(state, (esc) => holding.has(esc.key), t)) {
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
         }
-        await heartbeat({});
         return null;
     }
 
@@ -1924,6 +1955,8 @@ export async function startDaemon({
                 now: now().getTime(),
                 lines: {
                     mode: mode(),
+                    lastPoll: state.github.completeAt ?? null,
+                    failing: state.github.failing ?? null,
                     paused,
                     stuck: stuckJobs(state),
                     stopped: end.stopped ?? null,
@@ -2942,21 +2975,7 @@ export async function startDaemon({
         try {
             if (!mayWrite()) return { fenced: true };
             const before = { ...state.rate.usage?.total };
-            try {
-                const waited = await pollGitHub();
-                if (waited) {
-                    lastPollError = waited;
-                } else {
-                    lastPollOkAt = loopTickAt;
-                    lastPollError = null;
-                    state.github.lastError = null;
-                }
-            } catch (err) {
-                lastPollError = /** @type {Error} */ (err).message;
-                state.github.lastError = lastPollError;
-                say("error", `poll: ${lastPollError}`);
-                void ledger({ kind: "error", where: "poll", error: lastPollError });
-            }
+            await pollAndRecord();
             await noteApiUse(before, loopTickAt);
             state.github.downSince = state.rate.downSince ?? null;
             // Checked after the poll, which throws while GitHub is down; a poll that completes has
@@ -2976,6 +2995,56 @@ export async function startDaemon({
             busy = false;
             if (!fenced) step("idle");
         }
+    }
+
+    /**
+     * Polls GitHub and records the outcome: the last error, the run of failed polls, and the
+     * heartbeat, which is not written during a back-off or while GitHub is unreachable.
+     */
+    async function pollAndRecord() {
+        let waited = null;
+        try {
+            waited = await pollGitHub();
+            if (waited) {
+                lastPollError = waited;
+            } else {
+                lastPollOkAt = loopTickAt;
+                lastPollError = null;
+                state.github.lastError = null;
+                await pollEnded(null);
+            }
+        } catch (err) {
+            lastPollError = /** @type {Error} */ (err).message;
+            state.github.lastError = lastPollError;
+            say("error", `poll: ${lastPollError}`);
+            void ledger({ kind: "error", where: "poll", error: lastPollError });
+            await pollEnded(lastPollError);
+        }
+        if (!waited && !state.rate.downSince) await heartbeat({});
+    }
+
+    /**
+     * Keeps count of the polls that failed in a row (`state.github.failing`, since the first, with its
+     * error). The second in a row raises the `poll-failing` owner item and pages it at once, since a
+     * failing poll may never reach its own owner-item step; the next complete poll ends it. Two, so
+     * one transient error pages nobody.
+     * @param {string | null} error the poll's error, or null when it completed
+     */
+    async function pollEnded(error) {
+        const g = state.github;
+        const id = "poll-failing";
+        if (!error) {
+            g.completeAt = loopTickAt;
+            g.failing = null;
+            endItem(state, id, "cleared", now());
+            return;
+        }
+        g.failing ??= { since: loopTickAt, error: firstLine(error), count: 0 };
+        g.failing.count += 1;
+        if (g.failing.count < 2) return;
+        const question = `githerd's poll is failing: ${g.failing.error} (since ${g.failing.since})`;
+        raiseItem(state, { id, kind: "poll-failing", question, blocks: "release" }, now());
+        await ownerItemsPoll({ state, notifier, acting: false, now: now(), digestHourUtc: config.digest.hourUtc });
     }
 
     /**

@@ -102,6 +102,37 @@ describe("the heartbeat issue", () => {
         expect(stuckJobs(state)).toEqual([{ since: "t1", job: "a" }]);
     });
 
+    it("says when the last poll completed, and since when and why polls fail", () => {
+        const at = "2026-10-05T12:00:00.000Z";
+        const body = heartbeatBody(at, {
+            mode: "acting",
+            lastPoll: "2026-10-05T11:51:00.000Z",
+            failing: { since: "2026-10-05T11:54:00.000Z", error: "owners: boom\nstack" },
+        });
+        expect(body.split("\n")).toEqual([
+            `alive: ${at}`,
+            `mode: ${at} acting`,
+            "last complete poll: 2026-10-05T11:51:00.000Z",
+            "poll failing: 2026-10-05T11:54:00.000Z owners: boom",
+        ]);
+    });
+
+    it("does not rewrite the body at once only because another poll completed", async () => {
+        const repo = fakeRepo();
+        const { github, set } = client(repo, "acting");
+        const state = {};
+        const write = (/** @type {number} */ now, lines = {}) => {
+            set(now);
+            return writeHeartbeat({ github, repo: REPO, state, now, lines: { ...LINES, ...lines } });
+        };
+        expect(await write(T0, { lastPoll: new Date(T0).toISOString() })).toBe(true);
+        expect(await write(T0 + 3 * MIN, { lastPoll: new Date(T0 + 3 * MIN).toISOString() })).toBe(false);
+        // A poll that fails is news at once.
+        const failing = { since: new Date(T0 + 6 * MIN).toISOString(), error: "boom" };
+        expect(await write(T0 + 6 * MIN, { lastPoll: new Date(T0 + 3 * MIN).toISOString(), failing })).toBe(true);
+        expect(repo.s.issues[0].body).toContain("poll failing: 2026-10-05T12:06:00.000Z boom");
+    });
+
     it("opens and pins one issue, then rewrites its body every 15 minutes and at once on a change", async () => {
         const repo = fakeRepo();
         const { github, set } = client(repo, "acting");

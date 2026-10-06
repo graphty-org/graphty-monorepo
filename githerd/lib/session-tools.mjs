@@ -23,7 +23,7 @@ import { jobText } from "./job-text.mjs";
 import { isMasterFix } from "./master-fix.mjs";
 import { TOOLS } from "./mcp.mjs";
 import { startedAsDraft, updateBranchCommand } from "./prs.mjs";
-import { askFor, jobInUse } from "./queue.mjs";
+import { askFor, issueRefusal, jobInUse } from "./queue.mjs";
 import { statusData, statusText } from "./tools.mjs";
 
 /** The status sections of the old board that the new section names show. */
@@ -256,6 +256,8 @@ export function sessionToolSet(ctx) {
             // A githerd worker holds its one job; an owner session is capped at workers.maxActive.
             const full = queued && !client.job && atActiveCap(state, session, ctx.config);
             if (full) return { text: JSON.stringify({ ok: false, reason: full }), isError: true };
+            const refused = waitRefusal(state, args, ctx.config);
+            if (refused) return { text: JSON.stringify({ ok: false, reason: refused }), isError: true };
             const result = board.claimJob(state, args, { session }, snapshot(ctx), now);
             if (!result.ok) return { text: JSON.stringify(result), isError: true };
             await ctx.commit({ kind: "job-claim", job: args.job, session, decision: args.overlap.decision });
@@ -553,4 +555,23 @@ async function read(ctx, args) {
     }
     out.hidden = hidden;
     return JSON.stringify(out);
+}
+
+/**
+ * Why a claim may not wait on an issue "#N", or null: waiting on one with no live job makes its job
+ * (board.claimJob), so the offer rule applies (`issueRefusal`); waiting on a live job is fine.
+ * @param {any} state the daemon state
+ * @param {{overlap: {decision: string, with?: string}}} args the claim
+ * @param {any} config the normalized config
+ * @returns {string | null} the reason
+ */
+function waitRefusal(state, args, config) {
+    const n = args.overlap.decision === "wait" ? /^#(\d+)$/.exec(args.overlap.with ?? "")?.[1] : undefined;
+    const rec = n ? state.issues?.byNumber?.[n] : null;
+    const old = state.jobs?.[`issue-${n}`];
+    // An issue that is not the owner's open one is board.claimJob's to refuse.
+    if (rec?.state !== "open" || !board.byOwner(state, rec.author)) return null;
+    if (old && old.state !== "done" && old.state !== "cancelled") return null;
+    const why = issueRefusal(state, n, config);
+    return why && `#${n} cannot be waited on: ${why}; judge the overlap independent instead`;
 }

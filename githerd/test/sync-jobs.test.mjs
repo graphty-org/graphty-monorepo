@@ -557,7 +557,7 @@ describe("syncJobs: issues", () => {
         expect(state.jobs["issue-40"]).toBeUndefined();
     });
 
-    it("offers an enhancement only when backlog.issueTypes names it, the owner picks it, or master names it", () => {
+    it("offers an enhancement only when backlog.issueTypes names it or the owner picks it", () => {
         const withEnhancements = normalizeConfig({
             repo: "o/r",
             lanes: { ci: { workflow: "ci.yml", gating: "required" } },
@@ -573,12 +573,46 @@ describe("syncJobs: issues", () => {
         issue(picked, 41, ["enhancement", "priority:low", "effort:low"]);
         picked.orders = [{ id: "order-1", issues: [41] }];
         expect(sync(picked).created).toEqual(["issue-41"]);
+    });
 
-        const fixed = base();
-        issue(fixed, 42, ["enhancement", "priority:low", "effort:low"]);
-        fixed.merged.commitRefs = commitRefs("958d8e9c6\tfeat: a thing (#42)", [42]);
-        expect(sync(fixed).created).toEqual(["issue-42"]);
-        expect(fixed.jobs["issue-42"].facts.references).toEqual(["958d8e9c6"]);
+    it("offers no verify job for an enhancement master names, nor for a needs-decision issue", () => {
+        const state = base();
+        issue(state, 42, ["enhancement", "priority:critical", "effort:low"]);
+        issue(state, 43, ["bug", "priority:critical", "effort:low", "needs-decision"]);
+        state.merged.commitRefs = commitRefs("958d8e9c6\tfeat: a thing (#42)\n1234567ab\tfix: (#43)", [42, 43]);
+        expect(sync(state).created).toEqual([]);
+        // The owner's pick still brings it in, as the verify it is.
+        state.orders = [{ id: "order-1", issues: [42] }];
+        expect(sync(state).created).toEqual(["issue-42"]);
+        expect(state.jobs["issue-42"].facts.references).toEqual(["958d8e9c6"]);
+    });
+
+    it("withdraws a queued verify job or bundle the rule refuses, and leaves a held one", () => {
+        const state = base();
+        for (const n of [42, 43]) issue(state, n, ["enhancement", "priority:high", "effort:low"]);
+        issue(state, 44, ["bug", "priority:high", "effort:low"]);
+        issue(state, 45, ["bug", "priority:high", "effort:low"]);
+        const job = (/** @type {number} */ n, /** @type {any} */ facts) => ({
+            id: `issue-${n}`,
+            kind: "issue",
+            target: `#${n}`,
+            state: "queued",
+            holder: null,
+            facts,
+        });
+        state.jobs = {
+            "issue-42": job(42, { references: ["#347"] }),
+            "issue-43": { ...job(43, { references: ["#347"] }), state: "working", holder: { session: "s1" } },
+            "issue-44": job(44, { batch: [44, 45] }),
+        };
+        state.issues.byNumber[45].labels.push("needs-decision");
+        const out = sync(state);
+        expect(out.cancelled).toEqual([
+            { job: "issue-42", reason: "enhancements are not offered for now" },
+            { job: "issue-44", reason: "#45 of its bundle: the issue is labelled needs-decision" },
+        ]);
+        expect(state.jobs["issue-42"].facts.withdrawn).toBe(true);
+        expect(state.jobs["issue-43"].state).toBe("working");
     });
 
     it("withdraws a queued enhancement job, keeps a held one, and makes it again once enhancements are offered", () => {

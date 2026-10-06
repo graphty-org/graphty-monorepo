@@ -932,6 +932,10 @@ async function settleDeferred(ctx, job, report, holder, session) {
     const revision = ctx.state.issues?.byNumber?.[n]?.updatedAt ?? null;
     ctx.state.deferred ??= {};
     ctx.state.deferred[n] = { reason, revision, job: job.id, session, at: now.toISOString() };
+    // A verify job weighed master's references and found work left: they ask for no verify again.
+    const issue = ctx.state.issues?.byNumber?.[n];
+    if (issue && job.facts?.references?.length)
+        issue.judgedRefs = [...new Set([...(issue.judgedRefs ?? []), ...job.facts.references])];
     board.move(job, "cancelled", now, { reason: `deferred: ${reason}` });
     afterSettle(ctx.state, job, holder, null, now);
     await ctx.commit({ kind: "done-report", job: job.id, outcome: "deferred", next: "cancelled" });

@@ -143,7 +143,8 @@ function verifyPurpose(job) {
     return (
         `Already referenced on master by ${job.facts.references.join(", ")}: first check whether it is fixed; ` +
         `if it is, add a test that pins the behavior if none exists and close the issue with a pull request that says Fixes ${job.target}; ` +
-        "if not, fix what remains."
+        "if it is not fixed, or only part of it is, build nothing: a verify job never does the missing work. " +
+        "Report outcome deferred with what remains as the reason, and githerd offers the issue again as its own work once it changes."
     );
 }
 

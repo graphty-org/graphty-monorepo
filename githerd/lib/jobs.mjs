@@ -32,8 +32,9 @@
  *   the next is made once that one leaves the queue, never one per backlog issue. An issue a session
  *   deferred (`state.deferred`, done.mjs) is left out until its revision changes. Only the types of
  *   `backlog.issueTypes` get a new job (bug and infrastructure by default) unless the owner picked the
- *   issue or master already references it; a queued, unheld job of another type is withdrawn
- *   (cancelled, `facts.withdrawn`) and made again once its type is offered. An effort:low issue job
+ *   issue, even one master already references (`issueRefusal` in queue.mjs, the one rule); a queued,
+ *   unheld job the rule refuses (its type, a `needs-*` or `blocked` label) is withdrawn
+ *   (cancelled, `facts.withdrawn`) and made again once the rule allows it. An effort:low issue job
  *   may bundle up to `backlog.bundleMax - 1` more small issues of its type and package
  *   (`facts.batch`, the anchor first; `bundleOf`), fixed in one pull request: each is in use while
  *   the job is held, and none gets a job of its own until the bundle ends.
@@ -54,9 +55,8 @@
 import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
 import { orderPosition } from "./owner.mjs";
 import {
+    issueRefusal,
     issueRule,
-    issueType,
-    issueTypes,
     jobInUse,
     masterRefs,
     mergeHeld,
@@ -641,7 +641,7 @@ function issueJobs(state, config, now, add, cancel) {
 }
 
 /**
- * The ready issues free for a new job, in queue order: offered or picked by an open order, with no
+ * The ready issues free for a new job, in queue order: those `issueRefusal` allows, with no
  * live job, not deferred and in no live job's bundle.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
@@ -661,7 +661,7 @@ function issueCandidates(state, config, now, deferred) {
         .filter((r) => {
             const old = state.jobs[`issue-${r.number}`];
             const free = (!old || old.facts?.withdrawn) && !deferred[r.number] && !bundled.has(r.number);
-            return free && (r.offered || r.order !== null);
+            return free && r.offered;
         });
     // An open order comes before the ranked list (design 5.4); the sort is stable otherwise.
     candidates.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
@@ -722,29 +722,30 @@ function bundleOf(state, config, now, top, candidates) {
 }
 
 /**
- * Withdraws every queued, unheld issue job of a type githerd does not offer now
- * (`backlog.issueTypes`), judged by its issue's current type label: cancelled with
- * `facts.withdrawn`, so it is made again once its type is offered. A job a session holds is finishing work in flight and stays, and so do a re-land, a job
- * master already references, and one the owner picked (`githerd:next`, an open order).
+ * Withdraws every queued, unheld issue job `issueRefusal` refuses now (a type githerd does not
+ * offer, a `needs-*` or `blocked` label), its own issue or any issue of its bundle, even one master
+ * references: cancelled with `facts.withdrawn`, so it is made again once the rule allows it. A job
+ * a session holds is finishing work in flight and stays, and so do a re-land and a promotion, and
+ * a job whose issue githerd has not read.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @param {(job: any, reason: string) => void} cancel cancels a job
  */
 function withdrawUnoffered(state, config, cancel) {
-    const types = issueTypes(config);
     for (const job of Object.values(state.jobs)) {
         if (job.kind !== "issue" || job.state !== "queued" || job.holder) continue;
         if (job.facts?.scope === "reland" || job.facts?.scope === "promote") continue;
-        const n = Number(String(job.target).replace(/^#/, ""));
-        const issue = state.issues?.byNumber?.[n];
-        const type = issue ? issueType(issue.labels ?? [], config) : null;
-        if (!type || types.includes(type) || masterRefs(state, n).length || job.facts?.references?.length) continue;
-        if (ownerLabel(issue, NEXT) || orderPosition(state, n) !== null) continue;
+        const anchor = Number(String(job.target).replace(/^#/, ""));
+        const issues = [...new Set([anchor, ...(job.facts?.batch ?? []).map(Number)])];
+        const reason = issues
+            .map((n) => {
+                const why = state.issues?.byNumber?.[n] && issueRefusal(state, n, config);
+                return why && (n === anchor ? why : `#${n} of its bundle: ${why}`);
+            })
+            .find(Boolean);
+        if (!reason) continue;
         job.facts = { ...job.facts, withdrawn: true };
-        cancel(
-            job,
-            type === "enhancement" ? "enhancements are not offered for now" : `${type} issues are not offered for now`,
-        );
+        cancel(job, reason);
     }
 }
 

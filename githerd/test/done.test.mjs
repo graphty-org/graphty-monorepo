@@ -778,6 +778,16 @@ describe("githerdDone", () => {
         expect(board).toContain(`DEFERRED UNTIL THEY CHANGE (1): #9 ${reason}`);
     });
 
+    it("marks a deferred verify job's references weighed, so the issue comes back as its own work", async () => {
+        const s = state({ issues: { byNumber: { 9: { state: "open", updatedAt: "2026-10-03T00:00:00Z" } } } });
+        const job = (s.jobs["issue-9"] = working("issue", "9", { references: ["#347"] }));
+        const { ctx } = setup(s);
+        const reason = "#347 did only the first half; the rest is not built";
+        await githerdDone(ctx, job, report({ outcome: "deferred", reason }), "w1");
+        expect(job.state).toBe("cancelled");
+        expect(s.issues.byNumber[9].judgedRefs).toEqual(["#347"]);
+    });
+
     it("accepts a bundle's pull request, and remembers each bundled issue it does not close as left out", async () => {
         const s = state({ issues: { byNumber: { 12: { state: "open", updatedAt: "2026-10-03T00:00:00Z" } } } });
         s.prs[7] = pr({ references: [5, 9] });

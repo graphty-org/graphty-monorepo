@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 
 import * as board from "./board.mjs";
 import { endItem, raiseItem } from "./notify.mjs";
+import { issueRefusal } from "./queue.mjs";
 
 /** A fault on every surface for this long is paged once (design 9.5). */
 const FAULT_PAGE_MS = 24 * 3_600_000;
@@ -190,12 +191,14 @@ function laneNews(state, job, name) {
  * a news line, and its worker is rung. A push wait is the push queue's, a done check's wait on CI
  * is the verification poll's, and a local task's wait ends when its output file records the exit
  * or its session ends. A blocked job whose blocker ended goes back to the queue; that is the only
- * way out of `blocked` short of a session's death or a cancel. No time limit applies to either.
+ * way out of `blocked` short of a session's death or a cancel; an issue job githerd no longer
+ * offers (`issueRefusal`) is withdrawn instead, as syncJobs would. No time limit applies to either.
  * @param {any} state the daemon state
  * @param {Date} now the clock
+ * @param {any} [config] the normalized config, for the offer rule
  * @returns {Step[]} what settled
  */
-export function settleWaits(state, now) {
+export function settleWaits(state, now, config) {
     const steps = [];
     for (const job of Object.values(state.jobs ?? {})) {
         if (job.state === "blocked" && job.waitingFor?.job) {
@@ -207,9 +210,17 @@ export function settleWaits(state, now) {
                 text: `job ${job.waitingFor.job} ended; judge again`,
                 acked: false,
             });
-            board.move(job, "queued", now, { reason: `blocker ${job.waitingFor.job} ended` });
+            const n = job.kind === "issue" && !job.facts?.scope ? String(job.target).replace(/^#/, "") : null;
+            const refused = config && n && state.issues?.byNumber?.[n] ? issueRefusal(state, n, config) : null;
+            if (refused) {
+                job.facts = { ...job.facts, withdrawn: true };
+                board.move(job, "cancelled", now, { reason: refused });
+            } else board.move(job, "queued", now, { reason: `blocker ${job.waitingFor.job} ended` });
             afterMove(state, job, holder, null, now);
-            steps.push({ job: job.id, action: "unblocked", line: { kind: "job-unblocked", job: job.id } });
+            const line = refused
+                ? { kind: "job-cancelled", job: job.id, reason: refused }
+                : { kind: "job-unblocked", job: job.id };
+            steps.push({ job: job.id, action: refused ? "cancelled" : "unblocked", line });
             continue;
         }
         if (job.state !== "waiting") continue;

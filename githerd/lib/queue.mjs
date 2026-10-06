@@ -7,7 +7,8 @@
  * Issues rank by type tier (one master already references first, then the order of
  * `backlog.issueTypes`: bugs, then infrastructure), then priority (aged up one level per
  * `backlog.agingDays` untouched, never above the second level), then low effort before medium
- * before high, then oldest. An issue of a type not in `backlog.issueTypes` is not offered.
+ * before high, then oldest. An issue of a type not in `backlog.issueTypes` is not offered, not even
+ * to verify a fix master names (`issueRefusal`).
  * `githerd:next` moves an item to the front of its
  * kind and `githerd:skip` removes it, but only when the owner applied the label (`ownerLabels`,
  * checked by the daemon against the issue's events).
@@ -16,6 +17,7 @@
  */
 
 import { byOwner, TERMINAL } from "./board.mjs";
+import { orderPosition } from "./owner.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
 /** Labels that keep an issue out of the queue, besides every `needs-*` label. */
@@ -251,7 +253,7 @@ export const issueTypes = (config) => config?.backlog?.issueTypes ?? DEFAULT_ISS
  * @param {any} config the normalized config
  * @returns {string | null} the type
  */
-export const issueType = (labels, config) =>
+const issueType = (labels, config) =>
     (config.labels?.types ?? []).find((/** @type {string} */ t) => labels.includes(t)) ?? null;
 
 /**
@@ -282,9 +284,9 @@ function rankIssue(issue, config, now) {
  * The owner's open issues that are ready: those missing a label kind (to triage), oldest first, and labeled
  * ones in rank order (design 5.4): `githerd:next` first, then one master already references
  * (verify the fix), then the type's place in `backlog.issueTypes` (bug, then infrastructure), then
- * priority, low effort before high, oldest. `offered` is false for an issue of any other type that
- * neither the owner's `githerd:next` nor a reference on master brings in: no new job is made for it
- * unless an open order names it. An issue an open pull request already works on is left out of the ranked list.
+ * priority, low effort before high, oldest. `offered` is false for an issue `issueRefusal` refuses
+ * (a type not in `backlog.issueTypes` the owner did not pick), even one master names: no new job
+ * is made for it. An issue an open pull request already works on is left out of the ranked list.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @param {Date} now the clock
@@ -304,7 +306,7 @@ export function readyIssues(state, config, now) {
             const rank = rankIssue(issue, config, now);
             const typeTier = issueTypes(config).indexOf(rank.type ?? "");
             const referenced = masterRefs(state, Number(n)).length > 0;
-            const offered = typeTier !== -1 || sortable.next || referenced;
+            const offered = issueRefusal(state, Number(n), config) === null;
             ranked.push({ ...sortable, ...rank, referenced, typeTier, offered });
         }
     }
@@ -332,6 +334,33 @@ export function readyIssues(state, config, now) {
             offered,
         })),
     };
+}
+
+/**
+ * Why githerd may not offer work on an issue, or null when it may (owner decision 2026-10-06). The
+ * one rule every path that makes or re-offers an issue job applies: the backlog's next issue, a
+ * fix master already names (verify), a bundle, a job a claim waits on, a blocked job whose blocker
+ * ended, and the withdrawal of queued jobs. The issue must be ready (open, the owner's, no
+ * `needs-*`, `blocked` or other label that keeps it out) and of a type in `backlog.issueTypes`;
+ * the owner's pick (`githerd:next`, an open order) lifts the type limit only.
+ * @param {any} state the daemon state
+ * @param {number | string} n the issue's number
+ * @param {any} config the normalized config
+ * @returns {string | null} the reason, null when it may be offered
+ */
+export function issueRefusal(state, n, config) {
+    const issue = state.issues?.byNumber?.[n];
+    if (!issue) return "the issue is unknown";
+    const labels = issue.labels ?? [];
+    if (!issueReady(state, issue, labels)) {
+        const label = labels.find((l) => NOT_READY.has(l) || l.startsWith("needs-") || BREAKING.has(l));
+        return label ? `the issue is labelled ${label}` : "the issue is not an open, ready issue by the owner";
+    }
+    const type = issueType(labels, config);
+    const picked = ownerLabel(issue, NEXT) || orderPosition(state, Number(n)) !== null;
+    if (picked || (type && issueTypes(config).includes(type))) return null;
+    if (type === "enhancement") return "enhancements are not offered for now";
+    return type ? `${type} issues are not offered for now` : "an issue without a type is not offered";
 }
 
 /**

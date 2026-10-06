@@ -1,6 +1,6 @@
 JOB issue-#906
 TARGET: issue #906
-WHAT FOR: Already referenced on master by 958d8e9c6, #550: first check whether it is fixed; if it is, add a test that pins the behavior if none exists and close the issue with a pull request that says Fixes #906; if not, fix what remains.
+WHAT FOR: Already referenced on master by 958d8e9c6, #550: first check whether it is fixed; if it is, add a test that pins the behavior if none exists and close the issue with a pull request that says Fixes #906; if it is not fixed, or only part of it is, build nothing: a verify job never does the missing work. Report outcome deferred with what remains as the reason, and githerd offers the issue again as its own work once it changes.
 WHY NOW: referenced by 958d8e9c6 on master
 DONE WHEN: a pull request that references the issue, based on master and not a draft, whose head on GitHub is the commit you pushed, has every required check green (or waits only on the owner), and githerd/merge is not pending for a reason you can fix. Or the issue needs no change (outcome not-needed, with evidence; it is closed only after the owner had a chance to object), or it is split into new issues you filed (outcome split, with their numbers), or it cannot be acted on now, such as a proposal the owner declined (outcome deferred, with the reason; nothing is closed, and the issue comes back once it changes).
 TO FINISH: Call githerd_done with the outcome, the pull request and the head you pushed. githerd checks the claim against GitHub and tells you what is missing if it does not hold.

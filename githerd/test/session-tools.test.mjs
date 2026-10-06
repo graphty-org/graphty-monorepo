@@ -270,9 +270,13 @@ describe("sessionToolSet", () => {
                 736: { state: "open", author: "me", labels: ["bug"], createdAt: "2026-10-01T00:00:00Z" },
                 737: { state: "closed", author: "me", labels: [] },
                 738: { state: "open", author: "someone", labels: [] },
+                739: { state: "open", author: "me", labels: ["enhancement"] },
             },
         };
-        const { ctx } = setup({ jobs: { "issue-713": queued }, issues, trust: { login: "me" } });
+        const { ctx } = setup(
+            { jobs: { "issue-713": queued }, issues, trust: { login: "me" } },
+            { config: { repo: REPO, labels: { types: ["bug", "enhancement"] } } },
+        );
         const owner = { session: "o1" };
         const next = JSON.parse((await call(ctx, "githerd_next", {}, owner)).text);
         const claim = (/** @type {string} */ wth) => ({
@@ -292,6 +296,11 @@ describe("sessionToolSet", () => {
                 `#${n} is not an open issue by the owner; it cannot be waited on`,
             );
         }
+        // Waiting would make a job for an enhancement, which githerd does not offer now.
+        const enhancement = await call(ctx, "githerd_claim", claim("#739"), owner);
+        expect(JSON.parse(enhancement.text).reason).toBe(
+            "#739 cannot be waited on: enhancements are not offered for now; judge the overlap independent instead",
+        );
         expect(Object.keys(ctx.state.jobs)).toEqual(["issue-713"]);
         expect(queued.state).toBe("queued");
 

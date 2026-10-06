@@ -34,6 +34,11 @@
  *   (cancelled, `facts.withdrawn`) and made again once its type is offered.
  * - `issue-reland-<n>`: a pull request a revert took out, once the revert left the queue of open
  *   pull requests.
+ * - `issue-promote-<check>`: an advisory CI check (advisory.mjs) whose enforce date is three days
+ *   off or past, still listed as advisory on the default branch: open the pull request that makes
+ *   it required. One per entry, ever: a done one is not made again. Its work edits
+ *   `.github/workflows/`, which a worker may not, so it is `ownerOnly`. Cancelled once the entry
+ *   left the advisory list.
  *
  * A job an owner session claimed goes back to the queue once that session ended (`sessionGone`:
  * it is no live entry in Claude Code's registry): its claim, and the pull request it kept in use,
@@ -56,6 +61,7 @@ import {
     readyIssues,
     SKIP,
 } from "./queue.mjs";
+import { promotionsDue, utcDay } from "./advisory.mjs";
 import { touches } from "./prs.mjs";
 
 /** Issues in one triage job (design 8.1). */
@@ -134,6 +140,7 @@ export function syncJobs(state, { config, now, sessionGone = () => false }) {
     reviewJobs(state, add, cancel);
     triageJobs(state, config, now, add);
     issueJobs(state, config, now, add, cancel);
+    promoteJobs(state, now, add, cancel);
     return out;
 }
 
@@ -566,12 +573,15 @@ function endChangedDeferrals(state) {
 function issueJobs(state, config, now, add, cancel) {
     relandJobs(state, now, add);
     for (const job of Object.values(state.jobs)) {
-        if (job.kind !== "issue" || job.facts?.scope === "reland") continue;
+        if (job.kind !== "issue" || job.facts?.scope === "reland" || job.facts?.scope === "promote") continue;
         if (state.issues?.byNumber?.[String(job.target).slice(1)]?.state === "closed") cancel(job, "the issue closed");
     }
     withdrawUnoffered(state, config, cancel);
     const deferred = endChangedDeferrals(state);
-    const queued = Object.values(state.jobs).some((j) => j.kind === "issue" && j.state === "queued");
+    // A promotion waits for an owner session and holds no place in the issue queue.
+    const queued = Object.values(state.jobs).some(
+        (j) => j.kind === "issue" && j.state === "queued" && j.facts?.scope !== "promote",
+    );
     if (queued) return;
     const priorities = config.labels?.priorities ?? [];
     const candidates = readyIssues(state, config, now)
@@ -623,7 +633,8 @@ function issueJobs(state, config, now, add, cancel) {
 function withdrawUnoffered(state, config, cancel) {
     const types = issueTypes(config);
     for (const job of Object.values(state.jobs)) {
-        if (job.kind !== "issue" || job.state !== "queued" || job.holder || job.facts?.scope === "reland") continue;
+        if (job.kind !== "issue" || job.state !== "queued" || job.holder) continue;
+        if (job.facts?.scope === "reland" || job.facts?.scope === "promote") continue;
         const n = Number(String(job.target).replace(/^#/, ""));
         const issue = state.issues?.byNumber?.[n];
         const type = issue ? issueType(issue.labels ?? [], config) : null;
@@ -634,5 +645,44 @@ function withdrawUnoffered(state, config, cancel) {
             job,
             type === "enhancement" ? "enhancements are not offered for now" : `${type} issues are not offered for now`,
         );
+    }
+}
+
+/**
+ * The promotion jobs (advisory.mjs): one per advisory check the CI workflow tests ask to promote
+ * (on or after three days before its enforce date), made once and never again after it was done;
+ * cancelled once the default branch no longer lists the check as advisory.
+ * @param {any} state the daemon state; `state.advisory` is the default branch's registry as read
+ * @param {Date} now the clock
+ * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
+ * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
+ */
+function promoteJobs(state, now, add, cancel) {
+    if (!state.advisory) return;
+    for (const e of promotionsDue(state.advisory, utcDay(now))) {
+        const id = jobId(`issue-promote-${e.id}`);
+        if (state.jobs[id]?.state === "done") continue;
+        add({
+            id,
+            kind: "issue",
+            target: e.issue ? `#${e.issue}` : e.id,
+            priority: "high",
+            reason: `advisory check ${e.id} is enforced from ${e.enforce}: promote it to required`,
+            facts: {
+                scope: "promote",
+                check: e.id,
+                job: e.job,
+                step: e.step,
+                enforce: e.enforce,
+                issue: e.issue,
+                since: now.toISOString(),
+                ownerOnly: true,
+            },
+        });
+    }
+    const listed = new Set(state.advisory.entries.map((/** @type {any} */ e) => e.id));
+    for (const job of Object.values(state.jobs)) {
+        if (job.facts?.scope === "promote" && !listed.has(job.facts.check))
+            cancel(job, `${job.facts.check} is no longer an advisory check on master`);
     }
 }

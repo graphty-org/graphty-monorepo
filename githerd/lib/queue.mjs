@@ -560,12 +560,16 @@ function tier(job) {
 
 /**
  * Whether a job finishes work already in flight rather than starting new work: a pull request's
- * review, fix or title, an issue master already names (verify the fix) and a re-land.
+ * review, fix or title, an issue master already names (verify the fix), a re-land and an advisory
+ * check's promotion (keeping CI's own plan running).
  * @param {import("./board.mjs").Job} job the job
  * @returns {boolean} true when it finishes
  */
 function finishes(job) {
-    if (job.kind === "issue") return Boolean(job.facts?.references?.length) || job.facts?.scope === "reland";
+    if (job.kind === "issue")
+        return (
+            Boolean(job.facts?.references?.length) || job.facts?.scope === "reland" || job.facts?.scope === "promote"
+        );
     return job.kind === "review" || job.kind === "pr" || job.kind === "title";
 }
 
@@ -696,6 +700,8 @@ function placeRule(job, words) {
     if (job.kind === "issue") {
         const rule = issueRule(job.priority, f);
         if (f.scope === "reland") return `finishes ${refOf(job)}: re-land, ${rule}`;
+        if (f.scope === "promote")
+            return `finishes ${refOf(job)}: promote advisory check ${f.check}, enforced from ${f.enforce}`;
         if (f.references?.length) return `finishes ${refOf(job)}: verify the fix, ${rule}`;
         return `starts ${refOf(job)}: ${rule}`;
     }

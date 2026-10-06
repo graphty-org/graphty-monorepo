@@ -714,3 +714,55 @@ describe("syncJobs: pull requests in use (owner decision 2026-10-04)", () => {
         expect(job).toMatchObject({ state: "queued", holder: null, reason: "required check failing: All Checks Pass" });
     });
 });
+
+describe("syncJobs: advisory check promotions", () => {
+    const advisory = (enforce) => ({
+        entries: [{ id: "links", job: "links", step: null, enforce, issue: 1120 }],
+        names: { links: "^Links$" },
+    });
+    const syncOn = (state, day) => syncJobs(state, { config: CONFIG, now: new Date(`${day}T12:00:00Z`) });
+
+    it("makes one owner-session job from three days before the enforce date, in the keep-things-running tier", () => {
+        const state = base();
+        state.advisory = advisory("2026-10-08");
+        expect(syncOn(state, "2026-10-04").created).toEqual([]);
+        expect(syncOn(state, "2026-10-05").created).toEqual(["issue-promote-links"]);
+        const job = state.jobs["issue-promote-links"];
+        expect(job).toMatchObject({
+            kind: "issue",
+            target: "#1120",
+            priority: "high",
+            facts: { scope: "promote", check: "links", enforce: "2026-10-08", ownerOnly: true },
+        });
+        expect(jobText(job)).toContain(
+            'moves its entry from "advisory" into "required" and removes its warning wiring from .github/workflows/ci.yml',
+        );
+        expect(jobText(job)).toContain("Refs #1120");
+        // Ahead of a fresh bug: it finishes what CI's plan started.
+        issue(state, 7, LABELED);
+        syncOn(state, "2026-10-05");
+        const order = jobOrder(state.jobs).items;
+        expect(order.map((i) => i.job)).toEqual(["issue-promote-links", "issue-7"]);
+        expect(order[0].reason).toContain("finishes #1120: promote advisory check links, enforced from 2026-10-08");
+        // Never a second one, even once it is done and the entry is still listed.
+        expect(syncOn(state, "2026-10-09").created).toEqual([]);
+        move(job, "starting", NOW);
+        move(job, "working", NOW);
+        move(job, "verifying", NOW);
+        move(job, "done", NOW);
+        expect(syncOn(state, "2026-10-10").created).toEqual([]);
+    });
+
+    it("is cancelled once master no longer lists the check as advisory", () => {
+        const state = base();
+        state.advisory = advisory("2026-10-08");
+        syncOn(state, "2026-10-06");
+        state.advisory = { entries: [], names: {} };
+        expect(syncOn(state, "2026-10-06").cancelled).toEqual([
+            { job: "issue-promote-links", reason: "links is no longer an advisory check on master" },
+        ]);
+        // Before the registry was ever read, nothing is made or cancelled.
+        const fresh = base();
+        expect(syncOn(fresh, "2026-10-06").created).toEqual([]);
+    });
+});

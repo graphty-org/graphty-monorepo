@@ -147,6 +147,23 @@ function verifyPurpose(job) {
     );
 }
 
+/**
+ * The purpose of a job that promotes an advisory CI check to required (advisory.mjs).
+ * @param {any} f the job's facts
+ * @returns {string} the purpose
+ */
+function promotePurpose(f) {
+    const refs = f.issue ? ` The pull request says Refs #${f.issue}.` : "";
+    return (
+        `The advisory CI check ${f.check} is enforced from ${f.enforce} (tools/ci-advisory-checks.json). ` +
+        `Open one pull request against master that moves its entry from "advisory" into "required" and removes its warning wiring from .github/workflows/ci.yml: ` +
+        `the continue-on-error naming ${f.check} and the step that echoes "::warning::advisory check ${f.check} failed". ` +
+        `First look at the check's newest runs on master and on open pull requests: if it still fails, fix what makes it fail first, in that pull request or one before it. ` +
+        "tools/ci-workflows.test.mjs must pass." +
+        refs
+    );
+}
+
 /** How to report the end, by kind. */
 const FINISH = /** @type {Record<string, string>} */ ({
     verdict: "Call githerd_verdict, then githerd_done with outcome done and your reason as the findings.",
@@ -279,6 +296,7 @@ export function jobText(job, ctx = {}) {
     let purpose = refresh ? REFRESH_PURPOSE : PURPOSE[job.kind];
     if (verdict) purpose = VERDICT_PURPOSE;
     if (job.kind === "issue" && job.facts?.references?.length) purpose = verifyPurpose(job);
+    if (job.kind === "issue" && job.facts?.scope === "promote") purpose = promotePurpose(job.facts);
     const lines = [`JOB ${job.id}`, `TARGET: ${TARGET_NOUN[job.kind]} ${job.target}`, `WHAT FOR: ${purpose}`];
     if (job.reason) lines.push(`WHY NOW: ${job.reason}`);
     const finish = FINISH[verdict ? "verdict" : job.kind] ?? FINISH_DEFAULT;

@@ -43,6 +43,7 @@ export const COMMANDS = Object.freeze({
     "data.import": { undo: "undoable" },
     "data.expand": { undo: "undoable" },
     "data.declare": { undo: "undoable" },
+    "data.setSource": { undo: "undoable" },
     "style.patch": { undo: "undoable" },
     "style.encode": { undo: "undoable" },
     "style.template": { undo: "undoable" },

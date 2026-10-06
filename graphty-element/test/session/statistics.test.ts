@@ -108,6 +108,59 @@ describe("the shape of the graph", () => {
         weighted.session.dispose();
     });
 
+    it("bins the total degree, one bar per degree on a small graph, adding up to the node count", () => {
+        const harness = makeSession({ directed: false });
+        // A star with five leaves, one isolated node: degrees 5, 1 x5, 0.
+        const { nodes, edges } = graph(7, [
+            [0, 1],
+            [0, 2],
+            [0, 3],
+            [0, 4],
+            [0, 5],
+        ]);
+        harness.add(nodes, edges);
+
+        const stats = harness.session.data.statistics();
+        const { degreeHistogram } = stats;
+        assert.isDefined(degreeHistogram);
+        assert.strictEqual(degreeHistogram.binning, "per-value");
+        assert.deepStrictEqual(
+            degreeHistogram.bins.map((bin) => [bin.from, bin.to, bin.count]),
+            [
+                [0, 0, 1],
+                [1, 1, 5],
+                [5, 5, 1],
+            ],
+        );
+        assert.strictEqual(degreeHistogram.bins[0].from, stats.degreeRange[0]);
+        assert.strictEqual(degreeHistogram.bins.at(-1)?.to, stats.degreeRange[1]);
+        harness.session.dispose();
+    });
+
+    it("bands the degree on a graph with many distinct degrees, still adding up to the node count", () => {
+        const harness = makeSession({ directed: false });
+        // Hub h has h + 1 leaves of its own: 60 distinct hub degrees.
+        const pairs: [number, number][] = [];
+        let next = 60;
+        for (let hub = 0; hub < 60; hub++) {
+            for (let leaf = 0; leaf <= hub; leaf++) {
+                pairs.push([hub, next++]);
+            }
+        }
+
+        const { nodes, edges } = graph(next, pairs);
+        harness.add(nodes, edges);
+
+        const { degreeHistogram, nodeCount } = harness.session.data.statistics();
+        assert.isDefined(degreeHistogram);
+        assert.strictEqual(degreeHistogram.binning, "banded");
+        assert.strictEqual(
+            degreeHistogram.bins.reduce((sum, bin) => sum + bin.count, 0),
+            nodeCount,
+        );
+        harness.session.dispose();
+    });
+
     it("counts self-loops and repeated edges", () => {
         const harness = makeSession({ directed: true });
         harness.add(

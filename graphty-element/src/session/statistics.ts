@@ -9,6 +9,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX, type NodeId, type U32 } from "@graphty/graph-format";
 
+import { arrayColumn, buildHistogram } from "./results/statistics";
 import { COMPONENT_SIZE_CAP, type ComponentStatistics, type DirectionProvenance, type GraphStatistics } from "./types";
 
 /**
@@ -353,7 +354,8 @@ export function computeStatistics(
     directednessSource: DirectionProvenance,
 ): GraphStatistics {
     const { labels, count } = labelComponents(snapshot);
-    const degrees = degreeSummary(snapshot.degree());
+    const degreeVector = snapshot.degree();
+    const degrees = degreeSummary(degreeVector);
 
     return Object.freeze({
         nodeCount: snapshot.nodeCount,
@@ -366,6 +368,7 @@ export function computeStatistics(
         repeatedEdgeCount: countRepeatedEdges(snapshot),
         degreeRange: Object.freeze(degrees.range),
         meanDegree: degrees.mean,
+        degreeHistogram: buildHistogram(arrayColumn(degreeVector), { integerValued: true }),
         transitivity: sampledTransitivity(snapshot),
         components: Object.freeze(summariseComponents(snapshot, labels, count)),
     } satisfies GraphStatistics);

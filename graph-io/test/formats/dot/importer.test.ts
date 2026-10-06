@@ -504,7 +504,8 @@ describe("dot importer: the grammar", () => {
         const { snapshot, report } = await load(
             'digraph { a [pos="1.5,2"]; b [pos="3,4,5!"]; c [pos="nope"]; a -> b [pos="e,1,2 3,4"] }',
         );
-        expect(codes(report)).toEqual([DOT_ISSUE.BAD_POS]);
+        // updated: the first pos has two coordinates and the second three, now reported
+        expect(codes(report)).toEqual([DOT_ISSUE.POS_DIMS, DOT_ISSUE.BAD_POS]);
         const position = snapshot.nodes.byRole("position");
         expect(position?.meta.name).toBe("pos");
         expect(position?.dtype).toBe("f32");

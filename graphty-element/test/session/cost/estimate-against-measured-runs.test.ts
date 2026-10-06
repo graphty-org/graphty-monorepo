@@ -273,9 +273,9 @@ const ROWS: readonly Row[] = [
         key: "degree",
         // Large enough that one run takes the 0.05 s or more the file header asks for (15 to 30 ms
         // here, about twice that on CI). At 50,000 and 100,000 nodes a run took 1 to 9 ms: the same
-        // 50,000-node run read 1 to 3 ms from one process to the next on one machine, as V8's young
-        // generation met the two objects built per node, and 6 ms on one CI runner, a ratio of 0.72
-        // where every other row held.
+        // 50,000-node run read 1 to 3 ms from one process to the next on one machine, and 6 ms on one
+        // CI runner, a ratio of 0.72 where every other row held (then with two objects built per
+        // node, which the element no longer builds).
         sizes: [400_000, 800_000],
         run: (data, nodes) => {
             // Each edge's source and target counted off the snapshot's edge list, as the degree
@@ -288,13 +288,21 @@ const ROWS: readonly Row[] = [
                 outDegrees[src[edge]]++;
                 inDegrees[dst[edge]]++;
             }
-            const out: object[] = [];
+            // Then each node's id looked up and its counts written into the three published columns.
+            const measured: unknown[] = [];
+            const value = new Float64Array(nodes);
+            const inDegree = new Float64Array(nodes);
+            const outDegree = new Float64Array(nodes);
             for (let node = 0; node < nodes; node++) {
-                const [inDegree, outDegree] = [inDegrees[node], outDegrees[node]];
-                out.push({ id: graph.ids.idOf(node), values: { value: inDegree + outDegree, inDegree, outDegree } });
+                const id = graph.ids.idOf(node);
+                const index = graph.ids.indexOf(id);
+                const row = measured.push(id) - 1;
+                inDegree[row] = inDegrees[index];
+                outDegree[row] = outDegrees[index];
+                value[row] = inDegrees[index] + outDegrees[index];
             }
 
-            return out;
+            return { ids: measured, columns: { value, inDegree, outDegree } };
         },
     },
     // The estimate prices the whole iteration bound, so the row held to both bounds is one that
@@ -451,8 +459,9 @@ function measuredGraph(shape: Shape, nodes: number): Measured {
 
     // Read as the session's statistics read it: `degree()` and the transitivity build and cache the
     // directed snapshot's reverse view, as they do on every graph the element loads. That view is
-    // part of the heap the algorithm then runs in, and it moves the degree row's time by 2x (see
-    // the degree model in estimate.ts), so a run measured without it is not the element's run.
+    // part of the heap the algorithm then runs in; while degree built an object per node it moved
+    // that row's time by 2x (see the degree model in estimate.ts), so a run measured without it
+    // was not the element's run.
     return {
         data: dataManagerOf(snapshot),
         edges: src.length,

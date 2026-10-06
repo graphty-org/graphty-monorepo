@@ -10,6 +10,7 @@
  * enforces it.
  */
 
+export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { LayoutRecommendation, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
@@ -19,6 +20,7 @@ export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand }
 export { isAlgorithmRunCommand } from "./planning";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type {
+    ColumnHistogram,
     ColumnRole,
     CommandOutcome,
     CommandOutcomeMap,
@@ -28,6 +30,7 @@ export type {
     DataSourceInput,
     DraftColumn,
     DraftRow,
+    DraftRowFilter,
     DraftRowOptions,
     DraftTable,
     EdgePageOptions,

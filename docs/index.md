@@ -30,6 +30,10 @@ features:
       details: Every graphty layout and algorithm, graph generators, sample datasets and file import and export as Cytoscape.js extensions, with WebGPU acceleration.
       link: /cytoscape-extensions/
       linkText: Documentation
+    - title: graph-io
+      details: Read and write 13 graph file formats (GraphML, GEXF, GML, DOT, Pajek, CSV, JSON, Neo4j, Cytoscape and more), streaming, with a report of anything a file could not keep.
+      link: /graph-io/
+      linkText: Documentation
     - title: visual-review
       details: Visual regression review for any Storybook. Captures in GitHub Actions, baselines in git, review on your own machine.
       link: /visual-review/

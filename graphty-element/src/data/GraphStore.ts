@@ -216,6 +216,8 @@ export interface KeptGraph {
     readonly snapshot: GraphSnapshot;
     /** How its direction had been settled. */
     readonly direction: DirectionProvenance;
+    /** The direction it had before a `data.directed` setting took it over, if one had. */
+    readonly unconfigured: { readonly directed: boolean; readonly direction: DirectionProvenance } | null;
 }
 
 /**
@@ -439,6 +441,42 @@ export class GraphStore {
     private emptyDirected(): boolean {
         const setting = this.directedSetting();
         return typeof setting === "boolean" ? setting : true;
+    }
+
+    /**
+     * Whether the builder was made under a direction setting other than the one in force now.
+     * @returns True when it must be rebuilt to follow the setting.
+     */
+    private directionOutOfStep(): boolean {
+        const builder = this.current;
+        const setting = this.directedSetting();
+        return typeof setting === "boolean"
+            ? builder.directed !== setting || !builder.directedLocked
+            : builder.directedLocked || this.unconfigured !== null;
+    }
+
+    /**
+     * Settle the direction a rebuild that follows the setting gives the graph, and how it was
+     * settled: the configured one, or under "auto" the one the graph had before a setting took it
+     * over -- what its file declared, or directed when nothing did -- so taking a setting back
+     * puts the graph back as it was.
+     * @returns Whether it is directed.
+     */
+    private followSetting(): boolean {
+        const setting = this.directedSetting();
+        if (typeof setting === "boolean") {
+            if (!this.current.directedLocked) {
+                this.unconfigured = { directed: this.current.directed, direction: this.direction };
+            }
+
+            this.direction = this.emptyDirection();
+            return setting;
+        }
+
+        const before = this.unconfigured;
+        this.unconfigured = null;
+        this.direction = before?.direction ?? this.emptyDirection();
+        return before?.directed ?? true;
     }
 
     /**
@@ -778,14 +816,23 @@ export class GraphStore {
         this.publish();
         this.audit();
         let carried = this.materialize();
-        if (this.pairsOrdered !== null && this.current.edgeCount === 0) {
+        const unlatch = this.pairsOrdered !== null && this.current.edgeCount === 0;
+        // The direction setting changed since the builder was made (`config.set`, or its undo). A
+        // locked builder takes a new direction only by a rebuild, which keeps every row, every
+        // edge in its declared orientation and every parallel edge, so going back is lossless.
+        const following = this.directionOutOfStep() ? this.followSetting() : null;
+        if (unlatch || following !== null) {
             // A graph holding no edges has not latched: the latch describes how its edges were
             // hashed. So removing the last edge, forward or by undo, takes it off again, and the
             // next edge completed latches afresh. graph-format has no removal of a graph value,
-            // so the builder is rebuilt without it.
-            this.pairsOrdered = null;
+            // so the builder is rebuilt without it. A graph that keeps its edges keeps its latch,
+            // whatever its direction becomes, so their hashes still say how they were made.
+            if (unlatch) {
+                this.pairsOrdered = null;
+            }
+
             this.revision++;
-            const again = this.rebuild(null, []);
+            const again = this.rebuild(null, [], following ?? undefined);
             carried =
                 carried === null
                     ? again
@@ -1025,7 +1072,11 @@ export class GraphStore {
         const current = this.getSnapshot();
         // A second freeze of a builder about to be replaced: its report chain no longer matters,
         // and unlike the cached snapshot this one still carries the seed column.
-        const kept = { snapshot: this.current.freeze({ label: "graphty-element kept" }), direction: this.direction };
+        const kept = {
+            snapshot: this.current.freeze({ label: "graphty-element kept" }),
+            direction: this.direction,
+            unconfigured: this.unconfigured,
+        };
         // History holds it until the step is evicted: nothing may write it meanwhile.
         seal(kept.snapshot, "a kept graph's snapshot");
         this.heldLane.set(kept, { ids: current.ids.toArray(), coords: this.positions.view(current.nodeCount).slice() });
@@ -1040,6 +1091,7 @@ export class GraphStore {
      */
     replace(kept: KeptGraph, restore: boolean): void {
         this.direction = restore ? kept.direction : this.emptyDirection();
+        this.unconfigured = restore ? kept.unconfigured : null;
         // Whatever was put back before the replace is gone with the graph it was put back into.
         this.laneToRestore.clear();
         if (restore) {
@@ -1138,7 +1190,7 @@ export class GraphStore {
 
     /** Apply the structural changes waiting, if any, by freezing. */
     private settle(): void {
-        if (this.structural.length > 0 && !this.disposed) {
+        if (!this.disposed && (this.structural.length > 0 || this.directionOutOfStep())) {
             this.getSnapshot();
         }
     }
@@ -1228,11 +1280,13 @@ export class GraphStore {
      * it starts from, with the waiting changes merged in at their recorded rows.
      * @param replace - The replace it starts from, or null to start from the builder now.
      * @param changes - The inserts and removals after it, in order.
+     * @param directed - The direction to build it with; the graph's own when absent.
      * @returns The walk from the old builder's rows to the new one's.
      */
     private rebuild(
         replace: Extract<Structural, { kind: "replace" }> | null,
         changes: readonly Structural[],
+        directed?: boolean,
     ): { node: U32; edge: U32 } {
         const old = this.current;
         const node = new Uint32Array(old.nodeBound).fill(INVALID_INDEX);
@@ -1267,7 +1321,7 @@ export class GraphStore {
             }
         }
 
-        const builder = this.createBuilder(base?.directed ?? this.emptyDirected());
+        const builder = this.createBuilder(directed ?? base?.directed ?? this.emptyDirected());
         this.current = builder;
         if (replace !== null) {
             // A graph put back keeps the latch its edge hashes were made under; an emptied one
@@ -1821,6 +1875,12 @@ export class GraphStore {
      * by {@link GraphStore.recordDirectionFromFile} for a declaration that was taken.
      */
     private direction: DirectionProvenance = { by: "unsettled", statedBy: null };
+    /**
+     * The direction the graph had, and how it was settled, before a `data.directed` set to a
+     * boolean took it over; null while the setting is "auto". What setting it back to "auto"
+     * returns the graph to.
+     */
+    private unconfigured: { readonly directed: boolean; readonly direction: DirectionProvenance } | null = null;
 
     private seedUnplaced(snapshot: GraphSnapshot): void {
         // requireTyped, not the `Column | null` from get(): `Column` is a union and DictColumn has

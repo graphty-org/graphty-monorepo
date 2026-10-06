@@ -505,6 +505,14 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         },
     },
     {
+        name: "data.setSource",
+        tags: ["session"],
+        before: async (session) => {
+            await session.data.import({ type: "json", config: { data: IMPORTED }, name: "first.json" });
+        },
+        command: { op: "data.setSource", source: { type: "json", name: "Renamed" } },
+    },
+    {
         name: "view.save",
         tags: ["session"],
         command: { op: "view.save", views: [{ name: "Fixture view", camera: { zoom: 2, pan: { x: 1, y: 2 } } }] },

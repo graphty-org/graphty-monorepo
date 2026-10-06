@@ -161,16 +161,23 @@ describe("graphtyExport and graphtyImport", () => {
         }
     });
 
-    it("rejects text that reads as no node and an error, adding nothing", async () => {
+    it("rejects text that is not a graph, adding nothing", async () => {
         for (const text of ["\u0000\u0001 }{ <<<", "lorem ipsum dolor sit amet, consectetur"]) {
+            // sniffed: graph-io recognizes no format in it
             const cy = core(sample());
             const err: unknown = await cy.graphtyImport(text).catch((e: unknown) => e);
             expect(err).toBeInstanceOf(ImportError);
             expect((err as ImportError).code).toBe("E_IMPORT");
-            expect((err as ImportError).message).toMatch(/^nothing could be read from the input as csv: E_/);
-            expect((err as ImportError).report.errorCount).toBeGreaterThan(0);
+            expect((err as ImportError).message).toMatch(/^the input is not in a graph format graph-io recognizes/);
             expect(cy.elements()).toHaveLength(5);
         }
+        // a file that reads as no node and an error
+        const cy = core(sample());
+        const err: unknown = await cy.graphtyImport("source,target\n,b\n", "csv").catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ImportError);
+        expect((err as ImportError).message).toMatch(/^nothing could be read from the input as csv: E_MISSING_ENDPOINT/);
+        expect((err as ImportError).report.errorCount).toBeGreaterThan(0);
+        expect(cy.elements()).toHaveLength(5);
         // a file with nodes and a bad row still resolves, with the error in its report
         const r = await core().graphtyImport("source,target,weight\na,b,1\nb,c,heavy\n", "csv");
         expect(r.elements.nodes().length).toBeGreaterThan(0);

@@ -226,7 +226,7 @@ describe("the Data page on the real element", () => {
             await chooseFiles(new File([TRIPS], "trips.csv"));
 
             const alert = await screen.findByRole("alert", {}, { timeout: TIMEOUT_MS });
-            assert.include(alert.textContent, "The file has: trips, from_station, to_station.");
+            assert.include(alert.textContent, "The file has: from_station, to_station, trips.");
             assert.equal(loadButton().getAttribute("aria-disabled"), "true");
 
             await pick("from_station", "From -> node");

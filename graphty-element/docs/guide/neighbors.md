@@ -53,7 +53,7 @@ Each row is a `Neighbor`:
 | Field        | What it holds                                                                                                                                                                                                                                           |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `node`       | The neighbor's record, as `session.data.node(id)` returns it.                                                                                                                                                                                           |
-| `name`       | The value of the node's label column (`data.knownFields.nodeLabelPath`) as text, or its id when it has none. Render as text.                                                                                                                            |
+| `name`       | The value of the node's label column (`data.knownFields.nodeLabelPath`) as text, or its id when it has none or it is empty. Render as text.                                                                                                             |
 | `weight`     | A number: the combined weight of the edges between the two. When `page.measuredBy` is `null` it is the number of edges, the same as `edgeCount`.                                                                                                        |
 | `edgeCount`  | A number: how many edges join the two, each counted once.                                                                                                                                                                                               |
 | `excludedBy` | `{ kind: "filter" }` when the session's visibility hides the neighbor -- `visibility.set()` or `visibility.setWindow()`, which are one filter -- and absent otherwise. `"filter"` is the only kind. Hidden neighbors are listed, marked, never dropped. |
@@ -66,6 +66,14 @@ The page is a `NeighborPage`: `records`, `offset`, `total` (how many neighbors, 
 - `missing`: how many EDGES (not neighbors) had no number in the weight column. Each of them
   weighed 1, as it does in an algorithm run. Always 0 when `measuredBy` is `null`. So a column
   only some edges carry is fine: the rest show up here.
+
+To name the node at the center the same way, read `session.data.name(id)`. It gives the same
+text as a row's `name`: the label column's value, or the id when the label is missing or empty,
+and `undefined` for an id the graph does not hold.
+
+```js
+heading.textContent = `${session.data.name(nodeId)}: ${String(page.total)} connections`;
+```
 
 ## Options
 

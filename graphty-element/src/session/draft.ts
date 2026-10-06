@@ -19,10 +19,12 @@ import { describeRows } from "./attributes";
 import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
 import type { DataImportCommand, HeldRows, ImportSource } from "./commands/data";
-import { isStorableId, untilAborted } from "./project/ingest";
+import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import type {
+    ColumnRole,
     DraftColumn,
     DraftRow,
+    DraftRowFilter,
     DraftRowOptions,
     DraftTable,
     LoadChoices,
@@ -69,10 +71,25 @@ interface ReadSource {
     readonly errorLimit: number;
 }
 
-/** The roles a node table can have, and an edge table. */
+/**
+ * The column roles a table of each kind takes (`takes`), and the ones a load cannot do without
+ * (`requires`). A node table needs no role: without a `key` its rows are numbered. An edge table
+ * needs both ends. Plain data, safe to import in Node.
+ */
+export const LOAD_ROLES: Readonly<
+    Record<"nodes" | "edges", { readonly takes: readonly ColumnRole[]; readonly requires: readonly ColumnRole[] }>
+> = Object.freeze({
+    nodes: Object.freeze({ takes: Object.freeze(["key", "label", "time"] as const), requires: Object.freeze([]) }),
+    edges: Object.freeze({
+        takes: Object.freeze(["source", "target", "weight", "time", "edgeId"] as const),
+        requires: Object.freeze(["source", "target"] as const),
+    }),
+});
+
+/** The keys a table's mapping takes: `rowsAre` and its roles. */
 const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
-    nodes: new Set(["rowsAre", "key", "label", "time"]),
-    edges: new Set(["rowsAre", "source", "target", "weight", "time", "edgeId"]),
+    nodes: new Set(["rowsAre", ...LOAD_ROLES.nodes.takes]),
+    edges: new Set(["rowsAre", ...LOAD_ROLES.edges.takes]),
 };
 
 /** The endpoint column pairs a CSV edge table is probed for, as the CSV reader probes them. */
@@ -84,6 +101,9 @@ const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
 
 /** The header names that make a single CSV file a node list, and name its key. */
 const NODE_ID_COLUMNS: readonly string[] = ["id", "Id", "ID"];
+
+/** The record key every graph file format's reader gives a node's label. */
+const FORMAT_LABEL = "label";
 
 /** The id a row-numbered node is given, as the CSV reader numbers them. */
 const ROW_ID = "id";
@@ -123,15 +143,6 @@ function fileName(value: unknown): string | undefined {
 }
 
 /**
- * Whether a source hands over a CSV node file and edge file as a pair.
- * @param config - The source's options.
- * @returns True for a pair.
- */
-export function isPair(config: Readonly<Record<string, unknown>>): boolean {
-    return ["nodeFile", "edgeFile", "nodeURL", "edgeURL"].some((key) => config[key] !== undefined);
-}
-
-/**
  * A held table, its columns described.
  * @param id - Its id.
  * @param name - Its name.
@@ -139,6 +150,7 @@ export function isPair(config: Readonly<Record<string, unknown>>): boolean {
  * @param rows - Its rows.
  * @param lines - Each row's line, or null.
  * @param order - Its header.
+ * @param delimiter - A CSV file's column separator, and whether it was detected.
  * @returns The table.
  */
 function heldTable(
@@ -148,6 +160,7 @@ function heldTable(
     rows: readonly Record<string, unknown>[],
     lines: readonly number[] | null,
     order: readonly string[] = [],
+    delimiter?: DraftTable["delimiter"],
 ): HeldTable {
     for (const row of rows) {
         Object.freeze(row);
@@ -163,7 +176,14 @@ function heldTable(
         }),
     );
     return {
-        table: { id, name, rowCount: rows.length, fixed, columns },
+        table: {
+            id,
+            name,
+            rowCount: rows.length,
+            fixed,
+            columns,
+            ...(delimiter === undefined ? {} : { delimiter: Object.freeze({ ...delimiter }) }),
+        },
         rows,
         lines,
         order: columns.map((column) => column.name),
@@ -184,10 +204,16 @@ function errorsOf(reader: DataSource): Pick<ReadSource, "errors" | "errorLimit">
  * Read a source once, holding its rows.
  * @param source - The source, its format settled.
  * @param signal - Abandons the read.
+ * @param progress - Told the rows read so far, after each table or chunk, and, for a CSV file,
+ *     the share of its text read.
  * @returns What it holds.
  * @throws What the source's reader throws, with its code.
  */
-export async function readSource(source: ImportSource, signal?: AbortSignal): Promise<ReadSource> {
+export async function readSource(
+    source: ImportSource,
+    signal?: AbortSignal,
+    progress: (rows: number, fraction?: number) => void = () => undefined,
+): Promise<ReadSource> {
     const type = source.type ?? "";
     const config = source.config ?? {};
     const reader = DataSource.get(type, config);
@@ -196,7 +222,7 @@ export async function readSource(source: ImportSource, signal?: AbortSignal): Pr
     }
 
     const named = source.name ?? type;
-    const rowTables = reader instanceof CSVDataSource ? await reader.readRows() : null;
+    const rowTables = reader instanceof CSVDataSource ? await reader.readRows(progress) : null;
     signal?.throwIfAborted();
     if (rowTables !== null) {
         const pairNames: Readonly<Record<string, string | undefined>> = {
@@ -204,7 +230,11 @@ export async function readSource(source: ImportSource, signal?: AbortSignal): Pr
             edges: fileName(config.edgeFile ?? config.edgeURL),
         };
         const tables = Object.entries(rowTables).map(([id, read]) =>
-            heldTable(id, pairNames[id] ?? named, false, read.rows, read.lines, read.columns),
+            heldTable(id, pairNames[id] ?? named, false, read.rows, read.lines, read.columns, read.delimiter),
+        );
+        progress(
+            tables.reduce((sum, held) => sum + held.rows.length, 0),
+            1,
         );
         return { source, tables, declaredDirection: null, ...errorsOf(reader) };
     }
@@ -220,6 +250,14 @@ export async function readSource(source: ImportSource, signal?: AbortSignal): Pr
         for (const edge of chunk.edges) {
             edges.push(edge);
         }
+
+        progress(nodes.length + edges.length);
+    }
+
+    // Refused now, as the load would refuse it, rather than held as two empty tables.
+    const unreadable = nodes.length + edges.length === 0 ? unreadableSource(type, errorsOf(reader).errors) : null;
+    if (unreadable !== null) {
+        throw unreadable;
     }
 
     return {
@@ -264,11 +302,14 @@ function guessTable(
     const idColumn = has(source.idColumn) ? source.idColumn : NODE_ID_COLUMNS.find(has);
     const readsAsNodes = source.variant === "node-list" || (pair === undefined && idColumn !== undefined);
     const ownKind: "nodes" | "edges" = readsAsNodes ? "nodes" : "edges";
-    const kind = rowsAre ?? (held.table.id === "rows" ? ownKind : (held.table.id as "nodes" | "edges"));
+    // One file of a pair says what it holds by its columns, whichever half it was handed over as;
+    // only a file whose columns say nothing is read as the half it was handed over as.
+    const decided = held.table.id === "rows" || pair !== undefined || idColumn !== undefined;
+    const kind = rowsAre ?? (decided ? ownKind : (held.table.id as "nodes" | "edges"));
 
     if (kind === "nodes") {
         // A pair's node file falls back to its first column, as the CSV reader does.
-        const key = idColumn ?? (held.table.id === "nodes" ? held.order[0] : undefined) ?? null;
+        const key = idColumn ?? (held.table.id === "rows" ? undefined : held.order[0]) ?? null;
         return {
             rowsAre: "nodes",
             key,
@@ -300,7 +341,8 @@ function guessFixed(held: HeldTable, config: SessionDataConfig): TableMappingRea
         return {
             rowsAre: "nodes",
             key: knownFields.nodeIdPath,
-            label: present(knownFields.nodeLabelPath),
+            // Every graph format's reader names a node's label `label`; a configured path wins.
+            label: present(knownFields.nodeLabelPath ?? FORMAT_LABEL),
             time: present(knownFields.nodeTimePath),
         };
     }
@@ -339,8 +381,6 @@ export class Draft implements LoadDraft {
 
     private read: ReadSource | null;
     private readonly host: DraftHost;
-    /** The choices the last `report()` was given, which `rows()` reads with. */
-    private lastChoices: LoadChoices = {};
 
     /**
      * Hold what was read.
@@ -353,18 +393,26 @@ export class Draft implements LoadDraft {
         this.type = read.source.type ?? "";
         this.tables = Object.freeze(read.tables.map((held) => Object.freeze(held.table)));
         const config = host.config();
-        const tables = Object.fromEntries(
-            read.tables.map((held) => [
-                held.table.id,
-                Object.freeze(guessTable(held, undefined, read.source.config ?? {}, config)),
-            ]),
-        );
+        const options = read.source.config ?? {};
+        let guesses = read.tables.map((held) => guessTable(held, undefined, options, config));
+        if (guesses.length === 2 && guesses[0].rowsAre === guesses[1].rowsAre) {
+            // Both files of a pair read as the same kind: the order they were handed over in decides.
+            guesses = read.tables.map((held) => guessTable(held, held.table.id as "nodes" | "edges", options, config));
+        }
+
+        const tables = Object.fromEntries(read.tables.map((held, at) => [held.table.id, Object.freeze(guesses[at])]));
         this.mapping = Object.freeze({ tables: Object.freeze(tables) });
         this.tables = Object.freeze(
             read.tables.map((held) => {
                 const roles = suggestedRoles(this.mapping.tables[held.table.id]);
+                const own = this.mapping.tables[held.table.id];
+                const weightCandidate = weightCandidateOf(
+                    held,
+                    own.rowsAre === "edges" ? own : guessTable(held, "edges", read.source.config ?? {}, config),
+                );
                 return Object.freeze({
                     ...held.table,
+                    ...(weightCandidate === undefined ? {} : { weightCandidate }),
                     columns: Object.freeze(
                         held.table.columns.map((column) => {
                             const suggested = roles.get(column.name);
@@ -377,6 +425,25 @@ export class Draft implements LoadDraft {
     }
 
     /**
+     * Every table's roles as a load with these choices reads them.
+     * @param choices - The same choices `report` and `load` take.
+     * @returns The roles.
+     */
+    resolve(choices: LoadChoices = {}): LoadMappingRead {
+        return this.effective(this.live("resolve"), choices.mapping);
+    }
+
+    /**
+     * The roles each table needs and does not have under a set of choices.
+     * @param choices - The same choices `report` and `load` take.
+     * @returns By table id, the required roles left unset; an empty list means ready.
+     */
+    missing(choices: LoadChoices = {}): Readonly<Record<string, readonly ColumnRole[]>> {
+        const read = this.live("missing");
+        return missingRoles(this.effective(read, choices.mapping));
+    }
+
+    /**
      * What `load(choices)` would do to the graph as it is now.
      * @param choices - The same choices `load` takes.
      * @returns The report.
@@ -384,7 +451,6 @@ export class Draft implements LoadDraft {
     async report(choices: LoadChoices = {}): Promise<LoadReport> {
         const read = this.live("report");
         const plan = this.plan(read, choices);
-        this.lastChoices = choices;
         const merging = choices.mode === "merge";
         const config = this.host.config();
         return this.host.measure(
@@ -394,6 +460,7 @@ export class Draft implements LoadDraft {
                 mode: merging ? "merge" : "replace",
                 held: plan.held,
                 ...(choices.unmatched === undefined ? {} : { unmatched: choices.unmatched }),
+                ...(choices.duplicateIds === undefined ? {} : { duplicateIds: choices.duplicateIds }),
                 measure: merging ? this.host.graph() : { nodes: new Set(), edges: 0 },
             },
             {
@@ -424,8 +491,8 @@ export class Draft implements LoadDraft {
     private page(table: string, options: DraftRowOptions): RecordPage<DraftRow> {
         const read = this.live("rows");
         const held = this.table(read, table);
-        const { offset = 0, limit = 100, only } = options;
-        const picked = only === undefined ? null : this.filter(read, held, only);
+        const { offset = 0, limit = 100, only, choices = {} } = options;
+        const picked = only === undefined ? null : this.filter(read, held, only, choices);
         const total = picked?.length ?? held.rows.length;
         const records: DraftRow[] = [];
         for (let i = offset; i < Math.min(total, offset + limit); i++) {
@@ -461,6 +528,7 @@ export class Draft implements LoadDraft {
             ...(choices.layout === undefined ? {} : { layout: choices.layout }),
             held: plan.held,
             ...(choices.unmatched === undefined ? {} : { unmatched: choices.unmatched }),
+            ...(choices.duplicateIds === undefined ? {} : { duplicateIds: choices.duplicateIds }),
         };
         const data = {
             ...(choices.directed === undefined ? {} : { directed: choices.directed }),
@@ -562,11 +630,40 @@ export class Draft implements LoadDraft {
      * What a set of choices loads.
      * @param read - The rows.
      * @param choices - The choices.
+     * @param only - The one table that must be ready, when the caller works with one table; every
+     *     table must be when absent.
      * @returns The plan.
      */
-    private plan(read: ReadSource, choices: LoadChoices): Plan {
+    private plan(read: ReadSource, choices: LoadChoices, only?: string): Plan {
         const mapping = this.effective(read, choices.mapping);
-        const knownFields = knownFieldsOf(mapping, choices.mapping, read);
+        const missing = missingRoles(mapping);
+        // A table the reader maps that lacks an end is refused here, naming it: read with one end,
+        // every row would be rejected, and read with none, the probe has already failed.
+        const unready = read.tables.find(
+            (held) =>
+                (only === undefined || held.table.id === only) &&
+                !held.table.fixed &&
+                held.rows.length > 0 &&
+                missing[held.table.id].length > 0,
+        );
+        if (unready !== undefined) {
+            const { id } = unready.table;
+            throw new GraphtyError({
+                code: "E_EDGE_ENDPOINTS_UNRESOLVED",
+                source: "data",
+                message: `Table ${JSON.stringify(id)} has no ${missing[id].join(" or ")} column; name it in the mapping.`,
+                details: { table: id, missing: missing[id], columns: unready.order },
+            });
+        }
+
+        const named = knownFieldsOf(mapping, choices.mapping, read);
+        // A graph file's label column, which the element reads by itself, labels the nodes as the
+        // draft's mapping says it will, unless a label path is configured already.
+        const label = read.tables[0].table.fixed ? (mapping.tables.nodes?.label ?? null) : null;
+        const knownFields =
+            label === null || this.host.config().knownFields.nodeLabelPath !== null
+                ? named
+                : { ...named, nodeLabelPath: label };
         if (read.tables.every((held) => held.table.fixed)) {
             const [nodes, edges] = read.tables;
             return {
@@ -619,23 +716,31 @@ export class Draft implements LoadDraft {
     }
 
     /**
-     * The rows of a table that are unmatched or rejected under the last reported choices.
+     * The rows of a table that are unmatched, rejected or loaded under a set of choices.
      * @param read - The rows.
      * @param held - The table.
      * @param only - Which rows.
+     * @param choices - The choices `report` and `load` take.
      * @returns Their indexes.
      */
-    private filter(read: ReadSource, held: HeldTable, only: "unmatched" | "rejected"): number[] {
-        const { mapping, held: rows } = this.plan(read, this.lastChoices);
+    private filter(read: ReadSource, held: HeldTable, only: DraftRowFilter, choices: LoadChoices): number[] {
+        // Only this table need be ready: another table's missing role does not stop reading this one.
+        const { mapping, held: rows } = this.plan(read, choices, held.table.id);
         const roles = mapping.tables[held.table.id];
         const value = (row: Readonly<Record<string, unknown>>, expression: string): unknown =>
             readEndpoint(row as Record<string, unknown>, expression);
         const picked: number[] = [];
         if (roles.rowsAre === "nodes") {
-            if (only === "rejected") {
+            if (only !== "unmatched") {
                 const idPath = rows.idPath ?? this.host.config().knownFields.nodeIdPath;
+                const seen = new Set<unknown>();
                 held.rows.forEach((row, index) => {
-                    if (roles.key !== null && !isStorableId(value(row, idPath))) {
+                    const id = roles.key === null ? index : value(row, idPath);
+                    const rejected = !isStorableId(id);
+                    // A row repeating an earlier row's id makes no node of its own.
+                    const loaded = !rejected && !seen.has(id);
+                    seen.add(id);
+                    if (only === "rejected" ? rejected : loaded) {
                         picked.push(index);
                     }
                 });
@@ -653,19 +758,64 @@ export class Draft implements LoadDraft {
         const known = new Set<unknown>(
             rows.nodes.map((row) => value(row, rows.idPath ?? this.host.config().knownFields.nodeIdPath)),
         );
-        const graph = this.lastChoices.mode === "merge" ? this.host.graph().nodes : new Set<NodeId>();
+        const graph = choices.mode === "merge" ? this.host.graph().nodes : new Set<NodeId>();
         // With no node rows and no graph to name, every node comes from the edges: none is missing.
         const matching = known.size > 0 || graph.size > 0;
         held.rows.forEach((row, index) => {
             const ends = expressions === null ? [null, null] : expressions.map((each) => value(row, each));
             const rejected = !ends.every(isStorableId);
             const unmatched = matching && !rejected && ends.some((end) => !known.has(end) && !graph.has(end as NodeId));
-            if (only === "rejected" ? rejected : unmatched) {
+            // ponytail: "loaded" counts every repeat as its own edge, as the default `keep` policy
+            // does; a folding policy would have to fold repeats here too.
+            const loaded = !rejected && !(unmatched && choices.unmatched === "leave-out");
+            if ({ rejected, unmatched, loaded }[only]) {
                 picked.push(index);
             }
         });
         return picked;
     }
+}
+
+/**
+ * The roles each table needs and its roles leave unset.
+ * @param mapping - Every table's roles.
+ * @returns By table id, the required roles left unset.
+ */
+function missingRoles(mapping: LoadMappingRead): Readonly<Record<string, readonly ColumnRole[]>> {
+    return Object.freeze(
+        Object.fromEntries(
+            Object.entries(mapping.tables).map(([id, roles]) => [
+                id,
+                Object.freeze(
+                    LOAD_ROLES[roles.rowsAre].requires.filter((role) => {
+                        const value = roles[role];
+                        return value === undefined || value === null;
+                    }),
+                ),
+            ]),
+        ),
+    );
+}
+
+/**
+ * The column a table could take as its weight, when its reading as edges finds none: the first
+ * column every row of which holds a number, that no other role reads.
+ * @param held - The table.
+ * @param asEdges - The table's roles read as edges.
+ * @returns The column's name, or undefined.
+ */
+function weightCandidateOf(held: HeldTable, asEdges: TableMappingRead): string | undefined {
+    if (held.table.fixed || asEdges.weight !== null) {
+        return undefined;
+    }
+
+    const taken = new Set([asEdges.source?.column, asEdges.target?.column, asEdges.time, asEdges.edgeId]);
+    return held.table.columns.find(
+        (column) =>
+            (column.type === "number" || column.type === "integer") &&
+            column.completeness === 1 &&
+            !taken.has(column.name),
+    )?.name;
 }
 
 /**

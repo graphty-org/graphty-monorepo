@@ -207,6 +207,12 @@ const css = `
     background-color: var(--cm-bg-brand);
     color: var(--cm-text-onbrand);
 }
+/* A disabled tool: the disabled ink, no fill under the pointer or for aria-pressed. */
+.cm-tool[aria-disabled="true"] {
+    background-color: transparent;
+    color: var(--cm-icon-disabled);
+    cursor: default;
+}
 .cm-tool:focus-visible,
 .cm-tool[data-state="focus"],
 .cm-tool-chevron:focus-visible,

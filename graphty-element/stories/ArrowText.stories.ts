@@ -59,7 +59,7 @@ export const ArrowText: Story = {
         await assertArrowCaptionsDrawn(scene, ["arrowHead", "arrowTail"]);
         await assertArrowVariety(scene, 1);
 
-        const caps = scene.graph.scene.meshes.filter((mesh) => mesh.name.includes("arrow")).length;
+        const caps = scene.arrowCaps.length;
 
         await holds(caps === 2, `Styles/Edge ArrowText: both ends carry a cap and the scene draws ${String(caps)}`);
 

@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { act, render, screen, within } from "../../../test/test-utils";
-import type { WorkspaceRegistration } from "../../commands/registry";
+import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -21,6 +21,12 @@ const OPEN: Partial<WorkspaceState> = { project: { name: "Les Miserables", id: 1
  * @param registrations - the registrations, every package's by default.
  * @returns the render result.
  */
+/** A command a later package declares but has not built yet: a stub, with a key. */
+const LATER = defineRegistration({
+    owner: "later",
+    commands: stubCommands([{ id: "later.tool", label: "Later tool", group: "View", keys: ["Mod+Alt+L"] }]),
+});
+
 function renderWorkspace(initialState?: Partial<WorkspaceState>, registrations?: readonly WorkspaceRegistration[]) {
     return render(<Workspace initialState={initialState} registrations={registrations} />);
 }
@@ -31,23 +37,22 @@ afterEach(() => {
 });
 
 describe("the workspace frame", () => {
-    it("opens on the start screen, and New project opens the frame", async () => {
+    it("opens on the start screen, and a sample opens the frame", async () => {
         renderWorkspace();
 
-        assert.isNull(screen.queryByRole("banner"));
-        await userEvent.click(screen.getByRole("button", { name: "New project" }));
+        assert.isNull(screen.queryByRole("banner", { name: "Project" }));
+        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
 
-        assert.isNotNull(screen.getByRole("button", { name: "Project: Untitled" }));
+        assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine families" }));
         assert.isNotNull(screen.getByRole("toolbar", { name: "Places" }));
         assert.isNotNull(screen.getByRole("complementary", { name: "Inspector" }));
     });
 
-    it("draws every region with its package's stub", () => {
+    it("draws every region", () => {
         renderWorkspace(OPEN);
 
-        for (const stub of ["Graph place", "Toolbar", "Legend card and state cards", "Privacy chip"]) {
-            assert.isNotNull(screen.getByText(stub), stub);
-        }
+        assert.isNotNull(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
+        assert.isNotNull(screen.getByRole("region", { name: "Graph place" }));
         assert.isNotNull(document.querySelector("graphty-element"));
     });
 
@@ -55,11 +60,11 @@ describe("the workspace frame", () => {
         renderWorkspace(OPEN);
 
         await userEvent.click(screen.getByRole("button", { name: "Data" }));
-        assert.isNotNull(screen.getByText("Data place"));
-        assert.isNull(screen.queryByText("Graph place"));
+        assert.isNotNull(screen.getByRole("region", { name: "Data place" }));
+        assert.isNull(screen.queryByRole("region", { name: "Graph place" }));
 
         await userEvent.click(screen.getByRole("button", { name: "Graph" }));
-        assert.isNotNull(screen.getByText("Graph place"));
+        assert.isNotNull(screen.getByRole("region", { name: "Graph place" }));
     });
 
     it("lets the Data page take the panels while the element stays mounted", () => {
@@ -78,7 +83,10 @@ describe("the workspace frame", () => {
         unmount();
 
         renderWorkspace({ ...OPEN, dockOpen: true });
-        assert.isNotNull(within(screen.getByRole("region", { name: "Table" })).getByText("Table"));
+        // No element here, so no session: the dock lists nothing but can still be closed.
+        assert.isNotNull(
+            within(screen.getByRole("region", { name: "Table" })).getByRole("button", { name: "Close table" }),
+        );
     });
 
     it("lists built commands in the main menu and leaves stubs out", async () => {
@@ -90,8 +98,7 @@ describe("the workspace frame", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: "New project" }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /Keyboard shortcuts/ }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: "Help" }));
-        // Save is a stub until the Project package lands.
-        assert.isNull(within(menu).queryByRole("menuitem", { name: /Save/ }));
+        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Save/ }));
     });
 
     it("draws a File list command in both menus once its package builds it", async () => {
@@ -141,14 +148,14 @@ describe("the workspace frame", () => {
     });
 
     it("opens the keyboard shortcuts with ? and lists every built command's key", async () => {
-        renderWorkspace(OPEN);
+        renderWorkspace(OPEN, [...REGISTRATIONS, LATER]);
 
         await userEvent.keyboard("?");
         const sheet = await screen.findByRole("region", { name: "Keyboard shortcuts" });
         assert.isNotNull(within(sheet).getByText("Rename"));
         assert.isNotNull(within(sheet).getByText("F2"));
         // A stub's key is not listed until its command is built.
-        assert.isNull(within(sheet).queryByText("Neighborhood"));
+        assert.isNull(within(sheet).queryByText("Later tool"));
     });
 
     it("ignores single-key shortcuts when the reader switched them off", async () => {

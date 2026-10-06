@@ -45,11 +45,13 @@ const POLL_MS = 30 * 60 * 1000;
 const COVERAGE_WAIT_MS = 3 * 60 * 60 * 1000;
 const SCAN_TIMEOUT_MS = 1800 * 1000;
 const GATE_NAME = "Graphty";
-// The "Graphty" gate's conditions at stage 0. Each stage of the burn-down adds its ratchet here
-// (design section 3, "Stages") and records it in design/sonarqube/server-settings.md.
+// The "Graphty" gate's conditions. Each stage of the burn-down adds its ratchet here (design
+// section 3, "Stages") and records it in design/sonarqube/server-settings.md. Stage 1 added the
+// security review rating: worse than A (rating 1) fails.
 const GATE_CONDITIONS = [
     { metric: "new_violations", op: "GT", error: "0" },
     { metric: "new_security_hotspots_reviewed", op: "LT", error: "100" },
+    { metric: "security_review_rating", op: "GT", error: "1" },
 ];
 
 const log = (msg) => console.log(`${new Date().toISOString()} ${msg}`);

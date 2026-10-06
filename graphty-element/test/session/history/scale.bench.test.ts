@@ -35,6 +35,14 @@ const FRAME_MS = 16;
 /** How much slower a busy runner measures than an idle one (see `test/session/styles/repaint.bench.test.ts`). */
 const CONTENTION = 4;
 const TIMEOUT_MS = 120_000;
+/**
+ * The tests that rebuild the whole graph inside their own body take about a second each alone
+ * (968 to 1,277 ms at load average 46); vitest's default five seconds is under the 3-5x a busy
+ * pre-push gate stretches them.
+ */
+const REBUILD_TIMEOUT_MS = 15_000;
+/** The fifty-step restore: 4,385 ms alone at load average 46, almost all of it its setup. */
+const RESTORE_TIMEOUT_MS = 30_000;
 
 /**
  * Report a timing.
@@ -73,10 +81,13 @@ function records(): { nodes: { id: string }[]; edges: { src: string; dst: string
 describe("undo at the largest graph a session holds", () => {
     let session: ElementSession;
     let loadMs = 0;
+    /** The loaded graph's records, generated once: the tests below only read slices of them. */
+    let graph: ReturnType<typeof records>;
 
     beforeAll(async () => {
         session = blankHarness({ baselineWindow: true }).session as ElementSession;
-        const { nodes, edges } = records();
+        graph = records();
+        const { nodes, edges } = graph;
         loadMs = await time(() =>
             dispatcherOf(session).dispatch({
                 op: "batch",
@@ -118,7 +129,7 @@ describe("undo at the largest graph a session holds", () => {
         // every row, it is the same order of work.
         assert.isBelow(ms, Math.max(loadMs, FRAME_MS * CONTENTION));
         await session.undo();
-    });
+    }, REBUILD_TIMEOUT_MS);
 
     it("undoing an attribute edit takes a frame", async () => {
         await session.data.updateNodes([{ id: "v7", values: { weight: 3 } }]);
@@ -146,10 +157,10 @@ describe("undo at the largest graph a session holds", () => {
         report("the one rebuild they cost, at the next read", read);
         // One node's rows each: nowhere near a rebuild of the graph, which the read pays once.
         assert.isBelow(Math.max(...calls), FRAME_MS * CONTENTION);
-    });
+    }, REBUILD_TIMEOUT_MS);
 
     it("undoing a replacing import at the state layer costs less than the import it undoes", async () => {
-        const { nodes, edges } = records();
+        const { nodes, edges } = graph;
         const document = JSON.stringify({ nodes: nodes.slice(0, 10), edges: edges.slice(0, 10) });
         await session.data.import({ type: "json", config: { data: document } }, { mode: "replace" });
         const ms = await time(async () => {
@@ -158,10 +169,11 @@ describe("undo at the largest graph a session holds", () => {
         });
         report("undoing a replacing import, with the read that rebuilds", ms);
         assert.isBelow(ms, loadMs);
-        await session.redo();
-        await session.undo();
-    });
+    }, REBUILD_TIMEOUT_MS);
 
+    // The fifty steps are most of this test's time: each add after a removal pays a rebuild of
+    // the whole graph (about 450 ms each, ten of them, measured alone at load average 48). That
+    // is the setup the measured restore needs, so it is sized here rather than skipped.
     it("restoreTo(null) after fifty mixed steps costs less than loading the graph", async () => {
         for (let at = 0; at < 50; at++) {
             switch (at % 5) {
@@ -198,13 +210,13 @@ describe("undo at the largest graph a session holds", () => {
         // Undoing adds and removals in one move rebuilds the graph once, not once per add.
         assert.isBelow(call, FRAME_MS * CONTENTION);
         assert.isBelow(ms, loadMs);
-    });
+    }, RESTORE_TIMEOUT_MS);
 
     it("reports what strict state adds to one dispatch", async () => {
         const plain = await time(() => session.data.updateNodes([{ id: "v9", values: { x: 1 } }]));
         (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
         const strict = blankHarness().session as ElementSession;
-        await strict.data.addNodes(records().nodes.slice(0, 1000));
+        await strict.data.addNodes(graph.nodes.slice(0, 1000));
         (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = false;
         const checked = await time(() => strict.data.updateNodes([{ id: "v9", values: { x: 1 } }]));
         report("one attribute edit, strict state off", plain);

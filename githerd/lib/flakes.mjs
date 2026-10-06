@@ -662,16 +662,30 @@ export async function observeRollups({ nodes, store, ws, required, at, files, ge
                 FAILED.has(c.conclusion) && /^Test\b/.test(c.name) && c.databaseId && !store.jobs[String(c.databaseId)],
         );
         const changed = queue ? null : files(node.number, sha);
-        for (const runId of new Set(failed.map(runOf).filter(Boolean))) {
-            const jobs = (await get(`repos/${repo}/actions/runs/${runId}/jobs?filter=latest&per_page=100`))?.jobs ?? [];
-            for (const c of failed.filter((x) => runOf(x) === runId)) {
-                const attempt = jobs.find((/** @type {any} */ x) => x.id === c.databaseId)?.run_attempt ?? null;
-                const occ = { runId, attempt, job: c.name, jobId: c.databaseId, sha, where, pr: node.number, at };
-                await recordJob({ store, ws, log, check: c, occ, files: changed });
-            }
-        }
+        const base = { sha, where, pr: node.number, at };
+        await recordRuns({ store, ws, log, get, repo, failed, base, files: changed });
     }
     return { passes, heads };
+}
+
+/**
+ * Records the failed test jobs of a head, run by run: one jobs list per run (for the attempts),
+ * one log per job.
+ * @param {{store: Store, ws: Workspace, log: (jobId: number) => Promise<string | null>,
+ *   get: (path: string) => Promise<any>, repo: string, failed: any[],
+ *   base: {sha: string, where: "pr" | "queue", pr: number, at: string}, files: string[] | null}} ctx
+ *   the record, the workspace, the log reader, the client's read, `owner/name`, the failed check
+ *   runs not read yet, the head's facts and the change's files
+ */
+async function recordRuns({ store, ws, log, get, repo, failed, base, files }) {
+    for (const runId of new Set(failed.map(runOf).filter(Boolean))) {
+        const jobs = (await get(`repos/${repo}/actions/runs/${runId}/jobs?filter=latest&per_page=100`))?.jobs ?? [];
+        for (const c of failed.filter((x) => runOf(x) === runId)) {
+            const attempt = jobs.find((/** @type {any} */ x) => x.id === c.databaseId)?.run_attempt ?? null;
+            const occ = { ...base, runId, attempt, job: c.name, jobId: c.databaseId };
+            await recordJob({ store, ws, log, check: c, occ, files });
+        }
+    }
 }
 
 /**

@@ -41,8 +41,8 @@ import { parseTemporal, type TemporalValue, timeTextCompanion } from "./temporal
 
 /**
  * What an importer knows about a declared attribute.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface AttributeDeclarationInput {
     /** The declaring format. */
@@ -73,8 +73,8 @@ export interface AttributeDeclarationInput {
 
 /**
  * A non-fatal problem with a declaration, for the importer to record as a warning.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface DeclarationIssue {
     /** The issue category. */
@@ -87,8 +87,8 @@ export interface DeclarationIssue {
 
 /**
  * A declared attribute: the ColumnDecl to push, the spec to parse values with, and what to report.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface DeclaredAttribute {
     /** The declaration for declareNodeColumn / declareEdgeColumn. */
@@ -105,20 +105,30 @@ export interface DeclaredAttribute {
     readonly issues: readonly DeclarationIssue[];
 }
 
-/** Issue code: the declared type is not one the format defines; the column is kept as string. */
+/**
+ * The declared type is not one the format defines; the column is kept as string.
+ * @category Issue and loss codes
+ */
 export const UNKNOWN_TYPE_CODE = UNKNOWN_ATTR_TYPE_CODE;
-/** Issue code: the column was renamed `<name>#<id>` because the name was taken (design section 5.6). */
+/**
+ * The column was renamed `<name>#<id>` because the name was taken.
+ * @category Issue and loss codes
+ */
 export const RENAMED_CODE = COLUMN_RENAMED_CODE;
 
 export { BAD_DEFAULT_CODE, BAD_OPTIONS_CODE, PRECISION_CODE, ROLE_TAKEN_CODE };
 
-/** Rows sampled before the dict heuristic decides (design section 5.4). */
+/**
+ * Rows sampled before the dict heuristic decides (design section 5.4).
+ * @category Plugin helpers
+ */
 export const DICT_SAMPLE_ROWS = 1024;
 
 /**
  * Build the column declaration of a declared attribute.
  * @param input - what the file declares
  * @returns the declaration, the value spec and any warnings to record
+ * @category Plugin helpers
  */
 export function declareAttribute(input: AttributeDeclarationInput): DeclaredAttribute {
     const issues: DeclarationIssue[] = [];
@@ -208,6 +218,7 @@ export function declareAttribute(input: AttributeDeclarationInput): DeclaredAttr
  * @param spec - the declared type
  * @param listSyntax - the list syntax
  * @returns the value to push (a boolean, a number, a string, a JSON value or an array)
+ * @category Plugin helpers
  */
 export function parseDeclaredValue(text: string, spec: DeclaredTypeSpec, listSyntax: ListSyntax): unknown {
     if (spec.list) {
@@ -222,6 +233,7 @@ export function parseDeclaredValue(text: string, spec: DeclaredTypeSpec, listSyn
  * @param text - the value text
  * @param spec - a scalar temporal spec
  * @returns the value and the text to keep, or null text
+ * @category Plugin helpers
  */
 export function parseDeclaredTemporal(text: string, spec: DeclaredTypeSpec): TemporalValue {
     if (spec.temporal === null || spec.list) {
@@ -241,6 +253,7 @@ const INTEGER_TEXT = /^[+-]?[0-9]+$/;
  * @param spec - the declared type
  * @param text - the value text (trimmed or not)
  * @returns true when the importer should record a `precision` issue
+ * @category Plugin helpers
  */
 export function losesPrecision(spec: DeclaredTypeSpec, text: string): boolean {
     if (!spec.precision) {
@@ -260,6 +273,7 @@ export function losesPrecision(spec: DeclaredTypeSpec, text: string): boolean {
  * @param domain - node or edge
  * @param decl - the declaration
  * @returns the column handle
+ * @category Plugin helpers
  */
 export function declareOn(sink: GraphSink, domain: "node" | "edge", decl: ColumnDecl): ColumnHandle {
     return domain === "node" ? sink.declareNodeColumn(decl) : sink.declareEdgeColumn(decl);
@@ -267,8 +281,8 @@ export function declareOn(sink: GraphSink, domain: "node" | "edge", decl: Column
 
 /**
  * The outcome of declareResolved(): the handle and the declaration as it was applied.
- * Consumed by the per-format importers under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface ResolvedDeclaration {
     /** The column handle. */
@@ -282,11 +296,10 @@ export interface ResolvedDeclaration {
 }
 
 /**
- * The io rule of design section 5.6 in one place, so every importer agrees: declare a column on
+ * The column naming rule in one place, so every importer agrees: declare a column on
  * the sink and, when the sink already holds the name with another shape (an earlier import, a
  * caller's column), rename it `<name>#<origin.id>` (a counter when the source has no id) and
- * record W_COLUMN_RENAMED (coercion); when the table already holds the role (design section 5.5:
- * at most one column per role), declare without the role and record W_ROLE_TAKEN (coercion). The
+ * record W_COLUMN_RENAMED (coercion); when the table already holds the role, declare without the role and record W_ROLE_TAKEN (coercion). The
  * same shape under the same name returns the existing handle, as the sink does.
  * @param sink - the sink
  * @param domain - node or edge
@@ -294,6 +307,7 @@ export interface ResolvedDeclaration {
  * @param report - the report the coercion issues are recorded in
  * @param where - the line and element, when known
  * @returns the handle and the declaration as applied
+ * @category Plugin helpers
  */
 export function declareResolved(
     sink: GraphSink,
@@ -345,7 +359,7 @@ export function declareResolved(
 }
 
 /**
- * Declare the companion text column of a temporal column (design section 5.1). A table holds at
+ * Declare the companion text column of a temporal column. A table holds at
  * most one column per role, so when another companion already carries `timeText` this one is
  * declared without the role (reported once per table); exporters find every companion through
  * `extra.for`.
@@ -354,6 +368,7 @@ export function declareResolved(
  * @param companion - the declaration from declareAttribute()
  * @param report - the report the role loss is recorded in; when omitted the loss is silent
  * @returns the column handle
+ * @category Plugin helpers
  */
 export function declareCompanion(
     sink: GraphSink,
@@ -383,6 +398,7 @@ export function declareCompanion(
  * @param sink - the sink
  * @param domain - node or edge
  * @returns a predicate over column names
+ * @category Plugin helpers
  */
 export function takenIn(sink: GraphSink, domain: "node" | "edge"): (name: string) => boolean {
     return (name: string): boolean =>
@@ -396,6 +412,7 @@ export function takenIn(sink: GraphSink, domain: "node" | "edge"): (name: string
  * @param id - the source id (the attribute id or key id); null falls back to a counter
  * @param taken - whether a name is already used in the table
  * @returns a free name
+ * @category Plugin helpers
  */
 export function uniqueColumnName(name: string, id: string | null, taken: (name: string) => boolean): string {
     if (!taken(name)) {
@@ -417,6 +434,7 @@ export function uniqueColumnName(name: string, id: string | null, taken: (name: 
  * The dict heuristic of design section 5.4 for an untyped string column: observe values until the
  * sample is full; the column is a dict when the distinct count stays below half the rows, a string
  * otherwise. The importer buffers the sampled values and declares the column on the decision.
+ * @category Plugin helpers
  */
 export class DictHeuristic {
     private readonly distinct = new Set<string>();

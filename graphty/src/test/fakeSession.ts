@@ -399,6 +399,12 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
     const watchers = new Map<string, Set<(payload?: unknown) => void>>();
     const runs: FakeRun[] = [];
     const pinned = new Set<NodeId>();
+    /* Same node, either spelling of its id: the element's pin, unpin, `pinned.has` and
+       `edgePage({ touching })` all take an integer id written as a number or a string. */
+    const sameNode = (a: NodeId, b: NodeId): boolean => String(a) === String(b);
+    Object.defineProperty(pinned, "has", {
+        value: (id: NodeId): boolean => [...pinned].some((held) => sameNode(held, id)),
+    });
     let minted = 0;
 
     /** What the graph a run would measure looks like now. @returns the digest. */
@@ -743,7 +749,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                 delete (merged as { set?: unknown }).set;
             }
 
-            layers[at] = merged as Layer;
+            layers[at] = merged;
             publish();
             record(`Changed layer ${layers[at].name}`, "style.patch", ["styles"]);
 
@@ -911,8 +917,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                     (options.records?.().edges ?? []).filter(
                         (edge) =>
                             page.touching === undefined ||
-                            edge.source === page.touching ||
-                            edge.target === page.touching,
+                            sameNode(edge.source, page.touching) ||
+                            sameNode(edge.target, page.touching),
                     ),
                     page,
                 ),
@@ -920,6 +926,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             attributes: () => fakeAttributes(options.records?.() ?? { nodes: [], edges: [] }),
             /* Where the graph came from, as the last load named it; history does not move it here. */
             source: () => loadedFrom,
+            /* No load report: this stand-in reads no file, so it has no import issues to count. */
+            lastImport: () => null,
             import: async (source: DataSourceInput, importOptions?: ImportOptions): Promise<void> => {
                 await (options.importer?.(source, importOptions) ?? Promise.resolve());
                 loadedFrom = {
@@ -942,18 +950,20 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
            drag, so every row is unplaced and the arrangement that keeps the data's own
            coordinates never wins. A board that wants the placed case states its own session. */
         notes: notesApi,
+        /* No filter is ever active here: the shell reads it to draw the ego network control. */
+        visibility: { filter: null },
         positions: {
             placedCount: 0,
             pinned,
             pin: (ids: readonly NodeId[]): Promise<void> => {
-                repin("Pinned", [...pinned, ...ids]);
+                repin("Pinned", [...pinned, ...ids.filter((id) => !pinned.has(id))]);
 
                 return Promise.resolve();
             },
             unpin: (ids: readonly NodeId[]): Promise<void> => {
                 repin(
                     "Unpinned",
-                    [...pinned].filter((id) => !ids.includes(id)),
+                    [...pinned].filter((held) => !ids.some((id) => sameNode(held, id))),
                 );
 
                 return Promise.resolve();

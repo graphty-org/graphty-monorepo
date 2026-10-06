@@ -111,6 +111,31 @@ parameters -- and never:
 A fact about the data (what a column measures, what an algorithm returns) is graphty-element's. How
 a reader sees it is the application's.
 
+### graphty-element offers choices; consumers make them
+
+**graphty-element exposes an option for every behavior a consumer might reasonably want either
+way, and its default is the neutral behavior of the mechanism underneath -- never one consumer's
+preference.** A consumer that wants something particular sets the option itself.
+
+The owner's rule (2026-10-06), on making the default force layout seeded: "the app shouldn't force
+opinions on graphty-element. if the app wants a consistent seed it should set a consistent seed."
+So the default force layout stays unseeded, and the graphty app or a story that wants the same
+drawing on every load passes a seed.
+
+This does not weaken self-sufficiency; it draws the line inside it:
+
+- A **capability** is graphty-element's. If getting a behavior would make a consumer write code --
+  detection, construction, sequencing, recovery -- that code belongs in the element. Making a
+  passed seed give the same drawing however the data arrives (in one write or split across frames)
+  is a capability, so it is the element's job.
+- A **choice** is the consumer's. If getting a behavior only takes setting a value, and another
+  reasonable consumer would set a different one, it is an option with a neutral default: a seed, a
+  palette, a starting camera, how much detail to draw.
+
+The test: would a different reasonable consumer want a different value? Then it is a choice, the
+element exposes it and documents it, and the default does nothing opinionated. A need that only
+the graphty app has is the app's to set, never a reason to change the element's default.
+
 ### Easy things easy, hard things possible
 
 Every public API and extension point has a simple path and an advanced path. The simple path's
@@ -148,7 +173,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/algorithms` | **algorithms** | - |
 | `@graphty/layout` | **layout** | - |
 | `@graphty/graph-format` | **graph-format** | "format", "snapshot package" |
-| `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: gexf, graphml, gml, dot, pajek, csv, json, neo4j) | **graph-io** | "io", "importers" |
+| `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: json, graphml, gexf, csv, gml, dot, pajek, neo4j, xgmml, cx2, cx, obo, cys) | **graph-io** | "io", "importers" |
 | `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 
@@ -162,7 +187,7 @@ workarounds available to them and no way to know they are not alone.
 | Package | Location | Version | Description |
 |---------|----------|---------|-------------|
 | `@graphty/graph-format` | `graph-format/` | 1.1.2 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
-| `@graphty/graph-io` | `graph-io/` | 0.3.9 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
+| `@graphty/graph-io` | `graph-io/` | 0.3.20 | Importers and exporters for 13 formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) for the graph-format snapshot; subpath exports per format |
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
@@ -319,6 +344,11 @@ commits made with a temporary `core.hooksPath` that skips pre-commit. Both call
 from there and never print them. The checked-in `.claude/settings.json` denies agents `Read` on
 `.env` files, their backups, `*.pem`, `*.key` and SSH keys; `.env.example` stays readable.
 
+After the scan, `.husky/pre-commit` runs `tools/format-staged.sh`: prettier on the staged files,
+staged again (it skips a file that also has unstaged changes, `visual-baselines/` and merge commits).
+`tools/prepush.sh` runs its source-only checks (formatting, links, the tool and config checks) before
+the build, and stops at the first failing check instead of running the rest.
+
 `tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
 copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns
 when a merge or pull changed the lockfile. Either way, run `pnpm install`.
@@ -455,21 +485,27 @@ The target flow:
 - Mergify checks batches of up to 4 ready pull requests, 2 batches at once. Each batch gets the
   full un-selected suite on the combined tree, and a failing batch is bisected. The visual gate
   passes a batch whose images equal the owner-approved images of its pull requests.
-- A red master freezes the queue and opens a `priority:critical` revert automatically.
-- Releases go out once a day as a release pull request, plus an ad hoc release on demand.
+- Master runs no tests: a push to master only builds what graphty.app deploys. A red master build
+  freezes the queue and opens a `priority:critical` revert automatically.
+- A release is attempted every 6 hours: the full suite, the T4 GPU lane, Hosts and the security
+  audit run on the candidate commit, and only when all pass is a release pull request opened. Plus
+  an ad hoc release on demand.
 
 **Live today:** the pull request half of the target flow. A draft pull request runs no tests: ci.yml
 skips its build and test jobs and reports `All Checks Pass` and `Queue Checks Pass` as FAILED
-("draft: CI not run"), so a draft can never look green; `hosts.yml` and gpu.yml
-skip drafts too. `Lint PR Title` still checks a draft's title (seconds). A ready one runs the affected suite with the screenshots and the gate; `Cost Estimate Accuracy` runs on
+("draft: CI not run"), so a draft can never look green; `hosts.yml` skips drafts too. `Lint PR Title` still checks a draft's title (seconds). A ready one runs the affected suite with the screenshots and the gate; `Cost Estimate Accuracy` runs on
 every pull request that affects graphty-element and gates it; the short test shards run as two
 grouped jobs. ci.yml also knows a Mergify merge-queue run (a draft on a `mergify/merge-queue/*`
 branch, opened by Mergify in this repository): it runs the full suite there and reports
 `Queue Checks Pass`, and `Lint PR Title` passes it. Mergify checks batches of up to 4
-(`.mergify.yml`), and the visual gate accepts a batch (`--queue-event`). Releases run on the daily
-train (see "Release versioning"), and graphty.app deploys after every green CI run on master. A red master CI
-freezes the queue and opens a revert (`master-guard.yml`), and a pull request that affects
-webgpu-graph-algorithms is queued only after the T4 passed on it (`T4 GPU gate`). The
+(`.mergify.yml`), and the visual gate accepts a batch (`--queue-event`). A push to master runs no
+tests: ci.yml builds every package, Storybook and docs site and skips every test, link, cost and
+screenshot job, and graphty.app deploys after every green master build. A red master build freezes
+the queue and opens a revert (`master-guard.yml`). Releases run on the release train every 6 hours
+(see "Release versioning"), which runs the full suite, the T4 GPU lane, Hosts and the security
+audit on the exact commit it releases and publishes Coveralls' coverage from that run. The paid T4
+GPU lane runs only in the local pre-push gate and on the release train, never on a pull request or
+a master push. The
 plan's section 16
 is the order of the migration. Update this paragraph as each step lands.
 
@@ -481,15 +517,16 @@ CI, and Mergify queues only ready pull requests.
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push to master, ready (non-draft) PRs, Mergify queue drafts, dispatch | Build, lint, sharded tests (13 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize |
-| `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
-| `release.yml` | Daily (14:00 UTC), dispatch (the ad hoc release), push to master (publishes a merged release pull request) | The release train: opens the release pull request, then tags and publishes it with npm trusted publishing |
-| `deploy-pages.yml` | After every green CI run on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
+| `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build, lint, sharded tests (13 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. On a push to master only the Build job runs; the summaries pass when it does |
+| `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
+| `release.yml` | Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC), dispatch (the ad hoc release), push to master (publishes a merged release pull request) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
+| `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
-| `gpu.yml` | Ready PRs, push to master, dispatch (the nightly is switched off in the file) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4). Never a job of CI. Its `T4 GPU gate` check is required for queue entry: it passes at once when nx says the change does not affect webgpu-graph-algorithms (workflow files other than gpu.yml left out), and otherwise once the T4 passed on the PR, run once per PR and again only when a later push affects the package again (`tools/gpu-lane-needed.sh`). On master a commit that does not affect the package inherits the last T4 pass. `release.yml` requires it green. A PR's paired benchmark runs only the groups its change can move (`scripts/bench-groups.js`) |
+| `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- no release PR, nothing published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
-| `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, nightly, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); `release.yml` waits for it and requires it green when it ran |
-| `master-guard.yml` | After CI, GPU or Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; the next green master CI lifts the freeze. GPU or Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
+| `hosts.yml` | PR touching `webgpu-graph-algorithms/` or `graph-format/`, nightly, dispatch, called by `release.yml`; never on a push to master | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); a red run on the release candidate holds the release |
+| `master-guard.yml` | After CI (the build) or the nightly Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; the next green master CI lifts the freeze. Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
+| `githerd-watchdog.yml` | Twice an hour, after CI on master, dispatch | Alarms the owner by an issue comment when githerd's heartbeat issue (label `githerd-heartbeat`, written by githerd every 15 minutes) is over an hour old, stuck, fatal or missing (green until githerd first writes it), and when master CI has been red for over 2 hours. Works with the dev machine off (`tools/githerd-watchdog.mjs`) |
 
 ### Dead Links
 
@@ -518,12 +555,23 @@ package has no guide pages, so its documentation link is the generated API refer
 
 ### Release versioning
 
-Releases go out on a daily train (`design/ci/ci-cd-plan.md`, sections 10 and 11). Once a day
-`release.yml` versions the newest master commit green on CI, GPU and Hosts and opens a
-`chore(release): publish` pull request (branch `release/train-<run id>`, label `priority:critical`)
+Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11). Every 6 hours
+(00:00, 06:00, 12:00 and 18:00 UTC) `release.yml` takes master's newest commit and runs the full CI
+suite (ci.yml, every shard), the T4 GPU lane, Hosts and the production security audit on it; only
+if all pass does it version that commit and open a
+`chore(release): publish` pull request (branch `release/train-<run id>`, which Mergify puts first in the queue)
 holding only version fields and changelogs; Mergify merges it, and the merge starts `release.yml`'s
 publish job, which tags each package, creates its GitHub release and publishes it with npm trusted
-publishing from the tested build. Never edit or push to a release branch, and never close one
+publishing from the builds of the run that tested it. An attempt does nothing while the previous
+release is pending: a release pull request is open (one that conflicts with master, has a failed
+check or left the merge queue is closed and re-cut from the newest commit; one labelled `hold`
+waits), a "Release held" issue is open, the last release is not tagged yet, or nothing releasable
+changed. A failed publish opens a `Release held: publish failed on <sha>` issue; re-running the
+publish run's failed jobs publishes what is missing and closes it. A
+red lane holds the whole release: no pull request, nothing published, and one `Release held: <what>
+failed on <sha>` issue (labels `bug`, `priority:high`, `effort:medium`) that githerd picks up. Its
+fix pull request should say `Fixes #<issue>`, so the merge closes it and the next attempt runs; a
+passing train also closes it. Never edit or push to a release branch, and never close one
 unless it must be replaced: while one is open, no new train runs. An ad hoc release cuts the same
 pull request at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never
@@ -560,7 +608,8 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 22 test shards on a push to master, a manual dispatch or a merge-queue run. The
+The CI runs 22 test shards on a merge-queue run, a manual dispatch or the release train (a push
+to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 13 test jobs: `small-node` (graph-format, graph-io, graph-samples, layout,
 algorithms-default) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
@@ -871,7 +920,7 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Nx caches build outputs in `.nx/cache`
 - Affected commands run only changed packages on PRs
 - CI builds artifacts once, tests download and reuse them
-- The release ships the CI artifacts of the commit every lane tested (no rebuild)
+- The release ships the builds of its own CI call on the commit every lane tested (no rebuild)
 
 ### Merging
 
@@ -886,6 +935,8 @@ the queue never asks for a new approval. Nobody turns on auto-merge by hand.
 
 - To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
   Adding `hold` also takes an already-queued pull request out of the queue.
+- To move a pull request ahead of ordinary ones, add the `queue:next` label: it goes behind the
+  release train and red-master fixes, and never interrupts a batch already being checked.
 - Never turn on GitHub's own auto-merge (`gh pr merge --auto`): it ignores labels, so a held pull
   request with it on would merge anyway.
 
@@ -898,7 +949,7 @@ breaking changes into as few majors as possible.
   already planned or in flight for that package -- open pull requests carrying `!` commits,
   deprecations scheduled for removal, the breaking-change registers in `design/` -- and land them
   in the same major.
-- The daily release train (and any ad hoc release) publishes whatever has merged, so a group of
+- The release train (and any ad hoc release) publishes whatever has merged, so a group of
   breaking changes cannot be assembled by merging several pull requests over several days: each
   train in between would publish its own major. Put the grouped changes on one branch (or merge
   one pull request into the other) and release them with one merge.

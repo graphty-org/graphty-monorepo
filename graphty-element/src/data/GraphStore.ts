@@ -216,6 +216,8 @@ export interface KeptGraph {
     readonly snapshot: GraphSnapshot;
     /** How its direction had been settled. */
     readonly direction: DirectionProvenance;
+    /** The direction it had before a `data.directed` setting took it over, if one had. */
+    readonly unconfigured: { readonly directed: boolean; readonly direction: DirectionProvenance } | null;
 }
 
 /**
@@ -252,6 +254,46 @@ function mergeAt<R extends { readonly index: number }>(list: readonly Row<R>[], 
     }
 
     return out;
+}
+
+/**
+ * Where a builder row lands once the rows taken out before it are compacted away: the row less
+ * how many of those sit below it.
+ * @param row - The builder row, itself not taken out.
+ * @param taken - The builder rows taken out, ascending.
+ * @returns The row in the compacted graph.
+ */
+function compacted(row: number, taken: readonly number[]): number {
+    let low = 0;
+    let high = taken.length;
+    while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (taken[middle] < row) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+
+    return row - low;
+}
+
+/**
+ * Two ascending lists of distinct rows as one.
+ * @param one - One list.
+ * @param other - The other.
+ * @returns Both, ascending.
+ */
+function mergeSorted(one: readonly number[], other: readonly number[]): number[] {
+    return [...one, ...other].sort((a, b) => a - b);
+}
+
+/** The removals {@link GraphStore.removeRows} has run since the last freeze, and what they read. */
+interface RemovalRun {
+    readonly revision: number;
+    readonly snapshot: GraphSnapshot;
+    readonly nodes: readonly number[];
+    readonly edges: readonly number[];
 }
 
 /**
@@ -342,6 +384,12 @@ export class GraphStore {
     private readonly indexByEdgeId: number[] = [];
     private pending: PendingPublish | null = null;
     private pendingPositions: PendingPositions | null = null;
+    /**
+     * The builder rows {@link GraphStore.removeRows} has taken out since the cached snapshot was
+     * frozen, each list ascending, while nothing else has written the graph or frozen it: the
+     * revision the last of those removals left, and the snapshot they were all read against.
+     */
+    private removedSinceFreeze: RemovalRun | null = null;
     /**
      * Where the rows each removal and each kept graph took out were in the lane, read again at
      * every redo: the lane half of a removed row, so undoing the removal puts the node back where
@@ -439,6 +487,42 @@ export class GraphStore {
     private emptyDirected(): boolean {
         const setting = this.directedSetting();
         return typeof setting === "boolean" ? setting : true;
+    }
+
+    /**
+     * Whether the builder was made under a direction setting other than the one in force now.
+     * @returns True when it must be rebuilt to follow the setting.
+     */
+    private directionOutOfStep(): boolean {
+        const builder = this.current;
+        const setting = this.directedSetting();
+        return typeof setting === "boolean"
+            ? builder.directed !== setting || !builder.directedLocked
+            : builder.directedLocked || this.unconfigured !== null;
+    }
+
+    /**
+     * Settle the direction a rebuild that follows the setting gives the graph, and how it was
+     * settled: the configured one, or under "auto" the one the graph had before a setting took it
+     * over -- what its file declared, or directed when nothing did -- so taking a setting back
+     * puts the graph back as it was.
+     * @returns Whether it is directed.
+     */
+    private followSetting(): boolean {
+        const setting = this.directedSetting();
+        if (typeof setting === "boolean") {
+            if (!this.current.directedLocked) {
+                this.unconfigured = { directed: this.current.directed, direction: this.direction };
+            }
+
+            this.direction = this.emptyDirection();
+            return setting;
+        }
+
+        const before = this.unconfigured;
+        this.unconfigured = null;
+        this.direction = before?.direction ?? this.emptyDirection();
+        return before?.directed ?? true;
     }
 
     /**
@@ -778,14 +862,23 @@ export class GraphStore {
         this.publish();
         this.audit();
         let carried = this.materialize();
-        if (this.pairsOrdered !== null && this.current.edgeCount === 0) {
+        const unlatch = this.pairsOrdered !== null && this.current.edgeCount === 0;
+        // The direction setting changed since the builder was made (`config.set`, or its undo). A
+        // locked builder takes a new direction only by a rebuild, which keeps every row, every
+        // edge in its declared orientation and every parallel edge, so going back is lossless.
+        const following = this.directionOutOfStep() ? this.followSetting() : null;
+        if (unlatch || following !== null) {
             // A graph holding no edges has not latched: the latch describes how its edges were
             // hashed. So removing the last edge, forward or by undo, takes it off again, and the
             // next edge completed latches afresh. graph-format has no removal of a graph value,
-            // so the builder is rebuilt without it.
-            this.pairsOrdered = null;
+            // so the builder is rebuilt without it. A graph that keeps its edges keeps its latch,
+            // whatever its direction becomes, so their hashes still say how they were made.
+            if (unlatch) {
+                this.pairsOrdered = null;
+            }
+
             this.revision++;
-            const again = this.rebuild(null, []);
+            const again = this.rebuild(null, [], following ?? undefined);
             carried =
                 carried === null
                     ? again
@@ -851,17 +944,33 @@ export class GraphStore {
     }
 
     /**
-     * Take rows out of the graph, recording everything that putting them back needs: their rows,
-     * every registered column's value, and an edge's resolved endpoints and weight. Pins are the
-     * session's `pins` slice, which the removal's own draft records.
-     * Removing a node removes every edge attached to it.
-     * @param nodeIds - The nodes to remove; one the graph does not hold is skipped.
-     * @param edgeIds - The element-assigned ids of edges to remove; likewise.
-     * @returns What was removed.
+     * The run of removals {@link GraphStore.removeRows} can carry on from, or null after freezing
+     * the graph when anything other than those removals has written it or frozen it since.
+     * @returns The run so far, or null when a new one starts from a fresh snapshot.
      */
-    removeRows(nodeIds: readonly NodeId[], edgeIds: readonly number[]): RemovedRows {
-        // Settled and compacted, so a builder row is a snapshot row and every column is readable.
-        this.getSnapshot();
+    private continuedRemovalRun(): RemovalRun | null {
+        const chain = this.removedSinceFreeze;
+        if (
+            chain?.revision !== this.revision ||
+            chain.snapshot !== this.cache ||
+            this.cachedRevision === this.revision ||
+            this.structural.length > 0 ||
+            this.pending !== null ||
+            this.pendingPositions !== null
+        ) {
+            this.getSnapshot();
+            return null;
+        }
+
+        return chain;
+    }
+
+    /**
+     * The builder rows of the nodes the graph holds, of those asked for.
+     * @param nodeIds - The node ids; one the graph does not hold is skipped.
+     * @returns Their rows.
+     */
+    private nodeRowsOf(nodeIds: readonly NodeId[]): Set<number> {
         const builder = this.current;
         const nodeRows = new Set<number>();
         for (const id of nodeIds) {
@@ -871,6 +980,17 @@ export class GraphStore {
             }
         }
 
+        return nodeRows;
+    }
+
+    /**
+     * The builder rows of the edges asked for, and of every edge attached to the given nodes.
+     * @param edgeIds - The element-assigned edge ids; one the graph does not hold is skipped.
+     * @param nodeRows - The rows of nodes being removed.
+     * @returns The edge rows.
+     */
+    private edgeRowsOf(edgeIds: readonly number[], nodeRows: ReadonlySet<number>): Set<number> {
+        const builder = this.current;
         const edgeRows = new Set<number>();
         for (const edgeId of edgeIds) {
             const row = this.edgeIndexOf(edgeId);
@@ -891,13 +1011,40 @@ export class GraphStore {
             }
         }
 
+        return edgeRows;
+    }
+
+    /**
+     * Take rows out of the graph, recording everything that putting them back needs: their rows,
+     * every registered column's value, and an edge's resolved endpoints and weight. Pins are the
+     * session's `pins` slice, which the removal's own draft records.
+     * Removing a node removes every edge attached to it.
+     * @param nodeIds - The nodes to remove; one the graph does not hold is skipped.
+     * @param edgeIds - The element-assigned ids of edges to remove; likewise.
+     * @returns What was removed.
+     */
+    removeRows(nodeIds: readonly NodeId[], edgeIds: readonly number[]): RemovedRows {
+        // Settled and compacted, so a builder row is a snapshot row and every column is readable --
+        // UNLESS the only writes since the last freeze were earlier removals. Those leave every
+        // other builder row, every column value and the lane where the freeze put them, so this
+        // reads them unfrozen and only renumbers what it records (`compacted` below). A run of
+        // removals then costs one freeze at the next read rather than one each: a freeze compacts
+        // every row of the graph, which at the render ceiling is most of what a one-node removal
+        // costs. Anything else written, or any freeze, ends the run.
+        const chain = this.continuedRemovalRun();
+        const earlierNodes = chain?.nodes ?? [];
+        const earlierEdges = chain?.edges ?? [];
+        const builder = this.current;
+        const nodeRows = this.nodeRowsOf(nodeIds);
+        const edgeRows = this.edgeRowsOf(edgeIds, nodeRows);
+
         const edges = [...edgeRows]
             .sort((a, b) => a - b)
             .map((row): RemovedEdge => {
                 const [source, target] = builder.edgeEndpoints(row);
                 return {
                     edgeId: this.edgeIdAt(row),
-                    index: row,
+                    index: compacted(row, earlierEdges),
                     source: builder.idOf(source),
                     target: builder.idOf(target),
                     weight: builder.edgeWeight(row),
@@ -906,29 +1053,36 @@ export class GraphStore {
             });
         const nodes = [...nodeRows]
             .sort((a, b) => a - b)
-            .map(
-                (row): RemovedNode => ({
-                    id: builder.idOf(row),
-                    index: row,
-                    values: this.rowValues(this.frozenColumns.node, row),
-                }),
-            );
+            .map((row): RemovedNode => ({
+                id: builder.idOf(row),
+                index: compacted(row, earlierNodes),
+                values: this.rowValues(this.frozenColumns.node, row),
+            }));
+        const nodeRowList = [...nodeRows].sort((a, b) => a - b);
+        const edgeRowList = [...edgeRows].sort((a, b) => a - b);
         const lane = this.positions.view(this.positions.count);
         const coords = new Float32Array(3 * nodes.length);
-        nodes.forEach((node, at) => {
-            coords.set(lane.subarray(POSITION_COMPONENTS * node.index, POSITION_COMPONENTS * node.index + 3), 3 * at);
+        nodeRowList.forEach((row, at) => {
+            coords.set(lane.subarray(POSITION_COMPONENTS * row, POSITION_COMPONENTS * row + 3), 3 * at);
         });
-        for (const edge of edges) {
-            builder.removeEdge(edge.index);
+        for (const row of edgeRowList) {
+            builder.removeEdge(row);
         }
 
-        for (const node of nodes) {
-            builder.removeNodeByIndex(node.index);
+        for (const row of nodeRowList) {
+            builder.removeNodeByIndex(row);
         }
 
         if (nodes.length > 0 || edges.length > 0) {
             this.touch();
         }
+
+        this.removedSinceFreeze = {
+            revision: this.revision,
+            snapshot: this.cache as GraphSnapshot,
+            nodes: mergeSorted(earlierNodes, nodeRowList),
+            edges: mergeSorted(earlierEdges, edgeRowList),
+        };
 
         const removed = { nodes, edges };
         this.heldLane.set(removed, { ids: nodes.map((node) => node.id), coords });
@@ -1025,7 +1179,11 @@ export class GraphStore {
         const current = this.getSnapshot();
         // A second freeze of a builder about to be replaced: its report chain no longer matters,
         // and unlike the cached snapshot this one still carries the seed column.
-        const kept = { snapshot: this.current.freeze({ label: "graphty-element kept" }), direction: this.direction };
+        const kept = {
+            snapshot: this.current.freeze({ label: "graphty-element kept" }),
+            direction: this.direction,
+            unconfigured: this.unconfigured,
+        };
         // History holds it until the step is evicted: nothing may write it meanwhile.
         seal(kept.snapshot, "a kept graph's snapshot");
         this.heldLane.set(kept, { ids: current.ids.toArray(), coords: this.positions.view(current.nodeCount).slice() });
@@ -1040,6 +1198,7 @@ export class GraphStore {
      */
     replace(kept: KeptGraph, restore: boolean): void {
         this.direction = restore ? kept.direction : this.emptyDirection();
+        this.unconfigured = restore ? kept.unconfigured : null;
         // Whatever was put back before the replace is gone with the graph it was put back into.
         this.laneToRestore.clear();
         if (restore) {
@@ -1073,7 +1232,7 @@ export class GraphStore {
         const lane = this.positions.view(snapshot.nodeCount);
         const coords = new Float32Array(3 * ids.length).fill(Number.NaN);
         ids.forEach((id, at) => {
-            const row = snapshot.ids.indexOf(id as string | number);
+            const row = snapshot.ids.indexOf(id);
             if (row !== INVALID_INDEX) {
                 coords.set(lane.subarray(POSITION_COMPONENTS * row, POSITION_COMPONENTS * row + 3), 3 * at);
             }
@@ -1105,7 +1264,7 @@ export class GraphStore {
         const lane = this.positions.view(snapshot.nodeCount);
         for (const { ids, coords } of this.laneToRestore.values()) {
             ids.forEach((id, at) => {
-                const row = snapshot.ids.indexOf(id as string | number);
+                const row = snapshot.ids.indexOf(id);
                 if (row !== INVALID_INDEX && !this.positions.isPlaced(row) && isStorableCoordinate(coords[3 * at])) {
                     lane.set(coords.subarray(3 * at, 3 * at + 3), POSITION_COMPONENTS * row);
                 }
@@ -1138,7 +1297,7 @@ export class GraphStore {
 
     /** Apply the structural changes waiting, if any, by freezing. */
     private settle(): void {
-        if (this.structural.length > 0 && !this.disposed) {
+        if (!this.disposed && (this.structural.length > 0 || this.directionOutOfStep())) {
             this.getSnapshot();
         }
     }
@@ -1228,11 +1387,13 @@ export class GraphStore {
      * it starts from, with the waiting changes merged in at their recorded rows.
      * @param replace - The replace it starts from, or null to start from the builder now.
      * @param changes - The inserts and removals after it, in order.
+     * @param directed - The direction to build it with; the graph's own when absent.
      * @returns The walk from the old builder's rows to the new one's.
      */
     private rebuild(
         replace: Extract<Structural, { kind: "replace" }> | null,
         changes: readonly Structural[],
+        directed?: boolean,
     ): { node: U32; edge: U32 } {
         const old = this.current;
         const node = new Uint32Array(old.nodeBound).fill(INVALID_INDEX);
@@ -1267,7 +1428,7 @@ export class GraphStore {
             }
         }
 
-        const builder = this.createBuilder(base?.directed ?? this.emptyDirected());
+        const builder = this.createBuilder(directed ?? base?.directed ?? this.emptyDirected());
         this.current = builder;
         if (replace !== null) {
             // A graph put back keeps the latch its edge hashes were made under; an emptied one
@@ -1821,6 +1982,12 @@ export class GraphStore {
      * by {@link GraphStore.recordDirectionFromFile} for a declaration that was taken.
      */
     private direction: DirectionProvenance = { by: "unsettled", statedBy: null };
+    /**
+     * The direction the graph had, and how it was settled, before a `data.directed` set to a
+     * boolean took it over; null while the setting is "auto". What setting it back to "auto"
+     * returns the graph to.
+     */
+    private unconfigured: { readonly directed: boolean; readonly direction: DirectionProvenance } | null = null;
 
     private seedUnplaced(snapshot: GraphSnapshot): void {
         // requireTyped, not the `Column | null` from get(): `Column` is a union and DictColumn has

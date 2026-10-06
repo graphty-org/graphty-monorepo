@@ -418,7 +418,7 @@ export class Graphty extends LitElement {
                         "so the value was lost. This happens when a framework renders the tag before " +
                         "@graphty/graphty-element is loaded. Import the element before rendering, or await " +
                         'customElements.whenDefined("graphty-element"). See ' +
-                        "https://graphty.app/docs/graphty-element/guide/installation#loading-the-element-lazily",
+                        "https://graphty.app/docs/graphty-element/guide/frameworks/react#load-the-element-before-react-renders-it",
                 );
             }
         }
@@ -893,7 +893,7 @@ export class Graphty extends LitElement {
         const { config } = this.#source();
         // Reported without the inline text or the file: the graph keeps where it came from, not
         // a second copy of what it holds.
-        return config === undefined ? undefined : (describeSource({ config }).config as Record<string, unknown>);
+        return config === undefined ? undefined : describeSource({ config }).config;
     }
     /**
      * Sets the data source configuration. Loads the graph from it, replacing what the graph
@@ -1412,7 +1412,7 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "layout-config" })
     get layoutConfig(): Record<string, unknown> | undefined {
-        return this.#layoutPair().options as Record<string, unknown>;
+        return this.#layoutPair().options;
     }
     /**
      * Sets layout-specific configuration: the layout is drawn again with it, as one undoable step.
@@ -2829,13 +2829,14 @@ export class Graphty extends LitElement {
 
     /**
      * Pin or release the nodes that answer to these ids, in either spelling, as one step. An id
-     * nothing answers to is skipped, as it always has been.
+     * nothing answers to is skipped, as it always has been; `session.positions.pin` is the verb
+     * that reports one.
      * @param ids - One node id, or several.
      * @param pinned - Pin, or release.
      */
     #pin(ids: (string | number) | readonly (string | number)[], pinned: boolean): void {
-        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).map(
-            (id) => this.#graph.getNode(id)?.id ?? id,
+        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).flatMap(
+            (id) => this.#graph.getNode(id)?.id ?? [],
         );
         void dispatcherOf(this.#graph.getSession()).dispatchNow({ op: "positions.pin", ids: nodes, pinned });
     }
@@ -3161,8 +3162,9 @@ export class Graphty extends LitElement {
      * Wait until the picture is final.
      *
      * Resolves once every queued operation has run, the layout has converged, the camera has
-     * finished framing what it arrived at, and a frame has been drawn showing that. This is what
-     * a screenshot, a video frame or a visual regression snapshot needs: the `graph-settled`
+     * finished framing what it arrived at, a frame has been drawn showing that, and that frame's
+     * {@link Graphty.nodeLabelCounts} have been announced (`graphty-label-change`, when they
+     * changed), so a page that shows the counts shows the final ones. This is what a screenshot, a video frame or a visual regression snapshot needs: the `graph-settled`
      * event fires one update pass earlier, before the final framing has even been requested, so
      * a picture taken on that event is a picture of a camera still in motion.
      *

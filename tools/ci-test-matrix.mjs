@@ -21,6 +21,16 @@
  *
  * SHARDS is also exported: tools/run-tests.sh imports it to run a shard locally with the exact
  * command CI runs, so the two cannot drift. Importing the file runs nothing.
+ *
+ * A shard's "local" field is what the pre-push gate (tools/prepush-tests.mjs) does with it; CI
+ * ignores it and runs every shard of an affected package:
+ *   "always" (the default)  run it whenever its package is affected
+ *   "when-paths-change"     run it only when the push changes a file the shard tests: a test file
+ *                           its vitest command selects (with its own --shard slice), a setup or
+ *                           config file of those vitest projects, or a path in "local-paths"
+ *                           (repo-relative; a trailing "/" means everything under it, test files
+ *                           of the other shards excepted). The gate asks vitest for the first two.
+ *   "never"                 never run it locally
  */
 
 import { realpathSync } from "node:fs";
@@ -169,6 +179,11 @@ export const SHARDS = [
                 ? " && pnpm exec vitest run --project=browser-bench --reporter=default ${CI:+--reporter=junit}"
                 : ""),
         "needs-browser": true,
+        // 935 s for the ten browser and storybook shards together (2026-10-06); a push that changes
+        // only the element's source is left to CI here.
+        local: "when-paths-change",
+        // The helpers the browser and interaction tests import, which vitest does not list.
+        "local-paths": ["graphty-element/test/helpers/", "graphty-element/test/interactions/"],
     })),
     // graphty-element storybook tests (4 shards)
     // Note: Using both blob and default reporters to capture test results and show failures in logs
@@ -183,6 +198,9 @@ export const SHARDS = [
         package: "graphty-element",
         "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/4 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage`,
         "needs-browser": true,
+        local: "when-paths-change",
+        // Storybook's own config (the vitest project's configDir) and the story helpers.
+        "local-paths": ["graphty-element/.storybook/", "graphty-element/stories/"],
     })),
 ];
 

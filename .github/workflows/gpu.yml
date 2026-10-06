@@ -1,20 +1,12 @@
 # .github/workflows/gpu.yml -- the webgpu-graph-algorithms GPU lane on an NVIDIA T4 (design/ci/ci-cd-plan.md section 7).
-# Never a job of CI (a job whose runner is offline would queue for 24 hours and stall every pull request), but
-# REQUIRED twice over:
-# - for queue entry: .mergify.yml queues a pull request only once this workflow's "T4 GPU gate" check is green on its
-#   head (or the pull request touches nothing the lane depends on). The gate passes when nx says the change does not
-#   affect webgpu-graph-algorithms, when the T4 already passed on an earlier commit of the pull request and nothing
-#   since affects it, or when the T4 passes on this commit. So the paid T4 runs once per pull request that affects the
-#   package, again only when a later push affects it again, and never on a draft.
-# - for a release: release.yml's gate job reads this workflow's run on the released commit and refuses to publish
-#   unless it succeeded (owner decision, 2026-09-18). On master the same gate decides: a commit that does not affect
-#   the package since the newest master commit the T4 passed on inherits that pass without a T4 run.
-# The plan's nightly T4 run is OFF (the commented-out schedule below is its switch): spot tenancy is on hold (issue
-# #1003) and the machine.dev balance cannot carry it yet. A red run on master opens a priority:critical issue
-# (master-guard.yml) but never freezes the merge queue.
-# A pull request's paired benchmark runs only the groups its change can move (scripts/bench-groups.js); every group is
-# compared once a week instead, master's tip against the latest release, by gpu-weekly-paired.yml -- a workflow of
-# its own so that its result never becomes the run release.yml's gate reads for a commit.
+# Never a job of CI (a job whose runner is offline would queue for 24 hours and stall every pull request).
+# The paid T4 runs in exactly two places (owner decision, 2026-10-06): the release train, which calls this
+# workflow on the commit it is about to release and opens no release pull request unless it passes
+# (release.yml, job "t4"), and a manual dispatch. Pull requests and master pushes never start it; their GPU
+# coverage is CI's software-GPU shards (lavapipe and SwiftShader) and the pre-push gate's run on the developer's
+# own NVIDIA card. A red T4 holds the WHOLE release and opens one "Release held: T4 GPU failed on <sha>" issue;
+# the next train that passes the T4 releases everything at once and closes that issue.
+# The full paired benchmark (master's tip against the latest release, every group) is gpu-weekly-paired.yml.
 # The lane is ONE job, and needs a runner that lives longer than 30 minutes. On the free machine.dev plan a runner
 # is terminated at that mark -- "free plan runners are limited to 30 minutes", the message that killed run
 # 35664428780 with the benchmarks 77 seconds in and run 35666281226 on master -- and by 2026-09-21 the package's own
@@ -35,11 +27,13 @@
 # no needs: on CI), and pnpm/action-setup without package_json_file (the root package.json has packageManager).
 name: GPU
 on:
-    push: { branches: [master] }
-    # A draft runs nothing (every job's condition); marking it ready starts the run.
-    pull_request: { types: [opened, synchronize, reopened, ready_for_review] }
-    # NIGHTLY T4 SWITCH, off: uncomment to run the T4 nightly on master's tip (on-demand, about $1.80 a night).
-    # schedule: [{ cron: "23 6 * * *" }]
+    # The release train (release.yml) calls it with the commit it selected.
+    workflow_call:
+        inputs:
+            ref:
+                description: "the commit to test"
+                type: string
+                required: true
     workflow_dispatch:
         inputs:
             # which machine serves the T4 job. The default is a machine.dev spot T4 (on-demand before 2026-10-04) (the Machine Provisioner app
@@ -51,7 +45,7 @@ on:
             # $0.018/min, spot $0.0045/min): on 2026-09-18 the GitHub-hosted gpu-linux-t4 runner of design 12.4 (runner
             # group `gpu`, $0.052/min) never dequeued a job -- one dispatch was refused on billing, the next sat queued
             # for 17 minutes with no runner -- while machine.dev provisioned in about a minute at a third of the price.
-            # The hosted label stays a dispatch option. push / pull_request runs take the default.
+            # The hosted label and on-demand stay dispatch options. The release train takes the default (spot).
             # GRAPHTY_RUNNER_CLASS stays gpu-linux-t4 either way: the class names the hardware, and
             # benchmarks/results/gpu-linux-t4.json is the T4 baseline whichever provider ran it.
             runner:
@@ -63,51 +57,19 @@ on:
                     - machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
                     - machine/gpu=t4/cpu=4/ram=16/tenancy=spot
 permissions: { contents: read }
-# One run at a time per pull request (and one for master pushes, one for a nightly), never cancelled: a newer push
-# waits for the running T4 and then reuses its pass when its own change does not affect the package again, instead
-# of throwing a paid hour away. A newer pending run replaces an older pending one, so at most two exist per group.
+# One paid run at a time, never cancelled: a cancelled run is a paid hour thrown away.
 concurrency:
-    group: gpu-lane-${{ github.event.pull_request.number || (github.event_name == 'schedule' && 'nightly') || github.ref }}
+    group: gpu-lane
     cancel-in-progress: false
 
 jobs:
-    # Does this commit need the T4? A free GitHub runner answers before a paid one is asked for.
-    decide:
-        name: Does the change need the T4
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-        runs-on: ubuntu-24.04
-        timeout-minutes: 15
-        permissions: { contents: read, checks: read, pull-requests: read }
-        outputs:
-            run: ${{ steps.decide.outputs.run }}
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  ref: ${{ github.event.pull_request.head.sha || github.sha }}
-                  fetch-depth: 0
-            - uses: pnpm/action-setup@v4
-            - uses: actions/setup-node@v4
-              with: { node-version: 22.x, cache: pnpm }
-            - run: pnpm install --frozen-lockfile
-              env: { HUSKY: "0" }
-            - name: Decide from nx affected and the T4's earlier passes
-              id: decide
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  EVENT: ${{ github.event_name }}
-                  PR: ${{ github.event.pull_request.number }}
-              run: bash tools/gpu-lane-needed.sh
     test-gpu:
         name: Test (NVIDIA T4)
-        needs: decide
-        # Never a fork's pull request: the lane is paid and runs the pull request's code on it.
-        if: >-
-            needs.decide.outputs.run == 'true' &&
-            (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         # Spot by default (owner decision, 2026-10-04): $0.0045/min against $0.018/min on-demand, about 74% less. A
-        # reclaimed spot runner fails the job with a lost-runner message; gpu-rerun-on-runner-loss.yml re-runs such a
-        # run once, so a reclaim costs one retry, not a red lane. On-demand stays a dispatch option.
-        runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=spot' }} # a dispatch may pick on-demand or the hosted gpu-linux-t4 (see the input)
+        # reclaimed spot runner fails the job with a lost-runner message; gpu-rerun-on-runner-loss.yml re-runs the
+        # run that holds this job once (the Release run when the train called it, the GPU run on a dispatch), so a
+        # reclaim costs one retry, not a held release. On-demand stays a dispatch option.
+        runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=spot' }} # a dispatch may pick on-demand or the hosted gpu-linux-t4 (see the input); the release train: machine.dev spot
         # The whole job runs in a container because the HOST cannot be moved off Ubuntu 22.04 and `webgpu` 0.6.x
         # needs glibc 2.38. machine.dev has no image or operating-system selector: their label grammar is closed
         # (machine, then cpu= or gpu=, then architecture / cpu / ram / tenancy / regions / disk_size / disk_iops /
@@ -134,14 +96,11 @@ jobs:
                 NVIDIA_VISIBLE_DEVICES: all
                 NVIDIA_DRIVER_CAPABILITIES: all
                 DEBIAN_FRONTEND: noninteractive
-        # The steps before the paired benchmark measured about 47 minutes on 2026-10-01 (run 36823257324, PR #663). The
-        # paired benchmark runs 40 minutes at most when it selects a subset of the groups, 75 when a change selects all
-        # of them: one full pass of every group is about 7.7 minutes on the T4 and the paired run makes eight (4 ABBA
-        # rounds x 2 builds), about 65 minutes with the base build -- run 36882775800 (PR #663) hit the old 40-minute
-        # step limit after about 5 of the 8 passes. 47 + 75 = 122, plus setup and the artifact upload: 130. Each step
-        # that can hang keeps its own, tighter limit.
-        # The container adds the image pull and the bootstrap apt: 10 more, 140.
-        timeout-minutes: 140
+        # Every step through the benchmarks measured about 47 minutes on 2026-10-01 (run 36823257324); the container
+        # adds the image pull and the bootstrap apt, about 10 more. The pull-request-only paired benchmark that once
+        # needed 140 is gone (gpu-weekly-paired.yml runs it in full). Each step that can hang keeps its own, tighter
+        # limit.
+        timeout-minutes: 80
         env:
             GRAPHTY_GPU_REQUIRE: nvidia # a software adapter fails the job
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
@@ -166,9 +125,9 @@ jobs:
                       ca-certificates curl git gnupg sudo xz-utils \
                       libvulkan1 libegl1 libgl1
             - uses: actions/checkout@v4
+              with: { ref: "${{ inputs.ref }}" } # the release train's candidate; empty on a dispatch, which takes the dispatched ref
             # The workspace is owned by the runner's user, not the container's root, so git refuses it ("dubious
-            # ownership", run 37247157286) once checkout's own temporary exception is gone. The pull request steps
-            # that diff against the base commit and build it for the paired benchmark need git.
+            # ownership", run 37247157286) once checkout's own temporary exception is gone.
             - name: Let git use the checkout inside the container
               working-directory: .
               run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -289,38 +248,6 @@ jobs:
                   [ -f bench.log ] || { echo "no bench.log: the benchmarks did not run"; exit 0; }
                   node scripts/gpu-report.js --clocks gpu-clocks.csv bench.log > gpu-clocks.json && cat gpu-clocks.json
             - run: node scripts/bench-compare.js # > 3x the checked-in baseline for THIS runner class (benchmarks/results/gpu-linux-t4.json) fails; no baseline -> every row "new", exit 0
-            # The paired check (issue #276): the base commit and this pull request alternated on the same card, so
-            # clock and thermal drift cancel and the threshold can be tight (scripts/bench-ab.js). Pull requests
-            # only, and only the benchmark groups the change can move: scripts/bench-groups.js maps every group to
-            # the src files its benchmark reaches through imports and selects the groups that reach a changed file.
-            # A change to a file every group depends on (device setup, the WGSL prelude, shared constants), or to a
-            # file no benchmark reaches, selects all of them; a change outside src selects none and skips the step.
-            # The checkout is the merge commit at depth 1; deepening it to 2 brings in its first parent, the base
-            # branch tip the merge was made on.
-            - name: Choose the paired benchmark's groups from the files the pull request changed
-              id: select
-              if: github.event_name == 'pull_request'
-              run: |
-                  git fetch --no-tags --depth=2 origin "$GITHUB_SHA"
-                  base=$(git rev-parse HEAD^1)
-                  groups=$(git diff --name-only "$base" HEAD | node scripts/bench-groups.js --base "$base")
-                  if [ -z "$groups" ]; then
-                      echo "no change under webgpu-graph-algorithms/src since $base: paired benchmark skipped"
-                  fi
-                  # a subset fits the step's original 40 minutes; every group needs about 65 (see the job's timeout)
-                  if [ "$groups" = all ]; then timeout=75; else timeout=40; fi
-                  { echo "base=$base"; echo "groups=$groups"; echo "timeout=$timeout"; } >> "$GITHUB_OUTPUT"
-            - name: Paired benchmark against the base commit (the groups chosen above)
-              if: github.event_name == 'pull_request' && steps.select.outputs.groups != ''
-              timeout-minutes: ${{ steps.select.outputs.timeout && fromJSON(steps.select.outputs.timeout) || 40 }}
-              env: { BASE: "${{ steps.select.outputs.base }}", BENCH_GROUPS: "${{ steps.select.outputs.groups }}" }
-              run: |
-                  echo "groups: $BENCH_GROUPS (base $BASE)"
-                  if [ "$BENCH_GROUPS" = all ]; then
-                      pnpm run bench:ab --base "$BASE" # no group names: each build runs its own, so a group new in this change still runs
-                  else
-                      pnpm run bench:ab --base "$BASE" $BENCH_GROUPS # word splitting intended: one argument per group
-                  fi
             - name: Release the SM clock lock
               if: ${{ always() && steps.clocks.outcome != 'skipped' }}
               run: sudo nvidia-smi -rgc || true
@@ -333,23 +260,3 @@ jobs:
                       retention-days: 90,
                       overwrite: true,
                   }
-    # The one check .mergify.yml waits for. It always reports on a ready pull request (a skipped check would read as
-    # "no answer" and stall the queue), and fails on a draft so a stale pass can never stand for a draft's head.
-    gate:
-        name: T4 GPU gate
-        needs: [decide, test-gpu]
-        if: always()
-        runs-on: ubuntu-24.04
-        timeout-minutes: 5
-        steps:
-            - env:
-                  DRAFT: ${{ github.event.pull_request.draft == true }}
-                  DECIDE: ${{ needs.decide.result }}
-                  RUN: ${{ needs.decide.outputs.run }}
-                  T4: ${{ needs.test-gpu.result }}
-              run: |
-                  if [[ "$DRAFT" == "true" ]]; then echo "::error::draft: the GPU lane does not run on a draft"; exit 1; fi
-                  if [[ "$DECIDE" != "success" ]]; then echo "::error::could not decide whether the T4 must run ($DECIDE)"; exit 1; fi
-                  if [[ "$RUN" != "true" ]]; then echo "the T4 is not needed for this commit"; exit 0; fi
-                  if [[ "$T4" != "success" ]]; then echo "::error::the T4 run did not pass ($T4)"; exit 1; fi
-                  echo "the T4 passed on this commit"

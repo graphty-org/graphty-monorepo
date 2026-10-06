@@ -79,7 +79,8 @@ export default tseslint.config(
             "jsdoc/check-tag-names": [
                 "error",
                 {
-                    definedTags: ["since", "internal", "remarks"],
+                    // category and defaultValue are TypeDoc tags: the API reference groups and fills in defaults from them
+                    definedTags: ["since", "internal", "remarks", "category", "defaultValue"],
                 },
             ],
             "jsdoc/require-jsdoc": [
@@ -132,6 +133,10 @@ export default tseslint.config(
             "@typescript-eslint/await-thenable": "error",
             "@typescript-eslint/require-await": "error",
             "@typescript-eslint/no-unnecessary-type-assertion": "error",
+            // Forwarding a caught `unknown` to reject() passes the original reason on unchanged. Since
+            // typescript-eslint 8.71 reports `reject(err as Error)` as an unnecessary assertion, an
+            // unknown reason has to be allowed rather than cast.
+            "@typescript-eslint/prefer-promise-reject-errors": ["error", { allowThrowingUnknown: true }],
             "@typescript-eslint/no-unused-vars": [
                 "error",
                 {

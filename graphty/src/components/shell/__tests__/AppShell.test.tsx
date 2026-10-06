@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../../data/sampleManifest";
@@ -2055,8 +2055,12 @@ describe("AppShell", () => {
             const fake = installGraph(container, []);
             const apply = vi.fn(() => (refuse === undefined ? Promise.resolve({}) : Promise.reject(new Error(refuse))));
             const clear = vi.fn();
+            // What the inspector's Multiple surface reads when more than one element is selected.
+            const statistics = vi.fn(() =>
+                Promise.resolve({ nodes: 0, edges: 0, inducedEdges: 0, cutEdges: 0, attributes: [] }),
+            );
 
-            Object.assign(fake.session, { selection: { apply, clear } });
+            Object.assign(fake.session, { selection: { apply, clear, statistics } });
 
             return { container, apply, clear };
         }
@@ -4802,16 +4806,65 @@ describe("AppShell", () => {
 
             expect(await screen.findByRole("button", { name: "1 case note" })).toBeInTheDocument();
         });
+
+        /* Issue #707: the summary's case-note button opened an Explore Notes section that listed
+           nothing and had no input. */
+        it("writes a case note from Explore, lists it, and counts it in the graph summary", async () => {
+            const { session } = await loadCat();
+
+            fireEvent.click(screen.getByRole("button", { name: "Add a case note" }));
+            const input = await screen.findByTestId("explore-note-input");
+
+            fireEvent.change(input, { target: { value: "Two households" } });
+            fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
+
+            expect(session.notes.list({ target: { graph: true } }).map((note) => note.text)).toEqual([
+                "Two households",
+            ]);
+            expect(await screen.findByRole("button", { name: "Delete note: Two households" })).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "1 case note" })).toBeInTheDocument();
+        });
+
+        it("deletes a case note from Explore, and the element's undo brings it back", async () => {
+            const { session } = await loadCat();
+
+            act(() => {
+                session.notes.add({ text: "Same vet", targets: [{ graph: true }] });
+            });
+            fireEvent.click(await screen.findByRole("button", { name: "1 case note" }));
+            fireEvent.click(await screen.findByRole("button", { name: "Delete note: Same vet" }));
+
+            expect(session.notes.list()).toHaveLength(0);
+            await waitFor(() => {
+                expect(screen.queryByRole("button", { name: "Delete note: Same vet" })).toBeNull();
+            });
+
+            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await flushMicrotasks();
+
+            expect(screen.getByRole("button", { name: "Delete note: Same vet" })).toBeInTheDocument();
+        });
+
+        it("focuses the node's note input from Explore's note plus, as N does", async () => {
+            const { container } = await loadCat();
+
+            reportSelection(container, CAT_SOCIAL_NETWORK.nodes[0].id);
+            await screen.findByTestId("node-note-input");
+            fireEvent.click(screen.getByRole("button", { name: "Explore" }));
+            fireEvent.click(await screen.findByRole("button", { name: "Note" }));
+
+            await waitFor(() => {
+                expect(screen.getByTestId("node-note-input")).toHaveFocus();
+            });
+        });
     });
 
     describe("the node inspector's Pin verb", () => {
         /**
          * Watches the session's pin verbs on the mounted host.
          *
-         * Pins go through `session.positions`, one undoable step each. The ids are recorded,
-         * because the id TYPE is the thing that decides whether the verb does anything -- the
-         * element looks a node up by exact key, so a printed "1" finds nothing on a graph keyed
-         * by the number 1.
+         * Pins go through `session.positions`, one undoable step each. The ids are recorded, so a
+         * board can see which spelling of a numeric id the shell hands over.
          * @param container - the render result's container.
          * @returns the ids pinned and unpinned, in call order.
          */
@@ -4860,17 +4913,16 @@ describe("AppShell", () => {
             return { ...calls, selected };
         }
 
-        it("hands the element the id it holds, not the id the inspector printed", async () => {
+        /* The element takes an integer id in either spelling, so the shell keeps one id per
+           node -- the one it prints -- and hands that over. */
+        it("hands the element the id the inspector printed, which the element pins", async () => {
             const { pinnedWith, selected } = await selectNumericNode();
 
             fireEvent.click(screen.getByTestId("inspector-actions-more"));
             fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
 
-            /* A printed "1" would name a key that is not there, and `session.positions.pin` skips
-               a node it does not hold, so the miss would be silent: the verb
-               would read as wired and fix no node at all. */
-            expect(pinnedWith).toEqual([selected]);
-            expect(typeof pinnedWith[0]).toBe("number");
+            assert.deepEqual(pinnedWith, [String(selected)]);
+            assert.include((await screen.findByTestId("node-pinned-badge")).textContent ?? "", "Pinned");
         });
 
         it("draws the Pinned badge once the element holds the pin, and releases it again", async () => {
@@ -4885,7 +4937,7 @@ describe("AppShell", () => {
 
             fireEvent.click(screen.getByTestId("node-unpin"));
 
-            expect(unpinnedWith).toEqual([selected]);
+            assert.deepEqual(unpinnedWith, [String(selected)]);
             await waitFor(() => {
                 expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
             });

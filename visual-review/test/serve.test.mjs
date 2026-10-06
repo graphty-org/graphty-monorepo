@@ -204,6 +204,37 @@ describe("serve: pull requests", () => {
         expect(ge).toMatchObject({ problem: "capture failed", logUrl: "https://gh/job/graphty-element" });
     });
 
+    it("shows a project the run left out as not affected, not as a failed capture, across a restart", async () => {
+        const gh = (r) => {
+            const inner = onePr()(r);
+            return async (args, input) => {
+                if (args[0] === "run" && args[1] === "download" && args[4] === "visual-graphty-element-1") {
+                    mkdirSync(args[6], { recursive: true });
+                    const marker = { skipped: "not affected", project: "graphty-element" };
+                    writeFileSync(join(args[6], "skipped.json"), JSON.stringify(marker));
+                    return "";
+                }
+                return inner(args, input);
+            };
+        };
+        const first = await start({ warm: true, gh });
+        const { body } = await first.api("GET", "/api/prs");
+        const ge = body.targets[0].projects.find((x) => x.project === "graphty-element");
+        expect(ge).toMatchObject({ problem: "not affected" });
+        // Not a failed capture, so it never holds the pull request out of the inbox.
+        const inbox = (await first.api("GET", "/api/inbox")).body;
+        expect(inbox.notReady.map((n) => n.project)).not.toContain("graphty-element");
+        // Nor does it leave Finish's status pending as an unreviewed project.
+        expect((await first.api("GET", "/api/target/123?finish=1")).body.finish.unloaded).toEqual([]);
+        server.close();
+        const s = await start({ repo: first.repo, head: first.head, master: first.master, warm: true, gh });
+        const kept = (await s.api("GET", "/api/prs?cached=1")).body.targets[0].projects;
+        expect(kept.find((x) => x.project === "graphty-element")).toMatchObject({
+            problem: "not affected",
+            downloading: false,
+        });
+    });
+
     it("shows an incomplete capture as N of M stories", async () => {
         const s = await start({
             gh: (r) =>
@@ -277,6 +308,119 @@ describe("serve: pull requests", () => {
         expect(body.items).toHaveLength(7);
         expect(body.acceptable).toBe(true);
         expect(body.decisions).toEqual({});
+    });
+});
+
+describe("serve: coupled pull requests", () => {
+    // #123 and #124 change the same baselines; #124's capture of slider--sizes differs.
+    const OTHER = "5".repeat(40);
+    const coupled = (r) => {
+        const items = capturedItems();
+        const theirs = items.map((i) => (i.file === "slider--sizes.png" ? { ...i, capture: "e".repeat(64) } : i));
+        return fakeGh({
+            prs: [
+                { number: 124, head: OTHER, branch: "feature" },
+                { number: 123, head: r.head, branch: "feature" },
+            ],
+            runs: { [r.head]: { id: 1000, head: r.head }, [OTHER]: { id: 1001, head: OTHER } },
+            jobs: {
+                1000: [job("compact-mantine"), job("graphty-element")],
+                1001: [job("compact-mantine"), job("graphty-element")],
+            },
+            artifacts: {
+                1000: ["visual-compact-mantine-1", "visual-graphty-element-1"],
+                1001: ["visual-compact-mantine-2", "visual-graphty-element-2"],
+            },
+            results: {
+                "visual-compact-mantine-1": { headSha: r.head, items },
+                "visual-graphty-element-1": { headSha: r.head },
+                "visual-compact-mantine-2": { headSha: OTHER, items: theirs },
+                "visual-graphty-element-2": { headSha: OTHER },
+            },
+        });
+    };
+    const decisions = async (s, id) => (await s.api("GET", `/api/pr/${id}/compact-mantine`)).body.decisions;
+
+    it("lists them as one group oldest first, counting a shared image once", async () => {
+        const s = await start({ gh: coupled });
+        await s.api("GET", "/api/prs");
+        const { body } = await s.api("GET", "/api/inbox");
+        expect(body.groups).toEqual([
+            expect.objectContaining({
+                ids: ["123", "124"],
+                prs: [123, 124],
+                shared: expect.arrayContaining([
+                    "compact-mantine/button--primary.dark.png",
+                    "graphty-element/graph--basic.png",
+                ]),
+                // #124's head was never fetched: its other files are unknown, so no fold is suggested.
+                fold: null,
+            }),
+        ]);
+        const [g] = body.groups;
+        // Every undecided image of both, less the ones both show identically.
+        expect(g.images - g.distinct).toBe(g.images / 2 - 1);
+    });
+
+    it("applies a decision and an Undo to the members showing the same image, and only them", async () => {
+        const s = await start({ gh: coupled });
+        await s.api("GET", "/api/prs");
+        const decide = (file, decision, extra = {}) =>
+            s.api("POST", "/api/decide-group", {
+                id: "123",
+                project: "compact-mantine",
+                file,
+                decision,
+                reason: null,
+                ...extra,
+            });
+        const one = await decide("button--primary.dark.png", "accept");
+        expect(one.body).toMatchObject({ ok: true, also: [124], failed: [] });
+        // Decided while reviewing #123: #124's Finish counts it as not opened there.
+        expect((await decisions(s, "124"))["button--primary.dark.png"]).toMatchObject({
+            decision: "accept",
+            bulk: true,
+        });
+        // A different capture on #124: decided on #123 only.
+        expect((await decide("slider--sizes.png", "accept")).body.also).toEqual([]);
+        expect((await decisions(s, "124"))["slider--sizes.png"]).toBeUndefined();
+        // #124 decided otherwise: never reversed, and said so.
+        await s.api("POST", "/api/decide", {
+            id: "124",
+            project: "compact-mantine",
+            file: "badge--default.light.png",
+            decision: "reject",
+            reason: "no",
+        });
+        const clash = await decide("badge--default.light.png", "accept");
+        expect(clash.body.failed).toEqual([{ pr: 124, error: expect.stringContaining("already rejected") }]);
+        // Undo goes to #124 only where it holds the same decision.
+        expect((await decide("button--primary.dark.png", null)).body.also).toEqual([124]);
+        expect((await decide("badge--default.light.png", null)).body.also).toEqual([]);
+        expect(await decisions(s, "124")).toEqual({
+            "badge--default.light.png": expect.objectContaining({ decision: "reject" }),
+        });
+        // Plain /api/decide never touches the group.
+        await s.api("POST", "/api/decide", {
+            id: "123",
+            project: "compact-mantine",
+            file: "button--primary.dark.png",
+            decision: "accept",
+            reason: null,
+        });
+        expect((await decisions(s, "124"))["button--primary.dark.png"]).toBeUndefined();
+        const log = readFileSync(join(s.tmp, "state/groups.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+        expect(log[0]).toMatchObject({ group: [123, 124], pr: 123, action: "decide", decision: "accept", also: [124] });
+    });
+
+    it("accepts all on the members showing the same images", async () => {
+        const s = await start({ gh: coupled });
+        await s.api("GET", "/api/prs");
+        const { body } = await s.api("POST", "/api/accept-all-group", { id: "123", project: "compact-mantine" });
+        expect(body.also).toEqual([124]);
+        const theirs = await decisions(s, "124");
+        expect(Object.keys(theirs).sort()).toEqual(body.files.filter((f) => f !== "slider--sizes.png").sort());
+        expect(body.files).toContain("slider--sizes.png");
     });
 });
 

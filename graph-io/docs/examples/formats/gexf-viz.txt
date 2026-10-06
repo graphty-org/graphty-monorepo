@@ -1,0 +1,5 @@
+node label: "A"
+node color: [1,0,0,0.5]
+node position: [1,2,0]
+node size: 4
+edge thickness: 3

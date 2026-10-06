@@ -13,9 +13,15 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { isolateGit } from "./isolated-git-env.mjs";
 import { decide, fileIssue, FREEZE_PREFIX, frozenSha, mergedPrs, revertBody, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { strayChanges } from "./release-diff.mjs";
+import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
+
+// Every git process below (and in the scripts the hook tests run) runs without the developer's own
+// config: a commit there must never reach their signing key.
+isolateGit();
 
 const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const job = (text, name) => {
@@ -148,6 +154,108 @@ describe("ci.yml", () => {
 
     it("keeps the benchmarks advisory", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
+    });
+});
+
+describe("screenshots of Storybooks a pull request cannot affect", () => {
+    const ci = workflow("ci.yml");
+    const VISUAL = ["compact-mantine", "graphty-element", "layout", "algorithms", "graphty"];
+    const ALL = [...PACKAGES, "@graphty/remote-logger", "visual-review"];
+    const base = {
+        on: true,
+        pullRequest: true,
+        labels: [],
+        visual: VISUAL,
+        all: ALL,
+        affected: ["graph-io"],
+        changed: ["graph-io/src/index.ts"],
+    };
+
+    it("leaves out the unaffected Storybooks on a pull request's own run", () => {
+        assert.deepEqual(skippedProjects(base), VISUAL);
+        assert.deepEqual(
+            skippedProjects({
+                ...base,
+                affected: ["layout", "graphty-element", "graphty"],
+                changed: ["layout/src/a.ts"],
+            }),
+            ["compact-mantine", "algorithms"],
+        );
+    });
+
+    it("captures everything when off, in the queue or on master, after a dequeue, or with a root file changed", () => {
+        assert.deepEqual(skippedProjects({ ...base, on: false }), []);
+        assert.deepEqual(skippedProjects({ ...base, pullRequest: false }), []);
+        assert.deepEqual(skippedProjects({ ...base, labels: ["queued", "dequeued"] }), []);
+        assert.deepEqual(skippedProjects({ ...base, changed: [] }), []);
+        for (const root of [
+            "pnpm-lock.yaml",
+            ".github/workflows/ci.yml",
+            "visual-baselines/layout/a.png",
+            "visual-fonts/fonts.conf",
+            "design/x.md",
+        ]) {
+            assert.deepEqual(skippedProjects({ ...base, changed: ["graph-io/src/index.ts", root] }), [], root);
+        }
+    });
+
+    it("still sees a root file a pull request moves into a package", () => {
+        const dir = mkdtempSync(join(tmpdir(), "visual-plan-"));
+        const git = (...args) => {
+            const r = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+            assert.equal(r.status, 0, r.stderr);
+            return r.stdout.trim();
+        };
+        try {
+            // Two trees, no commits: the diff is the same, and nothing needs signing.
+            git("init", "-q");
+            mkdirSync(join(dir, "graph-io"));
+            writeFileSync(join(dir, "root.json"), '{"a": 1, "b": 2, "c": 3}\n');
+            git("add", ".");
+            const before = git("write-tree");
+            git("mv", "root.json", "graph-io/root.json");
+            const after = git("write-tree");
+            const changed = changedFiles(`${before}..${after}`, dir);
+            assert.deepEqual(changed.sort(), ["graph-io/root.json", "root.json"]);
+            assert.deepEqual(skippedProjects({ ...base, changed }), []);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("is switched off in ci.yml until master's gate accepts the not-affected marker", () => {
+        const build = job(ci, "build");
+        assert.match(build, /\n {18}SKIP_UNAFFECTED_CAPTURES: "false"\n/);
+        assert.match(build, /LABELS: \$\{\{ toJSON\(github\.event\.pull_request\.labels\.\*\.name\) \}\}/);
+        assert.match(build, /node tools\/visual-capture-plan\.mjs "\$all" "\$affected" \| tee -a "\$GITHUB_OUTPUT"/);
+        assert.match(build, /visual-skip: \$\{\{ steps\.plan\.outputs\.visual-skip \}\}/);
+    });
+
+    it("writes the marker in place of a capture and skips every other step but the upload and the summary", () => {
+        const visual = job(ci, "visual");
+        const steps = visual.split(/\n(?= {12}- (?:name|uses): )/).slice(1);
+        assert.match(steps[0], /- name: Skip a Storybook this pull request cannot affect\n {14}id: skip\n/);
+        assert.match(
+            steps[0],
+            /contains\(fromJSON\(needs\.build\.outputs\.visual-skip \|\| '\[\]'\), matrix\.project\)/,
+        );
+        assert.match(steps[0], /\{"skipped":"not affected","project":"%s"\}/);
+        for (const step of steps.slice(1)) {
+            const title = step.trim().split("\n")[0];
+            if (/Upload captures|Write the counts/.test(title)) {
+                assert.match(step, /if: always\(\)/, title);
+            } else {
+                assert.match(step, /\n {14}if: .*steps\.skip\.outputs\.skip != 'true'\n/, title);
+            }
+        }
+    });
+
+    it("writes the marker the trusted gate reads", async () => {
+        const { isSkipMarker, SKIPPED_FILE } = await import("../visual-review/trusted/lib/results.mjs");
+        const visual = job(ci, "visual");
+        assert.ok(visual.includes(`"$RUNNER_TEMP/visual/${SKIPPED_FILE}"`));
+        const printf = /printf '(.+?)\\n' "\$PROJECT"/.exec(visual)[1];
+        assert.ok(isSkipMarker(JSON.parse(printf.replace("%s", "layout")), "layout"));
     });
 });
 
@@ -606,11 +714,9 @@ describe("pr-status-broker", () => {
 describe("the commit and push hooks", () => {
     const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
     const formatStaged = new URL("./format-staged.sh", import.meta.url).pathname;
-    // A throwaway repository, run without the GIT_* variables a hook inherits.
-    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
     const inRepo = (fn) => {
         const dir = mkdtempSync(join(tmpdir(), "format-staged-"));
-        const git = (...args) => spawnSync("git", args, { cwd: dir, env, encoding: "utf8" });
+        const git = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
         try {
             git("init", "-q");
             fn(dir, git);
@@ -640,7 +746,7 @@ describe("the commit and push hooks", () => {
             writeFileSync(join(dir, "d.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]));
             git("add", ".");
             writeFileSync(join(dir, "b.ts"), "const  y = {b:2}\nconst z = 3;\n");
-            const r = spawnSync(formatStaged, { cwd: dir, env, encoding: "utf8" });
+            const r = spawnSync(formatStaged, { cwd: dir, encoding: "utf8" });
             assert.equal(r.status, 0, r.stderr);
             assert.equal(staged(git, "a.ts"), "const x = { a: 1 };\n");
             assert.equal(readFileSync(join(dir, "a.ts"), "utf8"), "const x = { a: 1 };\n");
@@ -677,7 +783,7 @@ describe("the commit and push hooks", () => {
             writeFileSync(join(dir, "a.ts"), "const  x = {a:1}\n");
             git("add", ".");
             writeFileSync(join(dir, ".git/MERGE_HEAD"), "0".repeat(40) + "\n");
-            assert.equal(spawnSync(formatStaged, { cwd: dir, env }).status, 0);
+            assert.equal(spawnSync(formatStaged, { cwd: dir }).status, 0);
             assert.equal(staged(git, "a.ts"), "const  x = {a:1}\n");
         });
     });
@@ -704,5 +810,22 @@ describe("the commit and push hooks", () => {
         assert.equal(r.status, 1);
         assert.match(r.stdout, /stopped at the first failure: one/);
         assert.doesNotMatch(r.stdout, /SECOND/);
+    });
+});
+
+describe("tests that run git", () => {
+    it("run it with the developer's own git config isolated (tools/isolated-git-env.mjs)", () => {
+        const runsGit = /\b(?:spawnSync|spawn|execFileSync|execFile|execSync|exec|execa)\(\s*["'`]git\b/;
+        const isTest = /(^|\/)(test|tests|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
+        const root = new URL("..", import.meta.url).pathname;
+        const files = spawnSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).stdout.split("\0");
+        const bare = files
+            .filter((f) => isTest.test(f) && /\.[cm]?[jt]sx?$/.test(f))
+            .filter((f) => {
+                const text = readFileSync(join(root, f), "utf8");
+                return runsGit.test(text) && !/\b(isolateGit|isolatedGitEnv)\b/.test(text);
+            });
+        assert.deepEqual(bare, [], "these run git without isolateGit() or isolatedGitEnv()");
+        assert.match(readFileSync(join(root, "visual-review/vitest.config.mjs"), "utf8"), /isolate-git\.setup\.mjs/);
     });
 });

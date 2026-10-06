@@ -70,7 +70,25 @@ const push = (session, over = {}) => ({
     ...over,
 });
 
+/** githerd's MCP server, as the process table shows it under a session with githerd's tools. */
+const MCP = "node /r/.worktrees/githerd/githerd/bin/githerd-mcp.mjs";
+
 describe("inferOwners", () => {
+    it("marks an owner whose claude process runs no githerd MCP server as having no githerd tools", () => {
+        const log = [push(ALICE)];
+        const bare = [{ pid: 100, ppid: 1, cwd: ROOT, cmd: "claude" }];
+        expect(inferOwners(PRS, facts({ pushLog: log, procs: bare }))[710].noTools).toBe(true);
+        // A grandchild running githerd's MCP server: it has the tools.
+        const tooled = [
+            ...bare,
+            { pid: 101, ppid: 100, cwd: ROOT, cmd: "sh" },
+            { pid: 102, ppid: 101, cwd: ROOT, cmd: MCP },
+        ];
+        expect(inferOwners(PRS, facts({ pushLog: log, procs: tooled }))[710].noTools).toBeUndefined();
+        // A claude process the table does not show: unknown, so today's rules apply.
+        expect(inferOwners(PRS, facts({ pushLog: log }))[710].noTools).toBeUndefined();
+    });
+
     it("gives a pull request to the session that last pushed its branch", () => {
         const log = [push(BOB), push(ALICE), push(BOB, { branch: "feat/other" })];
         expect(inferOwners(PRS, facts({ pushLog: log }))).toEqual({
@@ -89,6 +107,7 @@ describe("inferOwners", () => {
             { pid: 200, ppid: 1, cwd: ROOT },
             { pid: 201, ppid: 200, cwd: null },
             { pid: 202, ppid: 201, cwd: `${ROOT}/.worktrees/x/githerd` },
+            { pid: 203, ppid: 200, cwd: ROOT, cmd: MCP },
             { pid: 300, ppid: 1, cwd: `${ROOT}/.worktrees/x` },
         ];
         expect(inferOwners(PRS, facts({ procs }))).toEqual({

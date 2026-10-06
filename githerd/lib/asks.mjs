@@ -458,6 +458,13 @@ function brokenOwner(state, n, rec) {
     // A session that says it is its own after the release owns it again.
     if (state.prOwners?.[n]) delete state.prReleased[n];
     const owner = state.prOwners?.[n] ?? state.prInferred?.[n];
+    // An owner without githerd's tools cannot answer, so it is never asked and never released for
+    // silence: it keeps the pull request while it lives (inferOwners drops it when it exits).
+    if (owner?.noTools) {
+        delete state.prReleased[n];
+        delete state.brokenAsks[n];
+        return null;
+    }
     // Its owner working in its worktree again owns it again (a new push already ends the release).
     if (owner && state.prActivity?.[n]?.present?.[owner.session]) delete state.prReleased[n];
     const why = owner && state.prReleased[n] !== rec.headSha ? broken(state, n, rec) : null;

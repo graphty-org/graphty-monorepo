@@ -203,6 +203,7 @@ const RENDER = {
                 let owned = "";
                 if (o) owned = ` -- owned by session ${o.name} (${o.by})`;
                 else if (i) owned = ` -- owned by session ${i.name} (${i.evidence})`;
+                if (!o && i?.noTools) owned += ", which has no githerd tools: kept while the session lives";
                 const fixing = v.state?.brokenAsks?.[p.number]?.active;
                 if (fixing) owned += ` -- being fixed: ${fixing}`;
                 return `  #${[p.number, p.title].filter(Boolean).join(" ")} -- ${mergeWords(p.decision)}${owned}`;

@@ -164,12 +164,13 @@ describe("groupModes and modeText", () => {
             statuses: "acting",
             upkeep: "dry-run",
             incidents: "dry-run",
+            "master-fix": "dry-run",
             "owner-items": "dry-run",
             proposals: "dry-run",
             workers: "dry-run",
             "worker-writes": "dry-run",
         });
-        expect(Object.values(groupModes(config, "paused"))).toEqual(Array(7).fill("paused"));
+        expect(Object.values(groupModes(config, "paused"))).toEqual(Array(8).fill("paused"));
         // Workers can act while their pushes, re-runs and gh writes stay dry-run.
         expect(groupModes({ mode: "acting", actions: { workers: true } }, null)).toMatchObject({
             workers: "acting",

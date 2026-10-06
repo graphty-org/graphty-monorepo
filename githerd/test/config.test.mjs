@@ -43,8 +43,10 @@ describe("normalizeConfig", () => {
             workerWrites: false,
             proposals: false,
             incidents: false,
+            masterFix: false,
             ownerItems: false,
         });
+        expect(normalizeConfig({ ...MINIMAL, actions: { masterFix: true } }).actions.masterFix).toBe(true);
         expect(c.protectedPaths).toEqual(DEFAULTS.protectedPaths);
         expect(c.notify).toEqual({ command: null, maxPerHour: 6 });
         expect(c.ownerGate).toBeNull();

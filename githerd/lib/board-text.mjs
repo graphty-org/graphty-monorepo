@@ -29,6 +29,9 @@ const GROUPS = {
     statuses: "statuses",
     upkeep: "prUpkeep",
     incidents: "incidents",
+    // The red master fix's priority:critical label (lib/master-fix.mjs): apart from incidents, whose
+    // reverts the owner leaves to master-guard, so the label can act while reverts stay dry-run.
+    "master-fix": "masterFix",
     "owner-items": "ownerItems",
     proposals: "proposals",
     workers: "workers",

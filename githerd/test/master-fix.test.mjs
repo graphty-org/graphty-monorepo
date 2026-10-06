@@ -78,6 +78,16 @@ describe("linkMasterFix", () => {
         expect(linkMasterFix(state, nodes)).toEqual([]);
     });
 
+    it("links the pull request whose title names a judged key's failing step (#1127 and the audit)", () => {
+        const state = redState();
+        state.master.lanes.ci.verdicts[AUDIT] = { verdict: "environment", reason: "New npm advisories" };
+        const nodes = [
+            node(1127, { title: "ci: run the security audit on the release train, not on pull requests" }),
+            node(1128, { title: "fix(layout): audit the spring layout" }),
+        ];
+        expect(linkMasterFix(state, nodes)).toEqual([{ pr: 1127, why: `its title names ${AUDIT}` }]);
+    });
+
     it("links an incident job's pull request, and nothing once master is green", () => {
         const state = redState();
         state.jobs["incident-x"] = { kind: "incident", state: "working", pr: 1120 };
@@ -91,14 +101,15 @@ describe("linkMasterFix", () => {
 describe("labelMasterFixes", () => {
     /**
      * A client stub that records its writes.
-     * @param {boolean} acting whether the incidents group acts
+     * @param {string[]} groups the write groups that act
      * @returns {any} the client
      */
-    const client = (acting) => {
+    const client = (groups) => {
         const writes = /** @type {any[]} */ ([]);
+        const acting = (/** @type {string} */ g) => groups.includes(g);
         return {
             writes,
-            acting: () => acting,
+            acting,
             write: async (
                 /** @type {string} */ method,
                 /** @type {string} */ path,
@@ -106,15 +117,15 @@ describe("labelMasterFixes", () => {
                 /** @type {any} */ opts,
             ) => {
                 writes.push({ method, path, body, group: opts.group });
-                return { performed: acting };
+                return { performed: acting(opts.group) };
             },
         };
     };
 
-    it("labels each linked fix priority:critical once, through the incidents group", async () => {
+    it("labels each linked fix priority:critical once, through master-fix while incidents is dry-run", async () => {
         const state = redState("fix in #1107");
         linkMasterFix(state, [node(1107), node(1101, { body: "Fixes #990", labels: { nodes: [{ name: CRITICAL }] } })]);
-        const gh = client(true);
+        const gh = client(["master-fix"]);
         await labelMasterFixes(gh, REPO, state);
         await labelMasterFixes(gh, REPO, state);
         expect(gh.writes).toEqual([
@@ -122,7 +133,7 @@ describe("labelMasterFixes", () => {
                 method: "POST",
                 path: `repos/${REPO}/issues/1107/labels`,
                 body: { labels: [CRITICAL] },
-                group: "incidents",
+                group: "master-fix",
             },
         ]);
         expect(linkMasterFix(state, [node(1107)])).toEqual([]);
@@ -132,12 +143,13 @@ describe("labelMasterFixes", () => {
     it("dry-run: one would-do write and no repeats, then the label once the group acts", async () => {
         const state = redState("fix in #1107");
         linkMasterFix(state, [node(1107)]);
-        const dry = client(false);
+        // incidents acting does not let the label out: it is master-fix's alone.
+        const dry = client(["incidents"]);
         await labelMasterFixes(dry, REPO, state);
         await labelMasterFixes(dry, REPO, state);
-        expect(dry.writes).toHaveLength(1);
+        expect(dry.writes).toEqual([expect.objectContaining({ group: "master-fix" })]);
         expect(state.master.fixPrs[0].labelled).toBe("would-do");
-        const acting = client(true);
+        const acting = client(["master-fix"]);
         await labelMasterFixes(acting, REPO, state);
         expect(acting.writes).toHaveLength(1);
         expect(state.master.fixPrs[0].labelled).toBe("sent");

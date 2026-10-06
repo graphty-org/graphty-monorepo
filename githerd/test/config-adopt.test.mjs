@@ -54,6 +54,16 @@ describe("refusals", () => {
         expect(refusals(STATUSES_ACTING, STATUSES_ACTING, [], none)).toEqual([]);
     });
 
+    it("adopts masterFix once a dry-run poll logged its label as a master-fix would-do line", () => {
+        const fix = normalizeConfig({ ...BASE, mode: "acting", actions: { masterFix: true } });
+        const incidentsLine = { kind: "would-do", group: "incidents", situation: "master-fix-critical" };
+        expect(refusals(fix, HARMLESS, [incidentsLine], none)).toEqual([
+            "it switches master-fix to acting, and the ledger has no line of master-fix yet",
+        ]);
+        const line = { kind: "would-do", group: "master-fix", situation: "master-fix-critical" };
+        expect(refusals(fix, HARMLESS, [line], none)).toEqual([]);
+    });
+
     it("refuses a lane that stops gating only when the record holds a red stretch of it", () => {
         expect(refusals(GPU_WATCHED, HARMLESS, [], (f) => (f === "gpu.yml" ? [11, 12] : []))).toEqual([
             "it stops gpu.yml gating, and the recorded month has 2 red stretches of it (first run 11) " +

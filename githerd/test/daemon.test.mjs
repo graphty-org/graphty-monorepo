@@ -226,10 +226,11 @@ function respond({ args, input }) {
 
 /**
  * Starts a daemon on the test's state, with the fakes.
- * @param {Record<string, unknown>} [options] overrides
+ * @param {{peers?: Record<string, unknown>} & Record<string, unknown>} [options] overrides; `peers` is merged
+ *   over the fake peers
  * @returns {Promise<any>} the daemon
  */
-async function start(options = {}) {
+async function start({ peers, ...options } = {}) {
     const daemon = await startDaemon({
         root: dir,
         port: 0,
@@ -247,11 +248,14 @@ async function start(options = {}) {
         // githerd's real tmux server is never read by a test.
         platform: { windows: () => [] },
         // Nor are the owner's real Claude sessions: no session is listed unless a test lists one,
-        // and no pull request's owner is inferred from this machine's pushes and processes.
+        // and no pull request's owner is inferred from this machine's pushes, processes and
+        // transcripts. A test's own peers are merged over these, so listing sessions never brings
+        // back the real ownerFacts (a scan of up to 256 MB of the owner's transcripts every poll).
         peers: {
             sessions: () => [],
             transport: { send: async () => {} },
             ownerFacts: async () => ({ pushLog: [], sessions: [], procs: [], worktrees: [] }),
+            ...peers,
         },
         ...options,
     });

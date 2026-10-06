@@ -28,6 +28,10 @@ const BUILT_IN_SETTINGS: Readonly<Record<string, readonly [option: string, word:
     components: ["strength", "strength"],
     "shortest-path": ["method", "method"],
     "link-prediction": ["method", "method"],
+    "markov-clustering": ["inflation", "inflation"],
+    "spectral-clustering": ["clusters", "clusters"],
+    "hierarchical-clustering": ["clusters", "clusters"],
+    astar: ["heuristic", "heuristic"],
 };
 
 /**

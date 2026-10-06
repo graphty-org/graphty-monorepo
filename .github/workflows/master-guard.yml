@@ -19,8 +19,10 @@ on:
         types: [completed]
         branches: [master]
 
-# No concurrency group: a pending run would be replaced by the next one and its red would be lost. Two runs at
-# once are safe: each freeze names its own commit and is lifted only by a green run that contains that commit.
+# No concurrency group, not even one with cancel-in-progress: false. GitHub keeps one pending run per group and
+# cancels it when the next arrives, so a red commit's revert would be lost. Two runs at once are safe: each freeze
+# names its own commit and is lifted only by a green run that contains that commit, and two runs that both open an
+# issue for one cause close the newer as a duplicate (tools/master-guard.mjs fileIssue).
 permissions:
     contents: write # push the revert branch
     pull-requests: write

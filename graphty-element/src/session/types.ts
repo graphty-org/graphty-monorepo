@@ -1702,7 +1702,11 @@ export interface ReadonlyElementPositions {
  * layout again.
  */
 export interface SessionPositions extends ReadonlyElementPositions {
-    /** The pinned node ids: the nodes no layout moves. */
+    /**
+     * The pinned node ids: the nodes no layout moves. It holds and yields each id as the graph
+     * holds it, but `has` takes an integer id written either way, as {@link SessionPositions.pin}
+     * does: on a graph whose node `34` is pinned, `pinned.has("34")` is true.
+     */
     readonly pinned: ReadonlySet<NodeId>;
     /**
      * Place nodes. One step; calls made one after another within the coalescing window are one.

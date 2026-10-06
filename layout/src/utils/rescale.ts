@@ -53,7 +53,8 @@ export function rescaleLayout(
 
     for (const p of posValues) {
         for (let i = 0; i < dim; i++) {
-            if (!isNaN(p[i])) {
+            // a position shorter than the first has no coordinate i: skip it like a NaN one
+            if (i < p.length && !Number.isNaN(p[i])) {
                 posCenter[i] += p[i];
                 counts[i]++;
             }
@@ -92,12 +93,12 @@ export function rescaleLayout(
         // Calculate distance, treating NaN as 0 for distance calculation
         let sumSquares = 0;
         for (const val of p) {
-            if (!isNaN(val)) {
+            if (!Number.isNaN(val)) {
                 sumSquares += val * val;
             }
         }
         const distance = Math.sqrt(sumSquares);
-        if (!isNaN(distance)) {
+        if (!Number.isNaN(distance)) {
             maxDistance = Math.max(maxDistance, distance);
         }
     }
@@ -118,8 +119,8 @@ export function rescaleLayout(
                         return center[i];
                     }
                     // Preserve NaN values (Bug #3)
-                    if (isNaN(val)) {
-                        return NaN;
+                    if (Number.isNaN(val)) {
+                        return Number.NaN;
                     }
                     return val * scaleFactor + center[i];
                 }),
@@ -134,8 +135,8 @@ export function rescaleLayout(
                         return center[i];
                     }
                     // Preserve NaN values (Bug #3)
-                    if (isNaN(val)) {
-                        return NaN;
+                    if (Number.isNaN(val)) {
+                        return Number.NaN;
                     }
                     return val * scaleFactor + center[i];
                 });
@@ -148,7 +149,7 @@ export function rescaleLayout(
                 const result = new Array(targetDim);
                 for (let i = 0; i < targetDim; i++) {
                     if (i < p.length) {
-                        result[i] = isNaN(p[i]) ? NaN : center[i];
+                        result[i] = Number.isNaN(p[i]) ? Number.NaN : center[i];
                     } else {
                         result[i] = center[i];
                     }
@@ -160,7 +161,7 @@ export function rescaleLayout(
                 const result = new Array(targetDim);
                 for (let i = 0; i < targetDim; i++) {
                     if (i < p.length) {
-                        result[i] = isNaN(p[i]) ? NaN : center[i];
+                        result[i] = Number.isNaN(p[i]) ? Number.NaN : center[i];
                     } else {
                         result[i] = center[i];
                     }

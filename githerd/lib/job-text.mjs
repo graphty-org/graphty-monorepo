@@ -49,7 +49,7 @@ const INCIDENT_DONE = /** @type {Record<string, string>} */ ({
 const VERDICT_PURPOSE =
     "Master failed on something githerd does not recognize. Judge whether the code or the environment broke it. " +
     "Read the failed step's log (gh run view <run> --log-failed --job <job id>) and the commits since the last green run " +
-    "(git fetch origin, then git log <green>..<red>), then call githerd_verdict with the key, code or environment, and a " +
+    "(git fetch origin, then git log <green>..<red>), then call githerd_verdict with the FAILURE KEY below, code or environment, and a " +
     "one-line reason. Change no code. Until then githerd holds merges on the pull requests this lane can affect and " +
     "re-runs the job once. Code allows the incident procedure, its revert included; environment lifts the hold, " +
     "and the owner is told if the failure persists.";
@@ -62,6 +62,7 @@ const VERDICT_PURPOSE =
 function verdictLines(f) {
     const short = (/** @type {string | null | undefined} */ sha) => (sha ? sha.slice(0, 12) : "unknown");
     return [
+        `FAILURE KEY (pass exactly as key to githerd_verdict, or pass this job's id): ${f.key}`,
         `FAILED JOB: run ${f.runId ?? "unknown"}, job id ${f.jobId ?? "unknown"} (lane ${f.lane ?? "unknown"})`,
         `RED COMMIT: ${short(f.redSha)}; LAST GREEN COMMIT: ${short(f.greenSha)}`,
     ];
@@ -207,7 +208,7 @@ function earlier(job) {
  */
 function factLines(job, { refresh, verdict }) {
     if (refresh) return refreshLines(job.facts);
-    if (verdict) return verdictLines(job.facts);
+    if (verdict) return verdictLines({ key: job.target, ...job.facts });
     if (job.kind !== "triage" || !job.facts?.missing) return [];
     return [
         "MISSING LABELS (add only these kinds; keep the labels each issue already has):",

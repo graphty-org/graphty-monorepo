@@ -160,14 +160,16 @@ export async function askStep(state, { now, acting, sessions, transport, session
 
 /**
  * The invitation for one queued job.
- * @param {string} job the job
+ * @param {any} job the job record
  * @param {string} reason its one-line reason from the queue order
  * @returns {string} the message
  */
 function inviteText(job, reason) {
+    // A verdict job names the exact failure key githerd_verdict takes.
+    const key = job.facts?.scope === "verdict" ? ` githerd_verdict takes its key exactly: ${job.target}.` : "";
     return (
-        `githerd has work queued (${job}, ${reason}). If you're free, call githerd_next and claim a job; ` +
-        "otherwise ignore this."
+        `githerd has work queued (${job.id}, ${reason}). If you're free, call githerd_next and claim a job; ` +
+        `otherwise ignore this.${key}`
     );
 }
 
@@ -248,7 +250,7 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
             const op = `invite ${names.length} idle session(s) to take ${id}`;
             lines.push({ kind: "would-do", group: "workers", op, job: id });
         }
-        const out = acting ? await tellSessions(able, inviteText(id, reason), transport) : { sent: [], failed: [] };
+        const out = acting ? await tellSessions(able, inviteText(job, reason), transport) : { sent: [], failed: [] };
         state.invited = { at: job.invitedAt, count: acting ? out.sent.length : names.length, acting };
         lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });
     }

@@ -40,7 +40,6 @@ import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
 import { orderPosition } from "./owner.mjs";
 import { issueRule, missingLabelKinds, NEXT, ownerLabel, prWork, readyIssues, SKIP } from "./queue.mjs";
 import { touches } from "./prs.mjs";
-import { slug } from "./worktrees.mjs";
 
 /** Issues in one triage job (design 8.1). */
 const TRIAGE_BATCH = 20;
@@ -76,12 +75,14 @@ export function syncJobs(state, { config, now, sessionGone = () => false }) {
     /** @type {SyncResult} */
     const out = { created: [], cancelled: [], lapsed: [] };
     const add = (/** @type {any} */ spec, /** @type {any} */ extra = {}) => {
-        const id = spec.id;
-        const old = state.jobs[id];
+        const id = jobId(spec.id);
+        // A live job saved under an id made before ids were normalized keeps its id.
+        const old =
+            state.jobs[id] ?? Object.values(state.jobs).find((j) => jobId(j.id) === id && !TERMINAL.includes(j.state));
         // A finished job's fact can come back (a pull request fails again); a failed one stays, its
         // owner item already raised.
         if (old && !(old.state === "done" || old.state === "cancelled")) return old;
-        state.jobs[id] = Object.assign(newJob(spec, now), extra);
+        state.jobs[id] = Object.assign(newJob({ ...spec, id }, now), extra);
         out.created.push(id);
         return state.jobs[id];
     };
@@ -117,6 +118,22 @@ export function syncJobs(state, { config, now, sessionGone = () => false }) {
     triageJobs(state, config, now, add);
     issueJobs(state, config, now, add, cancel);
     return out;
+}
+
+/**
+ * Normalizes a job id to the pattern githerd's tools accept (`^[a-z][a-z0-9-]{1,119}$`): lowercase,
+ * every run of other characters one dash, no dash at either end. A failure key such as
+ * `CI / Build / Security audit` gives `ci-build-security-audit`.
+ * @param {string} raw the id as made from its fact
+ * @returns {string} the id
+ */
+export function jobId(raw) {
+    return raw
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter(Boolean)
+        .join("-")
+        .slice(0, 120);
 }
 
 /**
@@ -168,7 +185,7 @@ function incidentJobs(state, add, cancel) {
         const e = /** @type {any} */ (esc);
         if (!RELEASE_KINDS.has(e.kind) || e.resolvedAt) continue;
         const job = add({
-            id: `incident-${slug(e.key)}`,
+            id: `incident-${e.key}`,
             kind: "incident",
             target: e.key,
             priority: "urgent",
@@ -181,7 +198,7 @@ function incidentJobs(state, add, cancel) {
     const gate = state.reference?.gate;
     if (gate?.verdict === "fail" && gate.sha === state.master?.greenSha && gate.steps?.length) {
         const job = add({
-            id: `incident-local-${slug(gate.steps[0])}`,
+            id: `incident-local-${gate.steps[0]}`,
             kind: "incident",
             target: `gate: ${gate.steps.join(", ")}`,
             priority: "urgent",
@@ -221,15 +238,16 @@ function masterKeyJob(state, open, key, r) {
     const base = { kind: "incident", target: key, priority: "urgent" };
     if (verdict) {
         const facts = { scope: "master", since, lane: r.lane ?? null, incident: open.id };
-        return { ...base, id: `incident-${slug(key)}`, reason: `master red since ${since}`, facts };
+        return { ...base, id: `incident-${key}`, reason: `master red since ${since}`, facts };
     }
     const ref = (lane?.redJobs ?? []).find((/** @type {any} */ j) => j.key === key);
     return {
         ...base,
-        id: `verdict-${slug(key)}`,
+        id: `verdict-${key}`,
         reason: "master failed on no known pattern: is it the code or the environment?",
         facts: {
             scope: "verdict",
+            key,
             since,
             lane: r.lane ?? null,
             incident: open.id,

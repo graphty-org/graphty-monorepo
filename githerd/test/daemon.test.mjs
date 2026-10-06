@@ -870,7 +870,7 @@ describe("the poll loop", () => {
         const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
         expect(wouldDo.map((e) => [e.group, e.op, e.situation, e.key])).toEqual([
             // the verdict job a worker would take, were the workers group acting
-            ["workers", "start a worker for verdict-ci-Build-", undefined, undefined],
+            ["workers", "start a worker for verdict-ci-build", undefined, undefined],
             // no parent re-test: that waits for Claude's code verdict
             ["incidents", "POST actions/jobs/900/rerun", "red-head-rerun", "ci / Build / "],
         ]);
@@ -1865,7 +1865,7 @@ describe("who workers.sessions limits", () => {
             .filter((e) => e.kind === "would-do" && e.group === "workers")
             .map((e) => e.op);
         expect(ops).toContain("ask 2 session(s) whose #7 is");
-        expect(ops).toContain("invite 1 idle session(s) to take verdict-ci-Build-");
+        expect(ops).toContain("invite 1 idle session(s) to take verdict-ci-build");
         expect(ops).toContain("ask graphty-13 for the status of issue-8");
         expect(ops.some((op) => op.includes("graphty-14"))).toBe(false);
     });
@@ -1895,7 +1895,7 @@ describe("inviting idle sessions to pull work", () => {
             (e) => e.kind === "would-do" && e.op?.startsWith("invite"),
         );
         expect(invites).toEqual([
-            expect.objectContaining({ group: "workers", op: "invite 1 idle session(s) to take verdict-ci-Build-" }),
+            expect.objectContaining({ group: "workers", op: "invite 1 idle session(s) to take verdict-ci-build" }),
         ]);
         expect(sent).toEqual([]);
         const text = statusText(statusData(daemon.state, { config: daemon.config, now: clock }, {}), clock);
@@ -1925,7 +1925,7 @@ describe("inviting a busy session that answered it has room", () => {
             (e) => e.kind === "would-do" && e.op?.startsWith("invite"),
         );
         expect(invites).toEqual([
-            expect.objectContaining({ group: "workers", op: "invite 1 idle session(s) to take verdict-ci-Build-" }),
+            expect.objectContaining({ group: "workers", op: "invite 1 idle session(s) to take verdict-ci-build" }),
         ]);
     });
 });
@@ -2049,9 +2049,15 @@ describe("failure classes on master", () => {
 
         // A key that is not waiting for a verdict is refused.
         await expect(verdict(daemon, { key: "GPU / x / y", verdict: "code", reason: "r" })).rejects.toThrow();
+        // The verdict job's id stands for its key.
+        expect(verdictJobs[0].id).toMatch(/^[a-z][a-z0-9-]{1,119}$/);
         expect(
-            await verdict(daemon, { key: KEY, verdict: "environment", reason: "the job container lacks glib" }),
-        ).toMatchObject({ ok: true, verdict: "environment" });
+            await verdict(daemon, {
+                key: verdictJobs[0].id,
+                verdict: "environment",
+                reason: "the job container lacks glib",
+            }),
+        ).toMatchObject({ ok: true, key: KEY, verdict: "environment" });
         expect(await verdict(daemon, { key: KEY, verdict: "code", reason: "changed my mind" })).toMatchObject({
             ok: false,
         });
@@ -2181,7 +2187,7 @@ describe("failure classes on master", () => {
         const [incident] = Object.values(daemon.state.incidents);
         expect(Object.keys(incident.keys)).toEqual(["CI / Build / Build packages"]);
         expect(Object.keys(daemon.state.jobs).filter((id) => /^(?:incident|verdict)-/.test(id))).toEqual([
-            "verdict-CI-Build-Build-packages",
+            "verdict-ci-build-build-packages",
         ]);
     });
 

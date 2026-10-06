@@ -392,6 +392,30 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(f.sent).toHaveLength(1);
     });
 
+    it("names the jobs that wait on the held job, chained waits included, and asks whether to report it split", async () => {
+        const f = fake();
+        const state = claimed();
+        const t = new Date(CLAIMED_AT);
+        const blocked = (/** @type {string} */ id, /** @type {string} */ on) => {
+            const j = newJob({ kind: "issue", target: `#${id.slice(6)}`, id }, t);
+            Object.assign(j, { state: "blocked", waitingFor: { job: on } });
+            state.jobs[id] = j;
+        };
+        blocked("issue-713", "issue-186");
+        blocked("issue-714", "issue-713");
+        await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(f.sent[0][1]).toContain(
+            "- issue-186 (#186)\n  #713 and #714 wait on this job. If what remains waits on something held, " +
+                "report it split (file the remainder as its own issue) so they can start.\n",
+        );
+        // Nothing waits: no such line. githerd only asks; it never splits the job itself.
+        const g = fake();
+        const alone = claimed();
+        await statusStep(alone, opts(g, { now: at("12:15") }));
+        expect(g.sent[0][1]).not.toContain("wait on this job");
+        expect(state.jobs["issue-186"].state).toBe("working");
+    });
+
     it("keeps an answered claim and asks again; releases one whose question is unanswered when the next is due", async () => {
         const f = fake();
         const answered = claimed();

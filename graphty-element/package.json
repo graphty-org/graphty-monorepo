@@ -43,6 +43,9 @@
             "types": "./dist/react.d.ts",
             "import": "./dist/react.js"
         },
+        "./jsx": {
+            "types": "./dist/jsx.d.ts"
+        },
         "./webgpu": {
             "types": "./dist/webgpu.d.ts",
             "import": "./dist/webgpu.js"
@@ -147,13 +150,13 @@
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "lint": "eslint && tsc --noEmit && npm run typecheck:strict-consumer",
         "benchmark": "tsx benchmarks/run.ts",
-        "typecheck:strict-consumer": "tsc -p tsconfig.strict-consumer.json",
+        "typecheck:strict-consumer": "tsc -p tsconfig.strict-consumer.json && tsc -p tsconfig.no-jsx-opt-in.json",
         "lint:fix": "eslint --fix",
         "api:report": "node ../tools/api-report.mjs .",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace graphty-element",
         "dev": "vite --force --mode development --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "dev:xr": "node examples/xr/xr-demo-server.js",
-        "build": "vite build && vite build --config vite.bundle.config.ts && tsc --project tsconfig.build.json && node scripts/generate-catalog-json.mjs && node --experimental-strip-types scripts/write-doors-json.mjs",
+        "build": "vite build && node --experimental-strip-types scripts/generate-jsx-types.ts && vite build --config vite.bundle.config.ts && tsc --project tsconfig.build.json && node scripts/generate-catalog-json.mjs && node --experimental-strip-types scripts/write-doors-json.mjs",
         "preview": "vite preview --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "build:storybook": "npm run build-storybook",
         "storybook": "rm -rf node_modules/.vite && npm run build-storybook && storybook dev -p ${PORT:?start it through servherd, which sets PORT} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
@@ -186,6 +189,7 @@
         "@types/hammerjs": "^2.0.46",
         "@types/jmespath": "^0.15.2",
         "@types/lodash": "^4.17.19",
+        "@types/react": "^19.1.8",
         "@types/toposort": "^2.0.7",
         "@vitest/browser-playwright": "catalog:",
         "ai": "^5.0.270",
@@ -219,6 +223,7 @@
         "@babylonjs/core": "^8.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@mlc-ai/web-llm": ">=0.2.0",
+        "@types/react": "*",
         "ai": "^5.0.104",
         "encrypt-storage": "^2.14.7",
         "lit": "^3.0.0"
@@ -237,6 +242,9 @@
             "optional": true
         },
         "@mlc-ai/web-llm": {
+            "optional": true
+        },
+        "@types/react": {
             "optional": true
         },
         "ai": {

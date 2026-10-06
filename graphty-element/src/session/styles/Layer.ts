@@ -382,7 +382,7 @@ const NO_PROBLEMS: readonly LayerProblem[] = Object.freeze([]);
 export function mintLayerId(name: string, taken: ReadonlySet<LayerId>): LayerId {
     const slug = name
         .toLowerCase()
-        .replace(/[^a-z0-9_-]+/g, "-")
+        .replaceAll(/[^a-z0-9_-]+/g, "-")
         .replace(/^[^a-z]+/, "")
         .replace(/[-_]+$/, "");
     const base = slug === "" ? ID_FALLBACK : slug;

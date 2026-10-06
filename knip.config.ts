@@ -175,6 +175,9 @@ const config: KnipConfig = {
                     : []),
                 // The self-contained bundle's entry, built by vite.bundle.config.ts.
                 "bundle.ts!",
+                // The types-only ./jsx entry. Its exports map entry names only a .d.ts, which knip
+                // does not map back to a source file, so it is listed for both runs.
+                "jsx.ts!",
                 "test/**/*.test.ts",
                 "test/**/*.ts",
                 "stories/**/*.stories.ts",

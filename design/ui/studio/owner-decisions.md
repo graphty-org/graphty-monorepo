@@ -95,7 +95,8 @@ or take them off a directed one). The exported `defaultEdgeStyle` object no long
 `arrowHead` entry (its type is unchanged), and the `edge.arrowHead` channel descriptor's default is
 stated as `"normal"`, the head a directed graph draws. The element's own "Edge defaults" layer no
 longer writes the arrowhead type; the renderer adds the head when the graph is directed. Not a type
-change; a change to the default picture.
+change; a change to the default picture. One new public read: `DataManager.directed` (a boolean
+getter) that the renderer uses to decide; it is in the graphty-element API report.
 
 **Why.** Every sample in the app is undirected (marriages, shared chapters, club ties, games) and
 was drawn with arrows while the Graph panel said "Undirected". Arrows on a graph whose ties have no

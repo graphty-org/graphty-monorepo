@@ -560,6 +560,7 @@ export class DataManager implements Manager {
         removing(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
     }): void;
     clear(): void;
+    get directed(): boolean;
     get directionSettledBy(): DirectionProvenance;
     dispose(): void;
     get edges(): ReadonlyMap<string, Edge>;

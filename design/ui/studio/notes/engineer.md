@@ -53,7 +53,8 @@ acceptance test. "The studio worktree" is
 7. (2026-10-06) A round tests the design only once the deciding defects are fixed and proven. The
    mock rounds died on prototype defects (round 7: 18 of 61 tasks unreachable; round 8: four tasks
    decided by the skeleton). On the real app, a defect that decides a task is my top priority
-   before the next round, and every fix gets a step that proves it.
+   before the next round, and every fix gets a step that proves it. A session that "failed" at
+   the 40-minute cap was usually queued for a browser slot, not broken: rerun it (2026-10-06).
 8. (2026-10-06) The three untested round 8 fixes are the first things a round measures: Label "+"
    adds a label line and opens its attribute list; a node's neighbors listed by name and tie value;
    the find box as one live list. All three depend on node names (#895 adoption) to read right.
@@ -74,12 +75,12 @@ acceptance test. "The studio worktree" is
     component workaround to retire, not copy. Every themed Modal now blocks the page behind a
     transparent overlay (commit 557713b81); a choice between kinds inside a dialog is Mantine
     `Tabs`, not a `PageList` grid.
-13. (2026-10-06) A file the importer gives up on is refused whole, in every format: nothing read
-    before the break reaches the graph (`importDocument` in
-    `graphty-element/src/data/graph-io-import.ts`). Do not reintroduce "keep what was read". In the
-    app a failed open from the start screen closes the half-made project, adds nothing to Recent
-    projects and leaves an error notice (`Notice.error`) that stays until dismissed; any new open
-    path must keep this.
+13. (2026-10-06) One group, one number everywhere: the run summary, legend swatch, page column
+    AND every export name a partition's group by its size rank (1 = largest), never the
+    algorithm's raw id (commit 9d6598eea; `partitionGroupRanks()` in
+    `session/results/pageColumns.ts`, used by `writeResults` in `data/export.ts`). Any new
+    surface that shows or writes a group reads that helper. A failed import is refused whole and
+    a failed open returns to the start screen (see Decisions).
 14. (2026-10-06) Arrowheads follow the graph's direction (commit "draw undirected graphs without
     arrowheads"): `defaultEdgeStyle` has no `arrowHead`; `StylePainter` adds a `normal` head
     (`EDGE_BASE_DIRECTED`, mesh key suffix `|>`) only when `DataManager.directed` is true and no
@@ -207,11 +208,6 @@ acceptance test. "The studio worktree" is
 
 - 2026-10-06 -- Chrome names and tooltips (commit f60a81711): Main menu and privacy chip
   tooltips; cut names get a tooltip from compact-mantine's `rows/EllipsizedName.tsx` only when cut.
-- 2026-10-06 -- The finding "Style tab panel named by its whole content" came from the study
-  tool's printout (it shows innerText for an element with no aria-label), not from the ARIA name:
-  Mantine's `Tabs.Panel` is labelled by its tab. `--click "Style"` no longer prints ambiguous. No
-  change.
-
 - 2026-10-06 -- Legend and Style lines kept truthful (commit 377c526e1): `keyBlocks()` drops
   label, tooltip, arrow-text and literal size blocks; `SetLine.tsx`'s chip reads the element legend
   block. A run's encoding layer is named `run.label`. Not done: the "Node Colour" plainName.
@@ -221,6 +217,14 @@ acceptance test. "The studio worktree" is
   the reader's Everything layer (`userData.graphtyEverything`). Still open: the inspector header
   reads "Everything" twice, so `--click "Everything"` stays ambiguous.
 
+- 2026-10-06 -- Exports write a community result's `group` (and the `sizes` table's `group`) as
+  the size rank, the "Group N" the screen prints; the live result keeps raw ids. Rejected: a second
+  `groupRank` column (the first number a reader sees stays wrong), words in cells (element English).
+  A file-format change, listed in `owner-decisions.md`. Evidence: "a partition's groups in an
+  export" in `test/catalog/format-writers.test.ts` (fails on the old export.ts); Les Miserables
+  Louvain CSV counts 1:20 2:17 3:11 4:11 5:10 6:8 match the panel
+  (`tmp/check-r0-csv-group-numbers/s1/05.png`, `downloads/`).
+
 ## Tried: worked / did not work
 
 - 2026-10-06 -- Analyze keyboard pick as the ARIA combobox pattern (focus stays in the filter,
@@ -229,10 +233,8 @@ acceptance test. "The studio worktree" is
 - 2026-10-06 -- When a keyboard step "does nothing" in real.mjs, probe focus with a `--type` step
   before blaming the app (a capture once dropped focus to the page body; fixed in the tool).
 
-- 2026-09-13 to 10-04 -- Before the real app: specify panel lifecycle before building; fake
-  wiring measures the fake; public API drafts need a blind-author check; one integration branch,
-  not parallel screen PRs; a four-slot browser gate (`with-browser.sh`) after 23 browsers filled
-  swap on 2026-10-01; the tier 1 vs mock drift list (`tmp/tier1-vs-mock/`, main checkout) is my backlog.
+- 2026-09-13 to 10-04 -- Before the real app: fake wiring measures the fake; public API drafts
+  need a blind-author check; a four-slot browser gate (`with-browser.sh`).
 - 2026-10-06 -- `real.mjs` (commit a1e6b91ff) rests on `labelOf`, `nodeScreenPosition` and
   `elementAt`. "Stable frame" does not mean "labels re-evaluated": re-check label reads after a
   label setting change. A seeded default layout made screenshots reproducible but relayouts the
@@ -246,17 +248,22 @@ acceptance test. "The studio worktree" is
   `git show HEAD:<path>` over the new one, running the test, and copying back. Worked, and needs no
   stash or checkout (both forbidden in the studio worktree).
 
-- 2026-10-06 -- Camera spin fix: four new tests in
-  `graphty-element/test/interactions/integration/keyboard-controls.test.ts` fail on the old
-  controllers; app check `tmp/check-r0-camera-spin/s1/`. Lesson: spy on the controller's `spin` and
-  call the input handler's `update()` directly to make a frame-driven camera test deterministic.
+- 2026-10-06 -- Camera spin fix: spy on the controller's `spin` and call the input handler's
+  `update()` directly to make a frame-driven camera test deterministic.
+- (2026-10-06) **Label count "0 labels, 0 hidden": no change needed, closed.** The element already
+  announces counts (`graphty-label-change`) once the view is still, and `useStyleVersion.ts`
+  re-renders the line on it; the pilot's spinning camera never let the view settle. Re-checked on
+  build 9d6598eea: Les Miserables, Everything, label by name reads "77 labels, 7 hidden to avoid
+  overlap", and after a zoom and pan "77 labels, 11 hidden" (`tmp/check-r0-label-count-zero/after/
+  06.png`, `08.png`). If it ever reads 0 again, look first for something keeping the view moving.
 
-- 2026-10-06 -- Spectral layout: Chebyshev-filtered subspace iteration, matched against numpy;
-  "Spread Out, Flat" left on ARF with a true description (ngraph flat needs an owner door).
-  Evidence: `design/ui/studio/tmp/check-r0-broken-layouts/`.
+- 2026-10-06 -- Round 1 "failed" sessions at 40m00s were timeouts spent mostly queued for a browser
+  slot, not app failures: r1-s03's log opened 14:45, its first screenshot 15:17, its last 15:25.
+  A slot is held from `--start` to `--end`, through the agent's think time, so 4 slots serve few
+  sessions and the 40-minute cap counts the wait. Rerun them; do not count queue time.
 
-- 2026-10-06 -- A dialog-blocks-the-page test passed with the bug at the 414-wide viewport. Run a
-  new test against the old build (graphty reads compact-mantine from its `dist`).
+- 2026-10-06 -- Run a new app test against the old build too (a dialog test passed with the bug at
+  414 px; graphty reads compact-mantine from its `dist`).
 
 - 2026-10-06 -- Element screenshot tests: `test/setup.ts` stubs `CreateScreenshotAsync` with a
   1x1 PNG; override it per file for pixel assertions (`screenshot-legend.test.ts`).
@@ -268,10 +275,6 @@ acceptance test. "The studio worktree" is
   one run. Unexplained, twice now: an element `--project=default` run failed a file that passed on
   an immediate rerun (`cache-inputs.test.ts`; on 2026-10-06 `seeded-placement.test.ts` right after
   an element build). Find the mechanism if it recurs; do not call it a flake.
-
-- 2026-10-06 -- Study tool pickers and motion: real OPFS handles as picker stand-ins work (Recent
-  projects reopens them); hiding the page for a canvas capture blurs it and hides motion; three
-  plain clipped captures work.
 
 - 2026-10-06 -- Names and tooltips checks (unique names test, Method padding, cut-name tooltip)
   each fail on the old files. In real.mjs hover the name span (`"Edges per node#2"`), not the stat
@@ -293,6 +296,13 @@ acceptance test. "The studio worktree" is
   reference before a study offers it (Spectral was wrong until matched against numpy). A load the
   counts say worked can still draw nothing (store and render half fed separately in `ingest.ts`):
   assert on `element.graph.getNodes()` too.
+
+- 2026-10-06 -- **A re-dispatched or "failed" decision is often already done.** Four so far:
+  New from data (92882d5fd), the layout seed (b98e99a5b), the truthful legend (377c526e1) and
+  undirected arrowheads (bee8d9c10) were committed and checked before their sessions hit the
+  40-minute cap or were sent again. First step of any decision: `git log --grep`, a grep for the
+  removed names, and its `tmp/check-r0-<id>/` screenshots; recheck on the current build, do not
+  redo.
 
 ## Thinking
 
@@ -330,6 +340,11 @@ acceptance test. "The studio worktree" is
   element reads; it cannot judge color legibility or motion. Visual claims need a screenshot and a
   human-readable check, and the image model only transcribes; its yes/no answers are not evidence.
 
+- **Public API report (2026-10-06).** The arrowheads change adds `get directed(): boolean` on
+  `DataManager`; the report (`graphty-element/api/index.api.md`) is now regenerated and committed,
+  and the getter is named in `owner-decisions.md`. Lesson: any element change that adds a public
+  member needs `npm run api:report` in the same commit, or the pre-push "Public API report" check
+  fails later for someone else.
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

@@ -24,6 +24,8 @@ export interface ZipInput {
     readonly crc?: number;
     /** Override the uncompressed size the directory states. */
     readonly size?: number;
+    /** The name as raw bytes (a legacy code page), instead of the UTF-8 of `name`. */
+    readonly nameBytes?: Uint8Array;
 }
 
 /** Archive-level choices. */
@@ -57,7 +59,7 @@ export function makeZip(inputs: readonly ZipInput[], options: ZipOptions = {}): 
         const data = method === 8 ? new Uint8Array(deflateRawSync(raw)) : raw;
         const crc = input.crc ?? crc32(raw);
         const size = input.size ?? raw.byteLength;
-        const name = encoder.encode(input.name);
+        const name = input.nameBytes ?? encoder.encode(input.name);
         const flags = (input.flags ?? 0) | (input.descriptor === true ? 8 : 0);
         const local = [
             ...u32(0x04034b50),

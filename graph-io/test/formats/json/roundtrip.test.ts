@@ -12,7 +12,9 @@ import {
     type JsonExportOptions,
     jsonImporter,
     type JsonImportOptions,
+    jsonShapeOf,
 } from "../../../src/formats/json/index.js";
+import { importGraph } from "../../../src/registry.js";
 import { type CommonExportOptions, type CommonImportOptions } from "../../../src/types.js";
 import { corpusFiles, readCorpusText } from "../../helpers/corpus.js";
 import { type CompareOptions, compareSnapshots, expectSameSnapshot, roundTrip } from "../../helpers/roundtrip.js";
@@ -72,6 +74,9 @@ function rich(): GraphSnapshot {
     return b.freeze();
 }
 
+/** The dialects that keep any column; OBO Graphs keeps the OBO vocabulary only (test/formats/json/obographs-export.test.ts). */
+const GENERIC_DIALECTS = JSON_DIALECTS.filter((d) => d !== "obographs");
+
 describe("corpus round trips (design 16.5)", () => {
     for (const entry of corpusFiles("json")) {
         it(`${entry.path}: export in its own dialect and re-import is exact`, async () => {
@@ -99,7 +104,7 @@ describe("corpus round trips (design 16.5)", () => {
         const mixedCapable = new Set<JsonDialect>(["jgf", "graphology"]);
         for (const entry of corpusFiles("json")) {
             const s = await imported(readCorpusText("json", entry.path), entry.options as JsonImportOptions);
-            for (const dialect of JSON_DIALECTS) {
+            for (const dialect of GENERIC_DIALECTS) {
                 const exportOptions: JsonExportOptions & CommonExportOptions = { dialect };
                 const importOptions: JsonImportOptions & CommonImportOptions = { dialect };
                 if (dialect === "jgf" && s.ids.toArray().some((id) => typeof id === "number")) {
@@ -208,7 +213,7 @@ describe("synthetic round trips", () => {
         const shadow = s.edges.byRole("weight");
         expect(shadow?.isSet(1)).toBe(false);
         expect(shadow?.isSet(2)).toBe(true);
-        for (const dialect of JSON_DIALECTS) {
+        for (const dialect of GENERIC_DIALECTS) {
             const rt = await roundTrip(s, jsonExporter, jsonImporter, {
                 exportOptions: { dialect },
                 importOptions: { defaultDirected: true },
@@ -285,5 +290,17 @@ describe("synthetic round trips", () => {
         const s = b.freeze();
         expect(s.meta.extra).toEqual({});
         await exact(s, undefined, undefined, { originType: false });
+    });
+});
+
+describe("jsonShapeOf", () => {
+    it("returns the shape a JSON import recorded, and null for a graph read from another format", async () => {
+        const json = await importGraph('{"nodes":[{"id":"a"},{"id":"b"}],"links":[{"source":"a","target":"b"}]}', {
+            format: "json",
+        });
+        expect(jsonShapeOf(json.snapshot)?.dialect).toBe("d3");
+        expect(jsonShapeOf(json.snapshot)?.edgesKey).toBe("links");
+        const dot = await importGraph("graph { a -- b }", { format: "dot" });
+        expect(jsonShapeOf(dot.snapshot)).toBeNull();
     });
 });

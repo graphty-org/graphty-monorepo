@@ -11,7 +11,7 @@ import { gnm, undirectedFixtures } from "./port-fixtures.js";
 
 function exactWeights(s: GraphSnapshot): Float64Array | undefined {
     const shadow = s.edges.byRole("weight");
-    return shadow?.dtype === "f64" ? (expandEdges(s, shadow.data) as Float64Array) : undefined;
+    return shadow?.dtype === "f64" ? expandEdges(s, shadow.data) : undefined;
 }
 
 function sideIds(s: GraphSnapshot, side: NodeMask, inside: boolean): string[] {

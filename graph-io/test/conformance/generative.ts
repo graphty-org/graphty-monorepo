@@ -862,5 +862,5 @@ export function targetNamed(name: string): Target {
  * @returns the exporter
  */
 export function exporterOf(format: string): GraphExporter<Record<string, unknown> & CommonExportOptions> {
-    return registry.exporter(format) as GraphExporter<Record<string, unknown> & CommonExportOptions>;
+    return registry.exporter(format);
 }

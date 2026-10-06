@@ -1502,11 +1502,7 @@ export class Node {
 
         // Remove properties that shouldn't be passed to RichTextLabel
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions as RichTextLabelOptions & {
-            location?: string;
-            textPath?: string;
-            enabled?: boolean;
-        };
+        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions;
 
         return finalLabelOptions;
     }

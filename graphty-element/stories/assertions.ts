@@ -601,7 +601,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             shape: source?.name ?? node.mesh.name,
             geometryKey: `${source?.name ?? node.mesh.name}#${String(source?.uniqueId ?? node.mesh.uniqueId)}`,
             vertexCount: source?.getTotalVertices() ?? node.mesh.getTotalVertices(),
-            geometryDigest: digestOf(source ?? (node.mesh as unknown as Parameters<typeof digestOf>[0])),
+            geometryDigest: digestOf(source ?? node.mesh),
             wireframe: source?.material?.wireframe ?? false,
             enabled: node.mesh.isEnabled(),
             opacity: node.mesh.visibility,

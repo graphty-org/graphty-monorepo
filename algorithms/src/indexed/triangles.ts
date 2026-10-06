@@ -53,7 +53,7 @@ export function simpleUndirectedRows(s: GraphSnapshot): { rowPtr: U32; colIdx: U
         out = kept;
     }
     rowPtr[n] = out;
-    return { rowPtr: rowPtr as U32, colIdx: colIdx.slice(0, out) as U32 };
+    return { rowPtr: rowPtr, colIdx: colIdx.slice(0, out) };
 }
 
 /**
@@ -78,7 +78,7 @@ export function clusteringFrom(
         triples += pairs;
         coefficient[v] = pairs > 0 ? perNode[v] / pairs : 0;
     }
-    return { coefficient: coefficient as F64, transitivity: triples > 0 ? (3 * total) / triples : 0 };
+    return { coefficient: coefficient, transitivity: triples > 0 ? (3 * total) / triples : 0 };
 }
 
 /**
@@ -139,5 +139,5 @@ export function triangleCount(s: GraphSnapshot): TriangleCountResult {
             }
         }
     }
-    return { perNode: perNode as U32, total, ...clusteringFrom(perNode, total, rowPtr) };
+    return { perNode: perNode, total, ...clusteringFrom(perNode, total, rowPtr) };
 }

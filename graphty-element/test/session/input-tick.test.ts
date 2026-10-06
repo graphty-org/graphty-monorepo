@@ -36,11 +36,13 @@ function settled(): Harness {
 function readEverything(harness: Harness): void {
     const { session } = harness;
     session.data.snapshot();
-    void session.status;
-    void session.visibility.summary;
-    void session.visibility.nodes;
-    void session.selection.nodes;
-    void session.results.roots;
+    const _reads = [
+        session.status,
+        session.visibility.summary,
+        session.visibility.nodes,
+        session.selection.nodes,
+        session.results.roots,
+    ];
     session.runs.list();
     session.data.attributes();
     session.data.statistics();

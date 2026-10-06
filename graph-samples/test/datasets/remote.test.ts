@@ -46,8 +46,8 @@ describe("fetchDataset", () => {
 
     it("rejects an HTTP error and a name that is not a plain dataset name", async () => {
         const missing = (): Promise<Response> => Promise.resolve(new Response("nope", { status: 404 }));
-        await expect(fetchDataset("absent", { fetch: missing as typeof fetch })).rejects.toThrow(/HTTP 404/);
-        await expect(fetchDataset("../secrets", { fetch: missing as typeof fetch })).rejects.toThrow(RangeError);
-        await expect(fetchDataset("", { fetch: missing as typeof fetch })).rejects.toThrow(RangeError);
+        await expect(fetchDataset("absent", { fetch: missing })).rejects.toThrow(/HTTP 404/);
+        await expect(fetchDataset("../secrets", { fetch: missing })).rejects.toThrow(RangeError);
+        await expect(fetchDataset("", { fetch: missing })).rejects.toThrow(RangeError);
     });
 });

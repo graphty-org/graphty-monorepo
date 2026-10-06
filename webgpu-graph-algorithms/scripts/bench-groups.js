@@ -2,7 +2,7 @@
 /**
  * bench-groups -- which benchmark groups a change can move, so the paired benchmark (scripts/bench-ab.js) on the
  * GPU lane runs only those. One full paired run is 4 ABBA rounds x 2 builds x every group of benchmarks/run.ts, about
- * 65 minutes on the T4 by 2026-10-01; most pull requests touch one algorithm and can move one or two groups.
+ * 72 minutes on the T4 by 2026-10-06; most pull requests touch one algorithm and can move one or two groups.
  *
  * The rule:
  *   1. A group's file set is every webgpu-graph-algorithms/src file its benchmark reaches through imports,
@@ -20,6 +20,7 @@
  * Usage (from webgpu-graph-algorithms; paths are repository-relative, as `git diff --name-only` prints them):
  *   git diff --name-only <base> HEAD | node scripts/bench-groups.js [--base <rev>]
  *   node scripts/bench-groups.js --list          # every group, in run order
+ *   node scripts/bench-groups.js --timeout <group...|all>   # the paired step's minutes (pairedTimeoutMinutes)
  * Prints the selected groups on stdout, space separated: "all" when every group is selected, empty when none. The
  * reason for each changed src file goes to stderr. --base drops a selected group that <rev>'s benchmarks/run.ts does not declare (a group new in the change has no
  * base to be compared against, and the base's runner would refuse its name).
@@ -79,6 +80,59 @@ export const AFFECTS_EVERY_GROUP = Object.freeze([
     "src/wgsl/closeness-rowsum.wgsl.ts",
     "src/wgsl/indirect-finalize.wgsl.ts",
 ]);
+
+/**
+ * Seconds one pass of each group takes on the T4 with the SM clock locked: the gaps between the "== <group>" headers
+ * of the single `pnpm run bench` pass of run 37451823822 (PR #1189, 2026-10-06), rounded up. 528 s, 8.8 minutes, for
+ * every group. test/bench-groups.test.ts fails when a group benchmarks/run.ts declares is missing here, so a new
+ * group is timed before the GPU lane relies on it.
+ */
+export const PASS_SECONDS = Object.freeze({
+    upload: 47,
+    roundtrip: 1,
+    "layout-exact": 5,
+    pagerank: 14,
+    wcc: 11,
+    "layout-fr": 4,
+    "layout-grid": 18,
+    "attraction-scale": 87,
+    bfs: 29,
+    betweenness: 188,
+    apsp: 8,
+    triangles: 15,
+    "label-propagation": 89,
+    mst: 12,
+});
+
+/** The passes scripts/bench-ab.js makes: 4 ABBA rounds x 2 builds. */
+export const PAIRED_PASSES = 8;
+/** Building the base commit's worktree (pnpm install and the package build): about 1 minute in run 37451823822. */
+export const BASE_BUILD_MINUTES = 2;
+/** Headroom on a subset's measured passes, for clock, thermal and per-process startup variance. */
+export const PAIRED_MARGIN = 1.5;
+/**
+ * The paired step's limit when every group runs, and the most any subset gets: 8 passes x 528 s = 70.4 minutes,
+ * plus the base build, fits; the test holds the table to that.
+ */
+export const PAIRED_TIMEOUT_CAP = 75;
+
+/**
+ * The paired benchmark step's timeout for a selection: ceil(8 passes x the selected groups' pass seconds x 1.5 / 60)
+ * + 2 minutes for the base build, at least 10 (the base build's install goes to the network, which a one-group
+ * subset's few minutes would not absorb) and at most 75. A fixed limit for every subset gave a subset of 13 of the 14 groups
+ * (PR #1189, run 37451823822) the 40 minutes meant for one or two, and it timed out after 5 of its 8 passes.
+ * @param {readonly string[]} groups - group names, or ["all"]
+ * @returns {number} minutes
+ */
+export function pairedTimeoutMinutes(groups) {
+    if (groups.includes("all")) {
+        return PAIRED_TIMEOUT_CAP;
+    }
+    const slowest = Math.max(...Object.values(PASS_SECONDS)); // an untimed group is assumed to be the slowest
+    const pass = groups.reduce((s, g) => s + (PASS_SECONDS[g] ?? slowest), 0);
+    const minutes = Math.ceil((PAIRED_PASSES * pass * PAIRED_MARGIN) / 60) + BASE_BUILD_MINUTES;
+    return Math.min(PAIRED_TIMEOUT_CAP, Math.max(10, minutes));
+}
 
 /**
  * The relative module specifiers a file imports or re-exports, static or dynamic.
@@ -279,7 +333,9 @@ export function selectGroups(changed, sets = groupFileSets()) {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     const argv = process.argv.slice(2);
-    if (argv[0] === "--list") {
+    if (argv[0] === "--timeout") {
+        console.log(pairedTimeoutMinutes(argv.slice(1)));
+    } else if (argv[0] === "--list") {
         console.log(
             declaredGroups()
                 .map((g) => g.name)

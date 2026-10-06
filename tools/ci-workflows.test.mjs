@@ -852,6 +852,30 @@ describe("gpu.yml", () => {
         assert.match(gate, /"\$DECIDE" != "success" .* exit 1/);
         assert.match(gate, /"\$T4" != "success" .* exit 1/);
     });
+
+    it("sizes the paired benchmark's limit to the groups it selected, at most the 75 every group gets", () => {
+        const t4 = job(gpu, "test-gpu");
+        assert.match(t4, /timeout=\$\(node scripts\/bench-groups\.js --timeout \$groups\)/);
+        assert.match(
+            t4,
+            /timeout-minutes: \$\{\{ steps\.select\.outputs\.timeout && fromJSON\(steps\.select\.outputs\.timeout\) \|\| 75 \}\}/,
+        );
+        assert.doesNotMatch(t4, /else timeout=40/);
+        const minutes = (...groups) => {
+            const r = spawnSync("node", ["webgpu-graph-algorithms/scripts/bench-groups.js", "--timeout", ...groups], {
+                encoding: "utf8",
+                cwd: new URL("..", import.meta.url),
+            });
+            assert.equal(r.status, 0, r.stderr);
+            return Number(r.stdout.trim());
+        };
+        assert.equal(minutes("all"), 75);
+        assert.equal(minutes("mst"), 10);
+        // PR #1189 selected 13 of the 14 groups and got a flat 40: run 37451823822 timed out after 5 of 8 passes
+        const pr1189 =
+            "roundtrip layout-exact pagerank wcc layout-fr layout-grid attraction-scale bfs betweenness apsp";
+        assert.equal(minutes(...pr1189.split(" "), "triangles", "label-propagation", "mst"), 75);
+    });
 });
 
 describe(".mergify.yml and the GPU gate", () => {

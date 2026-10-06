@@ -14,3 +14,11 @@ export function selectGroups(
     changed: readonly string[],
     sets?: Map<string, Set<string>>,
 ): { groups: string[]; reasons: string[] };
+/** Seconds one pass of each group takes on the T4 (measured). */
+export const PASS_SECONDS: Readonly<Record<string, number>>;
+export const PAIRED_PASSES: number;
+export const BASE_BUILD_MINUTES: number;
+export const PAIRED_MARGIN: number;
+export const PAIRED_TIMEOUT_CAP: number;
+/** The paired benchmark step's timeout in minutes for the selected groups (or ["all"]). */
+export function pairedTimeoutMinutes(groups: readonly string[]): number;

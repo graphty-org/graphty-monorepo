@@ -9,9 +9,9 @@
 # pull request, and it is a workflow of its own rather than a job of gpu.yml so that release.yml's gate, which reads
 # the newest gpu.yml run of a commit, never mistakes it for the lane's verdict on master.
 #
-# Timing: one pass of every group is about 7.7 minutes on the T4 and the paired run makes eight passes plus the
-# base build, about 65 minutes (gpu.yml run 36882775800 hit a 40-minute limit after about 5 of the 8); setup,
-# install and build add about 5.
+# Timing: one pass of every group is 528 s (8.8 minutes) on the T4 (gpu.yml run 37451823822, scripts/bench-groups.js
+# PASS_SECONDS) and the paired run makes eight passes plus the base build, about 72 minutes; setup, install and
+# build add about 5. This run always selects every group, so a fixed limit fits it.
 name: GPU weekly paired benchmark
 on:
     schedule:
@@ -52,7 +52,7 @@ jobs:
             - name: Paired benchmark of every group against the latest release
               id: ab
               continue-on-error: true
-              timeout-minutes: 85 # about 65 measured, with margin
+              timeout-minutes: 85 # about 72 measured, with margin
               run: |
                   tag=$(git tag -l 'webgpu-graph-algorithms@*' --sort=-v:refname | head -1)
                   echo "tag=$tag" >> "$GITHUB_OUTPUT"

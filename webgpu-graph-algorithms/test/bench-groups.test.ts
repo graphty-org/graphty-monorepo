@@ -12,6 +12,10 @@ import {
     declaredGroups,
     groupFileSets,
     kernelModules,
+    PAIRED_PASSES,
+    PAIRED_TIMEOUT_CAP,
+    pairedTimeoutMinutes,
+    PASS_SECONDS,
     selectGroups,
     srcFiles,
 } from "../scripts/bench-groups.js";
@@ -74,5 +78,36 @@ describe("bench-groups", () => {
             selectGroups(["webgpu-graph-algorithms/README.md", "graphty-element/src/Graph.ts"], sets).groups,
         ).toEqual([]);
         expect(selectGroups(changed("benchmarks/harness.ts"), sets).groups).toEqual([]);
+    });
+
+    describe("the paired step's timeout", () => {
+        it("has a measured pass time for exactly the declared groups", () => {
+            expect(Object.keys(PASS_SECONDS).sort()).toEqual([...ALL].sort());
+        });
+
+        it("fits one full paired run, unpadded, under the cap given for every group", () => {
+            const full = Object.values(PASS_SECONDS).reduce((a, b) => a + b, 0);
+            // 8 x 528 s = 70.4 minutes, plus the base build's measured minute
+            expect(Math.ceil((PAIRED_PASSES * full) / 60) + 1).toBeLessThanOrEqual(PAIRED_TIMEOUT_CAP);
+            expect(pairedTimeoutMinutes(["all"])).toBe(PAIRED_TIMEOUT_CAP);
+        });
+
+        it("scales with the selected groups' pass time, between 10 minutes and the cap", () => {
+            expect(pairedTimeoutMinutes(["mst"])).toBe(10);
+            // 8 x 188 s x 1.5 = 37.6 -> 38, + 2 for the base build
+            expect(pairedTimeoutMinutes(["betweenness"])).toBe(40);
+            // the three slowest: 364 s a pass, 48.5 minutes for 8 even unpadded, which a flat 40 could not hold
+            expect(pairedTimeoutMinutes(["attraction-scale", "betweenness", "label-propagation"])).toBe(
+                PAIRED_TIMEOUT_CAP,
+            );
+        });
+
+        it("gives PR #1189's 13-group selection the cap, not 40 (run 37451823822 timed out after 5 of 8 passes)", () => {
+            expect(pairedTimeoutMinutes(ALL.filter((g) => g !== "upload"))).toBe(PAIRED_TIMEOUT_CAP);
+        });
+
+        it("assumes an untimed group is the slowest", () => {
+            expect(pairedTimeoutMinutes(["not-yet-timed"])).toBe(pairedTimeoutMinutes(["betweenness"]));
+        });
     });
 });

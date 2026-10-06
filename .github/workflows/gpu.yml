@@ -132,11 +132,12 @@ jobs:
                 NVIDIA_DRIVER_CAPABILITIES: all
                 DEBIAN_FRONTEND: noninteractive
         # The steps before the paired benchmark measured about 47 minutes on 2026-10-01 (run 36823257324, PR #663). The
-        # paired benchmark runs 40 minutes at most when it selects a subset of the groups, 75 when a change selects all
-        # of them: one full pass of every group is about 7.7 minutes on the T4 and the paired run makes eight (4 ABBA
-        # rounds x 2 builds), about 65 minutes with the base build -- run 36882775800 (PR #663) hit the old 40-minute
-        # step limit after about 5 of the 8 passes. 47 + 75 = 122, plus setup and the artifact upload: 130. Each step
-        # that can hang keeps its own, tighter limit.
+        # paired benchmark's limit follows the groups it selects (scripts/bench-groups.js pairedTimeoutMinutes): 8
+        # passes (4 ABBA rounds x 2 builds) x the selected groups' measured pass seconds x 1.5, + 2 for the base build,
+        # between 10 and 75. One pass of every group is 528 s on the T4 (run 37451823822), so all of them need 8 x 8.8
+        # = 70.4 minutes + the base build's minute, under the 75 they get. A flat 40 for any subset failed twice: run
+        # 36882775800 (PR #663) and run 37451823822 (PR #1189, 13 of 14 groups) timed out after 5 of the 8 passes.
+        # 47 + 75 = 122, plus setup and the artifact upload: 130. Each step that can hang keeps its own, tighter limit.
         # The container adds the image pull and the bootstrap apt: 10 more, 140.
         timeout-minutes: 140
         env:
@@ -304,12 +305,12 @@ jobs:
                   if [ -z "$groups" ]; then
                       echo "no change under webgpu-graph-algorithms/src since $base: paired benchmark skipped"
                   fi
-                  # a subset fits the step's original 40 minutes; every group needs about 65 (see the job's timeout)
-                  if [ "$groups" = all ]; then timeout=75; else timeout=40; fi
+                  # minutes in proportion to the selected groups' measured pass times, at most 75 (see the job's timeout)
+                  timeout=$(node scripts/bench-groups.js --timeout $groups) # word splitting intended: one argument per group
                   { echo "base=$base"; echo "groups=$groups"; echo "timeout=$timeout"; } >> "$GITHUB_OUTPUT"
             - name: Paired benchmark against the base commit (the groups chosen above)
               if: github.event_name == 'pull_request' && steps.select.outputs.groups != ''
-              timeout-minutes: ${{ steps.select.outputs.timeout && fromJSON(steps.select.outputs.timeout) || 40 }}
+              timeout-minutes: ${{ steps.select.outputs.timeout && fromJSON(steps.select.outputs.timeout) || 75 }}
               env: { BASE: "${{ steps.select.outputs.base }}", BENCH_GROUPS: "${{ steps.select.outputs.groups }}" }
               run: |
                   echo "groups: $BENCH_GROUPS (base $BASE)"

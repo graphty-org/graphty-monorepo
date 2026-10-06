@@ -198,40 +198,15 @@ describe("Property Order Independence", () => {
     }
 
     /**
-     * Wait for the layout engine to settle.
-     * Polls the layout manager's isSettled property until it returns true.
-     */
-    async function waitForLayoutSettle(maxWaitMs = 5000): Promise<void> {
-        const { layoutManager } = graph as unknown as TestGraph;
-        const startTime = Date.now();
-
-        while (Date.now() - startTime < maxWaitMs) {
-            if (layoutManager.isSettled) {
-                // Give one more frame for mesh positions to sync
-                await delay(16);
-                return;
-            }
-
-            await delay(16); // Poll every frame (~60fps)
-        }
-
-        // Timeout is acceptable for force-directed layouts that may never fully settle
-        // but we should at least have the layout running
-    }
-
-    /**
      * Verify node mesh positions match the layout engine positions.
      * This ensures the rendering pipeline correctly synced positions from layout to meshes.
      */
-    async function verifyNodePositionsMatchLayout(): Promise<void> {
+    function verifyNodePositionsMatchLayout(): void {
         const { layoutManager } = graph as unknown as TestGraph;
         const { layoutEngine } = layoutManager;
 
         // Verify layout engine exists
         assert.isDefined(layoutEngine, "Layout engine should exist");
-
-        // Wait for layout to settle before comparing positions
-        await waitForLayoutSettle();
 
         // For static layouts (like circular), positions should match exactly
         // For force-directed layouts, we allow more tolerance
@@ -396,9 +371,18 @@ describe("Property Order Independence", () => {
      * @param skipMaterialCheck - Skip material color verification (useful for 2D mode tests)
      */
     async function verifyMeshState(skipMaterialCheck = false): Promise<void> {
+        // A MESH IS MOVED BY A FRAME, NOT BY THE LAYOUT. A new layout publishes its positions into
+        // the position array the moment it is built, and the engine reads them back from there --
+        // but the node meshes, and each instance's colour, are written by the next update pass of
+        // the render loop. The render loop runs on animation frames, which a busy GPU process
+        // (SwiftShader in CI) can hold back for hundreds of milliseconds while timers keep firing,
+        // so a timer-based wait can read the meshes before any frame has moved them. Wait for the
+        // element to say a frame of the finished picture has been drawn.
+        await graph.waitForStableFrame();
+
         verifyNodeMeshesExist();
         verifyEdgeMeshesExist();
-        await verifyNodePositionsMatchLayout();
+        verifyNodePositionsMatchLayout();
         // Verify node shape - all tests use sphere shape
         verifyNodeMeshShapes("sphere");
         // Verify circular layout geometry

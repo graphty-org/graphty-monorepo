@@ -184,7 +184,9 @@ describe("a watchdog run", () => {
     });
 
     it("makes at most 4 calls with both alarms firing", async () => {
-        const red = [{ conclusion: "failure", event: "push", created_at: ago(300), head_sha: "a".repeat(40), html_url: "u" }];
+        const red = [
+            { conclusion: "failure", event: "push", created_at: ago(300), head_sha: "a".repeat(40), html_url: "u" },
+        ];
         const { calls, request } = fake([issue(`alive: ${ago(90)}`)], red);
         await watchdog({ request, repo: "o/r", label: "githerd-heartbeat", now: NOW });
         assert.deepEqual(calls.map((c) => `${c.method} ${c.path}`).slice(2), [

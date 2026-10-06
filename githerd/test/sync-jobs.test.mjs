@@ -188,7 +188,7 @@ describe("syncJobs: incidents", () => {
 });
 
 describe("syncJobs: pull requests", () => {
-    it("makes a pr job for the owner's failing pull request only, never for githerd's own files", () => {
+    it("makes a pr job for the owner's failing pull request only, githerd's own files for the owner's sessions", () => {
         const state = base();
         failingPr(state, 4);
         failingPr(state, 5, { author: "stranger" });
@@ -200,7 +200,8 @@ describe("syncJobs: pull requests", () => {
         failingPr(state, 11, { ownerGate: true });
         failingPr(state, 12);
         state.mergeGate.heads[12].files = null; // not read yet: wait
-        expect(sync(state).created).toEqual(["pr-4", "pr-10"]);
+        expect(sync(state).created).toEqual(["pr-4", "pr-8", "pr-9", "pr-10"]);
+        expect([4, 8, 9].map((n) => state.jobs[`pr-${n}`].facts.ownerOnly)).toEqual([false, true, true]);
         expect(state.jobs["pr-4"]).toMatchObject({
             target: "#4",
             pr: 4,

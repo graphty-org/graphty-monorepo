@@ -35,7 +35,8 @@ export const DEFAULTS = Object.freeze({
     // waiting sessions kept open, and the routine worker hours a day until the usage reading is
     // verified (urgent work is exempt); how long githerd waits for a live session to answer that
     // a pull request whose CI failed is its own before offering it as a job (design 8.2); and how
-    // often githerd asks an owner session holding a job for its status (design 8.2).
+    // often githerd asks an owner session holding a job for its status (design 8.2); and how many
+    // jobs one session may actively work at once before it is invited to or may claim no more.
     workers: {
         model: "claude-opus-5-5",
         slots: 3,
@@ -44,6 +45,7 @@ export const DEFAULTS = Object.freeze({
         hoursPerDay: 10,
         askMinutes: 10,
         statusMinutes: 15,
+        maxActive: 3,
         sessions: null,
     },
     backlog: { agingDays: 60 },
@@ -99,7 +101,7 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  *   labels: { types: string[], priorities: string[], efforts: string[] },
  *   protectedPaths: string[], actions: Record<string, boolean>,
  *   workers: { model: string, slots: number, urgent: number, waiting: number, hoursPerDay: number,
- *     askMinutes: number, statusMinutes: number, sessions: string[] | null },
+ *     askMinutes: number, statusMinutes: number, maxActive: number, sessions: string[] | null },
  *   backlog: { agingDays: number },
  *   notify: { command: string[] | null, maxPerHour: number },
  *   digest: { weekday: string, hourUtc: number, issue: number | null },
@@ -288,6 +290,7 @@ function workers(raw) {
         hoursPerDay: d.hoursPerDay,
         askMinutes: d.askMinutes,
         statusMinutes: d.statusMinutes,
+        maxActive: d.maxActive,
     };
     return {
         model: model ?? d.model,
@@ -299,6 +302,7 @@ function workers(raw) {
             hoursPerDay: { min: 1, max: 24 },
             askMinutes: { min: 1, max: 60 },
             statusMinutes: { min: 1, max: 120 },
+            maxActive: { min: 1, max: 20 },
         }),
     };
 }

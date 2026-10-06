@@ -314,6 +314,45 @@ describe("sessionToolSet", () => {
         }
     });
 
+    it("refuses a claim from a session at workers.maxActive; blocked, parked and verifying jobs do not count", async () => {
+        const queued = newJob({ kind: "issue", target: "#5", id: "issue-5" }, NOW);
+        /** @type {Record<string, any>} */
+        const jobs = { "issue-5": queued };
+        for (const [id, st] of [
+            ["issue-1", "working"],
+            ["issue-2", "starting"],
+            ["issue-3", "blocked"],
+            ["issue-4", "parked"],
+            ["issue-6", "verifying"],
+        ]) {
+            jobs[id] = {
+                ...newJob({ kind: "issue", target: `#${id}`, id }, NOW),
+                state: st,
+                holder: { session: "o1" },
+            };
+        }
+        jobs["issue-7"] = {
+            ...newJob({ kind: "issue", target: "#7", id: "issue-7" }, NOW),
+            state: "waiting",
+            waitingFor: { local: "task-1" },
+            holder: { session: "o1" },
+        };
+        const { ctx } = setup({ jobs, trust: { login: "me" } }, { config: { repo: REPO, workers: { maxActive: 3 } } });
+        const next = JSON.parse((await call(ctx, "githerd_next", {}, { session: "o1" })).text);
+        const claim = {
+            job: "issue-5",
+            snapshotVersion: next.snapshot.version,
+            overlap: { decision: "independent", reason: "alone" },
+            plan: "fix it",
+        };
+        const refused = await call(ctx, "githerd_claim", claim, { session: "o1" });
+        expect(refused.isError).toBe(true);
+        expect(JSON.parse(refused.text).reason).toBe("you hold 3 active jobs; finish or report one first");
+        // Its local-task wait ends in a wait on CI: two active jobs, room for one more.
+        jobs["issue-7"].waitingFor = { checks: HEAD };
+        expect(JSON.parse((await call(ctx, "githerd_claim", claim, { session: "o1" })).text).ok).toBe(true);
+    });
+
     it("never offers a pull request another session claimed, and lists it as in use with why", async () => {
         const pr = Object.assign(newJob({ kind: "pr", target: "#9", id: "pr-9" }, NOW), { pr: 9 });
         const title = Object.assign(newJob({ kind: "title", target: "#9", id: "title-9" }, NOW), { pr: 9 });

@@ -13,8 +13,9 @@
  *   release).
  * - `incident-local-<step>`: the pre-push gate failing on the green commit (the reference worktree).
  * - `pr-<n>`: the owner's non-draft pull requests with an own failing required check, a conflict
- *   seen twice (the only work of a stacked one), or the owner's visual reject; never one that changes githerd's own
- *   config, hooks or worker instructions (those are listed for the owner's sessions).
+ *   seen twice (the only work of a stacked one), or the owner's visual reject. One that changes
+ *   githerd's own config, hooks or worker instructions is `facts.ownerOnly`: offered to the owner's
+ *   sessions, never started as a githerd worker (start.mjs).
  * - `title-<n>`: such a pull request whose only failing check is `Lint PR Title`.
  * - `review-<n>`: a pull request a githerd job made, at a patch id no review has seen.
  * - `triage-<scope>-<seq>`: one triage job at a time: issues missing a type, priority or effort label
@@ -241,8 +242,9 @@ function masterKeyJob(state, open, key, r) {
 }
 
 /**
- * The `pr` jobs: the owner's pull requests that need a worker, and none that changes githerd
- * itself. One whose pull request closed or no longer needs work is cancelled.
+ * The `pr` jobs: the owner's pull requests that need a worker; one that changes githerd itself is
+ * marked `ownerOnly`, for the owner's sessions alone. One whose pull request closed or no longer
+ * needs work is cancelled.
  * @param {any} state the daemon state
  * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
  * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
@@ -253,7 +255,8 @@ function prJobs(state, add, cancel) {
         const need = prWork(n, rec, state);
         const files = heads[n]?.files;
         // Its files not read yet: wait a reconcile rather than hand githerd's own code to a worker.
-        if (!need || !files || heads[n]?.filesTruncated || touches(files, OWNER_ONLY)) continue;
+        if (!need || !files || heads[n]?.filesTruncated) continue;
+        const ownerOnly = touches(files, OWNER_ONLY);
         const failing = Object.keys(rec.required ?? {}).filter((k) => rec.required[k] === "FAILURE");
         if (failing.length === 1 && failing[0] === TITLE_CHECK) {
             // Only the title fails commitlint: a title job, which needs no worktree (design 5.1).
@@ -263,7 +266,7 @@ function prJobs(state, add, cancel) {
                     kind: "title",
                     target: `#${n}`,
                     reason: `${TITLE_CHECK} fails`,
-                    facts: { since: rec.createdAt ?? null },
+                    facts: { since: rec.createdAt ?? null, ownerOnly },
                 },
                 { pr: Number(n) },
             );
@@ -280,6 +283,7 @@ function prJobs(state, add, cancel) {
                     next: ownerLabel(rec, NEXT),
                     skip: ownerLabel(rec, SKIP),
                     labels: rec.labels ?? [],
+                    ownerOnly,
                 },
             },
             { pr: Number(n), branch: rec.headRef ?? null },

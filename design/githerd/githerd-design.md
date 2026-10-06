@@ -923,19 +923,27 @@ attempt given the old theories. Session deaths are not attempts, but a third dea
 
 ### 5.4 Queue order
 
-Finish before starting:
+Finish before starting. Urgent incidents first (verdicts, master and release incidents, then shared
+incidents; oldest red first). Then by the owner's priority label (critical, high, medium, low):
+an issue's priority, a pull request's own `priority:*` label. `githerd:next` or a place in an open
+order puts a job in the top priority; a pull request with no priority label, and the daemon's own
+triage and major jobs, are in the top priority too; an issue with none comes last. Within one
+priority, work that finishes what is in flight comes before work that starts something new:
 
-1. `incident` on master or release, then shared incidents; oldest red first.
-2. `review` (an incident fix's review uses the urgent slot).
-3. `pr`, oldest pull request first; a stacked one blocks until its base merges.
-4. `title`.
-5. `triage` of new issues.
-6. `major` jobs the owner approved.
-7. `issue`: issues in an open order first; then priority (critical, high, medium, low), bug before
-   other types, oldest first [OD 4]. Skipped: `blocked`, `needs-decision`, `research`, an open
-   owner item; and, while the review queue is at its limit, issues whose claimed packages have a
-   Storybook.
-8. `triage` refresh and full passes; low-priority incidents on non-gating workflows.
+- Finishing: `review` (an incident fix's review uses the urgent slot); `pr`, oldest pull request
+  first, a stacked one blocked until its base merges; `title`; an `issue` that master already names
+  (verify the fix) and a re-land.
+- Starting: `triage` of new issues; `major` jobs the owner approved; a fresh `issue`: issues in an
+  open order first, then bug before other types, low effort before high, oldest first [OD 4].
+
+Skipped: issues labelled `blocked`, `needs-decision`, `research`, an open owner item; and, while the
+review queue is at its limit, issues whose claimed packages have a Storybook. Last: `triage` refresh
+and full passes; low-priority incidents on non-gating workflows.
+
+Each reason names the rule: "finishes #710: conflicting with master", "starts #322: high
+enhancement, effort low". A pull request that changes githerd itself (`githerd/`, its config,
+`.claude/`, `.mcp.json`, `CLAUDE.md`) gets a `pr` job marked `ownerOnly`: offered to the owner's
+sessions, never started as a githerd worker.
 
 `githerd:next` and `githerd:skip` move an item, honored only when the owner's account added the
 label and no worker write matches the event (10.1). Each item carries its one-line reason.
@@ -1386,6 +1394,11 @@ shows each limit with the measurement that applied at the last start.
   session answers with `capacity` in `githerd_expect`, githerd keeps the last answer
   (`state.capacity[session]`), and the session has room while that answer is above the jobs it
   claimed since. A session that never answered is invited only while idle.
+- **A session works at most `workers.maxActive` jobs at once** (default 3, 1 to 20). A session
+  holding that many jobs in `working` or `starting`, or `waiting` on its own local task, is not
+  invited, and `githerd_claim` refuses it another queued job with "you hold 3 active jobs; finish
+  or report one first", whatever `capacity` it reported. Blocked, parked, verifying jobs and waits
+  on what githerd watches (checks, a lane, a release, another job) do not count.
 
   githerd's own heads are those `githerd_push` and the upkeep recorded (`state.pushedByGitherd`)
   and GitHub's own commits (committer `noreply@github.com`: update-branch, Mergify); they are never

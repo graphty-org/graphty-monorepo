@@ -7,11 +7,13 @@
  */
 
 import { type ResolvedImportOptions } from "../../common/options.js";
+import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { ImportError } from "../../types.js";
 import { CsvRecordReader } from "../csv/records.js";
 import { type AttRec } from "../xgmml/document.js";
 import { CYS_ISSUE, FORMAT } from "./constants.js";
+import { entryLabel } from "./session.js";
 
 /** The Cytoscape type names of the Java classes a CyCSV column can hold. */
 const JAVA_TYPES: Readonly<Record<string, string>> = {
@@ -35,7 +37,10 @@ interface CyColumn {
     readonly list: boolean;
 }
 
-/** One table, read. */
+/**
+ * One table, read.
+ * @category Plugin helpers
+ */
 export interface CyTable {
     /** The table's path under `tables/` as the archive spells it (what cytables.xml names). */
     readonly path: string;
@@ -89,22 +94,40 @@ export async function readCyTable(
     }
     let at = 0;
     let version = 0;
-    if (records[0]?.cells.length === 2 && records[0].cells[0] === "CyCSV-Version") {
-        version = Number(records[0].cells[1]);
+    if (records[0]?.cells[0] === "CyCSV-Version") {
+        const { cells } = records[0];
+        if (cells.length !== 2 || !/^\d+$/.test(cells[1].trim())) {
+            return tableError(report, entry, `the version row ${JSON.stringify(cells)} does not parse`);
+        }
+        version = Number(cells[1]);
         at = 1;
     }
     if (version !== 0 && version !== 1) {
         return tableError(report, entry, `CyCSV version "${records[0].cells[1]}" is not 0 or 1`);
     }
     // version 1: names, types, column options, table title; version 0: names, types, table title
-    const headerLines = version === 1 ? 4 : 3;
-    if (records.length < at + headerLines) {
+    let headerLines = version === 1 ? 4 : 3;
+    if (records.length < at + headerLines - 1) {
         return tableError(report, entry, "the table header is incomplete");
+    }
+    // the reader skips blank lines, so a blank title line (another tool's) shows only as a gap
+    // in the line numbers: the record after the row before the title is then the first data row
+    const beforeTitle = records[at + headerLines - 2];
+    const title = records.at(at + headerLines - 1);
+    if (
+        title === undefined ||
+        (title.line > beforeTitle.line + 1 && !beforeTitle.cells.some((c) => /[\r\n]/.test(c)))
+    ) {
+        headerLines--;
     }
     const names = records[at].cells;
     const classes = records[at + 1].cells;
     if (names.length === 0 || classes.length !== names.length) {
-        return tableError(report, entry, `${names.length} column name(s) but ${classes.length} column class(es)`);
+        return tableError(
+            report,
+            entry,
+            `${names.length} column name${plural(names.length)} but ${classes.length} column class(es)`,
+        );
     }
     const columns: CyColumn[] = [];
     for (let i = 0; i < names.length; i++) {
@@ -140,7 +163,7 @@ export async function readCyTable(
         report.warning(
             "parse-error",
             CYS_ISSUE.TABLE_ROW,
-            `${entry}: ${problems.short} row(s) with too few cells (the rest are unset), ${problems.long} with too many (the extra cells are ignored), ${problems.repeated} repeating a key (the first row is read)`,
+            `${entryLabel(entry)}: ${problems.short} row${plural(problems.short)} with too few cells (the rest are unset), ${problems.long} with too many (the extra cells are ignored), ${problems.repeated} repeating a key (the first row is read)`,
         );
     }
     return { path, entry, columns, rows, lines };
@@ -170,7 +193,7 @@ function columnOf(name: string, javaClass: string): CyColumn | null {
  * @returns null
  */
 function tableError(report: ImportReportBuilder, entry: string, reason: string): null {
-    report.error("parse-error", CYS_ISSUE.TABLE, `${entry}: ${reason}; the table is not read`);
+    report.error("parse-error", CYS_ISSUE.TABLE, `${entryLabel(entry)}: ${reason}; the table is not read`);
     return null;
 }
 
@@ -185,6 +208,7 @@ function tableError(report: ImportReportBuilder, entry: string, reason: string):
  * @param namespace - the table namespace the column belongs to (null for the network's own table)
  * @param hidden - whether the column is hidden (HIDDEN and app tables)
  * @returns the att, or null
+ * @category Plugin helpers
  */
 export function cellAtt(
     column: CyColumn,
@@ -272,7 +296,10 @@ function att(
     };
 }
 
-/** One virtual column of `tables/cytables.xml`. */
+/**
+ * One virtual column of `tables/cytables.xml`.
+ * @category Plugin helpers
+ */
 export interface VirtualColumn {
     /** The column name in the target table. */
     readonly name: string;
@@ -325,6 +352,14 @@ export async function virtualColumnsOf(
             continue;
         }
         const targetKey = target.columns.findIndex((c) => c.name === virtual.targetJoinKey);
+        if (targetKey < 0) {
+            report.error(
+                "parse-error",
+                CYS_ISSUE.TABLE,
+                `${target.entry}: the virtual column "${virtual.name}" joins on the column "${virtual.targetJoinKey}", which the table does not have; the column is not read`,
+            );
+            continue;
+        }
         const values = new Map<string, string>();
         for (const [key, cells] of target.rows) {
             const join = targetKey <= 0 ? key : cells[targetKey];
@@ -388,6 +423,9 @@ async function resolve(
     // re-key the chained values (by the chained source's join key) to this source's join key
     const values = new Map<string, string>();
     const chainedJoin = source.columns.findIndex((c) => c.name === chained.targetJoinKey);
+    if (chainedJoin < 0) {
+        return `reads the virtual column "${chained.name}", which joins on the column "${chained.targetJoinKey}" its table does not have`;
+    }
     for (const [key, cells] of source.rows) {
         const lookup = chainedJoin <= 0 ? key : cells[chainedJoin];
         const value = lookup === undefined ? undefined : inner.values.get(lookup);

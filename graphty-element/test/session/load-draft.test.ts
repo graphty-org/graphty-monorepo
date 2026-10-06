@@ -641,19 +641,25 @@ describe("session.data.prepare", () => {
     });
 
     it("refuses a file its parser cannot read as unreadable, not as empty (#928)", async () => {
-        for (const [type, data] of [
-            ["graphml", "<graphml"],
-            ["json", "{"],
-            ["gml", "graph ["],
-        ]) {
+        // The line where the parser knows it; JSON's parser does not say.
+        for (const [type, data, line] of [
+            ["graphml", "<graphml", 1],
+            ["json", "{", undefined],
+            ["gml", "graph [", 1],
+        ] as const) {
             const session = createGraphSession();
             const source = { type, config: { data } };
             const prepared = await refusal(session.data.prepare(source));
             const imported = await refusal(session.data.import(source));
 
-            assert.strictEqual(prepared?.code, "E_PARSE_FAILED", type);
-            assert.strictEqual(imported?.code, "E_PARSE_FAILED", type);
-            assert.strictEqual(prepared?.details?.format, type);
+            for (const error of [prepared, imported]) {
+                assert.strictEqual(error?.code, "E_PARSE_FAILED", type);
+                assert.strictEqual(error?.details?.format, type);
+                if (line !== undefined) {
+                    assert.strictEqual(error?.details?.line, line, type);
+                }
+            }
+
             assertUntouched(session);
             session.dispose();
         }
@@ -674,5 +680,31 @@ describe("session.data.prepare", () => {
             assertUntouched(session);
             session.dispose();
         }
+    });
+
+    it("refuses an empty file as empty, not as unreadable", async () => {
+        const session = createGraphSession();
+        const source = { type: "csv", config: { file: new File([""], "empty.csv") } };
+        const error = await refusal(session.data.prepare(source).then((draft) => draft.report()));
+        assert.strictEqual(error?.code, "E_EMPTY_LOAD");
+        assert.strictEqual((await refusal(session.data.import(source)))?.code, "E_EMPTY_LOAD");
+        assertUntouched(session);
+        session.dispose();
+    });
+
+    it("refuses a file with nothing readable with the code import refuses it with", async () => {
+        const session = createGraphSession();
+        // a well-formed file that holds no node and no edge (a cut-off file is a syntax error instead)
+        const source = { type: "graphml", config: { data: '<graphml><graph edgedefault="directed"/></graphml>' } };
+        const draft = await session.data.prepare(source);
+
+        assert.deepEqual(
+            draft.tables.map((table) => table.rowCount),
+            [0, 0],
+        );
+        assert.strictEqual((await refusal(draft.report()))?.code, "E_EMPTY_LOAD");
+        assert.strictEqual((await refusal(session.data.import(source)))?.code, "E_EMPTY_LOAD");
+        assertUntouched(session);
+        session.dispose();
     });
 });

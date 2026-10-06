@@ -1713,15 +1713,21 @@ export interface SessionPositions extends ReadonlyElementPositions {
      */
     set(entries: readonly PositionEntry[]): Promise<void>;
     /**
-     * Pin nodes where they are. One step. A node the graph does not hold is skipped.
+     * Pin nodes where they are. One step. An integer id may be written either way: `"34"` pins
+     * node `34`.
      * @param ids - The nodes.
      * @returns Settles once the step is recorded and the layout has taken the pins.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` naming every id the graph does
+     *     not hold, in `details.ids`; nothing is pinned then.
      */
     pin(ids: readonly NodeId[]): Promise<void>;
     /**
-     * Release pinned nodes, so the layout arranges them again. One step.
+     * Release pinned nodes, so the layout arranges them again. One step. Ids are looked up as
+     * {@link SessionPositions.pin} looks them up.
      * @param ids - The nodes.
      * @returns Settles once the step is recorded and the layout has taken the change.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` naming every id the graph does
+     *     not hold, in `details.ids`; nothing is released then.
      */
     unpin(ids: readonly NodeId[]): Promise<void>;
 }
@@ -2086,8 +2092,11 @@ export interface ElementSession extends GraphSession {
 export interface CreateGraphSessionOptions {
     /** The configuration. Every part not given takes the element's own default. */
     readonly config?: {
-        /** The data configuration the session starts from; change it later with `config.set`. */
-        readonly data?: SessionDataConfig;
+        /**
+         * The data configuration the session starts from; any part left out takes its default.
+         * Change it later with `config.set`.
+         */
+        readonly data?: NonNullable<ProjectConfigPatch["data"]>;
         /** The acceleration policy and threshold. */
         readonly acceleration?: {
             /** Use an accelerator when available, never look, or refuse to run without one. */

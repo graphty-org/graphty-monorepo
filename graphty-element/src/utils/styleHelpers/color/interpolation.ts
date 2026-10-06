@@ -13,6 +13,8 @@
  * Node, in a worker and in a legend drawn by a consumer who never loads a 3D engine.
  */
 
+import { clamp } from "../../clamp";
+
 /**
  * The colour returned when a ramp is asked for a value that does not exist.
  *
@@ -162,7 +164,7 @@ export function interpolatePalette(
     }
 
     // Clamp value to [0, 1]
-    const clampedValue = Math.max(0, Math.min(1, value));
+    const clampedValue = clamp(value, 0, 1);
 
     // Handle edge cases
     if (clampedValue === 0) {

@@ -1068,12 +1068,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const [selectedNode, setSelectedNode] = useState<{
         readonly id: string;
         /*
-         * The same node, as the ELEMENT spells its id. Kept beside the printed form because the
-         * element looks a node up by exact key: `session.positions.pin(["34"])` finds nothing on a
-         * graph whose ids are numbers, and unlike `selectNode` the pin verbs skip a miss silently, so a miss
-         * cannot even be detected and retried. Every call on the element made from this state
-         * passes this field. Temporary: this is an element defect, tracked by
-         * https://github.com/graphty-org/graphty-monorepo/issues/542, and goes once it is fixed.
+         * The same node, as the ELEMENT spells its id. Kept beside the printed form because
+         * `session.positions.pinned` is a plain set of the ids the graph holds: on a graph whose
+         * ids are numbers, `pinned.has("34")` is false while node 34 is pinned. Every call on the
+         * element made from this state passes this field. Temporary: this is an element defect,
+         * tracked by https://github.com/graphty-org/graphty-monorepo/issues/1065, and goes once
+         * it is fixed.
          */
         readonly elementId: string | number;
         readonly attributes: Record<string, unknown> | null;

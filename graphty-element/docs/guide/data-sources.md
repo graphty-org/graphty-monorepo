@@ -353,6 +353,19 @@ It counts only while the graph holds no edges and `data.directed` is `"auto"`. U
 declaration back with the edges. On a graph that already has edges, a matching value changes
 nothing and a different one is logged and ignored, exactly as a second file would be.
 
+**Setting the direction yourself** overrules every file, and takes effect at once, on a graph that
+already holds edges too:
+
+```typescript
+const session = createGraphSession({ config: { data: { directed: false } } });
+await session.config.set({ data: { directed: true } });
+```
+
+The graph is read again in the new direction: every edge is kept, in the orientation it was
+declared with, so a reciprocal pair read undirected is two parallel edges, and setting the
+direction back loses nothing. Undo puts the previous direction back. Setting `"auto"` returns the
+graph to the direction its file declared, or to directed when nothing did.
+
 ## GEXF and GraphML Records
 
 GEXF and GraphML files are read by `@graphty/graph-io`, and each node and edge record carries the

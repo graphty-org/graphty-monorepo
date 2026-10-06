@@ -103,6 +103,48 @@ describe("the names of a partition's groups", () => {
         harness.session.dispose();
     });
 
+    it("keeps a group the result published as text as text everywhere (#906)", async () => {
+        const named = async (context: RunExecutionContext): Promise<RunOutcome> => {
+            const { result } = await partition(context);
+            assert.isDefined(result);
+
+            return {
+                result: createRunResult({
+                    runId: context.runId,
+                    shape: "community",
+                    fields: result.fields,
+                    measured: { nodes: MEMBERSHIP.length, edges: 0 },
+                    nodes: MEMBERSHIP.map(([id, group]) => ({ id, values: { group: `g${String(group)}` } })),
+                    caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", notes: [] },
+                    durationMs: 1,
+                }),
+            };
+        };
+        const harness = makeSession({ runs: { execute: named } });
+        harness.add(MEMBERSHIP.map(([id]) => ({ id })));
+        const result = await harness.session.runs.start("louvain", {}, { style: false });
+        await harness.session.styles.encode({ run: result.runId, channel: "node.color" });
+        const groups = result.summary().groups ?? [];
+        const sizes = result.graph.sizes as readonly { readonly group: unknown }[];
+        const block = harness.session.styles.legend().find((entry) => entry.runId === result.runId);
+
+        assert.deepStrictEqual(
+            groups.map((group) => group.group),
+            ["g10", "g2", "g0", "g7"],
+            "text ids, not numbers",
+        );
+        assert.deepStrictEqual(
+            sizes.map((row) => row.group),
+            groups.map((group) => group.group),
+        );
+        assert.deepStrictEqual(
+            block?.swatches.map((swatch) => swatch.value),
+            groups.map((group) => group.group),
+            "the legend hands back the same strings",
+        );
+        harness.session.dispose();
+    });
+
     it("hides and shows the paint of one group, as one undoable step (#907)", async () => {
         const harness = makeSession({ runs: { execute: partition } });
         harness.add(MEMBERSHIP.map(([id]) => ({ id })));

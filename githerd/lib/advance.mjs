@@ -187,6 +187,32 @@ function laneNews(state, job, name) {
 }
 
 /**
+ * Ends a blocked job's wait once its blocker ended: back to the queue, or withdrawn when githerd no
+ * longer offers its issue (`issueRefusal`), as syncJobs would.
+ * @param {any} state the daemon state
+ * @param {any} job the blocked job
+ * @param {Date} now the clock
+ * @param {any} [config] the normalized config, for the offer rule
+ * @returns {Step | null} what happened, null while the blocker lasts
+ */
+function unblock(state, job, now, config) {
+    const other = state.jobs?.[job.waitingFor.job];
+    if (other && !board.TERMINAL.includes(other.state)) return null;
+    const holder = job.holder;
+    job.news.push({ at: now.toISOString(), text: `job ${job.waitingFor.job} ended; judge again`, acked: false });
+    const n = job.kind === "issue" && !job.facts?.scope ? String(job.target).replace(/^#/, "") : null;
+    const refused = config && n && state.issues?.byNumber?.[n] ? issueRefusal(state, n, config) : null;
+    if (refused) {
+        job.facts = { ...job.facts, withdrawn: true };
+        board.move(job, "cancelled", now, { reason: refused });
+    } else board.move(job, "queued", now, { reason: `blocker ${job.waitingFor.job} ended` });
+    afterMove(state, job, holder, null, now);
+    if (refused)
+        return { job: job.id, action: "cancelled", line: { kind: "job-cancelled", job: job.id, reason: refused } };
+    return { job: job.id, action: "unblocked", line: { kind: "job-unblocked", job: job.id } };
+}
+
+/**
  * Settles every declared wait whose condition changed (design 7.4): the job goes back to work with
  * a news line, and its worker is rung. A push wait is the push queue's, a done check's wait on CI
  * is the verification poll's, and a local task's wait ends when its output file records the exit
@@ -202,25 +228,8 @@ export function settleWaits(state, now, config) {
     const steps = [];
     for (const job of Object.values(state.jobs ?? {})) {
         if (job.state === "blocked" && job.waitingFor?.job) {
-            const other = state.jobs?.[job.waitingFor.job];
-            if (other && !board.TERMINAL.includes(other.state)) continue;
-            const holder = job.holder;
-            job.news.push({
-                at: now.toISOString(),
-                text: `job ${job.waitingFor.job} ended; judge again`,
-                acked: false,
-            });
-            const n = job.kind === "issue" && !job.facts?.scope ? String(job.target).replace(/^#/, "") : null;
-            const refused = config && n && state.issues?.byNumber?.[n] ? issueRefusal(state, n, config) : null;
-            if (refused) {
-                job.facts = { ...job.facts, withdrawn: true };
-                board.move(job, "cancelled", now, { reason: refused });
-            } else board.move(job, "queued", now, { reason: `blocker ${job.waitingFor.job} ended` });
-            afterMove(state, job, holder, null, now);
-            const line = refused
-                ? { kind: "job-cancelled", job: job.id, reason: refused }
-                : { kind: "job-unblocked", job: job.id };
-            steps.push({ job: job.id, action: refused ? "cancelled" : "unblocked", line });
+            const step = unblock(state, job, now, config);
+            if (step) steps.push(step);
             continue;
         }
         if (job.state !== "waiting") continue;

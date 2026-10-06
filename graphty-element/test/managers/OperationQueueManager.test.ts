@@ -1,11 +1,7 @@
 import { assert, beforeEach, describe, it } from "vitest";
 
 import { EventManager } from "../../src/managers/EventManager";
-import {
-    type OperationCategory,
-    type OperationContext,
-    OperationQueueManager,
-} from "../../src/managers/OperationQueueManager";
+import { type OperationContext, OperationQueueManager } from "../../src/managers/OperationQueueManager";
 
 describe("OperationQueueManager", () => {
     let eventManager: EventManager;
@@ -196,11 +192,11 @@ describe("OperationQueueManager", () => {
         const executionOrder: string[] = [];
 
         // Queue operations that don't have dependencies defined
-        queueManager.queueOperation("camera-update" as OperationCategory, () => {
+        queueManager.queueOperation("camera-update", () => {
             executionOrder.push("camera-update");
         });
 
-        queueManager.queueOperation("render-update" as OperationCategory, () => {
+        queueManager.queueOperation("render-update", () => {
             executionOrder.push("render-update");
         });
 

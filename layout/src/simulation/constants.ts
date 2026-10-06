@@ -8,7 +8,7 @@ export const FA2_DEFAULTS = Object.freeze({
     distributedAction: false,
     linlog: false,
     dissuadeHubs: false,
-    dim: 2 as 2 | 3,
+    dim: 2,
     scale: 1,
     settleThreshold: 0.001,
     settleWindow: 10,

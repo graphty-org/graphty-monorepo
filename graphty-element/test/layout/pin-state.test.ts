@@ -31,7 +31,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { AuthoredLayoutDescriptor } from "../../src/catalog/types";
-import type { AdHocData, NodeStyleConfig } from "../../src/config";
+import type { NodeStyleConfig } from "../../src/config";
 import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Edge } from "../../src/Edge";
 import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
@@ -319,9 +319,15 @@ describe("a pin outlives the engine that was told about it", () => {
         harness.add("a");
         await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
 
-        const orphan = new Node(harness.context, "orphan", NODE_PAINT, { id: "orphan" } as unknown as AdHocData, {
-            pinOnDrag: true,
-        });
+        const orphan = new Node(
+            harness.context,
+            "orphan",
+            NODE_PAINT,
+            { id: "orphan" },
+            {
+                pinOnDrag: true,
+            },
+        );
 
         orphan.pin();
         assert.isFalse(orphan.isPinned(), "a node with no row in the graph cannot be pinned");

@@ -158,7 +158,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
         },
         weight: {
             type: "string",
-            default: null as unknown as string,
+            default: null,
             label: "Weight Attribute",
             description: "Edge attribute name for weighted PageRank (empty = unweighted)",
             advanced: true,

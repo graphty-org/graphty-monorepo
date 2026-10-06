@@ -46,7 +46,7 @@ describe("the style-changed event", () => {
     it("fires when a layer is added", async () => {
         const seen: { type: string }[] = [];
         graph.eventManager.addListener("style-changed", (event) => {
-            seen.push(event as { type: string });
+            seen.push(event);
         });
 
         await graph

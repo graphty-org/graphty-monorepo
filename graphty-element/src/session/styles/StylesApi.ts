@@ -2463,7 +2463,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             for (const { layer, channels } of stale) {
                 const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
                 for (const { channel, kind } of channels) {
-                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] } as Binding;
+                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] };
                     defaulted.add(`${layer.id}/${channel}`);
                 }
 

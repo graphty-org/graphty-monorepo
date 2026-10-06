@@ -83,8 +83,6 @@ export function paintRows(session: GraphSession): PaintRow[] {
                 kind: "run-row",
                 count: typeof published === "number" ? published : undefined,
                 children: groups.map((group) => {
-                    // Draws no color until the legend and the summary spell a group the same way
-                    // (#906: a number in the summary, a string in the legend).
                     const swatch = color?.swatches.find((s) => s.value === group.group)?.color;
                     return {
                         id: JSON.stringify([run.id, group.group]),

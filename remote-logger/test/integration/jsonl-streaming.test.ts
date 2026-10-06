@@ -47,7 +47,7 @@ describe("JSONL streaming integration", () => {
             host: "127.0.0.1",
             storage,
         });
-        server = result.server as http.Server;
+        ({ server } = result);
 
         // Wait for server to be ready
         await new Promise<void>((resolve) => {
@@ -87,39 +87,50 @@ describe("JSONL streaming integration", () => {
         }
     });
 
-    async function sendLog(sessionId: string, logs: Array<{ time: string; level: string; message: string }>, projectMarker?: string, retries = 3): Promise<void> {
+    async function sendLog(
+        sessionId: string,
+        logs: Array<{ time: string; level: string; message: string }>,
+        projectMarker?: string,
+        retries = 3,
+    ): Promise<void> {
         const body = JSON.stringify({
             sessionId,
             logs,
             projectMarker,
         });
 
-        const attempt = (): Promise<void> => new Promise((resolve, reject) => {
-            const req = http.request({
-                hostname: "127.0.0.1",
-                port,
-                path: "/log",
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Content-Length": Buffer.byteLength(body),
-                },
-            }, (res) => {
-                let data = "";
-                res.on("data", (chunk) => { data += chunk; });
-                res.on("end", () => {
-                    if (res.statusCode === 200) {
-                        resolve();
-                    } else {
-                        reject(new Error(`HTTP ${res.statusCode}: ${data}`));
-                    }
-                });
-            });
+        const attempt = (): Promise<void> =>
+            new Promise((resolve, reject) => {
+                const req = http.request(
+                    {
+                        hostname: "127.0.0.1",
+                        port,
+                        path: "/log",
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Content-Length": Buffer.byteLength(body),
+                        },
+                    },
+                    (res) => {
+                        let data = "";
+                        res.on("data", (chunk) => {
+                            data += chunk;
+                        });
+                        res.on("end", () => {
+                            if (res.statusCode === 200) {
+                                resolve();
+                            } else {
+                                reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+                            }
+                        });
+                    },
+                );
 
-            req.on("error", reject);
-            req.write(body);
-            req.end();
-        });
+                req.on("error", reject);
+                req.write(body);
+                req.end();
+            });
 
         // Retry with exponential backoff for transient connection errors
         for (let i = 0; i < retries; i++) {
@@ -142,10 +153,14 @@ describe("JSONL streaming integration", () => {
         const marker = "test-project";
         const sessionId = `${marker}-session-123`;
 
-        await sendLog(sessionId, [
-            { time: "2024-01-15T10:00:00Z", level: "INFO", message: "First log" },
-            { time: "2024-01-15T10:00:01Z", level: "DEBUG", message: "Second log" },
-        ], marker);
+        await sendLog(
+            sessionId,
+            [
+                { time: "2024-01-15T10:00:00Z", level: "INFO", message: "First log" },
+                { time: "2024-01-15T10:00:01Z", level: "DEBUG", message: "Second log" },
+            ],
+            marker,
+        );
 
         // Flush to ensure writes are complete
         await jsonlWriter.flush();
@@ -165,9 +180,11 @@ describe("JSONL streaming integration", () => {
         const markers = ["project-alpha", "project-beta"];
 
         for (const marker of markers) {
-            await sendLog(`${marker}-session`, [
-                { time: new Date().toISOString(), level: "INFO", message: `Log for ${marker}` },
-            ], marker);
+            await sendLog(
+                `${marker}-session`,
+                [{ time: new Date().toISOString(), level: "INFO", message: `Log for ${marker}` }],
+                marker,
+            );
         }
 
         // Flush to ensure writes are complete
@@ -187,9 +204,7 @@ describe("JSONL streaming integration", () => {
         const sessionId = `${marker}-session`;
 
         // Send first batch
-        await sendLog(sessionId, [
-            { time: "2024-01-15T10:00:00Z", level: "INFO", message: "First batch" },
-        ], marker);
+        await sendLog(sessionId, [{ time: "2024-01-15T10:00:00Z", level: "INFO", message: "First batch" }], marker);
         await jsonlWriter.flush();
 
         // Read file while more logs are still being written
@@ -198,9 +213,7 @@ describe("JSONL streaming integration", () => {
         expect(firstRead).toContain("First batch");
 
         // Send second batch
-        await sendLog(sessionId, [
-            { time: "2024-01-15T10:00:01Z", level: "INFO", message: "Second batch" },
-        ], marker);
+        await sendLog(sessionId, [{ time: "2024-01-15T10:00:01Z", level: "INFO", message: "Second batch" }], marker);
         await jsonlWriter.flush();
 
         // Read again - should have both batches
@@ -215,10 +228,14 @@ describe("JSONL streaming integration", () => {
     it("written file contains valid JSONL format", async () => {
         const marker = "jsonl-format-test";
 
-        await sendLog(`${marker}-session`, [
-            { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test message" },
-            { time: "2024-01-15T10:00:01Z", level: "ERROR", message: "Error message" },
-        ], marker);
+        await sendLog(
+            `${marker}-session`,
+            [
+                { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test message" },
+                { time: "2024-01-15T10:00:01Z", level: "ERROR", message: "Error message" },
+            ],
+            marker,
+        );
         await jsonlWriter.flush();
 
         const filePath = jsonlWriter.getFilePath(marker);
@@ -239,13 +256,17 @@ describe("JSONL streaming integration", () => {
         const marker = "multi-session-project";
 
         // Send logs from different sessions
-        await sendLog(`${marker}-session-1`, [
-            { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Session 1 log" },
-        ], marker);
+        await sendLog(
+            `${marker}-session-1`,
+            [{ time: "2024-01-15T10:00:00Z", level: "INFO", message: "Session 1 log" }],
+            marker,
+        );
 
-        await sendLog(`${marker}-session-2`, [
-            { time: "2024-01-15T10:00:01Z", level: "INFO", message: "Session 2 log" },
-        ], marker);
+        await sendLog(
+            `${marker}-session-2`,
+            [{ time: "2024-01-15T10:00:01Z", level: "INFO", message: "Session 2 log" }],
+            marker,
+        );
 
         await jsonlWriter.flush();
 

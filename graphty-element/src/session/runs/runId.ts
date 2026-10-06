@@ -240,7 +240,7 @@ export function canonicalizeParams(
 export function algorithmSlug(algorithm: AlgorithmKey): string {
     const slug = algorithm
         .toLowerCase()
-        .replace(/[^a-z0-9_-]+/g, "-")
+        .replaceAll(/[^a-z0-9_-]+/g, "-")
         .replace(/^[^a-z]+/, "")
         .replace(/[-_]+$/, "");
 

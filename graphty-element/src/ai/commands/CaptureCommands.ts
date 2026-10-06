@@ -59,7 +59,7 @@ export const captureScreenshot: GraphCommand = {
 
             // If download requested and we're in a browser context, trigger download
             if (download && typeof document !== "undefined") {
-                const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+                const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
                 const filename = `graph-screenshot-${timestamp}.${format}`;
                 triggerDownload(dataUrl, filename);
             }

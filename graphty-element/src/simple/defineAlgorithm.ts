@@ -93,7 +93,7 @@ const LONG_TASK_MS = 200;
 const warnedLongTask = new Set<string>();
 
 /** A definition with no options, the default of the verb's generic. */
-type NoOptions = Readonly<Record<never, never>>;
+type NoOptions = { readonly [K in never]: never };
 
 /**
  * Check a definition and expand it, refusing a malformed one with E_BAD_COMMAND.

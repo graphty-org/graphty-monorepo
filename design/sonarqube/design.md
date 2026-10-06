@@ -365,7 +365,10 @@ analyzed yet (the server's last analysis revision, from `api/project_analyses/se
 run download <run id>`; never a pull request run with the same head commit) and merges them
    with `tools/merge-coverage.sh --ci --artifacts`, which writes the repository-relative
    `coverage/lcov.info` the scanner imports. If CI has not finished yet, it waits for the next
-   poll; after 3 hours it scans without coverage and says so in the log;
+   poll; after 3 hours it scans without coverage and says so. Since master stopped running tests
+   (design/ci/ci-cd-plan.md section 8, 2026-10-06), the master push run is a build only and has
+   no `coverage-*` artifacts, so every baseline scan imports no coverage until this step reads the
+   release train's run instead in the log;
 4. restores `tools/sonar/graphty-way.xml` to the server if the file changed since the last run;
 5. takes `sonar-local.lock` with `flock -n`, and skips this poll if a push holds it; then runs a
    full scan into `graphty-monorepo` under `timeout 1800`, with `sonar.projectVersion` set to the

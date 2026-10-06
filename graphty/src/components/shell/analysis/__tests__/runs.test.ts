@@ -388,7 +388,7 @@ describe("runCommunityDetection", () => {
         const result = await runCommunityDetection(stub.session);
 
         expect(result).toEqual({
-            runId: expect.any(String) as unknown as string,
+            runId: expect.any(String),
             groupCount: 0,
             largestGroupSize: 0,
             nodeCount: 0,

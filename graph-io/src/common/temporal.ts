@@ -12,17 +12,23 @@
 
 import { type ColumnDecl, type ColumnRole, GraphFormatError } from "@graphty/graph-format";
 
-/** The temporal kinds a declared type can map to; each fixes the parse grammar and the canonical text. */
+/**
+ * The temporal kinds a declared type can map to; each fixes the parse grammar and the canonical text.
+ * @category Plugin helpers
+ */
 export type TemporalKind = "date" | "dateTime" | "localDateTime" | "time" | "localTime";
 
 /**
  * The GEXF `timeformat` values (design section 5.9).
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export type TimeFormat = "integer" | "double" | "date" | "dateTime";
 
-/** A parsed temporal value: the number stored in the column and the source text when it must be kept. */
+/**
+ * A parsed temporal value: the number stored in the column and the source text when it must be kept.
+ * @category Plugin helpers
+ */
 export interface TemporalValue {
     /** Epoch milliseconds (date, dateTime, localDateTime), milliseconds since midnight (time, localTime), or the raw number. */
     readonly value: number;
@@ -30,10 +36,16 @@ export interface TemporalValue {
     readonly text: string | null;
 }
 
-/** The role of a companion text column. */
+/**
+ * The role of a companion text column.
+ * @category Plugin helpers
+ */
 export const TIME_TEXT_ROLE: ColumnRole = "timeText";
 
-/** The suffix of a companion text column's name. */
+/**
+ * The suffix of a companion text column's name.
+ * @category Plugin helpers
+ */
 export const TIME_TEXT_SUFFIX = ".text";
 
 const DATE_TIME =
@@ -49,6 +61,7 @@ const MS_PER_DAY = 86_400_000;
  * @param text - the source text (already trimmed)
  * @param kind - the temporal kind
  * @returns the value and, when the canonical form differs, the source text; E_COLUMN_TYPE when the text is not of the kind
+ * @category Plugin helpers
  */
 export function parseTemporal(text: string, kind: TemporalKind): TemporalValue {
     let value: number;
@@ -79,6 +92,7 @@ export function parseTemporal(text: string, kind: TemporalKind): TemporalValue {
  * @param text - the source text
  * @param timeFormat - the graph's timeformat, or null when the file declares none
  * @returns the value and the source text when it must be kept
+ * @category Plugin helpers
  */
 export function parseTimeText(text: string, timeFormat: TimeFormat | null): TemporalValue {
     const trimmed = text.trim();
@@ -105,6 +119,7 @@ export function parseTimeText(text: string, timeFormat: TimeFormat | null): Temp
  * @param kind - the temporal kind
  * @returns the canonical text: `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM:SS[.mmm]Z`, `YYYY-MM-DDTHH:MM:SS[.mmm]`,
  * `HH:MM:SS[.mmm]Z` or `HH:MM:SS[.mmm]`
+ * @category Plugin helpers
  */
 export function formatTemporal(value: number, kind: TemporalKind): string {
     switch (kind) {
@@ -141,6 +156,7 @@ export function formatTemporal(value: number, kind: TemporalKind): string {
  * @param value - the value as stored
  * @param timeFormat - the graph's timeformat, or null for a file that declares none (double)
  * @returns the text
+ * @category Plugin helpers
  */
 export function formatTimeValue(value: number, timeFormat: TimeFormat | null): string {
     switch (timeFormat) {
@@ -163,6 +179,7 @@ export function formatTimeValue(value: number, timeFormat: TimeFormat | null): s
  * The declaration of the companion text column of a temporal column (design section 5.1).
  * @param column - the temporal column's name
  * @returns a string column named `<column>.text` with role timeText and `extra.for` naming the column
+ * @category Plugin helpers
  */
 export function timeTextCompanion(column: string): ColumnDecl {
     return {

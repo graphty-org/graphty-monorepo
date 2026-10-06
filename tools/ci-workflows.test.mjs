@@ -527,8 +527,9 @@ describe("release.yml", () => {
     });
 
     describe("restarts a held release on a master push whose build passed", () => {
-        // The pick job's "Skip while the previous release is pending" step, run in a scratch repository with
-        // stubs for gh (no release pull request) and tools/release-held.sh (the held issue, or none).
+        // The pick job's "Skip while the previous release is pending" step, run in a scratch directory with
+        // stubs for gh (no release pull request), git (no release yet) and tools/release-held.sh (the held
+        // issue, or none).
         const pending = (event, heldIssue) => {
             const script = /- name: Skip while the previous release is pending[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
                 pick,
@@ -538,20 +539,9 @@ describe("release.yml", () => {
                 mkdirSync(join(dir, "tools"));
                 mkdirSync(join(dir, "bin"));
                 writeFileSync(join(dir, "bin", "gh"), "#!/bin/sh\n", { mode: 0o755 });
+                // no release commit yet, so no tag to wait for
+                writeFileSync(join(dir, "bin", "git"), "#!/bin/sh\n", { mode: 0o755 });
                 writeFileSync(join(dir, "tools", "release-held.sh"), `#!/bin/sh\necho ${heldIssue}\n`, { mode: 0o755 });
-                const git = (...args) => spawnSync("git", ["-C", dir, ...args], { encoding: "utf8" });
-                git("init", "-q");
-                git(
-                    "-c",
-                    "user.name=t",
-                    "-c",
-                    "user.email=t@t",
-                    "commit",
-                    "-q",
-                    "--allow-empty",
-                    "-m",
-                    "chore(release): publish",
-                );
                 const output = join(dir, "output");
                 writeFileSync(output, "");
                 const run = spawnSync("bash", ["-c", script.replace(/^ {18}/gm, "")], {

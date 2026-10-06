@@ -149,7 +149,8 @@ export function prWork(number, rec, state) {
     const failing = failingRequired(rec);
     if (rec.ownerRejected) return "owner rejected images";
     if (rec.captureFailed?.length) return `visual capture failed: ${rec.captureFailed.join("; ")}`;
-    if (failing.length && !rec.ownerGate) return `required check failing: ${failing.join(", ")}`;
+    // A known flaky test is not the pull request's failure (flakes.mjs): the job says so.
+    if (failing.length && !rec.ownerGate) return rec.knownFlake ?? `required check failing: ${failing.join(", ")}`;
     // GitHub's answer of this poll, read again every poll: it clears as soon as GitHub says so.
     const github = rec.mergeState ?? rec.mergeable ?? "CONFLICTING";
     if ((rec.conflictSightings ?? 0) >= 2) return `conflicting with ${rec.baseRef ?? "its base"} (GitHub: ${github})`;

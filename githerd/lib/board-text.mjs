@@ -6,6 +6,7 @@
 
 import { effectiveMode } from "./config.mjs";
 import { TERMINAL } from "./board.mjs";
+import { flakeData, flakeLines } from "./flakes.mjs";
 
 /** The board's sections, in order; banners and faults always come first. */
 export const SECTIONS = [
@@ -14,6 +15,7 @@ export const SECTIONS = [
     "incidents",
     "owner",
     "prs",
+    "flakes",
     "push",
     "jobs",
     "sessions",
@@ -200,6 +202,10 @@ const RENDER = {
                 return `  #${[p.number, p.title].filter(Boolean).join(" ")} -- ${mergeWords(p.decision)}${owned}`;
             }),
         ];
+    },
+
+    flakes(v) {
+        return flakeLines(flakeData(v.state));
     },
 
     push(v) {

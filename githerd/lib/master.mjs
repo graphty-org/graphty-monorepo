@@ -256,7 +256,7 @@ export function stuckLaneRuns(lanes, config, now) {
  * @param {string} start the sha to start from
  * @returns {Commit[]} the chain, newest first; empty when `start` is not among the commits
  */
-function firstParent(commits, start) {
+export function firstParent(commits, start) {
     const bySha = new Map(commits.map((c) => [c.sha, c]));
     const chain = [];
     for (let c = bySha.get(start); c && !chain.includes(c); c = bySha.get(c.parents?.[0]?.sha)) chain.push(c);

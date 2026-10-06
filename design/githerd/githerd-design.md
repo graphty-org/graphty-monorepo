@@ -514,7 +514,7 @@ the patterns do not match is **unclassified**, and a Claude session decides (bel
 | 3 | **Outside** | A runner lost mid-job on any other label (the same two texts); a package registry fetch (`ERR_PNPM_FETCH`, `ERR_PNPM_TARBALL`, corepack's "Error when performing the request to https:"); a package server or mirror failing an install ("Failed to fetch <url> 403/404/5xx", "is no longer signed", Playwright's "Failed to install browser dependencies"); a DNS failure ("Temporary failure resolving", "Could not resolve host"; not Node's `getaddrinfo`, which a test resolving a made-up host prints too) | One daemon re-run after 15 minutes, or a pause with a banner; never a fix job; no attempts charged |
 | 4 | **Inherited** | The same key is red on master | Wait on the master incident |
 | 5 | **Shared or master-side** | The same key on 1 or more other open pull requests within 6 hours (the second pull request); or the pull request's diff cannot affect the key (an audit key with no dependency file changed, the dependency files being `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` and `.npmrc`; a build key with no package source changed); or a local gate key that also fails on the green commit | One shared incident at the first such pull request; no `pr` job (and no "join" escape) |
-| 6 | **Known intermittent** | An open `intermittent` issue names the key | One daemon re-run of that head |
+| 6 | **Known intermittent** | An open `intermittent` issue names the key, or an open flaky-test issue names every test the job's log shows failing (4.12) | One daemon re-run of that head for a key; for flaky tests only the classification (the failure is not the pull request's) |
 | 7 | **Own** | Anything else on a pull request | A `pr` job |
 | - | **Unclassified** | Anything else on master | Merge hold and one red-head re-run, nothing else; an urgent verdict job (4.5) |
 
@@ -833,6 +833,61 @@ The daemon uses the owner's `gh` token (owner's decision 2 in 12.3: no separate 
 now), with the tiers in 3.2, and keeps its last 300 calls for its own holds and polls (at zero even a 304 poll is refused [PF 9.3]). Its statuses show as
 the owner. `gh`'s login stays the definition of "the owner" and is checked every reconcile. The token-expiration header is read on every response; an item is raised 7 days ahead.
 The owner's token is an OAuth token and sends no such header today [PF 9.9].
+
+### 4.12 Flaky tests
+
+The owner's design of 2026-10-06, built in `lib/flakes.mjs`. Testing is expensive, so the evidence
+comes only from runs that happen anyway, and githerd starts a run for flakiness in one case only (the
+master re-run below). Counts are runs, never time.
+
+**Occurrences.** Whenever githerd reads a failed job's log it records the failing tests: the log of
+a red master job the classifier reads (4.4), and, once per failed job, the log of each failed
+`Test (...)` job on an open pull request or merge-queue batch (one jobs list per failed run, one log
+per failed job; never a loop over runs). A test is a Vitest `FAIL <file> > <suite> > <test>` line
+(the only runner in this repository's CI; a file that failed to load is `FAIL <file>`). Its package
+is the file's first directory when that is a workspace package, else the `==> <name>` section a
+combined shard printed (`small-node`), else the job's `Test (<shard>)` name, else the workflow's one
+package (GPU and Hosts: webgpu-graph-algorithms). Each occurrence keeps the run, attempt, job, commit,
+where it ran (master, a pull request or a merge batch, named by the batch's title) and whether the
+change touched the test's package: a file in it or in a workspace package it depends on (read from
+`pnpm-workspace.yaml` and each `package.json`, the edges nx's graph is made from), or a
+repository-wide file; Markdown and `design/` never count.
+
+**Proof**, from runs that happened anyway:
+
+| | Proof |
+|---|---|
+| 1 | The same job passes on the same commit: a later attempt, whoever re-ran it |
+| 2 | A merge-queue batch holding the pull request at the failing head passes the job |
+| 3 | On master, the lane passes at the next commit that finished a run, and the compare between the two touches nothing of the test's package |
+| 4 | The test failed on two or more pull requests whose changes do not touch its package |
+
+**The issue.** A proven test gets one GitHub issue, titled `Flaky test: <test> (<package>)`, labelled
+`bug`, `intermittent`, `effort:medium` and a priority, with the proof, the counts and every
+occurrence (run link and log line), and a `githerd-flaky-test: <id>` marker line by which it is found
+again. Later occurrences and proofs are appended as comments; a closed issue that recurs is reopened
+with them, never filed again. The issues go through the `owner-items` write group: an issue is the
+owner's work item, filed with his account, so the issue queue (5.4) offers it like any issue of his.
+Priority follows harm and is raised, never lowered: critical once the test failed on master or in a
+merge batch (it turned master red or kept a batch from merging), high once it failed on two or more
+pull requests, medium after one.
+
+**Containment**, and nothing else: no retries in test runners, no skips, no quarantine, no changed
+timeouts.
+
+- While its issue is open, a known flaky test failing on a pull request is classified `intermittent`
+  (4.4 class 6): when every failing test job of the head names only known flaky tests, the pull
+  request's job reason says the failure is not the pull request's and names the issue.
+- Master red: when every failing test of a red job is a known flake or lives in a package the
+  change range (last green to red, one `compare`) did not touch, githerd re-runs only that job, once
+  per (commit, key), through the `worker-writes` group, at the first sighting. The re-run is recorded
+  where the incident's own red-head re-run and `githerd_rerun` look, so it is the only one. Until it
+  fails, nothing moves toward a revert (no parent re-test even with a `code` verdict); a pass ends
+  the incident as intermittent with the flaky-test issue as its pointer, and no key-level
+  `intermittent` issue is filed. Never the GPU lane: a T4 failure only records occurrences, and the
+  incident procedure of 4.5 applies to it unchanged.
+
+The board's `flakes` section lists each tracked test with its occurrences, proofs and issue.
 
 ---
 
@@ -1672,10 +1727,10 @@ otherwise each write is a `would-do` ledger line. `githerd mode` lists the seven
 | `statuses` | `statuses` | `githerd/merge` statuses |
 | `upkeep` | `prUpkeep` | pull request updates, stack updates and retargets |
 | `incidents` | `incidents` | re-runs and re-tests for master, revert pull requests, `intermittent` issues |
-| `owner-items` | `ownerItems` | owner-item comments and labels, and phone pages |
+| `owner-items` | `ownerItems` | owner-item comments and labels, phone pages, and flaky-test issues (4.12) |
 | `proposals` | `proposals` | proposal comments and closes after grace |
 | `workers` | `workers` | starting and running worker sessions; nothing on GitHub |
-| `worker-writes` | `workerWrites` | `githerd_push`, `githerd_rerun`, and the worker's own `gh` writes (10.1) |
+| `worker-writes` | `workerWrites` | `githerd_push`, `githerd_rerun`, the master re-run of a flaky test (4.12), and the worker's own `gh` writes (10.1) |
 
 Starting workers and their writes are separate groups so that one real worker can run, edit and
 commit in its worktree while its push, its re-runs and its own `gh` writes stay dry-run: the trial

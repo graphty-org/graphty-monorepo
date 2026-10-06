@@ -1,11 +1,11 @@
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
-import { move, newJob } from "../lib/board.mjs";
-import { doneIo, githerdDone, pollVerifying, verifyClaim } from "../lib/done.mjs";
+import { claimJob, move, newJob } from "../lib/board.mjs";
+import { doneIo, githerdDone, pollVerifying, recheckRefused, verifyClaim } from "../lib/done.mjs";
 import { statusData, statusText } from "../lib/tools.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
@@ -823,6 +823,87 @@ describe("githerdDone", () => {
         const parent = (s.jobs["issue-5"] = working("issue", "5"));
         await githerdDone(ctx, parent, report({ outcome: "split", children: [9] }), "w1");
         expect([parent.state, parent.children]).toEqual(["done", [9]]);
+    });
+});
+
+describe("recheckRefused", () => {
+    /**
+     * A reader that counts its pull request reads.
+     * @param {object} [over] methods to change
+     * @returns {any} the reader, with `reads`
+     */
+    const counting = (over = {}) => {
+        const io = fakeIo(over);
+        io.reads = 0;
+        const remoteHead = io.remoteHead;
+        io.remoteHead = async (/** @type {string} */ ref) => {
+            io.reads++;
+            return remoteHead(ref);
+        };
+        return io;
+    };
+
+    it("accepts a refused report once the facts it was refused on change, and tells the holder", async () => {
+        const s = state({ prs: { 7: pr({ draft: true }) } });
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const io = counting();
+        const { ctx } = setup(s, io);
+        expect(JSON.parse((await githerdDone(ctx, job, report(), "w1")).text).missing).toEqual(["#7 is a draft"]);
+        io.reads = 0;
+        expect(job.refused).toEqual(
+            expect.objectContaining({ missing: ["#7 is a draft"], session: "w1", report: expect.anything() }),
+        );
+        // Nothing changed: not checked again.
+        expect(await recheckRefused(s, ctx)).toEqual([]);
+        expect(io.reads).toBe(0);
+        s.prs[7] = pr();
+        expect(await recheckRefused(s, ctx)).toEqual([
+            { job: "pr-7", session: "w1", startedBy: null, reportedAt: NOW.toISOString() },
+        ]);
+        expect([job.state, job.refused, job.verifyFailures]).toEqual(["done", null, 0]);
+        expect(job.news.at(-1).text).toContain("checked your refused githerd_done report");
+    });
+
+    it("checks a refused report again once after a restart, even when no fact changed", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        // A defect naming #404 is refused; the daemon that refused it was wrong about #404.
+        const io = fakeIo();
+        const { ctx } = setup(s, io);
+        await githerdDone(ctx, job, report({ defects: [{ summary: "x", issue: 404 }] }), "w1");
+        expect(job.refused.missing[0]).toContain("#404 does not exist");
+        io.issue = async (/** @type {number} */ n) => ({ number: n, state: "open", user: { login: "owner" } });
+        expect(await recheckRefused(s, ctx)).toEqual([]);
+        expect(job.state).toBe("working");
+        vi.resetModules();
+        const restarted = await import("../lib/done.mjs");
+        expect(await restarted.recheckRefused(s, ctx)).toEqual([expect.objectContaining({ job: "pr-7" })]);
+        expect(job.state).toBe("done");
+    });
+
+    it("keeps a report that still fails, and drops one a new report, a claim or the job's end replaced", async () => {
+        const s = state({ prs: { 7: pr({ draft: true }) } });
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx } = setup(s);
+        await githerdDone(ctx, job, report(), "w1");
+        s.prs[7] = pr({ draft: true, required: { "All Checks Pass": "FAILURE" } });
+        expect(await recheckRefused(s, ctx)).toEqual([]);
+        expect(job.refused).not.toBeNull();
+        // A new report replaces it.
+        await githerdDone(ctx, job, report({ findings: "second" }), "w1");
+        expect(job.refused.report.findings).toBe("second");
+        // A new claim (a session takes the job again) drops it.
+        job.state = "starting";
+        const claim = { job: "pr-7", snapshotVersion: 0, overlap: { decision: "independent", reason: "r" }, plan: "p" };
+        expect(claimJob(s, claim, { session: "w1" }, { version: 0 }, NOW).ok).toBe(true);
+        expect(job.refused).toBeNull();
+        // A job no longer worked on by the reporting session drops it.
+        job.verifyFailures = 0;
+        await githerdDone(ctx, job, report(), "w1");
+        move(job, "waiting", NOW, { waitingFor: { checks: HEAD } });
+        s.prs[7] = pr();
+        expect(await recheckRefused(s, ctx)).toEqual([]);
+        expect(job.refused).toBeNull();
     });
 });
 

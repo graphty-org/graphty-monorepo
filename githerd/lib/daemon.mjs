@@ -67,7 +67,7 @@ import { homedir } from "node:os";
 import { inspect } from "node:util";
 
 import { createPushQueue } from "./actor/push.mjs";
-import { askStep, inviteStep, statusStep, tellCancelled } from "./asks.mjs";
+import { askStep, inviteStep, statusStep, tellAccepted, tellCancelled } from "./asks.mjs";
 import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
@@ -97,7 +97,7 @@ import {
     updateLane,
 } from "./master.mjs";
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
-import { doneIo, pollVerifying } from "./done.mjs";
+import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
 import { classify, isNoLog } from "./classify.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
@@ -1654,6 +1654,14 @@ export async function startDaemon({
             void ledger({ kind: "done-verify", ...change });
             if (change.action === "working") await ringJob(state.jobs[change.job]);
         }
+        const accepted = await recheckRefused(state, { config, io: doneReader(), now: t });
+        for (const a of accepted) void ledger({ kind: "done-recheck-accepted", ...a });
+        const told = await tellAccepted(accepted, {
+            acting: writeMode("workers") === "acting",
+            sessions: messageable,
+            transport: peers.transport ?? socketTransport(),
+        });
+        for (const line of told) void ledger(line);
         await stacks(prList.repository.pullRequests.nodes, branch);
         if (state.trust.login) {
             const openPrs = new Set(prList.repository.pullRequests.nodes.map((/** @type {any} */ n) => n.number));

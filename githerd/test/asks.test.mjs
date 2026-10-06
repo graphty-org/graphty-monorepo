@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { askStep, inviteStep, statusStep, tellCancelled } from "../lib/asks.mjs";
+import { askStep, inviteStep, statusStep, tellAccepted, tellCancelled } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { jobInUse, prInUse } from "../lib/queue.mjs";
 
@@ -582,6 +582,23 @@ describe("telling an owner session that the job it held was cancelled", () => {
         ]);
         expect(await tellCancelled(cancelled, f.opts({ sessions: () => [] }))).toEqual([]);
         expect(f.sent).toEqual([]);
+    });
+
+    it("tells the owner session whose refused report githerd accepted on a re-check, and only it", async () => {
+        const accepted = [
+            { job: "issue-736", session: "s1", startedBy: "owner", reportedAt: "2026-10-05T11:00:00.000Z" },
+            { job: "pr-7", session: "w9", startedBy: null, reportedAt: "2026-10-05T11:00:00.000Z" },
+        ];
+        const f = fake();
+        expect(await tellAccepted(accepted, f.opts())).toEqual([
+            expect.objectContaining({ kind: "done-told", job: "issue-736", sent: ["graphty-13"] }),
+        ]);
+        expect(f.sent).toEqual([["/s1.sock", expect.stringContaining("was checked again and now holds")]]);
+        const g = fake();
+        expect(await tellAccepted(accepted, g.opts({ acting: false }))).toEqual([
+            { kind: "would-do", group: "workers", op: "tell graphty-13 that issue-736 is done", job: "issue-736" },
+        ]);
+        expect(g.sent).toEqual([]);
     });
 });
 

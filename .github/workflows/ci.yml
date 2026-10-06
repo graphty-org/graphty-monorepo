@@ -13,6 +13,14 @@ on:
     # their SHA, while every workflow showed state=active). Without a dispatch
     # trigger the only way to recover is an empty commit, which puts noise in
     # the history to work around a scheduling hiccup.
+    # The release train (release.yml) calls this workflow on the commit it is about to release: the full
+    # suite, every shard of every package, and the builds it publishes (design/ci/ci-cd-plan.md, section 10).
+    workflow_call:
+        inputs:
+            ref:
+                description: "the commit to test and build"
+                type: string
+                required: true
     workflow_dispatch:
         inputs:
             chromatic:
@@ -22,12 +30,13 @@ on:
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
 # merge anything, and the runners it holds are what every other pull request is queued behind.
-# A push to master never cancels (each master commit is released and deployed from its own run).
+# A push to master never cancels (each master commit is deployed from its own run). The release train's
+# call (inputs.ref) has a group of its own, so it never waits behind or replaces a push run of the same commit.
 # A plain draft's run (the build job's skip test) has its own group, so it can never cancel or replace
 # a ready run of the same pull request: `opened` (draft) and `ready_for_review` fire a second apart.
 # A Mergify merge-queue draft is a real run and stays in the ready group.
 concurrency:
-    group: ci-${{ github.event.pull_request.number || github.sha }}-${{ github.event.pull_request.draft && !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') && 'draft' || 'run' }}
+    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}-${{ github.event.pull_request.draft && !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') && 'draft' || 'run' }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # No Nx cache is persisted between runs (no Nx Cloud, no actions/cache of .nx/cache): it never hit, because
@@ -47,7 +56,10 @@ concurrency:
 # - a Mergify merge-queue run: a draft pull request on a mergify/merge-queue/* branch, holding master
 #   plus the pull requests being merged. It runs the FULL suite, every shard of every package, and is
 #   held to master's rule that every job succeeds. "Queue Checks Pass" is its verdict.
-# - a push to master or a manual dispatch: the full suite, which release.yml and deploy-pages.yml use.
+# - a push to master: NO tests. The merge queue already ran the full suite on exactly this tree. The build
+#   job builds every package, Storybook and docs site (deploy-pages.yml publishes them) and skips every
+#   test job; "All Checks Pass" counts the skipped ones as passing. Owner decision, 2026-10-06.
+# - a manual dispatch, or the release train's call (release.yml, on the candidate commit): the full suite.
 # A Mergify merge-queue run: a draft on a mergify/merge-queue/* branch of this repository, opened by
 # Mergify's app. The branch name alone is not enough: anyone can push a branch with that prefix. A job's
 # `if` cannot read env, so the build job repeats this test.
@@ -65,6 +77,7 @@ jobs:
         # conditions read these instead of each asking nx again. See the "Plan" step below.
         outputs:
             full: ${{ steps.plan.outputs.full }}
+            light: ${{ steps.plan.outputs.light }}
             affected: ${{ steps.plan.outputs.affected }}
             test-matrix: ${{ steps.plan.outputs.test-matrix }}
             test-count: ${{ steps.plan.outputs.test-count }}
@@ -72,6 +85,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
+                  ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
@@ -91,9 +105,9 @@ jobs:
             # packages it changed plus every package that depends on them. Each pull request run used to be
             # about 30 jobs against an organisation limit of about 60 concurrent jobs, so two open pull
             # requests queued each other; a pull request confined to graph-io now runs one test shard, not
-            # twenty-one. A push to master and a manual dispatch pass every project as "affected", so they
-            # run every shard and every Chromatic job exactly as before -- master is still fully tested
-            # before release.yml publishes anything.
+            # twenty-one. A manual dispatch and the release train's call pass every project as "affected", so
+            # they run every shard; the release train runs it on the exact commit it publishes. A push to
+            # master passes none: it builds and tests nothing (the merge queue tested that tree).
             # What counts as "everything" on a pull request is nx.json's sharedGlobals: the root TypeScript,
             # ESLint, Vite and Vitest configs, pnpm-workspace.yaml, .npmrc and every file under
             # .github/workflows (nx already treats nx.json, package.json and pnpm-lock.yaml that way). A
@@ -115,7 +129,11 @@ jobs:
                   LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
               run: |
                   all=$(pnpm exec nx show projects --json)
-                  if [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]]; then
+                  if [[ "$EVENT" == "push" ]]; then
+                      # master: build only, test nothing (the "light" run)
+                      { echo "full=true"; echo "light=true"; } >> "$GITHUB_OUTPUT"
+                      affected='[]'
+                  elif [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]]; then
                       echo "full=false" >> "$GITHUB_OUTPUT"
                       affected=$(pnpm exec nx show projects --affected --base="origin/$BASE_REF" --head=HEAD --json)
                   else
@@ -128,6 +146,7 @@ jobs:
 
             # The shard groups, the draft and merge-queue conditions and the title check's queue exemption.
             - name: CI workflow tests
+              if: steps.plan.outputs.light != 'true'
               run: pnpm run test:ci-workflows
 
             # No security audit here: a new advisory is published against code a pull request did not
@@ -443,6 +462,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
+                  ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
@@ -645,6 +665,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
+                  ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
@@ -686,6 +707,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
+                  ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
@@ -727,6 +749,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
+                  ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
@@ -768,6 +791,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
+                  ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
@@ -809,6 +833,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
+                  ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
@@ -847,9 +872,12 @@ jobs:
     links:
         name: Links
         needs: build
+        if: needs.build.outputs.light != 'true'
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -918,17 +946,20 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # The algorithms benchmark table (master branch only): a measurement, with no baseline to compare.
+    # The algorithms benchmark table (a manual dispatch and the release train): a measurement, with no
+    # baseline to compare. A push to master runs no test job, so this one is skipped with it.
     # Advisory: release.yml, deploy-pages.yml and coverage.yml read the run's conclusion, and a
     # measurement with no pass/fail role must not hold them.
     performance:
         name: Performance Benchmarks
         needs: test
-        if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: github.event_name != 'pull_request'
         continue-on-error: true
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
 
             - uses: pnpm/action-setup@v4
 
@@ -970,6 +1001,8 @@ jobs:
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
 
             - uses: pnpm/action-setup@v4
 
@@ -1024,6 +1057,7 @@ jobs:
     visual:
         name: visual (${{ matrix.project }})
         needs: build
+        if: needs.build.outputs.light != 'true'
         runs-on: ubuntu-24.04
         permissions:
             contents: read
@@ -1071,6 +1105,7 @@ jobs:
             - uses: actions/checkout@v4
               if: steps.skip.outputs.skip != 'true'
               with:
+                  ref: ${{ inputs.ref }}
                   fetch-depth: 2
 
             - name: Restore this project's baseline images
@@ -1192,7 +1227,8 @@ jobs:
     # On a pull request a job this run chose not to start (a test job or Chromatic job for an unaffected
     # package) is "skipped", and skipped counts as passing; failure and cancelled never do. Build is needed
     # here and must succeed, because when it fails every other job is skipped too, and without it that
-    # would read as a pass. On master, dispatch and the merge queue (the build job's full=true) every job
+    # would read as a pass. A push to master (light=true) skips every test job by design, so skipped passes
+    # there too, and Build must still succeed. On dispatch, the release train and the merge queue every job
     # must succeed: nothing is meant to be skipped there, so a skip means the plan went wrong and must
     # not pass silently. On a draft the rest of the run is skipped but this job still runs, and FAILS:
     # GitHub and Mergify count a skipped required check as passing, and the draft run's check stays on
@@ -1221,13 +1257,14 @@ jobs:
                   NEEDS: ${{ toJSON(needs) }}
                   BUILD: ${{ needs.build.result }}
                   FULL: ${{ needs.build.outputs.full }}
+                  LIGHT: ${{ needs.build.outputs.light }}
               run: |
                   if [[ "$BUILD" == "skipped" ]]; then
                       echo "::error::draft: CI not run. Mark the pull request ready (gh pr ready) to run it."
                       exit 1
                   fi
                   ok='["success"]'
-                  [[ "$FULL" == "false" ]] && ok='["success","skipped"]'
+                  [[ "$FULL" == "false" || "$LIGHT" == "true" ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
                   # Chromatic jobs are opt-in (see chromatic-element), so a skipped one passes on every event.
                   # The visual job never decides here, whatever result job-level continue-on-error makes

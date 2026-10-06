@@ -496,6 +496,36 @@ function prAuthors(state, n) {
     return authors;
 }
 
+/**
+ * The issue an issue job works on: `facts.issue`, or its `#n` target.
+ * @param {any} job the job
+ * @returns {number} the issue number, NaN when it names none
+ */
+const issueOf = (job) => Number(job.facts?.issue ?? String(job.target).replace(/^#/, ""));
+
+/**
+ * Why a job of another kind in flight covers issue job `job`'s issue, or null: a batch job
+ * (triage) holding it among the issues of its `facts.batch`. Two jobs on one issue would work
+ * against each other, e.g. a fix verified while triage relabels it.
+ * @param {any} state the daemon state
+ * @param {any} job the issue job
+ * @param {string | null | undefined} caller the session asking (its own claim is "yours")
+ * @returns {string | null} the reason
+ */
+function jobOnIssue(state, job, caller) {
+    const n = issueOf(job);
+    if (Number.isNaN(n)) return null;
+    for (const j of Object.values(state.jobs ?? {})) {
+        if (j.id === job.id || j.state === "queued" || TERMINAL.includes(j.state)) continue;
+        if (j.kind === job.kind || !(j.facts?.batch ?? []).map(Number).includes(n)) continue;
+        const session = j.holder?.session;
+        if (!session) return `#${n} is in flight in ${j.id}`;
+        if (session === caller) return `yours: you claimed ${j.id}, which covers #${n}`;
+        return `#${n} is in ${j.id}, claimed by session ${j.holder.name ?? state.sessions?.[session]?.name ?? session}`;
+    }
+    return null;
+}
+
 /** Why a session may not review its own pull request. */
 const SELF_REVIEW = "you wrote this pull request";
 
@@ -510,6 +540,8 @@ const SELF_REVIEW = "you wrote this pull request";
  * @returns {string | null} the reason
  */
 export function jobInUse(state, job, opts) {
+    const covered = job.kind === "issue" ? jobOnIssue(state, job, opts.session) : null;
+    if (covered) return covered;
     const n = prOf(job);
     if (n === null) return null;
     const review = job.kind === "review";

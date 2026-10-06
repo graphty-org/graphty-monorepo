@@ -567,6 +567,47 @@ describe("a development daemon", () => {
         }
     });
 
+    it("gets the session's heartbeat, judged alive from its own state directory", async () => {
+        /** @type {any[]} */
+        const beats = [];
+        const server = createServer((req, res) => {
+            let text = "";
+            req.on("data", (d) => (text += d));
+            req.on("end", () => {
+                if (req.url === "/heartbeat") beats.push(JSON.parse(text));
+                if (req.url === "/health") return res.end(JSON.stringify({ name: "githerd", root }));
+                res.end("{}");
+            });
+        }).listen(0, "127.0.0.1");
+        await new Promise((r) => server.once("listening", r));
+        const { port } = /** @type {import("node:net").AddressInfo} */ (server.address());
+        const sd = join(dir, "dev");
+        mkdirSync(sd, { recursive: true });
+        writeFileSync(join(sd, "daemon.json"), JSON.stringify({ port }));
+        writeFileSync(join(sd, "alive"), JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
+        writeFileSync(join(sd, "lock"), JSON.stringify({ pid: process.pid, ...identify(process.pid) }));
+        const input = new PassThrough();
+        const running = runLauncher({
+            input,
+            write: () => {},
+            cwd: root,
+            env: { ...env, GITHERD_DEV_STATE: sd },
+            ppid: 4243,
+            pkgDir: "githerd",
+            heartbeatMs: 100,
+            jitterMs: 0,
+            log: () => {},
+        });
+        try {
+            await until(() => beats.length > 0, "a heartbeat");
+            expect(beats[0].cwd).toBe(root);
+        } finally {
+            input.end();
+            await running;
+            server.close();
+        }
+    });
+
     it("is never another repository's daemon", async () => {
         const other = createServer((_req, res) =>
             res.end(JSON.stringify({ name: "githerd", root: "/elsewhere/main" })),

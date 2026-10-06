@@ -289,4 +289,32 @@ describe("pull requests in use (owner decisions 2026-10-04 and 2026-10-05)", () 
         state.jobs["title-9"] = title;
         expect(asking("s1")).toEqual([{ job: "pr-9", reason: "yours: you claimed title-9" }]);
     });
+
+    it("never offers an issue job while another session's triage batch holds that issue", () => {
+        const triage = newJob(
+            {
+                kind: "triage",
+                id: "triage-types-11",
+                target: "3 issues: #282 #504 #510",
+                facts: { scope: "types", batch: [282, 504, 510] },
+            },
+            NOW,
+        );
+        const issue = newJob({ kind: "issue", target: "#504", id: "issue-504" }, NOW);
+        const other = newJob({ kind: "issue", target: "#600", id: "issue-600" }, NOW);
+        const state = /** @type {any} */ ({ jobs: { "issue-504": issue, "issue-600": other }, prs: {} });
+        state.jobs["triage-types-11"] = triage;
+        const asking = (/** @type {string} */ session) =>
+            jobOrder(state.jobs, { inUse: (j) => jobInUse(state, j, { now: NOW, session }) });
+        // Queued, the triage job covers nothing.
+        expect(asking("s2").inUse).toEqual([]);
+        move(triage, "starting", NOW, { holder: { session: "s1", name: "graphty-7", startedBy: "githerd" } });
+        expect(asking("s2").inUse).toEqual([
+            { job: "issue-504", reason: "#504 is in triage-types-11, claimed by session graphty-7" },
+        ]);
+        expect(asking("s1").inUse).toEqual([
+            { job: "issue-504", reason: "yours: you claimed triage-types-11, which covers #504" },
+        ]);
+        expect(asking("s2").items.map((i) => i.job)).toContain("issue-600");
+    });
 });

@@ -156,7 +156,7 @@ export function pm2Command(servherd, env) {
  * @param {{cwd?: string, env?: Record<string, string | undefined>, now?: () => Date,
  *   pkgDir?: string, healthWaitMs?: number, name?: string, stateDir?: string}} [options] where the
  *   launcher runs; `name` defaults to `GITHERD_NAME` (a separate daemon, for the development
- *   daemon and the smoke test) or `daemonName`, `stateDir` to `defaultStateDir`
+ *   daemon and the smoke test) or `daemonName`, `stateDir` to `GITHERD_DEV_STATE` or `defaultStateDir`
  * @returns {{kind: "outside"} | {kind: "unconfigured", root: string, reason: string}
  *   | {kind: "ready", ctx: LauncherContext, problem: string | null}} outside a repository, not
  *   configured, or ready; `problem` names an invalid config, which the daemon reports in turn
@@ -187,7 +187,9 @@ export function launcherContext({
         problem = err.message;
     }
     const servherd = config?.servherdCommand ?? DEFAULTS.servherdCommand;
-    const dir = stateDir ?? defaultStateDir(root, env.HOME);
+    // A development daemon's state directory is its own: the heartbeat's liveness check, the session
+    // identity and the log read it, not the installed daemon's (which may not exist).
+    const dir = stateDir ?? env.GITHERD_DEV_STATE ?? defaultStateDir(root, env.HOME);
     return {
         kind: "ready",
         problem,

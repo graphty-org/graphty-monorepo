@@ -529,6 +529,16 @@ function sessionCli(root, stateDir, home) {
 }
 
 /**
+ * Whether a development daemon stays quiet by default: an acting one is the live daemon, so it
+ * pages as its owner-items group says.
+ * @param {NodeJS.ProcessEnv} env the environment
+ * @returns {boolean} true for a development daemon that neither notifies nor acts
+ */
+function devQuiet(env) {
+    return Boolean(env.GITHERD_DEV) && env.GITHERD_DEV_NOTIFY !== "1" && env.GITHERD_DEV_ACT !== "1";
+}
+
+/**
  * Starts the daemon.
  * @param {object} options what it runs on
  * @param {string} options.root the repository's main checkout
@@ -579,8 +589,7 @@ export async function startDaemon({
     fatalOnUncaught = false,
     autoPoll = true,
     log = (line) => process.stdout.write(`${line}\n`),
-    // An acting development daemon is the live one, so it pages as its owner-items group says.
-    quiet = Boolean(env.GITHERD_DEV) && env.GITHERD_DEV_NOTIFY !== "1" && env.GITHERD_DEV_ACT !== "1",
+    quiet = devQuiet(env),
     workers: workersOn = true,
     durable = true,
     platform: platformOptions = {},
@@ -2225,20 +2234,30 @@ export async function startDaemon({
                     open.map(([n]) => Number(n)),
                 );
         }
-        if (!state.merged.refsBackfilled) {
-            const since =
-                open
-                    .map(([, i]) => i.createdAt)
-                    .filter(Boolean)
-                    .sort((a, b) => a.localeCompare(b))[0] ?? "1970-01-01T00:00:00Z";
-            const refs = await backfillRefs(gh, config.repo, since, branch, onBranch);
-            state.merged.refs ??= {};
-            for (const [n, list] of Object.entries(refs)) {
-                const have = (state.merged.refs[n] ??= []);
-                for (const r of list) if (!have.includes(r)) have.push(r);
-            }
-            state.merged.refsBackfilled = true;
+        if (!state.merged.refsBackfilled) await backfillOpenRefs(gh, branch, open, onBranch);
+    }
+
+    /**
+     * Once, the references of open issues in pull requests merged before githerd's first scan,
+     * added to `state.merged.refs` (merged.mjs backfillRefs).
+     * @param {ReturnType<typeof createGitHub>} gh the client
+     * @param {string} branch the default branch
+     * @param {[string, any][]} open the open issues, by number
+     * @param {(sha: string) => Promise<boolean>} onBranch whether a commit is on the default branch
+     */
+    async function backfillOpenRefs(gh, branch, open, onBranch) {
+        const since =
+            open
+                .map(([, i]) => i.createdAt)
+                .filter(Boolean)
+                .sort((a, b) => a.localeCompare(b))[0] ?? "1970-01-01T00:00:00Z";
+        const refs = await backfillRefs(gh, config.repo, since, branch, onBranch);
+        state.merged.refs ??= {};
+        for (const [n, list] of Object.entries(refs)) {
+            const have = (state.merged.refs[n] ??= []);
+            for (const r of list) if (!have.includes(r)) have.push(r);
         }
+        state.merged.refsBackfilled = true;
     }
 
     /**

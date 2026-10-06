@@ -15,7 +15,7 @@ import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } f
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, type NodeEventDetail, nodeEventDetail } from "./events";
-import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
+import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
 import type { NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
@@ -3478,6 +3478,30 @@ export class Graphty extends LitElement {
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
         return this.#graph.worldToScreen(worldPos);
+    }
+
+    /**
+     * Where a node is drawn on screen, and whether it can be seen there.
+     *
+     * `x` and `y` are the node's centre in CSS pixels from the element's top-left corner, the
+     * same pixels {@link worldToScreen} returns: a click there selects the node. `visible` is
+     * false when the centre is outside the element, behind the camera, or the node is hidden by
+     * a filter. `radius` is how big the node is drawn, in pixels. Read it again after the camera
+     * or the layout moves; it is not a live value.
+     * @param nodeId - The node's id.
+     * @returns The position, or undefined for an id the graph does not hold.
+     * @since 3.15.0
+     * @example
+     * ```typescript
+     * const at = element.nodeScreenPosition("Valjean");
+     * if (at?.visible) {
+     *     marker.style.left = `${at.x - at.radius}px`;
+     *     marker.style.top = `${at.y - at.radius}px`;
+     * }
+     * ```
+     */
+    nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
+        return this.#graph.nodeScreenPosition(nodeId);
     }
 
     /**

@@ -4,11 +4,29 @@
  * Undo work as for any file, and nothing is run on it.
  */
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
 import { newProjectId, type WorkspaceStore } from "../state/store";
+
+/**
+ * Why a file did not open or add, in the app's words. graphty-element refuses a file it could not
+ * read whole with `E_PARSE_FAILED` and the line it broke at; nothing of it is kept.
+ * @param fileName - the file's name.
+ * @param error - what the element threw.
+ * @param verb - "opened" or "added".
+ * @returns the notice's sentence.
+ */
+export function notReadSentence(fileName: string, error: unknown, verb: "opened" | "added"): string {
+    if (isGraphtyError(error) && error.code === "E_PARSE_FAILED") {
+        const line = error.details?.line;
+        const where = typeof line === "number" ? ` near line ${String(line)}` : "";
+        return `${fileName} could not be ${verb}: the file is incomplete or damaged${where}, so nothing was read. Ask for the file again.`;
+    }
+    const reason = error instanceof Error ? error.message : String(error);
+    return `${fileName} could not be ${verb}. ${reason}`;
+}
 
 /**
  * Opens a new project and hands its load to the workspace, which runs it once the project's
@@ -51,8 +69,7 @@ export function openFile({ workspace, session }: CommandContext, file: File): vo
     const source = { config: { file }, name: file.name };
     if (workspace.get().project !== null && session !== null) {
         session.data.import(source, { mode: "merge" }).catch((error: unknown) => {
-            const reason = error instanceof Error ? error.message : String(error);
-            workspace.set({ notice: { message: `${file.name} could not be added. ${reason}` } });
+            workspace.set({ notice: { message: notReadSentence(file.name, error, "added"), error: true } });
         });
         return;
     }

@@ -21,6 +21,8 @@ type Page = "panels" | "data-page";
 /** One notice (section 2.4): one message and at most one action. */
 export interface Notice {
     readonly message: string;
+    /** A failure: it stays until the reader dismisses it, rather than going after 6 s. */
+    readonly error?: boolean;
     readonly action?: { readonly label: string; readonly run: () => void };
 }
 

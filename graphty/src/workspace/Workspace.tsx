@@ -11,6 +11,7 @@ import { ReportDialog } from "./privacy/ReportDialog";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { REGISTRATIONS } from "./registrations";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import { notReadSentence } from "./start/open";
 import { StartScreen } from "./start/StartScreen";
 import { createWorkspaceStore, useStoreValue, type WorkspaceState, type WorkspaceStore } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
@@ -54,17 +55,23 @@ export function Workspace({
         [store, registry, element],
     );
     useCommandKeys(value);
-    // A project opened from the start screen loads its sample or file once its element is up.
+    // A project opened from the start screen loads its sample or file once its element is up. If
+    // the load fails, the project was never really opened: back to the start screen, with the
+    // reason staying until it is dismissed.
     useEffect(() => {
-        const { opening } = store.get();
+        const { opening, project } = store.get();
         const { session } = element;
         if (opening === null || session === null) {
             return;
         }
         store.set({ opening: null });
         opening.load(session).catch((error: unknown) => {
-            const reason = error instanceof Error ? error.message : String(error);
-            store.set({ notice: { message: `${opening.name} could not be opened. ${reason}` } });
+            const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
+            store.set((state) =>
+                state.project?.id === project?.id
+                    ? { project: null, page: "panels", inspected: null, dialog: null, renaming: false, notice }
+                    : { notice },
+            );
         });
     }, [element, store]);
     const projectOpen = useStoreValue(store, (state) => state.project !== null);

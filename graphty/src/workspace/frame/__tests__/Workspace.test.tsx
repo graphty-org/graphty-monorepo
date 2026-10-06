@@ -215,6 +215,39 @@ describe("the workspace frame", () => {
         assert.isNull(screen.queryByText("Saved Les Miserables"));
     });
 
+    it("keeps an error notice until it is dismissed, and any notice while focus is on it", () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+
+        // On the start screen too: a failed open lands there.
+        act(() => {
+            store.set({ notice: { message: "cut-55 could not be opened.", error: true } });
+        });
+        act(() => {
+            vi.advanceTimersByTime(NOTICE_MS * 10);
+        });
+        assert.isNotNull(screen.getByText("cut-55 could not be opened."));
+
+        act(() => {
+            store.set({ notice: { message: "Saved Les Miserables" } });
+        });
+        act(() => {
+            screen.getByRole("button", { name: "Dismiss" }).focus();
+        });
+        act(() => {
+            vi.advanceTimersByTime(NOTICE_MS * 2);
+        });
+        assert.isNotNull(screen.getByText("Saved Les Miserables"));
+        act(() => {
+            screen.getByRole("button", { name: "Dismiss" }).blur();
+        });
+        act(() => {
+            vi.advanceTimersByTime(NOTICE_MS);
+        });
+        assert.isNull(screen.queryByText("Saved Les Miserables"));
+    });
+
     it("runs a notice's one action and takes the notice down", async () => {
         const store = createWorkspaceStore(OPEN);
         let undone = false;

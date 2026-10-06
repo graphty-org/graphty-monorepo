@@ -15,7 +15,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
 
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -130,4 +130,43 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
             TIMEOUT_MS,
         );
     }
+});
+
+describe("a file that cannot be read, on the real element", () => {
+    it(
+        "leaves the start screen showing, adds nothing to Recent projects, and keeps the reason",
+        async () => {
+            const whole = `<?xml version="1.0"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <graph edgedefault="undirected">
+${Array.from({ length: 9 }, (_, i) => `    <node id="n${String(i)}"/>`).join("\n")}
+${Array.from({ length: 8 }, (_, i) => `    <edge source="n${String(i)}" target="n${String(i + 1)}"/>`).join("\n")}
+  </graph>
+</graphml>`;
+            const transfer = new DataTransfer();
+            transfer.items.add(new File([whole.slice(0, Math.floor(whole.length * 0.55))], "cut-55.graphml"));
+            const store = createWorkspaceStore();
+            const { unmount } = render(<Workspace store={store} />);
+
+            globalThis.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
+            await waitFor(() => store.get().notice !== null || assert.fail("no notice yet"), { timeout: TIMEOUT_MS });
+
+            // Back where the reader was: no project, no empty canvas named after the file.
+            assert.isNull(store.get().project);
+            assert.isNull(document.querySelector("graphty-element"));
+            assert.isNotNull(screen.getByRole("region", { name: "Start" }));
+            assert.isNull(within(screen.getByRole("region", { name: "Recent projects" })).queryByText(/cut-55/));
+            // The reason is the app's sentence from the element's code and line, and it stays.
+            const { notice } = store.get();
+            assert.isTrue(notice?.error);
+            assert.match(
+                notice?.message ?? "",
+                /^cut-55 could not be opened: the file is incomplete or damaged near line \d+/,
+            );
+            assert.include(notice?.message ?? "", "Ask for the file again.");
+            assert.isNotNull(screen.getByText(notice?.message ?? ""));
+            unmount();
+        },
+        TIMEOUT_MS,
+    );
 });

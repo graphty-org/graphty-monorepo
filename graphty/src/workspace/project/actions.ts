@@ -304,24 +304,27 @@ export function closeProject(ctx: CommandContext): void {
  * @param session - the session.
  * @param pending - the file, its handle and its Recent projects entry.
  * @param discard - open over unsaved changes.
+ * @returns false when the element refused the file.
  */
 async function openInSession(
     ctx: CommandContext,
     session: GraphSession,
     pending: NonNullable<ProjectFileState["pending"]>,
     discard: boolean,
-): Promise<void> {
+): Promise<boolean> {
     const { workspace } = ctx;
     const { file, handle, recentId } = pending;
     if (!discard && fileState(workspace).writeFailed) {
-        askToDiscard(workspace, () => openInSession(ctx, session, pending, true));
-        return;
+        askToDiscard(workspace, async () => {
+            await openInSession(ctx, session, pending, true);
+        });
+        return true;
     }
     try {
         const report = await session.project.open(file, { discard, fileName: file.name });
         if (report.opened !== "project") {
             workspace.set({ notice: { message: `Added ${file.name} to this project` } });
-            return;
+            return true;
         }
         const name = report.name ?? headerName(workspace);
         workspace.set((state) => ({ project: state.project && { ...state.project, name } }));
@@ -338,11 +341,15 @@ async function openInSession(
         });
     } catch (error) {
         if (isGraphtyError(error) && error.code === "E_UNSAVED_CHANGES") {
-            askToDiscard(workspace, () => openInSession(ctx, session, pending, true));
-            return;
+            askToDiscard(workspace, async () => {
+                await openInSession(ctx, session, pending, true);
+            });
+            return true;
         }
-        workspace.set({ notice: { message: problemSentence(file.name, error) } });
+        workspace.set({ notice: { message: problemSentence(file.name, error), error: true } });
+        return false;
     }
+    return true;
 }
 
 /**
@@ -389,7 +396,12 @@ export async function openPending(ctx: CommandContext): Promise<void> {
         return;
     }
     state.pending = null;
-    await openInSession(ctx, ctx.session, pending, true);
+    if (!(await openInSession(ctx, ctx.session, pending, true))) {
+        // Refused: the project was never opened, so back to the start screen, keeping the reason.
+        const { notice } = ctx.workspace.get();
+        closeNow(ctx.workspace);
+        ctx.workspace.set({ notice });
+    }
 }
 
 /** What happened when the reader clicked a Recent projects entry. */

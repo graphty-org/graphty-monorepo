@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
 import { CommandButton } from "../frame/CommandButton";
+import { NoticeSlot } from "../frame/NoticeSlot";
 import { formatKey } from "../keys/keys";
 import { PrivacyChip } from "../privacy/PrivacyChip";
 import { UsageDataCard } from "../privacy/UsageDataCard";
@@ -156,6 +157,8 @@ export function StartScreen(): React.JSX.Element {
                     <UsageDataCard />
                 </div>
             </main>
+
+            <NoticeSlot />
 
             {dragging ? (
                 <div className="ws-start-drop" aria-hidden>

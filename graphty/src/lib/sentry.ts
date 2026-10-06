@@ -21,7 +21,7 @@ interface SentryConfig {
  */
 function getDefaultConfig(): SentryConfig {
     return {
-        dsn: import.meta.env.VITE_SENTRY_DSN as string | undefined,
+        dsn: import.meta.env.VITE_SENTRY_DSN,
         environment: import.meta.env.MODE,
         isProd: import.meta.env.PROD,
     };

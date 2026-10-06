@@ -318,7 +318,7 @@ function collectPropertyPaths(
         return;
     }
 
-    for (const key of Object.keys(obj as Record<string, unknown>)) {
+    for (const key of Object.keys(obj)) {
         const path = prefix ? `${prefix}.${key}` : key;
         properties.add(path);
 

@@ -229,7 +229,7 @@ function nonFiniteCount(column: Column): number {
             if ((value as readonly number[]).some((v) => !Number.isFinite(v))) {
                 count++;
             }
-        } else if (!Number.isFinite(value as number)) {
+        } else if (!Number.isFinite(value)) {
             count++;
         }
     }

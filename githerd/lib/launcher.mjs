@@ -6,12 +6,14 @@
  * (`identifySession`) and the tool protocol in `params._meta.githerd`. stdout carries JSON-RPC lines only; anything else goes to stderr.
  *
  * The daemon always runs the default branch's copy of the package, archived into
- * `~/.githerd/<checkout name>/versions/<version>-<hash8>/` with `current` pointing at it, so a
+ * `~/.githerd/<owner>_<name>/versions/<version>-<hash8>/` with `current` pointing at it, so a
  * worktree's unmerged code never becomes the shared daemon. Every start path (this launcher, the
  * MCP server's once-a-minute check, `githerd ensure`, the command `githerd install` prints) gives
  * servherd the same name, the same working directory (the state directory) and the same command
  * line, so servherd, which identifies a server by working directory plus name, always finds the one
- * entry (design section 9.4). servherd's `--autorestart` makes pm2 bring back a crashed daemon.
+ * entry (design section 9.4). The name is the state directory's, `githerd-<owner>_<name>`: servherd
+ * looks a server up by name alone for `restart` and `stop`, and names its pm2 process after it, so
+ * two repositories' daemons under one name would restart each other. servherd's `--autorestart` makes pm2 bring back a crashed daemon.
  *
  * The command starts the daemon under `env -i`: pm2 hands every process it starts the environment
  * of the session that first started pm2 (stale `CLAUDE*` variables among it). The daemon reads its
@@ -64,12 +66,12 @@ import {
     writeSelfUpdate,
 } from "./self-update.mjs";
 import { assertSupported, validate } from "./schema.mjs";
-import { defaultStateDir, readLiveness } from "./store.mjs";
+import { defaultStateDir, legacyStateDir, readLiveness } from "./store.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 
 /** The /health protocol major this launcher speaks (the daemon's `PROTOCOL`). */
 const PROTOCOL = 1;
-/** The name every githerd daemon reports in /health, and the default servherd name. */
+/** The name every githerd daemon reports in /health, and the servherd name of an unmigrated install. */
 const NAME = "githerd";
 /** How long a `tools/call` waits for the daemon. */
 const CALL_WAIT_MS = 45_000;
@@ -98,8 +100,8 @@ const ARCHIVE_LIMITS = { files: 5_000, bytes: 200 * 1024 * 1024 };
  * Everything `ensureDaemon` works from.
  * @typedef {object} LauncherContext
  * @property {string} root the repository's main checkout
- * @property {string} name the daemon's servherd name, `githerd` unless set
- * @property {string} stateDir `~/.githerd/<checkout name>` unless set
+ * @property {string} name the daemon's servherd name (`daemonName`) unless set
+ * @property {string} stateDir `~/.githerd/<owner>_<name>` unless set
  * @property {Record<string, string | undefined>} env the environment the launcher passes on
  * @property {import("./config.mjs").Config | null} config the config; null when invalid
  * @property {string[]} servherd the servherd command
@@ -153,8 +155,8 @@ export function pm2Command(servherd, env) {
  * Builds the launcher's context for a working directory.
  * @param {{cwd?: string, env?: Record<string, string | undefined>, now?: () => Date,
  *   pkgDir?: string, healthWaitMs?: number, name?: string, stateDir?: string}} [options] where the
- *   launcher runs; `name` defaults to `GITHERD_NAME` or `githerd` (a separate daemon, for the
- *   development daemon and the smoke test), `stateDir` to `~/.githerd/<checkout name>`
+ *   launcher runs; `name` defaults to `GITHERD_NAME` (a separate daemon, for the development
+ *   daemon and the smoke test) or `daemonName`, `stateDir` to `defaultStateDir`
  * @returns {{kind: "outside"} | {kind: "unconfigured", root: string, reason: string}
  *   | {kind: "ready", ctx: LauncherContext, problem: string | null}} outside a repository, not
  *   configured, or ready; `problem` names an invalid config, which the daemon reports in turn
@@ -165,7 +167,7 @@ export function launcherContext({
     now = () => new Date(),
     pkgDir,
     healthWaitMs = HEALTH_WAIT_MS,
-    name = env.GITHERD_NAME || NAME,
+    name = env.GITHERD_NAME,
     stateDir,
 } = {}) {
     let root;
@@ -185,13 +187,14 @@ export function launcherContext({
         problem = err.message;
     }
     const servherd = config?.servherdCommand ?? DEFAULTS.servherdCommand;
+    const dir = stateDir ?? defaultStateDir(root, env.HOME);
     return {
         kind: "ready",
         problem,
         ctx: {
             root,
-            name,
-            stateDir: stateDir ?? defaultStateDir(root, env.HOME),
+            name: name || daemonName(root, dir, env.HOME),
+            stateDir: dir,
             env,
             config,
             servherd,
@@ -201,6 +204,20 @@ export function launcherContext({
             healthWaitMs,
         },
     };
+}
+
+/**
+ * The daemon's servherd name: `githerd-` and the state directory's name, unique per repository.
+ * An install from before 2026-10 that still runs from `~/.githerd/<folder name>` (store.mjs
+ * `defaultStateDir` moves it only once nothing runs from it) keeps the name it was started under,
+ * `githerd`, so its running daemon is still the one entry found.
+ * @param {string} root the main checkout
+ * @param {string} stateDir the state directory
+ * @param {string} [home] the home directory
+ * @returns {string} the name
+ */
+export function daemonName(root, stateDir, home) {
+    return stateDir === legacyStateDir(root, home) ? NAME : `${NAME}-${basename(stateDir)}`;
 }
 
 /**
@@ -1052,7 +1069,7 @@ export async function ensureDaemon(ctx) {
     // GITHERD_DEV_STATE names its state directory instead, and the URL is read from its daemon.json
     // at every lookup, so a restart on a new port costs one failed call, not a reconnect.
     const devUrl = ctx.env.GITHERD_DEV_STATE ? devStateUrl(ctx.env.GITHERD_DEV_STATE) : ctx.env.GITHERD_URL;
-    if (devUrl) return devDaemon(devUrl);
+    if (devUrl) return devDaemon(devUrl, ctx.root);
     const target = await targetCode(ctx);
     const up = await upAnswer(ctx, target);
     if (up) return up;
@@ -1084,11 +1101,13 @@ function devStateUrl(dir) {
 }
 
 /**
- * The development daemon GITHERD_URL names, checked through its /health answer.
+ * The development daemon GITHERD_URL names, checked through its /health answer: a githerd daemon
+ * of this repository, never another's.
  * @param {string} url the daemon's base URL, e.g. http://127.0.0.1:9678
+ * @param {string} root the main checkout
  * @returns {Promise<{url: string, action: "warm" | "down", fatal?: string}>} the answer
  */
-async function devDaemon(url) {
+async function devDaemon(url, root) {
     let base = url;
     while (base.endsWith("/")) base = base.slice(0, -1);
     let health;
@@ -1098,7 +1117,9 @@ async function devDaemon(url) {
     } catch {
         health = null;
     }
-    if (health?.name !== "githerd") throw new Error(`GITHERD_URL ${base} does not answer as a githerd daemon`);
+    if (health?.name !== NAME) throw new Error(`GITHERD_URL ${base} does not answer as a githerd daemon`);
+    if (health.root !== root)
+        throw new Error(`GITHERD_URL ${base} is the githerd daemon of ${health.root}, not ${root}`);
     if (health.fatal) return { url: base, action: "down", fatal: health.fatal };
     return { url: base, action: "warm" };
 }

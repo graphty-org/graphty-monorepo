@@ -131,7 +131,7 @@ describe("fillSlots", () => {
         const job = state.jobs["pr-12"];
         expect(calls[0]).toEqual({ prepare: "pr-12", sha: "h".repeat(40), ref: "refs/pull/12/head", branch: "fix/x" });
         // The SessionStart hook links the session to the holder, so it exists before the window.
-        expect(calls[1].holderBefore).toMatchObject({ socket: "githerd", startedBy: "githerd", session: null });
+        expect(calls[1].holderBefore).toMatchObject({ startedBy: "githerd", session: null });
         expect(calls[1].holderBefore.nonce).toMatch(/^[0-9a-f]{12}$/);
         const argv = calls[1].argv.join(" ");
         expect(argv).toContain(`GITHERD_JOB=pr-12 GITHERD_NONCE=${calls[1].holderBefore.nonce}`);

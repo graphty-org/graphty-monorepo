@@ -41,6 +41,10 @@ const GROUPS = {
     "worker-writes": "workerWrites",
 };
 
+/** What the board says when the repository has no `tools/push-queue.sh`. */
+export const NO_PUSH_QUEUE =
+    "this repository has no tools/push-queue.sh, so githerd's pushes and its reference gate run unqueued";
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
@@ -61,8 +65,8 @@ const DAY = 24 * HOUR;
  * @property {import("./lanes.mjs").LaneFacts | null} [lanes] the lane facts
  * @property {ReleaseView | null} [release] release truth
  * @property {PrView[] | null} [prs] each open pull request's `githerd/merge` decision
- * @property {{holder: string | null, waiters: number} | null} [pushQueue] the push queue
- *   (`tools/push-queue.sh`): the pushes running, and how many wait
+ * @property {{holder: string | null, waiters: number, missing?: boolean} | null} [pushQueue] the push
+ *   queue (`tools/push-queue.sh`): the pushes running, how many wait, and whether there is none
  * @property {Record<string, {used: number, max: number, measured: string}> | null} [limits] the
  *   machine limits and the measurement that set each
  * @property {{rate?: string, workerHoursToday?: number, phone?: string, hidden?: number,
@@ -217,6 +221,7 @@ const RENDER = {
 
     push(v) {
         if (!v.pushQueue) return ["PUSH QUEUE: unknown"];
+        if (v.pushQueue.missing) return [`PUSH QUEUE: none -- ${NO_PUSH_QUEUE}`];
         const { holder, waiters } = v.pushQueue;
         const who = holder ? "running " + holder : "free";
         return [`PUSH QUEUE: ${who}, ${waiters} waiting`];

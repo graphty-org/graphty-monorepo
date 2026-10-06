@@ -12,7 +12,7 @@ import {
 } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -22,7 +22,7 @@ import { escalate } from "../lib/board.mjs";
 import { parseSince, runCli } from "../lib/cli.mjs";
 import { repoRoot } from "../lib/config.mjs";
 import { startDaemon } from "../lib/daemon.mjs";
-import { appendLedger, readLedger } from "../lib/store.mjs";
+import { appendLedger, readLedger, repoIdentity } from "../lib/store.mjs";
 import { PACKAGE_DIR } from "../lib/version.mjs";
 import { createFakeGh } from "./helpers/fake-gh.mjs";
 
@@ -49,7 +49,12 @@ let strays;
  * The checkout's state directory under the test's HOME.
  * @returns {string} the directory
  */
-const stateDir = () => join(dir, "home", ".githerd", "main");
+const stateDir = () => join(dir, "home", ".githerd", repoIdentity(root));
+/**
+ * The daemon's servherd name: the state directory's.
+ * @returns {string} the name
+ */
+const daemonName = () => `githerd-${basename(stateDir())}`;
 
 beforeAll(() => isolateGit());
 
@@ -556,7 +561,7 @@ describe("attach", () => {
             `require("node:fs").writeFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(" ")); process.exit(3);`,
         );
         expect((await cli(["attach"])).code).toBe(3);
-        expect(readFileSync(log, "utf8")).toBe("-L githerd attach -t githerd");
+        expect(readFileSync(log, "utf8")).toBe(`-S ${join(stateDir(), "tmux")} attach -t githerd`);
     });
 
     it("says so when tmux cannot run", async () => {
@@ -653,11 +658,11 @@ describe("ensure and restart", () => {
         expect(warm.out).toMatch(/^warm /);
         expect((await cli(["status"])).code).toBe(0);
 
-        const before = JSON.parse(readFileSync(join(fake, "registry.json"), "utf8")).githerd.pid;
+        const before = JSON.parse(readFileSync(join(fake, "registry.json"), "utf8"))[daemonName()].pid;
         const restart = await cli(["restart"]);
-        expect(restart).toMatchObject({ code: 0, out: "restarted githerd" });
-        expect(servherdCalls().at(-1)?.argv).toEqual(["--json", "restart", "githerd"]);
-        expect(JSON.parse(readFileSync(join(fake, "registry.json"), "utf8")).githerd.pid).not.toBe(before);
+        expect(restart).toMatchObject({ code: 0, out: `restarted ${daemonName()}` });
+        expect(servherdCalls().at(-1)?.argv).toEqual(["--json", "restart", daemonName()]);
+        expect(JSON.parse(readFileSync(join(fake, "registry.json"), "utf8"))[daemonName()].pid).not.toBe(before);
     });
 
     it("install prepares the code and the environment file, prints the start command, and starts nothing", async () => {
@@ -666,7 +671,9 @@ describe("ensure and restart", () => {
         const r = await cli(["install"], { extraEnv: { PUSHOVER_USER_KEY: "k", CLAUDECODE: "1" } });
         expect(r.code).toBe(0);
         expect(r.out).toMatch(
-            new RegExp(`^cd ${stateDir()} && .* start -n githerd --autorestart -- env -i GITHERD_ROOT=${root} `),
+            new RegExp(
+                `^cd ${stateDir()} && .* start -n ${daemonName()} --autorestart -- env -i GITHERD_ROOT=${root} `,
+            ),
         );
         expect(r.out).not.toContain("PUSHOVER");
         expect(readlinkSync(join(stateDir(), "current"))).toMatch(/^versions\/0\.\d+\.\d+-[0-9a-f]{8}$/);
@@ -862,7 +869,7 @@ describe("doctor", () => {
             /^FAIL signing: git commit-tree -S did not finish within 1 s in this shell's environment/,
         );
         expect(c.daemon).toMatch(/^FAIL daemon: not reachable/);
-        expect(c.supervision).toBe("FAIL supervision: no pm2 process servherd-githerd; run githerd ensure");
+        expect(c.supervision).toBe(`FAIL supervision: no pm2 process servherd-${daemonName()}; run githerd ensure`);
         expect(c.state).toMatch(/^warn state: no /);
         const pid = Number(readFileSync(pidFile, "utf8"));
         const end = Date.now() + 5000;

@@ -25,14 +25,15 @@ export const sleep = (ms) => delay(Math.min(ms, 50));
 
 /**
  * A private tmux server and directories for fake workers.
+ * @param {{socket?: string}} [options] the server: a socket path (a repository's `tmuxSocket`), or
+ *   by default a private server name
  * @returns {{socket: string, dir: string, sessionsDir: string,
  *   start: (job: string, scenario: any) => Promise<any>, keys: (job: string) => any[],
  *   cleanup: () => Promise<void>}} the server, its directories, a starter, a reader of the keys a
  *   fake received, and the cleanup that kills the server and checks no fake is left
  */
-export function fakeWorkers() {
+export function fakeWorkers({ socket = `githerd-test-${process.pid}-${Date.now()}` } = {}) {
     const dir = mkdtempSync(join(tmpdir(), "githerd-tmux-"));
-    const socket = `githerd-test-${process.pid}-${Date.now()}`;
     const sessionsDir = join(dir, "sessions");
     const bin = join(dir, "bin");
     mkdirSync(sessionsDir);

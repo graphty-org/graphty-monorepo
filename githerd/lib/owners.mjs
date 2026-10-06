@@ -286,6 +286,19 @@ export function processTable(procDir = "/proc") {
 }
 
 /**
+ * The sessions working in this repository: their cwd is one of its worktrees (the main checkout
+ * among them, from `git worktree list --porcelain`) or inside one. Another repository's session
+ * that pushed a branch of the same name pushed nothing of this one's.
+ * @param {Registered[]} sessions the live sessions
+ * @param {string} porcelain git's output
+ * @returns {Registered[]} those in this repository
+ */
+export function inRepository(sessions, porcelain) {
+    const dirs = [...porcelain.matchAll(/^worktree (.+)$/gm)].map((m) => m[1]);
+    return sessions.filter((s) => s.cwd && dirs.some((d) => s.cwd === d || s.cwd.startsWith(d + sep)));
+}
+
+/**
  * The worktrees with a branch checked out, from `git worktree list --porcelain`.
  * @param {string} porcelain git's output
  * @returns {{dir: string, branch: string}[]} the worktrees

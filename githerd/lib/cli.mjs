@@ -37,6 +37,7 @@ import { createNotifier } from "./notify.mjs";
 import { pushQueueTickets, sameProcess } from "./proc.mjs";
 import { runSelftest, selftestText } from "./selftest.mjs";
 import { defaultStateDir, readLedger, readLiveness, replayLedger, STATE_SCHEMA } from "./store.mjs";
+import { serverArgs, tmuxSocket } from "./tmux.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 import { readSigningEnv } from "./worker-settings.mjs";
 
@@ -556,13 +557,14 @@ async function cmdControl(c) {
 }
 
 /**
- * `attach`: githerd's tmux server, where every worker has a window (design 7.6). Typing into a
- * worker's window steers it.
+ * `attach`: this repository's githerd tmux server, where every worker has a window (design 7.6).
+ * Typing into a worker's window steers it.
  * @param {Command} c the command
  * @returns {Promise<number>} tmux's exit code
  */
 async function cmdAttach(c) {
-    const r = spawnSync("tmux", ["-L", "githerd", "attach", "-t", "githerd"], { stdio: "inherit", env: c.env });
+    const server = serverArgs(tmuxSocket(c.stateDir));
+    const r = spawnSync("tmux", [...server, "attach", "-t", "githerd"], { stdio: "inherit", env: c.env });
     if (r.error) {
         c.err(`githerd attach: ${r.error.message}`);
         return 1;

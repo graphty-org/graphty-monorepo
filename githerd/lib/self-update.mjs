@@ -322,7 +322,7 @@ function killGroup(gating) {
  * under `gate-trees/` (a superseded commit's too), and the self-test's tmux server and worktree.
  * Called holding `gate.lock`, so no gate of this state directory runs meanwhile.
  * @param {{root: string, stateDir: string, pkgDir: string, env: Record<string, string | undefined>,
- *   selftest?: (root: string, env: Record<string, string | undefined>) => Promise<string | null>}} options
+ *   selftest?: (root: string, env: Record<string, string | undefined>, stateDir: string) => Promise<string | null>}} options
  *   the main checkout, the state directory, the package's path, the environment, and the
  *   self-test's cleanup (for tests)
  * @returns {Promise<string[]>} what could not be removed
@@ -337,7 +337,7 @@ export async function reapGating({ root, stateDir, pkgDir, env, selftest = reapS
         if (why) left.push(`${tree}: ${why}`);
     }
     await run("git", ["worktree", "prune"], { cwd: root, env });
-    const why = await selftest(root, env);
+    const why = await selftest(root, env, stateDir);
     if (why) left.push(`self-test worktree: ${why}`);
     writeGating(stateDir, null);
     return left;
@@ -348,7 +348,7 @@ export async function reapGating({ root, stateDir, pkgDir, env, selftest = reapS
  * verdict; its running child's group is killed; and once it returned, what it left is removed.
  * @param {{root: string, stateDir: string, pkgDir: string, env: Record<string, string | undefined>,
  *   abort: AbortController, running: Promise<unknown>,
- *   selftest?: (root: string, env: Record<string, string | undefined>) => Promise<string | null>}} options
+ *   selftest?: (root: string, env: Record<string, string | undefined>, stateDir: string) => Promise<string | null>}} options
  *   where it runs, its abort, and its promise
  * @returns {Promise<string[]>} what could not be removed
  */

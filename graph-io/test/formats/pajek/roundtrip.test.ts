@@ -250,7 +250,7 @@ describe("pajek round trips: sanitizeIds mangle keeps the original ids (design 8
             exportOptions,
         });
         expect(notes.map((n) => n.code)).toEqual([LOSS.ID_RENUMBERED]);
-        expect(notes[0].message).toContain("originalId");
+        expect(notes[0].message).toContain("restoreMangledIds");
         // vertex 3 has the id 3: its own 1-based index, so it carries no parameter
         expect(text).toBe(
             [
@@ -271,7 +271,7 @@ describe("pajek round trips: sanitizeIds mangle keeps the original ids (design 8
         expect(snapshot.edgeList().dst).toEqual(first.edgeList().dst);
         expect(snapshot.nodes.names()).toEqual(["label"]);
         // the vertex line of y carries a parameter, so it needs a label: the id text (the note says so)
-        expect(notes[0].message).toContain("as labels of the nodes without a label value");
+        expect(notes[0].message).toContain("the labels of nodes without a label value");
         const label = snapshot.nodes.requireTyped("label", "string");
         expect([0, 1, 2, 3].map((i) => (label.isSet(i) ? label.value(i) : undefined))).toEqual([
             "Ex",

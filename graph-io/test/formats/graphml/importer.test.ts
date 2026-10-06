@@ -215,7 +215,8 @@ describe("graphmlImporter corpus", () => {
 
 describe("graphmlImporter malformed corpus", () => {
     const fatal: Record<string, string> = {
-        "empty-file.graphml": GRAPHML_ISSUE.XML_SYNTAX,
+        // one code for the concept: every importer gives an empty input E_EMPTY_INPUT (was E_XML_SYNTAX)
+        "empty-file.graphml": GRAPHML_ISSUE.EMPTY_INPUT,
         "invalid-xml.graphml": GRAPHML_ISSUE.XML_SYNTAX,
         "not-xml.graphml": GRAPHML_ISSUE.XML_SYNTAX,
         "unclosed-tag.graphml": GRAPHML_ISSUE.XML_SYNTAX,
@@ -466,12 +467,23 @@ describe("graphmlImporter keys and data", () => {
             GRAPHML_ISSUE.PORT_DECLARATION,
             GRAPHML_ISSUE.LOCATOR_DROPPED,
             GRAPHML_ISSUE.UNKNOWN_ELEMENT,
+            // targetport="p2": node b declares no port p2
+            GRAPHML_ISSUE.DANGLING_REFERENCE,
         ]);
         expect(report.issues.every((i) => i.severity === "warning")).toBe(true);
         expect(snapshot.edges.require("sourceport").meta.role).toBe("sourcePort");
         expect(snapshot.edges.require("targetport").meta.role).toBe("targetPort");
         expect(column(snapshot, "edges", "sourceport")).toEqual(["p1"]);
         expect(column(snapshot, "edges", "targetport")).toEqual(["p2"]);
+    });
+
+    it("says where a misplaced GraphML element belongs instead of calling it foreign", async () => {
+        const message = async (body: string): Promise<string | undefined> =>
+            (await load(doc(body))).report.issues.find((i) => i.code === GRAPHML_ISSUE.UNKNOWN_ELEMENT)?.message;
+        expect(await message(`<key id="k" for="node" attr.name="k"/><node id="a"/>`)).toBe(
+            "element <key> is only allowed as a child of <graphml>, before the first <graph>; it was skipped",
+        );
+        expect(await message(`<node id="a"><bogus/></node>`)).toBe("element <bogus> is not GraphML and was skipped");
     });
 
     it("reports stray text and data of a nested graph", async () => {
@@ -495,6 +507,8 @@ describe("graphmlImporter unread XML attributes", () => {
             [GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE, "warning", "foo"],
             [GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE, "warning", "bar"],
             [GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE, "warning", "baz"],
+            // sourceport="p": node 1 declares no port p
+            [GRAPHML_ISSUE.DANGLING_REFERENCE, "warning", "1:p"],
         ]);
     });
 
@@ -633,7 +647,8 @@ describe("graphmlImporter direction", () => {
         const forced = await load(doc(MIXED, "directed"), { onMixedDirection: "undirected" });
         expect(forced.snapshot.directed).toBe(false);
         expect(forced.snapshot.edgeCount).toBe(4);
-        expect(codes(forced.report)).toEqual([DIRECTION_FORCED_CODE, DIRECTION_FORCED_CODE]);
+        // the file-level warning covers its directed edges; no edge repeats it
+        expect(codes(forced.report)).toEqual([DIRECTION_FORCED_CODE]);
         const directed = await load(doc(MIXED, "undirected"), { onMixedDirection: "directed" });
         expect(directed.snapshot.directed).toBe(true);
         expect(directed.snapshot.edgeCount).toBe(4);

@@ -427,8 +427,8 @@ function entryOf(name: string): string {
  * @returns the name, or undefined when the barrel has none
  */
 function findExport(exported: ReadonlyMap<string, unknown>, suffix: string, prefix: string): string | undefined {
-    const want = `${prefix}${suffix}`.toLowerCase().split("-").join("");
-    return [...exported.keys()].find((k) => k.toLowerCase().split("_").join("") === want.split("_").join(""));
+    const want = `${prefix}${suffix}`.toLowerCase().replaceAll("-", "");
+    return [...exported.keys()].find((k) => k.toLowerCase().replaceAll("_", "") === want.replaceAll("_", ""));
 }
 
 /**
@@ -846,7 +846,7 @@ function codesTable(rows: readonly CodeRow[], errorMeans: string): string[] {
  * @returns the prefix
  */
 function tablePrefix(f: FormatFacts): string {
-    return f.name.toUpperCase().split("-").join("_");
+    return f.name.toUpperCase().replaceAll("-", "_");
 }
 
 /**
